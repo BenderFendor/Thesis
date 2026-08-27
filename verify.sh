@@ -13,8 +13,8 @@ npm run cli:schema:check
 
 echo "--- Python / Backend ---"
 bash -lc 'cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict'
-uvx ruff check backend/ --fix
-uvx ruff format backend/
+uvx ruff@0.15.22 check backend/ --fix
+uvx ruff@0.15.22 format backend/
 
 echo "--- Rust ---"
 cargo clippy --manifest-path backend/rss_parser_rust/Cargo.toml -- -D warnings

@@ -65,6 +65,7 @@ from app.models.evidence import (
 )
 from app.services.entity_resolver import resolve_or_create
 from app.services.evidence_spine import (
+    ContradictionError,
     EvidenceSpineError,
     canonical_json,
     evaluate_claim_by_id,
@@ -73,10 +74,14 @@ from app.services.evidence_spine import (
 )
 from app.services.funding_researcher import _EDGAR_HEADERS, FundingResearcher
 from app.services.littlesis_integration import (
+    LITTLESIS_ENTITIES_FILE,
+    LITTLESIS_RELATIONSHIPS_FILE,
     RELATIONSHIP_CATEGORIES_OF_INTEREST,
+    download_littlesis_bulk,
     load_littlesis_entities,
     load_littlesis_relationships,
 )
+from app.services.ad_supply_transparency import ADS_TXT_MAX_BYTES, ads_txt_url, parse_ads_txt
 from app.services.mbfc_integration import build_mbfc_lookup
 
 logger = get_logger("evidence_ingest")
@@ -104,6 +109,7 @@ class IngestReport:
     accepted: int = 0
     candidates: int = 0
     acceptance_failures: list[str] = field(default_factory=list)
+    adjudications_opened: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +315,10 @@ async def _auto_accept_relationship_claim(
     """
     try:
         relationship = await materialize_claim(db, cast(str, claim.id), reviewer=reviewer)
+    except ContradictionError as exc:
+        report.adjudications_opened.append(f"{claim.id}: {exc.adjudication_item_id}")
+        report.candidates += 1
+        return None
     except EvidenceSpineError as exc:
         report.acceptance_failures.append(f"{claim.id}: {exc}")
         report.candidates += 1
@@ -350,7 +360,37 @@ async def _auto_accept_attribute_claim(
 
 
 def _wikidata_document_id(qid: str, prop: str, statement_id: Any) -> str:
+    return f"doc_wikidata_{stable_hash(qid, prop, statement_id)[:40]}"
+
+
+def _wikidata_legacy_document_id(qid: str, prop: str, statement_id: Any) -> str:
+    """The pre-2026-08-27 readable id; probed so re-ingests reuse old documents."""
     return f"doc_wikidata_{qid}_{prop}_{statement_id}"
+
+
+async def _get_or_create_wikidata_document(
+    db: AsyncSession,
+    *,
+    qid: str,
+    prop: str,
+    statement_id: Any,
+    **kwargs: Any,
+) -> EvidenceDocument:
+    """Get-or-create the statement document, probing the legacy id first.
+
+    The id format changed on 2026-08-27 (readable -> stable hash): documents
+    created before that carry the old id, so a re-ingest must look both up
+    instead of orphaning a duplicate row per statement.
+    """
+    doc_id = _wikidata_document_id(qid, prop, statement_id)
+    document = await db.get(EvidenceDocument, doc_id)
+    if document is None:
+        document = await db.get(
+            EvidenceDocument, _wikidata_legacy_document_id(qid, prop, statement_id)
+        )
+    if document is None:
+        document = await _get_or_create_document(db, document_id=doc_id, **kwargs)
+    return document
 
 
 def _statement_has_reference(statement: dict[str, Any]) -> bool:
@@ -413,10 +453,11 @@ async def _ingest_wikidata_qid(
         # acceptance on the linked *document's* `source_class`, so each
         # statement's citation status must be recorded on its own document.
         statement_id = statement.get("id") or stable_hash(prop, statement)[:16]
-        doc_id = _wikidata_document_id(qid, prop, statement_id)
-        document = await _get_or_create_document(
+        document = await _get_or_create_wikidata_document(
             db,
-            document_id=doc_id,
+            qid=qid,
+            prop=prop,
+            statement_id=statement_id,
             source_url=f"{wikidata_url}#{statement_id}",
             document_type="wikidata_statement",
             source_class=(
@@ -701,6 +742,13 @@ async def ingest_littlesis_ownership(
     entity, for both category 10 (ownership) and 11 (hierarchy).
     """
     report = IngestReport(source="littlesis")
+    if entities_file is None and relationships_file is None:
+        # Auto-download is idempotent (download_littlesis_bulk skips any
+        # file already cached) and degrades gracefully offline -- it never
+        # raises, just logs one warning and leaves the file absent.
+        downloaded = await download_littlesis_bulk()
+        entities_file = downloaded.get(LITTLESIS_ENTITIES_FILE, entities_file)
+        relationships_file = downloaded.get(LITTLESIS_RELATIONSHIPS_FILE, relationships_file)
     entities = load_littlesis_entities(entities_file)
     if not entities:
         return report
@@ -1120,7 +1168,6 @@ async def ingest_edgar_subsidiaries(
                 content_type="text/html",
                 report=report,
             )
-
             for index, (name, jurisdiction) in enumerate(subsidiaries):
                 subsidiary_entity = await resolve_or_create(
                     db,
@@ -1163,6 +1210,131 @@ async def ingest_edgar_subsidiaries(
             await http_client.aclose()
 
     return report
+
+
+async def ingest_ads_supply(
+    db: AsyncSession,
+    *,
+    publishers: dict[str, str],
+    client: httpx.AsyncClient | None = None,
+    limit: int | None = None,
+) -> IngestReport:
+    """Capture ads.txt seller authorizations as candidate evidence claims.
+
+    ``publishers`` maps an accepted publication entity id to its canonical
+    website. Each claim keeps the exact publisher domain, seller account id,
+    DIRECT/RESELLER relationship, and capture time. This adapter never
+    accepts or materializes a relationship.
+    """
+    from urllib.parse import urlparse
+
+    from app.core.config import SCOOP_BROWSER_UA
+
+    report = IngestReport(source="ads_txt")
+    owned_client = client is None
+    http_client = client or httpx.AsyncClient(timeout=20.0, follow_redirects=True)
+    try:
+        items = (
+            sorted(publishers.items())[:limit] if limit is not None else sorted(publishers.items())
+        )
+        unreachable_count = 0
+        eligible_count = 0
+        for publisher_entity_id, website in items:
+            url = ads_txt_url(website)
+            if url is None:
+                continue
+            eligible_count += 1
+            try:
+                response = await http_client.get(
+                    url,
+                    headers={"User-Agent": SCOOP_BROWSER_UA, "Accept": "text/plain,*/*;q=0.8"},
+                    follow_redirects=True,
+                )
+            except httpx.HTTPError as exc:
+                unreachable_count += 1
+                logger.debug("ads_txt: publisher %s unreachable: %s", website, exc)
+                continue
+            if response.status_code != 200:
+                continue
+            raw = response.content[:ADS_TXT_MAX_BYTES]
+            text = raw.decode(response.encoding or "utf-8", errors="replace")
+            parsed = parse_ads_txt(text)
+            retrieved_at = datetime.now(UTC).replace(tzinfo=None)
+            publisher_domain = (urlparse(website).hostname or website).lower().removeprefix("www.")
+            document = await _get_or_create_document(
+                db,
+                document_id=f"doc_ads_txt_{stable_hash(publisher_domain)[:24]}",
+                source_url=str(response.url),
+                document_type="ads_txt",
+                source_class="ads_txt",
+                issuer_entity_id=publisher_entity_id,
+                report=report,
+            )
+            snapshot = await _get_or_create_snapshot(
+                db,
+                document_id=cast(str, document.id),
+                raw_bytes=raw,
+                retriever="httpx",
+                retriever_version=METHOD_VERSION,
+                retrieved_at=retrieved_at,
+                http_status=response.status_code,
+                content_type=response.headers.get("content-type"),
+                report=report,
+            )
+            capture_time = cast(datetime, snapshot.retrieved_at)
+            for index, record in enumerate(cast(list[dict[str, str]], parsed["records"])):
+                ad_system = record["ad_system_domain"]
+                account_id = record["publisher_account_id"]
+                relationship_type = record["relationship"]
+                seller = await resolve_or_create(
+                    db,
+                    record_kind="legal_entity",
+                    entity_kind="seller_account",
+                    external_ids={"seller_account": f"{ad_system}:{account_id}"},
+                    candidate_name=f"{ad_system} seller {account_id}",
+                )
+                observation = await _get_or_create_observation(
+                    db,
+                    snapshot_id=cast(str, snapshot.id),
+                    locator={"record_index": index},
+                    quoted_text=f"{ad_system}, {account_id}, {relationship_type}",
+                    structured_value=record,
+                    extractor="ads_txt_parser",
+                    extractor_version=METHOD_VERSION,
+                    report=report,
+                )
+                claim, created = await _get_or_create_claim(
+                    db,
+                    subject_entity_id=publisher_entity_id,
+                    predicate="authorizes_inventory_seller",
+                    object_entity_id=cast(str, seller.id),
+                    object_value=None,
+                    qualifiers={
+                        "publisher_domain": publisher_domain,
+                        "seller_account_id": account_id,
+                        "ad_system_domain": ad_system,
+                        "relationship_type": relationship_type,
+                        "captured_at": capture_time.isoformat(),
+                        "lifecycle_state": "current",
+                    },
+                    asserted_by="ads_txt",
+                    evidence_class="ads_txt",
+                    valid_from=capture_time,
+                    report=report,
+                )
+                await _link_claim_evidence(
+                    db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
+                )
+                if created:
+                    report.candidates += 1
+        if unreachable_count:
+            logger.info("ads_txt: skipped %d unreachable publishers", unreachable_count)
+        if eligible_count and unreachable_count == eligible_count:
+            raise EvidenceSpineError(f"ads_txt: all {eligible_count} publishers were unreachable")
+        return report
+    finally:
+        if owned_client:
+            await http_client.aclose()
 
 
 # ---------------------------------------------------------------------------

@@ -166,7 +166,7 @@ export default function ReporterDirectoryPage() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-white/10">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/wiki" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/wiki/ownership" className="text-muted-foreground hover:text-foreground transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div>

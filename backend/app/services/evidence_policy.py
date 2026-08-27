@@ -74,6 +74,7 @@ REGISTRY_CLASSES = frozenset(
         "government_record",
         "audited_statement",
         "charter_or_statute",
+        "fcc_filing",
         # A Wikidata statement that carries an explicit citation (a
         # `references` block on the statement, not just an unsourced
         # community edit) -- per the Atlas rebuild plan's user decision #2,
@@ -100,7 +101,8 @@ POLICIES: dict[str, PredicatePolicy] = {
     "owns_equity_in": PredicatePolicy("owns_equity_in", REGISTRY_CLASSES),
     "directly_owns": PredicatePolicy("directly_owns", REGISTRY_CLASSES),
     "brand_of": PredicatePolicy(
-        "brand_of", frozenset({"registry_filing", "transaction_filing", "trademark_assignment"})
+        "brand_of",
+        frozenset({"registry_filing", "transaction_filing", "trademark_assignment", "own_site"}),
     ),
     "operated_by": PredicatePolicy(
         "operated_by",
@@ -130,9 +132,20 @@ POLICIES: dict[str, PredicatePolicy] = {
                 "grantor_record",
                 "audited_statement",
                 "government_record",
+                "own_site",
             }
         ),
     ),
+    "reports_contribution": PredicatePolicy(
+        "reports_contribution", frozenset({"irs_990", "audited_statement"})
+    ),
+    "reports_revenue": PredicatePolicy(
+        "reports_revenue", frozenset({"irs_990", "audited_statement"})
+    ),
+    "reports_compensation": PredicatePolicy(
+        "reports_compensation", frozenset({"irs_990", "audited_statement"})
+    ),
+    "reports_grant": PredicatePolicy("reports_grant", frozenset({"irs_990", "audited_statement"})),
     "authored_by": PredicatePolicy(
         "authored_by", frozenset({"article_structured_data", "article_byline"})
     ),
@@ -146,8 +159,17 @@ POLICIES: dict[str, PredicatePolicy] = {
     "political_ad_purchase": PredicatePolicy(
         "political_ad_purchase", frozenset({"fcc_political_file"})
     ),
+    "sponsors_content": PredicatePolicy(
+        "sponsors_content", frozenset({"sponsorship_disclosure", "transaction_record"})
+    ),
+    "advertising_inventory_sold_by": PredicatePolicy(
+        "advertising_inventory_sold_by", frozenset({"own_site", "contract_record"})
+    ),
     "authorizes_inventory_seller": PredicatePolicy(
         "authorizes_inventory_seller", frozenset({"ads_txt", "sellers_json"})
+    ),
+    "syndicated_by": PredicatePolicy(
+        "syndicated_by", frozenset({"article_structured_data", "own_site"})
     ),
     "coverage_measurement": PredicatePolicy(
         "coverage_measurement", frozenset({"reproducible_measurement_run"})
@@ -156,7 +178,8 @@ POLICIES: dict[str, PredicatePolicy] = {
         "formerly_known_as", frozenset({"registry_filing", "transaction_filing"})
     ),
     "successor_of": PredicatePolicy(
-        "successor_of", frozenset({"registry_filing", "transaction_filing", "court_record"})
+        "successor_of",
+        frozenset({"registry_filing", "transaction_filing", "transaction_record", "court_record"}),
     ),
     "state_chartered_independent": PredicatePolicy(
         "state_chartered_independent", frozenset({"charter_or_statute"})

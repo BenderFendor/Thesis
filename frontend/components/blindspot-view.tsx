@@ -19,7 +19,7 @@ import {
   type TrendingCluster,
   fetchBlindspotViewer,
 } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, serializeSources } from "@/lib/utils"
 
 interface BlindspotViewProps {
   category?: string
@@ -38,13 +38,6 @@ const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "largest", label: "Largest story" },
   { value: "recent", label: "Most recent" },
 ]
-
-function serializeSources(sources?: string[]): string | undefined {
-  if (!sources || sources.length === 0) {
-    return undefined
-  }
-  return [...sources].sort().join(",")
-}
 
 function formatDate(value?: string | null): string {
   if (!value) return "No timestamp"
@@ -434,7 +427,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
       {
         lens: selectedLens,
         category: category || "all",
-        sources: serializedSources || null,
+        sources: serializedSources,
       },
     ],
     queryFn: () =>

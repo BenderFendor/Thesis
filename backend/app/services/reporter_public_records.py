@@ -283,22 +283,20 @@ def _strip_html(value: str) -> str:
     return text.strip()
 
 
-def clean_author_name(value: str | None) -> str | None:
-    """Return a reporter-like author name or None for generic navigation labels."""
-    if not isinstance(value, str):
-        return None
-    text = _strip_html(value).replace("\u200b", "").replace("\ufeff", "")
-    if not text:
-        return None
-
+def _clean_email_wrapped_name(text: str) -> str:
     wrapped = _EMAIL_WRAPPED_NAME_PATTERN.match(text)
-    text = wrapped.group(1).strip() if wrapped else _EMAIL_PATTERN.sub(" ", text)
+    return wrapped.group(1).strip() if wrapped else _EMAIL_PATTERN.sub(" ", text)
 
+
+def _split_multi_author_name(text: str) -> str:
     if " / " in text:
         first_part = text.split(" / ", 1)[0].strip()
         if first_part:
-            text = first_part
+            return first_part
+    return text
 
+
+def _strip_byline_prefixes(text: str) -> str:
     text = text.replace("`", "'")
     text = re.sub(r"\s+", " ", text).strip(" \t\r\n:|,;")
     text = re.sub(
@@ -310,39 +308,67 @@ def clean_author_name(value: str | None) -> str | None:
     ).strip()
     text = re.sub(r"^as\s+told\s+to\s+", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"^(?:by|por)\s+", "", text, flags=re.IGNORECASE).strip()
+    return text
+
+
+def _strip_trailing_parenthetical(text: str) -> str:
     parenthetical_match = _TRAILING_PARENTHETICAL_PATTERN.match(text)
     if parenthetical_match:
         parenthetical_candidate = parenthetical_match.group(1).strip()
         if _word_token_count(parenthetical_candidate) >= 2:
-            text = parenthetical_candidate
+            return parenthetical_candidate
+    return text
+
+
+def _strip_role_separator_suffix(text: str) -> str | None:
+    """Return None when the suffix is an unrelated phrase following the name."""
     suffix_match = _ROLE_SUFFIX_SEPARATOR_PATTERN.search(text)
-    if suffix_match:
-        suffix = suffix_match.group(1).lower()
-        prefix = text[: suffix_match.start()].strip()
-        if prefix and any(term in suffix for term in _ROLE_SUFFIX_TERMS):
-            text = prefix
-        elif prefix and _word_token_count(suffix) >= 2:
-            return None
+    if not suffix_match:
+        return text
+    suffix = suffix_match.group(1).lower()
+    prefix = text[: suffix_match.start()].strip()
+    if prefix and any(term in suffix for term in _ROLE_SUFFIX_TERMS):
+        return prefix
+    if prefix and _word_token_count(suffix) >= 2:
+        return None
+    return text
+
+
+def _strip_leading_role_prefix(text: str) -> str:
     leading_role_match = _LEADING_ROLE_PREFIX_PATTERN.match(text)
     if leading_role_match:
         leading_candidate = leading_role_match.group(1).strip()
         if _word_token_count(leading_candidate) >= 2:
-            text = leading_candidate
+            return leading_candidate
+    return text
+
+
+def _strip_trailing_role_suffix(text: str) -> str | None:
+    """Return None when only a role prefix such as 'business editor' remains."""
     trailing_role_match = _TRAILING_ROLE_SUFFIX_PATTERN.match(text)
-    if trailing_role_match:
-        trailing_candidate = trailing_role_match.group(1).strip()
-        lowered_trailing_candidate = trailing_candidate.lower()
-        if lowered_trailing_candidate in _ROLE_ONLY_PREFIXES:
-            return None
-        if _word_token_count(trailing_candidate) >= 2 and not lowered_trailing_candidate.startswith(
-            "the "
-        ):
-            text = trailing_candidate
+    if not trailing_role_match:
+        return text
+    trailing_candidate = trailing_role_match.group(1).strip()
+    lowered_trailing_candidate = trailing_candidate.lower()
+    if lowered_trailing_candidate in _ROLE_ONLY_PREFIXES:
+        return None
+    if _word_token_count(trailing_candidate) >= 2 and not lowered_trailing_candidate.startswith(
+        "the "
+    ):
+        return trailing_candidate
+    return text
+
+
+def _strip_location_suffix(text: str) -> str:
     location_suffix_match = _LOCATION_SUFFIX_PATTERN.match(text)
     if location_suffix_match:
         location_candidate = location_suffix_match.group(1).strip()
         if _word_token_count(location_candidate) >= 2:
-            text = location_candidate
+            return location_candidate
+    return text
+
+
+def _strip_section_or_beat_suffix(text: str) -> str:
     for _ in range(3):
         section_suffix_match = _TRAILING_SECTION_SUFFIX_PATTERN.match(text)
         if section_suffix_match:
@@ -357,22 +383,48 @@ def clean_author_name(value: str | None) -> str | None:
                 text = beat_candidate
                 continue
         break
+    return text
+
+
+def _is_non_person_byline(text: str) -> bool:
     lowered = text.lower()
-    if (
+    return (
         not text
         or lowered in _NON_PERSON_AUTHOR_LABELS
         or any(phrase in lowered for phrase in _NON_PERSON_AUTHOR_PHRASES)
-        or _ORGANIZATION_AUTHOR_PATTERN.search(text)
-        or _ROLE_AUTHOR_PATTERN.search(text)
-        or _GENERIC_BYLINE_PATTERN.search(text)
-        or _GENERIC_BYLINE_EXACT_PATTERN.match(text)
+        or bool(_ORGANIZATION_AUTHOR_PATTERN.search(text))
+        or bool(_ROLE_AUTHOR_PATTERN.search(text))
+        or bool(_GENERIC_BYLINE_PATTERN.search(text))
+        or bool(_GENERIC_BYLINE_EXACT_PATTERN.match(text))
         or ("_" in text and " " not in text)
-        or ((" " not in text) and re.search(r"[.@\d]", text))
+        or ((" " not in text) and bool(re.search(r"[.@\d]", text)))
         or bool(re.fullmatch(r"([A-Za-z]+)\d+\s+\1\d+", text))
-    ):
+    )
+
+
+def clean_author_name(value: str | None) -> str | None:
+    """Return a reporter-like author name or None for generic navigation labels."""
+    if not isinstance(value, str):
+        return None
+    text = _strip_html(value).replace("\u200b", "").replace("\ufeff", "")
+    if not text:
         return None
 
-    if _word_token_count(text) < 2:
+    text = _clean_email_wrapped_name(text)
+    text = _split_multi_author_name(text)
+    text = _strip_byline_prefixes(text)
+    text = _strip_trailing_parenthetical(text)
+    after_role_separator_suffix = _strip_role_separator_suffix(text)
+    if after_role_separator_suffix is None:
+        return None
+    text = _strip_leading_role_prefix(after_role_separator_suffix)
+    after_trailing_role_suffix = _strip_trailing_role_suffix(text)
+    if after_trailing_role_suffix is None:
+        return None
+    text = _strip_location_suffix(after_trailing_role_suffix)
+    text = _strip_section_or_beat_suffix(text)
+
+    if _is_non_person_byline(text) or _word_token_count(text) < 2:
         return None
 
     return text
@@ -651,11 +703,9 @@ async def _fetch_article_author_signals(
     }
 
 
-async def build_reporter_activity_summary(
-    reporter_name: str,
+def _collect_activity_metrics(
     recent_articles: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Build Reporter Activity Summary."""
+) -> tuple[Counter[str], Counter[str], Counter[str], list[str], list[str]]:
     source_counts: Counter[str] = Counter()
     category_counts: Counter[str] = Counter()
     domain_counts: Counter[str] = Counter()
@@ -684,31 +734,58 @@ async def build_reporter_activity_summary(
         if isinstance(published_at, str) and published_at:
             article_dates.append(published_at)
 
+    return source_counts, category_counts, domain_counts, article_dates, article_urls
+
+
+async def _fetch_activity_author_signals(
+    client: httpx.AsyncClient,
+    reporter_name: str,
+    article_urls: list[str],
+) -> tuple[list[str], list[str], int]:
+    results = await asyncio.gather(
+        *[
+            _fetch_article_author_signals(client, reporter_name, article_url)
+            for article_url in article_urls
+        ],
+        return_exceptions=True,
+    )
+    author_pages: list[str] = []
+    social_links: list[str] = []
+    matched_meta_articles = 0
+    for result in results:
+        if isinstance(result, BaseException):
+            continue
+        author_pages.extend(
+            value for value in result.get("author_pages", []) if isinstance(value, str)
+        )
+        social_links.extend(
+            value for value in result.get("social_links", []) if isinstance(value, str)
+        )
+        meta_author = result.get("meta_author")
+        if _name_matches(meta_author if isinstance(meta_author, str) else None, reporter_name):
+            matched_meta_articles += 1
+    return author_pages, social_links, matched_meta_articles
+
+
+async def build_reporter_activity_summary(
+    reporter_name: str,
+    recent_articles: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build Reporter Activity Summary."""
+    source_counts, category_counts, domain_counts, article_dates, article_urls = (
+        _collect_activity_metrics(recent_articles)
+    )
+
     author_pages: list[str] = []
     social_links: list[str] = []
     matched_meta_articles = 0
     if article_urls:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            results = await asyncio.gather(
-                *[
-                    _fetch_article_author_signals(client, reporter_name, article_url)
-                    for article_url in article_urls
-                ],
-                return_exceptions=True,
-            )
-
-        for result in results:
-            if isinstance(result, BaseException):
-                continue
-            author_pages.extend(
-                value for value in result.get("author_pages", []) if isinstance(value, str)
-            )
-            social_links.extend(
-                value for value in result.get("social_links", []) if isinstance(value, str)
-            )
-            meta_author = result.get("meta_author")
-            if _name_matches(meta_author if isinstance(meta_author, str) else None, reporter_name):
-                matched_meta_articles += 1
+            (
+                author_pages,
+                social_links,
+                matched_meta_articles,
+            ) = await _fetch_activity_author_signals(client, reporter_name, article_urls)
 
     return {
         "article_count": len(recent_articles),

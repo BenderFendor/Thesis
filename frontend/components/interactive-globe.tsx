@@ -150,6 +150,22 @@ function remapCountryCounts(
   return remappedCounts
 }
 
+function polygonHeat(
+  feature: CountryFeature,
+  displayCounts: Record<string, number>,
+  mentionCounts: Record<string, number>,
+  maxCount: number,
+  maxMentionCount: number,
+) {
+  const iso = getCountryIso(feature)
+  const sourceCount = iso ? displayCounts[iso] || 0 : 0
+  const mentionCount = iso ? mentionCounts[iso] || 0 : 0
+  const ratio = sourceCount > 0
+    ? sourceHeatRatio(sourceCount, maxCount)
+    : sourceHeatRatio(mentionCount, maxMentionCount)
+  return { iso, sourceCount, mentionCount, ratio }
+}
+
 const EARTH_RADIUS = 100
 const MOBILE_OVERVIEW_ALTITUDE = 4.25
 const DESKTOP_OVERVIEW_ALTITUDE = 2.5
@@ -965,12 +981,7 @@ export function InteractiveGlobe({
         polygonAltitude={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return 0.006
-          const iso = getCountryIso(feature)
-          const sourceCount = iso ? displayCounts[iso] || 0 : 0
-          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
-          const ratio = sourceCount > 0
-            ? sourceHeatRatio(sourceCount, maxCount)
-            : sourceHeatRatio(mentionCount, maxMentionCount)
+          const { iso, sourceCount, ratio } = polygonHeat(feature, displayCounts, mentionCounts, maxCount, maxMentionCount)
           if (feature === hoverD) return 0.1 + ratio * 0.03
           if (selectedCountry === iso) return 0.055 + ratio * 0.025
           return sourceCount > 0 ? 0.01 + ratio * 0.024 : 0.008 + ratio * 0.016
@@ -978,9 +989,7 @@ export function InteractiveGlobe({
         polygonCapColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return "rgba(255, 255, 255, 0.03)"
-          const iso = getCountryIso(feature) ?? ""
-          const sourceCount = iso ? displayCounts[iso] || 0 : 0
-          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
+          const { iso, sourceCount, mentionCount } = polygonHeat(feature, displayCounts, mentionCounts, maxCount, maxMentionCount)
 
           if (feature === hoverD) {
             return sourceCount > 0
@@ -994,12 +1003,7 @@ export function InteractiveGlobe({
         polygonSideColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return "rgba(255, 255, 255, 0.028)"
-          const iso = getCountryIso(feature) ?? ""
-          const sourceCount = iso ? displayCounts[iso] || 0 : 0
-          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
-          const ratio = sourceCount > 0
-            ? sourceHeatRatio(sourceCount, maxCount)
-            : sourceHeatRatio(mentionCount, maxMentionCount)
+          const { iso, sourceCount, ratio } = polygonHeat(feature, displayCounts, mentionCounts, maxCount, maxMentionCount)
           if (feature === hoverD) {
             return sourceCount > 0 ? "rgba(255, 214, 138, 0.58)" : "rgba(150, 196, 224, 0.5)"
           }
@@ -1012,12 +1016,7 @@ export function InteractiveGlobe({
         polygonStrokeColor={(polygon: object) => {
           const feature = toCountryFeature(polygon)
           if (!feature) return "rgba(255, 255, 255, 0.08)"
-          const iso = getCountryIso(feature) ?? ""
-          const sourceCount = iso ? displayCounts[iso] || 0 : 0
-          const mentionCount = iso ? mentionCounts[iso] || 0 : 0
-          const ratio = sourceCount > 0
-            ? sourceHeatRatio(sourceCount, maxCount)
-            : sourceHeatRatio(mentionCount, maxMentionCount)
+          const { iso, sourceCount, ratio } = polygonHeat(feature, displayCounts, mentionCounts, maxCount, maxMentionCount)
           if (feature === hoverD) {
             return sourceCount > 0 ? "rgba(255, 240, 204, 0.95)" : "rgba(198, 224, 242, 0.9)"
           }

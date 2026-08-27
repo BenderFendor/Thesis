@@ -4,7 +4,7 @@ LittleSis is a free, open-source power-research database (CC BY-SA).
 It tracks relationships between powerful people and organizations.
 
 Data sources:
-- Bulk data download: https://littlesis.org/bulk_data
+- Bulk data download: https://littlesis.org/database/public_data
   - entities.json.gz: ~303K people/org entities
   - relationships.json.gz: ~1.86M relationships
 - REST API: https://littlesis.org/api
@@ -19,6 +19,7 @@ This module imports LittleSis data to enrich reporter profiles with:
 
 from __future__ import annotations
 
+import contextlib
 import gzip
 import json
 import os
@@ -31,7 +32,7 @@ from app.core.logging import get_logger
 
 logger = get_logger("littlesis")
 
-LITTLESIS_BULK_BASE = "https://littlesis.org/bulk_data"
+LITTLESIS_BULK_BASE = "https://littlesis.org/database/public_data"
 LITTLESIS_ENTITIES_FILE = "entities.json.gz"
 LITTLESIS_RELATIONSHIPS_FILE = "relationships.json.gz"
 LITTLESIS_API_BASE = "https://littlesis.org/api"
@@ -80,7 +81,12 @@ def _ensure_data_dir() -> str:
 
 def _is_media_entity(entity: dict[str, Any]) -> bool:
     name = str(entity.get("name", "")).lower()
-    description = str(entity.get("description", "")).lower()
+    # `description` is the field name in the original flat bulk-dump schema;
+    # the current JSON:API schema (flattened by `_flatten_jsonapi_record`)
+    # carries the same free-text summary under `blurb`/`summary` instead.
+    description = str(
+        entity.get("description") or entity.get("blurb") or entity.get("summary") or ""
+    ).lower()
     entity_type = str(entity.get("primary_ext", "")).lower()
     text = f"{name} {description} {entity_type}"
     return any(keyword in text for keyword in MEDIA_KEYWORDS)
@@ -90,12 +96,100 @@ def _name_tokens(name: str) -> set[str]:
     return set(name.lower().strip().split())
 
 
+def _iter_json_records(fileobj: Any) -> Any:
+    """Yield raw JSON records from a LittleSis bulk file, in either shape it ships as.
+
+    LittleSis's bulk dumps have shipped as both a newline-delimited stream of
+    flat JSON objects (one entity/relationship per line, the format this
+    module originally targeted) and, currently, a single minified top-level
+    JSON array of JSON:API resource objects (`{"type", "id", "attributes"}`).
+    Detects which one *filepath* is and streams records out of either without
+    ever materializing the whole (400MB-1.3GB decompressed) file as one
+    parsed Python object.
+    """
+    decoder = json.JSONDecoder()
+    buf = ""
+    mode: str | None = None
+    while True:
+        chunk = fileobj.read(1 << 20)
+        if mode is None:
+            stripped = buf.lstrip() + chunk.lstrip() if not buf.strip() else buf.lstrip()
+            if not stripped:
+                if chunk == "":
+                    return
+                buf += chunk
+                continue
+            mode = "array" if stripped[:1] == "[" else "lines"
+            buf += chunk
+            if mode == "array":
+                start = buf.index("[") + 1
+                buf = buf[start:]
+        else:
+            buf += chunk
+
+        if mode == "array":
+            while True:
+                i = 0
+                while i < len(buf) and buf[i] in " \t\r\n,":
+                    i += 1
+                buf = buf[i:]
+                if not buf:
+                    break
+                if buf[0] == "]":
+                    return
+                try:
+                    obj, end = decoder.raw_decode(buf)
+                except json.JSONDecodeError:
+                    break  # need more data from the next chunk
+                yield obj
+                buf = buf[end:]
+            if chunk == "":
+                return
+        else:
+            while "\n" in buf:
+                line, buf = buf.split("\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+            if chunk == "":
+                line = buf.strip()
+                if line:
+                    with contextlib.suppress(json.JSONDecodeError):
+                        yield json.loads(line)
+                return
+
+
+def _flatten_jsonapi_record(raw: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a `{"type", "id", "attributes": {...}}` JSON:API record.
+
+    Records in the older flat-line format (no `attributes` key) pass through
+    unchanged, so callers/tests written against that shape keep working.
+    """
+    attributes = raw.get("attributes")
+    if not isinstance(attributes, dict):
+        return raw
+    flat = dict(attributes)
+    flat.setdefault("id", raw.get("id"))
+    return flat
+
+
 async def download_littlesis_bulk(
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, str]:
-    """Download LittleSis bulk data files.
+    """Download LittleSis bulk data files, skipping any already cached locally.
 
-    Returns dict of filename -> local filepath.
+    Idempotent: a file already present at its expected path is never
+    re-downloaded. When the network is unavailable (offline dev, no bulk
+    data yet), failures are collected and reported as a single INFO-level
+    summary rather than an ERROR per file -- an absent bulk file is an
+    expected, recoverable state, not a fault.
+
+    Returns dict of filename -> local filepath for every file that is now
+    present on disk (already cached or freshly downloaded).
     """
     data_dir = _ensure_data_dir()
     owned_client = client is None
@@ -103,6 +197,7 @@ async def download_littlesis_bulk(
 
     try:
         results: dict[str, str] = {}
+        failed: list[str] = []
         for filename in [LITTLESIS_ENTITIES_FILE, LITTLESIS_RELATIONSHIPS_FILE]:
             local_path = str(Path(data_dir) / filename)
             url = f"{LITTLESIS_BULK_BASE}/{filename}"
@@ -113,14 +208,24 @@ async def download_littlesis_bulk(
                 continue
 
             logger.info("Downloading %s ...", url)
-            response = await http_client.get(url)
+            try:
+                response = await http_client.get(url)
+            except httpx.HTTPError as exc:
+                failed.append(f"{filename}: {type(exc).__name__}")
+                continue
             if response.status_code != 200:
-                logger.error("Failed to download %s: HTTP %d", url, response.status_code)
+                failed.append(f"{filename}: HTTP {response.status_code}")
                 continue
 
             Path(local_path).write_bytes(response.content)
             logger.info("Downloaded %s -> %s", filename, local_path)
             results[filename] = local_path
+
+        if failed:
+            logger.warning(
+                "LittleSis bulk download unavailable (offline?), skipping: %s",
+                "; ".join(failed),
+            )
 
         return results
     finally:
@@ -139,36 +244,30 @@ def load_littlesis_entities(
         filepath = str(Path(_ensure_data_dir()) / LITTLESIS_ENTITIES_FILE)
 
     if not Path(filepath).exists():
-        logger.error("LittleSis entities file not found: %s", filepath)
+        logger.warning("LittleSis entities file not found: %s", filepath)
         return []
 
     logger.info("Loading entities from %s ...", filepath)
     entities: list[dict[str, Any]] = []
 
-    line_num = 0
+    record_num = 0
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entity = cast(dict[str, Any], json.loads(line))
-                if _is_media_entity(entity):
-                    entities.append(entity)
-            except json.JSONDecodeError:
-                continue
+        for record_num, raw in enumerate(_iter_json_records(f), 1):
+            entity = _flatten_jsonapi_record(cast(dict[str, Any], raw))
+            if _is_media_entity(entity):
+                entities.append(entity)
 
-            if line_num % 50000 == 0:
+            if record_num % 50000 == 0:
                 logger.debug(
-                    "Parsed %d lines, %d media entities found",
-                    line_num,
+                    "Parsed %d records, %d media entities found",
+                    record_num,
                     len(entities),
                 )
 
     logger.info(
-        "Loaded %d media-related entities from %d total lines",
+        "Loaded %d media-related entities from %d total records",
         len(entities),
-        line_num,
+        record_num,
     )
     return entities
 
@@ -185,40 +284,34 @@ def load_littlesis_relationships(
         filepath = str(Path(_ensure_data_dir()) / LITTLESIS_RELATIONSHIPS_FILE)
 
     if not Path(filepath).exists():
-        logger.error("LittleSis relationships file not found: %s", filepath)
+        logger.warning("LittleSis relationships file not found: %s", filepath)
         return []
 
     logger.info("Loading relationships from %s ...", filepath)
     relationships: list[dict[str, Any]] = []
 
-    line_num = 0
+    record_num = 0
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rel = cast(dict[str, Any], json.loads(line))
-                if entity_ids is not None:
-                    entity1_id = rel.get("entity1_id")
-                    entity2_id = rel.get("entity2_id")
-                    if entity1_id not in entity_ids and entity2_id not in entity_ids:
-                        continue
-                relationships.append(rel)
-            except json.JSONDecodeError:
-                continue
+        for record_num, raw in enumerate(_iter_json_records(f), 1):
+            rel = _flatten_jsonapi_record(cast(dict[str, Any], raw))
+            if entity_ids is not None:
+                entity1_id = rel.get("entity1_id")
+                entity2_id = rel.get("entity2_id")
+                if entity1_id not in entity_ids and entity2_id not in entity_ids:
+                    continue
+            relationships.append(rel)
 
-            if line_num % 100000 == 0:
+            if record_num % 100000 == 0:
                 logger.debug(
-                    "Parsed %d lines, %d matching relationships",
-                    line_num,
+                    "Parsed %d records, %d matching relationships",
+                    record_num,
                     len(relationships),
                 )
 
     logger.info(
-        "Loaded %d relationships from %d total lines",
+        "Loaded %d relationships from %d total records",
         len(relationships),
-        line_num,
+        record_num,
     )
     return relationships
 

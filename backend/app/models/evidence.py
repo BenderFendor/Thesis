@@ -30,6 +30,7 @@ class EvidenceEntity(Base):
     __tablename__ = "evidence_entities"
     id = Column(String(64), primary_key=True)
     record_kind = Column(String(64), nullable=False, index=True)
+    entity_kind = Column(String(64), nullable=False, index=True, default="legal_entity")
     canonical_name = Column(Text, nullable=False, index=True)
     status = Column(String(32), nullable=False, default="candidate", index=True)
     privacy_scope = Column(String(32), nullable=False, default="public")
@@ -298,6 +299,7 @@ class AcceptedRelationship(Base):
     materialized_by = Column(String(255), nullable=True)
     acceptance_policy_version = Column(String(64), nullable=False)
     status = Column(String(32), nullable=False, default="accepted", index=True)
+    lifecycle_state = Column(String(32), nullable=False, default="current", index=True)
     relationship_hash = Column(String(64), nullable=False, unique=True, index=True)
     __table_args__ = (
         CheckConstraint(
@@ -310,6 +312,43 @@ class AcceptedRelationship(Base):
             "predicate",
             "valid_from",
             "valid_to",
+        ),
+        CheckConstraint(
+            "lifecycle_state IN ('current','historical','proposed','pending','disputed','rejected','superseded')",
+            name="ck_accepted_relationship_lifecycle_state",
+        ),
+    )
+
+
+class EvidenceIngestRun(Base):
+    """Persistent, source-level record of one evidence adapter execution."""
+
+    __tablename__ = "evidence_ingest_runs"
+    id = Column(String(64), primary_key=True)
+    adapter = Column(String(64), nullable=False, index=True)
+    adapter_version = Column(String(64), nullable=False)
+    scope = Column(JSON, nullable=False, default=dict)
+    started_at = Column(DateTime, nullable=False, default=get_utc_now, index=True)
+    completed_at = Column(DateTime, nullable=True, index=True)
+    status = Column(String(32), nullable=False, default="running", index=True)
+    network_mode = Column(String(32), nullable=False, default="live")
+    documents_count = Column(Integer, nullable=False, default=0)
+    snapshots_count = Column(Integer, nullable=False, default=0)
+    observations_count = Column(Integer, nullable=False, default=0)
+    claims_count = Column(Integer, nullable=False, default=0)
+    accepted_count = Column(Integer, nullable=False, default=0)
+    candidate_count = Column(Integer, nullable=False, default=0)
+    failure = Column(Text, nullable=True)
+    retryable = Column(Boolean, nullable=False, default=False)
+    missing_credentials = Column(JSON, nullable=False, default=list)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running','success','partial','failed','blocked','skipped')",
+            name="ck_evidence_ingest_runs_status",
+        ),
+        CheckConstraint(
+            "network_mode IN ('live','offline','disabled')",
+            name="ck_evidence_ingest_runs_network_mode",
         ),
     )
 
@@ -525,6 +564,7 @@ EVIDENCE_SPINE_TABLES = (
     "measurement_validation_cards",
     "corpus_coverage_windows",
     "proof_runs",
+    "evidence_ingest_runs",
 )
 
 __all__ = [
@@ -540,6 +580,7 @@ __all__ = [
     "EvidenceClaim",
     "EvidenceDocument",
     "EvidenceEntity",
+    "EvidenceIngestRun",
     "EvidenceObservation",
     "EVIDENCE_SPINE_TABLES",
     "ExternalMaterialEvent",

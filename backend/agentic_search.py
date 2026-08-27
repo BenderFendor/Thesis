@@ -13,6 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 from app.core.config import get_llamacpp_model, settings
 from app.services.prompting import build_text_system_prompt
@@ -145,6 +146,13 @@ def _create_chat_llm():
             api_key=settings.llamacpp_api_key,
             base_url=settings.llamacpp_base_url,
         )
+    if settings.llm_backend == "opencode" and settings.opencode_api_key:
+        return ChatOpenAI(
+            model=settings.opencode_model,
+            temperature=0.7,
+            api_key=SecretStr(settings.opencode_api_key),
+            base_url=settings.opencode_base_url,
+        )
     if settings.open_router_api_key:
         return ChatOpenAI(
             model=settings.open_router_model,
@@ -159,14 +167,16 @@ def _create_chat_llm():
             google_api_key=settings.gemini_api_key,
         )
     raise RuntimeError(
-        "No LLM backend configured. Set OPEN_ROUTER_API_KEY, GEMINI_API_KEY, or "
-        "enable LLM_BACKEND=llamacpp."
+        "No LLM backend configured. Set OPEN_ROUTER_API_KEY, GEMINI_API_KEY, "
+        "OPENCODE_API_KEY, or enable LLM_BACKEND=llamacpp."
     )
 
 
 def _backend_banner() -> str:
     if settings.llm_backend == "llamacpp":
         return f"llama.cpp ({get_llamacpp_model()})"
+    if settings.llm_backend == "opencode" and settings.opencode_api_key:
+        return f"OpenCode Zen ({settings.opencode_model})"
     if settings.open_router_api_key:
         return f"OpenRouter ({settings.open_router_model})"
     if settings.gemini_api_key:
@@ -177,14 +187,16 @@ def _backend_banner() -> str:
 def main():
     """Main execution function demonstrating the agentic search tool."""
     # Check if API key is set
+    has_opencode = settings.llm_backend == "opencode" and bool(settings.opencode_api_key)
     if (
         settings.llm_backend != "llamacpp"
+        and not has_opencode
         and not settings.open_router_api_key
         and not settings.gemini_api_key
     ):
         print(
             "ERROR: No LLM backend configured. Set OPEN_ROUTER_API_KEY, "
-            "GEMINI_API_KEY, or enable LLM_BACKEND=llamacpp."
+            "GEMINI_API_KEY, OPENCODE_API_KEY, or enable LLM_BACKEND=llamacpp."
         )
         return
 

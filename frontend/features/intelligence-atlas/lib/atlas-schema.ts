@@ -7,6 +7,7 @@ export const AtlasRelationTypeSchema = z.enum([
 ]);
 export const AtlasConfidenceTierSchema = z.enum(["verified", "strong", "likely", "unresolved", "conflicting", "stale"]);
 export const AtlasFactStatusSchema = z.enum(["candidate", "accepted", "disputed", "rejected", "superseded"]);
+export const AtlasLifecycleStateSchema = z.enum(["current", "historical", "proposed", "pending", "disputed", "rejected", "superseded"]);
 
 const OffsetDateSchema = z.string().datetime({ offset: true });
 const AtlasDateSchema = z.string().transform((value, context) => {
@@ -30,6 +31,8 @@ export const AtlasEvidenceSchema = z.object({
   source_url: z.string().nullable().optional(), retrieved_at: NullableDateSchema,
   excerpt: z.string().nullable().optional(), snapshot_sha256: z.string().nullable().optional(),
   locator: z.record(z.string(), z.unknown()).default({}), entailment: z.string().nullable().optional(),
+  evidence_class: z.string().nullable().optional(), policy_version: z.string().nullable().optional(),
+  acceptance_decision: z.string().nullable().optional(), contradictions: z.array(z.string()).optional(),
 });
 
 export const AtlasNodeSchema = z.object({
@@ -41,16 +44,25 @@ export const AtlasNodeSchema = z.object({
   connection_count: z.number().int().nonnegative().default(0), ownership_connection_count: z.number().int().nonnegative().default(0),
   status: z.string().nullable().optional(), confidence_tier: AtlasConfidenceTierSchema.nullable().optional(),
   profile_path: z.string().nullable().optional(), updated_at: NullableDateSchema, flags: z.array(z.string()).default([]),
+  current_parent: z.string().nullable().optional(), pending_change: z.string().nullable().optional(),
+  evidence_coverage: z.string().default("not researched"), freshness: z.string().default("unknown"),
+  unresolved_gap: z.string().nullable().optional(),
 });
 
 export const AtlasEdgeSchema = z.object({
   id: z.string(), source_id: z.string(), target_id: z.string(), relation_type: AtlasRelationTypeSchema,
+  predicate: z.string(), display_group: z.string(),
+  relation_type_deprecated: z.boolean().default(true),
   direction: z.enum(["directed", "undirected"]).default("directed"), weight: z.number().default(1),
   ownership_percentage: z.number().nullable().optional(), confidence: z.number().min(0).max(1).nullable().optional(),
+  voting_interest: z.record(z.string(), z.string()).nullable().optional(),
+  economic_interest: z.record(z.string(), z.string()).nullable().optional(),
+  beneficial_interest: z.record(z.string(), z.string()).nullable().optional(),
   confidence_tier: AtlasConfidenceTierSchema.nullable().optional(), evidence_count: z.number().int().nonnegative().default(0),
   evidence_preview: z.array(AtlasEvidenceSchema).default([]), valid_from: NullableDateSchema, valid_to: NullableDateSchema,
   last_verified_at: NullableDateSchema, is_inferred: z.boolean().default(false), raw_relation_type: z.string().nullable().optional(),
   fact_status: AtlasFactStatusSchema.default("candidate"), accepted_fact: z.boolean().default(false),
+  lifecycle_state: AtlasLifecycleStateSchema.default("current"),
   qualifiers: z.record(z.string(), z.unknown()).default({}), claim_ids: z.array(z.string()).default([]),
   recorded_at: NullableDateSchema, retracted_at: NullableDateSchema,
   acceptance_policy_version: z.string().nullable().optional(), evidence_root_count: z.number().int().nonnegative().default(0),
@@ -90,11 +102,16 @@ export const AtlasStatsResponseSchema = z.object({
   graph_version: z.string(), generated_at: AtlasDateSchema, stats: AtlasStatsSchema,
   by_entity_type: z.record(z.string(), z.number()), by_relation_type: z.record(z.string(), z.number()),
   by_index_status: z.record(z.string(), z.number()), last_indexed_at: NullableDateSchema, indexing_active: z.boolean(),
+  research_coverage: AtlasCoverageMetricSchema.default({ numerator: 0, denominator: 0 }),
+  research_coverage_by_entity_type: z.record(z.string(), AtlasCoverageMetricSchema).default({}),
 });
 export const AtlasSearchItemSchema = z.object({
   id: z.string(), entity_type: AtlasEntityTypeSchema, label: z.string(), subtitle: z.string().nullable().optional(),
   country_code: z.string().nullable().optional(), confidence_tier: AtlasConfidenceTierSchema.nullable().optional(),
   profile_path: z.string().nullable().optional(),
+  current_parent: z.string().nullable().optional(), pending_change: z.string().nullable().optional(),
+  evidence_coverage: z.string().default("not researched"), freshness: z.string().default("unknown"),
+  unresolved_gap: z.string().nullable().optional(),
 });
 export const AtlasSearchResponseSchema = z.object({
   query: z.string(),
@@ -104,14 +121,40 @@ export const AtlasSearchResponseSchema = z.object({
   reporters: z.array(AtlasSearchItemSchema),
 });
 export const AtlasConnectionSchema = z.object({ edge: AtlasEdgeSchema, entity: AtlasNodeSchema });
+export const AtlasDossierStatementSchema = z.object({
+  label: z.string(), answer: z.string(),
+  state: z.enum(["known", "unknown", "not_researched", "source_unavailable", "chain_incomplete"]),
+  predicate: z.string().nullable().optional(), lifecycle_state: AtlasLifecycleStateSchema.nullable().optional(),
+  evidence: z.array(AtlasEvidenceSchema).default([]), qualifiers: z.record(z.string(), z.unknown()).default({}),
+});
+export const AtlasDossierSectionSchema = z.object({
+  key: z.enum(["summary", "identity_public_records", "ownership_control", "newsroom_people", "funding_government_awards", "advertising_sponsorship", "publishing_distribution", "evidence_conflicts_freshness_gaps"]),
+  title: z.string(), statements: z.array(AtlasDossierStatementSchema).default([]),
+});
 export const AtlasEntityRecordSchema = z.object({
   id: z.string(), entity_type: AtlasEntityTypeSchema, label: z.string(), subtitle: z.string().nullable().optional(),
   country_code: z.string().nullable().optional(), status: z.string().nullable().optional(),
   confidence_tier: AtlasConfidenceTierSchema.nullable().optional(), last_verified_at: NullableDateSchema,
   profile_path: z.string().nullable().optional(), details: z.record(z.string(), z.unknown()),
+  entity_kind: z.string().nullable().optional(), dossier_sections: z.array(AtlasDossierSectionSchema).default([]),
   evidence: z.array(AtlasEvidenceSchema), connections: z.array(AtlasConnectionSchema),
 });
 export const AtlasIndexResponseSchema = z.object({ items: z.array(AtlasNodeSchema), total: z.number().int().nonnegative(), next_cursor: z.string().nullable().optional(), facets: z.record(z.string(), z.record(z.string(), z.number())) });
+export const EvidenceIngestRunSchema = z.object({
+  id: z.string(), adapter: z.string(), adapter_version: z.string(), scope: z.record(z.string(), z.unknown()).default({}),
+  started_at: AtlasDateSchema, completed_at: NullableDateSchema,
+  status: z.enum(["running", "success", "partial", "failed", "blocked", "skipped"]),
+  network_mode: z.enum(["live", "offline", "disabled"]), documents_count: z.number().int().nonnegative(),
+  snapshots_count: z.number().int().nonnegative(), observations_count: z.number().int().nonnegative(),
+  claims_count: z.number().int().nonnegative(), accepted_count: z.number().int().nonnegative(),
+  candidate_count: z.number().int().nonnegative(), failure: z.string().nullable().optional(),
+  retryable: z.boolean(), missing_credentials: z.array(z.string()).default([]),
+});
+export const AtlasIngestStatusResponseSchema = z.object({
+  freshness: z.enum(["fresh", "stale", "never", "running", "partial"]),
+  last_success_at: NullableDateSchema, has_retryable_failures: z.boolean(),
+  missing_credentials: z.array(z.string()).default([]), runs: z.array(EvidenceIngestRunSchema).default([]),
+});
 
 // `AtlasEntityRecord.details` is a loosely-typed bag (backend: `dict[str, Any]`).
 // These schemas describe the Phase 3 ownership-context shapes that
@@ -214,6 +257,7 @@ export type AtlasEntityType = z.infer<typeof AtlasEntityTypeSchema>;
 export type AtlasRelationType = z.infer<typeof AtlasRelationTypeSchema>;
 export type AtlasConfidenceTier = z.infer<typeof AtlasConfidenceTierSchema>;
 export type AtlasFactStatus = z.infer<typeof AtlasFactStatusSchema>;
+export type AtlasLifecycleState = z.infer<typeof AtlasLifecycleStateSchema>;
 export type AtlasEvidence = z.infer<typeof AtlasEvidenceSchema>;
 export type AtlasNode = z.infer<typeof AtlasNodeSchema>;
 export type AtlasEdge = z.infer<typeof AtlasEdgeSchema>;
@@ -224,6 +268,17 @@ export type AtlasSearchItem = z.infer<typeof AtlasSearchItemSchema>;
 export type AtlasSearchResponse = z.infer<typeof AtlasSearchResponseSchema>;
 export type AtlasEntityRecord = z.infer<typeof AtlasEntityRecordSchema>;
 export type AtlasIndexResponse = z.infer<typeof AtlasIndexResponseSchema>;
+export type AtlasIngestStatusResponse = z.infer<typeof AtlasIngestStatusResponseSchema>;
+
+export const AtlasMeasurementRecordSchema = z.object({
+  id: z.string(), measurement_name: z.string(), algorithm_version: z.string(),
+  result: z.record(z.string(), z.unknown()), created_at: AtlasDateSchema,
+});
+export const AtlasMeasurementsResponseSchema = z.object({
+  source_name: z.string().nullable().optional(),
+  measurements: z.array(AtlasMeasurementRecordSchema).default([]),
+});
+export type AtlasMeasurementsResponse = z.infer<typeof AtlasMeasurementsResponseSchema>;
 
 // `GET /api/wiki/atlas/analysis/funding-bias` -- the catalog-wide,
 // pre-registered funding-type x bias-rating correlation (Phase 5 Part B).

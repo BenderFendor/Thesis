@@ -20,6 +20,8 @@ def upgrade() -> None:
     """Add the nullable JSON subsidiaries profile field when absent."""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "organizations" not in inspector.get_table_names():
+        return
     columns = {column["name"] for column in inspector.get_columns("organizations")}
     if "subsidiaries" not in columns:
         op.add_column(
@@ -32,6 +34,8 @@ def downgrade() -> None:
     """Drop the subsidiaries profile field when present."""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if "organizations" not in inspector.get_table_names():
+        return
     columns = {column["name"] for column in inspector.get_columns("organizations")}
     if "subsidiaries" in columns:
         op.drop_column("organizations", "subsidiaries")

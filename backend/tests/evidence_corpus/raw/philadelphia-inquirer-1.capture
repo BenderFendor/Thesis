@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html class="no-js ok-to-alert"
+	lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<meta name="google" value="notranslate">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge"><script type="text/javascript">(window.NREUM||(NREUM={})).init={privacy:{cookies_enabled:true},ajax:{deny_list:["bam.nr-data.net"]},feature_flags:["soft_nav"],distributed_tracing:{enabled:true}};(window.NREUM||(NREUM={})).loader_config={agentID:"1120275194",accountID:"4349673",trustKey:"66686",xpid:"UAUDWFBUCxABVFRSDgkGVF0C",licenseKey:"NRJS-dc2fd22e53822476a01",applicationID:"1050981293",browserID:"1120275194"};;/*! For license information please see nr-loader-spa-1.318.0.min.js.LICENSE.txt */
+(()=>{var e={8122(e,t,r){"use strict";r.d(t,{a:()=>s});var n=r(944);function s(e,t){try{if(!e||"object"!=typeof e)return(0,n.R)(3);if(!t||"object"!=typeof t)return(0,n.R)(4);const r=Object.create(Object.getPrototypeOf(t),Object.getOwnPropertyDescriptors(t)),i=0===Object.keys(r).length?e:r;for(let o in i)if(void 0!==e[o])try{if(null===e[o]){r[o]=null;continue}Array.isArray(e[o])&&Array.isArray(t[o])?r[o]=Array.from(new Set([...e[o],...t[o]])):e[o]instanceof Map||e[o]instanceof Set||e[o]instanceof Date||e[o]instanceof RegExp?r[o]=e[o]:"object"==typeof e[o]&&null!==t[o]&&"object"==typeof t[o]?r[o]=s(e[o],t[o]):r[o]=e[o]}catch(e){r[o]||(0,n.R)(1,e)}return r}catch(e){(0,n.R)(2,e)}}},2555(e,t,r){"use strict";r.d(t,{f:()=>o});var n=r(384),s=r(8122);const i={beacon:n.NT.beacon,errorBeacon:n.NT.errorBeacon,licenseKey:void 0,applicationID:void 0,sa:void 0,queueTime:void 0,applicationTime:void 0,ttGuid:void 0,user:void 0,account:void 0,product:void 0,extra:void 0,jsAttributes:{},userAttributes:void 0,atts:void 0,transactionName:void 0,tNamePlain:void 0};function o(e){try{return!!e.licenseKey&&!!e.errorBeacon&&!!e.applicationID}catch(e){return!1}}r.d(t,["D",0,e=>(0,s.a)(e,i)])},7699(e,t,r){"use strict";var n=r(860);const s={[n.K7.logging]:!0,[n.K7.genericEvents]:!0,[n.K7.jserrors]:!0,[n.K7.ajax]:!0};r.d(t,["It",0,1e6,"KC",0,s,"qh",0,"SESSION_ERROR"])},9324(e,t,r){"use strict";r.d(t,["A",0,"@newrelic/rrweb","x",0,"1.318.0"])},981(e,t,r){"use strict";r.d(t,["R",0,{AJAX:"AjaxRequest",PA:"PageAction",UA:"UserAction",BP:"BrowserPerformance",WS:"WebSocket",SPV:"SecurityPolicyViolation",JSE:"JavaScriptError",LOG:"Log",PVE:"PageView",PVT:"PageViewTiming",SR:"SessionReplay",ST:"SessionTrace",BI:"BrowserInteraction"}])},6154(e,t,r){"use strict";var n=r(1863);const s="undefined"!=typeof window&&!!window.document,i="undefined"!=typeof WorkerGlobalScope&&("undefined"!=typeof self&&self instanceof WorkerGlobalScope&&self.navigator instanceof WorkerNavigator||"undefined"!=typeof globalThis&&globalThis instanceof WorkerGlobalScope&&globalThis.navigator instanceof WorkerNavigator),o=s?window:"undefined"!=typeof WorkerGlobalScope&&("undefined"!=typeof self&&self instanceof WorkerGlobalScope&&self||"undefined"!=typeof globalThis&&globalThis instanceof WorkerGlobalScope&&globalThis),a=Boolean("hidden"===o?.document?.visibilityState),c=""+o?.location,d=/iPad|iPhone|iPod/.test(o.navigator?.userAgent),u=d&&"undefined"==typeof SharedWorker,l=(()=>{const e=o.navigator?.userAgent?.match(/Firefox[/\s](\d+\.\d+)/);return Array.isArray(e)&&e.length>=2?+e[1]:0})(),f=Date.now()-(0,n.t)();r.d(t,["OF",0,d,"RI",0,s,"WN",0,f,"bv",0,i,"gm",0,o,"lR",0,l,"m",0,c,"mw",0,a,"sb",0,u,"zk",0,()=>{const e=o?.performance?.getEntriesByType?.("navigation")?.[0];if(e&&e.responseStart>0&&e.responseStart<o.performance.now())return e}])},7295(e,t,r){"use strict";r.d(t,{Xv:()=>o,gX:()=>s,iW:()=>i});var n=[];function s(e){if(!e||i(e))return!1;if(0===n.length)return!0;if("*"===n[0].hostname)return!1;for(var t=0;t<n.length;t++){var r=n[t];if(r.hostname.test(e.hostname)&&r.pathname.test(e.pathname))return!1}return!0}function i(e){return void 0===e.hostname}function o(e){if(n=[],e&&e.length)for(var t=0;t<e.length;t++){let r=e[t];if(!r)continue;if("*"===r)return void(n=[{hostname:"*"}]);0===r.indexOf("http://")?r=r.substring(7):0===r.indexOf("https://")&&(r=r.substring(8));const s=r.indexOf("/");let i,o;s>0?(i=r.substring(0,s),o=r.substring(s)):(i=r,o="*");let[c]=i.split(":");n.push({hostname:a(c),pathname:a(o,!0)})}}function a(e,t=!1){const r=e.replace(/[.+?^${}()|[\]\\]/g,e=>"\\"+e).replace(/\*/g,".*?");return new RegExp((t?"^":"")+r+"$")}},3241(e,t,r){"use strict";r.d(t,{W:()=>s});var n=r(6154);function s(e={}){try{n.gm.dispatchEvent(new CustomEvent("newrelic",{detail:e}))}catch(e){}}},1687(e,t,r){"use strict";r.d(t,{Ak:()=>a,Ze:()=>d,x3:()=>c});var n=r(3241),s=r(3606),i=r(860),o=r(2646);function a(e,t){if(!e)return;const r={staged:!1,priority:i.P3[t]||0};e.runtime.drainRegistry.get(t)||e.runtime.drainRegistry.set(t,r)}function c(e,t){if(!e)return;const r=e.runtime.drainRegistry;r&&(r.get(t)&&r.delete(t),l(e,t,!1),r.size&&u(e))}function d(e,t="feature",r=!1){if(e){if(!e.runtime.drainRegistry.get(t)||r)return l(e,t);e.runtime.drainRegistry.get(t).staged=!0,u(e)}}function u(e){if(!e)return;const t=Array.from(e.runtime.drainRegistry);t.every(([e,t])=>t.staged)&&(t.sort((e,t)=>e[1].priority-t[1].priority),t.forEach(([t])=>{e.runtime.drainRegistry.delete(t),l(e,t)}))}function l(e,t,r=!0){if(!e)return;const i=e.ee,a=s.i.handlers;if(i&&!i.aborted&&i.backlog&&a){if((0,n.W)({type:"lifecycle",name:"drain",feature:t}),r){const e=i.backlog[t],r=a[t];if(r){for(let t=0;e&&t<e.length;++t)f(e[t],r);Object.entries(r).forEach(([e,t])=>{Object.values(t||{}).forEach(t=>{t[0]?.on&&t[0].context()instanceof o.y&&!t[0].listeners(e).includes(t[1])&&t[0].on(e,t[1])})})}}i.isolatedBacklog||delete a[t],i.backlog[t]=null,i.emit("drain-"+t,[])}}function f(e,t){var r=e[1];Object.values(t[r]||{}).forEach(t=>{var r=e[0];if(t[0]===r){var n=t[1],s=e[3],i=e[2];n.apply(s,i)}})}},7836(e,t,r){"use strict";var n=r(384),s=r(8990),i=r(2646),o=r(5607);const a="nr@context:".concat(o.W),c=function e(t,r){var n={},o={},u={},l=!1;try{l=16===r.length&&d.initializedAgents?.[r]?.runtime.isolatedBacklog}catch(e){}var f={on:p,addEventListener:p,removeEventListener:function(e,t){var r=n[e];if(!r)return;for(var s=0;s<r.length;s++)r[s]===t&&r.splice(s,1)},emit:function(e,r,n,s,i){!1!==i&&(i=!0);if(c.aborted&&!s)return;t&&i&&t.emit(e,r,n);var a=h(n);g(e).forEach(e=>{e.apply(a,r)});var d=v()[o[e]];d&&d.push([f,e,r,a]);return a},get:m,listeners:g,context:h,buffer:function(e,t){const r=v();if(t=t||"feature",f.aborted)return;Object.entries(e||{}).forEach(([e,n])=>{o[n]=t,t in r||(r[t]=[])})},abort:function(){f._aborted=!0,Object.keys(f.backlog).forEach(e=>{delete f.backlog[e]})},isBuffering:function(e){return!!v()[o[e]]},debugId:r,backlog:l?{}:t&&"object"==typeof t.backlog?t.backlog:{},isolatedBacklog:l};return Object.defineProperty(f,"aborted",{get:()=>{let e=f._aborted||!1;return e||(t&&(e=t.aborted),e)}}),f;function h(e){return e&&e instanceof i.y?e:e?(0,s.I)(e,a,()=>new i.y(a)):new i.y(a)}function p(e,t){n[e]=g(e).concat(t)}function g(e){return n[e]||[]}function m(t){return u[t]=u[t]||e(f,t)}function v(){return f.backlog}}(void 0,"globalEE"),d=(0,n.Zm)();d.ee||(d.ee=c),r.d(t,["P",0,a,"ee",0,c])},2646(e,t,r){"use strict";r.d(t,{y:()=>n});class n{constructor(e){this.contextId=e}}},9908(e,t,r){"use strict";r.d(t,{d:()=>n,p:()=>s});var n=r(7836).ee.get("handle");function s(e,t,r,s,i){i?(i.buffer([e],s),i.emit(e,t,r)):(n.buffer([e],s),n.emit(e,t,r))}},3606(e,t,r){"use strict";r.d(t,{i:()=>i});var n=r(9908);i.on=o;var s=i.handlers={};function i(e,t,r,i){o(i||n.d,s,e,t,r)}function o(e,t,r,s,i){i||(i="feature"),e||(e=n.d);var o=t[i]=t[i]||{};(o[r]=o[r]||[]).push([e,s])}},3878(e,t,r){"use strict";function n(e,t){return{capture:e,passive:!1,signal:t}}function s(e,t,r=!1,s){window.addEventListener(e,t,n(r,s))}function i(e,t,r=!1,s){document.addEventListener(e,t,n(r,s))}r.d(t,{DD:()=>i,jT:()=>n,sp:()=>s})},5607(e,t,r){"use strict";const n=(0,r(9566).bz)();r.d(t,["W",0,n])},9566(e,t,r){"use strict";r.d(t,{LA:()=>o,ZF:()=>a,bz:()=>i,el:()=>c});var n=r(6154);function s(e,t){return e?15&e[t]:16*Math.random()|0}function i(){const e=n.gm?.crypto||n.gm?.msCrypto;let t,r=0;return e&&e.getRandomValues&&(t=e.getRandomValues(new Uint8Array(30))),"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".split("").map(e=>"x"===e?s(t,r++).toString(16):"y"===e?(3&s()|8).toString(16):e).join("")}function o(e){const t=n.gm?.crypto||n.gm?.msCrypto;let r,i=0;t&&t.getRandomValues&&(r=t.getRandomValues(new Uint8Array(e)));const o=[];for(var a=0;a<e;a++)o.push(s(r,i++).toString(16));return o.join("")}function a(){return o(16)}function c(){return o(32)}},2614(e,t,r){"use strict";r.d(t,["BB",0,18e5,"Wt",0,"NRBA_SESSION::","g",0,{OFF:0,FULL:1,ERROR:2},"iL",0,{SAME_TAB:"same-tab",CROSS_TAB:"cross-tab"},"tS",0,{STARTED:"session-started",PAUSE:"session-pause",RESET:"session-reset",RESUME:"session-resume",UPDATE:"session-update"},"wk",0,144e5])},733(e,t,r){"use strict";function n(e,t){return function(e){let t=2166136261;for(let r=0;r<e.length;r++)t^=e.charCodeAt(r),t=Math.imul(t,16777619);return(t>>>0).toString(16).padStart(8,"0")}("".concat(String(e),":").concat(String(t)))}r.d(t,{Y:()=>n})},1863(e,t,r){"use strict";function n(){return Math.floor(performance.now())}r.d(t,{t:()=>n})},9119(e,t,r){"use strict";r.d(t,{L:()=>i});var n=/([^?#]*)[^#]*(#[^?]*|$).*/,s=/([^?#]*)().*/;function i(e,t){return e?e.replace(t?n:s,"$1$2"):e}},7485(e,t,r){"use strict";r.d(t,{D:()=>s});var n=r(6154);function s(e){if(0===(e||"").indexOf("data:"))return{protocol:"data"};try{const t=new URL(e,location.href),r={port:t.port,hostname:t.hostname,pathname:t.pathname,search:t.search,protocol:t.protocol.slice(0,t.protocol.indexOf(":")),sameOrigin:t.protocol===n.gm?.location?.protocol&&t.host===n.gm?.location?.host};return r.port&&""!==r.port||("http:"===t.protocol&&(r.port="80"),"https:"===t.protocol&&(r.port="443")),r.pathname&&""!==r.pathname?r.pathname.startsWith("/")||(r.pathname="/".concat(r.pathname)):r.pathname="/",r}catch(e){return{}}}},7866(e,t,r){"use strict";r.d(t,["Nc",0,/^\s*at Function code \(Function code:\d+:\d+\)\s*/i,"cn",0,/^\s*(?:([^@]*)(?:\(.*?\))?@)?((?:file|http|https|chrome|safari-extension).*?):(\d+)(?::(\d+))?\s*$/i,"fL",0,/^\s*at .+ \(eval at \S+ \((?:(?:file|http|https):[^)]+)?\)(?:, [^:]*:\d+:\d+)?\)$/i,"h3",0,/function (.+?)\s*\(/,"hB",0,/^\s*at (?:((?:\[object object\])?(?:[^(]*\([^)]*\))*[^()]*(?: \[as \S+\])?) )?\(?((?:file|http|https|chrome-extension):.*?)?:(\d+)(?::(\d+))?\)?\s*$/i])},944(e,t,r){"use strict";r.d(t,{R:()=>s});var n=r(3241);function s(e,t){"function"==typeof console.debug&&(console.debug("New Relic Warning: https://github.com/newrelic/newrelic-browser-agent/blob/main/docs/warning-codes.md#".concat(e),t),(0,n.W)({drained:null,type:"data",name:"warn",feature:"warn",data:{code:e,secondary:t}}))}},8990(e,t,r){"use strict";r.d(t,{I:()=>s});var n=Object.prototype.hasOwnProperty;function s(e,t,r){if(n.call(e,t))return e[t];var s=r();if(Object.defineProperty&&Object.keys)try{return Object.defineProperty(e,t,{value:s,writable:!0,enumerable:!1}),s}catch(e){}return e[t]=s,s}},6389(e,t,r){"use strict";function n(e,t=500,r={}){const n=r?.leading||!1;let s;return(...r)=>{n&&void 0===s&&(e.apply(this,r),s=setTimeout(()=>{s=clearTimeout(s)},t)),n||(clearTimeout(s),s=setTimeout(()=>{e.apply(this,r)},t))}}function s(e){let t=!1;return(...r)=>{t||(t=!0,e.apply(this,r))}}r.d(t,{J:()=>s,s:()=>n})},1910(e,t,r){"use strict";r.d(t,{i:()=>i});var n=r(944);const s=new Map;function i(...e){return e.every(e=>{if(s.has(e))return s.get(e);const t="function"==typeof e?e.toString():"",r=t.includes("[native code]"),i=t.includes("nrWrapper");return r||i||(0,n.R)(64,e?.name||t),s.set(e,r),r})}},3304(e,t,r){"use strict";r.d(t,{A:()=>s});var n=r(7836);function s(e){try{return JSON.stringify(e,(()=>{const e=new WeakSet;return(t,r)=>{if("object"==typeof r&&null!==r){if(e.has(r))return;e.add(r)}return r}})())??""}catch(e){try{n.ee.emit("internal-error",[e])}catch(e){}return""}}},7508(e,t,r){"use strict";r.d(t,{AZ:()=>g,Qr:()=>b,QL:()=>m});var n=r(6154),s=r(1863),i=r(9119),o=r(7866);class a{dom=new c;performance=new c;constructor(e){this.url=e}get script(){const e=Math.max(this.dom.start,this.performance.end);return{start:e,end:Math.max(this.dom.end,this.performance.end,e)}}}class c{start=0;end=0;value=void 0}let d;try{d=g(m())[0]}catch(e){d=g(e)[0]}const u=e=>"script"===e.initiatorType||["link","fetch"].includes(e.initiatorType)&&e.name.endsWith(".js"),l=new Map;let f=[];function h(e){return l.get(e)}function p(e){const t=h(e);if(t)return t;const r=new a(e);if(l.set(e,r),l.size>1e3){const e=l.keys().next().value;l.delete(e)}return r}if(n.gm.MutationObserver&&n.gm.document){new MutationObserver(e=>{e.forEach(e=>{e.addedNodes.forEach(e=>{if("SCRIPT"===e.nodeName&&e.src){const t=p((0,i.L)(e.src));t.dom.start=(0,s.t)(),t.dom.value=e;const r=()=>{t.dom.end=(0,s.t)()};["load","error"].forEach(t=>e.addEventListener(t,r,{once:!0}))}})})}).observe(n.gm.document,{childList:!0,subtree:!0})}if(n.gm.PerformanceObserver?.supportedEntryTypes.includes("resource")){new PerformanceObserver(e=>{e.getEntries().filter(u).forEach(e=>{const t=p((0,i.L)(e.name));t.performance.start=Math.floor(e.startTime),t.performance.end=Math.floor(e.responseEnd),t.performance.value=e;const r=[];f.forEach(({test:t,addedAt:n},i)=>{(t(e)||(0,s.t)()-n>1e4)&&r.push(i)}),f=f.filter((e,t)=>!r.includes(t))})}).observe({type:"resource",buffered:!0})}function g(e){if(!e||"string"!=typeof e)return[];const t=new Set,r=e.split("\n");for(const e of r){const r=e.match(o.cn)||e.match(o.hB)||e.match(o.fL);if(r&&r[2])t.add((0,i.L)(r[2]));else{const r=e.match(/\(([^)]+\.js):\d+:\d+\)/)||e.match(/^\s+at\s+([^\s(]+\.js):\d+:\d+/);r&&r[1]&&t.add((0,i.L)(r[1]))}}return[...t]}function m(){let e;try{const t=Error.stackTraceLimit;Error.stackTraceLimit=50,e=(new Error).stack,Error.stackTraceLimit=t}catch(t){e=(new Error).stack}return e}function v(e,t){return(0,i.L)(e.name)===t}function y(e,t){e.fetchStart=Math.floor(t.startTime),e.fetchEnd=Math.floor(t.responseEnd),e.asset=t.name,e.type=t.initiatorType}function b(){const e={registeredAt:(0,s.t)(),reportedAt:void 0,fetchStart:0,fetchEnd:0,scriptStart:0,scriptEnd:0,asset:void 0,type:"unknown"},t=m();if(!t)return e;const r=n.gm.performance?.getEntriesByType("navigation")?.[0]?.name||"";try{const o=g(t),a=(o.length>1?o.filter(e=>d!==e):o)[0];if(!a)return e;if(r.includes(a))return e.asset=(0,i.L)(r),e.type="inline",e;e.correlation=h(a);const c=e.correlation?.performance.value||performance.getEntriesByType("resource").find(e=>v(e,a));c?y(e,c):function(e){if(!e||!n.gm.document)return!1;try{const t=n.gm.document.querySelectorAll('link[rel="preload"][as="script"]');for(const r of t)if((0,i.L)(r.href)===e)return!0}catch(e){}return!1}(a)&&(e.asset=a,e.type="preload",f.push({addedAt:(0,s.t)(),test:t=>!!v(t,a)&&(y(e,t),!0)})),Object.defineProperty(e,"scriptStart",{get:()=>e.correlation?.script.start||e.fetchEnd}),Object.defineProperty(e,"scriptEnd",{get:()=>e.correlation?.script.end||e.registeredAt})}catch(e){}return e}},5732(e,t,r){"use strict";r.d(t,{$5:()=>d,B5:()=>c,Ms:()=>s,Ux:()=>o,YA:()=>a,yx:()=>i});var n=r(7508);function s(e,t){if(!e||!t?.init.api.register.enabled)return[];const r=t.runtime.registeredEntities;return r?.filter(t=>String(t.metadata.target.id)===String(e)).map(e=>e.metadata.target)||[]}function i(e,t){if(!e||!t?.init.api.register.enabled)return[];const r=t.runtime.registeredEntities;return r?.filter(t=>t.metadata.timings?.asset?.endsWith(e)).map(e=>e.metadata.target)||[]}function o(e,t){if(!u(t))return{};const r=t.agentRef.runtime.appMetadata.agents[0].entityGuid;return e?e.attributes:{"entity.guid":r,appId:t.agentRef.info.applicationID}}function a(e,t){return c(e,t)?{"child.id":e.id,"child.type":e.type,...o(void 0,t)}:{}}function c(e,t){return!!e&&!!u(t)&&t.agentRef.init.api.register.duplicate_data_to_container}function d(e){if(!e?.init.api.register.enabled)return[void 0];const t=[];try{var r=(0,n.AZ)((0,n.QL)());let s=r.length-1;for(;r[s];)t.push(...i(r[s--],e))}catch(e){}return t.length||t.push(void 0),t}function u(e){return 2===e?.harvestEndpointVersion}r.d(t,["fQ",0,{MFE:"MFE",BA:"BA"}])},5289(e,t,r){"use strict";r.d(t,{GG:()=>o,Qr:()=>c,sB:()=>a});var n=r(3878),s=r(6389);function i(){return"undefined"==typeof document||"complete"===document.readyState}function o(e,t){if(i())return e();const r=(0,s.J)(e),o=setInterval(()=>{i()&&(clearInterval(o),r())},500);(0,n.sp)("load",r,t)}function a(e){if(i())return e();(0,n.DD)("DOMContentLoaded",e)}function c(e){if(i())return e();(0,n.sp)("popstate",e)}},384(e,t,r){"use strict";r.d(t,{Zm:()=>c,bQ:()=>u,dV:()=>d,pV:()=>l});var n=r(6154),s=r(1863),i=r(944),o=r(1910);const a={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net"};function c(){return n.gm.NREUM||(n.gm.NREUM={}),void 0===n.gm.newrelic&&(n.gm.newrelic=n.gm.NREUM),n.gm.NREUM}function d(){let e=c();return e.o||(e.o={ST:n.gm.setTimeout,SI:n.gm.setImmediate||n.gm.setInterval,CT:n.gm.clearTimeout,XHR:n.gm.XMLHttpRequest,REQ:n.gm.Request,EV:n.gm.Event,PR:n.gm.Promise,MO:n.gm.MutationObserver,FETCH:n.gm.fetch,WS:n.gm.WebSocket},(0,o.i)(...Object.values(e.o))),e}function u(e,t){let r=c();r.initializedAgents??={},t.initializedAt={ms:(0,s.t)(),date:new Date},r.initializedAgents[e]=t,2===Object.keys(r.initializedAgents).length&&(0,i.R)(69)}function l(){return function(){let e=c();const t=e.info||{};e.info={beacon:a.beacon,errorBeacon:a.errorBeacon,...t}}(),function(){let e=c();const t=e.init||{};e.init={...t}}(),d(),function(){let e=c();const t=e.loader_config||{};e.loader_config={...t}}(),c()}r.d(t,["NT",0,a])},2843(e,t,r){"use strict";r.d(t,{G:()=>i,u:()=>s});var n=r(3878);function s(e,t=!1,r,s){(0,n.DD)("visibilitychange",function(){if(t)return void("hidden"===document.visibilityState&&e());e(document.visibilityState)},r,s)}function i(e,t,r){(0,n.sp)("pagehide",e,t,r)}},8139(e,t,r){"use strict";r.d(t,{u:()=>f});var n=r(7836),s=r(3434),i=r(8990),o=r(6154);const a={},c=o.gm.XMLHttpRequest,d="addEventListener",u="removeEventListener",l="nr@wrapped:".concat(n.P);function f(e){var t=function(e){return(e||n.ee).get("events")}(e);if(a[t.debugId]++)return t;a[t.debugId]=1;var r=(0,s.YM)(t,!0);function f(e){r.inPlace(e,[d,u],"-",p)}function p(e,t){return e[1]}return"getPrototypeOf"in Object&&(o.RI&&h(document,f),c&&h(c.prototype,f),h(o.gm,f)),t.on(d+"-start",function(e,t){var n=e[1];if(null!==n&&("function"==typeof n||"object"==typeof n)&&"newrelic"!==e[0]){var s=(0,i.I)(n,l,function(){var e={object:function(){if("function"!=typeof n.handleEvent)return;return n.handleEvent.apply(n,arguments)},function:n}[typeof n];return e?r(e,"fn-",null,e.name||"anonymous"):n});this.wrapped=e[1]=s}}),t.on(u+"-start",function(e){e[1]=this.wrapped||e[1]}),t}function h(e,t,...r){let n=e;for(;"object"==typeof n&&!Object.prototype.hasOwnProperty.call(n,d);)n=Object.getPrototypeOf(n);n&&t(n,...r)}},3434(e,t,r){"use strict";r.d(t,{YM:()=>d});var n=r(7836),s=r(5607),i=r(5732);const o="nr@original:".concat(s.W);var a=Object.prototype.hasOwnProperty,c=!1;function d(e,t,r){return e||(e=n.ee),s.inPlace=function(e,t,r,n,i,o){r||(r="");const a="-"===r.charAt(0);for(let c=0;c<t.length;c++){const d=t[c],u=e[d];l(u)||(e[d]=s(u,a?d+r:r,n,d,i,o))}},s.flag=o,s;function s(t,n,s,c,f,h){return l(t)?t:(n||(n=""),nrWrapper[o]=t,function(e,t,r){if(Object.defineProperty&&Object.keys)try{return Object.keys(e).forEach(function(r){Object.defineProperty(t,r,{get:function(){return e[r]},set:function(t){return e[r]=t,t}})}),t}catch(e){u([e],r)}for(var n in e)a.call(e,n)&&(t[n]=e[n])}(t,nrWrapper,e),nrWrapper);function nrWrapper(){var o,a,l,p;let g,m;try{a=this,o=[...arguments],m=h?(0,i.$5)(r):[void 0],l="function"==typeof s?s(o,a):s||{}}catch(t){u([t,"",[o,a,c],l],e)}d(n+"start",[o,a,c,m],l,f);const v=performance.now();let y;try{return p=t.apply(a,o),y=performance.now(),p}catch(e){throw y=performance.now(),d(n+"err",[o,a,e,m],l,f),g=e,g}finally{const e=y-v,t={start:v,end:y,duration:e,isLongTask:e>=50,methodName:c,thrownError:g};t.isLongTask&&d("long-task",[t,a,m],l,f),d(n+"end",[o,a,p,m],l,f)}}}function d(r,n,s,i){if(!c||t){var o=c;c=!0;try{e.emit(r,n,s,t,i)}catch(t){u([t,r,n,s],e)}c=o}}}function u(e,t){t||(t=n.ee);try{t.emit("internal-error",e)}catch(e){}}function l(e){return!(e&&"function"==typeof e&&e.apply&&!e[o])}r.d(t,["Jt",0,o])},9300(e,t,r){"use strict";const n=r(860).K7.ajax;r.d(t,["TZ",0,n,"f5",0,"ajaxRequest.id","mo",0,{NONE:"none",FAILURES:"failures",ALL:"all"}])},3333(e,t,r){"use strict";var n=r(981);const s=r(860).K7.genericEvents,i=[n.R.PA,n.R.UA,n.R.BP];r.d(t,["$v",0,{RESOURCES:"experimental.resources",REGISTER:"register"},"TZ",0,s,"Zp",0,["auxclick","click","copy","keydown","paste","scrollend"],"kd",0,i,"qN",0,["focus","blur"]])},6774(e,t,r){"use strict";const n=r(860).K7.jserrors;r.d(t,["T",0,n])},993(e,t,r){"use strict";const n=r(860).K7.logging;r.d(t,["A$",0,{OFF:0,ERROR:1,WARN:2,INFO:3,DEBUG:4,TRACE:5},"TZ",0,n,"p_",0,{ERROR:"ERROR",WARN:"WARN",INFO:"INFO",DEBUG:"DEBUG",TRACE:"TRACE"}])},3785(e,t,r){"use strict";r.d(t,{R:()=>c,b:()=>d});var n=r(9908),s=r(1863),i=r(860),o=r(3969),a=r(993);function c(e,t,r={},c=a.p_.INFO,d=!0,u,l=(0,s.t)()){(0,n.p)(o.xV,["API/logging/".concat(c.toLowerCase(),"/called")],void 0,i.K7.metrics,e),(0,n.p)("log",[l,t,r,c,d,u],void 0,i.K7.logging,e)}function d(e){return"string"==typeof e&&Object.values(a.p_).some(t=>t===e.toUpperCase().trim())}},3969(e,t,r){"use strict";const n=r(860).K7.metrics;r.d(t,["TZ",0,n,"XG",0,"storeEventMetrics","xV",0,"storeSupportabilityMetrics"])},6630(e,t,r){"use strict";const n=r(860).K7.pageViewEvent;r.d(t,["T",0,n])},782(e,t,r){"use strict";const n=r(860).K7.pageViewTiming;r.d(t,["T",0,n])},6344(e,t,r){"use strict";var n=r(2614);const s=r(860).K7.sessionReplay,i={[n.g.ERROR]:15e3,[n.g.FULL]:3e5,[n.g.OFF]:0};r.d(t,["Qb",0,{API:"api",RESUME:"resume",SWITCH_TO_FULL:"switchToFull",INITIALIZE:"initialize",PRELOAD:"preload"},"TZ",0,s,"Vh",0,"errorDuringReplay","_s",0,{DomContentLoaded:0,Load:1,FullSnapshot:2,IncrementalSnapshot:3,Meta:4,Custom:5},"bc",0,{RESET:{message:"Session was reset",sm:"Reset"},IMPORT:{message:"Recorder failed to import",sm:"Import"},TOO_MANY:{message:"429: Too Many Requests",sm:"Too-Many"},TOO_BIG:{message:"Payload was too large",sm:"Too-Big"},CROSS_TAB:{message:"Session Entity was set to OFF on another tab",sm:"Cross-Tab"},ENTITLEMENTS:{message:"Session Replay is not allowed and will not be started",sm:"Entitlement"}},"yP",0,i])},5270(e,t,r){"use strict";r.d(t,{Aw:()=>o,SR:()=>i,rF:()=>a});var n=r(384),s=r(7767);function i(e){return!!(0,n.dV)().o.MO&&(0,s.V)(e)&&!0===e?.session_trace.enabled}function o(e){return!0===e?.session_replay.preload&&i(e)}function a(e,t){try{if("string"==typeof t?.type){if("password"===t.type.toLowerCase())return"*".repeat(e?.length||0);if(void 0!==t?.dataset?.nrUnmask||t?.classList?.contains("nr-unmask"))return e}}catch(e){}return"string"==typeof e?e.replace(/[\S]/g,"*"):"*".repeat(e?.length||0)}},3738(e,t,r){"use strict";const n=r(860).K7.sessionTrace,s="-start",i="-end",o="fn"+s,a="fn"+i;r.d(t,["He",0,"bstResource","Kp",0,i,"Lc",0,a,"Rz",0,"pushState","TZ",0,n,"bD",0,"resource","bc",0,{CROSS_TAB:{message:"Session Entity was set to OFF on another tab"},ENTITLEMENTS:{message:"Session Trace is not allowed and will not be started"},RESET:{message:"Session was reset"},SESSION_CHANGED:{message:"Session identifier changed unexpectedly"}},"d3",0,s,"uP",0,o])},3962(e,t,r){"use strict";const n=r(860).K7.softNav;r.d(t,["O2",0,{INITIAL_PAGE_LOAD:"",ROUTE_CHANGE:1,UNSPECIFIED:2},"OV",0,"popstate","Qu",0,{INTERACTION:1,AJAX:2,CUSTOM_END:3,CUSTOM_TRACER:4},"TZ",0,n,"ih",0,{IP:"in progress",PF:"pending finish",FIN:"finished",CAN:"cancelled"},"pP",0,"initialPageLoad","tC",0,["click","keydown","submit"]])},4234(e,t,r){"use strict";r.d(t,{W:()=>s});var n=r(1687);class s{constructor(e,t){this.agentRef=e,this.ee=e?.ee,this.featureName=t,this.blocked=!1}deregisterDrain(){(0,n.x3)(this.agentRef,this.featureName)}}},7767(e,t,r){"use strict";var n=r(6154);r.d(t,["V",0,e=>n.RI&&!0===e?.privacy.cookies_enabled])},8362(e,t,r){"use strict";r.d(t,{d:()=>i});var n=r(9566),s=r(1741);class i extends s.W{agentIdentifier=(0,n.LA)(16)}},1741(e,t,r){"use strict";r.d(t,{W:()=>i});var n=r(944),s=r(4261);class i{#e(e,...t){if(this[e]!==i.prototype[e])return this[e](...t);(0,n.R)(35,e)}addPageAction(e,t){return this.#e(s.hG,e,t)}register(e){return this.#e(s.eY,e)}recordCustomEvent(e,t){return this.#e(s.fF,e,t)}setPageViewName(e,t){return this.#e(s.Fw,e,t)}setCustomAttribute(e,t,r){return this.#e(s.cD,e,t,r)}noticeError(e,t){return this.#e(s.o5,e,t)}setUserId(e,t=!1){return this.#e(s.Dl,e,t)}setApplicationVersion(e){return this.#e(s.nb,e)}setErrorHandler(e){return this.#e(s.bt,e)}addRelease(e,t){return this.#e(s.k6,e,t)}log(e,t){return this.#e("log",e,t)}start(){return this.#e("start")}finished(e){return this.#e(s.BL,e)}recordReplay(){return this.#e(s.CH)}pauseReplay(){return this.#e(s.Tb)}addToTrace(e){return this.#e(s.U2,e)}setCurrentRouteName(e){return this.#e(s.PA,e)}interaction(e){return this.#e(s.dT,e)}wrapLogger(e,t,r){return this.#e(s.Wb,e,t,r)}measure(e,t){return this.#e(s.V1,e,t)}consent(e){return this.#e(s.Pv,e)}}},4261(e,t,r){"use strict";r.d(t,["BL",0,"finished","CH",0,"recordReplay","Dl",0,"setUserId","Fw",0,"setPageViewName","PA",0,"setCurrentRouteName","Pv",0,"consent","Tb",0,"pauseReplay","U2",0,"addToTrace","V1",0,"measure","Wb",0,"wrapLogger","bt",0,"setErrorHandler","cD",0,"setCustomAttribute","dT",0,"interaction","eY",0,"register","fF",0,"recordCustomEvent","hG",0,"addPageAction","hw",0,"api-ixn-","k6",0,"addRelease","nb",0,"setApplicationVersion","o5",0,"noticeError"])},1738(e,t,r){"use strict";r.d(t,{U:()=>l,Y:()=>u});var n=r(3241),s=r(9908),i=r(1863),o=r(944),a=r(3969),c=r(8362),d=r(860);function u(e,t,r,i){const u=i||r;!u||u[e]&&u[e]!==c.d.prototype[e]||(u[e]=function(){(0,s.p)(a.xV,["API/"+e+"/called"],void 0,d.K7.metrics,r.ee),(0,n.W)({drained:!!r.runtime?.activatedFeatures,type:"data",name:"api",feature:"api-"+e,data:{}});try{return t.apply(this,arguments)}catch(e){(0,o.R)(23,e)}})}function l(e,t,r,n,o){const a=e.info;null===r?delete a.jsAttributes[t]:a.jsAttributes[t]=r,(o||null===r)&&(0,s.p)("api-"+n,[(0,i.t)(),t,r],void 0,"session",e.ee)}},8374(e,t,r){r.nc=(()=>{try{return document?.currentScript?.nonce}catch(e){}return""})()},860(e,t,r){"use strict";const n="events",s="jserrors",i="browser/blobs",o="browser/logs",a={ajax:"ajax",genericEvents:"generic_events",jserrors:s,logging:"logging",metrics:"metrics",pageAction:"page_action",pageViewEvent:"page_view_event",pageViewTiming:"page_view_timing",sessionReplay:"session_replay",sessionTrace:"session_trace",softNav:"soft_navigations"},c={[a.pageViewEvent]:1,[a.pageViewTiming]:2,[a.metrics]:3,[a.jserrors]:4,[a.softNav]:5,[a.ajax]:6,[a.sessionTrace]:7,[a.sessionReplay]:8,[a.logging]:9,[a.genericEvents]:10},d={[a.pageViewEvent]:"rum",[a.pageViewTiming]:n,[a.ajax]:n,[a.softNav]:n,[a.metrics]:s,[a.jserrors]:s,[a.sessionTrace]:i,[a.sessionReplay]:i,[a.logging]:o,[a.genericEvents]:"ins"};r.d(t,["$J",0,d,"K7",0,a,"P3",0,c,"XX",0,s,"Yy",0,o,"df",0,i])}};const t={};function r(n){const s=t[n];if(void 0!==s)return s.exports;const i=t[n]={exports:{}};return e[n](i,i.exports,r),i.exports}r.m=e,r.d=(e,t)=>{if(Array.isArray(t))for(var n=0;n<t.length;){var s=t[n++],i=t[n++];r.o(e,s)?0===i&&n++:0===i?Object.defineProperty(e,s,{enumerable:!0,value:t[n++]}):Object.defineProperty(e,s,{enumerable:!0,get:i})}else for(var s in t)r.o(t,s)&&!r.o(e,s)&&Object.defineProperty(e,s,{enumerable:!0,get:t[s]})},r.f={},r.e=e=>Promise.all(Object.keys(r.f).reduce((t,n)=>(r.f[n](e,t),t),[])),r.u=e=>({212:"nr-spa-compressor",249:"nr-spa-recorder",478:"nr-spa"}[e]+"-1.318.0.min.js"),r.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),(()=>{const e={},t="NRBA-1.318.0.PROD:";r.l=(n,s,i,o)=>{if(e[n])return void e[n].push(s);let a,c;if(void 0!==i){const e=document.getElementsByTagName("script");for(var d=0;d<e.length;d++){const r=e[d];if(r.getAttribute("src")==n||r.getAttribute("data-webpack")==t+i){a=r;break}}}if(!a){c=!0;var u={478:"sha512-/AXW8qyVjSgMyJ0lqhyifzwkZr8Ov8ZawKsaWj/CA0lp1Wc2+mmueK/UZHaZaSaYaeeJrB/t4P4uWS3e/9jcvw==",249:"sha512-d5lfhJ91dhhW+XbJR9kV0bQKVZQ8bL6dLDyNQnbRISd7W8ML4JOITQuDViwNgTzHErkgFqH3y/ei4iFZ4KFArw==",212:"sha512-gN6Uud0E6YjLpz0JH3q9aL2zIDa7IUbUmjJIX7MfeckSRKGBfYej+fsSeww2YriQCGKX4ksVkZ6jFAQkYhX/gA=="};a=document.createElement("script"),a.charset="utf-8",r.nc&&a.setAttribute("nonce",r.nc),a.setAttribute("data-webpack",t+i),a.src=n,0!==a.src.indexOf(window.location.origin+"/")&&(a.crossOrigin="anonymous"),u[o]&&(a.integrity=u[o])}e[n]=[s];const l=(t,r)=>{a.onerror=a.onload=null,clearTimeout(f);const s=e[n];if(delete e[n],a.parentNode?.removeChild(a),s?.forEach(e=>e(r)),t)return t(r)},f=setTimeout(l.bind(null,void 0,{type:"timeout",target:a}),12e4);a.onerror=l.bind(null,a.onerror),a.onload=l.bind(null,a.onload),c&&document.head.appendChild(a)}})(),r.r=e=>{Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},r.p="https://js-agent.newrelic.com/",(()=>{const e={38:0,788:0};r.f.j=(t,n)=>{let s=r.o(e,t)?e[t]:void 0;if(0!==s)if(s)n.push(s[2]);else{const i=new Promise((r,n)=>s=e[t]=[r,n]);n.push(s[2]=i);const o=r.p+r.u(t),a=new Error,c=n=>{if(r.o(e,t)&&(s=e[t],0!==s&&(e[t]=void 0),s)){const e=n&&("load"===n.type?"missing":n.type),r=n&&n.target&&n.target.src;a.message="Loading chunk "+t+" failed: ("+e+": "+r+")",a.name="ChunkLoadError",a.type=e,a.request=r,s[1](a)}};r.l(o,c,"chunk-"+t,t)}};const t=(t,n)=>{let[s,i,o]=n;var a,c,d=0;if(s.some(t=>0!==e[t])){for(a in i)r.o(i,a)&&(r.m[a]=i[a]);if(o)o(r)}for(t&&t(n);d<s.length;d++)c=s[d],r.o(e,c)&&e[c]&&e[c][0](),e[c]=0},n=self["webpackChunk:NRBA-1.318.0.PROD"]=self["webpackChunk:NRBA-1.318.0.PROD"]||[];n.forEach(t.bind(null,0)),n.push=t.bind(null,n.push.bind(n))})(),(()=>{"use strict";r(8374);var e=r(8362),t=r(860);const n=Object.values(t.K7);var s=r(384),i=r(1741);var o=r(2555),a=r(3333),c=r(9300);const d=e=>{if(!e||"string"!=typeof e)return!1;try{document.createDocumentFragment().querySelector(e)}catch{return!1}return!0};var u=r(2614),l=r(944),f=r(8122);const h="[data-nr-mask]",p=e=>(0,f.a)(e,(()=>{const e={feature_flags:[],experimental:{register:!1,resources:!1},mask_selector:"*",block_selector:"[data-nr-block]",mask_input_options:{color:!1,date:!1,"datetime-local":!1,email:!1,month:!1,number:!1,range:!1,search:!1,tel:!1,text:!1,time:!1,url:!1,week:!1,textarea:!1,select:!1,password:!0}};return{ajax:{deny_list:void 0,block_internal:!0,enabled:!0,autoStart:!0,capture_payloads:c.mo.NONE},api:{register:{get enabled(){return e.feature_flags.includes(a.$v.REGISTER)||e.experimental.register},set enabled(t){e.experimental.register=t},duplicate_data_to_container:!1}},browser_consent_mode:{enabled:!1},distributed_tracing:{enabled:void 0,exclude_newrelic_header:void 0,cors_use_newrelic_header:void 0,cors_use_tracecontext_headers:void 0,allowed_origins:void 0},get feature_flags(){return e.feature_flags},set feature_flags(t){e.feature_flags=t},generic_events:{enabled:!0,autoStart:!0},harvest:{interval:30},jserrors:{enabled:!0,autoStart:!0},logging:{enabled:!0,autoStart:!0},metrics:{enabled:!0,autoStart:!0},obfuscate:void 0,page_action:{enabled:!0},page_view_event:{enabled:!0,autoStart:!0},page_view_timing:{enabled:!0,autoStart:!0},performance:{capture_marks:!1,capture_measures:!1,capture_detail:!0,resources:{get enabled(){return e.feature_flags.includes(a.$v.RESOURCES)||e.experimental.resources},set enabled(t){e.experimental.resources=t},asset_types:[],first_party_domains:[],ignore_newrelic:!0}},privacy:{cookies_enabled:!0},proxy:{assets:void 0,beacon:void 0},session:{expiresMs:u.wk,inactiveMs:u.BB},session_replay:{autoStart:!0,enabled:!1,preload:!1,sampling_rate:10,error_sampling_rate:100,collect_fonts:!1,inline_images:!1,fix_stylesheets:!0,mask_all_inputs:!0,get mask_text_selector(){return e.mask_selector},set mask_text_selector(t){d(t)?e.mask_selector="".concat(t,",").concat(h):""===t||null===t?e.mask_selector=h:(0,l.R)(5,t)},get block_class(){return"nr-block"},get ignore_class(){return"nr-ignore"},get mask_text_class(){return"nr-mask"},get block_selector(){return e.block_selector},set block_selector(t){d(t)?e.block_selector+=",".concat(t):""!==t&&(0,l.R)(6,t)},get mask_input_options(){return e.mask_input_options},set mask_input_options(t){t&&"object"==typeof t?e.mask_input_options={...t,password:!0}:(0,l.R)(7,t)}},session_trace:{enabled:!0,autoStart:!0},soft_navigations:{enabled:!0,autoStart:!0},ssl:void 0,user_actions:{enabled:!0,elementAttributes:["id","className","tagName","type"]},web_sockets:{enabled:!1}}})());var g=r(6154),m=r(9324);let v=0;const y={buildEnv:"PROD",distMethod:"CDN",version:m.x,originTime:g.WN},b={consented:!1},E={activatedFeatures:void 0,appMetadata:{},configured:!1,get consented(){return this.session?.state?.consent||b.consented},set consented(e){b.consented=e},customTransaction:void 0,denyList:[],disabled:!1,drainRegistry:new Map,harvester:void 0,isolatedBacklog:!1,isRecording:!1,loaderType:void 0,maxBytes:3e4,obfuscator:void 0,onerror:void 0,ptid:void 0,releaseIds:{},session:void 0,timeKeeper:void 0,registeredEntities:[],jsAttributesMetadata:{bytes:0},get harvestCount(){return++v}};var w=r(7836),R=r(3241);const T={accountID:void 0,trustKey:void 0,agentID:void 0,licenseKey:void 0,applicationID:void 0,xpid:void 0};function A(e,t={},n,a){let{init:c,info:d,loader_config:u,runtime:l={},exposed:h=!0}=t;if(!d){const e=(0,s.pV)();c=e.init,d=e.info,u=e.loader_config}var m;e.init=p(c||{}),e.loader_config=(m=u||{},(0,f.a)(m,T)),d.jsAttributes??={},g.bv&&(d.jsAttributes.isWorker=!0),e.info=(0,o.D)(d);const v=e.init;e.runtime??=(e=>{const t=(0,f.a)(e,E),r=Object.keys(y).reduce((e,t)=>(e[t]={value:y[t],writable:!1,configurable:!0,enumerable:!0},e),{});return Object.defineProperties(t,r)})(l),v.proxy.assets&&(e=>{const t=e.startsWith("http");e+="/",r.p=t?e:"https://"+e})(v.proxy.assets),e.runtime.configured||(Object.defineProperty(e,"beacons",{get:()=>[e.info.beacon,e.info.errorBeacon,e.init.proxy.assets,e.init.proxy.beacon].filter(Boolean)}),Object.defineProperty(e.runtime,"denyList",{get:()=>[...e.init.ajax.deny_list||[],...e.init.ajax.block_internal?e.beacons:[]]}),e.runtime.ptid=e.agentIdentifier,function(e){const t=(0,s.pV)();Object.getOwnPropertyNames(i.W.prototype).forEach(r=>{const n=i.W.prototype[r];if("function"!=typeof n||"constructor"===n)return;let s=t[r];e[r]&&!1!==e.exposed&&"micro-agent"!==e.runtime?.loaderType&&(t[r]=(...t)=>{const n=e[r](...t);return s?s(...t):n})})}(e),e.runtime.loaderType=n,e.ee=w.ee.get(e.agentIdentifier),e.exposed=h,(0,R.W)({drained:!!e.runtime.activatedFeatures,type:"lifecycle",name:"initialize",feature:void 0,data:e.config}),e.runtime.configured=!0)}var x=r(9908),S=r(1863),O=r(4261),_=r(1738);var N=r(1687),P=r(4234),L=r(5289),k=r(5270),C=r(7767),j=r(6389),I=r(7699);const D=new WeakSet;class M extends P.W{constructor(e,t){super(e,t),this.abortHandler=void 0,this.featAggregate=void 0,this.loadedSuccessfully=void 0,this.onAggregateImported=new Promise(e=>{this.loadedSuccessfully=e}),this.deferred=Promise.resolve(),!1===e.init[this.featureName].autoStart?this.deferred=new Promise((t,r)=>{this.ee.on("manual-start-all",(0,j.J)(()=>{(0,N.Ak)(e,this.featureName),t()}))}):(0,N.Ak)(e,t)}importAggregator(e,t,n={}){if(this.featAggregate)return;const s=async()=>{if(await this.deferred,this.#t(e),!(0,o.f)(e.info))return(0,l.R)(43),e.ee.abort(),void this.loadedSuccessfully(!1);let s;try{if((0,C.V)(e.init)){const{setupAgentSession:t}=await r.e(478).then(r.bind(r,8766));s=t(e)}}catch(e){(0,l.R)(20,e),this.ee.emit("internal-error",[e]),(0,x.p)(I.qh,[e],void 0,this.featureName,this.ee)}try{if(!this.#r(this.featureName,s,e.init))return(0,N.Ze)(this.agentRef,this.featureName),void this.loadedSuccessfully(!1);const{Aggregate:r}=await t();this.featAggregate=new r(e,n),e.runtime.harvester.initializedAggregates.push(this.featAggregate),this.loadedSuccessfully(!0)}catch(e){(0,l.R)(34,e),this.abortHandler?.(),(0,N.Ze)(this.agentRef,this.featureName,!0),this.loadedSuccessfully(!1),this.ee&&this.ee.abort()}};g.RI?(0,L.GG)(()=>s(),!0):s()}#r(e,r,n){if(this.blocked)return!1;switch(e){case t.K7.sessionReplay:return(0,k.SR)(n)&&!!r;case t.K7.sessionTrace:return!!r;default:return!0}}#t(e){if(!D.has(e)&&(D.add(e),!(0,o.f)(e.info))){const t=(0,s.pV)();let r={...t.info?.jsAttributes};try{r={...r,...e.info?.jsAttributes}}catch(e){}A(e,{...t,info:{...t.info,jsAttributes:r},runtime:e.runtime},e.runtime.loaderType)}}}var B=r(6630);class H extends M{static featureName=B.T;constructor(e){var t;super(e,B.T),this.setupInspectionEvents(),t=e,(0,_.Y)(O.Fw,function(e,r){"string"==typeof e&&("/"!==e.charAt(0)&&(e="/"+e),t.runtime.customTransaction=(r||"http://custom.transaction")+e,(0,x.p)("api-"+O.Fw,[(0,S.t)()],void 0,void 0,t.ee))},t),this.importAggregator(e,()=>r.e(478).then(r.bind(r,5839)))}setupInspectionEvents(){const e=(e,t)=>{e&&(0,R.W)({timeStamp:e.timeStamp,loaded:"complete"===e.target.readyState,type:"window",name:t,data:e.target.location+""})};(0,L.sB)(t=>{e(t,"DOMContentLoaded")}),(0,L.GG)(t=>{e(t,"load")}),(0,L.Qr)(t=>{e(t,"navigate")}),this.ee.on(u.tS.UPDATE,(e,t)=>{(0,R.W)({type:"lifecycle",name:"session",data:t})})}}class W extends e.d{constructor(e){var t;(super(),g.gm)?(this.features={},(0,s.bQ)(this.agentIdentifier,this),this.desiredFeatures=new Set(e.features||[]),this.desiredFeatures.add(H),A(this,e,e.loaderType||"agent"),t=this,(0,_.Y)(O.cD,function(e,r,n=!1){if("string"==typeof e){if(["string","number","boolean"].includes(typeof r)||null===r)return(0,_.U)(t,e,r,O.cD,n);(0,l.R)(40,typeof r)}else(0,l.R)(39,typeof e)},t),function(e){(0,_.Y)(O.Dl,function(t,r=!1){if("string"!=typeof t&&null!==t)return void(0,l.R)(41,typeof t);const n=e.info.jsAttributes["enduser.id"];r&&null!=n&&n!==t?(0,x.p)("api-setUserIdAndResetSession",[t],void 0,"session",e.ee):(0,_.U)(e,"enduser.id",t,O.Dl,!0)},e)}(this),function(e){(0,_.Y)(O.nb,function(t){if("string"==typeof t||null===t)return(0,_.U)(e,"application.version",t,O.nb,!1);(0,l.R)(42,typeof t)},e)}(this),function(e){(0,_.Y)("start",function(){e.ee.emit("manual-start-all")},e)}(this),function(e){(0,_.Y)(O.Pv,function(t=!0){if("boolean"==typeof t){if((0,x.p)("api-"+O.Pv,[t],void 0,"session",e.ee),e.runtime.consented=t,t){const t=e.features.page_view_event;t.onAggregateImported.then(e=>{const r=t.featAggregate;e&&!r.sentRum&&r.sendRum()})}}else(0,l.R)(65,typeof t)},e)}(this),this.run()):(0,l.R)(21)}get config(){return{info:this.info,init:this.init,loader_config:this.loader_config,runtime:this.runtime}}get api(){return this}run(){try{const e=function(e){const t={};return n.forEach(r=>{t[r]=!!e[r]?.enabled}),t}(this.init),r=[...this.desiredFeatures];r.sort((e,r)=>t.P3[e.featureName]-t.P3[r.featureName]),r.forEach(r=>{if(!e[r.featureName]&&r.featureName!==t.K7.pageViewEvent)return;const n=function(e){switch(e){case t.K7.ajax:return[t.K7.jserrors];case t.K7.sessionTrace:return[t.K7.ajax,t.K7.pageViewEvent];case t.K7.sessionReplay:return[t.K7.sessionTrace];case t.K7.pageViewTiming:return[t.K7.pageViewEvent];default:return[]}}(r.featureName).filter(e=>!(e in this.features));n.length>0&&(0,l.R)(36,{targetFeature:r.featureName,missingDependencies:n}),this.features[r.featureName]=new r(this)})}catch(e){(0,l.R)(22,e);for(const e in this.features)this.features[e].abortHandler?.();const t=(0,s.Zm)();delete t.initializedAgents[this.agentIdentifier]?.features,delete this.sharedAggregator;return t.ee.get(this.agentIdentifier).abort(),!1}}}var K=r(2843),F=r(782);class U extends M{static featureName=F.T;constructor(e){super(e,F.T),g.RI&&((0,K.u)(()=>(0,x.p)("docHidden",[(0,S.t)()],void 0,F.T,this.ee),!0),(0,K.G)(()=>(0,x.p)("winPagehide",[(0,S.t)()],void 0,F.T,this.ee)),this.importAggregator(e,()=>r.e(478).then(r.bind(r,9917))))}}var V=r(3969);class z extends M{static featureName=V.TZ;constructor(e){super(e,V.TZ),this.importAggregator(e,()=>r.e(478).then(r.bind(r,6555)))}}var G=r(6774),q=r(3878),Y=r(3304);class Z{constructor(e,t,r,n,s){this.name="UncaughtError",this.message="string"==typeof e?e:(0,Y.A)(e),this.sourceURL=t,this.line=r,this.column=n,this.__newrelic=s}}function Q(e){return ee(e)?e:new Z(void 0!==e?.message?e.message:e,e?.filename||e?.sourceURL,e?.lineno||e?.line,e?.colno||e?.col,e?.__newrelic,e?.cause)}function X(e){const t="Unhandled Promise Rejection: ";if(!e?.reason)return;if(ee(e.reason)){try{e.reason.message.startsWith(t)||(e.reason.message=t+e.reason.message)}catch(e){}return Q(e.reason)}const r=Q(e.reason);return(r.message||"").startsWith(t)||(r.message=t+r.message),r}function J(e){if(e.error instanceof SyntaxError&&!/:\d+$/.test(e.error.stack?.trim())){const t=new Z(e.message,e.filename,e.lineno,e.colno,e.error.__newrelic,e.cause);return t.name=SyntaxError.name,t}return ee(e.error)?e.error:Q(e)}function ee(e){return e instanceof Error&&!!e.stack}function te(e,r,n,s,i=(0,S.t)()){"string"==typeof e&&(e=new Error(e)),(0,x.p)("err",[e,i,!1,r,n.runtime.isRecording,void 0,s],void 0,t.K7.jserrors,n.ee),(0,x.p)("uaErr",[],void 0,t.K7.genericEvents,n.ee)}var re=r(5732),ne=r(993),se=r(3785);function ie(e,{customAttributes:t={},level:r=ne.p_.INFO}={},n,s,i=(0,S.t)()){(0,se.R)(n.ee,e,t,r,!1,s,i)}function oe(e,r,n,s,i=(0,S.t)()){(0,x.p)("api-"+O.hG,[i,e,r,s],void 0,t.K7.genericEvents,n.ee)}function ae(e,r,n,s,i=(0,S.t)()){const{start:o,end:a,customAttributes:c}=r||{},d={customAttributes:c||{}};if("object"!=typeof d.customAttributes||"string"!=typeof e||0===e.length)return void(0,l.R)(57);const u=(e,t)=>null==e?t:"number"==typeof e?e:e instanceof PerformanceMark?e.startTime:Number.NaN;if(d.start=u(o,0),d.end=u(a,i),Number.isNaN(d.start)||Number.isNaN(d.end))(0,l.R)(57);else{if(d.duration=d.end-d.start,!(d.duration<0))return(0,x.p)("api-"+O.V1,[d,e,s],void 0,t.K7.genericEvents,n.ee),d;(0,l.R)(58)}}function ce(e,r={},n,s,i=(0,S.t)()){(0,x.p)("api-"+O.fF,[i,e,r,s],void 0,t.K7.genericEvents,n.ee)}var de=r(7508);const ue=(e,t)=>{if(!e||!t)return!1;try{let r=1===e.nodeType?e:e.parentElement;for(;r?.tagName;){if(r.dataset?.nrMfeId===t)return!0;r=r.parentNode}}catch(e){}return!1},le=(e,t)=>{const r=g.gm.document?.querySelector('[data-nr-mfe-id="'.concat(e,'"]'));let n=!!r;const s=new g.gm.MutationObserver(r=>{r.forEach(r=>{r.addedNodes.forEach(r=>{const i=1===r.nodeType?r:null;i?.dataset?.nrMfeId===e&&(s.disconnect(),s.observe(i,{childList:!0,subtree:!0}),n=!0),(e=>{try{return e?.textContent?.trim()||["img","video","canvas","svg"].includes(e?.nodeName?.toLowerCase())}catch(e){return!1}})(r)&&(n||ue(r,e))&&t(r,s)})})});return s.observe(r||g.gm.document,{childList:!0,subtree:!0}),s},fe=(e,t,r)=>{try{const n=new g.gm.PerformanceObserver(e=>{e.getEntries().forEach(r)});return n.observe(t),e.push(n),n}catch(e){return null}};function he(e,t){let r=null,n=null;const s=e=>null===e?null:e-(t?.scriptStart||t?.registeredAt||0),i={fcp:{get value(){return s(r)}},lcp:{get value(){return s(n)}},cls:{value:null},inp:{value:null},disconnect:()=>{}};if(!(e&&g.RI&&g.gm.MutationObserver&&g.gm.PerformanceObserver))return i;const o=[],a=()=>{r??=(0,S.t)(),n??=(0,S.t)(),i.cls.value??=0};g.gm.document?.querySelector('[data-nr-mfe-id="'.concat(e,'"]'))&&a(),le(e,(e,t)=>{a(),t.disconnect()});let c=0,d=null;const u=new Set;try{d=new g.gm.ResizeObserver(e=>{e.forEach(e=>{try{const t=e.contentRect.width*e.contentRect.height;t>c&&(c=t,n=(0,S.t)()),d.unobserve(e.target)}catch(e){}})})}catch(e){}const l=le(e,e=>{if(a(),d)try{const t=1===e.nodeType?e:e.parentElement;t&&!u.has(t)&&(u.add(t),"IMG"===t.tagName?t.complete?d.observe(t):t.addEventListener("load",()=>{d.observe(t)},{once:!0}):"VIDEO"===t.tagName?t.readyState>=2?d.observe(t):t.addEventListener("loadeddata",()=>{d.observe(t)},{once:!0}):d.observe(t))}catch(e){}});d&&o.push(d),o.push(l),fe(o,{type:"layout-shift",buffered:!0},t=>{t.hadRecentInput||(t.sources||[]).some(r=>!!ue(r.node,e)&&(a(),i.cls.value+=t.value,!0))}),fe(o,{type:"event",buffered:!0,durationThreshold:40},t=>{t.interactionId&&ue(t.target,e)&&(null===i.inp.value||t.duration>i.inp.value)&&(a(),i.inp.value=t.duration)});const f=["pointerdown","keydown"],h=()=>{f.forEach(e=>{g.gm.removeEventListener(e,p,{passive:!0})})};i.disconnect=()=>{o.forEach(e=>{try{e?.disconnect()}catch(e){}}),h()};const p=t=>{ue(t?.target,e)&&((()=>{try{l?.disconnect(),d?.disconnect()}catch(e){}})(),h())};return f.forEach(e=>{g.gm.addEventListener(e,p,{passive:!0})}),["visibilitychange","pagehide"].forEach(e=>{g.gm.addEventListener(e,i.disconnect,{once:!0,passive:!0})}),i}var pe=r(9566);const ge=["name","id","type"],me=new Map([[oe,"addPageAction"],[ie,"log"],[ae,"measure"],[te,"noticeError"],[ce,"recordCustomEvent"]]),ve={experimental:(0,j.J)(()=>(0,l.R)(54,"newrelic.register")),disabled:(0,j.J)(()=>(0,l.R)(55)),invalidTarget:(0,j.J)(e=>(0,l.R)(48,e)),deregistered:(0,j.J)(()=>(0,l.R)(68))};function ye(e){(0,_.Y)(O.eY,function(t){return be(e,t)},e)}function be(e,r){ve.experimental(),r||={},r.instance=(0,pe.LA)(8),r.type=re.fQ.MFE,r.licenseKey||=e.info.licenseKey,r.blocked=!1,("object"!=typeof r.tags||null===r.tags||Array.isArray(r.tags))&&(r.tags={}),r.parent??={get id(){return e.runtime.appMetadata.agents[0].entityGuid},type:re.fQ.BA};const n=(0,de.Qr)(),s=he(r.id,n),i={};Object.prototype.hasOwnProperty.call(r,"attributes")||Object.defineProperty(r,"attributes",{get:()=>({...i,"source.id":r.id,"source.name":r.name,"source.type":r.type,"parent.type":r.parent?.type||re.fQ.BA,"parent.id":r.parent?.id})}),Object.entries(r.tags).forEach(([e,t])=>{ge.includes(e)||(i["source.".concat(e)]=t)});let o=()=>{};const a=e.runtime.registeredEntities,c=e=>{r.blocked=!0,o=e};function d(e){return"string"==typeof e&&!!e.trim()&&e.trim().length<501}e.init.api.register.enabled||c(ve.disabled),d(r.id)&&d(r.name)||c(()=>ve.invalidTarget(r));const u={addPageAction:(t,n={})=>g(oe,[t,{...i,...n},e],r),deregister:()=>{h(),c(ve.deregistered)},log:(t,n={})=>g(ie,[t,{...n,customAttributes:{...i,...n.customAttributes||{}}},e],r),measure:(t,n={})=>g(ae,[t,{...n,customAttributes:{...i,...n.customAttributes||{}}},e],r),noticeError:(t,n={})=>g(te,[t,{...i,...n},e],r),recordCustomEvent:(t,n={})=>g(ce,[t,{...i,...n},e],r),setApplicationVersion:e=>p("application.version",e),setCustomAttribute:(e,t)=>p(e,t),setUserId:e=>p("enduser.id",e),metadata:{get customAttributes(){return i},target:r,timings:n,vitals:s}},f=()=>(r.blocked&&o(),r.blocked);function h(){if(n.reportedAt)return;n.reportedAt=(0,S.t)(),s.disconnect(),n.fcp=s.fcp,n.lcp=s.lcp,n.cls=s.cls,n.inp=s.inp;const e=n.fetchEnd-n.fetchStart,t=n.scriptEnd-n.scriptStart,r={assetUrl:n.asset,assetType:n.type,timeAlive:n.reportedAt-n.registeredAt,timeToBeRequested:n.fetchStart,timeToExecute:t,timeToFetch:e,timeToLoad:e+t,timeToRegister:n.registeredAt,"nr.vitals.fcp.value":s.fcp?.value??null,"nr.vitals.lcp.value":s.lcp?.value??null,"nr.vitals.cls.value":s.cls?.value??null,"nr.vitals.inp.value":s.inp?.value??null};u.recordCustomEvent("MicroFrontEndTiming",r)}f()||(a.push(u),(0,K.G)(h));const p=(e,t)=>{f()||(i[e]=t)},g=(r,n,s)=>{if(f()&&r!==be)return;const i=(0,S.t)(),o=me.get(r)||"unknown";(0,x.p)(V.xV,["API/register/".concat(o,"/called")],void 0,t.K7.metrics,e.ee);try{return r(...n,s,i)}catch(e){(0,l.R)(50,e)}};return u}class Ee extends M{static featureName=G.T;constructor(e){var t;super(e,G.T),t=e,(0,_.Y)(O.o5,(e,r)=>te(e,r,t),t),function(e){(0,_.Y)(O.bt,function(t){e.runtime.onerror=t},e)}(e),function(e){let t=0;(0,_.Y)(O.k6,function(e,r){++t>10||(this.runtime.releaseIds[e.slice(-200)]=(""+r).slice(-200))},e)}(e),ye(e);try{this.removeOnAbort=new AbortController}catch(e){}this.ee.on("internal-error",(t,r)=>{this.abortHandler&&(0,x.p)("ierr",[Q(t),(0,S.t)(),!0,{},e.runtime.isRecording,r],void 0,this.featureName,this.ee)}),g.gm.addEventListener("unhandledrejection",t=>{this.abortHandler&&(0,x.p)("err",[X(t),(0,S.t)(),!1,{unhandledPromiseRejection:1},e.runtime.isRecording],void 0,this.featureName,this.ee)},(0,q.jT)(!1,this.removeOnAbort?.signal)),g.gm.addEventListener("error",t=>{this.abortHandler&&(0,x.p)("err",[J(t),(0,S.t)(),!1,{},e.runtime.isRecording],void 0,this.featureName,this.ee)},(0,q.jT)(!1,this.removeOnAbort?.signal)),this.abortHandler=this.#n,this.importAggregator(e,()=>r.e(478).then(r.bind(r,9377)))}#n(){this.removeOnAbort?.abort(),this.abortHandler=void 0}}var we=r(8990);let Re=1;function Te(e){const t=typeof e;return!e||"object"!==t&&"function"!==t?-1:e===g.gm?0:(0,we.I)(e,"nr@id",function(){return Re++})}function Ae(e){if("string"==typeof e)return e.length;if("object"==typeof e){if("undefined"!=typeof ArrayBuffer&&e instanceof ArrayBuffer&&e.byteLength)return e.byteLength;if("undefined"!=typeof Blob&&e instanceof Blob&&e.size)return e.size;if(!("undefined"!=typeof FormData&&e instanceof FormData))try{return(0,Y.A)(e).length}catch(e){return}}}var xe=r(8139),Se=r(3434);const Oe={},_e=["open","send","setRequestHeader"];function Ne(e,t){var r=e||w.ee;const n=function(e){return(e||w.ee).get("xhr")}(r);if(void 0===g.gm.XMLHttpRequest)return n;if(Oe[n.debugId]++)return n;Oe[n.debugId]=1,(0,xe.u)(r);var s=(0,Se.YM)(n),i=g.gm.XMLHttpRequest,o=g.gm.MutationObserver,a=g.gm.Promise,c=g.gm.setInterval,d="readystatechange",u=["onload","onerror","onabort","onloadstart","onloadend","onprogress","ontimeout"],f=[],h=g.gm.XMLHttpRequest=function(e){const r=new i(e),o=n.context(r);o.targets=(0,re.$5)(t);try{n.emit("new-xhr",[r],o),r.addEventListener(d,(a=o,function(){var e=this;e.readyState>3&&!a.resolved&&(a.resolved=!0,n.emit("xhr-resolved",[],e)),s.inPlace(e,u,"fn-",E)}),(0,q.jT)(!1))}catch(e){(0,l.R)(15,e);try{n.emit("internal-error",[e])}catch(e){}}var a;return r};function p(e,t){s.inPlace(t,["onreadystatechange"],"fn-",E)}if(function(e,t){for(var r in e)t[r]=e[r]}(i,h),h.prototype=i.prototype,s.inPlace(h.prototype,_e,"-xhr-",E),n.on("send-xhr-start",function(e,t){p(e,t),function(e){f.push(e),o&&(m?m.then(b):c?c(b):(v=-v,y.data=v))}(t)}),n.on("open-xhr-start",p),o){var m=a&&a.resolve();if(!c&&!a){var v=1,y=document.createTextNode(v);new o(b).observe(y,{characterData:!0})}}else r.on("fn-end",function(e){e[0]&&e[0].type===d||b()});function b(){for(var e=0;e<f.length;e++)p(0,f[e]);f.length&&(f=[])}function E(e,t){return t}return n}var Pe="fetch-",Le=Pe+"body-",ke=["arrayBuffer","blob","json","text","formData"],Ce=g.gm.Request,je=g.gm.Response,Ie="prototype";const De={};function Me(e,t){const r=function(e){return(e||w.ee).get("fetch")}(e);if(!(Ce&&je&&g.gm.fetch))return r;if(De[r.debugId]++)return r;function n(e,n,s){var i=e[n];"function"==typeof i&&(e[n]=function(){var e=[...arguments];const n={},o=(0,re.$5)(t);var a;r.emit(s+"before-start",[e],n),n[w.P]&&n[w.P].dt&&(a=n[w.P].dt);var c=i.apply(this,e);return r.emit(s+"start",[e,a],c),c.then(function(e){return r.emit(s+"end",[null,e,o],c),e},function(e){throw r.emit(s+"end",[e,void 0,o],c),e})})}return De[r.debugId]=1,ke.forEach(e=>{n(Ce[Ie],e,Le),n(je[Ie],e,Le)}),n(g.gm,"fetch",Pe),r.on(Pe+"end",function(e,t,n){var s=this;if(s.targets=n||[void 0],t){var i=t.headers.get("content-length");null!==i&&(s.rxSize=i),r.emit(Pe+"done",[null,t],s)}else r.emit(Pe+"done",[e],s)}),r}var Be=r(7485);class He{constructor(e){this.agentRef=e}generateTracePayload(e){const t=this.agentRef.loader_config;if(!this.shouldGenerateTrace(e)||!t)return null;var r=(t.accountID||"").toString()||null,n=(t.agentID||"").toString()||null,s=(t.trustKey||"").toString()||null;if(!r||!n)return null;var i=(0,pe.ZF)(),o=(0,pe.el)(),a=Date.now(),c={spanId:i,traceId:o,timestamp:a};return(e.sameOrigin||this.isAllowedOrigin(e)&&this.useTraceContextHeadersForCors())&&(c.traceContextParentHeader=this.generateTraceContextParentHeader(i,o),c.traceContextStateHeader=this.generateTraceContextStateHeader(i,a,r,n,s)),(e.sameOrigin&&!this.excludeNewrelicHeader()||!e.sameOrigin&&this.isAllowedOrigin(e)&&this.useNewrelicHeaderForCors())&&(c.newrelicHeader=this.generateTraceHeader(i,o,a,r,n,s)),c}generateTraceContextParentHeader(e,t){return"00-"+t+"-"+e+"-01"}generateTraceContextStateHeader(e,t,r,n,s){return s+"@nr=0-1-"+r+"-"+n+"-"+e+"----"+t}generateTraceHeader(e,t,r,n,s,i){if(!("function"==typeof g.gm?.btoa))return null;var o={v:[0,1],d:{ty:"Browser",ac:n,ap:s,id:e,tr:t,ti:r}};return i&&n!==i&&(o.d.tk=i),btoa((0,Y.A)(o))}shouldGenerateTrace(e){return this.agentRef.init?.distributed_tracing?.enabled&&this.isAllowedOrigin(e)}isAllowedOrigin(e){var t=!1;const r=this.agentRef.init?.distributed_tracing;if(e.sameOrigin)t=!0;else if(r?.allowed_origins instanceof Array)for(var n=0;n<r.allowed_origins.length;n++){var s=(0,Be.D)(r.allowed_origins[n]);if(e.hostname===s.hostname&&e.protocol===s.protocol&&e.port===s.port){t=!0;break}}return t}excludeNewrelicHeader(){var e=this.agentRef.init?.distributed_tracing;return!!e&&!!e.exclude_newrelic_header}useNewrelicHeaderForCors(){var e=this.agentRef.init?.distributed_tracing;return!!e&&!1!==e.cors_use_newrelic_header}useTraceContextHeadersForCors(){var e=this.agentRef.init?.distributed_tracing;return!!e&&!!e.cors_use_tracecontext_headers}}var We=r(7295);function Ke(e){return"string"==typeof e?e:e instanceof(0,s.dV)().o.REQ?e.url:g.gm?.URL&&e instanceof URL?e.href:void 0}var Fe=["load","error","abort","timeout"],Ue=Fe.length,Ve=(0,s.dV)().o.REQ,ze=(0,s.dV)().o.XHR;const Ge="X-NewRelic-App-Data",qe="internal-error";class Ye extends M{static featureName=c.TZ;constructor(e){super(e,c.TZ),this.dt=new He(e),this.handler=(e,t,r,n)=>(0,x.p)(e,t,r,n,this.ee);try{const e={xmlhttprequest:"xhr",fetch:"fetch",beacon:"beacon"};g.gm?.performance?.getEntriesByType("resource").forEach(r=>{if(r.initiatorType in e&&0!==r.responseStatus){const n={status:r.responseStatus},s={rxSize:r.transferSize,duration:Math.floor(r.duration),cbTime:0};Ze(n,r.name),this.handler("xhr",[n,s,r.startTime,r.responseEnd,e[r.initiatorType]],void 0,t.K7.ajax)}})}catch(e){}Me(this.ee,e),Ne(this.ee,e),function(e,r,n,s){const i=[c.mo.ALL,c.mo.FAILURES].includes(e.init.ajax?.capture_payloads);function o(e){var t=this;t.totalCbs=0,t.called=0,t.cbTime=0,t.end=A,t.ended=!1,t.xhrGuids={},t.lastSize=null,t.loadCaptureCalled=!1,t.params=this.params||{},t.metrics=this.metrics||{},t.latestLongtaskEnd=0,e.addEventListener("load",function(r){_(t,e)},(0,q.jT)(!1)),g.lR||e.addEventListener("progress",function(e){t.lastSize=e.loaded},(0,q.jT)(!1))}function a(e){this.params={method:e[0]},Ze(this,e[1]),this.metrics={}}function d(t,r){e.loader_config.xpid&&this.sameOrigin&&r.setRequestHeader("X-NewRelic-ID",e.loader_config.xpid);var n=s.generateTracePayload(this.parsedOrigin);if(n){var i=!1;n.newrelicHeader&&(r.setRequestHeader("newrelic",n.newrelicHeader),i=!0),n.traceContextParentHeader&&(r.setRequestHeader("traceparent",n.traceContextParentHeader),n.traceContextStateHeader&&r.setRequestHeader("tracestate",n.traceContextStateHeader),i=!0),i&&(this.dt=n)}}function u(e,t){i&&e.length>=2&&(this.requestHeaders??={},this.requestHeaders[e[0].toLowerCase()]=e[1])}function l(e,t){var n=this.metrics,s=e[0],i=this;if(n&&s){var o=Ae(s);o&&(n.txSize=o)}this.startTime=(0,S.t)(),this.requestBody=s,this.listener=function(e){try{"abort"!==e.type||i.loadCaptureCalled||(i.params.aborted=!0),("load"!==e.type||i.called===i.totalCbs&&(i.onloadCalled||"function"!=typeof t.onload)&&"function"==typeof i.end)&&i.end(t)}catch(e){try{r.emit(qe,[e])}catch(e){}}};for(var a=0;a<Ue;a++)t.addEventListener(Fe[a],this.listener,(0,q.jT)(!1))}function f(e,t,r){this.cbTime+=e,t?this.onloadCalled=!0:this.called+=1,this.called!==this.totalCbs||!this.onloadCalled&&"function"==typeof r.onload||"function"!=typeof this.end||this.end(r)}function h(e,t){var r=""+Te(e)+!!t;this.xhrGuids&&!this.xhrGuids[r]&&(this.xhrGuids[r]=!0,this.totalCbs+=1)}function p(e,t){var r=""+Te(e)+!!t;this.xhrGuids&&this.xhrGuids[r]&&(delete this.xhrGuids[r],this.totalCbs-=1)}function m(){this.endTime=(0,S.t)()}function v(e,t){t instanceof ze&&"load"===e[0]&&r.emit("xhr-load-added",[e[1],e[2]],t)}function y(e,t){t instanceof ze&&"load"===e[0]&&r.emit("xhr-load-removed",[e[1],e[2]],t)}function b(e,t,r){t instanceof ze&&("onload"===r&&(this.onload=!0),("load"===(e[0]&&e[0].type)||this.onload)&&(this.xhrCbStart=(0,S.t)()))}function E(e,t){this.xhrCbStart&&r.emit("xhr-cb-time",[(0,S.t)()-this.xhrCbStart,this.onload,t],t)}function w(e){var t,r=e[1]||{};if("string"==typeof e[0]?0===(t=e[0]).length&&g.RI&&(t=""+g.gm.location.href):e[0]&&e[0].url?t=e[0].url:g.gm?.URL&&e[0]&&e[0]instanceof URL?t=e[0].href:"function"==typeof e[0].toString&&(t=e[0].toString()),"string"==typeof t&&0!==t.length){t&&(this.parsedOrigin=(0,Be.D)(t),this.sameOrigin=this.parsedOrigin.sameOrigin);var n=s.generateTracePayload(this.parsedOrigin);if(n&&(n.newrelicHeader||n.traceContextParentHeader))if(e[0]&&e[0].headers)a(e[0].headers,n)&&(this.dt=n);else{var i={};for(var o in r)i[o]=r[o];i.headers=new Headers(r.headers||{}),a(i.headers,n)&&(this.dt=n),e.length>1?e[1]=i:e.push(i)}}function a(e,t){var r=!1;return t.newrelicHeader&&(e.set("newrelic",t.newrelicHeader),r=!0),t.traceContextParentHeader&&(e.set("traceparent",t.traceContextParentHeader),t.traceContextStateHeader&&e.set("tracestate",t.traceContextStateHeader),r=!0),r}}function R(e,t){this.params={},this.metrics={},this.startTime=(0,S.t)(),this.dt=t;let[r,n={}]=e;Ze(this,Ke(r));const s=(""+(r&&r instanceof Ve&&r.method||n.method||"GET")).toUpperCase();this.params.method=s,this.txSize=Ae(n.body||r?.body)||0;try{var o=n.headers||r?.headers;if(i&&o)if(this.requestHeaders??={},o instanceof Headers)o.forEach(function(e,t){this.requestHeaders[t.toLowerCase()]=e}.bind(this));else if("object"==typeof o)for(var a in o)this.requestHeaders[a.toLowerCase()]=o[a]}catch(e){}this.requestBody=n.body||r?.body}function T(e,t){if(this.endTime=(0,S.t)(),this.params||(this.params={}),(0,We.iW)(this.params))return;this.params.status=t?t.status:0;const n=()=>{const e=+this.rxSize,t=null==this.rxSize||isNaN(e)?void 0:e,r={txSize:this.txSize,rxSize:t,duration:this.endTime-this.startTime},n=[this.params,r,this.startTime,this.endTime,"fetch"];this.targets.forEach(e=>O(n,this,e))};t&&i?t.clone().text().then(e=>{this.responseBody=e,this.rxSize&&"0"!==this.rxSize&&0!==this.rxSize||void 0===e||0===this.params.status||(this.rxSize=Ae(e)),t?.headers&&(this.responseHeaders={},t.headers.forEach(function(e,t){this.responseHeaders[t.toLowerCase()]=e}.bind(this)))}).catch(e=>{r.emit(qe,[e])}).finally(()=>{n()}):n()}function A(e){const t=this.params,n=this.metrics;if(this.ended)return;this.ended=!0;for(let t=0;t<Ue;t++)e.removeEventListener(Fe[t],this.listener,!1);if(t.aborted)return;if((0,We.iW)(t))return;if(n.duration=this.endTime-this.startTime,this.loadCaptureCalled||4!==e.readyState?null==t.status&&(t.status=0):_(this,e),n.cbTime=this.cbTime,i){try{this.responseBody=e.responseText}catch(t){this.responseBody=e.response}if((!n.rxSize||0===n.rxSize)&&void 0!==this.responseBody&&0!==t.status){const e=Ae(this.responseBody);void 0!==e&&(n.rxSize=e)}try{this.responseHeaders=function(e){const t={};return e?(e.split("\r\n").forEach(function(e){const r=e.indexOf(": ");if(r>0){const n=e.substring(0,r),s=e.substring(r+2);t[n.toLowerCase()]=s}}),t):t}(e.getAllResponseHeaders())}catch(e){r.emit(qe,[e])}}const s=[t,n,this.startTime,this.endTime,"xhr"];this.targets.forEach(e=>O(s,this,e))}function O(e,r,s){n("xhr",[...e,s],r,t.K7.ajax)}function _(e,n){e.params.status=n.status;var s=function(e,t){var r=e.responseType;return"json"===r&&null!==t?t:"arraybuffer"===r||"blob"===r||"json"===r?Ae(e.response):"text"===r||""===r||void 0===r?Ae(e.responseText):void 0}(n,e.lastSize);if(void 0!==s&&0!==n.status&&(e.metrics.rxSize=s),e.sameOrigin&&n.getAllResponseHeaders().indexOf(Ge)>=0){var i=n.getResponseHeader(Ge);i&&((0,x.p)("sm",["Ajax/CrossApplicationTracing/Header/Seen"],void 0,t.K7.metrics,r),e.params.cat=i.split(", ").pop())}e.loadCaptureCalled=!0}r.on("new-xhr",o),r.on("open-xhr-start",a),r.on("open-xhr-end",d),r.on("send-xhr-start",l),r.on("setRequestHeader-xhr-start",u),r.on("xhr-cb-time",f),r.on("xhr-load-added",h),r.on("xhr-load-removed",p),r.on("xhr-resolved",m),r.on("addEventListener-end",v),r.on("removeEventListener-end",y),r.on("fn-end",E),r.on("fetch-before-start",w),r.on("fetch-start",R),r.on("fn-start",b),r.on("fetch-done",T)}(e,this.ee,this.handler,this.dt),this.importAggregator(e,()=>r.e(478).then(r.bind(r,3845)))}}function Ze(e,t){var r=(0,Be.D)(t),n=e.params||e;n.hostname=r.hostname,n.port=r.port,n.protocol=r.protocol,n.host=r.hostname+":"+r.port,n.pathname=r.pathname,e.parsedOrigin=r,e.sameOrigin=r.sameOrigin}const Qe={},Xe=["pushState","replaceState"];function $e(e){const t=function(e){return(e||w.ee).get("history")}(e);return!g.RI||Qe[t.debugId]++||(Qe[t.debugId]=1,(0,Se.YM)(t).inPlace(window.history,Xe,"-")),t}var Je=r(3738);function et(e){(0,_.Y)(O.BL,function(r=Date.now()){const n=r-g.WN;n<0&&(0,l.R)(62,r),(0,x.p)(V.XG,[O.BL,{time:n}],void 0,t.K7.metrics,e.ee),e.addToTrace({name:O.BL,start:r,origin:"nr"}),(0,x.p)("api-"+O.hG,[n,O.BL],void 0,t.K7.genericEvents,e.ee)},e)}const{He:tt,bD:rt,d3:nt,Kp:st,TZ:it,Lc:ot,uP:at,Rz:ct}=Je;class dt extends M{static featureName=it;constructor(e){var n;super(e,it),n=e,(0,_.Y)(O.U2,function(e){if(!(e&&"object"==typeof e&&e.name&&e.start))return;const r={n:e.name,s:e.start-g.WN,e:(e.end||e.start)-g.WN,o:e.origin||"",t:"api"};r.s<0||r.e<0||r.e<r.s?(0,l.R)(61,{start:r.s,end:r.e}):(0,x.p)("bstApi",[r],void 0,t.K7.sessionTrace,n.ee)},n),et(e);if(!(0,C.V)(e.init))return void this.deregisterDrain();const s=this.ee;let i;$e(s),this.eventsEE=(0,xe.u)(s),this.eventsEE.on(at,function(e,t){this.bstStart=(0,S.t)()}),this.eventsEE.on(ot,function(e,r){(0,x.p)("bst",[e[0],r,this.bstStart,(0,S.t)()],void 0,t.K7.sessionTrace,s)}),s.on(ct+nt,function(e){this.time=(0,S.t)(),this.startPath=location.pathname+location.hash}),s.on(ct+st,function(e){(0,x.p)("bstHist",[location.pathname+location.hash,this.startPath,this.time],void 0,t.K7.sessionTrace,s)});try{i=new PerformanceObserver(e=>{const r=e.getEntries();(0,x.p)(tt,[r],void 0,t.K7.sessionTrace,s)}),i.observe({type:rt,buffered:!0})}catch(e){}this.importAggregator(e,()=>r.e(478).then(r.bind(r,6974)),{resourceObserver:i})}}var ut=r(733),lt=r(6344);class ft extends M{static featureName=lt.TZ;#s;recorder;constructor(e){var n;let s;super(e,lt.TZ),n=e,(0,_.Y)(O.CH,function(){(0,x.p)(O.CH,[],void 0,t.K7.sessionReplay,n.ee)},n),function(e){(0,_.Y)(O.Tb,function(){(0,x.p)(O.Tb,[],void 0,t.K7.sessionReplay,e.ee)},e)}(e);const i="".concat(u.Wt).concat((0,ut.Y)(e.info.licenseKey,e.info.applicationID));try{s=JSON.parse(localStorage.getItem(i))}catch(e){}(0,k.SR)(e.init)&&this.ee.on(O.CH,()=>this.#i()),this.#o(s)&&this.importRecorder().then(e=>{e.startRecording(lt.Qb.PRELOAD,s?.sessionReplayMode)}),this.importAggregator(this.agentRef,()=>r.e(478).then(r.bind(r,6167)),this),this.ee.on("err",e=>{this.blocked||this.agentRef.runtime.isRecording&&(this.errorNoticed=!0,(0,x.p)(lt.Vh,[e],void 0,this.featureName,this.ee))})}#o(e){return e&&(e.sessionReplayMode===u.g.FULL||e.sessionReplayMode===u.g.ERROR)||(0,k.Aw)(this.agentRef.init)}importRecorder(){return this.recorder?Promise.resolve(this.recorder):(this.#s??=Promise.all([r.e(478),r.e(249)]).then(r.bind(r,4866)).then(({Recorder:e})=>(this.recorder=new e(this),this.recorder)).catch(e=>{throw this.ee.emit("internal-error",[e]),this.blocked=!0,e}),this.#s)}#i(){this.blocked||(this.featAggregate?this.featAggregate.mode!==u.g.FULL&&this.featAggregate.initializeRecording(u.g.FULL,!0,lt.Qb.API):this.importRecorder().then(()=>{this.recorder.startRecording(lt.Qb.API,u.g.FULL)}))}}var ht=r(3962);class pt extends M{static featureName=ht.TZ;constructor(e){if(super(e,ht.TZ),function(e){const r=e.ee.get("tracer");function n(){}(0,_.Y)(O.dT,function(e){return(new n).get("object"==typeof e?e:{})},e);const s=n.prototype={createTracer:function(n,s){var i={},o=this,a="function"==typeof s;return(0,x.p)(V.xV,["API/createTracer/called"],void 0,t.K7.metrics,e.ee),function(){if(r.emit((a?"":"no-")+"fn-start",[(0,S.t)(),o,a],i),a)try{return s.apply(this,arguments)}catch(e){const t="string"==typeof e?new Error(e):e;throw r.emit("fn-err",[arguments,this,t],i),t}finally{r.emit("fn-end",[(0,S.t)()],i)}}}};["actionText","setName","setAttribute","save","ignore","onEnd","getContext","end","get"].forEach(r=>{_.Y.apply(this,[r,function(){return(0,x.p)(O.hw+r,[performance.now(),...arguments],this,t.K7.softNav,e.ee),this},e,s])}),(0,_.Y)(O.PA,function(){(0,x.p)(O.hw+"routeName",[performance.now(),...arguments],void 0,t.K7.softNav,e.ee)},e)}(e),!g.RI||!(0,s.dV)().o.MO)return;const n=$e(this.ee);try{this.removeOnAbort=new AbortController}catch(e){}ht.tC.forEach(e=>{(0,q.sp)(e,e=>{c(e)},!0,this.removeOnAbort?.signal)});const i=()=>(0,x.p)("newURL",[(0,S.t)(),""+window.location],void 0,this.featureName,this.ee);n.on("pushState-end",i),n.on("replaceState-end",i),(0,q.sp)(ht.OV,e=>{c(e),(0,x.p)("newURL",[e.timeStamp,""+window.location],void 0,this.featureName,this.ee)},!0,this.removeOnAbort?.signal);let o=!1;const a=new((0,s.dV)().o.MO)((e,t)=>{o||(o=!0,requestAnimationFrame(()=>{(0,x.p)("newDom",[(0,S.t)()],void 0,this.featureName,this.ee),o=!1}))}),c=(0,j.s)(e=>{"loading"!==document.readyState&&((0,x.p)("newUIEvent",[e],void 0,this.featureName,this.ee),a.observe(document.body,{attributes:!0,childList:!0,subtree:!0,characterData:!0}))},100,{leading:!0});this.abortHandler=function(){this.removeOnAbort?.abort(),a.disconnect(),this.abortHandler=void 0},this.importAggregator(e,()=>r.e(478).then(r.bind(r,4393)),{domObserver:a})}}var gt=r(9119),mt=r(981);const vt={},yt=new Set;function bt(e){return"string"==typeof e?{type:"string",size:(new TextEncoder).encode(e).length}:e instanceof ArrayBuffer?{type:"ArrayBuffer",size:e.byteLength}:e instanceof Blob?{type:"Blob",size:e.size}:e instanceof DataView?{type:"DataView",size:e.byteLength}:ArrayBuffer.isView(e)?{type:"TypedArray",size:e.byteLength}:{type:"unknown",size:0}}class Et{constructor(e,t){this.timestamp=(0,S.t)(),this.currentUrl=(0,gt.L)(window.location.href),this.socketId=(0,pe.LA)(8),this.requestedUrl=(0,gt.L)(e),this.requestedProtocols=Array.isArray(t)?t.join(","):t||"",this.openedAt=void 0,this.protocol=void 0,this.extensions=void 0,this.binaryType=void 0,this.messageOrigin=void 0,this.messageCount=0,this.messageBytes=0,this.messageBytesMin=0,this.messageBytesMax=0,this.messageTypes=void 0,this.sendCount=0,this.sendBytes=0,this.sendBytesMin=0,this.sendBytesMax=0,this.sendTypes=void 0,this.closedAt=void 0,this.closeCode=void 0,this.closeReason="unknown",this.closeWasClean=void 0,this.connectedDuration=0,this.hasErrors=void 0}}class wt extends M{static featureName=a.TZ;constructor(e){super(e,a.TZ);const n=e.init.feature_flags.includes("websockets")||e.init.web_sockets?.enabled,i=!e.init.feature_flags.includes("no_spv"),o=[e.init.page_action.enabled,e.init.performance.capture_marks,e.init.performance.capture_measures,e.init.performance.resources.enabled,e.init.user_actions.enabled,n,i];var c;let d;if(c=e,(0,_.Y)(O.hG,(e,t)=>oe(e,t,c),c),function(e){(0,_.Y)(O.fF,(t,r)=>ce(t,r,e),e)}(e),et(e),ye(e),function(e){(0,_.Y)(O.V1,(t,r)=>ae(t,r,e),e)}(e),this.removeOnAbort=new AbortController,this.abortHandler=()=>{this.removeOnAbort.abort(),this.abortHandler=void 0},n){const u=function(e){if(!(0,s.dV)().o.WS)return e;const t=e.get("websockets");if(vt[t.debugId]++)return t;vt[t.debugId]=1,(0,K.G)(()=>{const e=(0,S.t)();yt.forEach(r=>{r.nrData.closedAt=e,r.nrData.closeCode=1001,r.nrData.closeReason="Page navigating away",r.nrData.closeWasClean=!1,r.nrData.openedAt&&(r.nrData.connectedDuration=e-r.nrData.openedAt),t.emit("ws",[r.nrData],r)})});class r extends WebSocket{static name=mt.R.WS;static toString(){return"function WebSocket() { [native code] }"}toString(){return"[object WebSocket]"}get[Symbol.toStringTag](){return r.name}#a(e){(e.__newrelic??={}).socketId=this.nrData.socketId,this.nrData.hasErrors??=!0}constructor(...e){super(...e),this.nrData=new Et(e[0],e[1]),this.addEventListener("open",()=>{this.nrData.openedAt=(0,S.t)(),["protocol","extensions","binaryType"].forEach(e=>{this.nrData[e]=this[e]}),yt.add(this)}),this.addEventListener("message",e=>{const{type:t,size:r}=bt(e.data);this.nrData.messageOrigin??=(0,gt.L)(e.origin),this.nrData.messageCount++,this.nrData.messageBytes+=r,this.nrData.messageBytesMin=Math.min(this.nrData.messageBytesMin||1/0,r),this.nrData.messageBytesMax=Math.max(this.nrData.messageBytesMax,r),(this.nrData.messageTypes??"").includes(t)||(this.nrData.messageTypes=this.nrData.messageTypes?"".concat(this.nrData.messageTypes,",").concat(t):t)}),this.addEventListener("close",e=>{this.nrData.closedAt=(0,S.t)(),this.nrData.closeCode=e.code,e.reason&&(this.nrData.closeReason=e.reason),this.nrData.closeWasClean=e.wasClean,this.nrData.connectedDuration=this.nrData.closedAt-this.nrData.openedAt,yt.delete(this),t.emit("ws",[this.nrData],this)})}addEventListener(e,t,...r){const n=this,s="function"==typeof t?function(...e){try{return t.apply(this,e)}catch(e){throw n.#a(e),e}}:t?.handleEvent?{handleEvent:function(...e){try{return t.handleEvent.apply(t,e)}catch(e){throw n.#a(e),e}}}:t;return super.addEventListener(e,s,...r)}send(e){if(this.readyState===WebSocket.OPEN){const{type:t,size:r}=bt(e);this.nrData.sendCount++,this.nrData.sendBytes+=r,this.nrData.sendBytesMin=Math.min(this.nrData.sendBytesMin||1/0,r),this.nrData.sendBytesMax=Math.max(this.nrData.sendBytesMax,r),(this.nrData.sendTypes??"").includes(t)||(this.nrData.sendTypes=this.nrData.sendTypes?"".concat(this.nrData.sendTypes,",").concat(t):t)}try{return super.send(e)}catch(e){throw this.#a(e),e}}close(...e){try{super.close(...e)}catch(e){throw this.#a(e),e}}}return g.gm.WebSocket=r,t}(this.ee);u.on("ws",e=>{(0,x.p)("ws-complete",[e],void 0,this.featureName,this.ee)})}if(i&&g.gm.addEventListener("securitypolicyviolation",e=>{(0,x.p)("spv",[e],void 0,t.K7.genericEvents,this.ee)},(0,q.jT)(!1,this.removeOnAbort.signal)),g.RI){if(Me(this.ee,e),Ne(this.ee,e),d=$e(this.ee),e.init.user_actions.enabled){function l(t){const r=(0,Be.D)(t);return e.beacons.includes(r.hostname+":"+r.port)}function f(){d.emit("navChange")}a.Zp.forEach(e=>(0,q.sp)(e,e=>(0,x.p)("ua",[e],void 0,this.featureName,this.ee),!0)),a.qN.forEach(e=>{const t=(0,j.s)(e=>{(0,x.p)("ua",[e],void 0,this.featureName,this.ee)},500,{leading:!0});(0,q.sp)(e,t)}),g.gm.addEventListener("error",()=>{(0,x.p)("uaErr",[],void 0,t.K7.genericEvents,this.ee)},(0,q.jT)(!1,this.removeOnAbort.signal)),this.ee.on("open-xhr-start",(e,r)=>{l(e[1])||r.addEventListener("readystatechange",()=>{2===r.readyState&&(0,x.p)("uaXhr",[],void 0,t.K7.genericEvents,this.ee)},(0,q.jT)(void 0,this.removeOnAbort.signal))}),this.ee.on("fetch-start",e=>{e.length>=1&&!l(Ke(e[0]))&&(0,x.p)("uaXhr",[],void 0,t.K7.genericEvents,this.ee)}),d.on("pushState-end",f),d.on("replaceState-end",f),window.addEventListener("hashchange",f,(0,q.jT)(!0,this.removeOnAbort.signal)),window.addEventListener("popstate",f,(0,q.jT)(!0,this.removeOnAbort.signal))}if(e.init.performance.resources.enabled&&g.gm.PerformanceObserver?.supportedEntryTypes.includes("resource")){new PerformanceObserver(e=>{e.getEntries().forEach(e=>{(0,x.p)("browserPerformance.resource",[e],void 0,this.featureName,this.ee)})}).observe({type:"resource",buffered:!0})}}o.some(e=>e)?this.importAggregator(e,()=>r.e(478).then(r.bind(r,8019))):this.deregisterDrain()}}var Rt=r(2646);const Tt=new Map;function At(e,t,r,n,s=!0,i){if("object"!=typeof t||!t||"string"!=typeof r||!r||"function"!=typeof t[r])return(0,l.R)(29);const o=function(e){return(e||w.ee).get("logger")}(e),a=(0,Se.YM)(o,void 0,i),c=new Rt.y(w.P);c.level=n.level,c.customAttributes=n.customAttributes,c.autoCaptured=s;const d=t[r]?.[Se.Jt]||t[r];return Tt.set(d,c),a.inPlace(t,[r],"wrap-logger-",()=>Tt.get(d),void 0,!0),o}var xt=r(1910);class St extends M{static featureName=ne.TZ;constructor(e){var t;super(e,ne.TZ),t=e,(0,_.Y)("log",(e,r)=>ie(e,r,t),t),function(e){(0,_.Y)(O.Wb,(t,r,{customAttributes:n={},level:s=ne.p_.INFO}={})=>{At(e.ee,t,r,{customAttributes:n,level:s},!1,e)},e)}(e),ye(e);const n=this.ee;["log","error","warn","info","debug","trace"].forEach(t=>{(0,xt.i)(g.gm.console[t]),At(n,g.gm.console,t,{level:"log"===t?"info":t},void 0,e)}),this.ee.on("wrap-logger-end",function([e],t,r,s=[]){const{level:i,customAttributes:o,autoCaptured:a}=this;s.forEach(t=>{(0,se.R)(n,e,o,i,a,t)})}),this.importAggregator(e,()=>r.e(478).then(r.bind(r,5288)))}}new W({features:[Ye,H,U,dt,ft,z,Ee,wt,St,pt],loaderType:"spa"})})()})();</script>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<meta charset="UTF-8">
+	<link rel="profile" href="https://gmpg.org/xfn/11">
+	<meta name="format-detection" content="telephone=no">
+	<meta name='robots' content='index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' />
+
+	<title>About - The Lenfest Institute for Journalism</title>
+	<link rel="canonical" href="https://www.lenfestinstitute.org/about/" />
+	<meta property="og:locale" content="en_US" />
+	<meta property="og:type" content="article" />
+	<meta property="og:title" content="About" />
+	<meta property="og:description" content="Contact The Lenfest Institute for Journalism100 S Independence Mall WSuite 600Philadelphia, PA 19106(215) 854-5600info@lenfestinstitute.org" />
+	<meta property="og:url" content="https://www.lenfestinstitute.org/about/" />
+	<meta property="og:site_name" content="The Lenfest Institute for Journalism" />
+	<meta property="article:publisher" content="https://www.facebook.com/LenfestInstitute" />
+	<meta property="article:modified_time" content="2026-06-17T20:20:51+00:00" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:site" content="@lenfestinst" />
+	<meta name="twitter:label1" content="Est. reading time" />
+	<meta name="twitter:data1" content="1 minute" />
+	<script type="application/ld+json" class="yoast-schema-graph">{"@context":"https:\/\/schema.org","@graph":[{"@type":"WebPage","@id":"https:\/\/www.lenfestinstitute.org\/about\/","url":"https:\/\/www.lenfestinstitute.org\/about\/","name":"About - The Lenfest Institute for Journalism","isPartOf":{"@id":"https:\/\/www.lenfestinstitute.org\/#website"},"datePublished":"2023-08-11T16:14:50+00:00","dateModified":"2026-06-17T20:20:51+00:00","breadcrumb":{"@id":"https:\/\/www.lenfestinstitute.org\/about\/#breadcrumb"},"inLanguage":"en-US","potentialAction":[{"@type":"ReadAction","target":["https:\/\/www.lenfestinstitute.org\/about\/"]}]},{"@type":"BreadcrumbList","@id":"https:\/\/www.lenfestinstitute.org\/about\/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https:\/\/www.lenfestinstitute.org\/"},{"@type":"ListItem","position":2,"name":"About"}]},{"@type":"WebSite","@id":"https:\/\/www.lenfestinstitute.org\/#website","url":"https:\/\/www.lenfestinstitute.org\/","name":"Lenfest Institute","description":"","publisher":{"@id":"https:\/\/www.lenfestinstitute.org\/#organization"},"potentialAction":[{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https:\/\/www.lenfestinstitute.org\/?s={search_term_string}"},"query-input":{"@type":"PropertyValueSpecification","valueRequired":true,"valueName":"search_term_string"}}],"inLanguage":"en-US"},{"@type":"Organization","@id":"https:\/\/www.lenfestinstitute.org\/#organization","name":"Lenfest Institute","url":"https:\/\/www.lenfestinstitute.org\/","logo":{"@type":"ImageObject","inLanguage":"en-US","@id":"https:\/\/www.lenfestinstitute.org\/#\/schema\/logo\/image\/","url":"https:\/\/www.lenfestinstitute.org\/wp-content\/uploads\/2023\/10\/lenfest-social-share.png","contentUrl":"https:\/\/www.lenfestinstitute.org\/wp-content\/uploads\/2023\/10\/lenfest-social-share.png","width":1200,"height":630,"caption":"Lenfest Institute"},"image":{"@id":"https:\/\/www.lenfestinstitute.org\/#\/schema\/logo\/image\/"},"sameAs":["https:\/\/www.facebook.com\/LenfestInstitute","https:\/\/x.com\/lenfestinst"]}]}</script>
+
+
+<link rel='dns-prefetch' href='//www.lenfestinstitute.org' />
+<link rel='dns-prefetch' href='//use.typekit.net' />
+<!-- Global site tag (gtag.js) - Google Analytics --><script async src="https://www.googletagmanager.com/gtag/js?id=G-EZ84JR52X5"></script><script>window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', 'G-EZ84JR52X5');</script><style id="wp-img-auto-sizes-contain-inline-css">
+img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
+/*# sourceURL=wp-img-auto-sizes-contain-inline-css */
+</style>
+<style id="wp-block-library-inline-css">
+:root{--wp-block-synced-color:#7a00df;--wp-block-synced-color--rgb:122,0,223;--wp-bound-block-color:var(--wp-block-synced-color);--wp-editor-canvas-background:#ddd;--wp-admin-theme-color:#007cba;--wp-admin-theme-color--rgb:0,124,186;--wp-admin-theme-color-darker-10:#006ba1;--wp-admin-theme-color-darker-10--rgb:0,107,160.5;--wp-admin-theme-color-darker-20:#005a87;--wp-admin-theme-color-darker-20--rgb:0,90,135;--wp-admin-border-width-focus:2px}@media (min-resolution:192dpi){:root{--wp-admin-border-width-focus:1.5px}}.wp-element-button{cursor:pointer}:root .has-very-light-gray-background-color{background-color:#eee}:root .has-very-dark-gray-background-color{background-color:#313131}:root .has-very-light-gray-color{color:#eee}:root .has-very-dark-gray-color{color:#313131}:root .has-vivid-green-cyan-to-vivid-cyan-blue-gradient-background{background:linear-gradient(135deg,#00d084,#0693e3)}:root .has-purple-crush-gradient-background{background:linear-gradient(135deg,#34e2e4,#4721fb 50%,#ab1dfe)}:root .has-hazy-dawn-gradient-background{background:linear-gradient(135deg,#faaca8,#dad0ec)}:root .has-subdued-olive-gradient-background{background:linear-gradient(135deg,#fafae1,#67a671)}:root .has-atomic-cream-gradient-background{background:linear-gradient(135deg,#fdd79a,#004a59)}:root .has-nightshade-gradient-background{background:linear-gradient(135deg,#330968,#31cdcf)}:root .has-midnight-gradient-background{background:linear-gradient(135deg,#020381,#2874fc)}:root{--wp--preset--font-size--normal:16px;--wp--preset--font-size--huge:42px}.has-regular-font-size{font-size:1em}.has-larger-font-size{font-size:2.625em}.has-normal-font-size{font-size:var(--wp--preset--font-size--normal)}.has-huge-font-size{font-size:var(--wp--preset--font-size--huge)}:root .has-text-align-center{text-align:center}:root .has-text-align-left{text-align:left}:root .has-text-align-right{text-align:right}.has-fit-text{white-space:nowrap!important}#end-resizable-editor-section{display:none}.aligncenter{clear:both}.items-justified-left{justify-content:flex-start}.items-justified-center{justify-content:center}.items-justified-right{justify-content:flex-end}.items-justified-space-between{justify-content:space-between}.screen-reader-text{word-wrap:normal!important;border:0;clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px}.screen-reader-text:focus{background-color:#ddd;clip-path:none;color:#444;display:block;font-size:1em;height:auto;left:5px;line-height:normal;padding:15px 23px 14px;text-decoration:none;top:5px;width:auto;z-index:100000}html :where(.has-border-color){border-style:solid}html :where([style*=border-color]){border-style:solid}html :where([style*=border-top-color]){border-top-style:solid}html :where([style*=border-right-color]){border-right-style:solid}html :where([style*=border-bottom-color]){border-bottom-style:solid}html :where([style*=border-left-color]){border-left-style:solid}html :where([style*=border-width]){border-style:solid}html :where([style*=border-top-width]){border-top-style:solid}html :where([style*=border-right-width]){border-right-style:solid}html :where([style*=border-bottom-width]){border-bottom-style:solid}html :where([style*=border-left-width]){border-left-style:solid}html :where(img[class*=wp-image-]){height:auto;max-width:100%}:where(figure){margin:0 0 1em}html :where(.is-position-sticky){--wp-admin--admin-bar--position-offset:var(--wp-admin--admin-bar--height,0px)}@media screen and (max-width:600px){html :where(.is-position-sticky){--wp-admin--admin-bar--position-offset:0px}}
+
+/*# sourceURL=/wp-includes/css/dist/block-library/common.min.css */
+</style>
+
+<style id="global-styles-inline-css">
+:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small: 13px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 36px;--wp--preset--font-size--x-large: 42px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}:where(body) { margin: 0; }.wp-site-blocks > .alignleft { float: left; margin-right: 2em; }.wp-site-blocks > .alignright { float: right; margin-left: 2em; }.wp-site-blocks > .aligncenter { justify-content: center; margin-left: auto; margin-right: auto; }:where(.is-layout-flex){gap: 0.5em;}:where(.is-layout-grid){gap: 0.5em;}.is-layout-flow > .alignleft{float: left;margin-inline-start: 0;margin-inline-end: 2em;}.is-layout-flow > .alignright{float: right;margin-inline-start: 2em;margin-inline-end: 0;}.is-layout-flow > .aligncenter{margin-left: auto !important;margin-right: auto !important;}.is-layout-constrained > .alignleft{float: left;margin-inline-start: 0;margin-inline-end: 2em;}.is-layout-constrained > .alignright{float: right;margin-inline-start: 2em;margin-inline-end: 0;}.is-layout-constrained > .aligncenter{margin-left: auto !important;margin-right: auto !important;}.is-layout-constrained > :where(:not(.alignleft):not(.alignright):not(.alignfull)){margin-left: auto !important;margin-right: auto !important;}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}body{padding-top: 0px;padding-right: 0px;padding-bottom: 0px;padding-left: 0px;}:root :where(.wp-element-button, .wp-block-button__link){background-color: #32373c;border-width: 0;color: #fff;font-family: inherit;font-size: inherit;font-style: inherit;font-weight: inherit;letter-spacing: inherit;line-height: inherit;padding-top: calc(0.667em + 2px);padding-right: calc(1.333em + 2px);padding-bottom: calc(0.667em + 2px);padding-left: calc(1.333em + 2px);text-decoration: none;text-transform: inherit;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+/*# sourceURL=global-styles-inline-css */
+</style>
+
+<link rel='stylesheet' id='theme_css-css' href='https://www.lenfestinstitute.org/wp-content/themes/heliotrope/dist/css/main-style.css?ver=1784570710' media='all' />
+<link rel='stylesheet' id='typekit_css-css' href='https://use.typekit.net/vgf4iaj.css?ver=v1' media='all' />
+<link rel='stylesheet' id='wp-block-heading-css' href='https://www.lenfestinstitute.org/wp-includes/blocks/heading/style.min.css?ver=7.0.2' media='all' />
+<link rel='stylesheet' id='wp-block-paragraph-css' href='https://www.lenfestinstitute.org/wp-includes/blocks/paragraph/style.min.css?ver=7.0.2' media='all' />
+<script id="jquery-core-js" src="https://www.lenfestinstitute.org/wp-includes/js/jquery/jquery.min.js?ver=3.7.1"></script>
+<script id="jquery-migrate-js" src="https://www.lenfestinstitute.org/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1"></script>
+<link rel='shortlink' href='https://www.lenfestinstitute.org/?p=199' />
+<script type="text/javascript" src="https://www.bugherd.com/sidebarv2.js?utm_source=wordpress&apikey=hxwnfrtoxtwyrhzhecmfoq" async="true"></script><link rel="icon" href="https://www.lenfestinstitute.org/wp-content/uploads/2023/10/cropped-Favicon@2x-240x240.png" sizes="32x32" />
+<link rel="icon" href="https://www.lenfestinstitute.org/wp-content/uploads/2023/10/cropped-Favicon@2x-240x240.png" sizes="192x192" />
+<link rel="apple-touch-icon" href="https://www.lenfestinstitute.org/wp-content/uploads/2023/10/cropped-Favicon@2x-240x240.png" />
+<meta name="msapplication-TileImage" content="https://www.lenfestinstitute.org/wp-content/uploads/2023/10/cropped-Favicon@2x-300x300.png" />
+		<script>
+		!function(){const e=document.documentElement,n=e.style;e.className=e.className.replace("no-js","js");const t=()=>n.setProperty("--vh",.01*window.innerHeight+"px");t(),window.setVHUnit=t,window.llItems=[]}();		</script>
+		</head>
+<body
+	class="wp-singular page-template-default page page-id-199 page-parent wp-embed-responsive wp-theme-heliotrope no-js theme--default"	data-page-id="199"
+>
+
+<div id="page" class="site-wrap">
+	<a class="skip-link screen-reader-text" href="#mcontent">Skip to content</a>
+	<header class="lf header">
+		<div class="search-form">
+			
+<form id="searchform" data-searchform role="search" method="get" action="https://www.lenfestinstitute.org/">
+	<input
+		id="search__field-id-6a601e7b75ebc"
+		class="search__input"
+		type="search"
+		placeholder="Search The Lenfest Institute website"
+		name="s"
+		autocomplete="off"
+		autocorrect="off"
+		autocapitalize="off"
+		spellcheck="false"
+		required
+	>
+	<label
+		for="search__field-id-6a601e7b75ebc"
+		class="search__label screen-reader-text">
+			Search for:	</label>
+	<button class="l-btn l-btn--white" type="submit" role="button">Search </button>
+	<button class="close-btn" type="button" aria-label="btn-close" role="button">
+		<img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-close.svg" alt="close">
+	</button>
+</form>
+		</div>
+						<div class="lf alert alert--dismissible" role="alert">
+			<a class="alert__container" href="https://www.lenfestinstitute.org/institute-news/lenfest-institute-10-year-anniversary-report/" title="Learn how your support made it possible. ">
+				<p>
+					Introducing The Lenfest Institute's 10th Anniversary Report: “Five Stories Over Ten Years.”					<span class="learn-more">Learn how your support made it possible. </span>
+				</p>
+				<button class="alert-close" type="button" aria-label="btn-close" role="button">
+					<img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-close.svg" alt="close">
+				</button>
+				<span class="screen-reader-text">Learn how your support made it possible. </span>
+			</a>
+		</div>
+				<div class="header__wrapper">
+			<div class="container">
+				<div class="row">
+					<a class="header__logo" href="https://www.lenfestinstitute.org" title="Header Logo">
+						<span class="screen-reader-text">Header Logo</span>
+						<figure>
+							<img width="150" height="70" src="https://www.lenfestinstitute.org/wp-content/uploads/2026/01/Lenfest-10-Logo_SMALL_color-ns-1.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" /><img width="150" height="70" src="https://www.lenfestinstitute.org/wp-content/uploads/2026/01/Lenfest-10-Logo_SMALL_grey-copy-ns-1.svg" class="hover-logo" alt="" loading="lazy" decoding="async" />						</figure>
+					</a>
+					<nav>
+						<div class="hamburger-header is-mobile">
+							<a class="header__logo" href="https://www.lenfestinstitute.org" title="Header Logo">
+								<span class="screen-reader-text">Header Logo</span>
+								<figure>
+									<img width="85" height="70" src="https://www.lenfestinstitute.org/wp-content/uploads/2026/01/Lenfest-10-Logo_SMALL_white-copy-ns-1.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />								</figure>
+							</a>
+							<button class="is-hamburger is-mobile" type="button" aria-label="btn-hamburger"><img class="svg is-close" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-close.svg" alt="close"></button>
+						</div>
+						<div class="search is-mobile">
+							<form role="search" method="get" id="searchform" action="">
+								<input id="s" type="text" name="s" placeholder="Search the site...">
+								<button class="l-btn l-btn--icon-fill" type="submit" role="button" aria-label="btn-search"> <img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-search.svg" alt="search icon"></button>
+							</form>
+						</div>
+						<ul id="menu-mainmenu" class="menu"><li id="menu-item-67" class="has-submenu menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-67 top-level-menu-item"><a href="/our-work/">Our Work</a><button class="has-submenu__click" type="button" role="button" aria-label="btn-submenu"> <img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-down.svg" alt="dropdown arrow"></button>
+			<div class="has-submenu__wraper">
+<ul class="sub-menu">
+	<li id="menu-item-68" class="nav-title menu-item menu-item-type-custom menu-item-object-custom menu-item-68"><a href="#">National</a></li>
+	<li id="menu-item-19155" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-19155"><a href="https://www.lenfestinstitute.org/our-work/lenfest-ai-collaborative-and-fellowship-program/">Lenfest AI Collaborative and Fellowship Program</a></li>
+	<li id="menu-item-69" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-69"><a href="/our-work/communities-of-practice/">Communities of Practice</a></li>
+	<li id="menu-item-13662" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-13662"><a href="/our-work/beyond-print/">Beyond Print</a></li>
+	<li id="menu-item-70" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-70"><a href="/our-work/lenfest-advisory-services/">Advisory Services</a></li>
+	<li id="menu-item-71" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-71"><a href="/our-work/fiscal-sponsorships/">Fiscal Sponsorships</a></li>
+	<li id="menu-item-72" class="nav-title menu-item menu-item-type-custom menu-item-object-custom menu-item-72"><a href="#">Philadelphia &#038; Pennsylvania</a></li>
+	<li id="menu-item-73" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-73"><a href="/our-work/the-philadelphia-inquirer/">The Philadelphia Inquirer</a></li>
+	<li id="menu-item-74" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-74"><a href="/our-work/philadelphia-news-ecosystem/">Philadelphia News Ecosystem</a></li>
+	<li id="menu-item-75" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-75"><a href="/our-work/spotlight-pa/">Spotlight PA</a></li>
+	<li id="menu-item-76" class="nav-title menu-item menu-item-type-custom menu-item-object-custom menu-item-76"><a href="/grants/">Grants</a></li>
+	<li id="menu-item-77" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-77"><a href="/our-work/grants/">About Grants</a></li>
+</ul>
+</li>
+<li id="menu-item-78" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-78 top-level-menu-item"><a href="/solutions-resources/">Solutions and Resources</a></li>
+<li id="menu-item-79" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-79 top-level-menu-item"><a href="/impact/">Impact</a></li>
+<li id="menu-item-80" class="has-submenu menu-item menu-item-type-custom menu-item-object-custom current-menu-item menu-item-has-children menu-item-80 top-level-menu-item"><a href="/about/" aria-current="page">About</a><button class="has-submenu__click" type="button" role="button" aria-label="btn-submenu"> <img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-down.svg" alt="dropdown arrow"></button>
+			<div class="has-submenu__wraper">
+<ul class="sub-menu">
+	<li id="menu-item-12522" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12522"><a href="/about/our-team/">Our Team</a></li>
+	<li id="menu-item-82" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-82"><a href="/about/board-of-managers/">Board of Managers</a></li>
+	<li id="menu-item-12006" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12006"><a href="/about/donors/">Donors</a></li>
+	<li id="menu-item-13883" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-13883"><a href="/institute-news/">Institute News</a></li>
+</ul>
+</li>
+<li id="menu-item-83" class="has-submenu menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-83 top-level-menu-item"><a href="/get-involved/">Get Involved</a><button class="has-submenu__click" type="button" role="button" aria-label="btn-submenu"> <img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-down.svg" alt="dropdown arrow"></button>
+			<div class="has-submenu__wraper">
+<ul class="sub-menu">
+	<li id="menu-item-12524" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12524"><a href="/get-involved/apply-grant/">Apply for a grant</a></li>
+	<li id="menu-item-12009" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12009"><a href="/get-involved/join-a-community-of-practice/">Join a Community of Practice</a></li>
+	<li id="menu-item-12010" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12010"><a href="/get-involved/join-our-donor-community/">Join our donor community</a></li>
+	<li id="menu-item-12523" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12523"><a href="/get-involved/events/">Attend an event</a></li>
+	<li id="menu-item-12008" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12008"><a href="/get-involved/partner-with-us/">Partner with us</a></li>
+	<li id="menu-item-12525" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-12525"><a href="/newsletters/">Sign up for a newsletter</a></li>
+	<li id="menu-item-16279" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-16279"><a href="https://www.lenfestinstitute.org/get-involved/careers/">Apply for a job at the Institute</a></li>
+</ul>
+</li>
+</ul>						<button class="search__click" type="button" role="button" aria-label="btn-search"> <img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-search.svg" alt="search"></button>
+												<a class="l-btn l-btn--donate" href="https://lenfestinstitute.fundjournalism.org/donate/?org_id=lenfestinstitute&#038;campaign=701f4000000WGyoAAG">Donate</a>
+					</nav>
+					<button class="is-hamburger is-mobile" type="button" aria-label="btn-hamburger"><img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/icon-hamburger.svg" alt="hamburger"></button>
+				</div>
+			</div>
+		</div>
+</header>
+<main id="mcontent" class="lf main">
+<div class="gutenberg-content">
+	<section class="mb-64 section-wrapper">
+	<div class="container">
+		<div class="lf topper-sec with-caption topper-sec--default">
+											<figure class="ts__image aspect-box" style="--aspect-ratio:510/765">
+						<img decoding="async" width="760" height="500" src="https://www.lenfestinstitute.org/wp-content/uploads/2025/07/HLY_6133-760x500.jpg" class="attachment-3x2_medium size-3x2_medium" alt="" sizes="auto, (min-width: 450px) 100vw, 50vw" loading="lazy" />							<figcaption>Photo by Hannah Yoon</figcaption>
+												</figure>
+									<h1 class="h-l">
+				Scalable solutions for sustainable local news			</h1>
+			<div class="ts__description is-desktop">
+									<div></div>
+								</div>
+						<div class="row">
+				<div class="col-12 col-md-5">
+					<div class="ts__content">
+													<p>The Lenfest Institute creates solutions for the next era of local news by investing in sustainable business models at the intersection of local journalism and community in Philadelphia and nationwide.</p>
+															<div class="ts__description is-mobile">
+									<div class="ts__post-by">
+																			</div>
+								</div>
+													</div>
+				</div>
+									<div class="col-12 col-md-7"> 
+						<figure class="ts__image aspect-box" style="--aspect-ratio:510/765">
+							<img decoding="async" width="760" height="500" src="https://www.lenfestinstitute.org/wp-content/uploads/2025/07/HLY_6133-760x500.jpg" class="attachment-3x2_medium size-3x2_medium" alt="" sizes="auto, (min-width: 450px) 100vw, 50vw" loading="lazy" />								<figcaption>Photo by Hannah Yoon</figcaption>
+														</figure>
+					</div>
+								</div>
+					</div>
+	</div>
+</section>
+
+
+<section class="mb-64 lg-mb-80 xl-mb-80 mt-64 lg-mt-80 section-wrapper">
+	<div class="container">
+		<div class="lf stacked-cards">
+			<div class="row">
+				<div class="col-12 col-lg-5">
+					<div class="stacked-card__pinned">
+						<h3>Our Vision</h3>
+						<p>Our guiding mission is that every community needs and deserves a great news organization.</p>
+					</div>
+				</div>
+				<div class="col-12 col-lg-7">
+												<div class="lf vision-card">
+								<h5 class="h5-alt">Digital transformation and business solutions for sustainable local news coverage.</h5>
+																	<p>We support news organizations as they build digital products and develop solutions-oriented coverage that helps communities flourish. 
+
+</p>
+																</div>
+														<div class="lf vision-card">
+								<h5 class="h5-alt">Equitably meet the news and information needs of diverse communities.</h5>
+																	<p>We’re defining different pathways to sustainability for publishers to ensure they are  reflective of the communities they’re serving. 
+
+
+</p>
+																</div>
+														<div class="lf vision-card">
+								<h5 class="h5-alt">Create national support networks for news professionals.</h5>
+																	<p>We believe that a rising tide lifts all boats, and that one news solution cannot solve every challenge. We’re lending our operating expertise to offer strategic advisory services and building Communities of Practice for news professionals to collaborate and share best practices.
+</p>
+																</div>
+											</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+<section class="mb-64 lg-mb-80 mt-64 lg-mt-80 section-wrapper">
+	<div class="container">
+		<div class="container container--inner">
+			<div class="lf accordion-block">
+				<div class="ab__wrapper">
+					<h3 class="h3">Our work</h3>
+					<p>The Lenfest Institute provides grant funding, runs training programs, and synthesizes best practices to develop and disseminate sustainable solutions for local news providers. </p>
+												<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Philadelphia &amp; Pennsylvania<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																			<p>The Lenfest Institute supports a sustainable local journalism ecosystem that can catalyze a more transparent, connected, and equitable Philadelphia by linking residents to their neighbors, to news organizations, and to other information resources that allow them to flourish. In addition to serving as the non-controlling, nonprofit owner of The Philadelphia Inquirer, the Institute supports dozens of news organizations across the city through grantmaking and training.</p>
+<p>In 2019, the Institute launched Spotlight PA to provide high-quality investigative and accountability reporting for the benefit of all Pennsylvanians.</p>
+																						<ul>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/the-philadelphia-inquirer/" target="_self">The Philadelphia Inquirer 														<span class="screen-reader-text">The Philadelphia Inquirer </span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/philadelphia-news-ecosystem/" target="_self">Philadelphia News Ecosystem														<span class="screen-reader-text">Philadelphia News Ecosystem</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.everyvoice-everyvote.org/" target="_blank">Every Voice, Every Vote														<span class="screen-reader-text">Every Voice, Every Vote</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/spotlight-pa/" target="_self">Spotlight PA														<span class="screen-reader-text">Spotlight PA</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/lenfest-local-lab/" target="_self">The Lenfest Local Lab														<span class="screen-reader-text">The Lenfest Local Lab</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+														<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">National<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																			<p>The Lenfest Institute supports organizations across the United States to help them build sustainable business models and serve their communities with reliable journalism. The Institute is also home to communities of practice, which bring together journalism professionals to develop expertise, share best practices, and solve community challenges.</p>
+																						<ul>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/beyond-print/" target="_self">Beyond Print														<span class="screen-reader-text">Beyond Print</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/communities-of-practice/" target="_self">Communities of Practice														<span class="screen-reader-text">Communities of Practice</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/fiscal-sponsorships/" target="_self">Fiscal Sponsorships														<span class="screen-reader-text">Fiscal Sponsorships</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/lenfest-local-news-infrastructure-fund/" target="_self">Lenfest Local News Infrastructure Fund														<span class="screen-reader-text">Lenfest Local News Infrastructure Fund</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/solutions-resources/" target="_self">Solutions &amp; Resources														<span class="screen-reader-text">Solutions &amp; Resources</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/our-work/lenfest-advisory-services/" target="_self">Strategic Advisory Services														<span class="screen-reader-text">Strategic Advisory Services</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+											</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+<section class="section-wrapper mt-64 lg-mt-80">
+	<div class="container container--fw">
+		<div class="mb-64 lg-mb-80 mt-64 lg-mt-80">
+			<div class="lf featured-video">
+				<div class="fv__wrapper">
+					<div class="lf__content-editor">
+						<div class="container container--inner"> 
+							<h3 class="h4">Our History</h3>
+							<p>The Lenfest Institute was founded in 2016 by the late cable television entrepreneur H.F. “Gerry” Lenfest.</p>
+<p>Lenfest donated his ownership of The Philadelphia Inquirer and gifted to the Institute an initial endowment of $20 million, which has since been supplemented by other donors, for investment in innovative news initiatives, new technology, and new models for sustainable journalism.</p>
+<p>Gerry’s vision – and our guiding mission – is that every community needs and deserves a great news organization.</p>
+<p>Gerry recognized that local journalism was in a financial crisis, just when our democracy needed it most.</p>
+<p>“Where better than Philadelphia,” Gerry asked, “to invent the future of a free press?”</p>
+						</div>
+						<div class="container container--inner-fw">
+															<figure class="aspect-box" style="--aspect-ratio:500/878">
+									<img decoding="async" width="878" height="500" src="https://www.lenfestinstitute.org/wp-content/uploads/2023/09/Gerry-878x500.jpg" class="attachment-16x9_xmedium size-16x9_xmedium" alt="Lenfest Institute founder H.F. &quot;Gerry&quot; Lenfest sits at his desk." sizes="auto, (min-width: 450px) 100vw, 50vw" loading="lazy" />								</figure>
+															<span class="fv__caption">Lenfest Institute founder H.F. &quot;Gerry&quot; Lenfest</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+
+<h2 class="wp-block-heading" id="h-contact">Contact</h2>
+
+
+
+<p class="wp-block-paragraph">The Lenfest Institute for Journalism<br>100 S Independence Mall W<br>Suite 600<br>Philadelphia, PA 19106<br>(215) 854-5600<br><a href="/cdn-cgi/l/email-protection#50393e363f103c353e36352324393e232439242524357e3f2237"><span class="__cf_email__" data-cfemail="a0c9cec6cfe0ccc5cec6c5d3d4c9ced3d4c9d4d5d4c58ecfd2c7">[email&#160;protected]</span></a></p>
+
+
+<section class="mb-64 lg-mb-80 mt-64 lg-mt-80 section-wrapper">
+	<div class="container">
+		<div class="container container--inner">
+			<div class="lf accordion-block">
+				<div class="ab__wrapper">
+					<h3 class="h3">Institute legal structure</h3>
+																	<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Inquirer ownership<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																			<p>The Lenfest Institute for Journalism is a non-profit LLC formed for charitable and educational purposes. It is the sole shareholder of The Philadelphia Inquirer, PBC</p>
+<p>The Institute is an affiliate of The Lenfest Institute for Journalism Special Asset Fund of Philadelphia Foundation (Formerly The Philadelphia Foundation Special Assets Fund), a tax-exempt organization under the Internal Revenue Code Section 501(c)(3) and a public charity. Neither The Institute nor TPF control The Inquirer. Instead, The Inquirer’s Board of Directors is responsible for operational and key decision-making. The Inquirer remains a for-profit business, a “B-Corp” or Public Benefit Corporation.</p>
+<p>Although the Institute technically owns The Inquirer, under the legal structure– and to protect its editorial independence – The Inquirer operates independently under its current management team and its Board of Directors.</p>
+<p>The Institute owns 9,999 non-voting shares in The Inquirer. The charitable Inquirer Trust holds the one voting share of stock of The Inquirer. The trustees of the charitable trust are the same as the members of the Board of Directors of The Inquirer. The purpose of the charitable trust was to vest control of The Inquirer in the hands of its Board of Directors so as to ensure it would be operated independently from the Institute and maintain editorial independence.</p>
+<p>The Institute’s Board of Managers governs the tax-exempt mission of the Institute. Although inherently connected to The Inquirer, these are independent bodies with independent missions and independent responsibilities.</p>
+																						<ul>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/10/Lenfest-Institute-Legal-Structure.jpg" target="_blank">Institute legal structure														<span class="screen-reader-text">Institute legal structure</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+														<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Tax-exempt status<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																			<p>&lt;!&#8211; wp:list-item &#8211;&gt;<br />
+&lt;li&gt;The Lenfest Institute for Journalism&lt;br&gt;100 S Independence Mall W&lt;br&gt;Suite 600&lt;br&gt;Philadelphia, PA 19106&lt;br&gt;(215) 854-5600&lt;br&gt;&lt;a href=&#8221;mailto:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d8b1b6beb798b4bdb6bebdabacb1b6abacb1acadacbdf6b7aabf">[email&#160;protected]</a>&#8221;&gt;<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d0b9beb6bf90bcb5beb6b5a3a4b9bea3a4b9a4a5a4b5febfa2b7">[email&#160;protected]</a>&lt;/a&gt;&lt;br&gt;&lt;/li&gt;<br />
+&lt;!&#8211; /wp:list-item &#8211;&gt;</p>
+																						<ul>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/10/IRS-Letter-March-20225.pdf" target="_blank">2022 IRS exemption determination letter														<span class="screen-reader-text">2022 IRS exemption determination letter</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/10/TPF-Special-Assets-IRS-501c3-letter84.pdf" target="_blank">2003 IRS exemption determination letter														<span class="screen-reader-text">2003 IRS exemption determination letter</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/10/Lenfest-Tax-Opinion-Letter-UPDATED.pdf" target="_blank">Federal tax treatment of contributions to The Lenfest Institute														<span class="screen-reader-text">Federal tax treatment of contributions to The Lenfest Institute</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+											</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+<section class="mb-64 lg-mb-80 mt-64 lg-mt-80 section-wrapper">
+	<div class="container">
+		<div class="container container--inner">
+			<div class="lf accordion-block">
+				<div class="ab__wrapper">
+					<h3 class="h3">Financial information and policies</h3>
+																	<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Annual Form 990s<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																																									<ul>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2025/11/Lenfest-2024-990.pdf" target="_self">2024 Form 990														<span class="screen-reader-text">2024 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2024/12/Lenfest-Institute-2023-form-990.pdf" target="_blank">2023 Form 990														<span class="screen-reader-text">2023 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2023/11/Public_Inspection_-_TLIJSAF_TPF_-_12.31.2022_Form_990.pdf" target="_blank">2022 Form 990														<span class="screen-reader-text">2022 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/Public-Inspection-Lenfest-Institute-12.31.2021-Form-990.pdf" target="_blank">2021 Form 990														<span class="screen-reader-text">2021 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/Lenfest-Institute-990-public-copy-2020.pdf" target="_blank">2020 Form 990														<span class="screen-reader-text">2020 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/2019-990-Public-Inspection-Copy.pdf" target="_self">2019 Form 990														<span class="screen-reader-text">2019 Form 990</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/09/2018_LenfestInstitute_990.pdf" target="_self">2018 Form 990														<span class="screen-reader-text">2018 Form 990</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+														<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Audited Financial Results<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																																									<ul>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2026/06/The-Lenfest-Institute-12.31.25-Financial-Statements-Unsecure.pdf" target="_self">2025														<span class="screen-reader-text">2025</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2025/07/2024-Final-Report-and-Financial-Statements-UPLOAD-ONLY.pdf" target="_self">2024														<span class="screen-reader-text">2024</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2024/08/2023-Audited-Financial-Statement_Lenfest-Institute.pdf" target="_self">2023														<span class="screen-reader-text">2023</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2023/11/TLIFJ_12.31.22.-Financial-Statements.pdf" target="_blank">2022														<span class="screen-reader-text">2022</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/The-Lenfest-Institute-for-Journalism-LLC-Financial-Statement.pdf" target="_self">2021														<span class="screen-reader-text">2021</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/Final-Lenfest-Institute-FS-1220.pdf" target="_self">2020														<span class="screen-reader-text">2020</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/08/Final-Lenfest-Institute-FS-1219.pdf" target="_self">2019														<span class="screen-reader-text">2019</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+														<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Impact Reports<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																																									<ul>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/institute-news/2024-impact-report/" target="_self">2024														<span class="screen-reader-text">2024</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/wp-content/uploads/2024/02/2023-lenfest-impact-report-final-vertical.pdf" target="_self">2023														<span class="screen-reader-text">2023</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/09/Lenfest-Impact-Report_v14_WEB.pdf" target="_blank">2022														<span class="screen-reader-text">2022</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/09/2021-Impact-Report-web-final.pdf" target="_blank">2021														<span class="screen-reader-text">2021</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/09/2020-Imapct-Report-FINAL-ONLINE.pdf" target="_blank">2020														<span class="screen-reader-text">2020</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://lenfestinstitute.org/wp-content/uploads/2023/09/2018-19Lenfest-Institute-Report-on-Activities_FINAL2.pdf" target="_blank">2018-2019														<span class="screen-reader-text">2018-2019</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+														<div class="ab__accordion">
+								<button class="ab__accordion-button jsAccordion h6-alt" aria-expanded="false">Policies<span class="ab__icon"></span></button>
+									<div class="ab__accordion-content" hidden>
+																					<ul class="two-col">
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/conflict-interest-gift-acceptance-policy/" target="_self">Gift Acceptance Policy														<span class="screen-reader-text">Gift Acceptance Policy</span>
+													</a>
+												</li>
+																								<li>
+													<a class="l-link" href="https://www.lenfestinstitute.org/get-involved/apply-grant/" target="_self">Grantmaking Policy														<span class="screen-reader-text">Grantmaking Policy</span>
+													</a>
+												</li>
+																							</ul>
+																				</div>
+							</div>
+											</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+
+	<section class="section-newsletter section-wrapper mt-64 lg-mt-80">
+		<div class="container">
+			<div class="mb-64 lg-mb-80">
+				<div class="lf newsletter newsletter--plain newsletter--plain--orange">
+					<div class="newsletter__wrapper"> 
+						<div class="row"> 
+							<div class="col-12 col-lg-3">
+								<figure class="aspect-box" style="--aspect-ratio:438/264">
+									<svg class="pattern-right" width="264" height="438" viewBox="0 0 264 438" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<g clip-path="url(#clip0_4_163)">
+											<rect x="263.5" y="175.5" width="175" height="175" transform="rotate(180 263.5 175.5)" stroke="white"/>
+											<rect x="88.5" y="88.5" width="88" height="88" transform="rotate(180 88.5 88.5)" stroke="white"/>
+											<rect x="88.5" y="350.5" width="88" height="175" transform="rotate(180 88.5 350.5)" stroke="white"/>
+											<rect x="88.5" y="437.5" width="88" height="87" transform="rotate(180 88.5 437.5)" stroke="white"/>
+											<rect x="176.5" y="437.5" width="88" height="87" transform="rotate(180 176.5 437.5)" stroke="white"/>
+											<rect x="263.5" y="437.5" width="87" height="87" transform="rotate(180 263.5 437.5)" stroke="white"/>
+											<g clip-path="url(#clip1_4_163)">
+												<path d="M263 525.5C166.628 525.5 88.5 447.151 88.5 350.5C88.5001 253.849 166.628 175.5 263 175.5C359.372 175.5 437.5 253.849 437.5 350.5C437.5 447.151 359.372 525.5 263 525.5Z" stroke="white"/>
+												<rect x="263.5" y="350.5" width="175" height="175" transform="rotate(180 263.5 350.5)" stroke="white"/>
+											</g>
+											<g clip-path="url(#clip2_4_163)">
+												<rect x="88.5" y="175.5" width="88" height="87" transform="rotate(180 88.5 175.5)" stroke="white"/>
+												<path d="M1.49999 263.5C-46.5461 263.5 -85.5 224.328 -85.5 176C-85.5 127.672 -46.5461 88.5 1.50002 88.5C49.5461 88.5 88.5 127.672 88.5 176C88.5 224.328 49.5461 263.5 1.49999 263.5Z" stroke="white"/>
+											</g>
+										</g>
+										<defs>
+											<clipPath id="clip0_4_163">
+												<rect width="264" height="438" fill="white" transform="matrix(-1 0 0 -1 264 438)"/>
+											</clipPath>
+											<clipPath id="clip1_4_163">
+												<rect width="176" height="176" fill="white" transform="matrix(-1 0 0 -1 264 351)"/>
+											</clipPath>
+											<clipPath id="clip2_4_163">
+												<rect width="89" height="88" fill="white" transform="matrix(-1 0 0 -1 89 176)"/>
+											</clipPath>
+										</defs>
+									</svg>
+								</figure>
+							</div>
+							<div class="col-12 col-lg-6"> 
+								<div class="newsletter__contents"> 
+									<h2>Equitable, sustainable, community-centered local news solutions</h2>
+																		<a class="l-btn l-btn--secondary" href="https://www.lenfestinstitute.org/impact/">Our Impact</a>
+								</div>
+							</div>
+							<div class="col-12 col-lg-3"> 
+								<div class="newsletter__bg-patterns">
+									<figure class="aspect-box" style="--aspect-ratio:438/264">
+										<svg class="pattern-left" width="264" height="438" viewBox="0 0 264 438" fill="none" xmlns="http://www.w3.org/2000/svg">
+											<g clip-path="url(#clip0_4_119)">
+												<rect x="0.5" y="262.5" width="175" height="175" stroke="white"/>
+												<rect x="175.5" y="349.5" width="88" height="88" stroke="white"/>
+												<rect x="175.5" y="87.5" width="88" height="175" stroke="white"/>
+												<rect x="175.5" y="0.5" width="88" height="87" stroke="white"/>
+												<rect x="87.5" y="0.5" width="88" height="87" stroke="white"/>
+												<rect x="0.5" y="0.5" width="87" height="87" stroke="white"/>
+												<g clip-path="url(#clip1_4_119)">
+													<path d="M1.00002 -87.5001C97.3723 -87.5001 175.5 -9.15126 175.5 87.4999C175.5 184.151 97.3723 262.5 0.99997 262.5C-95.3724 262.5 -173.5 184.151 -173.5 87.4999C-173.5 -9.15131 -95.3723 -87.5001 1.00002 -87.5001Z" stroke="white"/>
+													<rect x="0.5" y="87.5" width="175" height="175" stroke="white"/>
+												</g>
+												<path d="M175.5 87.5001C126.899 87.5 87.5 48.1011 87.5 -0.5C87.5 -49.1011 126.899 -88.5 175.5 -88.5C224.101 -88.5 263.5 -49.101 263.5 -0.499962C263.5 48.1011 224.101 87.5001 175.5 87.5001Z" stroke="white"/>
+												<g clip-path="url(#clip2_4_119)">
+													<rect x="175.5" y="262.5" width="88" height="87" stroke="white"/>
+													<path d="M262.5 174.5C310.546 174.5 349.5 213.672 349.5 262C349.5 310.328 310.546 349.5 262.5 349.5C214.454 349.5 175.5 310.328 175.5 262C175.5 213.672 214.454 174.5 262.5 174.5Z" stroke="white"/>
+												</g>
+											</g>
+											<defs>
+												<clipPath id="clip0_4_119">
+													<rect width="264" height="438" fill="white"/>
+												</clipPath>
+												<clipPath id="clip1_4_119">
+													<rect width="176" height="176" fill="white" transform="translate(0 87)"/>
+												</clipPath>
+												<clipPath id="clip2_4_119">
+													<rect width="89" height="88" fill="white" transform="translate(175 262)"/>
+												</clipPath>
+											</defs>
+										</svg>
+									</figure>
+									<figure class="aspect-box is-mobile" style="--aspect-ratio:1/1">
+										<svg width="373" height="372" viewBox="0 0 373 372" fill="none" xmlns="http://www.w3.org/2000/svg">
+											<g clip-path="url(#clip0_3_17500)">
+												<rect x="124.828" y="618.808" width="248.134" height="124.279" transform="rotate(-90 124.828 618.808)" stroke="#FFEED4"/>
+												<rect x="0.972656" y="618.808" width="248.134" height="124.279" transform="rotate(-90 0.972656 618.808)" stroke="#FFEED4"/>
+												<rect x="0.966797" y="371.088" width="248.134" height="124.279" transform="rotate(-90 0.966797 371.088)" stroke="#FFEED4"/>
+												<rect x="248.699" y="618.808" width="248.134" height="124.279" transform="rotate(-90 248.699 618.808)" stroke="#FFEED4"/>
+												<mask id="mask0_3_17500" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="124" y="122" width="250" height="250">
+													<mask id="path-7-inside-1_3_17500" fill="white">
+														<path fill-rule="evenodd" clip-rule="evenodd" d="M248.2 371.586L248.2 371.587L373.478 371.587L373.479 122.453L249.607 122.453L249.607 122.452L124.328 122.452L124.328 371.586L248.2 371.586Z"/>
+													</mask>
+													<path fill-rule="evenodd" clip-rule="evenodd" d="M248.2 371.586L248.2 371.587L373.478 371.587L373.479 122.453L249.607 122.453L249.607 122.452L124.328 122.452L124.328 371.586L248.2 371.586Z" fill="#D9D9D9"/>
+													<path d="M248.2 371.587L246.787 371.587L246.787 373L248.2 373L248.2 371.587ZM248.2 371.586L249.613 371.586L249.613 370.174L248.2 370.174L248.2 371.586ZM373.478 371.587L373.478 373L374.891 373L374.891 371.587L373.478 371.587ZM373.479 122.453L374.891 122.453L374.891 121.04L373.479 121.04L373.479 122.453ZM249.607 122.453L248.194 122.453L248.194 123.866L249.607 123.866L249.607 122.453ZM249.607 122.452L251.02 122.452L251.02 121.04L249.607 121.04L249.607 122.452ZM124.328 122.452L124.328 121.04L122.915 121.04L122.915 122.452L124.328 122.452ZM124.328 371.586L122.915 371.586L122.915 372.999L124.328 372.999L124.328 371.586ZM249.613 371.587L249.613 371.586L246.787 371.586L246.787 371.587L249.613 371.587ZM373.478 370.174L248.2 370.174L248.2 373L373.478 373L373.478 370.174ZM372.066 122.453L372.066 371.587L374.891 371.587L374.891 122.453L372.066 122.453ZM249.607 123.866L373.479 123.866L373.479 121.04L249.607 121.04L249.607 123.866ZM248.194 122.452L248.194 122.453L251.02 122.453L251.02 122.452L248.194 122.452ZM124.328 123.865L249.607 123.865L249.607 121.04L124.328 121.04L124.328 123.865ZM125.741 371.586L125.741 122.452L122.915 122.452L122.915 371.586L125.741 371.586ZM248.2 370.174L124.328 370.174L124.328 372.999L248.2 372.999L248.2 370.174Z" fill="black" mask="url(#path-7-inside-1_3_17500)"/>
+												</mask>
+												<g mask="url(#mask0_3_17500)">
+													<path d="M371.588 618.134C235.426 618.134 125.041 507.437 125.041 370.881C125.041 234.324 235.426 123.627 371.588 123.627C507.75 123.627 618.135 234.324 618.135 370.881C618.135 507.437 507.75 618.134 371.588 618.134Z" stroke="#FFEED4" stroke-width="1.41288"/>
+												</g>
+												<rect x="124.828" y="123.365" width="248.134" height="124.279" transform="rotate(-90 124.828 123.365)" stroke="#FFEED4"/>
+												<rect x="248.699" y="123.365" width="248.134" height="124.279" transform="rotate(-90 248.699 123.365)" stroke="#FFEED4"/>
+												<rect x="0.97461" y="123.365" width="248.134" height="124.279" transform="rotate(-90 0.97461 123.365)" stroke="#FFEED4"/>
+												<rect x="0.97461" y="123.365" width="123.566" height="124.279" transform="rotate(-90 0.97461 123.365)" stroke="#FFEED4"/>
+												<mask id="mask1_3_17500" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="-1" width="126" height="125">
+													<rect x="1.17324" y="123.159" width="123.154" height="123.866" transform="rotate(-90 1.17324 123.159)" fill="#D9D9D9" stroke="#F95346" stroke-width="1.41288"/>
+												</mask>
+												<g mask="url(#mask1_3_17500)">
+													<path d="M2.11917 247.96C-65.7641 247.96 -120.801 192.614 -120.801 124.333C-120.801 56.052 -65.7641 0.706154 2.11922 0.706169C70.0025 0.706183 125.04 56.052 125.04 124.333C125.04 192.614 70.0025 247.96 2.11917 247.96Z" stroke="#FFEED4" stroke-width="1.41288"/>
+												</g>
+											</g>
+											<rect x="372.294" y="370.88" width="371.587" height="370.174" transform="rotate(-180 372.294 370.88)" stroke="#FFEED4" stroke-width="1.41288"/>
+											<defs>
+												<clipPath id="clip0_3_17500">
+													<rect x="373" y="371.587" width="373" height="371.587" transform="rotate(-180 373 371.587)" fill="white"/>
+												</clipPath>
+											</defs>
+										</svg>
+									</figure>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+	
+
+	<section class="mb-64 xl-mb-96 mt-64 lg-mt-80 section-wrapper">
+		<div class="container">
+			<div class="lf pagination--post">
+				<nav class="pagination__wrapper" aria-label="Page navigation">
+					<p class="pagination__next">Next						<span class="screen-reader-text">Next</span>
+					</p>
+					<a class="pagination__internal" href="https://www.lenfestinstitute.org/about/our-team/">
+						<h4>Meet the team</h4>
+						<span class="screen-reader-text">Meet the team</span>
+					</a>
+				</nav>
+			</div>
+		</div>
+	</section>
+	</div>
+	<section class="home-news-solution xl-mb-40 xl-mt-96 mt-64 lg-mt-96 section-wrapper">
+		<div class="container">
+			<div class="lf news-solution">
+				<div class="row">
+					<div class="col-12 col-lg-7 col-xl-8">
+													<article>
+								<h2 class="h-l">Local News Solutions</h2>
+								<p>The Lenfest Institute provides free tools and resources for local journalism leaders to develop sustainable strategies to serve their communities.</p>
+								<a class="l-btn l-btn--white" href="https://www.lenfestinstitute.org/solutions-resources/" title="Find Your News Solution">Find Your News Solution</a>
+							</article>
+												</div>
+					<div class="col-12 col-lg-5 col-xl-4">
+						<figure>
+							<img src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/news-solution.svg" alt="news solution pattern">
+						</figure>
+					</div>
+				</div>
+				<div class="button_wrap">
+					<div class="row">
+													<div class="col-12 col-md-6">
+								<a class="l-btn explore-btn" href="https://www.lenfestinstitute.org/our-work/" title="Explore our work">Explore our work									<i class="l-icon">
+										<img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/right-arrow.svg" alt="click">
+									</i>
+								</a>
+							</div>
+														<div class="col-12 col-md-6">
+								<a class="l-btn explore-btn" href="https://lenfestinstitute.fundjournalism.org/donate/?org_id=lenfestinstitute&#038;campaign=701f4000000WGykAAG" title="Donate">Donate									<i class="l-icon">
+										<img class="svg" src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/assets/icons/right-arrow.svg" alt="click">
+									</i>
+								</a>
+							</div>
+												</div>
+				</div>
+			</div>
+		</div>
+	</section>
+	<footer class="lf footer">
+	<div class="container">
+		<div class="footer__main">
+			<div class="row">
+				<div class="col-12 col-md-4">
+					<a class="footer__logo" href="https://www.lenfestinstitute.org" title="Footer Logo">
+						<span class="screen-reader-text">Footer Logo</span>
+						<figure>
+							<img width="85" height="70" src="https://www.lenfestinstitute.org/wp-content/uploads/2026/01/Lenfest-10-Logo_SMALL_color-ns-1.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />						</figure>
+					</a>
+				</div>
+				<div class="col-12 col-md-8">
+					<div class="footer__nav">
+						<div class="row">
+							<div class="col">
+								<nav>
+									<ul id="menu-footer-1" class="menu"><li id="menu-item-85" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-85 top-level-menu-item"><a href="https://lenfestinstitute.org/our-work/">Our Work</a></li>
+<li id="menu-item-86" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-86 top-level-menu-item"><a href="https://lenfestinstitute.org/solutions-resources/">Solutions &#038; Resources</a></li>
+<li id="menu-item-87" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-87 top-level-menu-item"><a href="https://lenfestinstitute.org/impact/">Impact</a></li>
+</ul>								</nav>
+							</div>
+							<div class="col">
+								<nav>
+									<ul id="menu-footer-2" class="menu"><li id="menu-item-88" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-88 top-level-menu-item"><a href="https://lenfestinstitute.org/about/">About</a></li>
+<li id="menu-item-89" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-89 top-level-menu-item"><a href="https://lenfestinstitute.org/get-involved/">Get Involved</a></li>
+<li id="menu-item-90" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-90 top-level-menu-item"><a href="https://lenfestinstitute.fundjournalism.org/donate/?org_id=lenfestinstitute&#038;campaign=701f4000000WGykAAG">Donate</a></li>
+</ul>								</nav>
+							</div>
+							<div class="col is-desktop">
+								<nav>
+									<ul id="menu-right-footer" class="menu"><li id="menu-item-91" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-91 top-level-menu-item"><a href="https://lenfestinstitute.org/about/terms-and-conditions-of-use-and-privacy-policy/">Privacy Policy</a></li>
+<li id="menu-item-92" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-92 top-level-menu-item"><a href="https://lenfestinstitute.org/about/accessibility-statement/">Accessibility Statement</a></li>
+<li id="menu-item-16145" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-16145 top-level-menu-item"><a href="https://www.google.com/maps/place/The+Lenfest+Institute+for+Journalism/@39.9502943,-75.1535559,17z/data=!3m2!4b1!5s0x89c6c629ea6ddc0d:0x7edf0a3a89c66f0c!4m6!3m5!1s0x89c6c9e64ad8f9d7:0xed1df3d2fa065254!8m2!3d39.9502943!4d-75.150981!16s%2Fg%2F11h3bhzzm4?entry=ttu">Contact us: 100 S. Independence Mall West, Suite 600 Philadelphia, PA 19106 | <span class="__cf_email__" data-cfemail="432a2d252c032f262d252630372a2d30372a373637266d2c3124">[email&#160;protected]</span> | (215) 854-5600</a></li>
+</ul>								</nav>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+					<div class="footer__stay-connect">
+				<div class="row">
+					<div class="col-12 col-md-6">
+						<h2 class="h3">Connect with us. Get updates from The Lenfest Institute.</h2>
+					</div>
+					<div class="col-12 col-md-6">
+						<div class="stay-connect__form">
+							<div id="mc_embed_signup">
+<form id="mc-embedded-subscribe-form" class="validate" action="https://lenfestinstitute.us15.list-manage.com/subscribe/post?u=77370ff1d001f9bb991fed9e7&amp;id=9e58a16b6b&amp;f_id=00dc93e1f0" method="post" name="mc-embedded-subscribe-form" target="_blank">
+<div id="mc_embed_signup_scroll">
+<h2>Subscribe</h2>
+<div class="indicates-required"><span class="asterisk">*</span> indicates required</div>
+<div class="mc-field-group"><label for="mce-EMAIL">Email Address <span class="asterisk">*</span></label><input id="mce-EMAIL" class="required email" name="EMAIL" required="" type="email" value="" /></div>
+<div class="mc-field-group input-group" style="display: none;">
+<p><strong>Newsletters </strong></p>
+<ul>
+<li><input id="mce-group[8486]-8486-0" checked="checked" name="group[8486][131072]" type="checkbox" value="" /><label for="mce-group[8486]-8486-0">Lenfest Institute Newsletter</label></li>
+<li><input id="mce-group[8486]-8486-1" name="group[8486][262144]" type="checkbox" value="" /><label for="mce-group[8486]-8486-1">Solution Set: Regular reports on innovation in news</label></li>
+<li><input id="mce-group[8486]-8486-2" name="group[8486][1048576]" type="checkbox" value="" /><label for="mce-group[8486]-8486-2">Solution Set Book Club</label></li>
+<li><input id="mce-group[8486]-8486-3" name="group[8486][16777216]" type="checkbox" value="" /><label for="mce-group[8486]-8486-3">BEYOND: Reimagining Philadelphia Journalism</label></li>
+</ul>
+</div>
+<div hidden=""><input name="tags" type="hidden" value="383668" /></div>
+<div id="mce-responses" class="clear">
+<div id="mce-error-response" class="response" style="display: none;"></div>
+<div id="mce-success-response" class="response" style="display: none;"></div>
+</div>
+<div style="position: absolute; left: -5000px;" aria-hidden="true"><input tabindex="-1" name="b_77370ff1d001f9bb991fed9e7_9e58a16b6b" type="text" value="" /></div>
+<div class="clear"><input id="mc-embedded-subscribe" class="button" name="subscribe" type="submit" value="Subscribe" /></div>
+</div>
+</form>
+</div>
+						</div>
+					</div>
+				</div>
+			</div>
+					<div class="footer__bottom">
+			<div class="row">
+				<div class="col-12 col-sm-6">
+					<p class="copyright">&copy; <span>2026 </span>The Lenfest Institute for Journalism</p>
+											<p class="footer__address">The Lenfest Institute for Journalism
+
+100 S. Independence Mall West, Suite 600
+
+Philadelphia, PA 19106 |
+
+<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3a53545c557a565f545c5f494e5354494e534e4f4e5f1455485d">[email&#160;protected]</a> |
+
+(215) 854-5600</p>
+										</div>
+				<div class="col-12 col-sm-6">
+					<nav class="social-media">
+						<ul role="menu">
+																<li role="menuitem" title="twitter">
+										<a href="https://twitter.com/lenfestinst">
+											<img width="63" height="63" src="https://www.lenfestinstitute.org/wp-content/uploads/2023/10/twitter-new.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />											<span class="screen-reader-text">Link to twitter</span>
+										</a>
+									</li>
+																		<li role="menuitem" title="linkedin">
+										<a href="https://www.linkedin.com/company/lenfest-institute">
+											<img width="63" height="62" src="https://www.lenfestinstitute.org/wp-content/uploads/2023/08/icon-social-in.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />											<span class="screen-reader-text">Link to linkedin</span>
+										</a>
+									</li>
+																		<li role="menuitem" title="instagram">
+										<a href="https://www.instagram.com/lenfestinstitute/">
+											<img width="63" height="62" src="https://www.lenfestinstitute.org/wp-content/uploads/2023/08/icon-social-ig.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />											<span class="screen-reader-text">Link to instagram</span>
+										</a>
+									</li>
+																		<li role="menuitem" title="facebook">
+										<a href="https://www.facebook.com/LenfestInstitute">
+											<img width="63" height="62" src="https://www.lenfestinstitute.org/wp-content/uploads/2023/08/icon-social-fb.svg" class="attachment-thumbnail size-thumbnail" alt="" loading="lazy" decoding="async" />											<span class="screen-reader-text">Link to facebook</span>
+										</a>
+									</li>
+															</ul>
+					</nav>
+				</div>
+			</div>
+					</div>
+	</div>
+</footer>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/heliotrope/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+<script id="lodash-js" src="https://www.lenfestinstitute.org/wp-includes/js/dist/vendor/lodash.min.js?ver=4.18.1"></script>
+<script id="lodash-js-after">
+window.lodash = _.noConflict();
+//# sourceURL=lodash-js-after
+</script>
+<script id="theme_js_defer-js" defer src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/dist/js/main.js?ver=93fe3ffcd8f08efa6cf7"></script>
+<script id="share_intents_async_defer-js" async defer src="https://www.lenfestinstitute.org/wp-content/themes/heliotrope/dist/js/vendors/share.intents.js?ver=2bae4959debe3b7ad658"></script>
+<script type="text/javascript">window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"NRJS-dc2fd22e53822476a01","applicationID":"1050981293","transactionName":"MlUAMktVWUdWVBEKXgsfIwVNXVhaGEcEBFQ=","queueTime":0,"applicationTime":250,"atts":"HhIDRANPSkk=","errorBeacon":"bam.nr-data.net","agent":""}</script></body>
+</html>

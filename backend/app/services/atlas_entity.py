@@ -6,7 +6,7 @@ import base64
 from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +22,12 @@ from app.database import (
 )
 from app.models.atlas import (
     AtlasConnectionRecord,
+    AtlasDossierSection,
+    AtlasDossierStatement,
     AtlasEntityRecord,
     AtlasEntityType,
     AtlasGraphFilters,
+    AtlasGraphResponse,
     AtlasIndexResponse,
     AtlasNode,
     AtlasSearchItem,
@@ -63,6 +66,206 @@ _OWNERSHIP_ENTITY_TYPES: list[AtlasEntityType] = ["outlet", "organization", "per
 # SourceMetadata/Organization value -- kept in the query so a future
 # ingestor's accepted claims are picked up without another code change.
 _FUNDING_BIAS_PREDICATES = ("funding_type", "bias_rating", "factual_reporting")
+
+
+def _unknown_statement(label: str, state: str = "not_researched") -> AtlasDossierStatement:
+    answer_by_state = {
+        "unknown": "Unknown.",
+        "not_researched": "Not researched.",
+        "source_unavailable": "Source unavailable.",
+        "chain_incomplete": "The legal chain is incomplete.",
+    }
+    return AtlasDossierStatement(
+        label=label,
+        answer=answer_by_state[state],
+        state=cast(Any, state),
+    )
+
+
+def _ownership_answer(
+    connections: list[AtlasConnectionRecord],
+    entity_id: str,
+    details: dict[str, Any],
+) -> AtlasDossierStatement:
+    """Current-owner statement for the summary and ownership sections."""
+    current_owners = [
+        item
+        for item in connections
+        if item.edge.target_id == entity_id
+        and item.edge.accepted_fact
+        and item.edge.lifecycle_state == "current"
+        and item.edge.predicate
+        in {"directly_owns", "owns_equity_in", "controls", "brand_of", "operated_by"}
+    ]
+    if current_owners:
+        owner = current_owners[0]
+        return AtlasDossierStatement(
+            label="Current owner or operator",
+            answer=owner.entity.label,
+            state="known",
+            predicate=owner.edge.predicate,
+            lifecycle_state=owner.edge.lifecycle_state,
+            evidence=owner.edge.evidence_preview,
+            qualifiers=owner.edge.qualifiers,
+        )
+    return _unknown_statement(
+        "Current owner or operator",
+        "chain_incomplete" if details.get("parent_company") else "not_researched",
+    )
+
+
+def _identity_statement(details: dict[str, Any]) -> AtlasDossierStatement:
+    name = details.get("legal_name") or details.get("canonical_name") or details.get("source_name")
+    if name:
+        return AtlasDossierStatement(
+            label="Legal or canonical name", answer=str(name), state="known"
+        )
+    return _unknown_statement("Legal or canonical name")
+
+
+def _newsroom_statement(newsroom_value: Any) -> AtlasDossierStatement:
+    if newsroom_value:
+        return AtlasDossierStatement(
+            label="Newsroom affiliations", answer=str(newsroom_value), state="known"
+        )
+    return _unknown_statement("Newsroom affiliations")
+
+
+def _relationship_statements(
+    items: list[AtlasConnectionRecord],
+    fallback_label: str,
+    *,
+    include_qualifiers: bool = False,
+) -> list[AtlasDossierStatement]:
+    statements: list[AtlasDossierStatement] = []
+    for item in items:
+        kwargs: dict[str, Any] = {
+            "label": item.edge.predicate or fallback_label,
+            "answer": item.entity.label,
+            "state": "known",
+            "predicate": item.edge.predicate,
+            "lifecycle_state": item.edge.lifecycle_state,
+            "evidence": item.edge.evidence_preview,
+        }
+        if include_qualifiers:
+            kwargs["qualifiers"] = item.edge.qualifiers
+        statements.append(AtlasDossierStatement(**kwargs))
+    return statements
+
+
+def _relationship_section(
+    key: Literal["advertising_sponsorship", "publishing_distribution"],
+    title: str,
+    items: list[AtlasConnectionRecord],
+    fallback_label: str,
+    unknown_label: str,
+) -> AtlasDossierSection:
+    return AtlasDossierSection(
+        key=key,
+        title=title,
+        statements=_relationship_statements(items, fallback_label)
+        or [_unknown_statement(unknown_label)],
+    )
+
+
+def _evidence_coverage_statement(
+    ownership_answer: AtlasDossierStatement,
+    connections: list[AtlasConnectionRecord],
+) -> AtlasDossierStatement:
+    if ownership_answer.state == "chain_incomplete":
+        return _unknown_statement("Known gaps", "chain_incomplete")
+    return AtlasDossierStatement(
+        label="Evidence coverage",
+        answer=f"{sum(item.edge.evidence_count for item in connections)} cited observations.",
+        state="known" if connections else "not_researched",
+    )
+
+
+def _build_dossier_sections(
+    entity_id: str,
+    details: dict[str, Any],
+    connections: list[AtlasConnectionRecord],
+) -> list[AtlasDossierSection]:
+    """Turn graph facts into direct answers without treating missing rows as negatives."""
+    ownership_answer = _ownership_answer(connections, entity_id, details)
+    pending = [
+        item
+        for item in connections
+        if item.edge.lifecycle_state in {"proposed", "pending", "disputed"}
+    ]
+    pending_statements = [
+        AtlasDossierStatement(
+            label=f"{item.edge.lifecycle_state.title()} relationship",
+            answer=item.entity.label,
+            state="known",
+            predicate=item.edge.predicate,
+            lifecycle_state=item.edge.lifecycle_state,
+            evidence=item.edge.evidence_preview,
+            qualifiers=item.edge.qualifiers,
+        )
+        for item in pending
+    ]
+    publishing = [
+        item for item in connections if item.edge.display_group == "publishing_distribution"
+    ]
+    advertising = [
+        item for item in connections if item.edge.display_group == "advertising_sponsorship"
+    ]
+    funding = [
+        item for item in connections if item.edge.display_group == "funding_government_awards"
+    ]
+    funding_statements = _relationship_statements(
+        funding, "Funding relationship", include_qualifiers=True
+    )
+    funding_value = details.get("funding_type")
+    if funding_value and not funding_statements:
+        funding_statements = [
+            AtlasDossierStatement(label="Funding model", answer=str(funding_value), state="known")
+        ]
+    newsroom_value = details.get("institutional_affiliations") or details.get("career_history")
+
+    return [
+        AtlasDossierSection(key="summary", title="Summary", statements=[ownership_answer]),
+        AtlasDossierSection(
+            key="identity_public_records",
+            title="Identity and public records",
+            statements=[_identity_statement(details)],
+        ),
+        AtlasDossierSection(
+            key="ownership_control",
+            title="Ownership and control",
+            statements=[ownership_answer, *pending_statements],
+        ),
+        AtlasDossierSection(
+            key="newsroom_people",
+            title="Newsroom and people",
+            statements=[_newsroom_statement(newsroom_value)],
+        ),
+        AtlasDossierSection(
+            key="funding_government_awards",
+            title="Funding and government awards",
+            statements=funding_statements or [_unknown_statement("Funding model")],
+        ),
+        _relationship_section(
+            key="advertising_sponsorship",
+            title="Advertising and sponsorship",
+            items=advertising,
+            fallback_label="Advertising relationship",
+            unknown_label="Advertising and sponsorship",
+        ),
+        _relationship_section(
+            key="publishing_distribution",
+            title="Publishing and distribution",
+            items=publishing,
+            fallback_label="Publishing relationship",
+            unknown_label="Publishing and distribution",
+        ),
+        AtlasDossierSection(
+            key="evidence_conflicts_freshness_gaps",
+            title="Evidence, conflicts, freshness, and known gaps",
+            statements=[_evidence_coverage_statement(ownership_answer, connections)],
+        ),
+    ]
 
 
 async def _accepted_attribute_claims(
@@ -377,7 +580,7 @@ async def search_atlas(db: AsyncSession, query: str, limit: int = 8) -> AtlasSea
         db,
         AtlasGraphFilters(
             entity_types=["outlet", "organization", "person", "reporter"],
-            limit_nodes=600,
+            limit_nodes=None,
             limit_edges=2500,
             include_evidence_preview=False,
         ),
@@ -435,27 +638,14 @@ async def search_atlas(db: AsyncSession, query: str, limit: int = 8) -> AtlasSea
     )
 
 
-async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecord | None:
-    """Load one Atlas entity with its details, evidence, and connections."""
-    entity_id = normalize_entity_id_alias(entity_id)
-    graph = await build_atlas_graph(
-        db,
-        AtlasGraphFilters(
-            entity_types=["outlet", "organization", "person", "reporter"],
-            selected=entity_id,
-            neighbors=1,
-            limit_nodes=350,
-            limit_edges=1500,
-            include_evidence_preview=True,
-        ),
-    )
-    node = next((item for item in graph.nodes if item.id == entity_id), None)
-    if node is None:
-        return None
-
-    node_by_id = {item.id: item for item in graph.nodes}
+def _collect_connections(
+    graph: AtlasGraphResponse,
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[list[AtlasConnectionRecord], list[Any]]:
+    """Build the entity's connection records plus deduplicated evidence preview."""
     connections: list[AtlasConnectionRecord] = []
-    evidence = []
+    evidence: list[Any] = []
     for edge in graph.edges:
         if edge.source_id == entity_id:
             related = node_by_id.get(edge.target_id)
@@ -468,216 +658,333 @@ async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecor
         connections.append(AtlasConnectionRecord(edge=edge, entity=related))
         evidence.extend(edge.evidence_preview)
 
-    details: dict[str, Any] = {}
-    last_verified_at: datetime | None = None
-    if entity_id.startswith("outlet:"):
-        source_name = await _outlet_name_for_id(db, entity_id)
-        if source_name is None:
-            return None
-        config = _catalog_sources().get(source_name, {})
-        metadata = (
+    owner_ids = {
+        item.entity.id
+        for item in connections
+        if item.edge.accepted_fact
+        and item.edge.lifecycle_state == "current"
+        and item.edge.target_id == entity_id
+        and item.edge.predicate
+        in {"directly_owns", "owns_equity_in", "controls", "brand_of", "operated_by"}
+    }
+    connected_edge_ids = {item.edge.id for item in connections}
+    for edge in graph.edges:
+        if (
+            edge.id in connected_edge_ids
+            or edge.lifecycle_state not in {"proposed", "pending", "disputed"}
+            or not ({edge.source_id, edge.target_id} & owner_ids)
+        ):
+            continue
+        related_id = edge.target_id if edge.source_id in owner_ids else edge.source_id
+        related = node_by_id.get(related_id)
+        if related is None:
+            continue
+        connections.append(AtlasConnectionRecord(edge=edge, entity=related))
+        evidence.extend(edge.evidence_preview)
+    return connections, evidence
+
+
+def _outlet_detail_payload(
+    source_name: str,
+    config: dict[str, Any],
+    metadata: SourceMetadata | None,
+    claims: Sequence[SourceClaim],
+    analysis_scores: dict[str, int],
+) -> dict[str, Any]:
+    return {
+        "source_name": source_name,
+        "website": config.get("site_url") or config.get("url"),
+        "source_type": metadata.source_type if metadata else None,
+        "category": config.get("category"),
+        "funding_type": cast(
+            str | None,
+            (metadata.funding_type if metadata else None) or config.get("funding_type"),
+        ),
+        "bias_rating": cast(
+            str | None,
+            (metadata.political_bias if metadata else None) or config.get("bias_rating"),
+        ),
+        "factual_reporting": cast(
+            str | None,
+            (metadata.factual_rating if metadata else None) or config.get("factual_reporting"),
+        ),
+        "credibility_score": cast(float | None, metadata.credibility_score if metadata else None),
+        "parent_company": metadata.parent_company if metadata else None,
+        "geographic_focus": cast(list[str], metadata.geographic_focus if metadata else []),
+        "topic_focus": cast(list[str], metadata.topic_focus if metadata else []),
+        "claims": [
+            {
+                "id": claim.id,
+                "type": claim.claim_type,
+                "value": claim.claim_value,
+                "kind": claim.claim_kind,
+                "confidence": claim.confidence,
+                "valid_from": claim.valid_from,
+                "valid_to": claim.valid_to,
+            }
+            for claim in claims
+        ],
+        "analysis_scores": analysis_scores,
+    }
+
+
+async def _outlet_source_details(
+    db: AsyncSession, entity_id: str
+) -> tuple[str, dict[str, Any], datetime | None] | None:
+    """Resolve an outlet id to its catalog details, or None when the outlet is unknown."""
+    source_name = await _outlet_name_for_id(db, entity_id)
+    if source_name is None:
+        return None
+    config = _catalog_sources().get(source_name, {})
+    metadata = (
+        await db.execute(select(SourceMetadata).where(SourceMetadata.source_name == source_name))
+    ).scalar_one_or_none()
+    claims = list(
+        (
             await db.execute(
-                select(SourceMetadata).where(SourceMetadata.source_name == source_name)
+                select(SourceClaim).where(
+                    SourceClaim.source_name == source_name,
+                    SourceClaim.is_current.is_(True),
+                )
             )
-        ).scalar_one_or_none()
-        claims = list(
+        )
+        .scalars()
+        .all()
+    )
+    claim_ids = [claim.id for claim in claims if claim.id is not None]
+    claim_evidence = []
+    if claim_ids:
+        claim_evidence = list(
             (
                 await db.execute(
-                    select(SourceClaim).where(
-                        SourceClaim.source_name == source_name,
-                        SourceClaim.is_current.is_(True),
+                    select(SourceClaimEvidence).where(SourceClaimEvidence.claim_id.in_(claim_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    analysis_scores = {
+        cast(str, score_row.axis_name): cast(int, score_row.score)
+        for score_row in (
+            (
+                await db.execute(
+                    select(SourceAnalysisScore).where(
+                        SourceAnalysisScore.source_name == source_name
                     )
                 )
             )
             .scalars()
             .all()
         )
-        claim_ids = [claim.id for claim in claims if claim.id is not None]
-        claim_evidence = []
-        if claim_ids:
-            claim_evidence = list(
-                (
-                    await db.execute(
-                        select(SourceClaimEvidence).where(
-                            SourceClaimEvidence.claim_id.in_(claim_ids)
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        details = {
-            "source_name": source_name,
-            "website": config.get("site_url") or config.get("url"),
-            "source_type": metadata.source_type if metadata else None,
-            "category": config.get("category"),
-            "funding_type": cast(
-                str | None,
-                (metadata.funding_type if metadata else None) or config.get("funding_type"),
-            ),
-            "bias_rating": cast(
-                str | None,
-                (metadata.political_bias if metadata else None) or config.get("bias_rating"),
-            ),
-            "factual_reporting": cast(
-                str | None,
-                (metadata.factual_rating if metadata else None) or config.get("factual_reporting"),
-            ),
-            "credibility_score": cast(
-                float | None, metadata.credibility_score if metadata else None
-            ),
-            "parent_company": metadata.parent_company if metadata else None,
-            "geographic_focus": cast(list[str], metadata.geographic_focus if metadata else []),
-            "topic_focus": cast(list[str], metadata.topic_focus if metadata else []),
-            "claims": [
-                {
-                    "id": claim.id,
-                    "type": claim.claim_type,
-                    "value": claim.claim_value,
-                    "kind": claim.claim_kind,
-                    "confidence": claim.confidence,
-                    "valid_from": claim.valid_from,
-                    "valid_to": claim.valid_to,
-                }
-                for claim in claims
-            ],
-            "analysis_scores": {
-                cast(str, score_row.axis_name): cast(int, score_row.score)
-                for score_row in (
-                    (
-                        await db.execute(
-                            select(SourceAnalysisScore).where(
-                                SourceAnalysisScore.source_name == source_name
-                            )
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
-            },
-        }
-        if claim_evidence:
-            last_verified_at = max(
-                (row.retrieved_at for row in claim_evidence if row.retrieved_at),
-                default=None,
-            )
-        outlet_evidence_entity_id = await _outlet_evidence_entity_id(db, entity_id)
-        details["funding_and_bias"] = await _funding_and_bias_block(
-            db,
-            outlet_evidence_entity_id,
-            legacy_funding_type=cast(str | None, details["funding_type"]),
-            legacy_bias_rating=cast(str | None, details["bias_rating"]),
-            legacy_factual_reporting=cast(str | None, details["factual_reporting"]),
+    }
+    last_verified_at = (
+        max(
+            (row.retrieved_at for row in claim_evidence if row.retrieved_at),
+            default=None,
         )
-        details.update(await _ownership_context(db, entity_id, node_by_id))
-    elif entity_id.startswith("organization:"):
-        evidence_entity_id = entity_id.split(":", 1)[1]
-        entity = await db.get(EvidenceEntity, evidence_entity_id)
-        if entity is None:
-            return None
-        details = {
-            "organization_type": entity.record_kind,
-            "legal_name": entity.canonical_name,
-            "status": entity.status,
-            "external_ids": await _external_ids_for_entity(db, evidence_entity_id),
-            "role_breakdown": dict(
-                Counter(
-                    item.edge.raw_relation_type or item.edge.relation_type for item in connections
-                )
-            ),
-        }
-        # Enrich from the legacy `Organization` row when Phase 0's backfill
-        # linked one via `legacy_organization_id` -- read-path only, not a
-        # node/edge source (see atlas_graph_projection.py module docstring).
-        legacy_id_row = (
-            await db.execute(
-                select(EntityExternalId).where(
-                    EntityExternalId.scheme == "legacy_organization_id",
-                    EntityExternalId.entity_id == evidence_entity_id,
-                )
+        if claim_evidence
+        else None
+    )
+    return (
+        source_name,
+        _outlet_detail_payload(source_name, config, metadata, claims, analysis_scores),
+        last_verified_at,
+    )
+
+
+async def _outlet_entity_details(
+    db: AsyncSession,
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[dict[str, Any], str | None, datetime | None] | None:
+    """Build the details block for an outlet entity, or None when unknown."""
+    resolved = await _outlet_source_details(db, entity_id)
+    if resolved is None:
+        return None
+    source_name, details, last_verified_at = resolved
+    outlet_evidence_entity_id = await _outlet_evidence_entity_id(db, entity_id)
+    entity_kind = None
+    if outlet_evidence_entity_id:
+        outlet_evidence_entity = await db.get(EvidenceEntity, outlet_evidence_entity_id)
+        if outlet_evidence_entity is not None:
+            entity_kind = cast(str, outlet_evidence_entity.entity_kind)
+    details["funding_and_bias"] = await _funding_and_bias_block(
+        db,
+        outlet_evidence_entity_id,
+        legacy_funding_type=cast(str | None, details["funding_type"]),
+        legacy_bias_rating=cast(str | None, details["bias_rating"]),
+        legacy_factual_reporting=cast(str | None, details["factual_reporting"]),
+    )
+    details.update(await _ownership_context(db, entity_id, node_by_id))
+    return details, entity_kind, last_verified_at
+
+
+async def _organization_entity_details(
+    db: AsyncSession,
+    entity_id: str,
+    connections: list[AtlasConnectionRecord],
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[dict[str, Any], str | None, datetime | None] | None:
+    """Build the details block for an organization entity, or None when unknown."""
+    evidence_entity_id = entity_id.split(":", 1)[1]
+    entity = await db.get(EvidenceEntity, evidence_entity_id)
+    if entity is None:
+        return None
+    entity_kind = cast(str, entity.entity_kind)
+    details = {
+        "organization_type": entity.record_kind,
+        "legal_name": entity.canonical_name,
+        "status": entity.status,
+        "external_ids": await _external_ids_for_entity(db, evidence_entity_id),
+        "role_breakdown": dict(
+            Counter(item.edge.raw_relation_type or item.edge.relation_type for item in connections)
+        ),
+    }
+    # Enrich from the legacy `Organization` row when Phase 0's backfill
+    # linked one via `legacy_organization_id` -- read-path only, not a
+    # node/edge source (see atlas_graph_projection.py module docstring).
+    legacy_id_row = (
+        await db.execute(
+            select(EntityExternalId).where(
+                EntityExternalId.scheme == "legacy_organization_id",
+                EntityExternalId.entity_id == evidence_entity_id,
             )
-        ).scalar_one_or_none()
-        if legacy_id_row is not None:
-            try:
-                org = await db.get(Organization, int(cast(str, legacy_id_row.value)))
-            except ValueError:
-                org = None
-            if org is not None:
-                details.update(
-                    {
-                        "funding_type": org.funding_type,
-                        "funding_sources": org.funding_sources or [],
-                        "major_advertisers": org.major_advertisers or [],
-                        "annual_revenue": org.annual_revenue,
-                        "website": org.website or org.official_website,
-                        "wikipedia_url": org.wikipedia_url,
-                        "research_sources": org.research_sources or [],
-                        "conflict_flags": org.conflict_flags or [],
-                        "media_bias_rating": org.media_bias_rating,
-                        "factual_reporting": org.factual_reporting,
-                    }
-                )
-                last_verified_at = org.last_researched_at
-        if last_verified_at is None:
-            last_verified_at = entity.updated_at
-        details["funding_and_bias"] = await _funding_and_bias_block(
-            db,
-            evidence_entity_id,
-            legacy_funding_type=cast(str | None, details.get("funding_type")),
-            legacy_bias_rating=cast(str | None, details.get("media_bias_rating")),
-            legacy_factual_reporting=cast(str | None, details.get("factual_reporting")),
         )
-        details.update(await _ownership_context(db, entity_id, node_by_id))
-    elif entity_id.startswith("person:"):
-        evidence_entity_id = entity_id.split(":", 1)[1]
-        entity = await db.get(EvidenceEntity, evidence_entity_id)
-        if entity is None:
-            return None
-        details = {
-            "canonical_name": entity.canonical_name,
-            "status": entity.status,
-            "external_ids": await _external_ids_for_entity(db, evidence_entity_id),
-            "role_breakdown": dict(
-                Counter(
-                    item.edge.raw_relation_type or item.edge.relation_type for item in connections
-                )
-            ),
-        }
-        last_verified_at = entity.updated_at
-        details.update(await _ownership_context(db, entity_id, node_by_id))
-    elif entity_id.startswith("reporter:"):
+    ).scalar_one_or_none()
+    last_verified_at = None
+    if legacy_id_row is not None:
         try:
-            reporter_id = int(entity_id.split(":", 1)[1])
+            org = await db.get(Organization, int(cast(str, legacy_id_row.value)))
         except ValueError:
-            return None
-        reporter = await db.get(Reporter, reporter_id)
-        if reporter is None:
-            return None
-        person_evidence = [
-            value
-            for value in (
-                reporter.author_page_url,
-                reporter.canonical_author_url,
-                reporter.wikipedia_url,
-                reporter.wikidata_url,
+            org = None
+        if org is not None:
+            details.update(
+                {
+                    "funding_type": org.funding_type,
+                    "funding_sources": org.funding_sources or [],
+                    "major_advertisers": org.major_advertisers or [],
+                    "annual_revenue": org.annual_revenue,
+                    "website": org.website or org.official_website,
+                    "wikipedia_url": org.wikipedia_url,
+                    "research_sources": org.research_sources or [],
+                    "conflict_flags": org.conflict_flags or [],
+                    "media_bias_rating": org.media_bias_rating,
+                    "factual_reporting": org.factual_reporting,
+                }
             )
-            if value
-        ]
-        details = {
-            "canonical_name": reporter.canonical_name or reporter.name,
-            "match_status": reporter.match_status,
-            "person_level_evidence": person_evidence,
-            "career_history": reporter.career_history or [],
-            "institutional_affiliations": reporter.institutional_affiliations or [],
-            "topics": reporter.topics or [],
-            "education": reporter.education or [],
-            "article_count": reporter.article_count or 0,
-            "political_leaning": reporter.political_leaning,
-            "leaning_confidence": reporter.leaning_confidence,
-            "research_sources": reporter.research_sources or [],
-            "match_explanation": reporter.match_explanation,
-        }
-        last_verified_at = reporter.last_researched_at
+            last_verified_at = org.last_researched_at
+    if last_verified_at is None:
+        last_verified_at = entity.updated_at
+    details["funding_and_bias"] = await _funding_and_bias_block(
+        db,
+        evidence_entity_id,
+        legacy_funding_type=cast(str | None, details.get("funding_type")),
+        legacy_bias_rating=cast(str | None, details.get("media_bias_rating")),
+        legacy_factual_reporting=cast(str | None, details.get("factual_reporting")),
+    )
+    details.update(await _ownership_context(db, entity_id, node_by_id))
+    return details, entity_kind, last_verified_at
+
+
+async def _person_entity_details(
+    db: AsyncSession,
+    entity_id: str,
+    connections: list[AtlasConnectionRecord],
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[dict[str, Any], str | None, datetime | None] | None:
+    """Build the details block for a person entity, or None when unknown."""
+    evidence_entity_id = entity_id.split(":", 1)[1]
+    entity = await db.get(EvidenceEntity, evidence_entity_id)
+    if entity is None:
+        return None
+    entity_kind = cast(str, entity.entity_kind)
+    details = {
+        "canonical_name": entity.canonical_name,
+        "status": entity.status,
+        "external_ids": await _external_ids_for_entity(db, evidence_entity_id),
+        "role_breakdown": dict(
+            Counter(item.edge.raw_relation_type or item.edge.relation_type for item in connections)
+        ),
+    }
+    details.update(await _ownership_context(db, entity_id, node_by_id))
+    return details, entity_kind, entity.updated_at
+
+
+async def _reporter_entity_details(
+    db: AsyncSession, entity_id: str
+) -> tuple[dict[str, Any], str | None, datetime | None] | None:
+    """Build the details block for a reporter entity, or None when unknown."""
+    try:
+        reporter_id = int(entity_id.split(":", 1)[1])
+    except ValueError:
+        return None
+    reporter = await db.get(Reporter, reporter_id)
+    if reporter is None:
+        return None
+    person_evidence = [
+        value
+        for value in (
+            reporter.author_page_url,
+            reporter.canonical_author_url,
+            reporter.wikipedia_url,
+            reporter.wikidata_url,
+        )
+        if value
+    ]
+    details = {
+        "canonical_name": reporter.canonical_name or reporter.name,
+        "match_status": reporter.match_status,
+        "person_level_evidence": person_evidence,
+        "career_history": reporter.career_history or [],
+        "institutional_affiliations": reporter.institutional_affiliations or [],
+        "topics": reporter.topics or [],
+        "education": reporter.education or [],
+        "article_count": reporter.article_count or 0,
+        "political_leaning": reporter.political_leaning,
+        "leaning_confidence": reporter.leaning_confidence,
+        "research_sources": reporter.research_sources or [],
+        "match_explanation": reporter.match_explanation,
+    }
+    return details, "reporter", reporter.last_researched_at
+
+
+async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecord | None:
+    """Load one Atlas entity with its details, evidence, and connections."""
+    entity_id = normalize_entity_id_alias(entity_id)
+    graph = await build_atlas_graph(
+        db,
+        AtlasGraphFilters(
+            entity_types=["outlet", "organization", "person", "reporter"],
+            selected=entity_id,
+            neighbors=2,
+            limit_nodes=350,
+            limit_edges=1500,
+            include_evidence_preview=True,
+        ),
+    )
+    node = next((item for item in graph.nodes if item.id == entity_id), None)
+    if node is None:
+        return None
+
+    node_by_id = {item.id: item for item in graph.nodes}
+    connections, evidence = _collect_connections(graph, entity_id, node_by_id)
+
+    details: dict[str, Any] = {}
+    entity_kind: str | None = None
+    last_verified_at: datetime | None = None
+    if entity_id.startswith("outlet:"):
+        built = await _outlet_entity_details(db, entity_id, node_by_id)
+    elif entity_id.startswith("organization:"):
+        built = await _organization_entity_details(db, entity_id, connections, node_by_id)
+    elif entity_id.startswith("person:"):
+        built = await _person_entity_details(db, entity_id, connections, node_by_id)
+    elif entity_id.startswith("reporter:"):
+        built = await _reporter_entity_details(db, entity_id)
+    else:
+        built = (details, entity_kind, last_verified_at)
+    if built is None:
+        return None
+    details, entity_kind, last_verified_at = built
 
     deduped_evidence = {item.id: item for item in evidence}
     return AtlasEntityRecord(
@@ -691,6 +998,8 @@ async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecor
         last_verified_at=last_verified_at or node.updated_at,
         profile_path=node.profile_path,
         details=details,
+        entity_kind=entity_kind,
+        dossier_sections=_build_dossier_sections(entity_id, details, connections),
         evidence=list(deduped_evidence.values()),
         connections=sorted(
             connections,
@@ -703,33 +1012,8 @@ async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecor
     )
 
 
-async def list_atlas_index(
-    db: AsyncSession,
-    *,
-    entity_types: list[AtlasEntityType],
-    query: str | None,
-    country: list[str],
-    funding: list[str],
-    bias: list[str],
-    sort: str,
-    cursor: str | None,
-    limit: int,
-) -> AtlasIndexResponse:
-    """Return a filtered, sorted, cursor-based entity index page."""
-    graph = await build_atlas_graph(
-        db,
-        AtlasGraphFilters(
-            entity_types=entity_types,
-            q=query,
-            country=country,
-            funding=funding,
-            bias=bias,
-            limit_nodes=600,
-            limit_edges=2500,
-            include_evidence_preview=False,
-        ),
-    )
-    items = list(graph.nodes)
+def _sort_index_items(items: list[AtlasNode], sort: str) -> None:
+    """Sort index items in place per the requested order."""
     if sort == "most_connected":
         items.sort(key=lambda node: (-node.connection_count, node.label.casefold()))
     elif sort == "most_articles":
@@ -758,17 +1042,67 @@ async def list_atlas_index(
     else:
         items.sort(key=lambda node: node.label.casefold())
 
-    offset = _decode_cursor(cursor)
-    page = items[offset : offset + limit]
-    next_offset = offset + len(page)
-    facets: dict[str, dict[str, int]] = {
+
+def _build_index_facets(
+    items: list[AtlasNode], kind_facet: dict[str, int]
+) -> dict[str, dict[str, int]]:
+    return {
         "entity_type": dict(Counter(node.entity_type for node in items)),
         "country": dict(Counter(node.country_code for node in items if node.country_code)),
         "funding": dict(Counter(node.funding_type for node in items if node.funding_type)),
         "bias": dict(Counter(node.bias_rating for node in items if node.bias_rating)),
         "status": dict(Counter(node.status for node in items if node.status)),
         "confidence": dict(Counter(node.confidence_tier for node in items if node.confidence_tier)),
+        "kind": kind_facet,
     }
+
+
+async def list_atlas_index(
+    db: AsyncSession,
+    *,
+    entity_types: list[AtlasEntityType],
+    query: str | None,
+    country: list[str],
+    funding: list[str],
+    bias: list[str],
+    kind: list[str] | None = None,
+    sort: str,
+    cursor: str | None,
+    limit: int,
+) -> AtlasIndexResponse:
+    """Return a filtered, sorted, cursor-based entity index page."""
+    graph = await build_atlas_graph(
+        db,
+        AtlasGraphFilters(
+            entity_types=entity_types,
+            q=query,
+            country=country,
+            funding=funding,
+            bias=bias,
+            limit_nodes=None,
+            limit_edges=2500,
+            include_evidence_preview=False,
+        ),
+    )
+    items = list(graph.nodes)
+    # Facet the available kinds (node subtitle, e.g. "legal entity",
+    # "organization without legal identity") before narrowing by `kind`
+    # itself, so the filter pills stay populated once one is selected.
+    kind_facet = dict(Counter(node.subtitle for node in items if node.subtitle))
+    # `kind` narrows on the node subtitle -- the finer-grained entity
+    # subtype the graph projection already stamps on every node. It is
+    # applied client-side (post-graph) rather than threaded through
+    # AtlasGraphFilters/build_atlas_graph because it is purely a facet over
+    # already-loaded nodes, not a query-shaping concern.
+    if kind:
+        wanted = {value.casefold() for value in kind}
+        items = [node for node in items if (node.subtitle or "").casefold() in wanted]
+    _sort_index_items(items, sort)
+
+    offset = _decode_cursor(cursor)
+    page = items[offset : offset + limit]
+    next_offset = offset + len(page)
+    facets = _build_index_facets(items, kind_facet)
     return AtlasIndexResponse(
         items=page,
         total=len(items),

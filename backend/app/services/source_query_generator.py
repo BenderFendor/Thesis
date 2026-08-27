@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 
-from app.core.config import get_openai_client, settings
+from app.core.config import get_openai_client, resolve_opencode_model, settings
 from app.core.logging import get_logger
 from app.services.prompting import build_json_system_prompt
 
@@ -41,7 +41,7 @@ async def generate_search_queries(
     try:
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=settings.source_research_model,
+                model=resolve_opencode_model(settings.source_research_model),
                 messages=[
                     {"role": "system", "content": QUERY_SYSTEM_PROMPT},
                     {"role": "user", "content": context},

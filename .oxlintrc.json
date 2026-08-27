@@ -1,0 +1,7 @@
+{
+  "jsPlugins": ["oxlint-plugin-complexity"],
+  "rules": {
+    "complexity/complexity": ["error", { "cyclomatic": 1, "cognitive": 1, "minLines": 0 }]
+  },
+  "ignorePatterns": ["node_modules/**", ".next/**", "frontend/lib/generated/**"]
+}

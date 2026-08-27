@@ -1,0 +1,1821 @@
+<!DOCTYPE html><!-- Last Published: Tue Jul 14 2026 20:43:44 GMT+0000 (Coordinated Universal Time) --><html data-wf-domain="corporate.washingtonpost.com" data-wf-page="6a38214f274bb2917b9767a6" data-wf-site="6840721d7e214035555b8399" lang="en"><head><meta charset="utf-8"/><link href="https://cdn.prod.website-files.com" rel="preconnect" crossorigin="anonymous"/><title>About - The Washington Post</title><meta content="Helping you prepare for tomorrow starts with understanding today. Explore trusted journalism, authentic voices, and expert insights from The Washington Post." name="description"/><meta content="About - The Washington Post" property="og:title"/><meta content="Helping you prepare for tomorrow starts with understanding today. Explore trusted journalism, authentic voices, and expert insights from The Washington Post." property="og:description"/><meta content="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a44179f06496e1466d36326_TWP_SEOThumbnail5.jpg" property="og:image"/><meta content="About - The Washington Post" name="twitter:title"/><meta content="Helping you prepare for tomorrow starts with understanding today. Explore trusted journalism, authentic voices, and expert insights from The Washington Post." name="twitter:description"/><meta property="og:type" content="website"/><meta content="summary_large_image" name="twitter:card"/><meta content="width=device-width, initial-scale=1" name="viewport"/><link href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/css/wp-corporate.shared.6a38214f274bb2917b9767a6.6f255a819.min.css" rel="stylesheet" type="text/css" integrity="sha384-byVagZjBVubxOKr/V1S7QLmlYf3JevvVJNmD7tvj6KSVKSg9d79njeneFL+TRk0m" crossorigin="anonymous"/><script type="text/javascript">!function(o,c){var n=c.documentElement,t=" w-mod-";n.className+=t+"js",("ontouchstart"in o||o.DocumentTouch&&c instanceof DocumentTouch)&&(n.className+=t+"touch")}(window,document);</script><link href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6973eab581f315a385ec0d2a_favicon.png" rel="shortcut icon" type="image/x-icon"/><link href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6973eabdf02a951dd915b9cc_apple-touch-icon.png" rel="apple-touch-icon"/><!-- Google Analytics Data Layer -->
+<script>
+  dataLayer = [];
+</script>
+
+<!-- Google Tag Manager -->
+<script>
+  (function (w, d, s, l, i) {
+    w[l] = w[l] || [];
+    w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+    var f = d.getElementsByTagName(s)[0],
+      j = d.createElement(s),
+      dl = l != 'dataLayer' ? '&l=' + l : '';
+    j.async = true;
+    j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+    f.parentNode.insertBefore(j, f);
+  })(window, document, 'script', 'dataLayer', 'GTM-WHNNX8B');
+</script>
+
+<link rel="preload" href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/696ff9b3dbb5f442ae014073_ITC_Franklin-Light-full.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/696ff9b3803504e2471200a9_ITC_Franklin-Bold-full.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/696ff9b31c78f49f4aee165e_PostoniWide-Regular-full.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="https://cdn.prod.website-files.com/6840721d7e214035555b8399/696ff9b3595abcb33aa07a18_PostoniWide-Bold-full.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="https://www.washingtonpost.com/wp-stat/assets/fonts/ITC_Franklin-Bold.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="https://www.washingtonpost.com/wp-stat/assets/fonts/ITC_Franklin-Light.woff2" as="font" type="font/woff2" crossorigin />
+
+<script async defer src="https://www.washingtonpost.com/ehf/twp-internal.js"></script>
+<script async defer src="https://orca.zeustechnology.com/orca-script/main.js"></script>
+<script async defer src="https://scripts.feedspring.com/instagram-attrs.js"></script>
+
+<script>
+  const nav = performance.getEntriesByType('navigation')[0];
+
+  if (nav && nav.type === 'reload' && 'scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
+</script>
+
+<style>
+  ::selection {
+    background-color: var(--_colors---secondary);
+    color: var(--_colors---primary);
+  }
+
+  .wp-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    /* re-add an arrow — appearance:none removes the native one on every platform */
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23aaaaaa' stroke-width='1.5'><path d='M4 6l4 4 4-4'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+  }
+
+  .wp-input:focus,
+  .wp-select:focus {
+    outline: none;
+    border-top-color: transparent;
+    border-left-color: transparent;
+    border-right-color: transparent;
+  }
+
+  .wp-input:-webkit-autofill,
+  .wp-input:-webkit-autofill:hover,
+  .wp-input:-webkit-autofill:focus,
+  .wp-select:-webkit-autofill,
+  .wp-select:-webkit-autofill:hover,
+  .wp-select:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--_colors---primary) inset !important;
+    box-shadow: 0 0 0 1000px var(--_colors---primary) inset !important;
+    -webkit-text-fill-color: var(--_colors---text-primary) !important;
+    caret-color: var(--_colors---text-primary);
+    border-top-color: var(--_colors---primary);
+    border-left-color: var(--_colors---primary);
+    border-right-color: var(--_colors---primary);
+  }
+
+  /* Grayscale antialiasing — thinner, cleaner white-on-black text (macOS only) */
+  .wp-main {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Section anchor offset so links don't land under the fixed navbar */
+  .wp-section {
+    scroll-margin-top: 5rem; /* = navbar-height */
+  }
+
+  /* Update the svg color on hover, using an embed instead of an image as it's not supported */
+  a[class^='wp-button']:active svg,
+  a[class*=' wp-button']:active svg,
+  a[class^='wp-button']:active svg path,
+  a[class*=' wp-button']:active svg path,
+  a[class^='wp-button']:active svg line,
+  a[class*=' wp-button']:active svg line {
+    fill: var(--_colors---primary);
+    stroke: var(--_colors---primary);
+  }
+
+  /* Accent button: inset ring instead of a real border, for a crisp edge */
+  .wp-button-accent {
+    border: none !important;
+    margin: 1px !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor, transparent) !important;
+  }
+
+  /* Carousel: scroll-snap track (properties Webflow's UI can't set) */
+  .wp-carousel-track {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .wp-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wp-carousel-slide {
+    scroll-snap-align: start;
+  }
+
+  /* Dim each arrow when there is nothing further to scroll in its direction */
+  .wp-carousel .wp-is-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  .wp-accordion-trigger {
+    cursor: pointer;
+  }
+
+  /* Accordion: animate the panel open/closed */
+  .wp-accordion-content {
+    interpolate-size: allow-keywords;
+    block-size: 0;
+    padding-block: 0;
+    opacity: 0;
+    overflow: clip;
+    transition:
+      block-size 0.7s cubic-bezier(0.19, 1, 0.22, 1),
+      padding-block 0.7s cubic-bezier(0.19, 1, 0.22, 1),
+      opacity 0.4s ease;
+  }
+
+  .wp-accordion-item.wp-is-open .wp-accordion-content {
+    block-size: auto;
+    padding-block: 1.5rem;
+    opacity: 1;
+  }
+
+  .wp-accordion-trigger img,
+  .wp-accordion-trigger svg {
+    transform-origin: center;
+    transition: transform 0.2s ease;
+  }
+
+  .wp-accordion-item.wp-is-open .wp-accordion-trigger img,
+  .wp-accordion-item.wp-is-open .wp-accordion-trigger svg {
+    transform: rotate(45deg);
+  }
+
+  /* Mobile menu overlay */
+  .wp-navbar-overlay {
+    position: fixed;
+    height: auto !important;
+    width: auto !important;
+    top: 4.25rem;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity 0.3s ease,
+      visibility 0.3s ease;
+  }
+
+  .wp-navbar-menu-button.w--open ~ .wp-navbar-overlay {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .w-nav[data-animation='over-right'] .w-nav-overlay,
+  .w-nav[data-animation='over-right'] [data-nav-menu-open] {
+    z-index: 1000;
+  }
+</style>
+
+<style>
+  .wp-hero-zoom-set {
+    perspective: 100vh;
+    transform-style: preserve-3d;
+    opacity: 0;
+    position: absolute;
+    height: 100%;
+  }
+
+  .wp-hero-zoom-set > *:not(.wp-hero-zoom-scene) {
+    opacity: 0;
+  }
+
+  .wp-hero-zoom-set:first-child {
+    opacity: 1;
+  }
+
+  .wp-hero-zoom-scene {
+    opacity: 0;
+  }
+</style>
+
+<style>
+  /* The template card renders only as a source to clone — never shown live. */
+  [data-job-template] {
+    display: none !important;
+  }
+
+  .wp-is-hidden {
+    display: none !important;
+  }
+</style>
+
+<style>
+  /* External site footer — targets the footer's own markup, not our wp- classes */
+  .footer-v3 {
+    & a,
+    & li,
+    & div {
+      color: var(--_colors---text-primary);
+    }
+
+    svg path {
+      fill: var(--_colors---text-primary);
+    }
+
+    div[data-orientation='vertical'] {
+      border-color: var(--_colors---border-color);
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    // Serve Webflow-hosted images through our own Akamai-backed proxy (imrs.php)
+    // instead of Webflow's CDN, so they don't count against Webflow asset bandwidth.
+    // Every URL points imrs at the FULL-SIZE original (its -p-<width> suffix stripped)
+    // with impolicy=high_res and a per-URL w=<width> — imrs resizes that original down to
+    // the width the URL is meant for (the srcset descriptor, or the <img> width / widest
+    // variant for the fallback src), instead of us resizing an already-resized variant.
+    const PROXY_ENDPOINT = 'https://www.washingtonpost.com/wp-apps/imrs.php';
+    const WEBFLOW_CDN = /^https:\/\/cdn\.prod\.website-files\.com\//;
+    const BG_SELECTOR = '[style*="website-files"]';
+
+    // Webflow serves resized variants as <name>-p-<width>.<ext>; strip that suffix back
+    // to the original the variant was derived from. (Assumes the source filename itself
+    // doesn't end in -p-<digits> before the extension — Webflow's suffix is always last.)
+    const fullSize = (url) => {
+      return url.replace(/-p-\d+(\.[a-zA-Z0-9]+)$/, '$1');
+    };
+
+    // Returns the proxied URL for a Webflow asset, or null if it shouldn't change.
+    // width (optional) is added as w=<width> so imrs serves the full-size at that size.
+    const proxyUrl = (url, width) => {
+      if (typeof url !== 'string' || url.endsWith('.svg')) {
+        return null;
+      }
+
+      if (!WEBFLOW_CDN.test(url)) {
+        return null;
+      }
+
+      const sizeParam = width ? `&w=${width}` : '';
+
+      return `${PROXY_ENDPOINT}?impolicy=high_res${sizeParam}&src=${encodeURIComponent(fullSize(url))}`;
+    };
+
+    // Widest width descriptor (Nw) in a srcset, or null.
+    const widestSrcsetWidth = (srcset) => {
+      if (!srcset) {
+        return null;
+      }
+
+      let widest = 0;
+
+      srcset.split(',').forEach((candidate) => {
+        const match = candidate.trim().match(/(\d+)w$/);
+
+        if (match) {
+          widest = Math.max(widest, parseInt(match[1], 10));
+        }
+      });
+
+      return widest || null;
+    };
+
+    // Best width to request for an <img>'s fallback src: its width attribute, else its
+    // widest srcset variant (the src is the full-size fallback), else its natural width.
+    const imgWidth = (img) => {
+      const attr = parseInt(img.getAttribute('width') || '', 10);
+
+      if (attr > 0) {
+        return attr;
+      }
+
+      const fromSrcset = widestSrcsetWidth(img.getAttribute('srcset'));
+
+      if (fromSrcset) {
+        return fromSrcset;
+      }
+
+      if (img.naturalWidth > 0) {
+        return img.naturalWidth;
+      }
+
+      return null;
+    };
+
+    // Rewrite a srcset string, proxying each candidate URL and keeping its descriptor.
+    // The descriptor's width (Nw) rides along as w=<width> on each proxied candidate.
+    const proxySrcset = (srcset) => {
+      return srcset
+        .split(',')
+        .map((candidate) => {
+          const parts = candidate.trim().split(/\s+/);
+          const descriptor = parts[1] || '';
+          const width = /^\d+w$/.test(descriptor) ? parseInt(descriptor, 10) : null;
+          const proxied = proxyUrl(parts[0], width);
+
+          if (proxied) {
+            parts[0] = proxied;
+          }
+
+          return parts.join(' ');
+        })
+        .join(', ');
+    };
+
+    // Point one <img> at the proxy once, keeping the originals for reference / revert.
+    const proxyImage = (img) => {
+      if (img.hasAttribute('data-original-url')) {
+        return;
+      }
+
+      const proxied = proxyUrl(img.src, imgWidth(img));
+
+      if (!proxied) {
+        return;
+      }
+
+      img.setAttribute('data-original-url', img.src);
+      img.src = proxied;
+
+      if (img.srcset) {
+        img.setAttribute('data-original-srcset', img.srcset);
+        img.srcset = proxySrcset(img.srcset);
+      }
+    };
+
+    // Rewrite an element's INLINE background-image. Designer backgrounds live in a
+    // cross-origin stylesheet and can't be reached here (see the plan notes).
+    const proxyBackground = (element) => {
+      if (element.hasAttribute('data-original-bg')) {
+        return;
+      }
+
+      const backgroundImage = element.style.backgroundImage;
+
+      if (!backgroundImage || backgroundImage === 'none') {
+        return;
+      }
+
+      // The element's rendered width, when it can be measured (0 before layout -> no w).
+      const width = Math.round(element.getBoundingClientRect().width) || null;
+
+      const rewritten = backgroundImage.replace(/url\((['"]?)(.*?)\1\)/g, (whole, quote, url) => {
+        const proxied = proxyUrl(url, width);
+
+        if (proxied) {
+          return `url(${quote}${proxied}${quote})`;
+        }
+
+        return whole;
+      });
+
+      if (rewritten !== backgroundImage) {
+        element.setAttribute('data-original-bg', backgroundImage);
+        element.style.backgroundImage = rewritten;
+      }
+    };
+
+    // Process whatever is already in the DOM.
+    const proxyExisting = () => {
+      document.querySelectorAll('img').forEach((img) => {
+        proxyImage(img);
+      });
+
+      document.querySelectorAll(BG_SELECTOR).forEach((element) => {
+        proxyBackground(element);
+      });
+    };
+
+    // Catch nodes added after load: lazy images, the Instagram feed, injected markup.
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) {
+            return;
+          }
+
+          if (node.nodeName === 'IMG') {
+            proxyImage(node);
+          } else if (node.matches(BG_SELECTOR)) {
+            proxyBackground(node);
+          }
+
+          node.querySelectorAll('img').forEach((img) => {
+            proxyImage(img);
+          });
+
+          node.querySelectorAll(BG_SELECTOR).forEach((element) => {
+            proxyBackground(element);
+          });
+        });
+      });
+    });
+
+    if (document.documentElement) {
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    proxyExisting();
+  })();
+</script></head><body><div data-animation="over-right" data-collapse="medium" data-duration="400" data-easing="ease" data-easing2="ease" role="banner" class="wp-navbar w-nav"><div class="wp-navbar-container"><a href="https://www.washingtonpost.com" class="wp-logo w-nav-brand"><img width="Auto" loading="lazy" alt="The Washington Post" src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6841b4e3332186207cc713a2_d0a86f1f5446c11c21bb94f7d6be5626_TWP_Logo_Inline.svg" class="wp-logo-full"/><img width="Auto" loading="lazy" alt="" src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6841b7fae7377b7e143cfa8c_WP_Logo_Monogram-LtGray.svg" class="wp-logo-mark"/></a><nav role="navigation" class="wp-navbar-menu w-nav-menu"><a href="/about" aria-current="page" class="wp-navbar-link w-nav-link w--current">About</a><a href="/careers" class="wp-navbar-link w-nav-link">Careers</a><a href="/advertising" class="wp-navbar-link w-nav-link">Advertising</a></nav><div class="wp-navbar-menu-button w-nav-button"><img loading="lazy" src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3083ceb33fec2be5664100_menu-button.svg" alt="" class="wp-navbar-menu-button-icon"/></div><div class="wp-navbar-overlay"></div></div></div><div class="wp-main"><div class="wp-hero-stage"><section class="wp-hero-zoom"><div id="set-1" class="wp-hero-zoom-set"><div class="wp-hero-zoom-scene"><div class="wp-hero-zoom-scene-grid"><h1 id="w-node-ab9ab9a4-a0aa-27f5-2f6f-c192f1747be3-7b9767a6" class="heading-20">Investigating today’s changing world to help you get ready for tomorrow.</h1><a id="w-node-_82b627a8-ca2f-0871-ce9c-266c1ca46ce6-7b9767a6" href="#set-2" class="wp-button-scroll w-inline-block"><div class="wp-button-scroll-icon w-embed"><svg width="32" height="17" viewBox="0 0 32 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="0.353553" y1="0.3536" x2="16.3536" y2="16.3536" stroke="white"/>
+<line y1="-0.5" x2="22.6274" y2="-0.5" transform="matrix(-0.707107 0.707107 0.707107 0.707107 32 0.707153)" stroke="white"/>
+</svg>
+</div></a></div><div class="wp-hero-zoom-scene-blur"></div></div><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 2040px) 100vw, 2040px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy-p-1600.jpg 1600w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy-p-2000.jpg 2000w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398fe6010fbda311080fb9_0315-ig-blockingrules%20copy.jpg 2040w" class="image-49"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a399114d0ee905a9b607ab3_pizza_6XPJUNT6TTJHIFJF444WP6Q6JA%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 1200px) 100vw, 1200px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a399114d0ee905a9b607ab3_pizza_6XPJUNT6TTJHIFJF444WP6Q6JA%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a399114d0ee905a9b607ab3_pizza_6XPJUNT6TTJHIFJF444WP6Q6JA%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a399114d0ee905a9b607ab3_pizza_6XPJUNT6TTJHIFJF444WP6Q6JA%20copy-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a399114d0ee905a9b607ab3_pizza_6XPJUNT6TTJHIFJF444WP6Q6JA%20copy.jpg 1200w" class="image-51"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3a872dd6c18618ea71931d_ENU42TJ7WOGCLVR2SFC7M4WOSA%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 1200px) 100vw, 1200px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3a872dd6c18618ea71931d_ENU42TJ7WOGCLVR2SFC7M4WOSA%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3a872dd6c18618ea71931d_ENU42TJ7WOGCLVR2SFC7M4WOSA%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3a872dd6c18618ea71931d_ENU42TJ7WOGCLVR2SFC7M4WOSA%20copy-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3a872dd6c18618ea71931d_ENU42TJ7WOGCLVR2SFC7M4WOSA%20copy.jpg 1200w" class="image-48"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy.png" loading="lazy" width="Auto" sizes="(max-width: 2551px) 100vw, 2551px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy-p-500.png 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy-p-800.png 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy-p-1080.png 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy-p-1600.png 1600w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy-p-2000.png 2000w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398c03564aecfad097b372_2c%20beyond%20the%20limit%20copy.png 2551w" class="image-47"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398ae11152f91b32ab4196_0328-ig-earlyvoting%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 1000px) 100vw, 1000px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398ae11152f91b32ab4196_0328-ig-earlyvoting%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398ae11152f91b32ab4196_0328-ig-earlyvoting%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a398ae11152f91b32ab4196_0328-ig-earlyvoting%20copy.jpg 1000w" class="image-46"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3987505bc8e19b2b70709f_GGGXQ4J7VWATBV2DB6HNAIPRRE%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 1200px) 100vw, 1200px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3987505bc8e19b2b70709f_GGGXQ4J7VWATBV2DB6HNAIPRRE%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3987505bc8e19b2b70709f_GGGXQ4J7VWATBV2DB6HNAIPRRE%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3987505bc8e19b2b70709f_GGGXQ4J7VWATBV2DB6HNAIPRRE%20copy-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3987505bc8e19b2b70709f_GGGXQ4J7VWATBV2DB6HNAIPRRE%20copy.jpg 1200w" class="image-44"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a39879a4959f0160cb4e64a_B2KOAESNUY4TWFSWGCJOQMSFWY%20copy.jpg" loading="lazy" width="Auto" sizes="(max-width: 1200px) 100vw, 1200px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a39879a4959f0160cb4e64a_B2KOAESNUY4TWFSWGCJOQMSFWY%20copy-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a39879a4959f0160cb4e64a_B2KOAESNUY4TWFSWGCJOQMSFWY%20copy-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a39879a4959f0160cb4e64a_B2KOAESNUY4TWFSWGCJOQMSFWY%20copy-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a39879a4959f0160cb4e64a_B2KOAESNUY4TWFSWGCJOQMSFWY%20copy.jpg 1200w" class="image-43"/></div><div id="set-2" class="wp-hero-zoom-set"><div class="wp-hero-zoom-scene"><div class="wp-hero-zoom-scene-grid"><div id="w-node-d5a86d45-26b2-254c-1c9a-07c0f08008a0-7b9767a6" class="wp-stack"><h2 class="wp-frame2-journalism">Our Journalism</h2><p class="wp-text-lead-2">We meet people where they are, explaining the world with authority and fairness, empowering people with both fearless, factual journalism and wide-ranging opinions to help them live better-informed lives. </p></div><a id="w-node-cfb6cf97-ea88-1aaa-8785-13c21260bdd7-7b9767a6" href="#next" class="wp-button-scroll w-inline-block"><div class="wp-button-scroll-icon w-embed"><svg width="32" height="17" viewBox="0 0 32 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="0.353553" y1="0.3536" x2="16.3536" y2="16.3536" stroke="white"/>
+<line y1="-0.5" x2="22.6274" y2="-0.5" transform="matrix(-0.707107 0.707107 0.707107 0.707107 32 0.707153)" stroke="white"/>
+</svg>
+</div></a></div><div class="wp-hero-zoom-scene-blur"></div></div><div class="wp-hero-zoom-scene"><div class="wp-hero-zoom-scene-grid"><div id="w-node-b041c91b-cca5-3b40-91cc-9e9d8eab6e7a-7b9767a6" class="wp-stack"><p class="wp-text-lead-2">Additionally, <a href="https://wpcreator.washingtonpost.com/" target="_blank" class="link">Washington Post Creator</a> brings authentic voices shaping the world, and <a href="https://wpintelligence.washingtonpost.com/" target="_blank" class="link-2">Washington Post Intelligence</a> provides insights and connections to senior executives navigating critical issues.<br/></p><p class="paragraph-14-copy">Washington Post Creator and Washington Post Intelligence are divisions of The Washington Post, separate from the newsroom and Opinion section.</p></div><a id="w-node-b041c91b-cca5-3b40-91cc-9e9d8eab6e8b-7b9767a6" href="#leadership" class="wp-button-scroll w-inline-block"><div class="wp-button-scroll-icon w-embed"><svg width="32" height="17" viewBox="0 0 32 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+<line x1="0.353553" y1="0.3536" x2="16.3536" y2="16.3536" stroke="white"/>
+<line y1="-0.5" x2="22.6274" y2="-0.5" transform="matrix(-0.707107 0.707107 0.707107 0.707107 32 0.707153)" stroke="white"/>
+</svg>
+</div></a></div><div class="wp-hero-zoom-scene-blur"></div></div><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4524ed5c6a13ec5711f884_WATER.jpg" loading="lazy" sizes="(max-width: 1200px) 100vw, 1200px" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4524ed5c6a13ec5711f884_WATER-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4524ed5c6a13ec5711f884_WATER-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4524ed5c6a13ec5711f884_WATER-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4524ed5c6a13ec5711f884_WATER.jpg 1200w" alt="" class="image-66"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45249b3d7c4d1e0d6ffdaa_SUNSET.jpg" loading="lazy" sizes="(max-width: 1200px) 100vw, 1200px" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45249b3d7c4d1e0d6ffdaa_SUNSET-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45249b3d7c4d1e0d6ffdaa_SUNSET-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45249b3d7c4d1e0d6ffdaa_SUNSET-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45249b3d7c4d1e0d6ffdaa_SUNSET.jpg 1200w" alt="" class="image-63"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a452e201e2f19741e16add5_DCIllo.jpg" loading="lazy" sizes="(max-width: 1000px) 100vw, 1000px" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a452e201e2f19741e16add5_DCIllo-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a452e201e2f19741e16add5_DCIllo-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a452e201e2f19741e16add5_DCIllo.jpg 1000w" alt="" class="image-61"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45299a795876af6be8fe67_WPCreatorMobileS.jpg" loading="lazy" sizes="(max-width: 700px) 100vw, 700px" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45299a795876af6be8fe67_WPCreatorMobileS-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a45299a795876af6be8fe67_WPCreatorMobileS.jpg 700w" alt="" class="image-68"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4526d286c45a48f3f93c9c_AskDoctor2.gif" loading="lazy" alt="" class="image-67"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a4527cac069b2ceb95db134_MIMS.gif" loading="lazy" width="Auto" alt="" class="image-58"/><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI.jpg" loading="lazy" width="Auto" sizes="(max-width: 1000px) 100vw, 1000px" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI.jpg 1000w" class="image-59"/></div></section></div><div id="leadership" class="wp-section"><div class="wp-content"><div class="wp-content-grid"><h2>Our Leadership</h2><div id="w-node-_63ba9e61-669b-f0f1-ce34-6d70a99aace5-7b9767a6" class="w-layout-grid wp-content-subgrid"><div class="wp-stack"><h3 class="wp-no-margin">Jeff D’Onofrio</h3><p><strong>Acting Publisher &amp; CEO</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Matt Murray</h3><p><strong>Executive Editor</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Adam O’Neal</h3><p><strong>Opinion Editor</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">L. Wayne Connell</h3><p><strong>Chief Human Resources Officer</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Alesia Lewis</h3><p><strong>Acting Chief Financial Officer</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Gregg J. Fernandes</h3><p><strong>Chief of Print Operations</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Jay Kennedy</h3><p><strong>Vice President, General Counsel &amp; Labor</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Vineet Khosla</h3><p><strong>Chief Technology Officer</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Suzi Watford</h3><p><strong>Chief Strategy Officer</strong></p></div><div class="wp-stack"><h3 class="wp-no-margin">Karl Wells</h3><p><strong>Chief Revenue Officer</strong></p></div><p id="w-node-_261a6b57-4787-2fb0-87a7-4cc564b647d2-7b9767a6" class="wp-text-footnote"><strong class="paragraph-14">The Washington Post is owned by Jeff Bezos, executive chairman of Amazon.</strong></p></div></div></div></div><div class="wp-section"><div class="wp-content"><div class="wp-content-grid"><h2>Founding Principles</h2><p id="w-node-_55ea4e63-b209-c9ac-690f-d7cd2e686ffe-7b9767a6" class="wp-text-lead">Our mission is built on these seven Founding Principles, which remain as important today as they were when written by Eugene Meyer in 1935.</p><div id="w-node-_56f87105-d436-e763-ca05-68943649bd19-7b9767a6" class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title">Expand</h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="wp-stack"><h3>1</h3><p>The first mission of a newspaper is to tell the truth as nearly as the truth may be ascertained.</p></div><div class="wp-stack"><h3>2</h3><p>The newspaper shall tell all the truth so far as it can learn it, concerning the important affairs of America and the world.</p></div><div class="wp-stack"><h3>3</h3><p>As a disseminator of the news, the paper shall observe the decencies that are obligatory upon a private person.</p></div><div class="wp-stack"><h3>4</h3><p>What it prints shall be fit reading for the young as well as the old.</p></div><div class="wp-stack"><h3>5</h3><p>The newspaper’s duty is to its readers and to the public at large, and not to the private interests of its owners.</p></div><div class="wp-stack"><h3>6</h3><p>In the pursuit of truth, the newspaper shall be prepared to make sacrifices of its material fortunes, if such course be necessary for the public good.</p></div><div class="wp-stack"><h3>7</h3><p>The newspaper shall not be the ally of any special interest, but shall be fair and free and wholesome in its outlook on public affairs and public individuals.</p></div></div></div></div><a id="w-node-_024e1e2d-b54a-8d32-9711-0d04dcea0306-7b9767a6" href="https://www.washingtonpost.com/policies-and-standards/" class="wp-button-link w-inline-block"><div class="wp-button-link-text"><strong>Newsroom policies &amp; standards</strong></div><div class="wp-button-link-icon w-embed"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 2H8V3H3V13H13V8H14V14H2V2ZM12.25 3H10V2H14V6H13V3.66L7.31 9.35L6.61 8.64L12.25 3Z" fill="white" />
+</svg></div></a></div></div></div><div class="wp-section"><div class="wp-content"><div class="wp-content-grid"><h2>Our Pulitzers</h2><p id="w-node-_3a2f05fc-2909-a15d-473b-e4025edce9b8-7b9767a6" class="wp-text-lead">The staff and affiliates of The Washington Post have won more than <strong>70 Pulitzer Prizes</strong> for journalism since the awards started in 1917, <strong>including seven gold medals for public service,</strong> <a href="https://www.washingtonpost.com/business/2026/05/04/post-pulitzer-prize-public-service/" target="_blank" class="link-7">most recently in 2026. </a></p><div id="w-node-_3a2f05fc-2909-a15d-473b-e4025edce9c0-7b9767a6" class="w-layout-grid wp-content-subgrid"><div class="wp-content-row"><h3>7</h3><p>Public Service</p></div><div class="wp-content-row"><h3>2</h3><p>Breaking News Reporting</p></div><div class="wp-content-row"><h3>3</h3><p>Investigative Reporting<br/></p></div><div class="wp-content-row"><h3>5</h3><p>Explanatory Reporting<br/></p></div><div class="wp-content-row"><h3>1</h3><p>Local Investigative Specialized Reporting<br/></p></div><div class="wp-content-row"><h3>9</h3><p>National Reporting<br/></p></div><div class="wp-content-row"><h3>9</h3><p>International Reporting<br/></p></div><div class="wp-content-row"><h3>4</h3><p>Feature Writing<br/></p></div><div class="wp-content-row"><h3>10</h3><p>Commentary<br/></p></div><div class="wp-content-row"><h3>11</h3><p>Criticism</p></div><div class="wp-content-row"><h3>5</h3><p>Editorial Writing<br/></p></div><div class="wp-content-row"><h3>1</h3><p>Breaking News Photography<br/></p></div><div class="wp-content-row"><h3>4</h3><p>Feature Photography<br/></p></div><div class="wp-content-row"><h3>1</h3><p>Illustrated Reporting and Commentary<br/></p></div><div class="wp-content-row"><h3>4</h3><p>Editorial Cartooning<br/></p></div><div class="wp-content-row"><h3 class="heading-25">1</h3><p><br/></p></div></div><p id="w-node-_3a2f05fc-2909-a15d-473b-e4025edcea1e-7b9767a6" class="wp-text-footnote"><strong class="paragraph-14">*The Post currently holds the most public service medals of any publication this century.</strong></p></div></div></div><div class="wp-section"><div class="wp-content"><div class="wp-content-grid"><h2>Our History</h2><p id="w-node-_30a66c6d-8b2d-0d34-84c5-9a697f82328a-7b9767a6" class="wp-text-lead">Since our founding in 1877, The Washington Post has grown from a four-page print newspaper in the nation’s capital to a trusted source for 24/7 national and global news and information. A look back through our history tells the story of how we arrived here.</p><div id="w-node-_2f2119cb-5671-24a6-01b2-bf7c23508647-7b9767a6" class="wp-stack"><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title">2010s – present</h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2026</h3><p>In January, The Post announces a new global initiative, the <strong>Press Freedom Desk</strong>, to provide training, connection and support to strengthen the next generation of journalists. <strong>Washington Post Creator</strong> is launched, bringing authentic voices from outside the newsroom into peoples’ newsfeeds. A new Opinion vodcast, “<strong>Make It Make Sense</strong>,” makes its debut.</p><p>In February, Jeff D’Onofrio assumes the role of acting publisher and CEO.</p><p>In May, The Post wins the Pulitzer Prize for public service for piercing the veil of secrecy around the Trump administration&#x27;s chaotic overhaul of federal agencies and chronicling in rich detail the human impacts of the cuts and the consequences for the country.</p><h3>2025</h3><p>Adam O’Neal joins The Post as opinion editor.</p><p><strong>Washington Post Intelligence </strong>is launched. A premium, business-to-business subscription service offering senior executives, policymakers, and analysts exclusive insights into the forces driving global change. Operating independently from The Post’s newsroom, Washington Post Intelligence emphasizes analysis and forecasting over traditional reporting.</p><p>The Post announces strategic partnerships with OpenAI, Alexa, Perplexity, and others to make high-quality news more accessible in LLMs and AI products like ChatGPT and Alexa+. As part of these partnerships, the chatbots and LLMs display summaries, quotes, and links to original reporting from The Post in response to relevant queries.</p><p><strong>From The Source</strong>, a feature that allows sources to annotate stories they appear in after the stories are published, is launched.</p><p><strong>Ripple</strong>, an all-in-one place for perspectives from across America, is introduced. Organized by topic, Ripple brings together guest writers and commentary from other publishers, combining breadth and quality to help people see the full picture.</p><p><strong>The “Watch” tab</strong> is introduced on the Washington Post app. For the first time, users can dive into a dedicated, swipeable feed of the latest Post video journalism, for a seamless, watch-first experience.</p><p>The Post begins experimenting with options for new, more flexible, ways to subscribe, with day and week passes and single article subscriptions.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI.jpg" loading="lazy" width="Auto" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a3ae94fa5c8769635bca4d0_WPI.jpg 1000w" sizes="(max-width: 479px) 48vw, (max-width: 2040px) 49vw, 1000px" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="rich-text-block w-richtext"><h3>2024</h3><p>In January, William Lewis assumes the role of publisher and CEO.</p><p>Matt Murray becomes executive editor.</p><p>In August, The Post celebrates the release of three imprisoned journalists, including Post contributor Vladimir Kara-Murza, in a historic prisoner exchange with Russia.</p><p>In November, The Post launches <strong>Ask The Post AI</strong>, a generative AI experiment delivering answers to users’ questions through the world-class journalism of The Post.</p><p>The Post wins the White House Correspondents Association’s 2024 Katharine Graham Award for Courage and Accountability.</p><p>The Post launches “<strong>Conversations</strong>,” reimagining the commenting experience for subscribers. This exclusive, intuitive way for subscribers to engage with The Post’s journalism and expert talent pairs the power of AI with subscriber habit to add new dimensions to the commenting experience.</p><h3>2023</h3><p>In August, Post publisher and CEO Fred Ryan steps down.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69babcbda547651170dd5bcf_edd075d0ab8de099d103e3a44c35b52a_2025-ATP.webp" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69babcbda547651170dd5bcf_edd075d0ab8de099d103e3a44c35b52a_2025-ATP-p-500.webp 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69babcbda547651170dd5bcf_edd075d0ab8de099d103e3a44c35b52a_2025-ATP.webp 600w" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2022</h3><p>The Post wins the Pulitzer Prize for public service for its compellingly told and vividly presented account of the assault on Washington on January 6, 2021, providing the public with a thorough and unflinching understanding of one of the nation&#x27;s darkest days.</p><h3>2021</h3><p>In February, Marty Baron retires as executive editor of The Post. </p><p>In June, Sally Buzbee becomes the first woman to lead the newsroom as executive editor of The Post.</p><p>Washington Post Opinions establishes the Fred Hiatt internship program, in honor of the late Fred Hiatt, who led the section for more than 20 years.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69babfda8db9814985ee12b9_2022-pulitzer.png" loading="lazy" alt="" height="Auto" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2020</h3><p>In March, in response to the Covid-19 pandemic, Post employees begin to work remotely for what is expected to be a couple of weeks, but in fact stretches to nearly two years. </p><p>Throughout the pandemic, The Post continues operations at full scale.</p><h3>2019</h3><p>The Post launches its TikTok account, becoming the first news organization to do so.</p><h3>2018</h3><p>On October 2, Post columnist Jamal Khashoggi is brutally murdered by agents of the Saudi government. Thirty days later, The Post announces the formation of The Press Freedom Partnership, a coalition of leading nonprofit organizations working vigilantly to defend press freedom, call attention to the plight of journalists worldwide, and increase awareness of the importance of an independent media.</p><h3>2017</h3><p>“The Post,” starring Meryl Streep and Tom Hanks as Katharine Graham and Ben Bradlee, is released. The film depicts the true story of The Post’s attempts to publish the Pentagon Papers.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c61efc6315ceb28455_2018-XHYMTBBFPAI6VHGJ4GOPXSD6KE.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c61efc6315ceb28455_2018-XHYMTBBFPAI6VHGJ4GOPXSD6KE-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c61efc6315ceb28455_2018-XHYMTBBFPAI6VHGJ4GOPXSD6KE.jpg 800w" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2015</h3><p>In October, The Post introduces <strong>Arc Publishing</strong>, its software-as-a-service business.</p><p>In December, The Post moves to its new headquarters at 1301 K St. NW in Washington, D.C.</p><h3>2014</h3><p>In September, Frederick J. Ryan Jr. is named publisher of The Washington Post, replacing former publisher Katharine Weymouth.</p><p>The Post wins the Pulitzer Prize for public service for its revelation of widespread secret surveillance by the National Security Agency, marked by authoritative and insightful reports that helped the public understand how the disclosures fit into the larger framework of national security.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c6d70d61b95f3fe858_2015-HZRBZFKVO5FGTKZA3PRZUOUA3U.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c6d70d61b95f3fe858_2015-HZRBZFKVO5FGTKZA3PRZUOUA3U-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/687020c6d70d61b95f3fe858_2015-HZRBZFKVO5FGTKZA3PRZUOUA3U.jpg 800w" class="image-65"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2013</h3><p>In January, Martin Baron is named executive editor of The Washington Post. </p><p>In August, an agreement is announced to sell The Washington Post newspaper and other newspaper division assets to Amazon founder Jeff Bezos, ending the Graham family’s stewardship of one of America’s leading news organizations after four generations. The sale of The Post and other newspaper division assets is completed on October 1.</p><p><strong><em>“The Post is a little more swashbuckling…there’s a little more swagger. There’s a tiny bit of badassness.” </em>– Jeff Bezos</strong></p><h3>2010</h3><p>In August, The Washington Post Co. announces the sale of Newsweek to Sidney Harman.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b183ee63add009dd9ca37f_4d4fc99e33b51e3eae4691372c60d296_PXGEWAXFT4I6XCGFJ7LDQLCHZM.webp" loading="lazy" sizes="(max-width: 479px) 48vw, (max-width: 2448px) 49vw, 1200px" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b183ee63add009dd9ca37f_4d4fc99e33b51e3eae4691372c60d296_PXGEWAXFT4I6XCGFJ7LDQLCHZM-p-500.webp 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b183ee63add009dd9ca37f_4d4fc99e33b51e3eae4691372c60d296_PXGEWAXFT4I6XCGFJ7LDQLCHZM-p-800.webp 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b183ee63add009dd9ca37f_4d4fc99e33b51e3eae4691372c60d296_PXGEWAXFT4I6XCGFJ7LDQLCHZM.webp 1200w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong class="bold-text-8">2000s – 2010s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2008</h3><p>In February,<a href="https://www.washingtonpost.com/pr/wp/2014/09/02/katharine-weymouth-announces-plans-to-step-down-as-publisher-fred-ryan-selected-as-successor/"> </a>Katharine Weymouth is named chief executive officer of Washington Post Media and publisher of The Washington Post.</p><p>In September, Marcus Brauchli is named executive editor of The Washington Post, succeeding Leonard Downie Jr.</p><p>In January, the company buys Slate, the online magazine, from Microsoft Corp.</p></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>2001</h3><p>In July, Katharine Graham dies at the age of 84.</p><p><strong><em>&quot;The nation&#x27;s capital and our entire nation today mourn the loss of the beloved first lady of Washington and American journalism, Katharine Graham.&quot; – President George W. Bush.</em></strong></p><p>On September 11, in the deadliest terrorist attack in history, terrorists highjack four planes and fly them into New York’s World Trade Center, the Pentagon in Arlington, Virginia, and a field in Shanksville, Pennsylvania. With smoke from the Pentagon visible from The Post’s office, and the sound of fighter jets protecting the White House just blocks away, 9/11 is a local story as much as a global one.</p><h3>2000</h3><p>In September, Boisfeuillet Jones Jr. is named publisher and chief executive officer of The Washington Post. Donald Graham becomes chairman of the newspaper.</p></div><div id="w-node-_935a1a5a-aa7a-04de-d1d4-eb464d2a630f-7b9767a6" class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa07253fd8ebbe0a2e5d_91101%20front%20page.png" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa07253fd8ebbe0a2e5d_91101%20front%20page-p-500.png 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa07253fd8ebbe0a2e5d_91101%20front%20page.png 674w" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><p>The Post wins the Pulitzer Prize for public service for its story disclosing wretched neglect and abuse in the city&#x27;s group homes, which forced officials to acknowledge the conditions and begin reforms.</p></div><div id="w-node-_745d7025-17e9-5c27-4a84-85a67af7bac0-7b9767a6" class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac41042ce964193c60ac4_13c838f9a107a41add3e770efa654bdd_2000-pulitzer_alt.png" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac41042ce964193c60ac4_13c838f9a107a41add3e770efa654bdd_2000-pulitzer_alt-p-500.png 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac41042ce964193c60ac4_13c838f9a107a41add3e770efa654bdd_2000-pulitzer_alt.png 800w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong>1980s – 1990s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1999</h3><p>The Post begins printing in color at the renovated Springfield, Virginia plant and the new College Park, Maryland plant.</p><p>The Post wins the Pulitzer Prize for public service for its series that identified and analyzed patterns of reckless gunplay by city police officers who had little training or supervision.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870203befc1756a18ac8846_1999-TLO6VXJIK5DIJDB7JLCNJTDK3A.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870203befc1756a18ac8846_1999-TLO6VXJIK5DIJDB7JLCNJTDK3A-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870203befc1756a18ac8846_1999-TLO6VXJIK5DIJDB7JLCNJTDK3A.jpg 800w" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1998</h3><p>In January, WCPX-TV in Orlando changes its call letters to WKMG-TV in honor of Katharine Meyer Graham.</p></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1996</h3><p>In June, The Post launches <a href="http://washingtonpost.com/"><strong>washingtonpost.com</strong></a>.</p><h3>1993</h3><p>Donald Graham becomes chairman of the board of The Washington Post Co.</p><h3>1991</h3><p>Donald Graham is named chief executive officer of The Washington Post Co., while his mother retains her corporate position of chairman of the board. </p><p>Len Downie is appointed executive editor, succeeding Ben Bradlee.</p></div><div id="w-node-dba0f824-7a85-196b-ccb2-02a851930313-7b9767a6" class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69444d43a292f8228af425ed_washingtonpost.com.png" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69444d43a292f8228af425ed_washingtonpost.com-p-500.png 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69444d43a292f8228af425ed_washingtonpost.com-p-800.png 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69444d43a292f8228af425ed_washingtonpost.com.png 879w" class="wp-polaroid-image"/></div></div></div><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1984</h3><p>In the first complete redesign of the paper in 50 years, the October 9 edition of The Post reveals an emphasis on clarity, placement and reader ease.</p><h3>1980</h3><p>In April, The Post begins publishing a weekly financial tabloid section called Washington Business.</p><p>In October, the paper’s printing process is converted from hot-type method to photo-electronic or cold type composition. The new method uses video display terminals (VDTs) to write and edit stories.</p><p>The Post’s $60 million, 397,000-square-foot satellite printing plant in Springfield, Virginia, formally opens in November. The presses can produce 128-page newspapers at a rate of about 75,000 copies per hour.</p></div><div id="w-node-_50b53631-3e35-a2f6-301b-d89d62c48a6d-7b9767a6" class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa8bf94e954670edbe0e_1984%20Front%20Page.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, (max-width: 2448px) 49vw, 1200px" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa8bf94e954670edbe0e_1984%20Front%20Page-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa8bf94e954670edbe0e_1984%20Front%20Page-p-800.jpg 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa8bf94e954670edbe0e_1984%20Front%20Page-p-1080.jpg 1080w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6a43fa8bf94e954670edbe0e_1984%20Front%20Page.jpg 1200w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong>1970s – 1980s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1979</h3><p>Donald Graham is named publisher of The Post, succeeding his mother.</p><h3>1977</h3><p>Donald Graham is named publisher of The Post, succeeding his mother.</p><p>The Washington Post celebrates its 100th anniversary. </p><h3>1976</h3><p>After working at The Post in various editorial, production and executive capacities, Donald E. Graham, Katharine Graham’s son, is appointed executive vice president and general manager of the newspaper.</p><p>In April, “All the President’s Men” is released. The film about the Watergate scandal earns four Academy Awards and goes on to be selected for preservation in the U.S. National Film Registry  as “culturally, historically, or aesthetically significant.”</p><h3>1973</h3><p>Katharine Graham is elected chairman of the board and chief executive officer of The Washington Post Co. while continuing as publisher of The Washington Post newspaper.</p><p>The Post wins the Pulitzer Prize for public service for its investigation of the Watergate case.</p><h3>1972</h3><p>The Post’s news staff begins its coverage of the Watergate scandal that eventually contributes to the resignation of Richard M. Nixon as U.S. president.</p><h3>1971</h3><p>On June 18, The Post begins publishing excerpts of the “Pentagon Papers” containing allegedly secret information about the war in Vietnam. On June 30, the U.S. Supreme Court upholds the right of The Post and other newspapers to publish the Pentagon Papers. </p><p>The Washington Post Co. offers the sale of Class B common stock to the general public on the NYSE. Until then, The Post Co. had been privately held.</p><p>Katharine Graham donates radio station WTOP-FM to Howard University. On December 6, with the new call letters WHUR-FM, the station becomes the first under Black management to broadcast in the Washington metropolitan area.</p><h3>1970</h3><p>In March, The Post’s daily circulation tops half a million for the first time.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac63e1e787e8a52364366_1977-all_the_presidents_men.webp" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac63e1e787e8a52364366_1977-all_the_presidents_men-p-500.webp 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/69bac63e1e787e8a52364366_1977-all_the_presidents_men.webp 600w" class="wp-polaroid-image"/></div><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870201dbf9417562c5df1d5_1972-LPP2U34MUVDXRPSQXCY2AWTE2Q.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870201dbf9417562c5df1d5_1972-LPP2U34MUVDXRPSQXCY2AWTE2Q-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/6870201dbf9417562c5df1d5_1972-LPP2U34MUVDXRPSQXCY2AWTE2Q.jpg 800w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong>1950s – 1960s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1968</h3><p>Ben Bradlee becomes executive editor.</p><h3>1963</h3><p>Following the death of her husband, Philip Graham, Katharine Graham becomes president of The Washington Post Co. The first 20th century female publisher of a major American newspaper, she is also the first woman elected to the board of the Associated Press.</p><h3>1959</h3><p>Upon the death of Eugene Meyer, Philip Graham becomes president and publisher of the newspaper.</p><h3>1954</h3><p>The Washington Post Co. purchases its last morning rival in the city, the Washington Times-Herald. Circulation of The Washington Post and Times-Herald jumps almost overnight to 380,000.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701ff4fbc7286495e8c4d1_1963-Katharine_Graham.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701ff4fbc7286495e8c4d1_1963-Katharine_Graham-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701ff4fbc7286495e8c4d1_1963-Katharine_Graham.jpg 800w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong>1900s – 1940s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1946</h3><p>Eugene Meyer is succeeded at The Post by his son-in-law, Philip L. Graham, who had been assistant publisher.</p><h3>1933 – 1943</h3><p>Meyer’s enlightened editorial policies and business acumen begin to turn The Post around. In the first ten years of his leadership, circulation triples to 162,000 and advertising soars.</p><p><em class="italic-text-2">&quot;It will be my aim and purpose to improve The Post and to make it an even better paper than it has been in the past. It will be conducted as an independent paper devoted to the best interests of the people of Washington and vicinity, and hopes to have their interest and support.” </em><strong><em class="italic-text-2">–</em></strong><strong> Eugene Meyer</strong></p><h3>1933</h3><p>On June 1, at a public auction held on the steps of The Post, the newspaper is sold for $825,000 to California-born financier Eugene Meyer. Though not an experienced newspaperman, Meyer holds strong convictions about publishing a newspaper, which he expressed in seven Founding Principles. (See above.)</p><h3>1922</h3><p>On January 28, a historic winter storm hits the mid-Atlantic, burying Washington, D.C. under 28 inches of snow, and causing the roof of the Knickerbocker Theater to collapse, killing 98 people. The Post’s drama critic, John Jay Daly, is at the theatre to review a newly released comedy film for his column. He escapes injury and for the next several days, is the top reporter and writer covering the story, as the nation waits for news about the disaster. The “Knickerbocker storm” still holds the record for the most snowfall in a single storm for Washington, D.C.</p><h3>1916</h3><p>McLean&#x27;s son Edward, an associate of President Warren G. Harding&#x27;s, becomes publisher following the death of his father. Circulation drops, advertising decreases and The Post stumbles into receivership.</p><h3>1905</h3><p>John R. McLean, owner of the Cincinnati Enquirer, buys the paper. Under his leadership, circulation and advertising increase and boost profits.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fd7d70d61b95f3f3420_1933-EugeneMeyer.jpg" loading="lazy" sizes="(max-width: 479px) 48vw, 49vw" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fd7d70d61b95f3f3420_1933-EugeneMeyer-p-500.jpg 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fd7d70d61b95f3f3420_1933-EugeneMeyer.jpg 800w" class="wp-polaroid-image"/></div></div></div></div></div><div class="wp-accordion-item"><div class="wp-accordion-trigger"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/69b06ba7de682a6d1dacd832_plus-white.svg" loading="lazy" alt="" class="wp-accordion-trigger-icon"/><h5 class="wp-accordion-trigger-title"><strong>1877 – 1890s</strong></h5></div><div class="wp-accordion-content"><div class="w-layout-grid wp-content-subgrid"><div class="w-richtext"><h3>1893</h3><p>The Post moves to a new building at 1335 E St. NW, next to the National Theatre.</p><h3>1889</h3><p>Hutchins sells The Post to Frank Hatton, a Republican Cabinet member, and Beriah Wilkins, a former Democratic congressman.</p><p>John Philip Sousa, the U.S. Marine Band leader, introduces “The Washington Post March,” which he wrote especially for the newspaper. It immediately becomes a popular hit and continues to be a marching band favorite today.</p><h3>1879</h3><p>Calista Halsey is hired, becoming The Post’s first female reporter.</p><h3>1877</h3><p>Founded by Stilson Hutchins, The Washington Post begins publishing on Thursday, December 6. Printed at 914 Pennsylvania Avenue, NW, the newspaper contains four pages and costs 3 cents a copy. Circulation: 10,000.</p></div><div class="wp-content-images"><div class="wp-polaroid"><img src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fb079b02ac96c7f2516_852eaa1d9feea350a7c0dae4ede524fd_1877-alt-frontpage.webp" loading="lazy" sizes="(max-width: 479px) 48vw, (max-width: 2089px) 49vw, 1024px" height="Auto" alt="" srcset="https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fb079b02ac96c7f2516_852eaa1d9feea350a7c0dae4ede524fd_1877-alt-frontpage-p-500.webp 500w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fb079b02ac96c7f2516_852eaa1d9feea350a7c0dae4ede524fd_1877-alt-frontpage-p-800.webp 800w, https://cdn.prod.website-files.com/6840721d7e214035555b8399/68701fb079b02ac96c7f2516_852eaa1d9feea350a7c0dae4ede524fd_1877-alt-frontpage.webp 1024w" class="wp-polaroid-image"/></div></div></div></div></div></div></div></div></div><footer class="wp-footer"><div class="wp-content"><div id="footer-v3" class="footer-v3"></div></div></footer></div><script src="https://d3e54v103j8qbb.cloudfront.net/js/jquery-3.5.1.min.dc5e7f18c8.js?site=6840721d7e214035555b8399" type="text/javascript" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script><script src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/js/6a38214f274bb2917b9767a6.wp-corporate.schunk.36b8fb49256177c8.js" type="text/javascript" integrity="sha384-4abIlA5/v7XaW1HMXKBgnUuhnjBYJ/Z9C1OSg4OhmVw9O3QeHJ/qJqFBERCDPv7G" crossorigin="anonymous"></script><script src="https://cdn.prod.website-files.com/6840721d7e214035555b8399/js/6a38214f274bb2917b9767a6.wp-corporate.bd2abc76.0186df6abb30cab5.js" type="text/javascript" integrity="sha384-FYi0TfnkC2Nfbebrn9xPIx9mKxrfXNpXNzWZdrvVDh5Bh3DeG6OJ/w3DOVd/smDu" crossorigin="anonymous"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/gsap.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/ScrollTrigger.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/SplitText.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/Flip.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/TextPlugin.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/ScrollSmoother.min.js" type="text/javascript"></script><script src="https://cdn.prod.website-files.com/gsap/3.15.0/Observer.min.js" type="text/javascript"></script><script type="text/javascript">gsap.registerPlugin(ScrollTrigger,SplitText,Flip,TextPlugin,ScrollSmoother,Observer);</script><script>
+  let orcaInterval = setInterval(function () {
+    if ('undefined' !== typeof window.OrcaPlayer) {
+      clearInterval(orcaInterval);
+
+      const players = document.querySelectorAll('[data-uuid][data-config]');
+
+      for (let player of players) {
+        let uuid = player.getAttribute('data-uuid');
+
+        let config = JSON.parse(player.getAttribute('data-config'));
+
+        console.log(player, uuid, config);
+
+        window.OrcaPlayer.render(player, {
+          uuid: uuid,
+          config: config,
+        });
+      }
+    }
+  }, 50);
+</script>
+
+<script>
+  (function () {
+    // Unified hero handler: two pinned, scrubbed treatments in one footer script,
+    // each active only if its markup is present. Both pin the hero's PARENT so the
+    // page below stays planted. .wp-hero-parallax pans a tall image in a fixed
+    // frame; .wp-hero-zoom flies stacked card+scene sets forward through a collage.
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Pin starts with the hero just under the fixed navbar, never beneath it.
+    const getNavHeight = () => {
+      const navbar = document.querySelector('.wp-navbar');
+
+      if (!navbar) {
+        return 0;
+      }
+
+      return navbar.offsetHeight;
+    };
+
+    // Hero 1: pinned image reveal.
+    const initPinnedReveal = () => {
+      const hero = document.querySelector('.wp-hero-parallax');
+      const image = hero ? hero.querySelector('.wp-hero-parallax-image') : null;
+
+      if (!hero || !image) {
+        return;
+      }
+
+      if (hero.dataset.wpHeroParallax === 'ready') {
+        return;
+      }
+
+      const gsap = window.gsap;
+      // Pin a full-width [data-hero-stage] wrapper if present, so a fixed-width
+      // centered hero stays centered while pinned; otherwise pin the hero itself.
+      const stage = hero.closest('[data-hero-stage]') || hero;
+
+      const getDistance = () => {
+        return Math.max(0, image.offsetHeight - hero.clientHeight);
+      };
+
+      const getRevealScroll = () => {
+        return window.innerHeight;
+      };
+
+      // Nothing to reveal unless the image overflows its frame.
+      if (getDistance() <= 0) {
+        return;
+      }
+
+      hero.dataset.wpHeroParallax = 'ready';
+
+      // Reduced motion: show the top of the image, no pin.
+      if (prefersReducedMotion) {
+        return;
+      }
+
+      gsap.to(image, {
+        y: () => -getDistance(),
+        ease: 'none',
+        scrollTrigger: {
+          trigger: hero,
+          start: () => 'top ' + getNavHeight() + 'px',
+          end: () => '+=' + getRevealScroll(),
+          pin: stage,
+          scrub: true,
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+        },
+      });
+    };
+
+    // Hero 2: layered zoom — a forward push through a stack of sets.
+    const initZoomHero = () => {
+      const hero = document.querySelector('.wp-hero-zoom');
+
+      if (!hero) {
+        return;
+      }
+
+      if (hero.dataset.wpHeroZoom === 'ready') {
+        return;
+      }
+
+      const sets = Array.from(hero.querySelectorAll('.wp-hero-zoom-set'));
+
+      if (sets.length === 0) {
+        return;
+      }
+
+      hero.dataset.wpHeroZoom = 'ready';
+
+      const gsap = window.gsap;
+      // Pin a full-width [data-hero-stage] wrapper if present, so a fixed-width
+      // centered hero stays centered while pinned; otherwise pin the hero itself.
+      const stage = hero.closest('[data-hero-stage]') || hero;
+
+      // Pacing, in viewports of scroll: START_HOLD holds the first set before motion
+      // (and absorbs the trigger's tiny non-zero progress at load); HANDOFF is one
+      // set's fly-through; GAP is the rest between hand-offs; END_HOLD holds the last
+      // set, still pinned, before release. All feed the scroll length and positions.
+      const START_HOLD = 0.2;
+      const HANDOFF = 1;
+      const GAP = 0.5;
+      const END_HOLD = 0.75;
+
+      // Card Z travel (in vh): waits behind the screen at CARD_BACK (reads small),
+      // rests composed at z: 0, flies past toward the camera to CARD_FORWARD.
+      const CARD_BACK = '-100vh';
+      const CARD_FORWARD = '75vh';
+
+      // Landing flight length per card, in seconds.
+      const CARD_TRAVEL = 0.9;
+
+      // Fan across a set's cards so it pulls in as a group; serves the landing (seconds)
+      // and the hand-offs (hand-off units, each card's leg filling what the fan leaves).
+      const CARD_SPREAD = 0.3;
+
+      // In-set scene cross-zoom: SCENE_HOLD dwells on each scene, SCENE_HANDOFF is one
+      // scene->scene transition. The entering scene grows in from SCENE_ZOOM_IN, the
+      // leaving one grows past to SCENE_ZOOM_OUT — a scale cross-fade over the held
+      // cards (scale, not Z, so the text stays crisp and never sinks behind a card).
+      const SCENE_HOLD = 0.6;
+      const SCENE_HANDOFF = 0.6;
+      const SCENE_ZOOM_IN = 0.85;
+      const SCENE_ZOOM_OUT = 1.15;
+
+      // A set's cards: every child that isn't the scene.
+      const cardsOf = (set) => {
+        return Array.from(set.children).filter((child) => {
+          return !child.classList.contains('wp-hero-zoom-scene');
+        });
+      };
+
+      // A set can hold several scenes; they cross-zoom in place over the held cards.
+      const scenesOf = (set) => {
+        return Array.from(set.children).filter((child) => {
+          return child.classList.contains('wp-hero-zoom-scene');
+        });
+      };
+
+      // First scene of a set — the one a fly-in composes and the landing reveals.
+      const sceneOf = (set) => {
+        return scenesOf(set)[0] || null;
+      };
+
+      // Total scenes across every set, for the scroll-length maths.
+      const scenesTotal = sets.reduce((total, set) => {
+        return total + scenesOf(set).length;
+      }, 0);
+
+      // Arriving set: cards fly from CARD_BACK into place and fade in, fanned across
+      // CARD_SPREAD. immediateRender off so the parked start isn't stamped early.
+      const flyIn = (timeline, set, position) => {
+        const cards = cardsOf(set);
+        const leg = Math.max(0.1, HANDOFF - CARD_SPREAD);
+
+        timeline.fromTo(
+          cards,
+          {
+            z: CARD_BACK,
+            opacity: 0,
+          },
+          {
+            z: 0,
+            opacity: 1,
+            ease: 'power1.inOut',
+            duration: leg,
+            stagger: { amount: CARD_SPREAD },
+            immediateRender: false,
+          },
+          position,
+        );
+
+        const scene = sceneOf(set);
+
+        if (scene) {
+          timeline.fromTo(
+            scene,
+            {
+              autoAlpha: 0,
+            },
+            {
+              autoAlpha: 1,
+              ease: 'power1.inOut',
+              duration: leg,
+              immediateRender: false,
+            },
+            position + HANDOFF * 0.5,
+          );
+        }
+      };
+
+      // Leaving set: cards keep flying past to CARD_FORWARD and fade, in reverse of
+      // arrival (stagger from: "end"). The scene fades with them.
+      const flyOut = (timeline, set, position) => {
+        const cards = cardsOf(set);
+        const leg = Math.max(0.1, HANDOFF - CARD_SPREAD);
+
+        timeline.fromTo(
+          cards,
+          {
+            z: 0,
+            opacity: 1,
+          },
+          {
+            z: CARD_FORWARD,
+            opacity: 0,
+            ease: 'power1.inOut',
+            duration: leg,
+            stagger: { amount: CARD_SPREAD, from: 'end' },
+            immediateRender: false,
+          },
+          position,
+        );
+
+        // The leaving set's visible scene is its LAST (after any in-set cross-zoom).
+        const scene = scenesOf(set).slice(-1)[0] || null;
+
+        if (scene) {
+          timeline.fromTo(
+            scene,
+            {
+              autoAlpha: 1,
+            },
+            {
+              autoAlpha: 0,
+              ease: 'power1.inOut',
+              duration: leg,
+              immediateRender: false,
+            },
+            position,
+          );
+        }
+      };
+
+      // In-set scene change: the current scene grows past and fades while the next
+      // grows in from behind it — a scale cross-fade over the HELD cards, so the
+      // collage doesn't move. immediateRender off so the starts aren't stamped early.
+      const zoomScenes = (timeline, fromScene, toScene, position) => {
+        timeline.fromTo(
+          fromScene,
+          {
+            scale: 1,
+            autoAlpha: 1,
+          },
+          {
+            scale: SCENE_ZOOM_OUT,
+            autoAlpha: 0,
+            ease: 'power1.inOut',
+            duration: SCENE_HANDOFF,
+            immediateRender: false,
+          },
+          position,
+        );
+
+        timeline.fromTo(
+          toScene,
+          {
+            scale: SCENE_ZOOM_IN,
+            autoAlpha: 0,
+          },
+          {
+            scale: 1,
+            autoAlpha: 1,
+            ease: 'power1.inOut',
+            duration: SCENE_HANDOFF,
+            immediateRender: false,
+          },
+          position,
+        );
+      };
+
+      // A faded scene still hit-tests, so gate pointer events on opacity: only the
+      // composed scene of each set takes clicks; every other scene stays click-through.
+      const syncSceneHits = () => {
+        sets.forEach((set) => {
+          scenesOf(set).forEach((scene) => {
+            scene.style.pointerEvents = gsap.getProperty(scene, 'opacity') > 0.5 ? 'auto' : 'none';
+          });
+        });
+      };
+
+      // Reduced motion: first set composed and static, the rest hidden. No pin.
+      if (prefersReducedMotion) {
+        sets.forEach((set, setIndex) => {
+          const visible = setIndex === 0;
+
+          gsap.set(cardsOf(set), {
+            z: 0,
+            opacity: visible ? 1 : 0,
+            pointerEvents: 'none',
+            force3D: true,
+          });
+
+          const scene = sceneOf(set);
+
+          if (scene) {
+            gsap.set(scene, {
+              autoAlpha: visible ? 1 : 0,
+            });
+          }
+        });
+
+        syncSceneHits();
+
+        // No sequence to scrub here, so a scroll button just leaves the hero.
+        hero.querySelectorAll("a[href='#next']").forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.scrollTo({
+              top: window.scrollY + hero.getBoundingClientRect().bottom - getNavHeight(),
+              behavior: 'smooth',
+            });
+          });
+        });
+
+        return;
+      }
+
+      // Resting state: sets are stacking layers in descending z-index (a leaving set
+      // passes over the one behind). Motion is on the cards: set 0 rests composed at
+      // z: 0, later sets wait at CARD_BACK and hidden until their hand-off.
+      sets.forEach((set, setIndex) => {
+        const landed = setIndex === 0;
+
+        gsap.set(set, {
+          opacity: 1,
+          pointerEvents: 'none',
+          zIndex: sets.length - setIndex,
+        });
+
+        gsap.set(cardsOf(set), {
+          z: landed ? 0 : CARD_BACK,
+          opacity: landed ? 1 : 0,
+          pointerEvents: 'none',
+          force3D: true,
+        });
+
+        // Every scene rests unscaled; only set 0's first scene starts visible.
+        scenesOf(set).forEach((scene, sceneIndex) => {
+          gsap.set(scene, {
+            autoAlpha: landed && sceneIndex === 0 ? 1 : 0,
+            scale: 1,
+          });
+        });
+      });
+
+      // Total scroll, in viewports: lead hold + every in-set scene step (a dwell plus a
+      // zoom) + every set hand-off (a dwell plus the fly-through) + the tail hold.
+      const getZoomScroll = () => {
+        const sceneSteps = Math.max(0, scenesTotal - sets.length);
+        const setHandoffs = Math.max(0, sets.length - 1);
+
+        return window.innerHeight * (START_HOLD + sceneSteps * (SCENE_HOLD + SCENE_HANDOFF) + setHandoffs * (GAP + HANDOFF) + END_HOLD);
+      };
+
+      // Declared up front so the timeline's onUpdate guard can see it.
+      let entrance = null;
+
+      // A top-pinned hero reports a small non-zero progress at init, so only cut the
+      // landing short when progress actually increases (a real scroll), not on that.
+      let lastProgress = null;
+
+      // Captured so the jump-buttons can map a set (or scene) to its scroll position.
+      let zoomTimeline = null;
+      let zoomTrigger = null;
+
+      // Scenes in document order, filled as the timeline is built; a scroll button uses
+      // this to find the scene right after the one it sits in.
+      const flatScenes = [];
+
+      // A sequence to scrub if there's more than one set, or a set with more than one
+      // scene to cross-zoom. A lone single-scene set just lands (handled below).
+      const hasSequence = sets.length > 1 || scenesTotal > sets.length;
+
+      if (hasSequence) {
+        const timeline = gsap.timeline({
+          scrollTrigger: {
+            trigger: hero,
+            start: () => 'top ' + getNavHeight() + 'px',
+            end: () => '+=' + getZoomScroll(),
+            pin: stage,
+            scrub: 1,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+            onUpdate: (self) => {
+              // First real scroll wins over the landing; gate on progress increasing
+              // past the load baseline so it doesn't snap the landing shut early.
+              if (lastProgress !== null && self.progress > lastProgress + 0.001 && entrance && entrance.isActive()) {
+                entrance.progress(1);
+                // Jumping the landing to its end composes set 0, but getProperty can
+                // read the pre-jump scene opacity for one tick; if no scroll follows,
+                // syncSceneHits never reruns and the scene stays non-interactive (its
+                // scroll button gets no pointer events). Re-sync once the jump commits.
+                window.requestAnimationFrame(syncSceneHits);
+              }
+
+              lastProgress = self.progress;
+
+              syncSceneHits();
+            },
+          },
+        });
+
+        // Lead hold, so at load (tiny non-zero progress) nothing has touched set 0 yet
+        // and the landing reveals it with no composed flash.
+        timeline.to(
+          {},
+          {
+            duration: START_HOLD,
+          },
+        );
+
+        // Captured so the jump-buttons can map a set to its scroll position.
+        zoomTimeline = timeline;
+        zoomTrigger = timeline.scrollTrigger;
+
+        // Walk the sets. Within each, cross-zoom through its scenes with the cards held
+        // still; then, unless it's the last set, fly the cards + last scene out as the
+        // next set's cards + first scene fly in. cursor is the running position, in
+        // viewports, that each beat is appended at.
+        let cursor = START_HOLD;
+
+        for (let s = 0; s < sets.length; s++) {
+          const set = sets[s];
+          const scenes = scenesOf(set);
+
+          // The set (and its first scene) is composed here; label both, and record the
+          // scene in document order so a scroll button can find the one after it.
+          const composedTime = s === 0 ? START_HOLD * 0.5 : cursor;
+          timeline.addLabel('zoomSet' + s, composedTime);
+
+          if (scenes[0]) {
+            flatScenes.push(scenes[0]);
+            timeline.addLabel('zoomScene' + (flatScenes.length - 1), composedTime);
+          }
+
+          // Cross-zoom scene i-1 -> i through the set, dwelling on each one first, and
+          // label each scene at the moment it lands composed.
+          for (let i = 1; i < scenes.length; i++) {
+            cursor = cursor + SCENE_HOLD;
+            zoomScenes(timeline, scenes[i - 1], scenes[i], cursor);
+            cursor = cursor + SCENE_HANDOFF;
+
+            flatScenes.push(scenes[i]);
+            timeline.addLabel('zoomScene' + (flatScenes.length - 1), cursor);
+          }
+
+          // Unless this is the last set: dwell, then hand off to the next set.
+          if (s < sets.length - 1) {
+            cursor = cursor + GAP;
+            flyOut(timeline, set, cursor);
+            flyIn(timeline, sets[s + 1], cursor);
+            cursor = cursor + HANDOFF;
+          }
+        }
+
+        // Tail hold on the last set before the hero unpins — empty time at the end so
+        // the scrub maps 1:1 with getZoomScroll.
+        timeline.to(
+          {},
+          {
+            duration: END_HOLD,
+          },
+          cursor,
+        );
+      }
+
+      // Landing: set 0's scene arrives first, then its cards fan in from CARD_BACK as
+      // a group (a .from, so the hidden start is stamped at once). Runs free; the
+      // scrubbed timeline picks it up at rest and the onUpdate guard hands off to the
+      // scroll on first move.
+      entrance = gsap.timeline({
+        onUpdate: syncSceneHits,
+        // If the landing finishes without a scroll, re-apply hit-testing once it's
+        // fully composed — the last onUpdate tick can read the not-yet-final opacity,
+        // leaving set 0's scene (and its scroll button) non-interactive.
+        onComplete: syncSceneHits,
+      });
+
+      const landingCards = cardsOf(sets[0]);
+      const landingScene = sceneOf(sets[0]);
+
+      // Scene leads; the cards follow a beat behind, starting at the midpoint of its
+      // flight (mirror of the old card-led timing). No scene: cards start at 0.
+      const landingLead = landingScene ? CARD_TRAVEL * 0.5 : 0;
+
+      if (landingScene) {
+        entrance.from(
+          landingScene,
+          {
+            autoAlpha: 0,
+            ease: 'power1.inOut',
+            duration: CARD_TRAVEL,
+          },
+          0,
+        );
+      }
+
+      entrance.from(
+        landingCards,
+        {
+          z: CARD_BACK,
+          opacity: 0,
+          ease: 'power1.inOut',
+          duration: CARD_TRAVEL,
+          stagger: { amount: CARD_SPREAD },
+        },
+        landingLead,
+      );
+
+      syncSceneHits();
+
+      // Jump-buttons. Two kinds: a scroll button with href="#next" advances to the NEXT
+      // scene (within the set, then across the set boundary — the glide plays the
+      // hand-off); an href="#some-id" targets a specific scene, set, or outside section.
+      // Because the sets/scenes are stacked at one spot, an anchor can't reach "where
+      // scene N composes" — that's a scroll distance into the runway — so map the target
+      // to its label's scroll position and glide there. No ScrollToPlugin, so tween a
+      // proxy into window.scrollTo; a wheel or touch cancels the glide.
+      let activeGlide = null;
+
+      const cancelGlide = () => {
+        if (activeGlide) {
+          activeGlide.kill();
+          activeGlide = null;
+        }
+      };
+
+      window.addEventListener('wheel', cancelGlide, { passive: true });
+      window.addEventListener('touchstart', cancelGlide, { passive: true });
+
+      const glideScrollTo = (top) => {
+        cancelGlide();
+
+        const startY = window.scrollY;
+        // Seconds of glide per viewport of distance — the pacing knob (~2s per set).
+        const SECONDS_PER_VIEWPORT = 1.5;
+        const span = Math.min(3, Math.max(0.7, (Math.abs(top - startY) / window.innerHeight) * SECONDS_PER_VIEWPORT));
+        const scrollProxy = { y: startY };
+
+        activeGlide = gsap.to(scrollProxy, {
+          y: top,
+          duration: span,
+          ease: 'sine.inOut',
+          onUpdate: () => {
+            window.scrollTo(0, scrollProxy.y);
+          },
+          onComplete: () => {
+            activeGlide = null;
+          },
+        });
+      };
+
+      // Glide to a timeline label's scroll position (the scrub plays the zoom en route).
+      const glideToLabel = (labelName) => {
+        const time = zoomTimeline ? zoomTimeline.labels[labelName] : null;
+
+        if (typeof time !== 'number' || !zoomTrigger) {
+          return false;
+        }
+
+        const progress = time / zoomTimeline.duration();
+        glideScrollTo(zoomTrigger.start + progress * (zoomTrigger.end - zoomTrigger.start));
+        return true;
+      };
+
+      // Leave the hero: glide to the end of the pinned runway, or (no sequence) just
+      // scroll to below the hero.
+      const scrollPastHero = () => {
+        if (zoomTrigger) {
+          glideScrollTo(zoomTrigger.end);
+          return;
+        }
+
+        window.scrollTo({
+          top: window.scrollY + hero.getBoundingClientRect().bottom - getNavHeight(),
+          behavior: 'smooth',
+        });
+      };
+
+      const jumpButtons = hero.querySelectorAll("a[href^='#']");
+
+      jumpButtons.forEach((button) => {
+        button.addEventListener('click', (event) => {
+          const href = button.getAttribute('href');
+
+          // Scroll button: advance to the scene after the one it sits in. Past the last
+          // scene there's nowhere further inside the hero, so release below it.
+          if (href === '#next') {
+            event.preventDefault();
+
+            const originScene = button.closest('.wp-hero-zoom-scene');
+            const originIndex = originScene ? flatScenes.indexOf(originScene) : -1;
+
+            if (originIndex !== -1 && originIndex + 1 < flatScenes.length) {
+              glideToLabel('zoomScene' + (originIndex + 1));
+            } else {
+              scrollPastHero();
+            }
+
+            return;
+          }
+
+          const targetId = href ? href.slice(1) : '';
+          const target = targetId ? document.getElementById(targetId) : null;
+
+          if (!target) {
+            return;
+          }
+
+          event.preventDefault();
+
+          // A specific scene, then a specific set, else a section outside the hero.
+          const sceneIndex = flatScenes.indexOf(target);
+          if (sceneIndex !== -1 && glideToLabel('zoomScene' + sceneIndex)) {
+            return;
+          }
+
+          const setIndex = sets.indexOf(target);
+          if (setIndex !== -1 && glideToLabel('zoomSet' + setIndex)) {
+            return;
+          }
+
+          target.scrollIntoView({ behavior: 'smooth' });
+        });
+      });
+    };
+
+    // Boot: bail without a hero, else wait for Webflow's gsap, then init.
+    const boot = () => {
+      if (!document.querySelector('.wp-hero-parallax, .wp-hero-zoom')) {
+        return;
+      }
+
+      if (typeof window.gsap === 'undefined') {
+        window.requestAnimationFrame(boot);
+        return;
+      }
+
+      if (window.ScrollTrigger) {
+        window.gsap.registerPlugin(window.ScrollTrigger);
+      }
+
+      initPinnedReveal();
+      initZoomHero();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+  })();
+</script>
+
+<script>
+  // Accordion: accessible disclosure pattern. Wires ARIA on init (button role,
+  // expanded state, labelled region, controls), toggles on click + Enter + Space,
+  // and marks the collapsed panel inert so hidden content leaves the tab order.
+  const initAccordions = () => {
+    const items = document.querySelectorAll('.wp-accordion-item');
+
+    items.forEach((item, index) => {
+      const trigger = item.querySelector('.wp-accordion-trigger');
+      const panel = item.querySelector('.wp-accordion-content');
+
+      if (!trigger || !panel) {
+        return;
+      }
+
+      const triggerId = `wp-accordion-trigger-${index}`;
+      const panelId = `wp-accordion-panel-${index}`;
+      const startsOpen = item.classList.contains('wp-is-open');
+
+      // Trigger behaves as a button that controls its panel.
+      trigger.id = triggerId;
+      trigger.setAttribute('role', 'button');
+      trigger.setAttribute('tabindex', '0');
+      trigger.setAttribute('aria-controls', panelId);
+      trigger.setAttribute('aria-expanded', startsOpen ? 'true' : 'false');
+
+      // Panel is a region labelled by its trigger, inert while collapsed.
+      panel.id = panelId;
+      panel.setAttribute('role', 'region');
+      panel.setAttribute('aria-labelledby', triggerId);
+
+      if (startsOpen) {
+        panel.removeAttribute('inert');
+      } else {
+        panel.setAttribute('inert', '');
+      }
+
+      const setOpen = (open) => {
+        item.classList.toggle('wp-is-open', open);
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+        if (open) {
+          panel.removeAttribute('inert');
+        } else {
+          panel.setAttribute('inert', '');
+        }
+      };
+
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        setOpen(!item.classList.contains('wp-is-open'));
+      });
+
+      // role="button" must also respond to Space; Enter already fires click on a link.
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault();
+          setOpen(!item.classList.contains('wp-is-open'));
+        }
+      });
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAccordions);
+  } else {
+    initAccordions();
+  }
+
+  // Carousel: arrows snap to the next / previous slide's left edge.
+  // This embed is in the head, so .wp-carousel elements don't exist yet at
+  // parse time — initialize once the DOM is ready.
+  const initCarousels = () => {
+    const carousels = document.querySelectorAll('.wp-carousel');
+
+    carousels.forEach((carousel) => {
+      const track = carousel.querySelector('.wp-carousel-track');
+
+      if (!track) {
+        return;
+      }
+
+      const previousButton = carousel.querySelector('.wp-carousel-button-previous');
+      const nextButton = carousel.querySelector('.wp-carousel-button-next');
+      const slides = Array.from(track.children);
+      const EDGE_TOLERANCE = 2; // px of slack so rounding never traps a click
+
+      const scrollToSlide = (slide) => {
+        if (!slide) {
+          return;
+        }
+
+        track.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+      };
+
+      const goToNextSlide = () => {
+        const currentScroll = track.scrollLeft;
+
+        const upcomingSlide = slides.find((slide) => {
+          return slide.offsetLeft > currentScroll + EDGE_TOLERANCE;
+        });
+
+        scrollToSlide(upcomingSlide);
+      };
+
+      const goToPreviousSlide = () => {
+        const currentScroll = track.scrollLeft;
+
+        const earlierSlides = slides.filter((slide) => {
+          return slide.offsetLeft < currentScroll - EDGE_TOLERANCE;
+        });
+
+        const previousSlide = earlierSlides[earlierSlides.length - 1];
+        scrollToSlide(previousSlide);
+      };
+
+      // Dim each arrow when there is nothing further to scroll in its direction
+      const updateArrowStates = () => {
+        const atStart = track.scrollLeft <= EDGE_TOLERANCE;
+        const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - EDGE_TOLERANCE;
+
+        if (previousButton) {
+          previousButton.classList.toggle('wp-is-disabled', atStart);
+        }
+
+        if (nextButton) {
+          nextButton.classList.toggle('wp-is-disabled', atEnd);
+        }
+      };
+
+      if (nextButton) {
+        nextButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          goToNextSlide();
+        });
+      }
+
+      if (previousButton) {
+        previousButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          goToPreviousSlide();
+        });
+      }
+
+      track.addEventListener('scroll', updateArrowStates, { passive: true });
+      window.addEventListener('resize', updateArrowStates);
+
+      // Slide widths come from their images, which haven't loaded at first paint,
+      // so the initial measure reads scrollWidth as roughly clientWidth and wrongly
+      // disables "next" until a resize forces a recalc. Re-measure as each image lands.
+      track.querySelectorAll('img').forEach((image) => {
+        if (image.complete) {
+          return;
+        }
+        image.addEventListener('load', updateArrowStates, { once: true });
+        image.addEventListener('error', updateArrowStates, { once: true });
+      });
+
+      updateArrowStates();
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCarousels);
+  } else {
+    initCarousels();
+  }
+</script>
+
+<script>
+  (function () {
+    // Where the cron-published feed lives. A stable filename (jobs-latest.json)
+    // is better than dated files; until then we try today, then yesterday.
+    const JOBS_CDN_BASE = 'https://webflow-prod-cdn.site.aws.wapo.pub';
+
+    // DOM hooks — all attribute-based, so reordering in the Designer can't break them.
+    const LIST_SELECTOR = '[data-jobs-list]';
+    const TEMPLATE_SELECTOR = '[data-job-template]';
+    const STATE_SELECTOR = '[data-jobs-state]';
+    const FILTER_GROUP_SELECTOR = '[data-filter-group]';
+    const FILTER_OPTION_SELECTOR = '[data-filter-value]';
+    const CLEAR_SELECTOR = '[data-jobs-clear]';
+    const COUNT_SELECTOR = '[data-jobs-count]';
+    const SEARCH_SELECTOR = '[data-jobs-search]';
+
+    // Default view shows at most this many; any filter or search reveals the full set.
+    const DEFAULT_VISIBLE = 10;
+
+    // Messy Workday location strings → clean, filterable labels. Author each
+    // location chip's data-filter-value to match a value on the right.
+    const LOCATION_LABELS = {
+      'DC-Washington-TWP Headquarters': 'Washington, DC',
+      'NY-New York TWP': 'New York, NY',
+      'CA-TWP Remote Office': 'California',
+      'UK - Remote': 'United Kingdom',
+    };
+
+    let allJobs = [];
+    let activeFilters = {};
+    let searchTerm = '';
+    let searchDebounce = null;
+
+    const cleanText = (value) => {
+      if (typeof value !== 'string') {
+        return '';
+      }
+
+      return value.trim();
+    };
+
+    const normalizeLocation = (rawLocation) => {
+      const cleaned = cleanText(rawLocation);
+
+      if (LOCATION_LABELS[cleaned]) {
+        return LOCATION_LABELS[cleaned];
+      }
+
+      return cleaned;
+    };
+
+    // Which job field each filter group reads. Add a group here and author a
+    // matching [data-filter-group] control in Webflow to extend filtering.
+    const FILTER_ACCESSORS = {
+      location: (job) => normalizeLocation(job.Primary_Location),
+      category: (job) => cleanText(job.Team),
+      timeType: (job) => cleanText(job.Time_Type),
+      jobType: (job) => cleanText(job.Job_Type),
+    };
+
+    // How each [data-field] in the card is filled.
+    const FIELD_ACCESSORS = {
+      title: (job) => cleanText(job.Job_Posting_Title) || 'Untitled role',
+      location: (job) => normalizeLocation(job.Primary_Location) || 'Location N/A',
+    };
+
+    const readJobUrl = (job) => {
+      const group = job.Job_Posting_Details_group;
+
+      if (Array.isArray(group) && group[0] && group[0].Url) {
+        // Workday gives the apply URL (…/apply); the posting is that without the suffix.
+        // Anchored to the end so a URL that contains "apply" elsewhere is left alone.
+        return group[0].Url.replace(/\/apply\/?$/, '');
+      }
+
+      return '#';
+    };
+
+    // State elements (loading / empty / error)
+
+    const showState = (stateName) => {
+      const stateElements = document.querySelectorAll(STATE_SELECTOR);
+
+      stateElements.forEach((element) => {
+        const isMatch = element.getAttribute('data-jobs-state') === stateName;
+
+        if (isMatch) {
+          element.classList.remove('wp-is-hidden');
+        } else {
+          element.classList.add('wp-is-hidden');
+        }
+      });
+    };
+
+    const hideAllStates = () => {
+      const stateElements = document.querySelectorAll(STATE_SELECTOR);
+
+      stateElements.forEach((element) => {
+        element.classList.add('wp-is-hidden');
+      });
+    };
+
+    // Rendering: clone the designed card, fill its fields
+
+    const populateCard = (card, job) => {
+      const fieldElements = card.querySelectorAll('[data-field]');
+
+      fieldElements.forEach((element) => {
+        const fieldName = element.getAttribute('data-field');
+
+        if (fieldName === 'url') {
+          element.setAttribute('href', readJobUrl(job));
+          return;
+        }
+
+        const accessor = FIELD_ACCESSORS[fieldName];
+
+        if (accessor) {
+          // textContent (not innerHTML) — no HTML-escaping needed, no injection.
+          element.textContent = accessor(job);
+        }
+      });
+    };
+
+    const renderJobs = (list, template, jobs) => {
+      const existingCards = list.querySelectorAll('[data-job-card]');
+
+      existingCards.forEach((card) => {
+        card.remove();
+      });
+
+      if (jobs.length === 0) {
+        showState('empty');
+        return;
+      }
+
+      hideAllStates();
+
+      const fragment = document.createDocumentFragment();
+
+      jobs.forEach((job) => {
+        const card = template.cloneNode(true);
+
+        card.removeAttribute('data-job-template');
+        card.setAttribute('data-job-card', '');
+        populateCard(card, job);
+        fragment.appendChild(card);
+      });
+
+      list.appendChild(fragment);
+    };
+
+    // Filtering: OR within a group, AND across groups
+
+    const buildFilterState = () => {
+      const groups = document.querySelectorAll(FILTER_GROUP_SELECTOR);
+      const state = {};
+
+      groups.forEach((group) => {
+        const groupName = group.getAttribute('data-filter-group');
+
+        state[groupName] = new Set();
+      });
+
+      return state;
+    };
+
+    const jobMatchesFilters = (job) => {
+      const groupNames = Object.keys(activeFilters);
+
+      return groupNames.every((groupName) => {
+        const selectedValues = activeFilters[groupName];
+
+        if (selectedValues.size === 0) {
+          return true;
+        }
+
+        const accessor = FILTER_ACCESSORS[groupName];
+
+        if (!accessor) {
+          return true;
+        }
+
+        // Contains match (case-insensitive): the job's field includes any selected value.
+        const fieldValue = accessor(job).toLowerCase();
+
+        return Array.from(selectedValues).some((selectedValue) => {
+          return fieldValue.includes(selectedValue.toLowerCase());
+        });
+      });
+    };
+
+    // Free-text search across the title, location, and team.
+    const jobMatchesSearch = (job) => {
+      if (searchTerm === '') {
+        return true;
+      }
+
+      const haystack = [FIELD_ACCESSORS.title(job), normalizeLocation(job.Primary_Location), cleanText(job.Team)].join(' ').toLowerCase();
+
+      return haystack.includes(searchTerm);
+    };
+
+    const applyFilters = (list, template) => {
+      const matchingJobs = allJobs.filter((job) => {
+        return jobMatchesFilters(job) && jobMatchesSearch(job);
+      });
+
+      // No filter and no search: show only the first DEFAULT_VISIBLE. Any filter or
+      // search reveals every match; clearing them (which empties both) reverts to the cap.
+      const isDefaultView = !hasActiveFilters() && searchTerm === '';
+      const visibleJobs = isDefaultView ? matchingJobs.slice(0, DEFAULT_VISIBLE) : matchingJobs;
+
+      // Count reflects the full match set, so the capped default still shows the true total.
+      updateCount(matchingJobs.length);
+      renderJobs(list, template, visibleJobs);
+      updateClearVisibility();
+    };
+
+    const updateCount = (count) => {
+      const countElement = document.querySelector(COUNT_SELECTOR);
+
+      if (!countElement) {
+        return;
+      }
+
+      const noun = count === 1 ? 'job' : 'jobs';
+
+      countElement.textContent = `${count} ${noun}`;
+    };
+
+    const hasActiveFilters = () => {
+      const groupNames = Object.keys(activeFilters);
+
+      return groupNames.some((groupName) => {
+        return activeFilters[groupName].size > 0;
+      });
+    };
+
+    const updateClearVisibility = () => {
+      const clearButton = document.querySelector(CLEAR_SELECTOR);
+
+      if (!clearButton) {
+        return;
+      }
+
+      if (hasActiveFilters() || searchTerm !== '') {
+        clearButton.classList.remove('wp-is-hidden');
+      } else {
+        clearButton.classList.add('wp-is-hidden');
+      }
+    };
+
+    // Wiring
+
+    const wireFilters = (list, template) => {
+      const options = document.querySelectorAll(FILTER_OPTION_SELECTOR);
+
+      options.forEach((option) => {
+        option.setAttribute('aria-pressed', 'false');
+        option.addEventListener('click', (event) => {
+          event.preventDefault();
+          handleFilterClick(option, list, template);
+        });
+      });
+    };
+
+    const handleFilterClick = (option, list, template) => {
+      const group = option.closest(FILTER_GROUP_SELECTOR);
+
+      if (!group) {
+        return;
+      }
+
+      const groupName = group.getAttribute('data-filter-group');
+      const value = option.getAttribute('data-filter-value');
+      const selectedValues = activeFilters[groupName];
+
+      if (!selectedValues) {
+        return;
+      }
+
+      if (selectedValues.has(value)) {
+        selectedValues.delete(value);
+        option.classList.remove('wp-is-active');
+        option.setAttribute('aria-pressed', 'false');
+      } else {
+        selectedValues.add(value);
+        option.classList.add('wp-is-active');
+        option.setAttribute('aria-pressed', 'true');
+      }
+
+      applyFilters(list, template);
+    };
+
+    const wireClearButton = (list, template) => {
+      const clearButton = document.querySelector(CLEAR_SELECTOR);
+
+      if (!clearButton) {
+        return;
+      }
+
+      clearButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        clearFilters(list, template);
+      });
+    };
+
+    // Live search: filter as the visitor types, no submit button needed.
+    const wireSearch = (list, template) => {
+      const input = document.querySelector(SEARCH_SELECTOR);
+
+      if (!input) {
+        return;
+      }
+
+      const runSearch = () => {
+        searchTerm = input.value.trim().toLowerCase();
+        applyFilters(list, template);
+      };
+
+      input.addEventListener('input', () => {
+        window.clearTimeout(searchDebounce);
+        searchDebounce = window.setTimeout(runSearch, 150);
+      });
+
+      // Enter must not submit the Form Block — apply the search now instead. This
+      // also stops the implicit submit at the source (covers the mobile Go/Search key).
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          window.clearTimeout(searchDebounce);
+          runSearch();
+        }
+      });
+
+      // Backstop: neutralize the Form Block's submit entirely. A capture-phase
+      // listener on the document pre-empts Webflow's own submit handler — a plain
+      // preventDefault wouldn't, since Webflow's handler still runs and would show
+      // its success message and fire the Turnstile challenge. Scoped to this form.
+      const form = input.closest('form');
+
+      if (form) {
+        document.addEventListener(
+          'submit',
+          (event) => {
+            if (event.target === form) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          },
+          true,
+        );
+      }
+    };
+
+    const clearFilters = (list, template) => {
+      Object.keys(activeFilters).forEach((groupName) => {
+        activeFilters[groupName].clear();
+      });
+
+      const options = document.querySelectorAll(FILTER_OPTION_SELECTOR);
+
+      options.forEach((option) => {
+        option.classList.remove('wp-is-active');
+        option.setAttribute('aria-pressed', 'false');
+      });
+
+      // Reset the search too, so Clear wipes everything.
+      const searchInput = document.querySelector(SEARCH_SELECTOR);
+
+      if (searchInput) {
+        searchInput.value = '';
+      }
+
+      searchTerm = '';
+      applyFilters(list, template);
+    };
+
+    // Fetch
+
+    const buildDatedFilename = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
+      return `Job_Posting_Payload_${year}${month}${day}.json`;
+    };
+
+    const buildCandidateUrls = () => {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+
+      const cacheBust = `?_=${Date.now()}`;
+
+      return [`${JOBS_CDN_BASE}/${buildDatedFilename(today)}${cacheBust}`, `${JOBS_CDN_BASE}/${buildDatedFilename(yesterday)}${cacheBust}`];
+    };
+
+    const extractJobs = (data) => {
+      if (!data || !Array.isArray(data.Report_Entry)) {
+        return [];
+      }
+
+      return data.Report_Entry;
+    };
+
+    const fetchJobs = async () => {
+      const candidateUrls = buildCandidateUrls();
+
+      for (const url of candidateUrls) {
+        try {
+          const response = await fetch(url);
+
+          if (response.ok) {
+            const data = await response.json();
+
+            return extractJobs(data);
+          }
+        } catch (error) {
+          // network error on this candidate — fall through to the next
+        }
+      }
+
+      throw new Error('Unable to load job postings');
+    };
+
+    // Init
+
+    const init = async () => {
+      const list = document.querySelector(LIST_SELECTOR);
+      const template = document.querySelector(TEMPLATE_SELECTOR);
+
+      if (!list || !template) {
+        return;
+      }
+
+      activeFilters = buildFilterState();
+      wireFilters(list, template);
+      wireClearButton(list, template);
+      wireSearch(list, template);
+      updateClearVisibility();
+      showState('loading');
+
+      try {
+        allJobs = await fetchJobs();
+
+        applyFilters(list, template);
+      } catch (error) {
+        showState('error');
+      }
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+</script>
+
+<script>
+  (function () {
+    // Conditional fields, attribute-on-the-field variant: the element carrying
+    // data-show-when IS the dependent (no wrapper). It shows only while its
+    // controller's value is in data-show-values; otherwise it's hidden, disabled,
+    // and reset — so a hidden required field can't block submit or send stale data.
+    const dependents = Array.from(document.querySelectorAll('[data-show-when]'));
+
+    if (dependents.length === 0) {
+      return;
+    }
+
+    // The controller, found by name within the dependent's own form — but never the
+    // dependent itself (so a field pointed at its own name can't read/disable itself).
+    const controllerFor = (field) => {
+      const name = field.getAttribute('data-show-when');
+      const scope = field.closest('form') || document;
+      const candidates = Array.from(scope.querySelectorAll('[name="' + name + '"]'));
+
+      return candidates.find((candidate) => {
+        return candidate !== field;
+      });
+    };
+
+    const sync = (field, controller) => {
+      const allowed = (field.getAttribute('data-show-values') || '').split(',').map((value) => {
+        return value.trim();
+      });
+
+      const show = allowed.includes(controller.value);
+
+      field.classList.toggle('wp-is-hidden', !show);
+      field.disabled = !show;
+
+      // Reset a stale choice when hiding, so re-showing starts clean.
+      if (!show) {
+        if (field.tagName === 'SELECT') {
+          field.selectedIndex = 0;
+        } else {
+          field.value = '';
+        }
+      }
+    };
+
+    dependents.forEach((field) => {
+      const controller = controllerFor(field);
+
+      if (!controller) {
+        return;
+      }
+
+      controller.addEventListener('change', () => {
+        sync(field, controller);
+      });
+
+      sync(field, controller);
+    });
+  })();
+</script></body></html>

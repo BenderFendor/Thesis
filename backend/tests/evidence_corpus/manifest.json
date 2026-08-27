@@ -1,0 +1,986 @@
+{
+  "version": "scoop-evidence-corpus/1.0",
+  "network_access": false,
+  "expected_counts": {
+    "documents": 22,
+    "observations": 22,
+    "claims": 22
+  },
+  "cases": [
+    {
+      "case_id": "washington-post",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://corporate.washingtonpost.com/about"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "The Washington Post",
+          "subject_id_scheme": "domain",
+          "subject_id": "washingtonpost.com",
+          "object_name": "Nash Holdings LLC",
+          "predicate": "operated_by",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/washington-post-1.capture",
+          "sha256": "7615e87686b642bde10327e5a628d16ccff0c1474fc1048b5fb921fecff407bc",
+          "source_url": "https://corporate.washingtonpost.com/about",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "operated_by",
+          "subject": "The Washington Post",
+          "object": "Nash Holdings LLC",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "new-york-times",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.nytco.com/company/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "The New York Times",
+          "subject_id_scheme": "domain",
+          "subject_id": "nytimes.com",
+          "object_name": "The New York Times Company",
+          "object_kind": "public_company",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/new-york-times-1.capture",
+          "sha256": "b9a898fb51c3d04c6723aa1281f18fb033d018b93ad296e5d3ba4b92b1c55427",
+          "source_url": "https://www.nytco.com/about-us/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "The New York Times",
+          "object": "The New York Times Company",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "wall-street-journal",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://newscorp.com/what-we-do/dow-jones/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "The Wall Street Journal",
+          "subject_id_scheme": "domain",
+          "subject_id": "wsj.com",
+          "object_name": "Dow Jones & Company",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/wall-street-journal-1.capture",
+          "sha256": "16d73d1a6aee510b98c2330d8a0425dee67ef257d93697246512329827b5880a",
+          "source_url": "https://newscorp.com/business/dow-jones/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "The Wall Street Journal",
+          "object": "Dow Jones & Company",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "reuters",
+      "category": "publishing",
+      "source_urls": [
+        "https://www.reutersagency.com/en/about/about-us/"
+      ],
+      "adapter": "article_records",
+      "records": [
+        {
+          "record_type": "syndication",
+          "article_url": "https://www.reutersagency.com/en/about/about-us/",
+          "outlet_name": "Reuters client publication",
+          "outlet_domain": "reutersagency.com",
+          "origin_name": "Reuters",
+          "origin_domain": "reuters.com"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/reuters-1.capture",
+          "sha256": "ca064b8aae2fffcbd27fe4cf6cfd6a1d5b0ac8521cd67d32830da5a677d6c7de",
+          "source_url": "https://reutersagency.com/about/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "syndicated_by"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "fox-news",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.foxcorporation.com/businesses/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "Fox News Media",
+          "subject_id_scheme": "domain",
+          "subject_id": "foxnews.com",
+          "object_name": "Fox Corporation",
+          "object_kind": "public_company",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/fox-news-1.capture",
+          "sha256": "bf55c4c480e04735bc163deadc6edad15db055ea9c5d5733418b6bbc79745cbc",
+          "source_url": "https://www.foxcorporation.com/businesses/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "Fox News Media",
+          "object": "Fox Corporation",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "financial-times",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://aboutus.ft.com/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "Financial Times",
+          "subject_id_scheme": "domain",
+          "subject_id": "ft.com",
+          "object_name": "Nikkei Inc.",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/financial-times-1.capture",
+          "sha256": "6203a09a8577e981cf076caba5ba43b05680729826631abcaa1ca1035ab7fdcb",
+          "source_url": "https://aboutus.ft.com/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "Financial Times",
+          "object": "Nikkei Inc.",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "guardian",
+      "category": "nonprofit_funding",
+      "source_urls": [
+        "https://www.theguardian.com/about"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "Guardian readers",
+          "subject_kind": "audience_group",
+          "subject_id_scheme": "funding_group",
+          "subject_id": "guardian-readers",
+          "object_name": "The Guardian",
+          "object_kind": "publication_brand",
+          "object_id_scheme": "domain",
+          "object_id": "theguardian.com",
+          "predicate": "funds",
+          "source_class": "own_site",
+          "lifecycle_state": "current",
+          "value_type": "reader_revenue",
+          "quoted_text": "We\u2019re reader funded"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/guardian-1.capture",
+          "sha256": "4554337b7c3eeefa1c466d0584d202f7882640fdf89c919a48e7619fe01cd609",
+          "source_url": "https://www.theguardian.com/about",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "funds",
+          "subject": "Guardian readers",
+          "object": "The Guardian",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "bbc",
+      "category": "government_funding",
+      "source_urls": [
+        "https://downloads.bbc.co.uk/aboutthebbc/reports/annualreport/2021-22.pdf"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "UK television licence fee",
+          "subject_kind": "government_award",
+          "subject_id_scheme": "funding_mechanism",
+          "subject_id": "uk-tv-licence-fee",
+          "object_name": "BBC",
+          "object_kind": "publication_brand",
+          "object_id_scheme": "domain",
+          "object_id": "bbc.co.uk",
+          "predicate": "funds",
+          "source_class": "audited_statement",
+          "lifecycle_state": "historical",
+          "reporting_date": "2022-03-31",
+          "value_type": "licence_fee_income",
+          "amount": "3800000000",
+          "currency": "GBP",
+          "quoted_text": "We collected \u00a33.8 billion of licence fee income during the year"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/bbc-1.capture",
+          "sha256": "f1ebf32c6ad56bfe60a06ce38fc819b4fdb6bc78755e745616aea72ce8ae823e",
+          "source_url": "https://downloads.bbc.co.uk/aboutthebbc/reports/annualreport/2021-22.pdf",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "application/pdf",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "funds",
+          "subject": "UK television licence fee",
+          "object": "BBC",
+          "lifecycle_state": "historical"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "associated-press",
+      "category": "publishing",
+      "source_urls": [
+        "https://www.ap.org/about/our-people/"
+      ],
+      "adapter": "article_records",
+      "records": [
+        {
+          "record_type": "staff_profile",
+          "profile_url": "https://www.ap.org/about/our-people/",
+          "outlet_name": "Associated Press",
+          "outlet_domain": "ap.org",
+          "person_name": "Daisy Veerasingham"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/associated-press-1.capture",
+          "sha256": "53a64a3709bf36e0826dd4c23d4040c0c74c8c934ca04c9167ee63625596243f",
+          "source_url": "https://www.ap.org/about/our-people/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "employed_by",
+          "subject": "Daisy Veerasingham",
+          "object": "Associated Press"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "npr",
+      "category": "publishing",
+      "source_urls": [
+        "https://media.npr.org/documents/about/press/NPR_Fact_Sheet.pdf"
+      ],
+      "adapter": "article_records",
+      "records": [
+        {
+          "record_type": "staff_profile",
+          "profile_url": "https://media.npr.org/documents/about/press/NPR_Fact_Sheet.pdf",
+          "outlet_name": "NPR",
+          "outlet_domain": "npr.org",
+          "person_name": "Katherine Maher"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/npr-1.capture",
+          "sha256": "db3a119cc9cf777daba6b79eaf983664bd05f2ded4099f1249c9a4d5a415c85f",
+          "source_url": "https://media.npr.org/documents/about/press/NPR_Fact_Sheet.pdf",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "application/pdf",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "employed_by",
+          "subject": "Katherine Maher",
+          "object": "NPR"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "politico",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.axelspringer.com/en/ax-press-release/axel-springer-completes-acquisition-of-politico"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "POLITICO",
+          "subject_id_scheme": "domain",
+          "subject_id": "politico.com",
+          "object_name": "Axel Springer SE",
+          "predicate": "brand_of",
+          "source_class": "transaction_filing",
+          "lifecycle_state": "current",
+          "closed_at": "2021-10-18"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/politico-1.capture",
+          "sha256": "6ffecc4cb41f9b2e14d233a8ea6ab88d9789281c5d28ebd59d936b6b2b72eabe",
+          "source_url": "https://www.axelspringer.com/en/ax-press-release/axel-springer-completes-acquisition-of-politico",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "POLITICO",
+          "object": "Axel Springer SE",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "economist",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.economistgroup.com/about-us"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "The Economist",
+          "subject_id_scheme": "domain",
+          "subject_id": "economist.com",
+          "object_name": "The Economist Group",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/economist-1.capture",
+          "sha256": "d617c13b0813cacc313def1d5cd235b899fd6c73626f995ab0d7171d655c1c96",
+          "source_url": "https://www.economistgroup.com/about-us",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "The Economist",
+          "object": "The Economist Group",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "philadelphia-inquirer",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.lenfestinstitute.org/about/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "The Philadelphia Inquirer",
+          "subject_id_scheme": "domain",
+          "subject_id": "inquirer.com",
+          "object_name": "The Lenfest Institute for Journalism",
+          "object_kind": "nonprofit",
+          "predicate": "operated_by",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/philadelphia-inquirer-1.capture",
+          "sha256": "701d1ec2252a1152de717cadbb37fc9b1226634119ab8cacd1b88a09e7703242",
+          "source_url": "https://www.lenfestinstitute.org/about/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "operated_by",
+          "subject": "The Philadelphia Inquirer",
+          "object": "The Lenfest Institute for Journalism",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "tampa-bay-times",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.tampabay.com/about/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "Tampa Bay Times",
+          "subject_id_scheme": "domain",
+          "subject_id": "tampabay.com",
+          "object_name": "Poynter Institute",
+          "object_kind": "nonprofit",
+          "predicate": "operated_by",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/tampa-bay-times-1.capture",
+          "sha256": "a409ac1e2be00b3df379e3c05c6f134fc4655b03ee1918371ce9e967d3c2d2a7",
+          "source_url": "https://www.tampabay.com/about/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "operated_by",
+          "subject": "Tampa Bay Times",
+          "object": "Poynter Institute",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "usa-today-rename",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.gannett.com/brands/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "USA TODAY",
+          "subject_id_scheme": "domain",
+          "subject_id": "usatoday.com",
+          "object_name": "Gannett Co., Inc.",
+          "object_kind": "public_company",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/usa-today-rename-1.capture",
+          "sha256": "218d5f52eecf945b6d7bd9c36157ae1af6529f38503c8919aad88bd9726ff847",
+          "source_url": "https://www.usatodayco.com/brands/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "USA TODAY",
+          "object": "Gannett Co., Inc.",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "nbc-news",
+      "category": "advertising",
+      "source_urls": [
+        "https://www.nbcuniversal.com/article/nbcuniversal-expands-shoppable-entertainment-new-digital-bravo-series-shop-what-happens-sponsored"
+      ],
+      "adapter": "sponsorship",
+      "records": [
+        {
+          "publisher_name": "Bravo",
+          "publisher_domain": "bravotv.com",
+          "sponsor_name": "Target",
+          "sponsor_id": "target",
+          "disclosure_url": "https://www.nbcuniversal.com/article/nbcuniversal-expands-shoppable-entertainment-new-digital-bravo-series-shop-what-happens-sponsored",
+          "campaign": "Shop What Happens",
+          "disclosure_text": "Shop What Happens sponsored exclusively by Target"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/nbc-news-1.capture",
+          "sha256": "2f8369d1740ddc63be6a9bb2158a8caaaf6818bacdb39d72fa08294d90c8d695",
+          "source_url": "https://www.nbcuniversal.com/article/nbcuniversal-expands-shoppable-entertainment-new-digital-bravo-series-shop-what-happens-sponsored",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "sponsors_content"
+        },
+        {
+          "forbidden_predicate": "advertises_with"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "msnbc-versant",
+      "category": "advertising",
+      "source_urls": [
+        "https://www.nbcuniversal.com/article/nbcuniversal-has-reached-two-year-agreement-sell-versant-advertising-inventory-under-one-platform"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "MSNBC",
+          "subject_kind": "publication_brand",
+          "subject_id_scheme": "domain",
+          "subject_id": "msnbc.com",
+          "object_name": "NBCUniversal",
+          "object_kind": "legal_entity",
+          "object_id_scheme": "domain",
+          "object_id": "nbcuniversal.com",
+          "predicate": "advertising_inventory_sold_by",
+          "source_class": "own_site",
+          "lifecycle_state": "current",
+          "signed_at": "2025-05-07",
+          "valid_through": "2027-05-07",
+          "quoted_text": "sell domestic VERSANT advertising inventory under its One Platform banner, including MSNBC"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/msnbc-versant-1.capture",
+          "sha256": "1a05d578b03ae1ece0e8133eeab61c2203d1991c4e3f86363e3994c9f30e7707",
+          "source_url": "https://www.nbcuniversal.com/article/nbcuniversal-has-reached-two-year-agreement-sell-versant-advertising-inventory-under-one-platform",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "advertising_inventory_sold_by",
+          "subject": "MSNBC",
+          "object": "NBCUniversal",
+          "lifecycle_state": "current"
+        },
+        {
+          "forbidden_predicate": "advertises_with"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "abc-news",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://thewaltdisneycompany.com/about/"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "ABC News",
+          "subject_id_scheme": "domain",
+          "subject_id": "abcnews.go.com",
+          "object_name": "The Walt Disney Company",
+          "object_kind": "public_company",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/abc-news-1.capture",
+          "sha256": "84cf9456411650fa7cc337be15f13c448e5e4c3a05853d222451ceffab1d8c75",
+          "source_url": "https://thewaltdisneycompany.com/about/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "ABC News",
+          "object": "The Walt Disney Company",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "cnn",
+      "category": "ownership_control",
+      "source_urls": [
+        "https://www.wbd.com/our-brands/",
+        "https://ir.wbd.com/news-and-events/financial-news/financial-news-details/2026/Warner-Bros--Discovery-Stockholders-Approve-Transaction-with-Paramount-Skydance/default.aspx",
+        "https://www.sec.gov/Archives/edgar/data/2041610/000114036126016758/ef20071103_10ka.htm?output=1"
+      ],
+      "adapter": "corporate_records",
+      "records": [
+        {
+          "subject_name": "CNN",
+          "subject_id_scheme": "domain",
+          "subject_id": "cnn.com",
+          "object_name": "Warner Bros. Discovery",
+          "object_kind": "public_company",
+          "object_id": "wbd",
+          "predicate": "brand_of",
+          "source_class": "own_site",
+          "lifecycle_state": "current",
+          "capture_index": 0
+        },
+        {
+          "subject_name": "Warner Bros. Discovery",
+          "subject_id": "wbd",
+          "subject_kind": "public_company",
+          "object_name": "Paramount Skydance",
+          "object_kind": "public_company",
+          "object_id": "paramount",
+          "predicate": "successor_of",
+          "source_class": "transaction_record",
+          "lifecycle_state": "proposed",
+          "approved_at": "2026-07-20",
+          "capture_index": 1
+        },
+        {
+          "subject_name": "Paramount Skydance",
+          "subject_id": "paramount",
+          "subject_kind": "public_company",
+          "object_name": "Ellison-controlled entities",
+          "object_kind": "family_control_group",
+          "predicate": "controls",
+          "source_class": "registry_filing",
+          "lifecycle_state": "current",
+          "share_class": "Class A",
+          "voting_interest_min": "77.5",
+          "voting_interest_max": "77.5",
+          "reporting_date": "2026-07-20",
+          "capture_index": 2
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/cnn-1.capture",
+          "sha256": "3f0363bf62beb5b4d7cc17fa9b84058d33a393b0b5e8fa6fb97ec6b462f97532",
+          "source_url": "https://www.wbd.com/our-brands/",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        },
+        {
+          "path": "raw/cnn-2.capture",
+          "sha256": "c04c4efeff679eacc81b61211560ff3461f2577ca44eb908565570ac8e7dc31c",
+          "source_url": "https://ir.wbd.com/news-and-events/financial-news/financial-news-details/2026/Warner-Bros--Discovery-Stockholders-Approve-Transaction-with-Paramount-Skydance/default.aspx",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html; charset=utf-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        },
+        {
+          "path": "raw/cnn-3.capture",
+          "sha256": "10fcfbc33813d251dcaf024cf7ac96adc2a4971d7cc1424eed25affb470ff7d0",
+          "source_url": "https://www.sec.gov/Archives/edgar/data/2041610/000114036126016758/ef20071103_10ka.htm?output=1",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "text/html",
+          "request": {
+            "method": "GET",
+            "user_agent": "SCOOP research contact zron25@gmail.com"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "brand_of",
+          "subject": "CNN",
+          "object": "Warner Bros. Discovery",
+          "lifecycle_state": "current"
+        },
+        {
+          "predicate": "successor_of",
+          "subject": "Warner Bros. Discovery",
+          "object": "Paramount Skydance",
+          "lifecycle_state": "proposed"
+        },
+        {
+          "predicate": "controls",
+          "subject": "Paramount Skydance",
+          "object": "Ellison-controlled entities",
+          "lifecycle_state": "current"
+        },
+        {
+          "forbidden_subject": "CNN",
+          "forbidden_object": "Ellison-controlled entities"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    },
+    {
+      "case_id": "sinclair",
+      "category": "fcc_broadcast_ownership",
+      "source_urls": [
+        "https://docs.fcc.gov/public/attachments/DA-25-562A1.pdf"
+      ],
+      "adapter": "fcc",
+      "records": [
+        {
+          "facility_id": "10758",
+          "call_sign": "WBFF",
+          "record_type": "ownership",
+          "filing_id": "0000115674",
+          "owner_name": "Chesapeake Television Licensee, LLC",
+          "owner_frn": "fcc-licensee-wbff",
+          "reporting_date": "2025-06-27"
+        }
+      ],
+      "captures": [
+        {
+          "path": "raw/sinclair-1.capture",
+          "sha256": "d2a4798c9e3bace87b2d72502ccd90891a1249b71ca6b5a1f7ebec307f7668cb",
+          "source_url": "https://docs.fcc.gov/public/attachments/DA-25-562A1.pdf",
+          "retrieved_at": "2026-07-22T04:11:45.884967+00:00",
+          "http_status": 200,
+          "content_type": "application/pdf; charset=UTF-8",
+          "request": {
+            "method": "GET",
+            "user_agent": "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
+          }
+        }
+      ],
+      "expectations": [
+        {
+          "predicate": "directly_owns",
+          "subject": "WBFF",
+          "object": "Chesapeake Television Licensee, LLC",
+          "lifecycle_state": "current"
+        }
+      ],
+      "review": {
+        "status": "pending"
+      }
+    }
+  ]
+}

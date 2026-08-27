@@ -122,6 +122,22 @@ AUTO_FALLBACK_TOOL_ORDER = {
     "gdelt_doc_search": ("news_search",),
 }
 QUERY_SIMILARITY_THRESHOLD = 0.7
+_TRACKED_SEARCH_TOOLS = frozenset(
+    {
+        "web_search",
+        "news_search",
+        "search_internal_news",
+        "gdelt_context_search",
+        "gdelt_doc_search",
+    }
+)
+_SEARCH_PROVIDER_HINTS = {
+    "search_internal_news": "internal",
+    "gdelt_context_search": "gdelt",
+    "gdelt_doc_search": "gdelt",
+    "news_search": "duckduckgo",
+    "web_search": "duckduckgo",
+}
 
 _stop_events = threading.local()
 
@@ -338,6 +354,17 @@ def _track_reference(article: dict[str, Any]) -> None:
         _referenced_articles_tracker.append(article)
 
 
+def _track_reference_by_url(url: str, fallback: dict[str, Any] | None = None) -> None:
+    normalized = _normalize_url(url)
+    if normalized:
+        article = _articles_by_id.get(normalized)
+        if article:
+            _track_reference(article)
+            return
+    if fallback:
+        _track_reference(fallback)
+
+
 def _build_external_reference(
     *,
     url: str,
@@ -370,25 +397,45 @@ def _build_external_reference(
     return {key: value for key, value in payload.items() if value not in (None, "")}
 
 
-def _track_reference_by_url(url: str, fallback: dict[str, Any] | None = None) -> None:
-    normalized = _normalize_url(url)
-    if normalized:
-        article = _articles_by_id.get(normalized)
-        if article:
-            _track_reference(article)
-            return
-    if fallback:
-        _track_reference(fallback)
+def _first_value(item: dict[str, Any], keys: Sequence[str], default: str = "") -> str:
+    for key in keys:
+        value = item.get(key)
+        if value:
+            return str(value)
+    return default
+
+
+def _track_search_result_reference(item: dict[str, Any], provider_hint: str | None) -> None:
+    url = _first_value(item, ("url", "link")).strip()
+    if not url:
+        return
+    title = _first_value(item, ("title", "headline"), "Untitled")
+    source = _first_value(item, ("source", "provider"), "External source")
+    summary = _first_value(item, ("summary", "body", "snippet"))
+    published = _first_value(item, ("published", "date", "published_at"))
+    image = item.get("image")
+    provider = str(item.get("provider") or provider_hint or "").strip().lower() or None
+    context_snippet = _first_value(item, ("context_snippet",)).strip() or None
+    sentence = _first_value(item, ("sentence",)).strip() or None
+    result_type = _first_value(item, ("result_type",)).strip() or None
+    _record_research_source_provider(provider)
+    fallback = _build_external_reference(
+        url=url,
+        title=title,
+        source=source,
+        summary=summary,
+        published=published,
+        image=image if isinstance(image, str) else None,
+        provider=provider,
+        context_snippet=context_snippet,
+        sentence=sentence,
+        result_type=result_type,
+    )
+    _track_reference_by_url(url, fallback)
 
 
 def _track_search_result_references(tool_name: str, content: str) -> None:
-    if tool_name not in {
-        "web_search",
-        "news_search",
-        "search_internal_news",
-        "gdelt_context_search",
-        "gdelt_doc_search",
-    }:
+    if tool_name not in _TRACKED_SEARCH_TOOLS:
         return
     try:
         payload = json.loads(content)
@@ -396,44 +443,10 @@ def _track_search_result_references(tool_name: str, content: str) -> None:
         return
     if not isinstance(payload, list):
         return
-
-    provider_hint = {
-        "search_internal_news": "internal",
-        "gdelt_context_search": "gdelt",
-        "gdelt_doc_search": "gdelt",
-        "news_search": "duckduckgo",
-        "web_search": "duckduckgo",
-    }.get(tool_name)
-
+    provider_hint = _SEARCH_PROVIDER_HINTS.get(tool_name)
     for item in payload[:5]:
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or item.get("link") or "").strip()
-        if not url:
-            continue
-        title = str(item.get("title") or item.get("headline") or "Untitled")
-        source = str(item.get("source") or item.get("provider") or "External source")
-        summary = str(item.get("summary") or item.get("body") or item.get("snippet") or "")
-        published = str(item.get("published") or item.get("date") or item.get("published_at") or "")
-        image = item.get("image")
-        provider = str(item.get("provider") or provider_hint or "").strip().lower() or None
-        context_snippet = str(item.get("context_snippet") or "").strip() or None
-        sentence = str(item.get("sentence") or "").strip() or None
-        result_type = str(item.get("result_type") or "").strip() or None
-        _record_research_source_provider(provider)
-        fallback = _build_external_reference(
-            url=url,
-            title=title,
-            source=source,
-            summary=summary,
-            published=published,
-            image=image if isinstance(image, str) else None,
-            provider=provider,
-            context_snippet=context_snippet,
-            sentence=sentence,
-            result_type=result_type,
-        )
-        _track_reference_by_url(url, fallback)
+        if isinstance(item, dict):
+            _track_search_result_reference(item, provider_hint)
 
 
 def _is_internal_article(article: dict[str, Any]) -> bool:
@@ -467,29 +480,21 @@ def _normalize_ddg_result(
     provider: str,
     result_type: str,
 ) -> dict[str, Any] | None:
-    url = str(item.get("url") or item.get("link") or "").strip()
+    url = _first_value(item, ("url", "link")).strip()
     if not url:
         return None
-    summary = str(
-        item.get("summary")
-        or item.get("body")
-        or item.get("snippet")
-        or item.get("description")
-        or ""
-    ).strip()
-    context_snippet = str(item.get("context_snippet") or "").strip() or None
-    sentence = str(item.get("sentence") or "").strip() or None
+    summary = _first_value(item, ("summary", "body", "snippet", "description")).strip()
+    context_snippet = _first_value(item, ("context_snippet",)).strip() or None
+    sentence = _first_value(item, ("sentence",)).strip() or None
     result: dict[str, Any] = {
         "id": _normalize_url(url) or url,
         "url": url,
         "link": url,
-        "title": str(item.get("title") or item.get("headline") or "Untitled").strip(),
-        "source": str(item.get("source") or item.get("publisher") or "External source").strip(),
+        "title": _first_value(item, ("title", "headline"), "Untitled").strip(),
+        "source": _first_value(item, ("source", "publisher"), "External source").strip(),
         "summary": summary,
         "description": summary,
-        "published": str(
-            item.get("published") or item.get("date") or item.get("published_at") or ""
-        ).strip(),
+        "published": _first_value(item, ("published", "date", "published_at")).strip(),
         "image": item.get("image") if isinstance(item.get("image"), str) else None,
         "provider": provider,
         "result_type": result_type,
@@ -605,13 +610,6 @@ def _is_internal_fetch_call(call: dict[str, Any]) -> bool:
         return False
     article = _articles_by_id.get(normalized)
     return bool(article and _is_internal_article(article))
-
-
-def _required_internal_fetches_before_external() -> int:
-    internal_reference_count = _count_internal_references()
-    if internal_reference_count <= 0:
-        return 0
-    return min(2, internal_reference_count)
 
 
 def _required_internal_fetches_for_state(
@@ -1163,6 +1161,16 @@ def _get_llm() -> ToolBindableLLM:
                     base_url=settings.llamacpp_base_url,
                 ),
             )
+        elif settings.llm_backend == "opencode" and settings.opencode_api_key:
+            _llm_instance = cast(
+                ToolBindableLLM,
+                ChatOpenAI(
+                    model=settings.opencode_model,
+                    temperature=0.2,
+                    api_key=SecretStr(settings.opencode_api_key),
+                    base_url=settings.opencode_base_url,
+                ),
+            )
         elif settings.open_router_api_key:
             _llm_instance = cast(
                 ToolBindableLLM,
@@ -1226,6 +1234,127 @@ def _get_tool_router() -> RunnableMessageInvoker:
 _tools_by_name = {t.name: t for t in tools}
 
 
+def _internal_search_hit_count(content: str) -> int:
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, list):
+        return len(payload)
+    return 0
+
+
+def _collect_internal_search_state(messages: Sequence[BaseMessage]) -> tuple[bool, int]:
+    internal_search_succeeded = False
+    current_message_internal_hits = 0
+    for message in messages:
+        if not isinstance(message, ToolMessage):
+            continue
+        tool_name = str(getattr(message, "name", "") or "")
+        content = _content_to_text(message.content)
+        if tool_name == "search_internal_news" and _internal_search_found_results(content):
+            internal_search_succeeded = True
+            current_message_internal_hits = max(
+                current_message_internal_hits,
+                _internal_search_hit_count(content),
+            )
+    return internal_search_succeeded, current_message_internal_hits
+
+
+def _count_internal_fetches_done(tool_history: set[str]) -> int:
+    fetch_calls_done = 0
+    for key in tool_history:
+        if key.startswith("fetch_article_content:"):
+            try:
+                _tool_name, serialized_args = key.split(":", 1)
+                args = json.loads(serialized_args)
+            except (ValueError, json.JSONDecodeError):
+                continue
+            call = {"name": "fetch_article_content", "args": args}
+            if _is_internal_fetch_call(call):
+                fetch_calls_done += 1
+    return fetch_calls_done
+
+
+def _dedup_block_message(
+    call: dict[str, Any],
+    *,
+    key: str,
+    tool_history: set[str],
+    search_query_keys: set[str],
+    tool_calls_used: int,
+    internal_search_done: bool,
+    internal_search_succeeded: bool,
+    internal_fetch_calls_done: int,
+    required_internal_fetches: int,
+) -> ToolMessage | None:
+    tool_call_id = str(call.get("id", "missing-tool-call-id"))
+    tool_name = str(call.get("name", "unknown_tool"))
+
+    if key in tool_history:
+        logger.debug("dedup_tool_node: duplicate call key=%s", key)
+        return ToolMessage(
+            content="Already called with the same arguments; use prior results already in context.",
+            tool_call_id=tool_call_id,
+            name=tool_name,
+        )
+
+    if tool_name in SEARCH_TOOLS_WITH_QUERY:
+        raw_query = _extract_search_query(call)
+        if raw_query and _search_queries_similar(raw_query, search_query_keys):
+            logger.info(
+                "dedup_tool_node: similar query blocked tool=%s query=%s",
+                tool_name,
+                raw_query,
+            )
+            return ToolMessage(
+                content=(
+                    "A very similar search query was already run. "
+                    f"Reuse prior search results in context instead of repeating {raw_query}."
+                ),
+                tool_call_id=tool_call_id,
+                name=tool_name,
+            )
+
+    if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+        logger.warning(
+            "dedup_tool_node: session cap hit (%d), blocking call to %s",
+            MAX_TOOL_CALLS_PER_SESSION,
+            tool_name,
+        )
+        return ToolMessage(
+            content=(
+                f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). "
+                "Synthesize a final answer from the context already gathered."
+            ),
+            tool_call_id=tool_call_id,
+            name=tool_name,
+        )
+
+    if tool_name in EXTERNAL_SEARCH_TOOLS and not internal_search_done:
+        return ToolMessage(
+            content="Use search_internal_news first. Check the internal archive before using external search.",
+            tool_call_id=tool_call_id,
+            name=tool_name,
+        )
+
+    if (
+        tool_name in EXTERNAL_SEARCH_TOOLS
+        and internal_search_succeeded
+        and internal_fetch_calls_done < required_internal_fetches
+    ):
+        return ToolMessage(
+            content=(
+                "Internal search found relevant archive coverage. Read the internal "
+                "article URLs with fetch_article_content before using external search."
+            ),
+            tool_call_id=tool_call_id,
+            name=tool_name,
+        )
+
+    return None
+
+
 def _dedup_tool_node(state: AgentState) -> dict[str, Any]:
     """Intercept the last AIMessage and deduplicate tool calls before execution.
 
@@ -1241,133 +1370,37 @@ def _dedup_tool_node(state: AgentState) -> dict[str, Any]:
     tool_history = set(state.get("tool_history", set()))
     tool_calls_used = int(state.get("tool_calls_used", 0))
     internal_search_done = any(key.startswith("search_internal_news:") for key in tool_history)
-    internal_search_succeeded = False
-    internal_fetch_calls_done = 0
-    current_message_internal_hits = 0
-
-    for message in state.get("messages", []):
-        if not isinstance(message, ToolMessage):
-            continue
-        tool_name = str(getattr(message, "name", "") or "")
-        content = _content_to_text(message.content)
-        if tool_name == "search_internal_news" and _internal_search_found_results(content):
-            internal_search_succeeded = True
-            try:
-                payload = json.loads(content)
-            except json.JSONDecodeError:
-                payload = None
-            if isinstance(payload, list):
-                current_message_internal_hits = max(current_message_internal_hits, len(payload))
-
-    for key in tool_history:
-        if key.startswith("fetch_article_content:"):
-            try:
-                _tool_name, serialized_args = key.split(":", 1)
-                args = json.loads(serialized_args)
-            except (ValueError, json.JSONDecodeError):
-                continue
-            call = {"name": "fetch_article_content", "args": args}
-            if _is_internal_fetch_call(call):
-                internal_fetch_calls_done += 1
-
+    internal_search_succeeded, current_message_internal_hits = _collect_internal_search_state(
+        state.get("messages", [])
+    )
+    internal_fetch_calls_done = _count_internal_fetches_done(tool_history)
     search_query_keys = {
         key.removeprefix("search_query:") for key in tool_history if key.startswith("search_query:")
     }
+    required_internal_fetches = _required_internal_fetches_for_state(
+        internal_search_succeeded=internal_search_succeeded,
+        current_message_internal_hits=current_message_internal_hits,
+    )
 
     results: list[ToolMessage] = []
-    unique_calls = []
+    unique_calls: list[dict[str, Any]] = []
 
     for call in tool_calls:
         key = _tool_call_key(call)
-        tool_call_id = str(call.get("id", "missing-tool-call-id"))
-        tool_name = str(call.get("name", "unknown_tool"))
-
-        if key in tool_history:
-            results.append(
-                ToolMessage(
-                    content=(
-                        "Already called with the same arguments; "
-                        "use prior results already in context."
-                    ),
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                )
-            )
-            logger.debug("dedup_tool_node: duplicate call key=%s", key)
-            continue
-
-        if tool_name in SEARCH_TOOLS_WITH_QUERY:
-            raw_query = _extract_search_query(call)
-            if raw_query and _search_queries_similar(raw_query, search_query_keys):
-                results.append(
-                    ToolMessage(
-                        content=(
-                            f"A very similar search query was already run. "
-                            f"Reuse prior search results in context instead of repeating {raw_query}."
-                        ),
-                        tool_call_id=tool_call_id,
-                        name=tool_name,
-                    )
-                )
-                logger.info(
-                    "dedup_tool_node: similar query blocked tool=%s query=%s",
-                    tool_name,
-                    raw_query,
-                )
-                continue
-
-        if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
-            results.append(
-                ToolMessage(
-                    content=(
-                        f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). "
-                        "Synthesize a final answer from the context already gathered."
-                    ),
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                )
-            )
-            logger.warning(
-                "dedup_tool_node: session cap hit (%d), blocking call to %s",
-                MAX_TOOL_CALLS_PER_SESSION,
-                tool_name,
-            )
-            continue
-
-        if tool_name in EXTERNAL_SEARCH_TOOLS and not internal_search_done:
-            results.append(
-                ToolMessage(
-                    content=(
-                        "Use search_internal_news first. Check the internal archive before "
-                        "using external search."
-                    ),
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                )
-            )
-            continue
-
-        required_internal_fetches = _required_internal_fetches_for_state(
+        block = _dedup_block_message(
+            call,
+            key=key,
+            tool_history=tool_history,
+            search_query_keys=search_query_keys,
+            tool_calls_used=tool_calls_used,
+            internal_search_done=internal_search_done,
             internal_search_succeeded=internal_search_succeeded,
-            current_message_internal_hits=current_message_internal_hits,
+            internal_fetch_calls_done=internal_fetch_calls_done,
+            required_internal_fetches=required_internal_fetches,
         )
-        if (
-            tool_name in EXTERNAL_SEARCH_TOOLS
-            and internal_search_succeeded
-            and internal_fetch_calls_done < required_internal_fetches
-        ):
-            results.append(
-                ToolMessage(
-                    content=(
-                        "Internal search found relevant archive coverage. Read the internal "
-                        "article URLs with fetch_article_content before using external search."
-                    ),
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                )
-            )
+        if block is not None:
+            results.append(block)
             continue
-
         tool_history.add(key)
         tool_calls_used += 1
         unique_calls.append(call)
@@ -1693,6 +1726,55 @@ def _sanitize_final_answer(answer_text: str) -> str:
     return "Answer\n" + content + "\n"
 
 
+def _agent_update_steps(
+    update: dict[str, Any],
+    logged_tool_calls: set[str],
+) -> tuple[str, list[dict[str, Any]]]:
+    agent_message = update["agent"]["messages"][-1]
+    content = _content_to_text(agent_message.content)
+    steps: list[dict[str, Any]] = [
+        {
+            "type": "thought",
+            "content": content,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+    ]
+    for tool_call in _iter_new_tool_calls(
+        getattr(agent_message, "tool_calls", []) or [],
+        logged_tool_calls,
+    ):
+        steps.append(
+            {
+                "type": "action",
+                "content": f"Tool request: {tool_call['name']} {tool_call.get('args', {})}",
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+    return content, steps
+
+
+def _tool_update_events(
+    update: dict[str, Any],
+    tool_snippets: list[str],
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    for tool_message in update["tools"]["messages"]:
+        snippet = _content_to_text(tool_message.content)[:2000]
+        tool_name = str(getattr(tool_message, "name", "") or "")
+        steps.append(
+            {
+                "type": "observation",
+                "content": snippet,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+        if snippet:
+            tool_snippets.append(snippet)
+        if tool_name:
+            _track_search_result_references(tool_name, snippet)
+    return steps
+
+
 def research_news(
     query: str,
     articles: list[dict[str, Any]] | None = None,
@@ -1717,41 +1799,11 @@ def research_news(
 
     for update in _get_graph().stream(initial_state, stream_mode="updates"):
         if "agent" in update:
-            agent_message = update["agent"]["messages"][-1]
-            final_answer = _content_to_text(agent_message.content)
-            thinking_steps.append(
-                {
-                    "type": "thought",
-                    "content": final_answer,
-                    "timestamp": datetime.now(UTC).isoformat(),
-                }
-            )
-            for tool_call in _iter_new_tool_calls(
-                getattr(agent_message, "tool_calls", []) or [],
-                logged_tool_calls,
-            ):
-                thinking_steps.append(
-                    {
-                        "type": "action",
-                        "content": f"Tool request: {tool_call['name']} {tool_call.get('args', {})}",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                    }
-                )
+            content_text, steps = _agent_update_steps(update, logged_tool_calls)
+            final_answer = content_text
+            thinking_steps.extend(steps)
         if "tools" in update:
-            for tool_message in update["tools"]["messages"]:
-                snippet = _content_to_text(tool_message.content)[:2000]
-                tool_name = str(getattr(tool_message, "name", "") or "")
-                thinking_steps.append(
-                    {
-                        "type": "observation",
-                        "content": snippet,
-                        "timestamp": datetime.now(UTC).isoformat(),
-                    }
-                )
-                if snippet:
-                    tool_snippets.append(snippet)
-                if tool_name:
-                    _track_search_result_references(tool_name, snippet)
+            thinking_steps.extend(_tool_update_events(update, tool_snippets))
 
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
@@ -1808,6 +1860,105 @@ def research_stream(
         _stop_events.event = None
 
 
+def _stream_event(payload: dict[str, Any]) -> str:
+    return "data: " + json.dumps(payload) + "\n\n"
+
+
+def _is_stopped_by(stop_event: threading.Event | None) -> bool:
+    return stop_event is not None and stop_event.is_set()
+
+
+def _stream_agent_update(
+    update: dict[str, Any],
+    accum: dict[str, Any],
+    stop_event: threading.Event | None,
+) -> Generator[str, None, None]:
+    agent_message = update["agent"]["messages"][-1]
+    content_text = _content_to_text(agent_message.content)
+    if content_text:
+        if _is_stopped_by(stop_event):
+            return
+        accum["final_answer"] = content_text
+        yield _stream_event({"type": "thinking", "content": content_text})
+    for tool_call in _iter_new_tool_calls(
+        getattr(agent_message, "tool_calls", []) or [],
+        accum["logged_tool_calls"],
+    ):
+        if _is_stopped_by(stop_event):
+            return
+        yield _stream_event(
+            {
+                "type": "tool_start",
+                "tool": tool_call.get("name"),
+                "args": tool_call.get("args", {}),
+            }
+        )
+
+
+def _stream_tools_update(
+    update: dict[str, Any],
+    accum: dict[str, Any],
+    stop_event: threading.Event | None,
+) -> Generator[str, None, None]:
+    for tool_message in update["tools"]["messages"]:
+        if _is_stopped_by(stop_event):
+            return
+        snippet = _content_to_text(tool_message.content)[:2000]
+        tool_name = str(getattr(tool_message, "name", "") or "")
+        if snippet:
+            accum["tool_snippets"].append(snippet)
+        if tool_name:
+            _track_search_result_references(tool_name, snippet)
+        yield _stream_event({"type": "tool_result", "tool": tool_name, "content": snippet})
+
+
+def _stream_graph_updates(
+    initial_state: AgentState,
+    stop_event: threading.Event | None,
+    accum: dict[str, Any],
+) -> Generator[str, None, None]:
+    for update in _get_graph().stream(initial_state, stream_mode="updates"):
+        if _is_stopped_by(stop_event):
+            return
+        if "agent" in update:
+            yield from _stream_agent_update(update, accum, stop_event)
+        if "tools" in update:
+            yield from _stream_tools_update(update, accum, stop_event)
+        if _is_stopped_by(stop_event):
+            return
+
+
+def _stream_final_events(
+    query: str,
+    final_answer: str,
+    referenced_articles: list[dict[str, Any]],
+    source_providers: list[str],
+) -> Generator[str, None, None]:
+    yield _stream_event({"type": "referenced_articles", "articles": referenced_articles})
+    structured_block = ""
+    if referenced_articles:
+        payload = {
+            "articles": referenced_articles,
+            "total": len(referenced_articles),
+            "query": query,
+            "source_providers": source_providers,
+        }
+        json_payload = json.dumps(payload)
+        yield _stream_event({"type": "articles_json", "data": json_payload})
+        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+    result = {
+        "success": bool(final_answer.strip()),
+        "query": query,
+        "answer": final_answer,
+        "structured_articles": structured_block,
+        "articles_searched": len(_news_articles_cache),
+        "referenced_articles": referenced_articles,
+        "source_providers": source_providers,
+    }
+    yield _stream_event({"type": "complete", "result": result})
+    yield _stream_event({"type": "done"})
+
+
 def _research_stream_impl(
     query: str,
     articles: list[dict[str, Any]] | None = None,
@@ -1823,113 +1974,35 @@ def _research_stream_impl(
         "tool_calls_used": 0,
     }
 
-    final_answer = ""
-    tool_snippets: list[str] = []
-    logged_tool_calls: set[str] = set()
+    accum: dict[str, Any] = {
+        "final_answer": "",
+        "tool_snippets": [],
+        "logged_tool_calls": set(),
+    }
+    yield from _stream_graph_updates(initial_state, stop_event, accum)
 
-    for update in _get_graph().stream(initial_state, stream_mode="updates"):
-        if stop_event is not None and stop_event.is_set():
-            return
-        if "agent" in update:
-            agent_message = update["agent"]["messages"][-1]
-            content_text = _content_to_text(agent_message.content)
-            if content_text:
-                if stop_event is not None and stop_event.is_set():
-                    return
-                final_answer = content_text
-                yield (
-                    "data: " + json.dumps({"type": "thinking", "content": content_text}) + "\n\n"
-                )
-
-            for tool_call in _iter_new_tool_calls(
-                getattr(agent_message, "tool_calls", []) or [],
-                logged_tool_calls,
-            ):
-                if stop_event is not None and stop_event.is_set():
-                    return
-                yield (
-                    "data: "
-                    + json.dumps(
-                        {
-                            "type": "tool_start",
-                            "tool": tool_call.get("name"),
-                            "args": tool_call.get("args", {}),
-                        }
-                    )
-                    + "\n\n"
-                )
-        if "tools" in update:
-            for tool_message in update["tools"]["messages"]:
-                if stop_event is not None and stop_event.is_set():
-                    return
-                snippet = _content_to_text(tool_message.content)[:2000]
-                tool_name = str(getattr(tool_message, "name", "") or "")
-                if snippet:
-                    tool_snippets.append(snippet)
-                if tool_name:
-                    _track_search_result_references(tool_name, snippet)
-                yield (
-                    "data: "
-                    + json.dumps(
-                        {
-                            "type": "tool_result",
-                            "tool": tool_name,
-                            "content": snippet,
-                        }
-                    )
-                    + "\n\n"
-                )
-
+    final_answer = accum["final_answer"]
     referenced_articles = list(_referenced_articles_tracker)
     if not referenced_articles and final_answer:
         referenced_articles = _match_articles_in_text(final_answer)
 
-    if stop_event is not None and stop_event.is_set():
+    if _is_stopped_by(stop_event):
         return
 
     if _needs_final_answer(final_answer) or (
         referenced_articles and _answer_denies_available_context(final_answer)
     ):
-        synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
+        synthesized = _finalize_answer(query, referenced_articles, accum["tool_snippets"])
         if synthesized:
             final_answer = synthesized
 
     final_answer = _sanitize_final_answer(final_answer)
-
     source_providers = sorted(_research_source_providers)
 
-    if stop_event is not None and stop_event.is_set():
+    if _is_stopped_by(stop_event):
         return
 
-    yield (
-        "data: "
-        + json.dumps({"type": "referenced_articles", "articles": referenced_articles})
-        + "\n\n"
-    )
-
-    structured_block = ""
-    if referenced_articles:
-        payload = {
-            "articles": referenced_articles,
-            "total": len(referenced_articles),
-            "query": query,
-            "source_providers": source_providers,
-        }
-        json_payload = json.dumps(payload)
-        yield ("data: " + json.dumps({"type": "articles_json", "data": json_payload}) + "\n\n")
-        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
-
-    result = {
-        "success": bool(final_answer.strip()),
-        "query": query,
-        "answer": final_answer,
-        "structured_articles": structured_block,
-        "articles_searched": len(_news_articles_cache),
-        "referenced_articles": referenced_articles,
-        "source_providers": source_providers,
-    }
-    yield "data: " + json.dumps({"type": "complete", "result": result}) + "\n\n"
-    yield 'data: {"type": "done"}\n\n'
+    yield from _stream_final_events(query, final_answer, referenced_articles, source_providers)
 
 
 __all__ = [

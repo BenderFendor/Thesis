@@ -362,6 +362,23 @@ class Reporter(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
     normalized_name = Column(String, index=True)  # lowercase, stripped for matching
+    # Original, uncleaned name captured before Fix 5's title/email/prefix
+    # normalization -- nothing is lost when `name` is cleaned up.
+    raw_name = Column(Text, nullable=True)
+
+    # Reversible soft-retirement (audit recs 2-3): a retired row is never
+    # deleted. `merged_into` + retirement_reason="merged" points a losing
+    # duplicate-name row at its winner (Fix 3). `split_into` + reason="split"
+    # records a composite multi-author row's child reporter ids (Fix 2) --
+    # one row can split 1 -> N, so `merged_into` alone doesn't fit that case.
+    merged_into = Column(Integer, ForeignKey("reporters.id", ondelete="SET NULL"), index=True)
+    retirement_reason = Column(String)  # 'merged' | 'split' | None (active)
+    split_into = Column(JSON)  # list[int] child reporter ids, when retirement_reason='split'
+
+    # True for pure wire/agency rows (AP, Reuters, AFP, ...) -- audit rec 4.
+    # Excluded from the Atlas reporter projection/coverage denominator and
+    # from future authored_by-to-syndication-client claim minting.
+    is_collective = Column(Boolean, nullable=False, default=False, index=True)
 
     # Profile data
     bio = Column(Text)  # Brief biography

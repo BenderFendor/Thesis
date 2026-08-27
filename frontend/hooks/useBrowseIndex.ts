@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
 import { fetchBrowseIndex, type NewsArticle } from "@/lib/api"
+import { serializeSources } from "@/lib/utils"
 
 interface UseBrowseIndexOptions {
   category?: string
@@ -19,14 +20,6 @@ interface UseBrowseIndexReturn {
   error: Error | null
   refetch: () => void
   invalidate: () => void
-}
-
-function serializeSources(sources?: string[]): string | null {
-  if (!sources?.length) {
-    return null
-  }
-
-  return [...sources].sort().join(",")
 }
 
 export function useBrowseIndex(

@@ -884,6 +884,67 @@ async def _load_embeddings_for_articles(
     return embeddings
 
 
+def _source_scores_by_cluster(
+    filtered_cluster_articles: Mapping[int, list[Any]],
+    embeddings_by_article: Mapping[int, list[float]],
+    axis_vector: list[float],
+) -> tuple[dict[int, dict[str, float]], list[float]]:
+    source_scores_by_cluster: dict[int, dict[str, float]] = {}
+    all_source_scores: list[float] = []
+
+    for cluster_id, articles in filtered_cluster_articles.items():
+        scores_by_source: dict[str, list[float]] = {}
+        for article in articles:
+            article_id = getattr(article, "id", None)
+            if article_id is None:
+                continue
+            vector = embeddings_by_article.get(article_id)
+            if vector is None:
+                continue
+            normalized = _normalize_vector(vector)
+            if not normalized:
+                continue
+            source_id = _article_value(article, "source_id")
+            source_key = (
+                cast(str, source_id).strip().lower()
+                if _has_text(source_id)
+                else _slugify_source_name(_article_source_name(article))
+            )
+            scores_by_source.setdefault(source_key, []).append(
+                _dot_product(normalized, axis_vector)
+            )
+
+        averaged_scores: dict[str, float] = {
+            source_key: sum(values) / len(values)
+            for source_key, values in scores_by_source.items()
+            if values
+        }
+        if averaged_scores:
+            source_scores_by_cluster[cluster_id] = averaged_scores
+            all_source_scores.extend(averaged_scores.values())
+
+    return source_scores_by_cluster, all_source_scores
+
+
+def _counts_from_semaxis_scores(
+    source_scores_by_cluster: Mapping[int, dict[str, float]],
+    low_threshold: float,
+    high_threshold: float,
+) -> dict[int, BlindspotCoveragePayload]:
+    counts_by_cluster: dict[int, BlindspotCoveragePayload] = {}
+    for cluster_id, averaged_scores_by_source in source_scores_by_cluster.items():
+        counts = _empty_counts()
+        for score in averaged_scores_by_source.values():
+            if score <= low_threshold:
+                counts["pole_b"] += 1
+            elif score >= high_threshold:
+                counts["pole_a"] += 1
+            else:
+                counts["shared"] += 1
+        counts_by_cluster[cluster_id] = counts
+    return counts_by_cluster
+
+
 async def _build_semaxis_counts_by_cluster(
     filtered_cluster_articles: Mapping[int, list[Any]],
 ) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
@@ -929,62 +990,24 @@ async def _build_semaxis_counts_by_cluster(
 
     rust_axis = build_semaxis_rust(positive_vectors, negative_vectors)
     axis_vector: list[float] = rust_axis if rust_axis is not None else []
-
     if not axis_vector:
         return {}, "Semantic axis construction failed for the SemAxis lens."
 
-    source_scores_by_cluster: dict[int, dict[str, float]] = {}
-    all_source_scores: list[float] = []
-
-    for cluster_id, articles in filtered_cluster_articles.items():
-        scores_by_source: dict[str, list[float]] = {}
-        for article in articles:
-            article_id = getattr(article, "id", None)
-            if article_id is None:
-                continue
-            vector = embeddings_by_article.get(article_id)
-            if vector is None:
-                continue
-            normalized = _normalize_vector(vector)
-            if not normalized:
-                continue
-            source_id = _article_value(article, "source_id")
-            source_key = (
-                cast(str, source_id).strip().lower()
-                if _has_text(source_id)
-                else _slugify_source_name(_article_source_name(article))
-            )
-            scores_by_source.setdefault(source_key, []).append(
-                _dot_product(normalized, axis_vector)
-            )
-
-        averaged_scores: dict[str, float] = {
-            source_key: sum(values) / len(values)
-            for source_key, values in scores_by_source.items()
-            if values
-        }
-        if averaged_scores:
-            source_scores_by_cluster[cluster_id] = averaged_scores
-            all_source_scores.extend(averaged_scores.values())
-
+    source_scores_by_cluster, all_source_scores = _source_scores_by_cluster(
+        filtered_cluster_articles,
+        embeddings_by_article,
+        axis_vector,
+    )
     if len(all_source_scores) < MIN_CLUSTER_SOURCES:
         return {}, "Not enough embedded sources were available for the SemAxis lens."
 
     low_threshold = _quantile(all_source_scores, 0.3)
     high_threshold = _quantile(all_source_scores, 0.7)
-    counts_by_cluster: dict[int, BlindspotCoveragePayload] = {}
-
-    for cluster_id, averaged_scores_by_source in source_scores_by_cluster.items():
-        counts = _empty_counts()
-        for score in averaged_scores_by_source.values():
-            if score <= low_threshold:
-                counts["pole_b"] += 1
-            elif score >= high_threshold:
-                counts["pole_a"] += 1
-            else:
-                counts["shared"] += 1
-        counts_by_cluster[cluster_id] = counts
-
+    counts_by_cluster = _counts_from_semaxis_scores(
+        source_scores_by_cluster,
+        low_threshold,
+        high_threshold,
+    )
     return counts_by_cluster, None
 
 
@@ -1025,6 +1048,322 @@ def _geography_signals_for_articles(
     ]
 
 
+def _initializing_viewer_payload(
+    definition: LensDefinition,
+    window: str,
+    category: str | None,
+    selected_sources: set[str],
+) -> BlindspotViewerPayload:
+    return {
+        "available_lenses": _available_lens_payloads(),
+        "selected_lens": {
+            "id": definition.id,
+            "label": definition.label,
+            "description": definition.description,
+            "available": False,
+            "unavailable_reason": "Topic clusters are still initializing.",
+        },
+        "summary": {
+            "window": window,
+            "total_clusters": 0,
+            "eligible_clusters": 0,
+            "generated_at": get_utc_now().isoformat(),
+            "category": category,
+            "source_filters": sorted(selected_sources),
+        },
+        "lanes": _lane_payloads(definition, []),
+        "cards": [],
+        "status": "initializing",
+    }
+
+
+def _collect_snapshot_articles(
+    cluster_payloads: list[SnapshotClusterPayload],
+    lens: LensId,
+    category: str | None,
+) -> set[int]:
+    snapshot_articles_by_id: dict[int, SnapshotArticlePayload] = {}
+    for cluster in cluster_payloads:
+        for article in cluster.get("articles", []):
+            article_id = article.get("id")
+            if isinstance(article_id, int):
+                snapshot_articles_by_id.setdefault(article_id, article)
+
+    article_ids_needing_db: set[int] = set()
+    for article_id, article in snapshot_articles_by_id.items():
+        article_ids_needing_db.add(article_id)
+        if lens == "institutional_populist":
+            continue
+        if (
+            lens == "bias"
+            and _article_bias_value(article) is None
+            or (lens == "credibility" and _article_factual_reporting_value(article) is None)
+            or lens == "geography"
+            and _article_country_code(article) is None
+        ):
+            article_ids_needing_db.add(article_id)
+        if category is not None and not _has_text(_article_value(article, "category")):
+            article_ids_needing_db.add(article_id)
+
+    return article_ids_needing_db
+
+
+async def _load_articles_from_db(
+    session: AsyncSession,
+    article_ids_needing_db: set[int],
+) -> dict[int, Article]:
+    if not article_ids_needing_db:
+        return {}
+    article_result = await session.execute(
+        select(Article).where(Article.id.in_(sorted(article_ids_needing_db)))
+    )
+    articles_by_id: dict[int, Article] = {}
+    for article in article_result.scalars():
+        if article.id is not None:
+            articles_by_id[article.id] = article
+    return articles_by_id
+
+
+def _filter_cluster_payloads(
+    cluster_payloads: list[SnapshotClusterPayload],
+    articles_by_id: dict[int, Article],
+    category: str | None,
+    selected_sources: set[str],
+) -> tuple[
+    dict[int, list[Any]],
+    dict[int, list[SnapshotArticlePayload]],
+    int,
+    list[Any],
+]:
+    filtered_cluster_articles: dict[int, list[Any]] = {}
+    filtered_cluster_previews: dict[int, list[SnapshotArticlePayload]] = {}
+    total_clusters = 0
+    trailing_matching_articles: list[Any] = []
+
+    for cluster in cluster_payloads:
+        cluster_id = cluster.get("cluster_id")
+        if not isinstance(cluster_id, int):
+            continue
+        total_clusters += 1
+        matching_articles: list[Any] = []
+        preview_articles: list[SnapshotArticlePayload] = []
+
+        for article in cluster.get("articles", []):
+            article_id = article.get("id")
+            if not isinstance(article_id, int):
+                continue
+            db_article = articles_by_id.get(article_id)
+            materialized_article: Any = db_article or article
+            if (
+                category is not None
+                and _article_value(materialized_article, "category") is None
+                and db_article is None
+            ):
+                continue
+            if not _matches_category(materialized_article, category):
+                continue
+            if not _matches_selected_sources(materialized_article, selected_sources):
+                continue
+            matching_articles.append(materialized_article)
+            preview_articles.append(_article_preview(article))
+
+        trailing_matching_articles = matching_articles
+        distinct_sources = {
+            _article_value(article, "source_id")
+            or _slugify_source_name(_article_source_name(article))
+            for article in matching_articles
+        }
+        if (
+            len(matching_articles) < MIN_CLUSTER_ARTICLES
+            or len(distinct_sources) < MIN_CLUSTER_SOURCES
+        ):
+            continue
+
+        filtered_cluster_articles[cluster_id] = matching_articles
+        filtered_cluster_previews[cluster_id] = preview_articles
+
+    return (
+        filtered_cluster_articles,
+        filtered_cluster_previews,
+        total_clusters,
+        trailing_matching_articles,
+    )
+
+
+def _latest_published_at(articles: list[Any]) -> str | None:
+    published_candidates: list[str] = []
+    for article in articles:
+        published_at = _article_value(article, "published_at")
+        if hasattr(published_at, "isoformat"):
+            published_candidates.append(cast(Any, published_at).isoformat())
+        elif isinstance(published_at, str) and published_at.strip():
+            published_candidates.append(published_at)
+    return max(published_candidates) if published_candidates else None
+
+
+def _build_card_payload(
+    cluster: SnapshotClusterPayload,
+    cluster_id: int,
+    cluster_articles: list[Any],
+    preview_articles: list[SnapshotArticlePayload],
+    counts: BlindspotCoveragePayload,
+    lane: LaneId,
+    selected_definition: LensDefinition,
+    lens: LensId,
+    geography_articles: list[Any],
+) -> BlindspotCardPayload:
+    selected_preview_articles = _select_preview_articles(preview_articles)
+    return {
+        "cluster_id": cluster_id,
+        "cluster_label": cluster.get("label") or "Topic",
+        "keywords": list(cluster.get("keywords", [])),
+        "article_count": len(cluster_articles),
+        "source_count": counts["pole_a"] + counts["shared"] + counts["pole_b"],
+        "lane": lane,
+        "blindspot_score": _lane_score(lane, counts),
+        "balance_score": _balance_score(counts),
+        "published_at": _latest_published_at(cluster_articles),
+        "explanation": _explanation_for_lane(selected_definition, lane, counts),
+        "coverage_counts": counts,
+        "coverage_shares": _shares_from_counts(counts),
+        "representative_article": _choose_representative_article(
+            selected_preview_articles or preview_articles
+        ),
+        "articles": selected_preview_articles,
+        "geography_signals": (
+            _geography_signals_for_articles(geography_articles) if lens == "geography" else []
+        ),
+        "paywall_concentration": _paywall_concentration(cluster_articles),
+    }
+
+
+def _collect_cluster_candidates(
+    cluster_payloads: list[SnapshotClusterPayload],
+    filtered_cluster_articles: dict[int, list[Any]],
+    filtered_cluster_previews: dict[int, list[SnapshotArticlePayload]],
+    semaxis_counts: dict[int, BlindspotCoveragePayload],
+    selected_definition: LensDefinition,
+    lens: LensId,
+    geography_articles: list[Any],
+) -> list[ClusterCardCandidate]:
+    candidates: list[ClusterCardCandidate] = []
+    for cluster in cluster_payloads:
+        cluster_id = cluster.get("cluster_id")
+        if not isinstance(cluster_id, int):
+            continue
+        cluster_articles = filtered_cluster_articles.get(cluster_id)
+        if cluster_articles is None:
+            continue
+
+        if lens == "institutional_populist":
+            counts = semaxis_counts.get(cluster_id)
+            if counts is None:
+                continue
+        else:
+            counts = _metadata_counts_for_lens(lens, cluster_articles)
+
+        total_sources = counts["pole_a"] + counts["shared"] + counts["pole_b"]
+        if total_sources < MIN_CLUSTER_SOURCES:
+            continue
+
+        lane = classify_lane(counts)
+        card_payload = _build_card_payload(
+            cluster,
+            cluster_id,
+            cluster_articles,
+            filtered_cluster_previews.get(cluster_id, []),
+            counts,
+            lane,
+            selected_definition,
+            lens,
+            geography_articles,
+        )
+        candidates.append(
+            ClusterCardCandidate(
+                payload=card_payload,
+                lane_sort_score=card_payload["blindspot_score"],
+            )
+        )
+    return candidates
+
+
+def _rank_and_select_cards(
+    candidates: list[ClusterCardCandidate],
+    per_lane: int,
+) -> list[BlindspotCardPayload]:
+    grouped: dict[LaneId, list[ClusterCardCandidate]] = {
+        "pole_a": [],
+        "shared": [],
+        "pole_b": [],
+    }
+    for candidate in candidates:
+        grouped[candidate.payload["lane"]].append(candidate)
+
+    selected_cards: list[BlindspotCardPayload] = []
+    for lane in ("pole_a", "shared", "pole_b"):
+        ranked = sorted(
+            grouped[lane],
+            key=lambda candidate: (
+                candidate.lane_sort_score,
+                candidate.payload["article_count"],
+                candidate.payload["published_at"] or "",
+            ),
+            reverse=True,
+        )
+        selected_cards.extend(candidate.payload for candidate in ranked[: max(1, per_lane)])
+    return selected_cards
+
+
+def _selected_lens_payload(
+    definition: LensDefinition,
+    lens: LensId,
+    semaxis_unavailable_reason: str | None,
+) -> BlindspotLensPayload:
+    return {
+        "id": definition.id,
+        "label": definition.label,
+        "description": definition.description,
+        "available": not (
+            lens == "institutional_populist" and semaxis_unavailable_reason is not None
+        ),
+        "unavailable_reason": semaxis_unavailable_reason,
+    }
+
+
+def _mark_semaxis_unavailable(
+    available_lenses: list[BlindspotLensPayload],
+    semaxis_unavailable_reason: str | None,
+) -> None:
+    if semaxis_unavailable_reason is None:
+        return
+    for lens_payload in available_lenses:
+        if lens_payload["id"] != "institutional_populist":
+            continue
+        lens_payload["available"] = False
+        lens_payload["unavailable_reason"] = semaxis_unavailable_reason
+        return
+
+
+def _summary_payload(
+    window: str,
+    total_clusters: int,
+    eligible_clusters: int,
+    snapshot: Any,
+    category: str | None,
+    selected_sources: set[str],
+) -> BlindspotSummaryPayload:
+    return {
+        "window": window,
+        "total_clusters": total_clusters,
+        "eligible_clusters": eligible_clusters,
+        "generated_at": snapshot.computed_at.isoformat()
+        if snapshot.computed_at
+        else get_utc_now().isoformat(),
+        "category": category,
+        "source_filters": sorted(selected_sources),
+    }
+
+
 class BlindspotViewerService:
     """Build a multi-lens blindspot viewer payload from topic snapshots."""
 
@@ -1045,230 +1384,65 @@ class BlindspotViewerService:
 
         snapshot = await get_latest_snapshot(session, window)
         if snapshot is None:
-            return {
-                "available_lenses": _available_lens_payloads(),
-                "selected_lens": {
-                    "id": selected_definition.id,
-                    "label": selected_definition.label,
-                    "description": selected_definition.description,
-                    "available": False,
-                    "unavailable_reason": "Topic clusters are still initializing.",
-                },
-                "summary": {
-                    "window": window,
-                    "total_clusters": 0,
-                    "eligible_clusters": 0,
-                    "generated_at": get_utc_now().isoformat(),
-                    "category": category,
-                    "source_filters": sorted(selected_sources),
-                },
-                "lanes": _lane_payloads(selected_definition, []),
-                "cards": [],
-                "status": "initializing",
-            }
+            return _initializing_viewer_payload(
+                selected_definition,
+                window,
+                category,
+                selected_sources,
+            )
 
         cluster_payloads = cast(list[SnapshotClusterPayload], snapshot.clusters_json or [])
-        snapshot_articles_by_id: dict[int, SnapshotArticlePayload] = {}
-        for cluster in cluster_payloads:
-            for article in cluster.get("articles", []):
-                article_id = article.get("id")
-                if isinstance(article_id, int):
-                    snapshot_articles_by_id.setdefault(article_id, article)
+        article_ids_needing_db = _collect_snapshot_articles(cluster_payloads, lens, category)
+        articles_by_id = await _load_articles_from_db(session, article_ids_needing_db)
 
-        article_ids_needing_db: set[int] = set()
-        for article_id, article in snapshot_articles_by_id.items():
-            article_ids_needing_db.add(article_id)
-            if lens == "institutional_populist":
-                continue
-            if (
-                lens == "bias"
-                and _article_bias_value(article) is None
-                or (lens == "credibility" and _article_factual_reporting_value(article) is None)
-                or lens == "geography"
-                and _article_country_code(article) is None
-            ):
-                article_ids_needing_db.add(article_id)
-            if category is not None and not _has_text(_article_value(article, "category")):
-                article_ids_needing_db.add(article_id)
-
-        articles_by_id: dict[int, Article] = {}
-        if article_ids_needing_db:
-            article_result = await session.execute(
-                select(Article).where(Article.id.in_(sorted(article_ids_needing_db)))
-            )
-            articles_by_id = {
-                article.id: article
-                for article in article_result.scalars()
-                if article.id is not None
-            }
-
-        filtered_cluster_articles: dict[int, list[Any]] = {}
-        filtered_cluster_previews: dict[int, list[SnapshotArticlePayload]] = {}
-        total_clusters = 0
-
-        for cluster in cluster_payloads:
-            cluster_id = cluster.get("cluster_id")
-            if not isinstance(cluster_id, int):
-                continue
-            total_clusters += 1
-            matching_articles: list[Any] = []
-            preview_articles: list[SnapshotArticlePayload] = []
-
-            for article in cluster.get("articles", []):
-                article_id = article.get("id")
-                if not isinstance(article_id, int):
-                    continue
-                db_article = articles_by_id.get(article_id)
-                materialized_article: Any = db_article or article
-                if (
-                    category is not None
-                    and _article_value(materialized_article, "category") is None
-                    and db_article is None
-                ):
-                    continue
-                if not _matches_category(materialized_article, category):
-                    continue
-                if not _matches_selected_sources(materialized_article, selected_sources):
-                    continue
-                matching_articles.append(materialized_article)
-                preview_articles.append(_article_preview(article))
-
-            distinct_sources = {
-                _article_value(article, "source_id")
-                or _slugify_source_name(_article_source_name(article))
-                for article in matching_articles
-            }
-            if (
-                len(matching_articles) < MIN_CLUSTER_ARTICLES
-                or len(distinct_sources) < MIN_CLUSTER_SOURCES
-            ):
-                continue
-
-            filtered_cluster_articles[cluster_id] = matching_articles
-            filtered_cluster_previews[cluster_id] = preview_articles
+        (
+            filtered_cluster_articles,
+            filtered_cluster_previews,
+            total_clusters,
+            geography_articles,
+        ) = _filter_cluster_payloads(
+            cluster_payloads,
+            articles_by_id,
+            category,
+            selected_sources,
+        )
 
         available_lenses = _available_lens_payloads()
-        semaxis_counts: dict[int, BlindspotCoveragePayload] = {}
-        semaxis_unavailable_reason: str | None = None
         if lens == "institutional_populist":
-            (
-                semaxis_counts,
-                semaxis_unavailable_reason,
-            ) = await _build_semaxis_counts_by_cluster(filtered_cluster_articles)
-
-        candidates: list[ClusterCardCandidate] = []
-        for cluster in cluster_payloads:
-            cluster_id = cluster.get("cluster_id")
-            if not isinstance(cluster_id, int):
-                continue
-            cluster_articles = filtered_cluster_articles.get(cluster_id)
-            if cluster_articles is None:
-                continue
-
-            if lens == "institutional_populist":
-                counts = semaxis_counts.get(cluster_id)
-                if counts is None:
-                    continue
-            else:
-                counts = _metadata_counts_for_lens(lens, cluster_articles)
-
-            total_sources = counts["pole_a"] + counts["shared"] + counts["pole_b"]
-            if total_sources < MIN_CLUSTER_SOURCES:
-                continue
-
-            lane = classify_lane(counts)
-            shares = _shares_from_counts(counts)
-            preview_articles = filtered_cluster_previews.get(cluster_id, [])
-            published_candidates: list[str] = []
-            for article in cluster_articles:
-                published_at = _article_value(article, "published_at")
-                if hasattr(published_at, "isoformat"):
-                    published_candidates.append(cast(Any, published_at).isoformat())
-                elif isinstance(published_at, str) and published_at.strip():
-                    published_candidates.append(published_at)
-            selected_preview_articles = _select_preview_articles(preview_articles)
-            paywall_concentration = _paywall_concentration(cluster_articles)
-            card_payload: BlindspotCardPayload = {
-                "cluster_id": cluster_id,
-                "cluster_label": cluster.get("label") or "Topic",
-                "keywords": list(cluster.get("keywords", [])),
-                "article_count": len(cluster_articles),
-                "source_count": total_sources,
-                "lane": lane,
-                "blindspot_score": _lane_score(lane, counts),
-                "balance_score": _balance_score(counts),
-                "published_at": max(published_candidates) if published_candidates else None,
-                "explanation": _explanation_for_lane(selected_definition, lane, counts),
-                "coverage_counts": counts,
-                "coverage_shares": shares,
-                "representative_article": _choose_representative_article(
-                    selected_preview_articles or preview_articles
-                ),
-                "articles": selected_preview_articles,
-                "geography_signals": _geography_signals_for_articles(matching_articles)
-                if lens == "geography"
-                else [],
-                "paywall_concentration": paywall_concentration,
-            }
-            candidates.append(
-                ClusterCardCandidate(
-                    payload=card_payload,
-                    lane_sort_score=card_payload["blindspot_score"],
-                )
+            semaxis_counts, semaxis_unavailable_reason = await _build_semaxis_counts_by_cluster(
+                filtered_cluster_articles
             )
+        else:
+            semaxis_counts, semaxis_unavailable_reason = {}, None
 
-        grouped: dict[LaneId, list[ClusterCardCandidate]] = {
-            "pole_a": [],
-            "shared": [],
-            "pole_b": [],
-        }
-        for candidate in candidates:
-            grouped[candidate.payload["lane"]].append(candidate)
+        candidates = _collect_cluster_candidates(
+            cluster_payloads,
+            filtered_cluster_articles,
+            filtered_cluster_previews,
+            semaxis_counts,
+            selected_definition,
+            lens,
+            geography_articles,
+        )
+        selected_cards = _rank_and_select_cards(candidates, per_lane)
 
-        selected_cards: list[BlindspotCardPayload] = []
-        for lane in ("pole_a", "shared", "pole_b"):
-            ranked = sorted(
-                grouped[lane],
-                key=lambda candidate: (
-                    candidate.lane_sort_score,
-                    candidate.payload["article_count"],
-                    candidate.payload["published_at"] or "",
-                ),
-                reverse=True,
-            )
-            selected_cards.extend(candidate.payload for candidate in ranked[: max(1, per_lane)])
-
-        selected_lens_payload: BlindspotLensPayload = {
-            "id": selected_definition.id,
-            "label": selected_definition.label,
-            "description": selected_definition.description,
-            "available": not (
-                lens == "institutional_populist" and semaxis_unavailable_reason is not None
-            ),
-            "unavailable_reason": semaxis_unavailable_reason,
-        }
-
-        for lens_payload in available_lenses:
-            if lens_payload["id"] != "institutional_populist":
-                continue
-            if semaxis_unavailable_reason is None:
-                break
-            lens_payload["available"] = False
-            lens_payload["unavailable_reason"] = semaxis_unavailable_reason
+        _mark_semaxis_unavailable(available_lenses, semaxis_unavailable_reason)
 
         return {
             "available_lenses": available_lenses,
-            "selected_lens": selected_lens_payload,
-            "summary": {
-                "window": window,
-                "total_clusters": total_clusters,
-                "eligible_clusters": len(filtered_cluster_articles),
-                "generated_at": snapshot.computed_at.isoformat()
-                if snapshot.computed_at
-                else get_utc_now().isoformat(),
-                "category": category,
-                "source_filters": sorted(selected_sources),
-            },
+            "selected_lens": _selected_lens_payload(
+                selected_definition,
+                lens,
+                semaxis_unavailable_reason,
+            ),
+            "summary": _summary_payload(
+                window,
+                total_clusters,
+                len(filtered_cluster_articles),
+                snapshot,
+                category,
+                selected_sources,
+            ),
             "lanes": _lane_payloads(selected_definition, selected_cards),
             "cards": selected_cards,
             "status": "ok",

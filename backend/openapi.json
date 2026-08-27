@@ -7687,6 +7687,52 @@
         }
       }
     },
+    "/api/wiki/atlas/ingestion-status": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Atlas Ingestion Status",
+        "description": "Return adapter freshness, partial runs, credentials, and retryable failures.",
+        "operationId": "get_atlas_ingestion_status_api_wiki_atlas_ingestion_status_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 40,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasIngestStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wiki/atlas/search": {
       "get": {
         "tags": [
@@ -7925,6 +7971,22 @@
             }
           },
           {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
@@ -8010,6 +8072,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FundingBiasAnalysisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wiki/atlas/analysis/media-measurements": {
+      "get": {
+        "tags": [
+          "wiki-atlas"
+        ],
+        "summary": "Get Media Measurements",
+        "description": "Calculate and return reproducible article and ownership measurements.",
+        "operationId": "get_media_measurements_api_wiki_atlas_analysis_media_measurements_get",
+        "parameters": [
+          {
+            "name": "source_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtlasMeasurementsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -9279,6 +9392,116 @@
         "title": "AtlasCoverageMetric",
         "description": "A numerator/denominator pair reported as a rounded percentage."
       },
+      "AtlasDossierSection": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "identity_public_records",
+              "ownership_control",
+              "newsroom_people",
+              "funding_government_awards",
+              "advertising_sponsorship",
+              "publishing_distribution",
+              "evidence_conflicts_freshness_gaps"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasDossierStatement"
+            },
+            "type": "array",
+            "title": "Statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title"
+        ],
+        "title": "AtlasDossierSection",
+        "description": "A typed, non-empty dossier section."
+      },
+      "AtlasDossierStatement": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "known",
+              "unknown",
+              "not_researched",
+              "source_unavailable",
+              "chain_incomplete"
+            ],
+            "title": "State"
+          },
+          "predicate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate"
+          },
+          "lifecycle_state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "historical",
+                  "proposed",
+                  "pending",
+                  "disputed",
+                  "rejected",
+                  "superseded"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifecycle State"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasEvidenceRef"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "qualifiers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Qualifiers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "answer",
+          "state"
+        ],
+        "title": "AtlasDossierStatement",
+        "description": "One plain-language dossier answer with its exact evidence state."
+      },
       "AtlasEdge": {
         "properties": {
           "id": {
@@ -9310,6 +9533,21 @@
             ],
             "title": "Relation Type"
           },
+          "predicate": {
+            "type": "string",
+            "title": "Predicate",
+            "default": ""
+          },
+          "display_group": {
+            "type": "string",
+            "title": "Display Group",
+            "default": "other"
+          },
+          "relation_type_deprecated": {
+            "type": "boolean",
+            "title": "Relation Type Deprecated",
+            "default": true
+          },
           "direction": {
             "type": "string",
             "enum": [
@@ -9334,6 +9572,48 @@
               }
             ],
             "title": "Ownership Percentage"
+          },
+          "voting_interest": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voting Interest"
+          },
+          "economic_interest": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Economic Interest"
+          },
+          "beneficial_interest": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beneficial Interest"
           },
           "confidence": {
             "anyOf": [
@@ -9440,6 +9720,20 @@
             ],
             "title": "Fact Status",
             "default": "candidate"
+          },
+          "lifecycle_state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical",
+              "proposed",
+              "pending",
+              "disputed",
+              "rejected",
+              "superseded"
+            ],
+            "title": "Lifecycle State",
+            "default": "current"
           },
           "accepted_fact": {
             "type": "boolean",
@@ -9609,6 +9903,24 @@
             "type": "object",
             "title": "Details"
           },
+          "entity_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Kind"
+          },
+          "dossier_sections": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasDossierSection"
+            },
+            "type": "array",
+            "title": "Dossier Sections"
+          },
           "evidence": {
             "items": {
               "$ref": "#/components/schemas/AtlasEvidenceRef"
@@ -9714,6 +10026,46 @@
               }
             ],
             "title": "Entailment"
+          },
+          "evidence_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Class"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "acceptance_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Decision"
+          },
+          "contradictions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contradictions"
           }
         },
         "type": "object",
@@ -9882,9 +10234,16 @@
             "default": "clustered"
           },
           "limit_nodes": {
-            "type": "integer",
-            "maximum": 600.0,
-            "minimum": 1.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 600.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Limit Nodes",
             "default": 350
           },
@@ -10126,6 +10485,119 @@
         "title": "AtlasIndexResponse",
         "description": "A paginated, faceted listing of Atlas entities."
       },
+      "AtlasIngestStatusResponse": {
+        "properties": {
+          "freshness": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "stale",
+              "never",
+              "running",
+              "partial"
+            ],
+            "title": "Freshness"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "has_retryable_failures": {
+            "type": "boolean",
+            "title": "Has Retryable Failures",
+            "default": false
+          },
+          "missing_credentials": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Credentials"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceIngestRunRecord"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "freshness"
+        ],
+        "title": "AtlasIngestStatusResponse",
+        "description": "Freshness and failure summary for Atlas ingestion."
+      },
+      "AtlasMeasurementRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "measurement_name": {
+            "type": "string",
+            "title": "Measurement Name"
+          },
+          "algorithm_version": {
+            "type": "string",
+            "title": "Algorithm Version"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "measurement_name",
+          "algorithm_version",
+          "result",
+          "created_at"
+        ],
+        "title": "AtlasMeasurementRecord",
+        "description": "One reproducible media measurement with complete scope metadata."
+      },
+      "AtlasMeasurementsResponse": {
+        "properties": {
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "measurements": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasMeasurementRecord"
+            },
+            "type": "array",
+            "title": "Measurements"
+          }
+        },
+        "type": "object",
+        "title": "AtlasMeasurementsResponse",
+        "description": "The measurement traces calculated for an outlet or the full corpus."
+      },
       "AtlasNode": {
         "properties": {
           "id": {
@@ -10293,6 +10765,49 @@
             },
             "type": "array",
             "title": "Flags"
+          },
+          "current_parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Parent"
+          },
+          "pending_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Change"
+          },
+          "evidence_coverage": {
+            "type": "string",
+            "title": "Evidence Coverage",
+            "default": "not researched"
+          },
+          "freshness": {
+            "type": "string",
+            "title": "Freshness",
+            "default": "unknown"
+          },
+          "unresolved_gap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved Gap"
           }
         },
         "type": "object",
@@ -10375,6 +10890,49 @@
               }
             ],
             "title": "Profile Path"
+          },
+          "current_parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Parent"
+          },
+          "pending_change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Change"
+          },
+          "evidence_coverage": {
+            "type": "string",
+            "title": "Evidence Coverage",
+            "default": "not researched"
+          },
+          "freshness": {
+            "type": "string",
+            "title": "Freshness",
+            "default": "unknown"
+          },
+          "unresolved_gap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved Gap"
           }
         },
         "type": "object",
@@ -10479,6 +11037,16 @@
             "type": "boolean",
             "title": "Indexing Active",
             "default": false
+          },
+          "research_coverage": {
+            "$ref": "#/components/schemas/AtlasCoverageMetric"
+          },
+          "research_coverage_by_entity_type": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AtlasCoverageMetric"
+            },
+            "type": "object",
+            "title": "Research Coverage By Entity Type"
           }
         },
         "type": "object",
@@ -11797,6 +12365,129 @@
         ],
         "title": "EvidenceClaimRecord",
         "description": "A claim with its linked evidence observations, as returned by the API."
+      },
+      "EvidenceIngestRunRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "adapter": {
+            "type": "string",
+            "title": "Adapter"
+          },
+          "adapter_version": {
+            "type": "string",
+            "title": "Adapter Version"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Scope"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "success",
+              "partial",
+              "failed",
+              "blocked",
+              "skipped"
+            ],
+            "title": "Status"
+          },
+          "network_mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "offline",
+              "disabled"
+            ],
+            "title": "Network Mode"
+          },
+          "documents_count": {
+            "type": "integer",
+            "title": "Documents Count",
+            "default": 0
+          },
+          "snapshots_count": {
+            "type": "integer",
+            "title": "Snapshots Count",
+            "default": 0
+          },
+          "observations_count": {
+            "type": "integer",
+            "title": "Observations Count",
+            "default": 0
+          },
+          "claims_count": {
+            "type": "integer",
+            "title": "Claims Count",
+            "default": 0
+          },
+          "accepted_count": {
+            "type": "integer",
+            "title": "Accepted Count",
+            "default": 0
+          },
+          "candidate_count": {
+            "type": "integer",
+            "title": "Candidate Count",
+            "default": 0
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable",
+            "default": false
+          },
+          "missing_credentials": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Credentials"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "adapter",
+          "adapter_version",
+          "started_at",
+          "status",
+          "network_mode"
+        ],
+        "title": "EvidenceIngestRunRecord",
+        "description": "Public status for one persisted adapter run."
       },
       "EvidenceObservationRecord": {
         "properties": {

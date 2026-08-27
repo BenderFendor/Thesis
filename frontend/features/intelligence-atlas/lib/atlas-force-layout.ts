@@ -1,13 +1,40 @@
-/// <reference lib="webworker" />
+/**
+ * Deterministic force-directed layout for the Atlas graph canvas.
+ *
+ * This used to run inside a dedicated Web Worker (`workers/atlas-layout.worker.ts`,
+ * loaded via `new Worker(new URL(...), { type: "module" })`). Under this
+ * project's Turbopack dev config that pattern silently fails: Turbopack treats
+ * the `.ts` worker file as an opaque static asset rather than compiling it,
+ * so the emitted URL serves the raw, un-transpiled TypeScript source with a
+ * `video/mp2t` MIME type (a `.ts` extension collision with MPEG transport
+ * streams). The browser refuses to execute that as a module worker, so
+ * `positions` never populated and the graph canvas rendered nothing but its
+ * floating status strip.
+ *
+ * The fix: run the same algorithm on the main thread, chunked across
+ * `requestAnimationFrame` callbacks so it stays interactive instead of
+ * blocking. See `hooks/use-atlas-layout.ts`.
+ */
 
-import type {
-  AtlasLayoutRequest,
-  AtlasLayoutResponse,
-  AtlasPosition,
-  AtlasWorkerRequest,
-} from "../features/intelligence-atlas/lib/atlas-layout-protocol";
+import type { AtlasEdge, AtlasNode } from "./atlas-schema";
+import type { AtlasLayoutMode } from "./atlas-query-state";
 
-const cancelled = new Set<number>();
+export interface AtlasPosition {
+  x: number;
+  y: number;
+}
+
+export type AtlasLayoutNodeInput = Pick<AtlasNode, "id" | "entity_type" | "country_code" | "connection_count">;
+export type AtlasLayoutEdgeInput = Pick<AtlasEdge, "source_id" | "target_id" | "relation_type" | "weight">;
+
+export interface AtlasLayoutRequest {
+  width: number;
+  height: number;
+  layout: AtlasLayoutMode;
+  selectedId: string | null;
+  nodes: AtlasLayoutNodeInput[];
+  edges: AtlasLayoutEdgeInput[];
+}
 
 function hashValue(value: string): number {
   let hash = 2166136261;
@@ -22,17 +49,12 @@ function seededUnit(value: string, salt: number): number {
   return (hashValue(`${value}:${salt}`) % 100000) / 100000;
 }
 
-function groupKey(node: AtlasLayoutRequest["nodes"][number], layout: AtlasLayoutRequest["layout"]): string {
+function groupKey(node: AtlasLayoutNodeInput, layout: AtlasLayoutMode): string {
   if (layout === "geography") return node.country_code || "Unspecified";
-  if (layout === "ownership") return node.entity_type;
   return node.entity_type;
 }
 
-function initialPosition(
-  node: AtlasLayoutRequest["nodes"][number],
-  index: number,
-  request: AtlasLayoutRequest,
-): AtlasPosition {
+function initialPosition(node: AtlasLayoutNodeInput, index: number, request: AtlasLayoutRequest): AtlasPosition {
   if (request.layout === "radial" && request.selectedId) {
     if (node.id === request.selectedId) return { x: request.width / 2, y: request.height / 2 };
     const angle = seededUnit(node.id, 9) * Math.PI * 2;
@@ -57,36 +79,49 @@ function initialPosition(
   };
 }
 
-function runLayout(request: AtlasLayoutRequest): void {
-  const positions = new Map<string, AtlasPosition>();
-  const velocities = new Map<string, AtlasPosition>();
-  const adjacency = new Map<string, Set<string>>();
+/** Steps a force-directed simulation one iteration at a time so a caller
+ * (e.g. a `requestAnimationFrame` loop) can spread the work across frames. */
+export class AtlasForceLayoutRunner {
+  readonly totalIterations: number;
+  private iteration = 0;
+  private readonly request: AtlasLayoutRequest;
+  private readonly positions: Map<string, AtlasPosition>;
+  private readonly velocities: Map<string, AtlasPosition>;
+  private readonly adjacency: Map<string, Set<string>>;
+  private readonly padding = 48;
 
-  request.nodes.forEach((node, index) => {
-    positions.set(node.id, initialPosition(node, index, request));
-    velocities.set(node.id, { x: 0, y: 0 });
-    adjacency.set(node.id, new Set());
-  });
-  request.edges.forEach((edge) => {
-    adjacency.get(edge.source_id)?.add(edge.target_id);
-    adjacency.get(edge.target_id)?.add(edge.source_id);
-  });
+  constructor(request: AtlasLayoutRequest) {
+    this.request = request;
+    this.positions = new Map();
+    this.velocities = new Map();
+    this.adjacency = new Map();
+    request.nodes.forEach((node, index) => {
+      this.positions.set(node.id, initialPosition(node, index, request));
+      this.velocities.set(node.id, { x: 0, y: 0 });
+      this.adjacency.set(node.id, new Set());
+    });
+    request.edges.forEach((edge) => {
+      this.adjacency.get(edge.source_id)?.add(edge.target_id);
+      this.adjacency.get(edge.target_id)?.add(edge.source_id);
+    });
+    this.totalIterations = Math.min(180, Math.max(80, 220 - Math.floor(request.nodes.length / 4)));
+  }
 
-  const iterations = Math.min(180, Math.max(80, 220 - Math.floor(request.nodes.length / 4)));
-  const padding = 48;
-  let lastPosted = 0;
+  hasNext(): boolean {
+    return this.iteration < this.totalIterations;
+  }
 
-  for (let iteration = 0; iteration < iterations; iteration += 1) {
-    if (cancelled.has(request.requestId)) return;
-    const alpha = 1 - iteration / iterations;
+  step(): void {
+    const request = this.request;
+    const alpha = 1 - this.iteration / this.totalIterations;
     const forces = new Map(request.nodes.map((node) => [node.id, { x: 0, y: 0 }]));
 
     for (let leftIndex = 0; leftIndex < request.nodes.length; leftIndex += 1) {
       const left = request.nodes[leftIndex]!;
-      const leftPosition = positions.get(left.id)!;
+      const leftPosition = this.positions.get(left.id)!;
       for (let rightIndex = leftIndex + 1; rightIndex < request.nodes.length; rightIndex += 1) {
         const right = request.nodes[rightIndex]!;
-        const rightPosition = positions.get(right.id)!;
+        const rightPosition = this.positions.get(right.id)!;
         let dx = rightPosition.x - leftPosition.x;
         let dy = rightPosition.y - leftPosition.y;
         const distanceSquared = Math.max(dx * dx + dy * dy, 36);
@@ -104,8 +139,8 @@ function runLayout(request: AtlasLayoutRequest): void {
     }
 
     for (const edge of request.edges) {
-      const sourcePosition = positions.get(edge.source_id);
-      const targetPosition = positions.get(edge.target_id);
+      const sourcePosition = this.positions.get(edge.source_id);
+      const targetPosition = this.positions.get(edge.target_id);
       if (!sourcePosition || !targetPosition) continue;
       let dx = targetPosition.x - sourcePosition.x;
       let dy = targetPosition.y - sourcePosition.y;
@@ -123,9 +158,9 @@ function runLayout(request: AtlasLayoutRequest): void {
     }
 
     for (const node of request.nodes) {
-      const position = positions.get(node.id)!;
+      const position = this.positions.get(node.id)!;
       const force = forces.get(node.id)!;
-      const velocity = velocities.get(node.id)!;
+      const velocity = this.velocities.get(node.id)!;
       const group = groupKey(node, request.layout);
       const groupAngle = (hashValue(group) % 360) * (Math.PI / 180);
       const groupingRadius = request.layout === "geography" ? 0.27 : 0.18;
@@ -133,7 +168,7 @@ function runLayout(request: AtlasLayoutRequest): void {
       let targetY = request.height / 2 + Math.sin(groupAngle) * request.height * groupingRadius;
 
       if (request.layout === "radial" && request.selectedId) {
-        const graphDistance = adjacency.get(request.selectedId)?.has(node.id) ? 185 : 330;
+        const graphDistance = this.adjacency.get(request.selectedId)?.has(node.id) ? 185 : 330;
         const angle = seededUnit(node.id, 11) * Math.PI * 2;
         targetX = request.width / 2 + Math.cos(angle) * (node.id === request.selectedId ? 0 : graphDistance);
         targetY = request.height / 2 + Math.sin(angle) * (node.id === request.selectedId ? 0 : graphDistance);
@@ -152,35 +187,14 @@ function runLayout(request: AtlasLayoutRequest): void {
       force.y += (targetY - position.y) * 0.0035 * alpha;
       velocity.x = (velocity.x + force.x) * 0.82;
       velocity.y = (velocity.y + force.y) * 0.82;
-      position.x = Math.min(request.width - padding, Math.max(padding, position.x + velocity.x));
-      position.y = Math.min(request.height - padding, Math.max(padding, position.y + velocity.y));
+      position.x = Math.min(request.width - this.padding, Math.max(this.padding, position.x + velocity.x));
+      position.y = Math.min(request.height - this.padding, Math.max(this.padding, position.y + velocity.y));
     }
 
-    const now = performance.now();
-    if (now - lastPosted > 48 && iteration < iterations - 1) {
-      lastPosted = now;
-      const response: AtlasLayoutResponse = {
-        type: "positions",
-        requestId: request.requestId,
-        positions: Object.fromEntries(positions),
-      };
-      self.postMessage(response);
-    }
+    this.iteration += 1;
   }
 
-  const response: AtlasLayoutResponse = {
-    type: "complete",
-    requestId: request.requestId,
-    positions: Object.fromEntries(positions),
-  };
-  self.postMessage(response);
-  cancelled.delete(request.requestId);
+  getPositions(): Record<string, AtlasPosition> {
+    return Object.fromEntries(this.positions);
+  }
 }
-
-self.addEventListener("message", (event: MessageEvent<AtlasWorkerRequest>) => {
-  if (event.data.type === "cancel") {
-    cancelled.add(event.data.requestId);
-    return;
-  }
-  runLayout(event.data);
-});

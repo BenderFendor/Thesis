@@ -25,8 +25,11 @@ adjudication flow in `wiki_evidence.py`. `CalculationTrace` records how a
 derived value (an indirect-ownership percentage, a correlation statistic)
 was computed, from which inputs.
 
-Entities live in `EvidenceEntity`, one record per real-world thing, resolved
-against external identifiers in `EntityExternalId` (`wikidata_qid`,
+Entities live in `EvidenceEntity`, one record per real-world thing. `record_kind`
+keeps the broad storage category. The required `entity_kind` keeps public
+distinctions such as `publication_brand`, `legal_entity`, `public_company`,
+`nonprofit`, `family_control_group`, and `broadcast_station`. External ids are
+resolved through `EntityExternalId` (`wikidata_qid`,
 `littlesis_id`, `domain`, `mbfc_id`, `cik`, `rss_catalog_key`):
 
 - `record_kind="publication"` -> **outlet** (a news site/RSS catalog entry).
@@ -58,10 +61,13 @@ order against a configured database (`app.database.AsyncSessionLocal`):
    RSS catalog source, and auto-merges `Organization(org_type="publisher")`
    rows into the matching publication entity on exact domain match
    (ambiguous cases queue an `AdjudicationItem`). Idempotent.
-2. **`python -m app.scripts.ingest_evidence --source wikidata|littlesis|mbfc|edgar|all [--limit N]`**
+2. **`python -m app.scripts.ingest_evidence --source wikidata|littlesis|mbfc|edgar|ads_txt|all [--limit N]`**
    -- writers that populate the evidence spine from Wikidata (P127/P749/
    P112/P169 via SPARQL), a LittleSis bulk dump, the MBFC outlet dataset, and
-   SEC EDGAR Exhibit-21 subsidiary lists. Scoped to catalog outlets and their
+   SEC EDGAR Exhibit-21 subsidiary lists, and publisher-root ads.txt files.
+   ads.txt creates candidate `authorizes_inventory_seller` claims with the
+   exact publisher domain, seller account, DIRECT/RESELLER type, capture time,
+   snapshot, and locator. Scoped to catalog outlets and their
    ownership ancestors (BFS, depth <= 3), not a bulk import. Deterministic
    document/snapshot ids and claim-hash deduplication make repeated runs
    safe.
@@ -93,12 +99,17 @@ server starts serving requests, so it never blocks or delays startup.
   moves on; a failure never aborts the app or a later stage. Each evidence
   source is also independently wrapped, so e.g. an offline Wikidata doesn't
   skip LittleSis/MBFC/EDGAR.
+- **Run ledger**: every source run writes an `evidence_ingest_runs` row with
+  adapter version, scope, network mode, counts, status, and exact failure.
+  A source-level failure makes the stage partial and does not write a full-success marker.
 - **Interval guard**: the network-bound evidence-ingestion stage is skipped
   if a prior run succeeded within `SCOOP_AUTO_INGEST_INTERVAL_HOURS` (default
   24h), so repeated restarts don't hammer external APIs. The local, cheap
   entity backfill runs on every start regardless. Last-success state reuses
-  the existing `wiki_index_status` table (`entity_type="auto_ingest"`) --
-  no new table.
+  the existing `wiki_index_status` table (`entity_type="auto_ingest"`).
+- **Leader scope**: the startup lock is keyed by the normalized repository path
+  and backend bind or `SCOOP_RUNTIME_INSTANCE`. Gunicorn workers for one server
+  share a leader. A server on another port cannot suppress ingestion.
 - **Disabling**: set `SCOOP_AUTO_INGEST=0` (or `false`) to disable entirely,
   e.g. for tests/CI. Enabled by default.
 - **Extending**: to add a future pipeline, write an idempotent
@@ -136,6 +147,17 @@ server starts serving requests, so it never blocks or delays startup.
 - **`/wiki/analysis/funding-bias`** -- the catalog-wide correlation:
   methodology card, contingency table, Cramer's V statistic, limitations,
   and the same correlation caption.
+- **Dossier inspector** -- selected records expose typed Summary, Ownership and
+  Control, Newsroom and People, Funding and Government Awards, Advertising and
+  Sponsorship, Publishing and Distribution, and Evidence and Gaps sections.
+  Current, proposed, pending, and disputed relationships stay in separate states.
+  Missing values use `unknown`, `not researched`, `source unavailable`, or
+  `chain incomplete` language.
+- **Corpus measurements** -- outlet dossiers load six reproducible traces:
+  publication cadence, corrections/retractions, byline/coauthor networks,
+  original-versus-syndicated coverage, reporter movement, and ownership
+  concentration. Each card exposes its denominator, corpus dates, coverage,
+  algorithm version, and full trace instead of presenting a context-free score.
 
 ## Route state
 
@@ -157,9 +179,11 @@ The Atlas uses typed endpoints under `/api/wiki/atlas`:
   version, generation timestamp, filters, truncation state, typed nodes,
   typed relationships, confidence, and evidence previews.
 - `GET /stats` returns graph coverage with numerators and denominators.
+- `GET /ingestion-status` returns freshness, last success, partial and failed
+  runs, retryable failures, and missing credentials.
 - `GET /search` returns grouped entity suggestions.
 - `GET /entities/{id}` returns the record, its evidence trail, connections,
-  and (for outlet/organization/person) the ownership chain, controls
+  typed dossier sections, and (for outlet/organization/person) the ownership chain, controls
   rollup, sibling-via-owner grouping, external ids, and funding-and-bias
   block.
 - `GET /index` provides server-filtered cursor pagination -- backs the
@@ -167,6 +191,13 @@ The Atlas uses typed endpoints under `/api/wiki/atlas`:
 - `POST /export` produces versioned JSON or CSV evidence bundles.
 - `GET /analysis/funding-bias` returns the catalog-wide correlation
   (`available: false` with an empty shape, not a 404, before the CLI has run).
+- `GET /analysis/media-measurements?source_name=...` calculates and persists six
+  versioned traces over the indexed article corpus and accepted current ownership graph.
+
+Every Atlas edge returns the exact `predicate`, a UI-only `display_group`,
+and the deprecated coarse `relation_type`. Voting, economic, and beneficial
+interests are decimal strings or string ranges. A ranged interest does not
+produce a midpoint percentage.
 
 The legacy `GET /api/wiki/organizations/graph` force-directed endpoint and
 its `source-intelligence-workspace.tsx`/`ownership-graph-canvas.tsx`

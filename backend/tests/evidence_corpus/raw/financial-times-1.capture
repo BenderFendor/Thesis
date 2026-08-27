@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+	<head>
+		<meta charset="utf-8" />
+		<title>FT &ndash; About Us</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="stylesheet" href="/main.css" />
+		<!-- CDN for CSS onScroll animations -->
+		<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+		<!-- CDN for Font Awesome -->
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+			integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w=="
+			crossorigin="anonymous"
+			referrerpolicy="no-referrer"
+		/>
+		<!-- Favicon -->
+		<link
+			rel="shortcut icon"
+			type="image/png"
+			href="https://images.prismic.io/ip-about-us/b5d7db8e-5557-43c7-a3ad-e534efc2e024_FT+Favicon+%281%29.png?auto=compress,format"
+		/>
+		<!-- social media card -->
+		<meta name="twitter:card" content="summary_large_image">
+		<meta name="twitter:site" content="@lifeatFT">
+		<meta property="og:type" content="article" />
+		<meta property="og:title" content="ABOUT THE FT">
+		<meta property="og:description" content="The Financial Times is one of the world’s leading news organisations, recognised internationally for its authority, integrity and accuracy.">
+		<meta property="og:image" content="https://images.prismic.io/ip-about-us/30f34502-de53-4bba-ab21-d1a721a0d238_B2C_Packshot.png">
+		<!-- Swiper.js Carousel-alt styles -->
+		<link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.css" />
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/swiper/swiper-bundle.min.css"
+		/>
+		<script async src="https://consent-notice.ft.com/cmp.js"></script>
+		<!-- Global site tag (gtag.js) - Google Analytics -->
+		<script google_tracking_id="G-QS1KKJGZXS">
+			function hasConsentedToCookies() {
+				const FTCONSENT_COOKIE_PATTERN = /FTConsent=([^;]+)/
+				const match = document.cookie.match(FTCONSENT_COOKIE_PATTERN)
+
+				if (!match) return false
+
+				const consentCookie = decodeURIComponent(match[1])
+				return consentCookie.includes('cookiesOnsite:on')
+			}
+
+			function loadGoogleAnalytics(trackingId) {
+				var script = document.createElement("script");
+				script.async = true;
+				script.src = "https://www.googletagmanager.com/gtag/js?id=G-QS1KKJGZXS";
+				document.head.appendChild(script);
+
+				// Initialize GA
+				window.dataLayer = window.dataLayer || [];
+				function gtag() { dataLayer.push(arguments); }
+				gtag('js', new Date());
+				const tracking_id = document.currentScript.getAttribute(
+					'google_tracking_id',
+				);
+				gtag('config', tracking_id);
+			}
+			if (hasConsentedToCookies()) {
+				loadGoogleAnalytics();
+			}
+		</script>
+	</head>
+
+	<body>
+		<div class="site-wrapper">
+		<header class="site-header header_container">
+		  <div class="header_logo">
+		    <a href="https://www.ft.com/" target="_blank" title="home"></a>
+		  </div>
+		  <div class="hamburger_container">
+		    <input type="checkbox" name="toggler" id="menu_toggle" class="toggler" />
+		    <div class="hamburger"></div>
+		    <div class="hamburger_menu">
+		      <div>
+		        <div>
+		          <ul>
+		            <li>
+		              <a class="nav_item" href="/"><h4>ABOUT US</h4></a>
+		            </li>
+		            <li>
+		              <input type="checkbox" id="company_checkbox_toggle" />
+		              <label for="company_checkbox_toggle"
+		                ><h4>COMPANY <i class="fas fa-chevron-down fa-xs"></i></h4
+		              ></label>
+		              <ul>
+		                <li>
+		                  <a href="/company"><h5>Company</h5></a>
+		                </li>
+		                <li>
+		                  <a href="/company/ft-group"><h5>FT Group</h5></a>
+		                </li>
+		                <li>
+		                  <a href="/company/leadership"><h5>Leadership</h5></a>
+		                </li>
+		                <li>
+		                  <a href="/company/diversity-inclusion"
+		                    ><h5>Diversity and Inclusion</h5></a
+		                  >
+		                </li>
+		                <li>
+		                  <a href="/company/sustainability"><h5>Sustainability</h5></a>
+		                </li>
+		                <li>
+		                  <a href="/company/giving-back"><h5>Giving back</h5></a>
+		                </li>
+		                <!-- <li>
+		                  <a href="/company/ft-pink-130"><h5>FT Pink 130</h5></a>
+		                </li> -->
+		                <li>
+		                  <a href="/company/our-standards"><h5>Our standards</h5></a>
+		                </li>
+		                <li>
+		                  <a href="/company/our-brand"><h5>Our Brand</h5></a>
+		                </li>
+		              </ul>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/services"><h4>SERVICES</h4></a>
+		            </li>
+		            <li>
+		              <input type="checkbox" id="careers_checkbox_toggle" />
+		              <label for="careers_checkbox_toggle"
+		                ><h4>CAREERS <i class="fas fa-chevron-down fa-xs"></i></h4
+		              ></label>
+		              <ul>
+		                <li>
+		                  <a href="/careers"><h5>Careers</h5></a>
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/how-we-hire-at-the-ft"
+		                    ><h5>How We Hire at the FT</h5></a
+		                  >
+		                </li>
+		                <li>
+		                  <a
+		                    target="_blank"
+		                    class="nav_item"
+		                    href="https://boards.eu.greenhouse.io/financialtimes33/"
+		                  >
+		                    <h5>Vacancies</h5>
+		                  </a>
+		                </li>
+		                <li>
+		                  <a href="/careers/what-we-do"><h5>What we do</h5></a>
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/ft-blog"><h5>Life at FT Blog</h5></a>
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/benefits"
+		                    ><h5>Benefits</h5></a
+		                  >
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/values"><h5>Values</h5></a>
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/early-careers"
+		                    ><h5>Early Careers</h5></a
+		                  >
+		                </li>
+		                <li>
+		                  <a class="nav_item" href="/careers/stay-connected"
+		                    ><h5>JOIN OUR TALENT COMMUNITY</h5></a
+		                  >
+		                </li>
+		              </ul>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/press"><h4>NEWS</h4></a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/contact-us"><h4>CONTACT</h4></a>
+		            </li>
+		          </ul>
+		        </div>
+		      </div>
+		    </div>
+		  </div>
+		  <nav class="nav">
+		    <ul class="nav_list">
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/"><h4>ABOUT US</h4></a>
+		      </li>
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/company">
+		          <h4>COMPANY</h4>
+		          <ul class="nav_item_sublist">
+		            <li>
+		              <a class="nav_item" href="/company/ft-group"><h5>FT Group</h5></a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/company/leadership"
+		                ><h5>Leadership</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/company/diversity-inclusion"
+		                ><h5>Diversity and Inclusion</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/company/sustainability"
+		                ><h5>Sustainability</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/company/giving-back"
+		                ><h5>Giving back</h5></a
+		              >
+		            </li>
+		            <!-- <li>
+		              <a class="nav_item" href="/company/ft-pink-130"><h5>FT Pink 130</h5></a>
+		            </li> -->
+		            <li>
+		              <a class="nav_item" href="/company/our-standards"
+		                ><h5>Our standards</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/company/our-brand"
+		                ><h5>Our Brand</h5></a
+		              >
+		          </ul>
+		        </a>
+		      </li>
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/services"><h4>SERVICES</h4></a>
+		      </li>
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/careers"
+		          ><h4>CAREERS</h4>
+		          <ul class="nav_item_sublist">
+		            <li>
+		              <a class="nav_item" href="/careers/how-we-hire-at-the-ft"><h5>How We Hire at the FT</h5></a>
+		            </li>
+		            <li>
+		              <a
+		                class="nav_item"
+		                href="/careers#latest_vacancies"
+		              >
+		                <h5>Vacancies</h5>
+		              </a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/what-we-do"
+		                ><h5>What we do</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/ft-blog"><h5>Life at FT Blog</h5></a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/benefits"><h5>Benefits</h5></a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/values"><h5>Values</h5></a>
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/early-careers"
+		                ><h5>Early Careers</h5></a
+		              >
+		            </li>
+		            <li>
+		              <a class="nav_item" href="/careers/stay-connected"
+		                ><h5>Join our talent Community</h5></a
+		              >
+		            </li>
+		          </ul>
+		        </a>
+		      </li>
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/press"><h4>NEWS</h4></a>
+		      </li>
+		      <li class="nav_list_item">
+		        <a class="nav_item" href="/contact-us"><h4>CONTACT</h4></a>
+		      </li>
+		    </ul>
+		  </nav>
+		</header>		
+		<main id="content">
+			<div class="container">
+			<div class="home_hero_container">
+    <div class="home_hero_title_and_intro_container ">
+      <h3 class="home_hero_title">
+         
+        <span>ABOUT</span>
+        <span>THE FT</span>
+      </h3>
+  
+        <h1 class="home_hero_intro">The Financial Times is one of the world’s leading news organisations, recognised internationally for its authority, integrity and accuracy.</h1>
+    </div>
+  
+      <div class="home_hero_grid with-gradient">
+        <img
+          src="https://images.prismic.io/ip-about-us/aGK5iXfc4bHWi3as_HOMEPAGE.png?auto&#x3D;format,compress"
+          alt="ABOUT THE FT"
+          class="home_hero_image"
+        />
+      </div>
+  </div>
+  <div class="teaser-image">
+    <div class="teaser-image__container">
+        <div class="tile_home_only_container" data-aos="fade-up" data-aos-offset="50">
+        	<div class="tile_home_only_spacer"></div>
+        	<div class="tile_home_only_image_container">
+        		<img src="https://images.prismic.io/ip-about-us/62ce3dbe-2d84-4709-940c-8752fe945ee0_Company.jpg?auto&#x3D;compress,format" alt="Company" />
+        	</div>
+        	<div class="tile_home_only_title">
+        		<h1>COMPANY</h1>
+        	</div>
+        	<div class="tile_home_only_blurb_container">
+        		<p>The FT Group employs more than 2,900 people worldwide, including 700 journalists in 40 countries. It includes the Financial Times, FT Specialist, and a number of services and joint ventures.</p>
+        	</div>
+        
+        	<div class="tile_home_only_link">
+        		<a href="https://aboutus.ft.com/company"
+        			><h5>
+        				FIND OUT MORE
+        				<span class="tile_home_only_link_arrow"
+        					><i class="fas fa-arrow-right"></i
+        				></span></h5
+        		></a>
+        	</div>
+        </div>        <div class="tile_home_only_container" data-aos="fade-up" data-aos-offset="50">
+        	<div class="tile_home_only_spacer"></div>
+        	<div class="tile_home_only_image_container">
+        		<img src="https://images.prismic.io/ip-about-us/aGKxFXfc4bHWi3VF_Homepageservices.png?auto&#x3D;format,compress" alt="Services" />
+        	</div>
+        	<div class="tile_home_only_title">
+        		<h1>SERVICES</h1>
+        	</div>
+        	<div class="tile_home_only_blurb_container">
+        		<p>We provide essential news and analysis to ambitious individuals and companies around the world, alongside a suite of leadership services that put our content and expertise to practical use.</p>
+        	</div>
+        
+        	<div class="tile_home_only_link">
+        		<a href="https://aboutus.ft.com/services"
+        			><h5>
+        				FIND OUT MORE
+        				<span class="tile_home_only_link_arrow"
+        					><i class="fas fa-arrow-right"></i
+        				></span></h5
+        		></a>
+        	</div>
+        </div>        <div class="tile_home_only_container" data-aos="fade-up" data-aos-offset="50">
+        	<div class="tile_home_only_spacer"></div>
+        	<div class="tile_home_only_image_container">
+        		<img src="https://images.prismic.io/ip-about-us/aGK6G3fc4bHWi3bZ_Homepagecareers.png?auto&#x3D;format,compress" alt="Careers" />
+        	</div>
+        	<div class="tile_home_only_title">
+        		<h1>CAREERS</h1>
+        	</div>
+        	<div class="tile_home_only_blurb_container">
+        		<p>Looking for a new opportunity? We offer excellent benefits and an inclusive environment to develop your career.</p>
+        	</div>
+        
+        	<div class="tile_home_only_link">
+        		<a href="https://aboutus.ft.com/careers"
+        			><h5>
+        				FIND OUT MORE
+        				<span class="tile_home_only_link_arrow"
+        					><i class="fas fa-arrow-right"></i
+        				></span></h5
+        		></a>
+        	</div>
+        </div>        <div class="tile_home_only_container" data-aos="fade-up" data-aos-offset="50">
+        	<div class="tile_home_only_spacer"></div>
+        	<div class="tile_home_only_image_container">
+        		<img src="https://images.prismic.io/ip-about-us/aGK70Hfc4bHWi3cC_HomepageNEWS.png?auto&#x3D;format,compress" alt="News" />
+        	</div>
+        	<div class="tile_home_only_title">
+        		<h1>NEWS</h1>
+        	</div>
+        	<div class="tile_home_only_blurb_container">
+        		<p>Read our latest announcements or contact the communications team for interview, partnership or brand-related requests.</p>
+        	</div>
+        
+        	<div class="tile_home_only_link">
+        		<a href="https://aboutus.ft.com/press"
+        			><h5>
+        				FIND OUT MORE
+        				<span class="tile_home_only_link_arrow"
+        					><i class="fas fa-arrow-right"></i
+        				></span></h5
+        		></a>
+        	</div>
+        </div>    </div>
+  </div>
+		</div>
+		</main>
+		<div class="footer_layout">
+			<footer>
+				<div class="footer_container">
+					<ul class="footer_legal_links">
+						<li class="footer_legal_link_item_first">
+							<a href="http://help.ft.com/help/legal-privacy/terms-conditions"
+								>Terms &amp; Conditions</a
+							>
+						</li>
+						<li class="footer_legal_link_item">
+							<a href="http://help.ft.com/help/legal-privacy/privacy/">Privacy</a>
+						</li>
+						<li class="footer_legal_link_item">
+							<a href="http://help.ft.com/help/legal-privacy/cookies/">Cookies</a>
+						</li>
+						<li class="footer_legal_link_item">
+							<a
+								href="http://help.ft.com/help/legal-privacy/copyright/copyright-policy/"
+								>Copyright</a
+							>
+						</li>
+					</ul>
+					<div class="footer_copyright">
+						<p>
+							© THE FINANCIAL TIMES LTD 2026.
+							<abbr title="Financial Times" aria-label="FT">FT</abbr> and ‘Financial
+							Times’ are trademarks of The Financial Times Ltd.
+						</p>
+						<p>
+							The Financial Times and its journalism are subject to a
+							self-regulation regime under the
+							<a href="/company/our-standards/editorial-code"
+								>FT Editorial Code of Practice</a
+							>.
+						</p>
+					</div>
+					<div class="footer_brand_container">
+						<div class="footer_brand"></div>
+					</div>
+				</div>
+			</footer>
+		</div>		<script
+			async
+			defer
+			type="text/javascript"
+			src="https://static.cdn.prismic.io/prismic.min.js?repo=ip-about-us&new=true"
+		></script>
+		<script type="text/javascript" src="/main.js/main.js"></script>
+		<!-- CDN for onScroll animations -->
+		<script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+		<script>
+			AOS.init();
+		</script>
+		<!-- CDN for Swiper.js Carousel -->
+		<script src="https://unpkg.com/swiper/swiper-bundle.js"></script>
+		<script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
+		<!-- Options for Swiper.js Carousel  -->
+		<script>
+			const swiper = new Swiper('.swiper-container', {
+				// Optional parameters
+				loop: true,
+				// pagination
+				pagination: {
+					el: '.swiper-pagination',
+				},
+				// Navigation arrows
+				navigation: {
+					nextEl: '.swiper-button-next',
+					prevEl: '.swiper-button-prev',
+				},
+				//scrollbar
+				scrollbar: {
+					el: '.swiper-scrollbar',
+				},
+				autoplay: {
+					delay: 2000,
+				},
+			});
+		</script>
+		</div>
+	</body>
+</html>

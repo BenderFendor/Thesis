@@ -26,6 +26,11 @@ raw artifact -> snapshot -> observation -> claim -> accepted relationship -> mea
 - A 20-case public benchmark registry, 15 canonical assertions, six mutation classes, hidden-case manifest support, and a static clean-room scanner.
 - Atlas `as_of`, `known_at`, and `accepted_only` query controls. Accepted evidence edges preserve exact predicates, claim IDs, qualifiers, snapshot hashes, locators, and policy versions.
 - A dry-run-first legacy migration that produces candidate claims and a contradiction report; it never upgrades catalog metadata into accepted ownership.
+- Required public `entity_kind` values remain separate from broad storage `record_kind` values.
+- Accepted relationships carry a lifecycle state separate from acceptance: current, historical, proposed, pending, disputed, rejected, or superseded.
+- `evidence_ingest_runs` records adapter scope, version, counts, network mode, completion state, credentials, and exact failures.
+- Candidate-only adapters cover official corporate records, GLEIF, Companies House company/PSC/officer records, IRS Form 990, USAspending, FCC ownership and political files, article JSON-LD/bylines/profiles, ads.txt, sellers.json, and sponsorship disclosures. Source-native parsers normalize records before the shared spine writer runs.
+- Publication cadence, corrections/retractions, byline/coauthor networks, original-versus-syndicated coverage, reporter movement, and ownership concentration persist as `CalculationTrace` rows with a corpus window, denominator, coverage, method version, inputs, and result.
 
 ## Database migration
 
@@ -62,6 +67,8 @@ No relationship produced by this script is accepted. Acceptance requires capture
 - `GET /api/wiki/evidence/relationships?as_of=...&known_at=...`
 - `GET /api/wiki/evidence/relationships/{id}/proof`
 - `GET /api/wiki/atlas/graph?accepted_only=true&as_of=...&known_at=...`
+- `GET /api/wiki/atlas/ingestion-status`
+- `GET /api/wiki/atlas/analysis/media-measurements?source_name=...`
 
 ## Proof-suite workflow
 
@@ -80,10 +87,22 @@ PYTHONPATH=. pytest -q \
 PYTHONPATH=. python scripts/check_proof_suite_clean_room.py app
 ```
 
+From the repository root, validate the checked corpus:
+
+```bash
+./scripts/scoop evidence replay
+```
+
+The command validates all hashes and review gates before it creates a private temporary PostgreSQL cluster. It runs Alembic to head, bootstraps the legacy tables through the application metadata, forces offline mode, runs the real resolver, adapters, policy, materializer, calculations, dossier projection, and assertions, and exports claim bundles in its JSON report. It never connects to or clears `DATABASE_URL`.
+
+The checked corpus contains primary-source response bodies, request metadata, hashes, normalized records, expectations, and negative assertions for all 20 public cases. Each case remains `review.status=pending`; the public command exits with code 2 only because an independent reviewer has not approved the records and expectations. Automated tests exercise the replay engine under an explicitly non-review test identity without modifying that release gate.
+
+To refresh corpus captures, run `PYTHONPATH=backend uv run python backend/scripts/capture_evidence_corpus.py`. SEC requests also require `SCOOP_SEC_USER_AGENT` with real contact information, following SEC fair-access guidance. The capture command fails that source explicitly when the value is missing.
+
 The public registry deliberately names benchmark cases and their failure modes but contains no expected ownership path. Fifteen cases can be used during development; five remain hidden for final evaluation.
 
 ## Deliberate non-claims
 
-This PR creates the general evidence and evaluation machinery. It does **not** claim that all 20 benchmark truth bundles, five hidden cases, or the random 250-relationship gold set have already been captured and human-reviewed. Those require actual filing snapshots and reviewer signatures; the code now enforces the format and clean-room rules they must satisfy.
+This implementation does **not** claim that the 20 benchmark bundles or five hidden cases have been independently approved. The public captures and expectations are present; reviewer signatures and independently authored hidden cases remain external release gates.
 
-`app.proof_suite.runner.evaluate_case_against_database` can now run a case's 15 assertions against what the pipeline actually materialized for a given truth bundle (not just check the truth bundle's own shape, which is all `assert_snapshot_pinned_truth` does) -- but running it for real still needs the same missing pieces: retrieved snapshots for the 20 public cases, a human-reviewed truth bundle pinned from them, and the 5 hidden cases commissioned from a reviewer who didn't write the adapters. See docs/agents/traces/fix-evidence-spine-issues-10-11-12-13.md for what changed and what remains blocked on that human step.
+`app.proof_suite.runner.evaluate_case_against_database` and `./scripts/scoop evidence replay` exercise complementary assertion sets. Release still requires an independent reviewer for the 20 public cases and five hidden cases commissioned from people who did not write the parsers.

@@ -154,6 +154,10 @@ class ReporterProfileResponse(BaseModel):
     """Reporter Profile Response."""
 
     id: int | None = None
+    # Set when the requested id was a soft-retired (merged) reporter row and
+    # this response serves the winner's profile instead of 404ing -- lets
+    # old bookmarks/links keep working. None on a direct, non-redirected hit.
+    redirected_from_id: int | None = None
     name: str
     normalized_name: str | None = None
     bio: str | None = None
@@ -465,7 +469,13 @@ async def get_reporter(
     reporter_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> ReporterProfileResponse:
-    """Get a reporter by ID."""
+    """Get a reporter by ID.
+
+    A soft-retired (merged, see audit rec 3) id serves its winner's profile
+    instead of 404ing, so old bookmarks/links keep working. Follows at most
+    a few hops in case of a chained merge, then falls back to whatever row
+    it last reached rather than looping forever on bad data.
+    """
     stmt = select(Reporter).where(Reporter.id == reporter_id)
     result = await db.execute(stmt)
     reporter = result.scalar_one_or_none()
@@ -473,8 +483,20 @@ async def get_reporter(
     if not reporter:
         raise HTTPException(status_code=404, detail="Reporter not found")
 
+    redirected_from_id: int | None = None
+    seen_ids = {reporter.id}
+    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
+        next_reporter = await db.get(Reporter, reporter.merged_into)
+        if next_reporter is None or next_reporter.id in seen_ids:
+            break
+        redirected_from_id = redirected_from_id or reporter_id
+        reporter = next_reporter
+        seen_ids.add(reporter.id)
+
     normalized_wikipedia_url = await _ensure_english_wikipedia_url(reporter.wikipedia_url)
-    return _reporter_response_from_record(reporter, normalized_wikipedia_url, True)
+    response = _reporter_response_from_record(reporter, normalized_wikipedia_url, True)
+    response.redirected_from_id = redirected_from_id
+    return response
 
 
 @router.post("/organization/research", response_model=OrganizationResearchResponse)
@@ -672,7 +694,13 @@ async def list_reporters(
     offset: int = Query(0, ge=0),
 ) -> list[ReporterProfileResponse]:
     """List all cached reporters."""
-    stmt = select(Reporter).limit(limit).offset(offset)
+    stmt = (
+        select(Reporter)
+        .where(Reporter.retirement_reason.is_(None))
+        .order_by(Reporter.id)
+        .limit(limit)
+        .offset(offset)
+    )
     result = await db.execute(stmt)
     reporters = result.scalars().all()
     normalized_wikipedia_urls = await _normalize_wikipedia_urls(
@@ -691,7 +719,7 @@ async def list_organizations(
     offset: int = Query(0, ge=0),
 ) -> list[OrganizationResearchResponse]:
     """List all cached organizations."""
-    stmt = select(Organization).limit(limit).offset(offset)
+    stmt = select(Organization).order_by(Organization.id).limit(limit).offset(offset)
     result = await db.execute(stmt)
     orgs = result.scalars().all()
     normalized_wikipedia_urls = await _normalize_wikipedia_urls([o.wikipedia_url for o in orgs])

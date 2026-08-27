@@ -53,3 +53,11 @@ export function debounce<TArgs extends unknown[], TResult>(
     timeout = setTimeout(() => func(...args), wait)
   }
 }
+
+// Deterministic query-param serialization for multi-source filters
+export function serializeSources(sources?: string[]): string | null {
+  if (!sources?.length) {
+    return null
+  }
+  return [...sources].sort().join(",")
+}

@@ -86,6 +86,78 @@ def _make_provenance_entry(
     }
 
 
+CORRECTION_SIGNAL_IDS = {"corrections_process", "corrections_policy"}
+
+METHODOLOGY_SIGNAL_IDS = {
+    "editorial_independence",
+    "ethics_or_standards",
+    "staff_or_byline_disclosure",
+    "anonymous_sources_policy",
+    "ai_or_synthetic_media_policy",
+    "conflicts_policy",
+}
+
+
+async def _analysis_score_signal(
+    db: AsyncSession, source_name: str, axis_names: list[str]
+) -> tuple[float, int, list[dict[str, Any]]] | None:
+    """Return (raw_score, signals, provenance) from one source-analysis row."""
+    score_row = (
+        (
+            await db.execute(
+                select(SourceAnalysisScore).where(
+                    func.lower(SourceAnalysisScore.source_name) == func.lower(source_name),
+                    SourceAnalysisScore.axis_name.in_(axis_names),
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if score_row is None or score_row.score is None:
+        return None
+    provenance = [
+        _make_provenance_entry("source_analysis_score", str(c.get("url") or ""))
+        for c in (score_row.citations or [])
+        if isinstance(c, dict)
+    ]
+    if not provenance:
+        provenance.append(_make_provenance_entry("source_analysis_score"))
+    return float(score_row.score) * 20.0, 1, provenance
+
+
+async def _metadata_policy_signals(
+    db: AsyncSession, source_name: str, wanted_ids: set[str]
+) -> list[dict[str, Any]] | None:
+    """Return matching policy-transparency signals from source metadata."""
+    meta_result = await db.execute(
+        select(SourceMetadata).where(
+            func.lower(SourceMetadata.source_name) == func.lower(source_name)
+        )
+    )
+    meta = meta_result.scalars().first()
+    if not (meta and isinstance(meta.research_sources, dict)):
+        return None
+    policy_items = meta.research_sources.get("policy_transparency") or {}
+    raw_signals = policy_items.get("signals") if isinstance(policy_items, dict) else []
+    signals = raw_signals if isinstance(raw_signals, list) else []
+    matched = [
+        s
+        for s in signals
+        if isinstance(s, dict) and str(s.get("id") or s.get("signal") or "").lower() in wanted_ids
+    ]
+    return matched or None
+
+
+def _policy_provenance(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    provenance: list[dict[str, Any]] = []
+    for signal in signals:
+        for url in signal.get("urls") or []:
+            if isinstance(url, str):
+                provenance.append(_make_provenance_entry("official_policy_page", url))
+    return provenance
+
+
 class CredibilitySignalStore:
     """Computes 6-dimension credibility profiles for news sources."""
 
@@ -402,54 +474,26 @@ class CredibilitySignalStore:
         weight_total = 0.0
         provenance: list[dict[str, Any]] = []
 
-        score_result = await db.execute(
-            select(SourceAnalysisScore).where(
-                func.lower(SourceAnalysisScore.source_name) == func.lower(source_name),
-                SourceAnalysisScore.axis_name.in_(
-                    ["correction_record", "corrections", "corrections_history"]
-                ),
-            )
+        analysis = await _analysis_score_signal(
+            db,
+            source_name,
+            ["correction_record", "corrections", "corrections_history"],
         )
-        score_row = score_result.scalars().first()
-        if score_row and score_row.score is not None:
+        if analysis is not None:
+            raw_score, signals, signal_provenance = analysis
             weight = 0.55
-            score += float(score_row.score) * 20.0 * weight
+            score += raw_score * weight
+            weight_total += weight
+            signals_available += signals
+            provenance.extend(signal_provenance)
+
+        matched = await _metadata_policy_signals(db, source_name, CORRECTION_SIGNAL_IDS)
+        if matched is not None:
+            weight = 0.45
+            score += 85.0 * weight
             weight_total += weight
             signals_available += 1
-            provenance.extend(
-                _make_provenance_entry("source_analysis_score", str(c.get("url") or ""))
-                for c in (score_row.citations or [])
-                if isinstance(c, dict)
-            )
-            if not provenance:
-                provenance.append(_make_provenance_entry("source_analysis_score"))
-
-        meta_result = await db.execute(
-            select(SourceMetadata).where(
-                func.lower(SourceMetadata.source_name) == func.lower(source_name)
-            )
-        )
-        meta = meta_result.scalars().first()
-        if meta and isinstance(meta.research_sources, dict):
-            policy_items = meta.research_sources.get("policy_transparency") or {}
-            raw_signals = policy_items.get("signals") if isinstance(policy_items, dict) else []
-            signals = raw_signals if isinstance(raw_signals, list) else []
-            correction_signals = [
-                s
-                for s in signals
-                if isinstance(s, dict)
-                and str(s.get("id") or s.get("signal") or "").lower()
-                in {"corrections_process", "corrections_policy"}
-            ]
-            if correction_signals:
-                weight = 0.45
-                score += 85.0 * weight
-                weight_total += weight
-                signals_available += 1
-                for signal in correction_signals:
-                    for url in signal.get("urls") or []:
-                        if isinstance(url, str):
-                            provenance.append(_make_provenance_entry("official_policy_page", url))
+            provenance.extend(_policy_provenance(matched))
 
         if weight_total == 0:
             return _make_empty_dimension("correction_record")
@@ -474,61 +518,26 @@ class CredibilitySignalStore:
         weight_total = 0.0
         provenance: list[dict[str, Any]] = []
 
-        score_result = await db.execute(
-            select(SourceAnalysisScore).where(
-                func.lower(SourceAnalysisScore.source_name) == func.lower(source_name),
-                SourceAnalysisScore.axis_name.in_(
-                    ["methodology_transparency", "editorial_standards", "transparency"]
-                ),
-            )
+        analysis = await _analysis_score_signal(
+            db,
+            source_name,
+            ["methodology_transparency", "editorial_standards", "transparency"],
         )
-        score_row = score_result.scalars().first()
-        if score_row and score_row.score is not None:
+        if analysis is not None:
+            raw_score, signals, signal_provenance = analysis
             weight = 0.45
-            score += float(score_row.score) * 20.0 * weight
+            score += raw_score * weight
             weight_total += weight
-            signals_available += 1
-            provenance.extend(
-                _make_provenance_entry("source_analysis_score", str(c.get("url") or ""))
-                for c in (score_row.citations or [])
-                if isinstance(c, dict)
-            )
-            if not provenance:
-                provenance.append(_make_provenance_entry("source_analysis_score"))
+            signals_available += signals
+            provenance.extend(signal_provenance)
 
-        meta_result = await db.execute(
-            select(SourceMetadata).where(
-                func.lower(SourceMetadata.source_name) == func.lower(source_name)
-            )
-        )
-        meta = meta_result.scalars().first()
-        if meta and isinstance(meta.research_sources, dict):
-            policy_items = meta.research_sources.get("policy_transparency") or {}
-            raw_signals = policy_items.get("signals") if isinstance(policy_items, dict) else []
-            signals = raw_signals if isinstance(raw_signals, list) else []
-            methodology_ids = {
-                "editorial_independence",
-                "ethics_or_standards",
-                "staff_or_byline_disclosure",
-                "anonymous_sources_policy",
-                "ai_or_synthetic_media_policy",
-                "conflicts_policy",
-            }
-            matched = [
-                s
-                for s in signals
-                if isinstance(s, dict)
-                and str(s.get("id") or s.get("signal") or "").lower() in methodology_ids
-            ]
-            if matched:
-                weight = 0.55
-                score += min(100.0, 35.0 + len(matched) * 12.5) * weight
-                weight_total += weight
-                signals_available += len(matched)
-                for signal in matched:
-                    for url in signal.get("urls") or []:
-                        if isinstance(url, str):
-                            provenance.append(_make_provenance_entry("official_policy_page", url))
+        matched = await _metadata_policy_signals(db, source_name, METHODOLOGY_SIGNAL_IDS)
+        if matched is not None:
+            weight = 0.55
+            score += min(100.0, 35.0 + len(matched) * 12.5) * weight
+            weight_total += weight
+            signals_available += len(matched)
+            provenance.extend(_policy_provenance(matched))
 
         if weight_total == 0:
             return _make_empty_dimension("methodology_transparency")

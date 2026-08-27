@@ -204,18 +204,25 @@ def _create_chroma_client() -> ChromaClientProtocol:
             "Chroma dependencies are not installed; install chromadb to enable vector store."
         ) from exc
 
-    return cast(
-        ChromaClientProtocol,
-        chroma_module.HttpClient(
-            host=CHROMA_HOST,
-            port=CHROMA_PORT,
-            settings=chroma_settings_cls(
-                anonymized_telemetry=False,
-                allow_reset=True,
-                chroma_server_ssl_verify=False,
-            ),
+    client = chroma_module.HttpClient(
+        host=CHROMA_HOST,
+        port=CHROMA_PORT,
+        settings=chroma_settings_cls(
+            anonymized_telemetry=False,
+            allow_reset=True,
+            chroma_server_ssl_verify=False,
         ),
     )
+    # chromadb's HttpClient sends bodies via httpx `content=` (not `json=`), which
+    # never sets a Content-Type header. Newer Starlette/FastAPI (installed here
+    # per requirements.txt's unpinned fastapi/starlette versions) refuses to parse
+    # a body as JSON without that header, so every POST (upsert/add/create) 422s
+    # with "Input should be a valid dictionary" while GETs work fine. Setting the
+    # header directly on the client's session is required: passing `headers=` to
+    # HttpClient() or `chroma_server_headers` in Settings both get overwritten by
+    # chromadb's own client construction when chroma_server_ssl_verify is set.
+    client._server._session.headers["Content-Type"] = "application/json"
+    return cast(ChromaClientProtocol, client)
 
 
 def _get_chroma_include(*values: str) -> list[IncludeEnum]:
@@ -538,6 +545,17 @@ class VectorStore:
         """Batch insert articles for better performance."""
         global _vector_store
         try:
+            # Chroma's `upsert` still validates uniqueness of the `ids` list
+            # within a single call -- a chroma_id repeated inside one batch
+            # (e.g. the same article surfaced by overlapping RSS feeds in the
+            # same flush) raises DuplicateIDError even though upsert-by-id is
+            # otherwise idempotent across calls. Dedupe here, keeping the
+            # last payload per chroma_id, so every caller is safe.
+            deduped: dict[str, BatchArticlePayload] = {}
+            for article in articles:
+                deduped[article["chroma_id"]] = article
+            articles = list(deduped.values())
+
             ids: list[str] = []
             documents: list[str] = []
             metadatas: list[Metadata] = []

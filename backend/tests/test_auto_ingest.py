@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings as real_settings
 from app.database import WikiIndexStatus, get_utc_now
+from app.models.evidence import EvidenceIngestRun
 from app.services import auto_ingest
 from app.services.auto_ingest import Stage, run_auto_ingest
 
@@ -170,6 +171,54 @@ async def test_interval_guard_runs_network_bound_stage_when_stale(monkeypatch, s
     assert calls == ["network"]
 
 
+async def test_failed_network_stage_does_not_write_success_marker(monkeypatch, session_factory):
+    async def network_stage(db: AsyncSession) -> None:
+        raise RuntimeError("required adapter failed")
+
+    monkeypatch.setattr(auto_ingest, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(auto_ingest, "settings", _enabled_settings())
+    monkeypatch.setattr(
+        auto_ingest, "STAGES", [Stage("network", network_stage, network_bound=True)]
+    )
+
+    await run_auto_ingest()
+
+    async with session_factory() as db:
+        marker = (
+            await db.execute(
+                auto_ingest.select(WikiIndexStatus).where(
+                    WikiIndexStatus.entity_type == "auto_ingest"
+                )
+            )
+        ).scalar_one_or_none()
+    assert marker is None
+
+
+async def test_ingest_status_surfaces_partial_and_retryable_failure(session_factory):
+    async with session_factory() as db:
+        db.add(
+            EvidenceIngestRun(
+                id="ingest_partial",
+                adapter="edgar",
+                adapter_version="test/1",
+                scope={"cik": "1"},
+                started_at=get_utc_now(),
+                completed_at=get_utc_now(),
+                status="partial",
+                network_mode="live",
+                failure="one required filing failed",
+                retryable=True,
+                missing_credentials=[],
+            )
+        )
+        await db.commit()
+        status = await auto_ingest.get_ingest_status(db)
+
+    assert status.freshness == "partial"
+    assert status.has_retryable_failures is True
+    assert status.runs[0].failure == "one required filing failed"
+
+
 async def test_scoop_auto_ingest_disabled_skips_all_stages(monkeypatch, session_factory):
     calls: list[str] = []
 
@@ -200,10 +249,30 @@ async def test_disabled_database_skips_all_stages(monkeypatch, session_factory):
     assert calls == []
 
 
-def test_default_stage_registry_covers_the_three_atlas_pipelines():
+def test_default_stage_registry_covers_the_atlas_pipelines():
     names = [stage.name for stage in auto_ingest.STAGES]
-    assert names == ["entity_backfill", "evidence_ingestion", "funding_bias_analysis"]
-    assert [stage.network_bound for stage in auto_ingest.STAGES] == [False, True, False]
+    assert names == [
+        "reporter_outlet_repair",
+        "entity_backfill",
+        "reporter_name_cleanup",
+        "reporter_agency_flag",
+        "reporter_split_backfill",
+        "reporter_merge",
+        "evidence_ingestion",
+        "reporter_byline_ingest",
+        "funding_bias_analysis",
+    ]
+    assert [stage.network_bound for stage in auto_ingest.STAGES] == [
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+    ]
 
 
 @pytest.mark.parametrize("raw_value", ["0", "false", "False", ""])

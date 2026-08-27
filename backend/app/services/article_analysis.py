@@ -8,7 +8,7 @@ from typing import Any, cast
 from openai.types.chat import ChatCompletion
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from app.core.config import settings
+from app.core.config import resolve_opencode_model, settings
 from app.core.llm_client import LLMClient, get_llm_client
 from app.core.logging import get_logger
 from app.services.article_extraction import extract_article_full_text
@@ -67,7 +67,7 @@ async def analyze_with_gemini(
 
         response = _generate_content_safe(
             llm_client=llm_client,
-            model=settings.open_router_model,
+            model=resolve_opencode_model(settings.open_router_model),
             messages=[
                 {"role": "system", "content": SYSTEM_MESSAGE},
                 {"role": "user", "content": prompt},

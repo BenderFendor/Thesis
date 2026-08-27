@@ -577,6 +577,11 @@
   background: var(--atlas-muted);
 }
 
+.confidence[data-tier="verified"],
+.confidence[data-tier="strong"] {
+  color: var(--atlas-success);
+}
+
 .confidence[data-tier="verified"]::before,
 .confidence[data-tier="strong"]::before {
   background: var(--atlas-success);
@@ -613,6 +618,29 @@
 
 .indexCard:hover {
   background: rgb(240 237 228 / 0.035);
+}
+
+.indexHeaderRow {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) repeat(3, minmax(80px, 0.45fr)) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--atlas-line);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--atlas-muted);
+}
+
+.indexParent {
+  color: var(--atlas-paper-soft);
+}
+
+.indexUnresearched {
+  color: var(--atlas-muted);
+  font-style: italic;
 }
 
 .accessibleList {
@@ -721,13 +749,17 @@
     min-width: 190px;
   }
 
-  .indexCard {
+  .indexCard,
+  .indexHeaderRow {
     grid-template-columns: 36px minmax(0, 1fr) auto;
   }
 
   .indexCard > :nth-child(3),
   .indexCard > :nth-child(4),
-  .indexCard > :nth-child(5) {
+  .indexCard > :nth-child(5),
+  .indexHeaderRow > :nth-child(3),
+  .indexHeaderRow > :nth-child(4),
+  .indexHeaderRow > :nth-child(5) {
     display: none;
   }
 }

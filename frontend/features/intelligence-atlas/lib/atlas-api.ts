@@ -3,6 +3,8 @@ import { API_BASE_URL } from "@/lib/api";
 import {
   AtlasEntityRecordSchema,
   AtlasGraphResponseSchema,
+  AtlasIngestStatusResponseSchema,
+  AtlasMeasurementsResponseSchema,
   AtlasIndexResponseSchema,
   AtlasSearchResponseSchema,
   AtlasStatsResponseSchema,
@@ -54,6 +56,11 @@ export async function fetchAtlasStats(signal?: AbortSignal) {
   return parseResponse(response, AtlasStatsResponseSchema);
 }
 
+export async function fetchAtlasIngestStatus(signal?: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/api/wiki/atlas/ingestion-status`, { signal });
+  return parseResponse(response, AtlasIngestStatusResponseSchema);
+}
+
 export async function searchAtlas(query: string, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: query, limit: "8" });
   const response = await fetch(`${API_BASE_URL}/api/wiki/atlas/search?${params}`, { signal });
@@ -70,6 +77,12 @@ export async function fetchFundingBiasAnalysis(signal?: AbortSignal) {
   return parseResponse(response, FundingBiasAnalysisResponseSchema);
 }
 
+export async function fetchMediaMeasurements(sourceName: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ source_name: sourceName });
+  const response = await fetch(`${API_BASE_URL}/api/wiki/atlas/analysis/media-measurements?${query}`, { signal });
+  return parseResponse(response, AtlasMeasurementsResponseSchema);
+}
+
 export async function fetchAtlasIndex(
   params: {
     entityTypes: string[];
@@ -77,6 +90,7 @@ export async function fetchAtlasIndex(
     country?: string[];
     funding?: string[];
     bias?: string[];
+    kind?: string[];
     sort?: string;
     cursor?: string | null;
     limit?: number;
@@ -89,6 +103,7 @@ export async function fetchAtlasIndex(
   appendList(query, "country", params.country ?? []);
   appendList(query, "funding", params.funding ?? []);
   appendList(query, "bias", params.bias ?? []);
+  appendList(query, "kind", params.kind ?? []);
   if (params.sort) query.set("sort", params.sort);
   if (params.cursor) query.set("cursor", params.cursor);
   query.set("limit", String(params.limit ?? 60));

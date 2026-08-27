@@ -92,6 +92,26 @@ fn tokenize(texts: &[&str]) -> Vec<String> {
         .collect()
 }
 
+fn article_keywords(article: &ArticleMeta) -> Vec<String> {
+    let tags: Vec<&str> = article.tags.iter().map(|s| s.as_str()).collect();
+    let mut inputs: Vec<&str> = vec![
+        &article.title,
+        &article.summary,
+        &article.category,
+        &article.source,
+    ];
+    inputs.extend(&tags);
+    tokenize(&inputs)
+}
+
+fn source_key(article: &ArticleMeta) -> String {
+    normalize_token(if !article.source_id.is_empty() {
+        &article.source_id
+    } else {
+        &article.source
+    })
+}
+
 fn has_real_image(image: &str) -> bool {
     if image.is_empty() {
         return false;
@@ -125,6 +145,35 @@ fn get_bucket(article: &ArticleMeta, favorite_source_ids: &HashSet<String>) -> (
     }
 }
 
+fn add_profile_weights(
+    profile: &mut InterestProfile,
+    category_key: &str,
+    source_key: &str,
+    keywords: &[String],
+    category_weight: f64,
+    source_weight: f64,
+    keyword_weight: f64,
+) {
+    if !category_key.is_empty() {
+        *profile
+            .category_weights
+            .entry(category_key.to_string())
+            .or_insert(0.0) += category_weight;
+    }
+    if !source_key.is_empty() {
+        *profile
+            .source_weights
+            .entry(source_key.to_string())
+            .or_insert(0.0) += source_weight;
+    }
+    for keyword in keywords {
+        *profile
+            .keyword_weights
+            .entry(keyword.clone())
+            .or_insert(0.0) += keyword_weight;
+    }
+}
+
 fn build_interest_profile(
     seeds: &[&ArticleMeta],
     liked_ids: &HashSet<i64>,
@@ -134,57 +183,36 @@ fn build_interest_profile(
 
     for article in seeds {
         let category_key = normalize_token(&article.category);
-        let source_key = normalize_token(if !article.source_id.is_empty() {
-            &article.source_id
-        } else {
-            &article.source
-        });
-        let tags_strs: Vec<&str> = article.tags.iter().map(|s| s.as_str()).collect();
-        let mut token_inputs: Vec<&str> = vec![
-            &article.title,
-            &article.summary,
-            &article.category,
-            &article.source,
+        let source_key = source_key(article);
+        let keywords = article_keywords(article);
+
+        let member_weights = [
+            (
+                bookmarked_ids.contains(&article.id),
+                PROFILE_CATEGORY_BOOKMARK_WEIGHT,
+                PROFILE_SOURCE_BOOKMARK_WEIGHT,
+                PROFILE_KEYWORD_BOOKMARK_WEIGHT,
+            ),
+            (
+                liked_ids.contains(&article.id),
+                PROFILE_CATEGORY_LIKE_WEIGHT,
+                PROFILE_SOURCE_LIKE_WEIGHT,
+                PROFILE_KEYWORD_LIKE_WEIGHT,
+            ),
         ];
-        token_inputs.extend(&tags_strs);
-        let keywords = tokenize(&token_inputs);
-
-        if bookmarked_ids.contains(&article.id) {
-            if !category_key.is_empty() {
-                *profile
-                    .category_weights
-                    .entry(category_key.clone())
-                    .or_insert(0.0) += PROFILE_CATEGORY_BOOKMARK_WEIGHT;
+        for (is_member, category_weight, source_weight, keyword_weight) in member_weights {
+            if !is_member {
+                continue;
             }
-            if !source_key.is_empty() {
-                *profile
-                    .source_weights
-                    .entry(source_key.clone())
-                    .or_insert(0.0) += PROFILE_SOURCE_BOOKMARK_WEIGHT;
-            }
-            for kw in &keywords {
-                *profile.keyword_weights.entry(kw.clone()).or_insert(0.0) +=
-                    PROFILE_KEYWORD_BOOKMARK_WEIGHT;
-            }
-        }
-
-        if liked_ids.contains(&article.id) {
-            if !category_key.is_empty() {
-                *profile
-                    .category_weights
-                    .entry(category_key.clone())
-                    .or_insert(0.0) += PROFILE_CATEGORY_LIKE_WEIGHT;
-            }
-            if !source_key.is_empty() {
-                *profile
-                    .source_weights
-                    .entry(source_key.clone())
-                    .or_insert(0.0) += PROFILE_SOURCE_LIKE_WEIGHT;
-            }
-            for kw in &keywords {
-                *profile.keyword_weights.entry(kw.clone()).or_insert(0.0) +=
-                    PROFILE_KEYWORD_LIKE_WEIGHT;
-            }
+            add_profile_weights(
+                &mut profile,
+                &category_key,
+                &source_key,
+                &keywords,
+                category_weight,
+                source_weight,
+                keyword_weight,
+            );
         }
     }
 
@@ -197,21 +225,9 @@ fn score_article(
     favorite_source_ids: &HashSet<String>,
 ) -> RankedResult {
     let (bucket_rank, bucket_label) = get_bucket(article, favorite_source_ids);
-    let tags_strs: Vec<&str> = article.tags.iter().map(|s| s.as_str()).collect();
-    let mut token_inputs: Vec<&str> = vec![
-        &article.title,
-        &article.summary,
-        &article.category,
-        &article.source,
-    ];
-    token_inputs.extend(&tags_strs);
-    let tokens = tokenize(&token_inputs);
+    let tokens = article_keywords(article);
     let normalized_category = normalize_token(&article.category);
-    let normalized_source = normalize_token(if !article.source_id.is_empty() {
-        &article.source_id
-    } else {
-        &article.source
-    });
+    let normalized_source = source_key(article);
 
     let matched_keywords: Vec<String> = tokens
         .iter()
@@ -282,53 +298,28 @@ fn score_article(
     }
 }
 
+fn dict_string(dict: &Bound<PyDict>, key: &str) -> Option<String> {
+    let value: Option<String> = dict.get_item(key).ok()?.and_then(|v| v.extract().ok());
+    Some(value.unwrap_or_default())
+}
+
 fn extract_article_meta_from_dict(dict: &Bound<PyDict>) -> Option<ArticleMeta> {
     let id: i64 = dict.get_item("id").ok()?.and_then(|v| v.extract().ok())?;
-    let title: String = dict
-        .get_item("title")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
-    let summary: String = dict
-        .get_item("summary")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
-    let category: String = dict
-        .get_item("category")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
-    let source: String = dict
-        .get_item("source")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
-    let source_id: String = dict
-        .get_item("source_id")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
     let tags: Vec<String> = dict
         .get_item("tags")
-        .ok()?
-        .and_then(|v| v.extract().ok())
-        .unwrap_or_default();
-    let image: String = dict
-        .get_item("image")
         .ok()?
         .and_then(|v| v.extract().ok())
         .unwrap_or_default();
 
     Some(ArticleMeta {
         id,
-        title,
-        summary,
-        category,
-        source,
-        source_id,
+        title: dict_string(dict, "title")?,
+        summary: dict_string(dict, "summary")?,
+        category: dict_string(dict, "category")?,
+        source: dict_string(dict, "source")?,
+        source_id: dict_string(dict, "source_id")?,
         tags,
-        image,
+        image: dict_string(dict, "image")?,
     })
 }
 

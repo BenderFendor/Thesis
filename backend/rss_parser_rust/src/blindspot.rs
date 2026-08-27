@@ -23,24 +23,14 @@ pub fn mean_vector(vectors: &[Vec<f64>]) -> Vec<f64> {
 /// Computes the element-wise difference `left - right`, truncating to the
 /// length of the shorter vector.
 pub fn subtract_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
-    let len = left.len().min(right.len());
-    let mut result = vec![0.0; len];
-    for i in 0..len {
-        result[i] = left[i] - right[i];
-    }
-    result
+    left.iter().zip(right).map(|(a, b)| a - b).collect()
 }
 
 /// Computes the element-wise sum `left + right`, truncating to the length
 /// of the shorter vector.
 #[allow(dead_code)]
 pub fn add_vectors(left: &[f64], right: &[f64]) -> Vec<f64> {
-    let len = left.len().min(right.len());
-    let mut result = vec![0.0; len];
-    for i in 0..len {
-        result[i] = left[i] + right[i];
-    }
-    result
+    left.iter().zip(right).map(|(a, b)| a + b).collect()
 }
 
 /// Scales a vector to unit length (L2 normalization).
@@ -57,12 +47,7 @@ pub fn normalize_vector(vector: &[f64]) -> Vec<f64> {
 /// Computes the dot (inner) product of two vectors, truncating to the
 /// length of the shorter vector.
 pub fn dot_product(left: &[f64], right: &[f64]) -> f64 {
-    let len = left.len().min(right.len());
-    let mut sum = 0.0;
-    for i in 0..len {
-        sum += left[i] * right[i];
-    }
-    sum
+    left.iter().zip(right).map(|(a, b)| a * b).sum()
 }
 
 /// Computes the cosine similarity between two vectors.

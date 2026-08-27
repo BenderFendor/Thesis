@@ -34,6 +34,7 @@ from app.models.atlas import (
     AtlasEdge,
     AtlasEvidenceRef,
     AtlasGraphFilters,
+    AtlasLifecycleState,
     AtlasNode,
     AtlasRelationType,
 )
@@ -42,6 +43,7 @@ from app.models.evidence import (
     CalculationTrace,
     ClaimEvidence,
     DocumentSnapshot,
+    EntityExternalId,
     EvidenceClaim,
     EvidenceDocument,
     EvidenceObservation,
@@ -56,9 +58,43 @@ from app.services.atlas_entity_resolution import (
 from app.services.atlas_graph_helpers import _edge_id
 from app.services.evidence_spine import count_relationship_evidence_roots
 
-_ORGANIZATION_KINDS = ("legal_entity", "organization_without_legal_identity")
-_PUBLICATION_KINDS = ("publication", "digital_property", "feed")
-_OWNERSHIP_PREDICATES = ("directly_owns", "owns_equity_in", "controls", "founded_by")
+_ORGANIZATION_KINDS = (
+    "legal_entity",
+    "organization_without_legal_identity",
+    "public_company",
+    "nonprofit",
+    "family_control_group",
+    "trust",
+    "government_award",
+    "seller_account",
+)
+_PUBLICATION_KINDS = (
+    "publication",
+    "publication_brand",
+    "digital_property",
+    "feed",
+    "broadcast_station",
+)
+_OWNERSHIP_PREDICATES = (
+    "directly_owns",
+    "owns_equity_in",
+    "controls",
+    "brand_of",
+    "operated_by",
+    "successor_of",
+    "founded_by",
+    "employed_by",
+    "authored_by",
+    "publishes",
+    "distributed_by",
+    "syndicated_by",
+    "authorizes_inventory_seller",
+    "sponsors_content",
+    "political_ad_purchase",
+    "advertising_inventory_sold_by",
+    "funds",
+)
+_BYLINE_PREDICATES = ("authored_by", "employed_by")
 _INTEREST_PREDICATES = ("directly_owns", "owns_equity_in")
 # "controls" is included alongside the equity predicates for the downward
 # "who else does this owner control" rollup -- broader than the upward
@@ -74,6 +110,52 @@ def _relation_type(predicate: str) -> AtlasRelationType:
     return "ownership"
 
 
+def _display_group(predicate: str) -> str:
+    if predicate in {
+        "directly_owns",
+        "owns_equity_in",
+        "controls",
+        "brand_of",
+        "operated_by",
+        "successor_of",
+    }:
+        return "ownership_control"
+    if predicate in {"employed_by", "founded_by"}:
+        return "newsroom_people"
+    if predicate in {"publishes", "distributed_by", "syndicated_by"}:
+        return "publishing_distribution"
+    if predicate in {
+        "authorizes_inventory_seller",
+        "sponsors_content",
+        "political_ad_purchase",
+        "advertising_inventory_sold_by",
+    }:
+        return "advertising_sponsorship"
+    if predicate == "funds":
+        return "funding_government_awards"
+    return "other"
+
+
+def _decimal_interest(qualifiers: dict[str, Any], key: str) -> dict[str, str] | None:
+    raw = qualifiers.get(key)
+    if isinstance(raw, dict):
+        lower = raw.get("lower")
+        upper = raw.get("upper")
+        if lower is not None and upper is not None:
+            return {"lower": str(lower), "upper": str(upper)}
+    if raw is not None and not isinstance(raw, (dict, list)):
+        return {"exact": str(raw)}
+    return None
+
+
+def _lifecycle_state(value: object) -> AtlasLifecycleState:
+    normalized = str(value or "current").lower()
+    aliases = {"announced": "proposed", "approved": "pending", "closed": "historical"}
+    normalized = aliases.get(normalized, normalized)
+    allowed = {"current", "historical", "proposed", "pending", "disputed", "rejected", "superseded"}
+    return cast(AtlasLifecycleState, normalized if normalized in allowed else "current")
+
+
 def _as_naive(value: datetime | None) -> datetime:
     if value is None:
         return datetime.now(UTC).replace(tzinfo=None)
@@ -82,8 +164,33 @@ def _as_naive(value: datetime | None) -> datetime:
     return value.astimezone(UTC).replace(tzinfo=None)
 
 
+async def _reporter_entity_map(db: AsyncSession, survivors: dict[str, str]) -> dict[str, str]:
+    """Return {person entity id -> "reporter:<id>" Atlas node id} for unified reporters.
+
+    Ontology: "all reporters are people; not all people are reporters" --
+    a `person` `EvidenceEntity` carrying a `scoop_reporter_id` external id
+    (see `entity_resolver.resolve_or_create` and
+    `app.scripts.ingest_reporter_bylines`) is the *same human* as the
+    `reporter:<id>` node `atlas_graph_projection.py` builds from the legacy
+    `Reporter` table -- it must not get its own Atlas node. One query,
+    O(n) in the number of `scoop_reporter_id` external ids, not per-entity.
+    """
+    rows = (
+        await db.execute(
+            select(EntityExternalId.entity_id, EntityExternalId.value).where(
+                EntityExternalId.scheme == "scoop_reporter_id"
+            )
+        )
+    ).all()
+    result: dict[str, str] = {}
+    for entity_id, reporter_id in rows:
+        canonical_id = canonical_entity_id(cast(str, entity_id), survivors)
+        result[canonical_id] = f"reporter:{reporter_id}"
+    return result
+
+
 async def _endpoint_id_map(
-    db: AsyncSession, survivors: dict[str, str]
+    db: AsyncSession, survivors: dict[str, str], reporter_map: dict[str, str]
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Return (entity_id -> atlas node id, entity_id -> entity_type) for edge endpoints."""
     organizations = await live_entities_by_kind(db, _ORGANIZATION_KINDS, survivors)
@@ -99,6 +206,11 @@ async def _endpoint_id_map(
         kind_by_entity[entity_id] = "organization"
     for entity in people:
         entity_id = cast(str, entity.id)
+        if entity_id in reporter_map:
+            # Unified with an existing reporter node -- see _reporter_entity_map.
+            node_id_by_entity[entity_id] = reporter_map[entity_id]
+            kind_by_entity[entity_id] = "reporter"
+            continue
         node_id_by_entity[entity_id] = f"person:{entity_id}"
         kind_by_entity[entity_id] = "person"
     for entity in publications:
@@ -201,6 +313,7 @@ async def _accepted_ownership_edges(
     filters: AtlasGraphFilters,
     node_id_by_entity: dict[str, str],
     survivors: dict[str, str],
+    reporter_map: dict[str, str],
 ) -> list[AtlasEdge]:
     """Build edges for materialized `AcceptedRelationship` ownership facts."""
     as_of = _as_naive(filters.as_of)
@@ -249,6 +362,16 @@ async def _accepted_ownership_edges(
         claim_ids_by_relationship[cast(str, link.relationship_id)].append(cast(str, link.claim_id))
     all_claim_ids = sorted({cid for values in claim_ids_by_relationship.values() for cid in values})
     evidence_by_claim = await evidence_refs_for_claims(db, all_claim_ids)
+    claim_rows = (
+        list(
+            (await db.execute(select(EvidenceClaim).where(EvidenceClaim.id.in_(all_claim_ids))))
+            .scalars()
+            .all()
+        )
+        if all_claim_ids
+        else []
+    )
+    claim_by_id = {cast(str, row.id): row for row in claim_rows}
 
     traces = list(
         (
@@ -266,16 +389,31 @@ async def _accepted_ownership_edges(
 
     edges: list[AtlasEdge] = []
     for relationship in relationships:
+        predicate = cast(str, relationship.predicate)
         subject_entity = canonical_entity_id(cast(str, relationship.subject_entity_id), survivors)
+        if predicate in _BYLINE_PREDICATES and subject_entity in reporter_map:
+            # `atlas_graph_projection.py`'s `_reporter_byline_edge_index` already
+            # builds this reporter's authored_by/employed_by edge straight from
+            # EvidenceClaim -- emitting it again here (now pointed at the same
+            # unified reporter node) would double-count evidence on that node.
+            continue
         object_entity = canonical_entity_id(cast(str, relationship.object_entity_id), survivors)
         source_node = node_id_by_entity.get(object_entity)
         target_node = node_id_by_entity.get(subject_entity)
         if source_node is None or target_node is None:
             continue
-        predicate = cast(str, relationship.predicate)
         claim_ids = sorted(claim_ids_by_relationship.get(cast(str, relationship.id), []))
         evidence_refs = [
-            ref for claim_id in claim_ids for ref in evidence_by_claim.get(claim_id, [])
+            ref.model_copy(
+                update={
+                    "evidence_class": cast(str, claim_by_id[claim_id].evidence_class),
+                    "policy_version": cast(str, relationship.acceptance_policy_version),
+                    "acceptance_decision": "accepted",
+                }
+            )
+            for claim_id in claim_ids
+            for ref in evidence_by_claim.get(claim_id, [])
+            if claim_id in claim_by_id
         ]
         qualifiers = dict(cast(dict[str, Any], relationship.qualifiers or {}))
         ownership_percentage: float | None = None
@@ -288,7 +426,6 @@ async def _accepted_ownership_edges(
             )
             if aggregate:
                 lower, upper = float(aggregate["lower"]), float(aggregate["upper"])
-                ownership_percentage = round((lower + upper) / 2, 4)
                 qualifiers["pct_range"] = {"lower": lower, "upper": upper}
         evidence_root_count = await count_relationship_evidence_roots(db, claim_ids)
         edges.append(
@@ -297,7 +434,14 @@ async def _accepted_ownership_edges(
                 source_id=source_node,
                 target_id=target_node,
                 relation_type=_relation_type(predicate),
+                predicate=predicate,
+                display_group=_display_group(predicate),
                 ownership_percentage=ownership_percentage,
+                voting_interest=_decimal_interest(qualifiers, "voting_interest"),
+                economic_interest=_decimal_interest(qualifiers, "economic_interest")
+                or _decimal_interest(qualifiers, "pct_range")
+                or _decimal_interest(qualifiers, "pct"),
+                beneficial_interest=_decimal_interest(qualifiers, "beneficial_interest"),
                 confidence=1.0,
                 confidence_tier="verified",
                 evidence_count=len(evidence_refs),
@@ -310,6 +454,7 @@ async def _accepted_ownership_edges(
                 ),
                 raw_relation_type=predicate,
                 fact_status="accepted",
+                lifecycle_state=_lifecycle_state(relationship.lifecycle_state),
                 accepted_fact=True,
                 qualifiers=qualifiers,
                 claim_ids=claim_ids,
@@ -327,6 +472,7 @@ async def _candidate_ownership_edges(
     filters: AtlasGraphFilters,
     node_id_by_entity: dict[str, str],
     survivors: dict[str, str],
+    reporter_map: dict[str, str],
 ) -> list[AtlasEdge]:
     """Build edges for un-materialized candidate ownership claims."""
     as_of = _as_naive(filters.as_of)
@@ -358,14 +504,27 @@ async def _candidate_ownership_edges(
 
     edges: list[AtlasEdge] = []
     for claim in claims:
+        predicate = cast(str, claim.predicate)
         subject_entity = canonical_entity_id(cast(str, claim.subject_entity_id), survivors)
+        if predicate in _BYLINE_PREDICATES and subject_entity in reporter_map:
+            # See the matching guard in _accepted_ownership_edges: this fact is
+            # already covered by atlas_graph_projection.py's dedicated
+            # reporter byline edge builder.
+            continue
         object_entity = canonical_entity_id(cast(str, claim.object_entity_id), survivors)
         source_node = node_id_by_entity.get(object_entity)
         target_node = node_id_by_entity.get(subject_entity)
         if source_node is None or target_node is None:
             continue
-        predicate = cast(str, claim.predicate)
-        evidence_refs = evidence_by_claim.get(cast(str, claim.id), [])
+        evidence_refs = [
+            ref.model_copy(
+                update={
+                    "evidence_class": cast(str, claim.evidence_class),
+                    "acceptance_decision": cast(str, claim.status),
+                }
+            )
+            for ref in evidence_by_claim.get(cast(str, claim.id), [])
+        ]
         qualifiers = dict(cast(dict[str, Any], claim.qualifiers or {}))
         ownership_percentage = (
             float(qualifiers["pct"]) if isinstance(qualifiers.get("pct"), (int, float)) else None
@@ -376,7 +535,14 @@ async def _candidate_ownership_edges(
                 source_id=source_node,
                 target_id=target_node,
                 relation_type=_relation_type(predicate),
+                predicate=predicate,
+                display_group=_display_group(predicate),
                 ownership_percentage=ownership_percentage,
+                voting_interest=_decimal_interest(qualifiers, "voting_interest"),
+                economic_interest=_decimal_interest(qualifiers, "economic_interest")
+                or _decimal_interest(qualifiers, "pct_range")
+                or _decimal_interest(qualifiers, "pct"),
+                beneficial_interest=_decimal_interest(qualifiers, "beneficial_interest"),
                 confidence=None,
                 confidence_tier="unresolved",
                 evidence_count=len(evidence_refs),
@@ -389,6 +555,9 @@ async def _candidate_ownership_edges(
                 ),
                 raw_relation_type=predicate,
                 fact_status="candidate",
+                lifecycle_state=_lifecycle_state(
+                    qualifiers.get("lifecycle_state") or qualifiers.get("txn_status")
+                ),
                 accepted_fact=False,
                 qualifiers=qualifiers,
                 claim_ids=[cast(str, claim.id)],
@@ -544,6 +713,7 @@ async def load_evidence_atlas_projection(
 ) -> tuple[list[AtlasNode], list[AtlasEdge]]:
     """Project organization/person nodes and every ownership edge into the Atlas."""
     survivors = await entity_survivor_map(db)
+    reporter_map = await _reporter_entity_map(db, survivors)
     organizations = await live_entities_by_kind(db, _ORGANIZATION_KINDS, survivors)
     people = await live_entities_by_kind(db, ("person",), survivors)
     if not organizations and not people:
@@ -557,7 +727,7 @@ async def load_evidence_atlas_projection(
                 id=f"organization:{entity_id}",
                 entity_type="organization",
                 label=cast(str, entity.canonical_name),
-                subtitle=cast(str, entity.record_kind).replace("_", " "),
+                subtitle=cast(str, entity.entity_kind).replace("_", " "),
                 status=cast(str, entity.status),
                 confidence_tier="verified" if entity.status == "accepted" else "unresolved",
                 profile_path=f"/wiki/organization/{entity_id}",
@@ -567,6 +737,11 @@ async def load_evidence_atlas_projection(
         )
     for entity in people:
         entity_id = cast(str, entity.id)
+        if entity_id in reporter_map:
+            # Unified with an existing `reporter:<id>` node (see
+            # _reporter_entity_map) -- its evidence edges attach there
+            # instead of to a duplicate person node.
+            continue
         nodes.append(
             AtlasNode(
                 id=f"person:{entity_id}",
@@ -581,9 +756,13 @@ async def load_evidence_atlas_projection(
             )
         )
 
-    node_id_by_entity, _kind_by_entity = await _endpoint_id_map(db, survivors)
-    accepted_edges = await _accepted_ownership_edges(db, filters, node_id_by_entity, survivors)
-    candidate_edges = await _candidate_ownership_edges(db, filters, node_id_by_entity, survivors)
+    node_id_by_entity, _kind_by_entity = await _endpoint_id_map(db, survivors, reporter_map)
+    accepted_edges = await _accepted_ownership_edges(
+        db, filters, node_id_by_entity, survivors, reporter_map
+    )
+    candidate_edges = await _candidate_ownership_edges(
+        db, filters, node_id_by_entity, survivors, reporter_map
+    )
 
     publications = await live_entities_by_kind(db, _PUBLICATION_KINDS, survivors)
     outlet_ids = set((await outlet_node_ids(db, publications)).values())

@@ -369,6 +369,7 @@ dev-browser/
 
 .chroma/
 .chroma.bak-*/
+.chroma.corrupt-*/
 .agent/rules/
 
 # Backend logs
@@ -391,3 +392,4 @@ backend/app/data/feed_polling_state.json
 # Local agent worktrees and session state (not part of the project)
 .worktrees/
 .claude/
+.omp/

@@ -579,7 +579,10 @@ start_chroma() {
 
 	log "Starting Chroma server on ${CHROMA_HOST}:${CHROMA_PORT}"
 	log "Chroma logs: ${CHROMA_LOG_FILE}"
-	"$chroma_bin" run --host "$CHROMA_HOST" --port "$CHROMA_PORT" --path "$CHROMA_DATA_DIR" >>"$CHROMA_LOG_FILE" 2>&1 &
+	# Disable posthog telemetry: the bundled chromadb/posthog versions are
+	# incompatible (posthog's capture() signature changed), which spams
+	# "Failed to send telemetry event" errors on every client action.
+	ANONYMIZED_TELEMETRY=False "$chroma_bin" run --host "$CHROMA_HOST" --port "$CHROMA_PORT" --path "$CHROMA_DATA_DIR" >>"$CHROMA_LOG_FILE" 2>&1 &
 	local chroma_pid=$!
 	PIDS+=("$chroma_pid")
 	record_pid "$chroma_pid" "chroma"

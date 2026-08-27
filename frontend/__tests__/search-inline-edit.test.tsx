@@ -78,9 +78,19 @@ jest.mock("react-markdown", () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-jest.mock("remark-gfm", () => ({
+ jest.mock("remark-gfm", () => ({
   __esModule: true,
   default: jest.fn(),
+}));
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: jest.fn(),
+    push: jest.fn(),
+    back: jest.fn(),
+    prefetch: jest.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 jest.mock("@/lib/api", () => ({

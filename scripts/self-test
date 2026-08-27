@@ -130,8 +130,8 @@ elif [[ -f "./backend/mypy.ini" ]]; then
 fi
 
 if [[ -d "./backend" ]] && command -v uvx >/dev/null 2>&1; then
-	run_cmd uvx ruff check ./backend/
-	run_cmd uvx ruff format --check ./backend/
+	run_cmd uvx ruff@0.15.22 check ./backend/
+	run_cmd uvx ruff@0.15.22 format --check ./backend/
 elif [[ -d "./backend" ]]; then
 	echo "- skip: uvx not found"
 fi

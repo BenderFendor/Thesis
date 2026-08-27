@@ -9,7 +9,8 @@ use regex::Regex;
 use crate::cleaner::clean_html;
 use crate::fetcher::fetch_all;
 use crate::types::{
-    FetchResult, ParseResult, ParsedArticle, SourceRequest, SourceStats, SubFeedStat,
+    FetchError, FetchResult, ParseResult, ParsedArticle, RawFeed, SourceRequest, SourceStats,
+    SubFeedStat,
 };
 
 #[derive(Debug, Default)]
@@ -127,6 +128,61 @@ fn split_author_name(value: &str) -> Vec<String> {
     parts
 }
 
+fn collect_name_matches(
+    item_xml: &str,
+    regex: &Regex,
+    seen: &mut HashSet<String>,
+    authors: &mut Vec<String>,
+) {
+    for captures in regex.captures_iter(item_xml) {
+        let value = captures
+            .name("cdata")
+            .or_else(|| captures.name("plain"))
+            .map(|item| item.as_str())
+            .unwrap_or_default();
+        for name in split_author_name(value) {
+            push_unique_author(&name, seen, authors);
+        }
+    }
+}
+
+fn collect_rss_author_names(
+    item_xml: &str,
+    regex: &Regex,
+    seen: &mut HashSet<String>,
+    authors: &mut Vec<String>,
+) {
+    for captures in regex.captures_iter(item_xml) {
+        let value = captures
+            .name("cdata")
+            .or_else(|| captures.name("plain"))
+            .map(|item| item.as_str())
+            .unwrap_or_default();
+        if value.contains('<') {
+            continue;
+        }
+        if let Some(normalized) = normalize_rss_author_value(value) {
+            for name in split_author_name(&normalized) {
+                push_unique_author(&name, seen, authors);
+            }
+        }
+    }
+}
+
+fn collect_url_matches(item_xml: &str, regex: &Regex, author_urls: &mut Vec<String>) {
+    for captures in regex.captures_iter(item_xml) {
+        let value = captures
+            .name("plain")
+            .map(|item| item.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if !value.is_empty() && !author_urls.contains(&value) {
+            author_urls.push(value);
+        }
+    }
+}
+
 fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
     let item_re = Regex::new(r#"(?is)<item\b.*?</item>"#).expect("valid item regex");
     let title_re = Regex::new(
@@ -174,106 +230,14 @@ fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
             let mut author_urls = Vec::new();
             let mut seen = HashSet::new();
 
-            // dc:creator — often multi-author, split on comma then conjunctions
-            for captures in creator_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("cdata")
-                    .or_else(|| captures.name("plain"))
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                for name in split_author_name(value) {
-                    push_unique_author(&name, &mut seen, &mut authors);
-                }
-            }
-
-            // dc:author — same as creator, split multi-author
-            for captures in dc_author_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("cdata")
-                    .or_else(|| captures.name("plain"))
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                for name in split_author_name(value) {
-                    push_unique_author(&name, &mut seen, &mut authors);
-                }
-            }
-
-            // RSS <author> (plain or email-wrapped, skip if nested XML inside)
-            for captures in rss_author_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("cdata")
-                    .or_else(|| captures.name("plain"))
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                // Skip if this contains nested XML (e.g. <name> or <uri> inside <author>)
-                if value.contains('<') {
-                    continue;
-                }
-                if let Some(normalized) = normalize_rss_author_value(value) {
-                    for name in split_author_name(&normalized) {
-                        push_unique_author(&name, &mut seen, &mut authors);
-                    }
-                }
-            }
-
-            // itunes:author
-            for captures in itunes_author_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("plain")
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                for name in split_author_name(value) {
-                    push_unique_author(&name, &mut seen, &mut authors);
-                }
-            }
-
-            // media:credit role="author"
-            for captures in media_credit_author_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("plain")
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                for name in split_author_name(value) {
-                    push_unique_author(&name, &mut seen, &mut authors);
-                }
-            }
-
-            // atom:author/atom:name (namespaced or plain)
-            for captures in atom_author_name_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("plain")
-                    .map(|item| item.as_str())
-                    .unwrap_or_default();
-                for name in split_author_name(value) {
-                    push_unique_author(&name, &mut seen, &mut authors);
-                }
-            }
-
-            // atom:uri — author profile URL
-            for captures in atom_uri_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("plain")
-                    .map(|item| item.as_str())
-                    .unwrap_or_default()
-                    .trim()
-                    .to_string();
-                if !value.is_empty() && !author_urls.contains(&value) {
-                    author_urls.push(value);
-                }
-            }
-
-            // link rel="author" href="..."
-            for captures in link_author_re.captures_iter(item_xml) {
-                let value = captures
-                    .name("plain")
-                    .map(|item| item.as_str())
-                    .unwrap_or_default()
-                    .trim()
-                    .to_string();
-                if !value.is_empty() && !author_urls.contains(&value) {
-                    author_urls.push(value);
-                }
-            }
+            collect_name_matches(item_xml, &creator_re, &mut seen, &mut authors);
+            collect_name_matches(item_xml, &dc_author_re, &mut seen, &mut authors);
+            collect_rss_author_names(item_xml, &rss_author_re, &mut seen, &mut authors);
+            collect_name_matches(item_xml, &itunes_author_re, &mut seen, &mut authors);
+            collect_name_matches(item_xml, &media_credit_author_re, &mut seen, &mut authors);
+            collect_name_matches(item_xml, &atom_author_name_re, &mut seen, &mut authors);
+            collect_url_matches(item_xml, &atom_uri_re, &mut author_urls);
+            collect_url_matches(item_xml, &link_author_re, &mut author_urls);
 
             RssItemMetadata {
                 title: extract_tag_value(item_xml, &title_re),
@@ -285,22 +249,31 @@ fn extract_rss_item_metadata(xml: &str) -> Vec<RssItemMetadata> {
         .collect()
 }
 
+fn find_closing_tag_case_insensitive(xml: &str, lower_end: usize, tag_len: usize) -> Option<&str> {
+    // Scan around the lower-case match position to find the real closing tag.
+    let start = lower_end.saturating_sub(2);
+    let end = (lower_end + tag_len + 2).min(xml.len());
+    let window = &xml[start..end];
+    for search_tag in &["</rss>", "</RSS>", "</feed>", "</FEED>"] {
+        if let Some(offset) = window.find(search_tag) {
+            return Some(&xml[..start + offset + search_tag.len()]);
+        }
+    }
+    None
+}
+
 fn trim_to_feed_document(xml: &str) -> &str {
+    let lower = xml.to_lowercase();
     for closing_tag in ["</rss>", "</feed>"] {
         if let Some(end) = xml.rfind(closing_tag) {
             return &xml[..end + closing_tag.len()];
         }
-        // Also try case-insensitive search manually for mixed-case XML
-        let lower = xml.to_lowercase();
+        // Also try case-insensitive search for mixed-case XML.
         if let Some(lower_end) = lower.rfind(closing_tag) {
-            // Scan around the lower-case position to find the real closing tag
-            let start = lower_end.saturating_sub(2);
-            let end = (lower_end + closing_tag.len() + 2).min(xml.len());
-            let window = &xml[start..end];
-            for search_tag in &["</rss>", "</RSS>", "</feed>", "</FEED>"] {
-                if let Some(offset) = window.find(search_tag) {
-                    return &xml[..start + offset + search_tag.len()];
-                }
+            if let Some(trimmed) =
+                find_closing_tag_case_insensitive(xml, lower_end, closing_tag.len())
+            {
+                return trimmed;
             }
         }
     }
@@ -438,6 +411,63 @@ fn parse_results(
     (articles, stats)
 }
 
+fn append_successful_feed(
+    source_name: &str,
+    raw: &RawFeed,
+    articles: &mut Vec<ParsedArticle>,
+    sub_stats: &mut Vec<SubFeedStat>,
+    top_status: &mut String,
+    errors: &mut Vec<String>,
+) {
+    match parser::parse(trim_to_feed_document(&raw.xml).as_bytes()) {
+        Ok(feed) => {
+            let parsed_articles =
+                extract_articles(feed.entries, trim_to_feed_document(&raw.xml), source_name);
+            let count = parsed_articles.len();
+            articles.extend(parsed_articles);
+            sub_stats.push(SubFeedStat {
+                url: raw.url.clone(),
+                status: "success".to_string(),
+                article_count: count,
+                error_message: None,
+                fetch_duration_ms: raw.duration_ms,
+                timed_out: false,
+            });
+        }
+        Err(err) => {
+            *top_status = "warning".to_string();
+            let msg = format!("Parse error: {err}");
+            errors.push(msg.clone());
+            sub_stats.push(SubFeedStat {
+                url: raw.url.clone(),
+                status: "error".to_string(),
+                article_count: 0,
+                error_message: Some(msg),
+                fetch_duration_ms: raw.duration_ms,
+                timed_out: false,
+            });
+        }
+    }
+}
+
+fn append_fetch_error(
+    err: &FetchError,
+    sub_stats: &mut Vec<SubFeedStat>,
+    top_status: &mut String,
+    errors: &mut Vec<String>,
+) {
+    *top_status = "warning".to_string();
+    errors.push(err.message.clone());
+    sub_stats.push(SubFeedStat {
+        url: err.url.clone(),
+        status: "error".to_string(),
+        article_count: 0,
+        error_message: Some(err.message.clone()),
+        fetch_duration_ms: err.duration_ms,
+        timed_out: err.timed_out,
+    });
+}
+
 fn parse_source_group(
     source_name: &str,
     results: &[FetchResult],
@@ -449,51 +479,16 @@ fn parse_source_group(
 
     for result in results {
         match result {
-            FetchResult::Success(raw) => {
-                match parser::parse(trim_to_feed_document(&raw.xml).as_bytes()) {
-                    Ok(feed) => {
-                        let parsed_articles = extract_articles(
-                            feed.entries,
-                            trim_to_feed_document(&raw.xml),
-                            source_name,
-                        );
-                        let count = parsed_articles.len();
-                        articles.extend(parsed_articles);
-                        sub_stats.push(SubFeedStat {
-                            url: raw.url.clone(),
-                            status: "success".to_string(),
-                            article_count: count,
-                            error_message: None,
-                            fetch_duration_ms: raw.duration_ms,
-                            timed_out: false,
-                        });
-                    }
-                    Err(err) => {
-                        top_status = "warning".to_string();
-                        let msg = format!("Parse error: {err}");
-                        errors.push(msg.clone());
-                        sub_stats.push(SubFeedStat {
-                            url: raw.url.clone(),
-                            status: "error".to_string(),
-                            article_count: 0,
-                            error_message: Some(msg),
-                            fetch_duration_ms: raw.duration_ms,
-                            timed_out: false,
-                        });
-                    }
-                }
-            }
+            FetchResult::Success(raw) => append_successful_feed(
+                source_name,
+                raw,
+                &mut articles,
+                &mut sub_stats,
+                &mut top_status,
+                &mut errors,
+            ),
             FetchResult::Error(err) => {
-                top_status = "warning".to_string();
-                errors.push(err.message.clone());
-                sub_stats.push(SubFeedStat {
-                    url: err.url.clone(),
-                    status: "error".to_string(),
-                    article_count: 0,
-                    error_message: Some(err.message.clone()),
-                    fetch_duration_ms: err.duration_ms,
-                    timed_out: err.timed_out,
-                });
+                append_fetch_error(err, &mut sub_stats, &mut top_status, &mut errors);
             }
         }
     }
@@ -587,23 +582,20 @@ fn pick_description(entry: &feed_rs::model::Entry) -> Option<String> {
 }
 
 fn pick_image(entry: &feed_rs::model::Entry) -> Option<String> {
-    if let Some(media) = entry.media.first() {
-        if let Some(content) = media.content.first() {
-            if let Some(url) = &content.url {
-                return Some(url.to_string());
-            }
-        }
+    let media_url = entry
+        .media
+        .first()
+        .and_then(|media| media.content.first())
+        .and_then(|content| content.url.as_ref());
+    if let Some(url) = media_url {
+        return Some(url.to_string());
     }
 
-    if let Some(link) = entry
+    entry
         .links
         .iter()
-        .find(|l| matches_media_image(l.media_type.as_deref()))
-    {
-        return Some(link.href.clone());
-    }
-
-    None
+        .find(|link| matches_media_image(link.media_type.as_deref()))
+        .map(|link| link.href.clone())
 }
 
 fn matches_media_image(media_type: Option<&str>) -> bool {

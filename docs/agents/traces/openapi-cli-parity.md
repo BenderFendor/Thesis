@@ -35,7 +35,7 @@ Rollback: Remove the CLI files and package/verify entries, then remove `add_prot
 - `./scripts/scoop ws listen websocket_endpoint_ws_ws --base-url http://127.0.0.1:8765 --count 0 --timeout 5 --include-meta`
 - `scripts/self-test` through command watchdog: passed in 87.869 seconds; 601 backend tests passed, 3 deselected.
 - `backend/.venv/bin/alembic current`: `20260721_0004 (head)`.
-- Watchdog report: `.agent/traces/openapi-cli-self-test.json`.
+- Watchdog report: `docs/agents/traces/openapi-cli-self-test.json`.
 
 ## Tests added
 

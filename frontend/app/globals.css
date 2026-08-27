@@ -250,3 +250,91 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Runtime appearance tokens. Values are written to document.documentElement
+   by frontend/lib/appearance-settings.ts; every default below is neutral,
+   so untouched settings leave the light/dark themes untouched. */
+@theme inline {
+  --text-xs: calc(0.75rem * var(--appearance-text-scale, 1));
+  --text-sm: calc(0.875rem * var(--appearance-text-scale, 1));
+  --text-base: calc(1rem * var(--appearance-text-scale, 1));
+  --text-lg: calc(1.125rem * var(--appearance-text-scale, 1));
+  --text-xl: calc(1.25rem * var(--appearance-text-scale, 1));
+  --text-2xl: calc(1.5rem * var(--appearance-text-scale, 1));
+  --text-3xl: calc(1.875rem * var(--appearance-text-scale, 1));
+  --text-4xl: calc(2.25rem * var(--appearance-text-scale, 1));
+  --text-5xl: calc(3rem * var(--appearance-text-scale, 1));
+  --text-6xl: calc(3.75rem * var(--appearance-text-scale, 1));
+  --text-7xl: calc(4.5rem * var(--appearance-text-scale, 1));
+
+  --spacing: calc(0.25rem * var(--appearance-space-scale, 1));
+
+  --default-transition-duration: calc(150ms * var(--appearance-motion-speed, 1));
+}
+
+@layer base {
+  body {
+    font-weight: var(--appearance-font-weight-body, 400);
+  }
+
+  /* User preference layer: an explicit weight beats per-component weight
+     utilities; unset falls back to inherit, which is the preflight default. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: var(--appearance-font-weight-heading, inherit) !important;
+  }
+}
+
+/* Scale the alpha of the standard shadow utilities; arbitrary shadows and
+   hand-written box-shadows are intentionally left alone. */
+@layer utilities {
+  .shadow-2xs {
+    --tw-shadow: 0 1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-xs {
+    --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-sm {
+    --tw-shadow:
+      0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-md {
+    --tw-shadow:
+      0 4px 6px -1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 2px 4px -2px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-lg {
+    --tw-shadow:
+      0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-xl {
+    --tw-shadow:
+      0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+  }
+
+  .shadow-2xl {
+    --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, rgb(0 0 0 / calc(0.25 * var(--appearance-shadow-strength, 1))));
+  }
+}
+
+/* Motion off mirrors the prefers-reduced-motion guard above. */
+html[data-motion-off="true"] *,
+html[data-motion-off="true"] *::before,
+html[data-motion-off="true"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

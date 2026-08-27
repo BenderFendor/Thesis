@@ -53,6 +53,7 @@ import type {
   DatabaseDebugResponse,
   StorageDriftReport,
   StartupMetricsResponse,
+  StartupEventMetric,
   CacheDebugResponse,
   CacheDeltaResponse} from "@/lib/api"
 
@@ -231,329 +232,12 @@ const DEFAULT_DEBUG_TAB: DebugTab = "storage"
 const isDebugTab = (value: string | null): value is DebugTab =>
   Boolean(value) && DEBUG_TABS.includes(value as DebugTab)
 
-export default function DebugDashboardPage() {
-  const router = useRouter()
-  const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
-  const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
 
-  const [dbLimit, setDbLimit] = usePersistentNumber(25, 5, 200)
-  const [dbOffset, setDbOffset] = usePersistentNumber(0, 0, 5000)
-  const [dbSortDirection, setDbSortDirection] = useState<"asc" | "desc">("desc")
-  const [dbMissingOnly, setDbMissingOnly] = useState(false)
-  const [dbSourceDraft, setDbSourceDraft] = useState("")
-  const [dbSourceFilter, setDbSourceFilter] = useState<string | undefined>(undefined)
-  const [dbBeforeDraft, setDbBeforeDraft] = useState("")
-  const [dbBeforeFilter, setDbBeforeFilter] = useState<string | undefined>(undefined)
-  const [dbAfterDraft, setDbAfterDraft] = useState("")
-  const [dbAfterFilter, setDbAfterFilter] = useState<string | undefined>(undefined)
+const pickData = <T, K extends keyof T>(data: T | null | undefined, key: K): T[K] | null =>
+  data?.[key] ?? null
 
-  const [cacheLimit, setCacheLimit] = usePersistentNumber(25, 5, 500)
-  const [cacheOffset, setCacheOffset] = usePersistentNumber(0, 0, 5000)
-  const [cacheSourceDraft, setCacheSourceDraft] = useState("")
-  const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
-
-  // Phase 3: New state for system status, log level, parser tester
-  const [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB)
-  const [embedded, setEmbedded] = useState(false)
-  const frontendDebugMode = useDebugMode()
-  const [cacheRefreshRunning, setCacheRefreshRunning] = useState(false)
-  const [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(null)
-  const [cacheRefreshError, setCacheRefreshError] = useState<string | null>(null)
-
-  // Parser tester state
-  const [rssTestUrl, setRssTestUrl] = useState("")
-  const [rssTestResult, setRssTestResult] = useState<RssParserTestResult | null>(null)
-  const [rssTestLoading, setRssTestLoading] = useState(false)
-  const [articleTestUrl, setArticleTestUrl] = useState("")
-  const [articleTestResult, setArticleTestResult] = useState<ArticleParserTestResult | null>(null)
-  const [articleTestLoading, setArticleTestLoading] = useState(false)
-
-  // Performance logging state
-  const dashboardDataQuery = useQuery<DashboardData>({
-    queryKey: [
-      "debug-dashboard",
-      chromaLimit,
-      chromaOffset,
-      dbLimit,
-      dbOffset,
-      dbSourceFilter,
-      dbMissingOnly,
-      dbSortDirection,
-      dbBeforeFilter,
-      dbAfterFilter,
-      cacheLimit,
-      cacheOffset,
-      cacheSourceFilter,
-    ],
-    queryFn: async () => {
-      const [
-        chromaData,
-        dbData,
-        driftData,
-        startupMetrics,
-        cacheData,
-        cacheDelta,
-      ] = await Promise.all([
-        fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
-        fetchDatabaseDebugArticles({
-          limit: dbLimit,
-          offset: dbOffset,
-          source: dbSourceFilter,
-          missing_embeddings_only: dbMissingOnly,
-          sort_direction: dbSortDirection,
-          published_before: dbBeforeFilter,
-          published_after: dbAfterFilter,
-        }),
-        fetchStorageDrift(100),
-        fetchStartupMetrics(),
-        fetchCacheDebugArticles({
-          limit: cacheLimit,
-          offset: cacheOffset,
-          source: cacheSourceFilter,
-        }),
-        fetchCacheDelta({
-          sample_limit: cacheLimit,
-          sample_offset: cacheOffset,
-          source: cacheSourceFilter,
-          sample_preview_limit: 50,
-        }),
-      ])
-
-      return {
-        chromaData,
-        dbData,
-        driftData,
-        startupMetrics,
-        cacheData,
-        cacheDelta,
-      }
-    },
-    retry: 1,
-  })
-  const loadData = () => {
-    void dashboardDataQuery.refetch()
-  }
-  const chromaData = dashboardDataQuery.data?.chromaData ?? null
-  const dbData = dashboardDataQuery.data?.dbData ?? null
-  const driftData = dashboardDataQuery.data?.driftData ?? null
-  const startupMetrics = dashboardDataQuery.data?.startupMetrics ?? null
-  const cacheData = dashboardDataQuery.data?.cacheData ?? null
-  const cacheDelta = dashboardDataQuery.data?.cacheDelta ?? null
-  const loading = dashboardDataQuery.isLoading
-  const error =
-    dashboardDataQuery.error instanceof Error
-      ? dashboardDataQuery.error.message
-      : null
-
-  const systemStatusQuery = useQuery<SystemStatusResponse>({
-    queryKey: ["debug-system-status"],
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/debug/system/status`)
-      if (!response.ok) {
-        throw new Error("Failed to load system status")
-      }
-      return (await response.json()) as SystemStatusResponse
-    },
-    retry: 1,
-  })
-  const systemStatus = systemStatusQuery.data ?? null
-
-  const logLevelQuery = useQuery<LogLevelResponse>({
-    queryKey: ["debug-log-level"],
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/debug/loglevel`)
-      if (!response.ok) {
-        throw new Error("Failed to load log level")
-      }
-      return (await response.json()) as LogLevelResponse
-    },
-    retry: 1,
-  })
-  const logLevel = logLevelQuery.data?.level ?? "INFO"
-
-  const sourceStatsQuery = useQuery<SourceStats[]>({
-    queryKey: ["debug-source-stats"],
-    queryFn: fetchSourceStats,
-    enabled: activeTab === "sources",
-    retry: 1,
-  })
-  const cacheStatusQuery = useQuery<CacheStatus | null>({
-    queryKey: ["debug-cache-status"],
-    queryFn: fetchCacheStatus,
-    enabled: activeTab === "sources",
-    retry: 1,
-  })
-  const llmLogsQuery = useQuery<LlmLogResponse>({
-    queryKey: ["debug-llm-logs"],
-    queryFn: () => fetchLlmLogs({ limit: 50 }),
-    enabled: activeTab === "llm",
-    retry: 1,
-  })
-  const debugErrorsQuery = useQuery<DebugErrorsResponse>({
-    queryKey: ["debug-errors"],
-    queryFn: () => fetchDebugErrors({ limit: 50, includeRequestStreamEvents: true }),
-    enabled: activeTab === "errors",
-    retry: 1,
-  })
-
-  const performanceDataQuery = useQuery<PerformanceDebugData>({
-    queryKey: ["debug-performance", activeTab],
-    queryFn: async () => {
-      const [reportResponse, eventsResponse, slowResponse, filesResponse] =
-        await Promise.all([
-          fetch(`${API_BASE_URL}/debug/logs/report`),
-          fetch(`${API_BASE_URL}/debug/logs/events?limit=100`),
-          fetch(`${API_BASE_URL}/debug/logs/slow`),
-          fetch(`${API_BASE_URL}/debug/logs/files`),
-        ])
-
-      const report = reportResponse.ok
-        ? ((await reportResponse.json()) as BackendDebugReport)
-        : null
-      const eventsData = eventsResponse.ok ? await eventsResponse.json() : {}
-      const slowData = slowResponse.ok ? await slowResponse.json() : {}
-      const filesData = filesResponse.ok ? await filesResponse.json() : {}
-
-      return {
-        backendDebugReport: report,
-        backendLogEvents: Array.isArray(eventsData.events)
-          ? (eventsData.events as UnknownRecord[])
-          : [],
-        backendSlowOps: Array.isArray(slowData.operations)
-          ? (slowData.operations as UnknownRecord[])
-          : [],
-        backendLogFiles: Array.isArray(filesData.files)
-          ? (filesData.files as UnknownRecord[])
-          : [],
-        frontendPerfData: exportDebugData(),
-      }
-    },
-    enabled: activeTab === "performance",
-    retry: 1,
-    refetchInterval: activeTab === "performance" ? 5000 : false,
-  })
-  const backendDebugReport = performanceDataQuery.data?.backendDebugReport ?? null
-  const frontendPerfData = performanceDataQuery.data?.frontendPerfData ?? null
-  const backendLogEvents = performanceDataQuery.data?.backendLogEvents ?? []
-  const backendSlowOps = performanceDataQuery.data?.backendSlowOps ?? []
-  const backendLogFiles = performanceDataQuery.data?.backendLogFiles ?? []
-  const loadPerformanceData = () => {
-    void performanceDataQuery.refetch()
-  }
-
-  const loadSystemStatus = () => {
-    void systemStatusQuery.refetch()
-  }
-
-  const loadLogLevel = () => {
-    void logLevelQuery.refetch()
-  }
-  const loadSourceData = () => {
-    void sourceStatsQuery.refetch()
-    void cacheStatusQuery.refetch()
-  }
-  const loadLlmLogs = () => {
-    void llmLogsQuery.refetch()
-  }
-  const loadDebugErrors = () => {
-    void debugErrorsQuery.refetch()
-  }
-
-  const handleSetLogLevel = async (level: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/debug/loglevel?level=${level}`, {
-        method: "POST",
-      })
-      if (response.ok) {
-        await loadLogLevel()
-      }
-    } catch (err) {
-      logger.error("Failed to set log level", err)
-    }
-  }
-
-  const handleToggleFrontendDebug = () => {
-    setDebugMode(!frontendDebugMode)
-  }
-
-  const handleRefreshCache = async () => {
-    setCacheRefreshRunning(true)
-    setCacheRefreshError(null)
-    setCacheRefreshMessage("Starting cache refresh...")
-    try {
-      const success = await refreshCache((event) => {
-        const message =
-          event.message ||
-          (event.source
-            ? `Processed ${event.source}${event.articlesFromSource != null ? ` · ${event.articlesFromSource} articles` : ""}`
-            : null) ||
-          (event.totalSourcesProcessed != null
-            ? `Processed ${event.totalSourcesProcessed} sources`
-            : "Refreshing cache...")
-        setCacheRefreshMessage(message)
-      })
-      if (!success) {
-        throw new Error("Cache refresh did not complete successfully.")
-      }
-      setCacheRefreshMessage("Cache refresh completed.")
-      loadSourceData()
-      loadSystemStatus()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Cache refresh failed."
-      setCacheRefreshError(message)
-      setCacheRefreshMessage(null)
-    } finally {
-      setCacheRefreshRunning(false)
-    }
-  }
-
-  const chromaStats = useMemo(() => {
-    if (!chromaData) return null
-    return {
-      total: chromaData.total ?? chromaData.returned,
-      showing: chromaData.returned,
-    }
-  }, [chromaData])
-
-  const dbStats = useMemo(() => {
-    if (!dbData) return null
-    return {
-      total: dbData.total,
-      showing: dbData.returned,
-      oldest: dbData.oldest_published,
-      newest: dbData.newest_published,
-    }
-  }, [dbData])
-
-  const cacheStats = useMemo(() => {
-    if (!cacheData) return null
-    return {
-      total: cacheData.total,
-      showing: cacheData.returned,
-    }
-  }, [cacheData])
-
-  const driftStats = useMemo(() => driftData, [driftData])
-
-  const missingSamples = useMemo(
-    () => driftData?.missing_in_chroma?.slice(0, 20) ?? [],
-    [driftData?.missing_in_chroma]
-  )
-  const danglingSamples = useMemo(
-    () => driftData?.dangling_in_chroma?.slice(0, 20) ?? [],
-    [driftData?.dangling_in_chroma]
-  )
-
-  const startupEvents = useMemo(() => {
-    if (!startupMetrics?.events?.length) {
-      return []
-    }
-    return [...startupMetrics.events].sort((a, b) => {
-      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0
-      const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
-      return aTime - bTime
-    })
-  }, [startupMetrics?.events])
+const pickDataOr = <T, K extends keyof T>(data: T | null | undefined, key: K, fallback: T[K]): T[K] =>
+  data?.[key] ?? fallback
 
   const formatTimestamp = (value?: string | null) => {
     if (!value) return "—"
@@ -570,23 +254,6 @@ export default function DebugDashboardPage() {
     return `${value.toFixed(2)}s`
   }
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const params = new URLSearchParams(window.location.search)
-    const tab = params.get("tab")
-    setEmbedded(params.get("embedded") === "1")
-    if (isDebugTab(tab)) {
-      setActiveTab(tab)
-    }
-  }, [])
-
-  const sourceStats = sourceStatsQuery.data ?? []
-  const cacheStatus = cacheStatusQuery.data ?? null
-  const llmLogs = llmLogsQuery.data ?? null
-  const debugErrors = debugErrorsQuery.data ?? null
-  const healthySources = sourceStats.filter((source) => source.status === "success").length
-  const warningSources = sourceStats.filter((source) => source.status === "warning").length
-  const failedSources = sourceStats.filter((source) => source.status === "error").length
   const sourceStatusTone = (status: SourceStats["status"]) => {
     switch (status) {
       case "success":
@@ -595,25 +262,6 @@ export default function DebugDashboardPage() {
         return "text-amber-600 dark:text-amber-400"
       default:
         return "text-red-600 dark:text-red-400"
-    }
-  }
-
-  const handleTabChange = (value: string) => {
-    if (!isDebugTab(value)) return
-    setActiveTab(value)
-    const nextParams = new URLSearchParams(
-      typeof window === "undefined" ? "" : window.location.search,
-    )
-    nextParams.set("tab", value)
-    router.replace(`/debug?${nextParams.toString()}`)
-    if (value === "performance") {
-      loadPerformanceData()
-    } else if (value === "sources") {
-      loadSourceData()
-    } else if (value === "llm") {
-      loadLlmLogs()
-    } else if (value === "errors") {
-      loadDebugErrors()
     }
   }
 
@@ -648,103 +296,17 @@ export default function DebugDashboardPage() {
     })
   }
 
-  const applyDbFilters = () => {
-    setDbSourceFilter(dbSourceDraft.trim() || undefined)
-    setDbBeforeFilter(dbBeforeDraft || undefined)
-    setDbAfterFilter(dbAfterDraft || undefined)
-  }
+type SystemStatusSectionProps = {
+  systemStatus: SystemStatusResponse | null;
+  startupMetrics: StartupMetricsResponse | null;
+  startupEvents: StartupEventMetric[];
+  onRefreshStatus: () => void;
+}
 
-  const applyCacheFilters = () => {
-    setCacheSourceFilter(cacheSourceDraft.trim() || undefined)
-  }
-
-  // Phase 3: Test RSS parser
-  const testRssParser = async () => {
-    if (!rssTestUrl.trim()) return
-    setRssTestLoading(true)
-    setRssTestResult(null)
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/debug/parser/test/rss?url=${encodeURIComponent(rssTestUrl)}&max_entries=5`,
-        { method: "POST" }
-      )
-      const data = await response.json()
-      setRssTestResult(data)
-    } catch (err) {
-      setRssTestResult({ error: err instanceof Error ? err.message : "Test failed" })
-    } finally {
-      setRssTestLoading(false)
-    }
-  }
-
-  // Phase 3: Test article parser
-  const testArticleParser = async () => {
-    if (!articleTestUrl.trim()) return
-    setArticleTestLoading(true)
-    setArticleTestResult(null)
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/debug/parser/test/article?url=${encodeURIComponent(articleTestUrl)}`,
-        { method: "POST" }
-      )
-      const data = await response.json()
-      setArticleTestResult(data)
-    } catch (err) {
-      setArticleTestResult({ error: err instanceof Error ? err.message : "Test failed" })
-    } finally {
-      setArticleTestLoading(false)
-    }
-  }
-
+function SystemStatusSection({ systemStatus, startupMetrics, startupEvents, onRefreshStatus }: SystemStatusSectionProps) {
   return (
-    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-      {!embedded && <GlobalNavigation />}
-      <div className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}>
-        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-        <div className="space-y-6">
-          {!embedded && (
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-semibold font-serif">Debug Console</h1>
-                <p className="text-sm text-muted-foreground">
-                  System status, source operations, storage inspection, parser testing, and runtime controls.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
-                <Button asChild variant="outline">
-                  <Link href="/wiki">Open Wiki</Link>
-                </Button>
-                <Button onClick={loadData} variant="default">
-                  Refresh data
-                </Button>
-              </div>
-            </div>
-          )}
-
-      {error && (
-        <Card className="border-red-500/30 bg-red-500/10 bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
-          <CardContent className="py-4 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-      <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
-          <TabsTrigger value="system">System</TabsTrigger>
-          <TabsTrigger value="sources">Sources</TabsTrigger>
-          <TabsTrigger value="storage">Storage</TabsTrigger>
-          <TabsTrigger value="parser">Parser Tester</TabsTrigger>
-          <TabsTrigger value="controls">Controls</TabsTrigger>
-          <TabsTrigger value="llm">LLM Calls</TabsTrigger>
-          <TabsTrigger value="errors">Errors</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-        </TabsList>
-
-        {/* System Status Tab */}
-        <TabsContent value="system" className="space-y-4">
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+    <TabsContent value="system" className="space-y-4">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">System Status</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Component health and runtime information</CardDescription>
@@ -800,13 +362,12 @@ export default function DebugDashboardPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">Loading system status...</p>
               )}
-              <Button variant="outline" size="sm" onClick={loadSystemStatus}>
+              <Button variant="outline" size="sm" onClick={onRefreshStatus}>
                 Refresh Status
               </Button>
             </CardContent>
           </Card>
-
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Pipeline Signals</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">RSS fetch cadence, cache behavior, and embeddings</CardDescription>
@@ -842,63 +403,31 @@ export default function DebugDashboardPage() {
               </div>
             </CardContent>
           </Card>
+          <StartupTimelineCard
+            startupMetrics={startupMetrics}
+            startupEvents={startupEvents}
+            detailFallback="-"
+          />
+    </TabsContent>
+  )
+}
 
-          {/* Startup Timeline (existing content) */}
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-serif">Startup Timeline</CardTitle>
-              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Backend startup phase breakdown</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="grid gap-2 md:grid-cols-3">
-                <div>
-                  <p className="text-muted-foreground">Backend boot</p>
-                  <p className="text-lg font-semibold">
-                    {formatDuration(startupMetrics?.durationSeconds)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Started</p>
-                  <p>{formatTimestamp(startupMetrics?.startedAt)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Completed</p>
-                  <p>{formatTimestamp(startupMetrics?.completedAt)}</p>
-                </div>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Phase</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Detail</TableHead>
-                    <TableHead>Completed</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {startupEvents.map((event) => (
-                    <TableRow key={`${event.name}-${event.startedAt}`}>
-                      <TableCell className="font-medium capitalize">{event.name.replace(/_/g, " ")}</TableCell>
-                      <TableCell>{formatDuration(event.durationSeconds)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {event.detail || "-"}
-                        {renderMetadataBadges(event.metadata)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatTimestamp(event.completedAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                {startupEvents.length === 0 && (
-                  <TableCaption>No startup metrics recorded yet.</TableCaption>
-                )}
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+type SourcesSectionProps = {
+  sourceStats: SourceStats[];
+  cacheStatus: CacheStatus | null;
+  cacheRefreshMessage: string | null;
+  cacheRefreshError: string | null;
+  cacheRefreshRunning: boolean;
+  onRefresh: () => void;
+  onRefreshCache: () => void;
+}
 
-        <TabsContent value="sources" className="space-y-4">
+function SourcesSection({ sourceStats, cacheStatus, cacheRefreshMessage, cacheRefreshError, cacheRefreshRunning, onRefresh, onRefreshCache }: SourcesSectionProps) {
+  const healthySources = sourceStats.filter((source) => source.status === "success").length
+  const warningSources = sourceStats.filter((source) => source.status === "warning").length
+  const failedSources = sourceStats.filter((source) => source.status === "error").length
+  return (
+<TabsContent value="sources" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-medium font-serif">Ingestion And Sources</h2>
@@ -907,10 +436,10 @@ export default function DebugDashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={loadSourceData}>
+              <Button variant="outline" onClick={onRefresh}>
                 Refresh source data
               </Button>
-              <Button onClick={handleRefreshCache} disabled={cacheRefreshRunning}>
+              <Button onClick={onRefreshCache} disabled={cacheRefreshRunning}>
                 {cacheRefreshRunning ? "Refreshing cache..." : "Run cache refresh"}
               </Button>
             </div>
@@ -1050,10 +579,122 @@ export default function DebugDashboardPage() {
           </div>
         </TabsContent>
 
-        {/* Storage Tab (existing content) */}
-        <TabsContent value="storage" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+type StartupTimelineCardProps = {
+  startupMetrics: StartupMetricsResponse | null;
+  startupEvents: StartupEventMetric[];
+  detailFallback?: string;
+}
+
+function StartupTimelineCard({ startupMetrics, startupEvents, detailFallback = "—" }: StartupTimelineCardProps) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+            <CardHeader>
+              <CardTitle className="font-serif">Startup Timeline</CardTitle>
+              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Backend startup phase breakdown</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid gap-2 md:grid-cols-3">
+                <div>
+                  <p className="text-muted-foreground">Backend boot</p>
+                  <p className="text-lg font-semibold">
+                    {formatDuration(startupMetrics?.durationSeconds)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Started</p>
+                  <p>{formatTimestamp(startupMetrics?.startedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Completed</p>
+                  <p>{formatTimestamp(startupMetrics?.completedAt)}</p>
+                </div>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Phase</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Detail</TableHead>
+                    <TableHead>Completed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {startupEvents.map((event) => (
+                    <TableRow key={`${event.name}-${event.startedAt}`}>
+                      <TableCell className="font-medium capitalize">{event.name.replace(/_/g, " ")}</TableCell>
+                      <TableCell>{formatDuration(event.durationSeconds)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {event.detail || detailFallback}
+                        {renderMetadataBadges(event.metadata)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatTimestamp(event.completedAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                {startupEvents.length === 0 && (
+                  <TableCaption>No startup metrics recorded yet.</TableCaption>
+                )}
+              </Table>
+            </CardContent>
+          </Card>
+
+  )
+}
+
+type StorageSectionProps = {
+  chromaData: ChromaDebugResponse | null;
+  dbData: DatabaseDebugResponse | null;
+  driftData: StorageDriftReport | null;
+  cacheData: CacheDebugResponse | null;
+  cacheDelta: CacheDeltaResponse | null;
+  startupMetrics: StartupMetricsResponse | null;
+  startupEvents: StartupEventMetric[];
+  chromaLimit: number;
+  setChromaLimit: (value: number) => void;
+  chromaOffset: number;
+  setChromaOffset: (value: number) => void;
+  dbLimit: number;
+  setDbLimit: (value: number) => void;
+  dbOffset: number;
+  setDbOffset: (value: number) => void;
+  dbSortDirection: "asc" | "desc";
+  setDbSortDirection: (value: "asc" | "desc") => void;
+  dbMissingOnly: boolean;
+  setDbMissingOnly: (value: boolean) => void;
+  cacheLimit: number;
+  setCacheLimit: (value: number) => void;
+  cacheOffset: number;
+  setCacheOffset: (value: number) => void;
+  cacheSourceDraft: string;
+  setCacheSourceDraft: (value: string) => void;
+  dbSourceDraft: string;
+  setDbSourceDraft: (value: string) => void;
+  dbBeforeDraft: string;
+  setDbBeforeDraft: (value: string) => void;
+  dbAfterDraft: string;
+  setDbAfterDraft: (value: string) => void;
+  onApplyCacheFilters: () => void;
+  onApplyDbFilters: () => void;
+}
+
+function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chromaLimit, setChromaLimit, chromaOffset, setChromaOffset, dbLimit, setDbLimit, dbOffset, setDbOffset, dbSortDirection, setDbSortDirection, dbMissingOnly, setDbMissingOnly, cacheLimit, setCacheLimit, cacheOffset, setCacheOffset }: { chromaData: ChromaDebugResponse | null; dbData: DatabaseDebugResponse | null; cacheData: CacheDebugResponse | null; chromaLimit: number; setChromaLimit: (value: number) => void; chromaOffset: number; setChromaOffset: (value: number) => void; dbLimit: number; setDbLimit: (value: number) => void; dbOffset: number; setDbOffset: (value: number) => void; dbSortDirection: "asc" | "desc"; setDbSortDirection: (value: "asc" | "desc") => void; dbMissingOnly: boolean; setDbMissingOnly: (value: boolean) => void; cacheLimit: number; setCacheLimit: (value: number) => void; cacheOffset: number; setCacheOffset: (value: number) => void; driftStats: StorageDriftReport | null; }) {
+  const chromaStats = chromaData
+    ? { total: chromaData.total ?? chromaData.returned, showing: chromaData.returned }
+    : null
+  const dbStats = dbData
+    ? { total: dbData.total, showing: dbData.returned, oldest: dbData.oldest_published, newest: dbData.newest_published }
+    : null
+  const cacheStats = cacheData
+    ? { total: cacheData.total, showing: cacheData.returned }
+    : null
+  return (
+  <div className="grid gap-4 md:grid-cols-4">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Cache Snapshot</CardTitle>
               </CardHeader>
@@ -1087,8 +728,7 @@ export default function DebugDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Chroma Snapshot</CardTitle>
               </CardHeader>
@@ -1122,8 +762,7 @@ export default function DebugDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Database Snapshot</CardTitle>
               </CardHeader>
@@ -1172,8 +811,7 @@ export default function DebugDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Storage Drift</CardTitle>
               </CardHeader>
@@ -1184,9 +822,15 @@ export default function DebugDashboardPage() {
                 <p>Dangling in Chroma: {driftStats?.dangling_in_chroma_count ?? "-"}</p>
               </CardContent>
             </Card>
-          </div>
+  </div>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilters, dbSourceDraft, setDbSourceDraft, dbBeforeDraft, setDbBeforeDraft, dbAfterDraft, setDbAfterDraft, onApplyDbFilters }: { cacheSourceDraft: string; setCacheSourceDraft: (value: string) => void; onApplyCacheFilters: () => void; dbSourceDraft: string; setDbSourceDraft: (value: string) => void; dbBeforeDraft: string; setDbBeforeDraft: (value: string) => void; dbAfterDraft: string; setDbAfterDraft: (value: string) => void; onApplyDbFilters: () => void; }) {
+  return (
+    <>
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <CardTitle className="font-serif">Cache filters</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
@@ -1196,14 +840,13 @@ export default function DebugDashboardPage() {
                   value={cacheSourceDraft}
                   onChange={(event) => setCacheSourceDraft(event.target.value)}
                 />
-                <Button variant="secondary" onClick={applyCacheFilters}>
+                <Button variant="secondary" onClick={onApplyCacheFilters}>
                   Apply filters
                 </Button>
               </div>
             </CardHeader>
           </Card>
-
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <CardTitle className="font-serif">Database filters</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
@@ -1227,14 +870,22 @@ export default function DebugDashboardPage() {
                   onChange={(event) => setDbBeforeDraft(event.target.value)}
                   placeholder="Published before"
                 />
-                <Button variant="secondary" onClick={applyDbFilters}>
+                <Button variant="secondary" onClick={onApplyDbFilters}>
                   Apply filters
                 </Button>
               </div>
             </CardHeader>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+    </>
+  )
+}
+
+type CacheDeltaCardProps = { cacheDelta: CacheDeltaResponse | null }
+
+function CacheDeltaCard({ cacheDelta }: CacheDeltaCardProps) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Cache vs database delta</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Compares the current cache window against Postgres</CardDescription>
@@ -1276,63 +927,12 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-serif">Startup timeline</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Breakdown of backend startup phases: DB init, cache preload, vector store, and RSS refresh.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="grid gap-2 md:grid-cols-3">
-                <div>
-                  <p className="text-muted-foreground">Backend boot</p>
-                  <p className="text-lg font-semibold">
-                    {formatDuration(startupMetrics?.durationSeconds)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Started</p>
-                  <p>{formatTimestamp(startupMetrics?.startedAt)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Completed</p>
-                  <p>{formatTimestamp(startupMetrics?.completedAt)}</p>
-                </div>
-              </div>
+  )
+}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Phase</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Detail</TableHead>
-                    <TableHead>Completed</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {startupEvents.map((event) => (
-                    <TableRow key={`${event.name}-${event.startedAt}`}>
-                      <TableCell className="font-medium capitalize">{event.name.replace(/_/g, " ")}</TableCell>
-                      <TableCell>{formatDuration(event.durationSeconds)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {event.detail || "—"}
-                        {renderMetadataBadges(event.metadata)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatTimestamp(event.completedAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                {startupEvents.length === 0 && (
-                  <TableCaption>No startup metrics recorded yet.</TableCaption>
-                )}
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+function ChromaDocumentsCard({ chromaData }: { chromaData: ChromaDebugResponse | null }) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Chroma documents</CardTitle>
             </CardHeader>
@@ -1368,7 +968,12 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function CachedArticlesCard({ cacheData }: { cacheData: CacheDebugResponse | null }) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Cached articles</CardTitle>
             </CardHeader>
@@ -1408,7 +1013,12 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function PostgresArticlesCard({ dbData }: { dbData: DatabaseDebugResponse | null }) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Postgres articles</CardTitle>
             </CardHeader>
@@ -1462,7 +1072,14 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function DriftSamplesCard({ driftData }: { driftData: StorageDriftReport | null }) {
+  const missingSamples = driftData?.missing_in_chroma?.slice(0, 20) ?? []
+  const danglingSamples = driftData?.dangling_in_chroma?.slice(0, 20) ?? []
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Drift samples</CardTitle>
             </CardHeader>
@@ -1500,11 +1117,75 @@ export default function DebugDashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Parser Tester Tab */}
-        <TabsContent value="parser" className="space-y-4">
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function StorageSection(props: StorageSectionProps) {
+  return (
+    <TabsContent value="storage" className="space-y-4">
+      <StorageSnapshotSection
+        chromaData={props.chromaData}
+        dbData={props.dbData}
+        driftStats={props.driftData}
+        cacheData={props.cacheData}
+        chromaLimit={props.chromaLimit}
+        setChromaLimit={props.setChromaLimit}
+        chromaOffset={props.chromaOffset}
+        setChromaOffset={props.setChromaOffset}
+        dbLimit={props.dbLimit}
+        setDbLimit={props.setDbLimit}
+        dbOffset={props.dbOffset}
+        setDbOffset={props.setDbOffset}
+        dbSortDirection={props.dbSortDirection}
+        setDbSortDirection={props.setDbSortDirection}
+        dbMissingOnly={props.dbMissingOnly}
+        setDbMissingOnly={props.setDbMissingOnly}
+        cacheLimit={props.cacheLimit}
+        setCacheLimit={props.setCacheLimit}
+        cacheOffset={props.cacheOffset}
+        setCacheOffset={props.setCacheOffset}
+      />
+      <StorageFilterCards
+        cacheSourceDraft={props.cacheSourceDraft}
+        setCacheSourceDraft={props.setCacheSourceDraft}
+        onApplyCacheFilters={props.onApplyCacheFilters}
+        dbSourceDraft={props.dbSourceDraft}
+        setDbSourceDraft={props.setDbSourceDraft}
+        dbBeforeDraft={props.dbBeforeDraft}
+        setDbBeforeDraft={props.setDbBeforeDraft}
+        dbAfterDraft={props.dbAfterDraft}
+        setDbAfterDraft={props.setDbAfterDraft}
+        onApplyDbFilters={props.onApplyDbFilters}
+      />
+      <CacheDeltaCard cacheDelta={props.cacheDelta} />
+      <StartupTimelineCard startupMetrics={props.startupMetrics} startupEvents={props.startupEvents} />
+      <ChromaDocumentsCard chromaData={props.chromaData} />
+      <CachedArticlesCard cacheData={props.cacheData} />
+      <PostgresArticlesCard dbData={props.dbData} />
+      <DriftSamplesCard driftData={props.driftData} />
+    </TabsContent>
+  )
+}
+
+type ParserSectionProps = {
+  rssTestUrl: string;
+  setRssTestUrl: (value: string) => void;
+  rssTestResult: RssParserTestResult | null;
+  rssTestLoading: boolean;
+  testRssParser: () => void;
+  articleTestUrl: string;
+  setArticleTestUrl: (value: string) => void;
+  articleTestResult: ArticleParserTestResult | null;
+  articleTestLoading: boolean;
+  testArticleParser: () => void;
+}
+
+function RssParserCard({ rssTestUrl, setRssTestUrl, rssTestResult, rssTestLoading, testRssParser }: {
+  rssTestUrl: string; setRssTestUrl: (value: string) => void; rssTestResult: RssParserTestResult | null; rssTestLoading: boolean; testRssParser: () => void;
+}) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">RSS Feed Parser</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Test RSS parsing on any feed URL</CardDescription>
@@ -1570,7 +1251,14 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function ArticleParserCard({ articleTestUrl, setArticleTestUrl, articleTestResult, articleTestLoading, testArticleParser }: {
+  articleTestUrl: string; setArticleTestUrl: (value: string) => void; articleTestResult: ArticleParserTestResult | null; articleTestLoading: boolean; testArticleParser: () => void;
+}) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Article Image Extractor</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Test og:image extraction from article pages</CardDescription>
@@ -1628,7 +1316,12 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function ImageErrorTaxonomyCard() {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Image Error Taxonomy</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Standardized error labels used by image extraction</CardDescription>
@@ -1645,10 +1338,30 @@ export default function DebugDashboardPage() {
               </ul>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Logging Tab */}
-        <TabsContent value="controls" className="space-y-4">
+  )
+}
+
+function ParserSection(props: ParserSectionProps) {
+  return (
+    <TabsContent value="parser" className="space-y-4">
+      <RssParserCard rssTestUrl={props.rssTestUrl} setRssTestUrl={props.setRssTestUrl} rssTestResult={props.rssTestResult} rssTestLoading={props.rssTestLoading} testRssParser={props.testRssParser} />
+      <ArticleParserCard articleTestUrl={props.articleTestUrl} setArticleTestUrl={props.setArticleTestUrl} articleTestResult={props.articleTestResult} articleTestLoading={props.articleTestLoading} testArticleParser={props.testArticleParser} />
+      <ImageErrorTaxonomyCard />
+    </TabsContent>
+  )
+}
+
+type ControlsSectionProps = {
+  logLevel: string;
+  onSetLogLevel: (level: string) => void;
+  frontendDebugMode: boolean;
+  onToggleFrontendDebug: () => void;
+}
+
+function ControlsSection({ logLevel, onSetLogLevel, frontendDebugMode, onToggleFrontendDebug }: ControlsSectionProps) {
+  return (
+<TabsContent value="controls" className="space-y-4">
           <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Backend Log Level</CardTitle>
@@ -1657,7 +1370,7 @@ export default function DebugDashboardPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <span className="text-sm">Current level:</span>
-                <Select value={logLevel} onValueChange={handleSetLogLevel}>
+                <Select value={logLevel} onValueChange={onSetLogLevel}>
                   <SelectTrigger className="w-32">
                     <SelectValue />
                   </SelectTrigger>
@@ -1686,7 +1399,7 @@ export default function DebugDashboardPage() {
                   <input
                     type="checkbox"
                     checked={frontendDebugMode}
-                    onChange={handleToggleFrontendDebug}
+                    onChange={onToggleFrontendDebug}
                     className="w-4 h-4"
                   />
                   <span className="text-sm">Enable debug mode</span>
@@ -1700,7 +1413,17 @@ export default function DebugDashboardPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="llm" className="space-y-4">
+  )
+}
+
+type LlmSectionProps = {
+  llmLogs: LlmLogResponse | null;
+  onRefresh: () => void;
+}
+
+function LlmSection({ llmLogs, onRefresh }: LlmSectionProps) {
+  return (
+<TabsContent value="llm" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-medium font-serif">LLM Calls</h2>
@@ -1708,7 +1431,7 @@ export default function DebugDashboardPage() {
                 Parsed model calls with latency and outcome details.
               </p>
             </div>
-            <Button variant="outline" onClick={loadLlmLogs}>
+            <Button variant="outline" onClick={onRefresh}>
               Refresh LLM logs
             </Button>
           </div>
@@ -1798,7 +1521,17 @@ export default function DebugDashboardPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="errors" className="space-y-4">
+  )
+}
+
+type ErrorsSectionProps = {
+  debugErrors: DebugErrorsResponse | null;
+  onRefresh: () => void;
+}
+
+function ErrorsSection({ debugErrors, onRefresh }: ErrorsSectionProps) {
+  return (
+<TabsContent value="errors" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-medium font-serif">Errors</h2>
@@ -1806,7 +1539,7 @@ export default function DebugDashboardPage() {
                 Combined API error log plus recent request and stream failures.
               </p>
             </div>
-            <Button variant="outline" onClick={loadDebugErrors}>
+            <Button variant="outline" onClick={onRefresh}>
               Refresh errors
             </Button>
           </div>
@@ -1897,18 +1630,22 @@ export default function DebugDashboardPage() {
           </Card>
         </TabsContent>
 
-        {/* Performance Tab */}
-        <TabsContent value="performance" className="space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium font-serif">Performance Debugging</h2>
-            <Button onClick={loadPerformanceData} variant="outline" size="sm">
-              Refresh
-            </Button>
-          </div>
+  )
+}
 
-          {/* Backend Debug Report Summary */}
-          {backendDebugReport && (
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+type PerformanceSectionProps = {
+  backendDebugReport: BackendDebugReport | null;
+  backendLogEvents: UnknownRecord[];
+  backendSlowOps: UnknownRecord[];
+  backendLogFiles: UnknownRecord[];
+  frontendPerfData: ReturnType<typeof exportDebugData> | null;
+  onRefresh: () => void;
+}
+
+function PerformanceReportCard({ backendDebugReport }: { backendDebugReport: BackendDebugReport | null }) {
+  if (!backendDebugReport) return null
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Backend Debug Report</CardTitle>
                 <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
@@ -1969,11 +1706,14 @@ export default function DebugDashboardPage() {
                 )}
               </CardContent>
             </Card>
-          )}
 
-          {/* Slow Operations */}
-          {backendSlowOps.length > 0 && (
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function SlowOperationsCard({ backendSlowOps }: { backendSlowOps: UnknownRecord[] }) {
+  if (backendSlowOps.length === 0) return null
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Slow Operations</CardTitle>
                 <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Operations exceeding performance thresholds</CardDescription>
@@ -2004,10 +1744,13 @@ export default function DebugDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
 
-          {/* Recent Backend Events */}
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function BackendEventsCard({ backendLogEvents }: { backendLogEvents: UnknownRecord[] }) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Recent Backend Events</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Last 100 debug events from the backend</CardDescription>
@@ -2038,9 +1781,13 @@ export default function DebugDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Frontend Performance */}
-          {frontendPerfData && (
-            <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function FrontendPerfCard({ frontendPerfData }: { frontendPerfData: ReturnType<typeof exportDebugData> | null }) {
+  if (!frontendPerfData) return null
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
                 <CardTitle className="font-serif">Frontend Performance</CardTitle>
                 <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Browser-side metrics and stream tracking</CardDescription>
@@ -2106,10 +1853,13 @@ export default function DebugDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
 
-          {/* Log Files Browser */}
-          <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+  )
+}
+
+function LogFilesCard({ backendLogFiles }: { backendLogFiles: UnknownRecord[] }) {
+  return (
+<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
               <CardTitle className="font-serif">Debug Log Files</CardTitle>
               <CardDescription className="font-mono text-[10px] tracking-widest uppercase">JSON Lines log files saved on the backend</CardDescription>
@@ -2141,8 +1891,536 @@ export default function DebugDashboardPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs >
+
+  )
+}
+
+function PerformanceSection(props: PerformanceSectionProps) {
+  return (
+    <TabsContent value="performance" className="space-y-4">
+      <PerformanceReportCard backendDebugReport={props.backendDebugReport} />
+      <SlowOperationsCard backendSlowOps={props.backendSlowOps} />
+      <BackendEventsCard backendLogEvents={props.backendLogEvents} />
+      <FrontendPerfCard frontendPerfData={props.frontendPerfData} />
+      <LogFilesCard backendLogFiles={props.backendLogFiles} />
+    </TabsContent>
+  )
+}
+
+export default function DebugDashboardPage() {
+  const router = useRouter()
+  const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
+  const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
+
+  const [dbLimit, setDbLimit] = usePersistentNumber(25, 5, 200)
+  const [dbOffset, setDbOffset] = usePersistentNumber(0, 0, 5000)
+  const [dbSortDirection, setDbSortDirection] = useState<"asc" | "desc">("desc")
+  const [dbMissingOnly, setDbMissingOnly] = useState(false)
+  const [dbSourceDraft, setDbSourceDraft] = useState("")
+  const [dbSourceFilter, setDbSourceFilter] = useState<string | undefined>(undefined)
+  const [dbBeforeDraft, setDbBeforeDraft] = useState("")
+  const [dbBeforeFilter, setDbBeforeFilter] = useState<string | undefined>(undefined)
+  const [dbAfterDraft, setDbAfterDraft] = useState("")
+  const [dbAfterFilter, setDbAfterFilter] = useState<string | undefined>(undefined)
+
+  const [cacheLimit, setCacheLimit] = usePersistentNumber(25, 5, 500)
+  const [cacheOffset, setCacheOffset] = usePersistentNumber(0, 0, 5000)
+  const [cacheSourceDraft, setCacheSourceDraft] = useState("")
+  const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
+
+  // Phase 3: New state for system status, log level, parser tester
+  const [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB)
+  const [embedded, setEmbedded] = useState(false)
+  const frontendDebugMode = useDebugMode()
+  const [cacheRefreshRunning, setCacheRefreshRunning] = useState(false)
+  const [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(null)
+  const [cacheRefreshError, setCacheRefreshError] = useState<string | null>(null)
+
+  // Parser tester state
+  const [rssTestUrl, setRssTestUrl] = useState("")
+  const [rssTestResult, setRssTestResult] = useState<RssParserTestResult | null>(null)
+  const [rssTestLoading, setRssTestLoading] = useState(false)
+  const [articleTestUrl, setArticleTestUrl] = useState("")
+  const [articleTestResult, setArticleTestResult] = useState<ArticleParserTestResult | null>(null)
+  const [articleTestLoading, setArticleTestLoading] = useState(false)
+
+  // Performance logging state
+  const dashboardDataQuery = useQuery<DashboardData>({
+    queryKey: [
+      "debug-dashboard",
+      chromaLimit,
+      chromaOffset,
+      dbLimit,
+      dbOffset,
+      dbSourceFilter,
+      dbMissingOnly,
+      dbSortDirection,
+      dbBeforeFilter,
+      dbAfterFilter,
+      cacheLimit,
+      cacheOffset,
+      cacheSourceFilter,
+    ],
+    queryFn: async () => {
+      const [
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+        cacheData,
+        cacheDelta,
+      ] = await Promise.all([
+        fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
+        fetchDatabaseDebugArticles({
+          limit: dbLimit,
+          offset: dbOffset,
+          source: dbSourceFilter,
+          missing_embeddings_only: dbMissingOnly,
+          sort_direction: dbSortDirection,
+          published_before: dbBeforeFilter,
+          published_after: dbAfterFilter,
+        }),
+        fetchStorageDrift(100),
+        fetchStartupMetrics(),
+        fetchCacheDebugArticles({
+          limit: cacheLimit,
+          offset: cacheOffset,
+          source: cacheSourceFilter,
+        }),
+        fetchCacheDelta({
+          sample_limit: cacheLimit,
+          sample_offset: cacheOffset,
+          source: cacheSourceFilter,
+          sample_preview_limit: 50,
+        }),
+      ])
+
+      return {
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+        cacheData,
+        cacheDelta,
+      }
+    },
+    retry: 1,
+  })
+  const loadData = () => {
+    void dashboardDataQuery.refetch()
+  }
+  const chromaData = pickData(dashboardDataQuery.data, 'chromaData')
+  const dbData = pickData(dashboardDataQuery.data, 'dbData')
+  const driftData = pickData(dashboardDataQuery.data, 'driftData')
+  const startupMetrics = pickData(dashboardDataQuery.data, 'startupMetrics')
+  const cacheData = pickData(dashboardDataQuery.data, 'cacheData')
+  const cacheDelta = pickData(dashboardDataQuery.data, 'cacheDelta')
+  const loading = dashboardDataQuery.isLoading
+  const error =
+    dashboardDataQuery.error instanceof Error
+      ? dashboardDataQuery.error.message
+      : null
+
+  const systemStatusQuery = useQuery<SystemStatusResponse>({
+    queryKey: ["debug-system-status"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/debug/system/status`)
+      if (!response.ok) {
+        throw new Error("Failed to load system status")
+      }
+      return (await response.json()) as SystemStatusResponse
+    },
+    retry: 1,
+  })
+  const systemStatus = systemStatusQuery.data ?? null
+
+  const logLevelQuery = useQuery<LogLevelResponse>({
+    queryKey: ["debug-log-level"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/debug/loglevel`)
+      if (!response.ok) {
+        throw new Error("Failed to load log level")
+      }
+      return (await response.json()) as LogLevelResponse
+    },
+    retry: 1,
+  })
+  const logLevel = logLevelQuery.data?.level ?? "INFO"
+
+  const sourceStatsQuery = useQuery<SourceStats[]>({
+    queryKey: ["debug-source-stats"],
+    queryFn: fetchSourceStats,
+    enabled: activeTab === "sources",
+    retry: 1,
+  })
+  const cacheStatusQuery = useQuery<CacheStatus | null>({
+    queryKey: ["debug-cache-status"],
+    queryFn: fetchCacheStatus,
+    enabled: activeTab === "sources",
+    retry: 1,
+  })
+  const llmLogsQuery = useQuery<LlmLogResponse>({
+    queryKey: ["debug-llm-logs"],
+    queryFn: () => fetchLlmLogs({ limit: 50 }),
+    enabled: activeTab === "llm",
+    retry: 1,
+  })
+  const debugErrorsQuery = useQuery<DebugErrorsResponse>({
+    queryKey: ["debug-errors"],
+    queryFn: () => fetchDebugErrors({ limit: 50, includeRequestStreamEvents: true }),
+    enabled: activeTab === "errors",
+    retry: 1,
+  })
+
+  const performanceDataQuery = useQuery<PerformanceDebugData>({
+    queryKey: ["debug-performance", activeTab],
+    queryFn: async () => {
+      const [reportResponse, eventsResponse, slowResponse, filesResponse] =
+        await Promise.all([
+          fetch(`${API_BASE_URL}/debug/logs/report`),
+          fetch(`${API_BASE_URL}/debug/logs/events?limit=100`),
+          fetch(`${API_BASE_URL}/debug/logs/slow`),
+          fetch(`${API_BASE_URL}/debug/logs/files`),
+        ])
+
+      const report = reportResponse.ok
+        ? ((await reportResponse.json()) as BackendDebugReport)
+        : null
+      const eventsData = eventsResponse.ok ? await eventsResponse.json() : {}
+      const slowData = slowResponse.ok ? await slowResponse.json() : {}
+      const filesData = filesResponse.ok ? await filesResponse.json() : {}
+
+      return {
+        backendDebugReport: report,
+        backendLogEvents: Array.isArray(eventsData.events)
+          ? (eventsData.events as UnknownRecord[])
+          : [],
+        backendSlowOps: Array.isArray(slowData.operations)
+          ? (slowData.operations as UnknownRecord[])
+          : [],
+        backendLogFiles: Array.isArray(filesData.files)
+          ? (filesData.files as UnknownRecord[])
+          : [],
+        frontendPerfData: exportDebugData(),
+      }
+    },
+    enabled: activeTab === "performance",
+    retry: 1,
+    refetchInterval: activeTab === "performance" ? 5000 : false,
+  })
+  const backendDebugReport = pickData(performanceDataQuery.data, 'backendDebugReport')
+  const frontendPerfData = pickData(performanceDataQuery.data, 'frontendPerfData')
+  const backendLogEvents = pickDataOr(performanceDataQuery.data, 'backendLogEvents', [])
+  const backendSlowOps = pickDataOr(performanceDataQuery.data, 'backendSlowOps', [])
+  const backendLogFiles = pickDataOr(performanceDataQuery.data, 'backendLogFiles', [])
+  const loadPerformanceData = () => {
+    void performanceDataQuery.refetch()
+  }
+
+  const loadSystemStatus = () => {
+    void systemStatusQuery.refetch()
+  }
+
+  const loadLogLevel = () => {
+    void logLevelQuery.refetch()
+  }
+  const loadSourceData = () => {
+    void sourceStatsQuery.refetch()
+    void cacheStatusQuery.refetch()
+  }
+  const loadLlmLogs = () => {
+    void llmLogsQuery.refetch()
+  }
+  const loadDebugErrors = () => {
+    void debugErrorsQuery.refetch()
+  }
+
+  const handleSetLogLevel = async (level: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/debug/loglevel?level=${level}`, {
+        method: "POST",
+      })
+      if (response.ok) {
+        await loadLogLevel()
+      }
+    } catch (err) {
+      logger.error("Failed to set log level", err)
+    }
+  }
+
+  const handleToggleFrontendDebug = () => {
+    setDebugMode(!frontendDebugMode)
+  }
+
+  const handleRefreshCache = async () => {
+    setCacheRefreshRunning(true)
+    setCacheRefreshError(null)
+    setCacheRefreshMessage("Starting cache refresh...")
+    try {
+      const success = await refreshCache((event) => {
+        const message =
+          event.message ||
+          (event.source
+            ? `Processed ${event.source}${event.articlesFromSource != null ? ` · ${event.articlesFromSource} articles` : ""}`
+            : null) ||
+          (event.totalSourcesProcessed != null
+            ? `Processed ${event.totalSourcesProcessed} sources`
+            : "Refreshing cache...")
+        setCacheRefreshMessage(message)
+      })
+      if (!success) {
+        throw new Error("Cache refresh did not complete successfully.")
+      }
+      setCacheRefreshMessage("Cache refresh completed.")
+      loadSourceData()
+      loadSystemStatus()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Cache refresh failed."
+      setCacheRefreshError(message)
+      setCacheRefreshMessage(null)
+    } finally {
+      setCacheRefreshRunning(false)
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+  const startupEvents = useMemo(() => {
+    if (!startupMetrics?.events?.length) {
+      return []
+    }
+    return [...startupMetrics.events].sort((a, b) => {
+      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0
+      const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
+      return aTime - bTime
+    })
+  }, [startupMetrics?.events])
+
+
+
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const tab = params.get("tab")
+    setEmbedded(params.get("embedded") === "1")
+    if (isDebugTab(tab)) {
+      setActiveTab(tab)
+    }
+  }, [])
+
+  const sourceStats = sourceStatsQuery.data ?? []
+  const cacheStatus = cacheStatusQuery.data ?? null
+  const llmLogs = llmLogsQuery.data ?? null
+  const debugErrors = debugErrorsQuery.data ?? null
+
+
+  const handleTabChange = (value: string) => {
+    if (!isDebugTab(value)) return
+    setActiveTab(value)
+    const nextParams = new URLSearchParams(
+      typeof window === "undefined" ? "" : window.location.search,
+    )
+    nextParams.set("tab", value)
+    router.replace(`/debug?${nextParams.toString()}`)
+    if (value === "performance") {
+      loadPerformanceData()
+    } else if (value === "sources") {
+      loadSourceData()
+    } else if (value === "llm") {
+      loadLlmLogs()
+    } else if (value === "errors") {
+      loadDebugErrors()
+    }
+  }
+
+
+
+
+
+  const applyDbFilters = () => {
+    setDbSourceFilter(dbSourceDraft.trim() || undefined)
+    setDbBeforeFilter(dbBeforeDraft || undefined)
+    setDbAfterFilter(dbAfterDraft || undefined)
+  }
+
+  const applyCacheFilters = () => {
+    setCacheSourceFilter(cacheSourceDraft.trim() || undefined)
+  }
+
+  // Phase 3: Test RSS parser
+  const testRssParser = async () => {
+    if (!rssTestUrl.trim()) return
+    setRssTestLoading(true)
+    setRssTestResult(null)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/debug/parser/test/rss?url=${encodeURIComponent(rssTestUrl)}&max_entries=5`,
+        { method: "POST" }
+      )
+      const data = await response.json()
+      setRssTestResult(data)
+    } catch (err) {
+      setRssTestResult({ error: err instanceof Error ? err.message : "Test failed" })
+    } finally {
+      setRssTestLoading(false)
+    }
+  }
+
+  // Phase 3: Test article parser
+  const testArticleParser = async () => {
+    if (!articleTestUrl.trim()) return
+    setArticleTestLoading(true)
+    setArticleTestResult(null)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/debug/parser/test/article?url=${encodeURIComponent(articleTestUrl)}`,
+        { method: "POST" }
+      )
+      const data = await response.json()
+      setArticleTestResult(data)
+    } catch (err) {
+      setArticleTestResult({ error: err instanceof Error ? err.message : "Test failed" })
+    } finally {
+      setArticleTestLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
+      {!embedded && <GlobalNavigation />}
+      <div className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}>
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
+        <div className="space-y-6">
+          {!embedded && (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold font-serif">Debug Console</h1>
+                <p className="text-sm text-muted-foreground">
+                  System status, source operations, storage inspection, parser testing, and runtime controls.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {loading && <span className="text-sm text-muted-foreground">Refreshing...</span>}
+                <Button asChild variant="outline">
+                  <Link href="/wiki/ownership">Open Wiki</Link>
+                </Button>
+                <Button onClick={loadData} variant="default">
+                  Refresh data
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <Card className="border-red-500/30 bg-red-500/10 bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+              <CardContent className="py-4 text-sm text-red-600 dark:text-red-400">
+                {error}
+              </CardContent>
+            </Card>
+          )}
+
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+              <TabsTrigger value="system">System</TabsTrigger>
+              <TabsTrigger value="sources">Sources</TabsTrigger>
+              <TabsTrigger value="storage">Storage</TabsTrigger>
+              <TabsTrigger value="parser">Parser Tester</TabsTrigger>
+              <TabsTrigger value="controls">Controls</TabsTrigger>
+              <TabsTrigger value="llm">LLM Calls</TabsTrigger>
+              <TabsTrigger value="errors">Errors</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+            </TabsList>
+
+            <SystemStatusSection
+              systemStatus={systemStatus}
+              startupMetrics={startupMetrics}
+              startupEvents={startupEvents}
+              onRefreshStatus={loadSystemStatus}
+            />
+            <SourcesSection
+              sourceStats={sourceStats}
+              cacheStatus={cacheStatus}
+              cacheRefreshMessage={cacheRefreshMessage}
+              cacheRefreshError={cacheRefreshError}
+              cacheRefreshRunning={cacheRefreshRunning}
+              onRefresh={loadSourceData}
+              onRefreshCache={handleRefreshCache}
+            />
+            <StorageSection
+              chromaData={chromaData}
+              dbData={dbData}
+              driftData={driftData}
+              cacheData={cacheData}
+              cacheDelta={cacheDelta}
+              startupMetrics={startupMetrics}
+              startupEvents={startupEvents}
+              chromaLimit={chromaLimit}
+              setChromaLimit={setChromaLimit}
+              chromaOffset={chromaOffset}
+              setChromaOffset={setChromaOffset}
+              dbLimit={dbLimit}
+              setDbLimit={setDbLimit}
+              dbOffset={dbOffset}
+              setDbOffset={setDbOffset}
+              dbSortDirection={dbSortDirection}
+              setDbSortDirection={setDbSortDirection}
+              dbMissingOnly={dbMissingOnly}
+              setDbMissingOnly={setDbMissingOnly}
+              cacheLimit={cacheLimit}
+              setCacheLimit={setCacheLimit}
+              cacheOffset={cacheOffset}
+              setCacheOffset={setCacheOffset}
+              cacheSourceDraft={cacheSourceDraft}
+              setCacheSourceDraft={setCacheSourceDraft}
+              dbSourceDraft={dbSourceDraft}
+              setDbSourceDraft={setDbSourceDraft}
+              dbBeforeDraft={dbBeforeDraft}
+              setDbBeforeDraft={setDbBeforeDraft}
+              dbAfterDraft={dbAfterDraft}
+              setDbAfterDraft={setDbAfterDraft}
+              onApplyCacheFilters={applyCacheFilters}
+              onApplyDbFilters={applyDbFilters}
+            />
+            <ParserSection
+              rssTestUrl={rssTestUrl}
+              setRssTestUrl={setRssTestUrl}
+              rssTestResult={rssTestResult}
+              rssTestLoading={rssTestLoading}
+              testRssParser={testRssParser}
+              articleTestUrl={articleTestUrl}
+              setArticleTestUrl={setArticleTestUrl}
+              articleTestResult={articleTestResult}
+              articleTestLoading={articleTestLoading}
+              testArticleParser={testArticleParser}
+            />
+            <ControlsSection
+              logLevel={logLevel}
+              onSetLogLevel={handleSetLogLevel}
+              frontendDebugMode={frontendDebugMode}
+              onToggleFrontendDebug={handleToggleFrontendDebug}
+            />
+            <LlmSection llmLogs={llmLogs} onRefresh={loadLlmLogs} />
+            <ErrorsSection debugErrors={debugErrors} onRefresh={loadDebugErrors} />
+            <PerformanceSection
+              backendDebugReport={backendDebugReport}
+              backendLogEvents={backendLogEvents}
+              backendSlowOps={backendSlowOps}
+              backendLogFiles={backendLogFiles}
+              frontendPerfData={frontendPerfData}
+              onRefresh={loadPerformanceData}
+            />
+          </Tabs>
         </div>
       </div>
     </div>

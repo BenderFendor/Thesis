@@ -10,6 +10,8 @@ Provides endpoints for:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -330,33 +332,18 @@ class WikiIndexStatusResponse(BaseModel):
     by_type: dict[str, int] = {}
 
 
-# ── Source Endpoints ─────────────────────────────────────────────────
-
-
-@router.get("/sources", response_model=list[SourceCardResponse])
-async def list_wiki_sources(
-    db: AsyncSession = Depends(get_db),
-    country: str | None = Query(None, description="Filter by ISO country code"),
-    bias: str | None = Query(None, description="Filter by bias rating"),
-    funding: str | None = Query(None, description="Filter by funding type"),
-    search: str | None = Query(None, description="Search by source name"),
-    sort: str = Query("name", description="Sort by: name, country, bias"),
-    limit: int = Query(200, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-) -> list[SourceCardResponse]:
-    """List all sources for the wiki index page with optional filtering."""
-    sources = get_rss_sources()
-
-    # Deduplicate by base name
+def _dedupe_sources(sources: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         if base_name not in unique_sources:
             unique_sources[base_name] = config
+    return unique_sources
 
-    # Load analysis scores from DB
-    score_result = await db.execute(select(SourceAnalysisScore))
-    all_scores = score_result.scalars().all()
+
+def _scores_by_source(
+    all_scores: Sequence[SourceAnalysisScore],
+) -> dict[str, dict[str, int]]:
     scores_by_source: dict[str, dict[str, int]] = {}
     for score in all_scores:
         score_source_name = _required_str(score.source_name)
@@ -364,62 +351,70 @@ async def list_wiki_sources(
         if score_source_name not in scores_by_source:
             scores_by_source[score_source_name] = {}
         scores_by_source[score_source_name][score_axis_name] = _required_int(score.score)
+    return scores_by_source
 
-    # Load index status from DB
-    status_result = await db.execute(
-        select(WikiIndexStatus).where(WikiIndexStatus.entity_type == "source")
-    )
-    status_entries: dict[str, WikiIndexStatus] = {
-        _required_str(status_entry.entity_name): status_entry
-        for status_entry in status_result.scalars().all()
+
+def _status_by_entity_name(
+    status_entries: Sequence[WikiIndexStatus],
+) -> dict[str, WikiIndexStatus]:
+    return {
+        _required_str(status_entry.entity_name): status_entry for status_entry in status_entries
     }
 
-    # Load source metadata from DB for credibility/parent company
-    meta_result = await db.execute(select(SourceMetadata))
+
+def _metadata_by_name(
+    metadata_entries: Sequence[SourceMetadata],
+) -> dict[str, SourceMetadata]:
     metadata_by_name: dict[str, SourceMetadata] = {}
-    for metadata_entry in meta_result.scalars().all():
+    for metadata_entry in metadata_entries:
         metadata_by_name[_required_str(metadata_entry.source_name)] = metadata_entry
+    return metadata_by_name
 
-    # Build response cards
-    cards: list[SourceCardResponse] = []
-    for name, config in unique_sources.items():
-        source_country = config.get("country", "")
-        source_bias = config.get("bias_rating", "")
-        source_funding = config.get("funding_type", "")
 
-        # Apply filters
-        if country and source_country.upper() != country.upper():
-            continue
-        if bias and source_bias.lower() != bias.lower():
-            continue
-        if funding and source_funding.lower() != funding.lower():
-            continue
-        if search and search.lower() not in name.lower():
-            continue
+def _passes_source_filters(
+    name: str,
+    config: dict[str, Any],
+    country: str | None,
+    bias: str | None,
+    funding: str | None,
+    search: str | None,
+) -> bool:
+    source_country = config.get("country", "")
+    source_bias = config.get("bias_rating", "")
+    source_funding = config.get("funding_type", "")
+    if country and source_country.upper() != country.upper():
+        return False
+    if bias and source_bias.lower() != bias.lower():
+        return False
+    if funding and source_funding.lower() != funding.lower():
+        return False
+    return not search or search.lower() in name.lower()
 
-        meta: SourceMetadata | None = metadata_by_name.get(name)
-        status = status_entries.get(name)
 
-        cards.append(
-            SourceCardResponse(
-                name=name,
-                country=source_country or None,
-                funding_type=source_funding or None,
-                bias_rating=source_bias or None,
-                category=config.get("category", "general"),
-                parent_company=meta.parent_company if meta else None,
-                credibility_score=_optional_float(meta.credibility_score) if meta else None,
-                analysis_scores=scores_by_source.get(name),
-                index_status=status.status if status else "unindexed",
-                last_indexed_at=(
-                    status.last_indexed_at.isoformat()
-                    if status and status.last_indexed_at
-                    else None
-                ),
-            )
-        )
+def _build_source_card(
+    name: str,
+    config: dict[str, Any],
+    meta: SourceMetadata | None,
+    status: WikiIndexStatus | None,
+    scores: dict[str, int] | None,
+) -> SourceCardResponse:
+    return SourceCardResponse(
+        name=name,
+        country=config.get("country") or None,
+        funding_type=config.get("funding_type") or None,
+        bias_rating=config.get("bias_rating") or None,
+        category=config.get("category", "general"),
+        parent_company=meta.parent_company if meta else None,
+        credibility_score=_optional_float(meta.credibility_score) if meta else None,
+        analysis_scores=scores,
+        index_status=status.status if status else "unindexed",
+        last_indexed_at=(
+            status.last_indexed_at.isoformat() if status and status.last_indexed_at else None
+        ),
+    )
 
-    # Sort
+
+def _sort_source_cards(cards: list[SourceCardResponse], sort: str) -> None:
     if sort == "country":
         cards.sort(key=lambda c: c.country or "ZZ")
     elif sort == "bias":
@@ -435,18 +430,65 @@ async def list_wiki_sources(
     else:
         cards.sort(key=lambda c: c.name.lower())
 
+
+# ── Source Endpoints ─────────────────────────────────────────────────
+
+
+@router.get("/sources", response_model=list[SourceCardResponse])
+async def list_wiki_sources(
+    db: AsyncSession = Depends(get_db),
+    country: str | None = Query(None, description="Filter by ISO country code"),
+    bias: str | None = Query(None, description="Filter by bias rating"),
+    funding: str | None = Query(None, description="Filter by funding type"),
+    search: str | None = Query(None, description="Search by source name"),
+    sort: str = Query("name", description="Sort by: name, country, bias"),
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[SourceCardResponse]:
+    """List all sources for the wiki index page with optional filtering."""
+    unique_sources = _dedupe_sources(get_rss_sources())
+
+    # Load analysis scores from DB
+    score_result = await db.execute(select(SourceAnalysisScore))
+    scores_by_source = _scores_by_source(score_result.scalars().all())
+
+    # Load index status from DB
+    status_result = await db.execute(
+        select(WikiIndexStatus).where(WikiIndexStatus.entity_type == "source")
+    )
+    status_entries = _status_by_entity_name(status_result.scalars().all())
+
+    # Load source metadata from DB for credibility/parent company
+    meta_result = await db.execute(select(SourceMetadata))
+    metadata_by_name = _metadata_by_name(meta_result.scalars().all())
+
+    # Build response cards
+    cards: list[SourceCardResponse] = []
+    for name, config in unique_sources.items():
+        if not _passes_source_filters(name, config, country, bias, funding, search):
+            continue
+        cards.append(
+            _build_source_card(
+                name,
+                config,
+                metadata_by_name.get(name),
+                status_entries.get(name),
+                scores_by_source.get(name),
+            )
+        )
+
+    _sort_source_cards(cards, sort)
     return cards[offset : offset + limit]
 
 
-@router.get("/sources/{source_name}", response_model=SourceWikiResponse)
-async def get_source_wiki(
-    source_name: str,
-    db: AsyncSession = Depends(get_db),
-) -> SourceWikiResponse:
-    """Get full wiki page data for a single source."""
-    sources = get_rss_sources()
+def _profile_value(source_profile: dict[str, Any] | None, key: str, default: Any = None) -> Any:
+    value = (source_profile or {}).get(key)
+    return default if value is None else value
 
-    # Find the source config
+
+def _match_source_config(
+    sources: dict[str, dict[str, Any]], source_name: str
+) -> tuple[dict[str, Any], list[str]] | None:
     source_config: dict[str, Any] | None = None
     matched_source_names: list[str] = []
     for name, config in sources.items():
@@ -455,13 +497,16 @@ async def get_source_wiki(
             matched_source_names.append(name)
             if source_config is None:
                 source_config = config
-
     if source_config is None:
-        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+        return None
     if not matched_source_names:
         matched_source_names = [source_name]
+    return source_config, matched_source_names
 
-    # Load source analysis scores
+
+async def _load_analysis_scores(
+    db: AsyncSession, matched_source_names: list[str]
+) -> list[AnalysisAxisResponse]:
     score_result = await db.execute(
         select(SourceAnalysisScore).where(SourceAnalysisScore.source_name.in_(matched_source_names))
     )
@@ -477,7 +522,7 @@ async def get_source_wiki(
             )
         ):
             score_map[axis_name] = score_entry
-    scores = [
+    return [
         AnalysisAxisResponse(
             axis_name=_required_str(s.axis_name),
             score=_required_int(s.score),
@@ -491,12 +536,11 @@ async def get_source_wiki(
         for s in score_map.values()
     ]
 
-    # Load source metadata
-    meta_result = await db.execute(
-        select(SourceMetadata).where(SourceMetadata.source_name.in_(matched_source_names))
-    )
-    metadata_entries = meta_result.scalars().all()
-    meta = next(
+
+def _resolve_metadata(
+    metadata_entries: Sequence[SourceMetadata], source_name: str
+) -> SourceMetadata | None:
+    return next(
         (
             entry
             for entry in metadata_entries
@@ -505,13 +549,10 @@ async def get_source_wiki(
         metadata_entries[0] if metadata_entries else None,
     )
 
-    # Count articles from this source
-    article_count_result = await db.execute(
-        select(func.count()).select_from(Article).where(Article.source.in_(matched_source_names))
-    )
-    article_count = article_count_result.scalar_one() or 0
 
-    # Load reporters associated with this source (via articles)
+async def _load_wiki_reporters(
+    db: AsyncSession, matched_source_names: list[str]
+) -> list[dict[str, Any]]:
     reporter_result = await db.execute(
         select(
             Reporter.id,
@@ -523,10 +564,11 @@ async def get_source_wiki(
         .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
         .join(Article, Article.id == ArticleAuthor.article_id)
         .where(Article.source.in_(matched_source_names))
+        .where(Reporter.retirement_reason.is_(None))
         .distinct()
         .limit(50)
     )
-    reporters: list[dict[str, Any]] = [
+    return [
         {
             "id": r.id,
             "name": r.name,
@@ -537,28 +579,33 @@ async def get_source_wiki(
         for r in reporter_result.all()
     ]
 
-    # Load organization data
+
+async def _load_wiki_organization(db: AsyncSession, source_name: str) -> dict[str, Any] | None:
     org_result = await db.execute(
         select(Organization).where(Organization.normalized_name == source_name.lower().strip())
     )
     org = org_result.scalar_one_or_none()
-    org_data: dict[str, Any] | None = None
-    if org:
-        org_data = {
-            "id": org.id,
-            "name": org.name,
-            "org_type": org.org_type,
-            "funding_type": org.funding_type,
-            "funding_sources": org.funding_sources,
-            "major_advertisers": org.major_advertisers,
-            "ein": org.ein,
-            "annual_revenue": org.annual_revenue,
-            "media_bias_rating": org.media_bias_rating,
-            "factual_reporting": org.factual_reporting,
-            "wikipedia_url": org.wikipedia_url,
-            "research_confidence": org.research_confidence,
-        }
-    source_profile = None
+    if org is None:
+        return None
+    return {
+        "id": org.id,
+        "name": org.name,
+        "org_type": org.org_type,
+        "funding_type": org.funding_type,
+        "funding_sources": org.funding_sources,
+        "major_advertisers": org.major_advertisers,
+        "ein": org.ein,
+        "annual_revenue": org.annual_revenue,
+        "media_bias_rating": org.media_bias_rating,
+        "factual_reporting": org.factual_reporting,
+        "wikipedia_url": org.wikipedia_url,
+        "research_confidence": org.research_confidence,
+    }
+
+
+async def _load_source_profile(
+    source_name: str, matched_source_names: list[str]
+) -> dict[str, Any] | None:
     for profile_source_name in [source_name, *matched_source_names]:
         try:
             source_profile = await get_source_profile(
@@ -570,9 +617,13 @@ async def get_source_wiki(
         except Exception:
             source_profile = None
         if source_profile is not None:
-            break
+            return source_profile
+    return None
 
-    # Load index status
+
+async def _load_index_status(
+    db: AsyncSession, matched_source_names: list[str], source_name: str
+) -> WikiIndexStatus | None:
     status_result = await db.execute(
         select(WikiIndexStatus).where(
             WikiIndexStatus.entity_type == "source",
@@ -597,16 +648,12 @@ async def get_source_wiki(
                 -entry.last_indexed_at.timestamp() if entry.last_indexed_at else float("inf"),
             ),
         )
+    return status
 
-    resolved_overview = cast(str | None, (source_profile or {}).get("overview"))
-    if not resolved_overview:
-        resolved_overview = _source_overview_fallback(
-            source_name=source_name,
-            source_config=source_config,
-            meta=meta,
-            org_data=org_data,
-        )
 
+async def _load_source_claims(
+    db: AsyncSession, matched_source_names: list[str]
+) -> list[dict[str, Any]]:
     claim_payloads: list[dict[str, Any]] = []
     try:
         claim_result = await db.execute(
@@ -652,10 +699,18 @@ async def get_source_wiki(
         logger.debug(
             "Skipping source claim loading due to mock session result exhaustion",
         )
+    return claim_payloads
 
-    source_ledger: dict[str, Any] | None = None
+
+async def _load_source_ledger(
+    db: AsyncSession,
+    source_name: str,
+    matched_source_names: list[str],
+    source_config: dict[str, Any],
+    meta: SourceMetadata | None,
+) -> dict[str, Any] | None:
     try:
-        source_ledger = await build_source_ledger(
+        return await build_source_ledger(
             db,
             source_name=source_name,
             matched_source_names=matched_source_names,
@@ -666,10 +721,26 @@ async def get_source_wiki(
         logger.debug(
             "Skipping source ledger loading due to mock session result exhaustion",
         )
+        return None
 
+
+def _build_wiki_response(
+    source_name: str,
+    source_config: dict[str, Any],
+    meta: SourceMetadata | None,
+    source_profile: dict[str, Any] | None,
+    resolved_overview: str | None,
+    scores: list[AnalysisAxisResponse],
+    reporters: list[dict[str, Any]],
+    org_data: dict[str, Any] | None,
+    article_count: int,
+    claim_payloads: list[dict[str, Any]],
+    source_ledger: dict[str, Any] | None,
+    status: WikiIndexStatus | None,
+) -> SourceWikiResponse:
     return SourceWikiResponse(
         name=source_name,
-        website=cast(str | None, (source_profile or {}).get("website")),
+        website=cast(str | None, _profile_value(source_profile, "website")),
         country=source_config.get("country") or None,
         funding_type=source_config.get("funding_type") or None,
         bias_rating=source_config.get("bias_rating") or None,
@@ -679,24 +750,24 @@ async def get_source_wiki(
         is_state_media=meta.is_state_media if meta else None,
         source_type=meta.source_type if meta else None,
         overview=resolved_overview,
-        match_status=cast(str | None, (source_profile or {}).get("match_status")),
-        wikipedia_url=cast(str | None, (source_profile or {}).get("wikipedia_url")),
-        wikidata_qid=cast(str | None, (source_profile or {}).get("wikidata_qid")),
-        wikidata_url=cast(str | None, (source_profile or {}).get("wikidata_url")),
+        match_status=cast(str | None, _profile_value(source_profile, "match_status")),
+        wikipedia_url=cast(str | None, _profile_value(source_profile, "wikipedia_url")),
+        wikidata_qid=cast(str | None, _profile_value(source_profile, "wikidata_qid")),
+        wikidata_url=cast(str | None, _profile_value(source_profile, "wikidata_url")),
         dossier_sections=cast(
-            list[dict[str, Any]], (source_profile or {}).get("dossier_sections") or []
+            list[dict[str, Any]], _profile_value(source_profile, "dossier_sections", [])
         ),
-        citations=cast(list[dict[str, str]], (source_profile or {}).get("citations") or []),
-        search_links=cast(dict[str, str] | None, (source_profile or {}).get("search_links")),
-        match_explanation=cast(str | None, (source_profile or {}).get("match_explanation")),
+        citations=cast(list[dict[str, str]], _profile_value(source_profile, "citations", [])),
+        search_links=cast(dict[str, str] | None, _profile_value(source_profile, "search_links")),
+        match_explanation=cast(str | None, _profile_value(source_profile, "match_explanation")),
         official_pages=cast(
-            list[dict[str, str]], (source_profile or {}).get("official_pages") or []
+            list[dict[str, str]], _profile_value(source_profile, "official_pages", [])
         ),
         policy_transparency=cast(
-            dict[str, Any] | None, (source_profile or {}).get("policy_transparency")
+            dict[str, Any] | None, _profile_value(source_profile, "policy_transparency")
         ),
-        ads_txt=cast(dict[str, Any] | None, (source_profile or {}).get("ads_txt")),
-        sellers_json=cast(dict[str, Any] | None, (source_profile or {}).get("sellers_json")),
+        ads_txt=cast(dict[str, Any] | None, _profile_value(source_profile, "ads_txt")),
+        sellers_json=cast(dict[str, Any] | None, _profile_value(source_profile, "sellers_json")),
         claims=claim_payloads,
         source_ledger=(
             SourceLedgerResponse.model_validate(source_ledger) if source_ledger else None
@@ -714,6 +785,82 @@ async def get_source_wiki(
     )
 
 
+@router.get("/sources/{source_name}", response_model=SourceWikiResponse)
+async def get_source_wiki(
+    source_name: str,
+    db: AsyncSession = Depends(get_db),
+) -> SourceWikiResponse:
+    """Get full wiki page data for a single source."""
+    matched = _match_source_config(get_rss_sources(), source_name)
+    if matched is None:
+        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+    source_config, matched_source_names = matched
+
+    # Load source analysis scores
+    scores = await _load_analysis_scores(db, matched_source_names)
+
+    # Load source metadata
+    metadata_entries = (
+        (
+            await db.execute(
+                select(SourceMetadata).where(SourceMetadata.source_name.in_(matched_source_names))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    meta = _resolve_metadata(metadata_entries, source_name)
+
+    # Count articles from this source
+    article_count_result = await db.execute(
+        select(func.count()).select_from(Article).where(Article.source.in_(matched_source_names))
+    )
+    article_count = article_count_result.scalar_one() or 0
+
+    # Load reporters associated with this source (via articles)
+    reporters = await _load_wiki_reporters(db, matched_source_names)
+
+    # Load organization data
+    org_data = await _load_wiki_organization(db, source_name)
+
+    # Load the source profile, then the wiki index status
+    source_profile = await _load_source_profile(source_name, matched_source_names)
+    status = await _load_index_status(db, matched_source_names, source_name)
+
+    resolved_overview = cast(str | None, _profile_value(source_profile, "overview"))
+    if not resolved_overview:
+        resolved_overview = _source_overview_fallback(
+            source_name=source_name,
+            source_config=source_config,
+            meta=meta,
+            org_data=org_data,
+        )
+
+    claim_payloads = await _load_source_claims(db, matched_source_names)
+    source_ledger = await _load_source_ledger(
+        db,
+        source_name=source_name,
+        matched_source_names=matched_source_names,
+        source_config=source_config,
+        meta=meta,
+    )
+
+    return _build_wiki_response(
+        source_name=source_name,
+        source_config=source_config,
+        meta=meta,
+        source_profile=source_profile,
+        resolved_overview=resolved_overview,
+        scores=scores,
+        reporters=reporters,
+        org_data=org_data,
+        article_count=article_count,
+        claim_payloads=claim_payloads,
+        source_ledger=source_ledger,
+        status=status,
+    )
+
+
 @router.get("/sources/{source_name}/reporters")
 async def get_source_reporters(
     source_name: str,
@@ -728,7 +875,9 @@ async def get_source_reporters(
         .distinct()
         .limit(limit)
     )
-    result = await db.execute(select(Reporter).where(Reporter.id.in_(reporter_ids)))
+    result = await db.execute(
+        select(Reporter).where(Reporter.id.in_(reporter_ids), Reporter.retirement_reason.is_(None))
+    )
     reporters = result.scalars().all()
     return [
         ReporterCardResponse(
@@ -763,7 +912,7 @@ async def list_wiki_reporters(
     offset: int = Query(0, ge=0),
 ) -> list[ReporterCardResponse]:
     """List all reporters in the wiki directory."""
-    stmt = select(Reporter)
+    stmt = select(Reporter).where(Reporter.retirement_reason.is_(None))
 
     if search:
         stmt = stmt.where(Reporter.name.ilike(f"%{search}%"))
@@ -821,11 +970,21 @@ async def get_reporter_dossier(
     if not reporter:
         raise HTTPException(status_code=404, detail="Reporter not found")
 
+    # A soft-retired (merged) id serves its winner's dossier so old links
+    # keep working; same semantics as entity_research.get_reporter.
+    seen_ids = {reporter.id}
+    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
+        next_reporter = await db.get(Reporter, reporter.merged_into)
+        if next_reporter is None or next_reporter.id in seen_ids:
+            break
+        reporter = next_reporter
+        seen_ids.add(reporter.id)
+
     # Get recent articles by this reporter
     article_result = await db.execute(
         select(Article)
         .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
-        .where(ArticleAuthor.reporter_id == reporter_id)
+        .where(ArticleAuthor.reporter_id == reporter.id)
         .order_by(Article.published_at.desc())
         .limit(20)
     )
@@ -896,10 +1055,21 @@ async def get_reporter_articles(
     offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]]:
     """Get articles by a specific reporter."""
+    reporter = await db.get(Reporter, reporter_id)
+    if reporter is None:
+        raise HTTPException(status_code=404, detail="Reporter not found")
+    seen_ids = {reporter.id}
+    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
+        next_reporter = await db.get(Reporter, reporter.merged_into)
+        if next_reporter is None or next_reporter.id in seen_ids:
+            break
+        reporter = next_reporter
+        seen_ids.add(reporter.id)
+
     result = await db.execute(
         select(Article)
         .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
-        .where(ArticleAuthor.reporter_id == reporter_id)
+        .where(ArticleAuthor.reporter_id == reporter.id)
         .order_by(Article.published_at.desc())
         .limit(limit)
         .offset(offset)

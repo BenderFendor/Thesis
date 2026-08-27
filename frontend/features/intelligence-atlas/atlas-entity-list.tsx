@@ -23,12 +23,20 @@ interface AtlasEntityListProps {
   active?: boolean;
 }
 
-const TYPE_TABS: Array<{ value: "all" | AtlasEntityType; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "outlet", label: "Outlets" },
-  { value: "organization", label: "Organizations" },
-  { value: "person", label: "People" },
-  { value: "reporter", label: "Reporters" },
+function humanizeKind(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+// "People" pulls in both `person` and `reporter` node types: reporters are a
+// subtype of person (every reporter is a person; not every person is a
+// reporter, e.g. owners/founders), so the People tab is the "everyone"
+// directory view while Reporters stays a narrower, reporters-only cut.
+const TYPE_TABS: Array<{ key: "all" | AtlasEntityType; label: string; types: AtlasEntityType[] }> = [
+  { key: "all", label: "All", types: [] },
+  { key: "outlet", label: "Outlets", types: ["outlet"] },
+  { key: "organization", label: "Organizations", types: ["organization"] },
+  { key: "person", label: "People", types: ["person", "reporter"] },
+  { key: "reporter", label: "Reporters", types: ["reporter"] },
 ];
 
 /**
@@ -49,13 +57,15 @@ export function AtlasEntityList({
   active = true,
 }: AtlasEntityListProps) {
   const [type, setType] = useState<"all" | AtlasEntityType>("all");
+  const [kind, setKind] = useState<string[]>([]);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState("name");
+  const [sort, setSort] = useState("most_connected");
   const viewportRef = useRef<HTMLDivElement>(null);
-  const effectiveTypes = type === "all" ? entityTypes : [type];
+  const activeTab = TYPE_TABS.find((tab) => tab.key === type);
+  const effectiveTypes = type === "all" ? entityTypes : (activeTab?.types ?? []);
 
   const indexQuery = useInfiniteQuery({
-    queryKey: ["atlas", "index", effectiveTypes, query, country, funding, bias, sort],
+    queryKey: ["atlas", "index", effectiveTypes, query, country, funding, bias, kind, sort],
     queryFn: ({ pageParam, signal }) =>
       fetchAtlasIndex(
         {
@@ -64,6 +74,7 @@ export function AtlasEntityList({
           country,
           funding,
           bias,
+          kind,
           sort,
           cursor: pageParam,
           limit: 80,
@@ -87,6 +98,7 @@ export function AtlasEntityList({
   const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
   const facets = data?.pages[0]?.facets;
+  const kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).sort(), [facets]);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => viewportRef.current,
@@ -140,11 +152,11 @@ export function AtlasEntityList({
                 className="h-10 bg-transparent text-sm text-[#c9c3b6] outline-none"
                 aria-label="Sort entity index"
               >
-                <option value="name">Name</option>
                 <option value="most_connected">Most connected</option>
                 <option value="most_articles">Most articles</option>
                 <option value="recently_indexed">Recently indexed</option>
                 <option value="lowest_confidence">Lowest confidence</option>
+                <option value="name">Name</option>
               </select>
             </label>
             <FacetSelect
@@ -170,16 +182,46 @@ export function AtlasEntityList({
         <div className="mt-4 flex gap-2 overflow-x-auto">
           {TYPE_TABS.map((tab) => (
             <button
-              key={tab.value}
+              key={tab.key}
               type="button"
               className={styles.pillButton}
-              data-active={type === tab.value}
-              onClick={() => setType(tab.value)}
+              data-active={type === tab.key}
+              onClick={() => {
+                setType(tab.key);
+                setKind([]);
+              }}
             >
               {tab.label}
             </button>
           ))}
         </div>
+        {kindOptions.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-2 overflow-x-auto" aria-label="Filter by entity kind">
+            <button
+              type="button"
+              className={styles.pillButton}
+              data-active={kind.length === 0}
+              onClick={() => setKind([])}
+            >
+              All kinds
+            </button>
+            {kindOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={styles.pillButton}
+                data-active={kind.includes(option)}
+                onClick={() =>
+                  setKind((current) =>
+                    current.includes(option) ? current.filter((value) => value !== option) : [...current, option],
+                  )
+                }
+              >
+                {humanizeKind(option)}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -200,40 +242,69 @@ export function AtlasEntityList({
         ) : items.length === 0 ? (
           <div className={styles.emptyState}>No entity records match the current index filters.</div>
         ) : (
-          <div style={{ height: getTotalSize(), position: "relative" }}>
-            {getVirtualItems().map((row) => {
-              const node = items[row.index];
-              if (!node) return null;
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  className={styles.indexCard}
-                  style={{ height: row.size, transform: `translateY(${row.start}px)` }}
-                  onClick={() => onSelect(node)}
-                >
-                  <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
-                    {node.entity_type.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-[#f0ede4]">{node.label}</span>
-                    <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.13em] text-[#77736a]">
-                      {node.subtitle || node.entity_type}
-                      {Object.keys(node.analysis_scores).length > 0
-                        ? ` · ${Object.keys(node.analysis_scores).length} analysis scores`
-                        : ""}
+          <>
+            <div className={styles.indexHeaderRow} aria-hidden="true">
+              <span />
+              <span>Name</span>
+              <span>Country</span>
+              <span>Funding</span>
+              <span>Links</span>
+              <span>Confidence</span>
+            </div>
+            <div style={{ height: getTotalSize(), position: "relative" }}>
+              {getVirtualItems().map((row) => {
+                const node = items[row.index];
+                if (!node) return null;
+                const researched =
+                  Boolean(node.current_parent) ||
+                  node.connection_count > 0 ||
+                  node.evidence_coverage !== "not researched" ||
+                  Object.keys(node.analysis_scores).length > 0;
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className={styles.indexCard}
+                    style={{ height: row.size, transform: `translateY(${row.start}px)` }}
+                    onClick={() => onSelect(node)}
+                  >
+                    <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
+                      {node.entity_type.slice(0, 2).toUpperCase()}
                     </span>
-                  </span>
-                  <span className="text-xs text-[#c9c3b6]">{node.country_code || "—"}</span>
-                  <span className="text-xs text-[#c9c3b6]">{node.funding_type || "—"}</span>
-                  <span className="text-xs text-[#c9c3b6]">{node.connection_count} links</span>
-                  <span className={styles.confidence} data-tier={node.confidence_tier ?? "unresolved"}>
-                    {node.confidence_tier || "unresolved"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-[#f0ede4]">{node.label}</span>
+                      <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.13em] text-[#77736a]">
+                        {node.subtitle || node.entity_type}
+                        {Object.keys(node.analysis_scores).length > 0
+                          ? ` · ${Object.keys(node.analysis_scores).length} analysis scores`
+                          : ""}
+                      </span>
+                      {researched ? (
+                        <span className={`mt-1 block truncate text-[10px] ${styles.indexParent}`}>
+                          {node.current_parent
+                            ? `Owned by ${node.current_parent}`
+                            : node.evidence_coverage}
+                          {node.pending_change ? ` · ${node.pending_change}` : ""}
+                        </span>
+                      ) : (
+                        <span className={`mt-1 block truncate text-[10px] ${styles.indexUnresearched}`}>
+                          Not yet researched
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs text-[#c9c3b6]">{node.country_code || "—"}</span>
+                    <span className="text-xs text-[#c9c3b6]">{node.funding_type || "—"}</span>
+                    <span className="text-xs text-[#c9c3b6]">
+                      {node.connection_count > 0 ? `${node.connection_count} links` : "—"}
+                    </span>
+                    <span className={styles.confidence} data-tier={node.confidence_tier ?? "unresolved"}>
+                      {node.confidence_tier || "unresolved"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
       {isFetchingNextPage ? (

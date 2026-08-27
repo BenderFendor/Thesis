@@ -7,6 +7,11 @@ import { Toaster } from "sonner"
 import type { ReactNode} from "react";
 import { useState } from "react"
 
+const AppearanceSettingsSync = dynamic(
+  () => import("@/components/appearance-settings-sync").then((mod) => mod.AppearanceSettingsSync),
+  { ssr: false },
+)
+
 const ReadingQueueSidebar = dynamic(
   () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),
   {
@@ -52,6 +57,7 @@ export function Providers({ children }: ProvidersProps) {
         {children}
         <Toaster />
         <ReadingQueueSidebar />
+        <AppearanceSettingsSync />
       </ThemeProvider>
     </QueryClientProvider>
   )

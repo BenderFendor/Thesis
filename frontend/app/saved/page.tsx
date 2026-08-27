@@ -31,8 +31,382 @@ import { useBookmarks } from "@/hooks/useBookmarks"
 import { HighlightsView } from "@/components/highlights-view"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
-import { API_BASE_URL, createReadingShelf, getAllHighlights, getReadingShelves } from "@/lib/api"
+import { type ReadingShelf, API_BASE_URL, createReadingShelf, getAllHighlights, getReadingShelves } from "@/lib/api"
 import { SafeImage } from "@/components/safe-image"
+
+function cardFrameStyle(isExpanded: boolean) {
+  return {
+    backgroundColor: isExpanded
+      ? "var(--news-bg-secondary)"
+      : "var(--card)",
+    borderColor: isExpanded
+      ? "var(--primary)"
+      : "var(--border)",
+    outlineColor: isExpanded
+      ? "var(--primary)"
+      : undefined,
+    outlineWidth: isExpanded ? "2px" : "0px",
+    outlineOffset: isExpanded ? "0px" : "0px",
+  }
+}
+
+function EmptyStateCard({
+  icon: Icon,
+  title,
+  description,
+  showBrowseLink = false,
+  cardClassName = "",
+}: {
+  icon: React.ElementType
+  title: string
+  description: string
+  showBrowseLink?: boolean
+  cardClassName?: string
+}) {
+  return (
+    <Card className={`border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50 ${cardClassName}`}>
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+        <Icon className="w-12 h-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2 font-serif">{title}</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {description}
+        </p>
+        {showBrowseLink && (
+          <Link href="/" className="mt-4">
+            <Button>Browse News</Button>
+          </Link>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ResearchShelvesCard({
+  shelves,
+  shelvesLoading,
+  newShelfName,
+  onNewShelfNameChange,
+  onCreateShelf,
+  isPending,
+}: {
+  shelves: ReadingShelf[] | undefined
+  shelvesLoading: boolean
+  newShelfName: string
+  onNewShelfNameChange: (name: string) => void
+  onCreateShelf: () => void
+  isPending: boolean
+}) {
+  return (
+    <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
+      <CardContent className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-serif text-lg font-bold">Research Shelves</h3>
+          <Badge>{shelves?.length ?? 0}</Badge>
+        </div>
+        <div className="mb-3 flex gap-2">
+          <input
+            value={newShelfName}
+            onChange={(event) => onNewShelfNameChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onCreateShelf()
+            }}
+            placeholder="New shelf"
+            className="min-w-0 flex-1 rounded-md border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2 text-sm text-foreground"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCreateShelf}
+            disabled={isPending || !newShelfName.trim()}
+          >
+            <PlusCircle className="h-4 w-4" />
+          </Button>
+        </div>
+        {shelvesLoading ? (
+          <p className="text-sm text-muted-foreground">Loading shelves...</p>
+        ) : shelves && shelves.length > 0 ? (
+          <div className="space-y-2">
+            {shelves.map((shelf) => (
+              <div
+                key={shelf.id ?? shelf.name}
+                className="rounded-md border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2"
+              >
+                <div className="text-sm font-medium">{shelf.name}</div>
+                {shelf.description && (
+                  <div className="text-xs text-muted-foreground">{shelf.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Create shelves for topics, open questions, and claim trails.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function CardActionButtons({
+  articleId,
+  url,
+  inQueue,
+  likedIds,
+  bookmarkIds,
+  onRead,
+  onToggleQueue,
+  onLike,
+  onBookmark,
+}: {
+  articleId?: number
+  url: string
+  inQueue: boolean
+  likedIds: Set<number>
+  bookmarkIds: Set<number>
+  onRead: () => void
+  onToggleQueue: () => void
+  onLike: (id: number) => void
+  onBookmark: (id: number) => void
+}) {
+  const isLiked = typeof articleId === "number" ? likedIds.has(articleId) : false
+  const isBookmarked = typeof articleId === "number" ? bookmarkIds.has(articleId) : false
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation()
+          onRead()
+        }}
+      >
+        Read Article
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleQueue()
+        }}
+      >
+        {inQueue ? (
+          <><MinusCircle className="w-4 h-4 mr-1" /> Remove from Queue</>
+        ) : (
+          <><PlusCircle className="w-4 h-4 mr-1" /> Add to Queue</>
+        )}
+      </Button>
+
+      {typeof articleId === "number" && (
+        <>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              onLike(articleId)
+            }}
+            className={isLiked ? "text-red-400" : "text-muted-foreground"}
+          >
+            <Heart className={`w-4 h-4 mr-1 ${isLiked ? "fill-current" : ""}`} />
+            Like
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              onBookmark(articleId)
+            }}
+            className={isBookmarked ? "text-yellow-400" : "text-muted-foreground"}
+          >
+            <Bookmark className={`w-4 h-4 mr-1 ${isBookmarked ? "fill-current" : ""}`} />
+            Bookmark
+          </Button>
+        </>
+      )}
+
+      <Button
+        size="sm"
+        variant="ghost"
+        asChild
+      >
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          Open Source
+        </a>
+      </Button>
+    </div>
+  )
+}
+
+function ArticleCard({
+  article,
+  index,
+  isExpanded,
+  inQueue,
+  hasRealImage,
+  likedIds,
+  bookmarkIds,
+  onToggleExpanded,
+  onRead,
+  onToggleQueue,
+  onLike,
+  onBookmark,
+}: {
+  article: NewsArticle & { type?: "bookmark" | "liked" | "both" }
+  index?: number
+  isExpanded: boolean
+  inQueue: boolean
+  hasRealImage: (src?: string | null) => boolean
+  likedIds: Set<number>
+  bookmarkIds: Set<number>
+  onToggleExpanded: () => void
+  onRead: () => void
+  onToggleQueue: () => void
+  onLike: (id: number) => void
+  onBookmark: (id: number) => void
+}) {
+  const showImage = hasRealImage(article.image)
+  const readTime = article._queueData?.readingTimeMinutes
+
+  return (
+    <div
+      onClick={onToggleExpanded}
+      className={cn(
+        "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
+        "transform hover:scale-[1.02]"
+      )}
+      style={{
+        marginLeft: typeof index === 'number' ? `${Math.min(index * 4, 16)}px` : 0,
+        marginTop: typeof index === 'number' && index > 0 ? "-8px" : "0px",
+      }}
+    >
+      <div
+        className={cn(
+          "relative rounded-2xl border overflow-hidden backdrop-blur-sm",
+          "transition-all duration-300",
+          "p-4 flex flex-col",
+          isExpanded
+            ? "shadow-2xl ring-2"
+            : "shadow-lg group-hover:shadow-xl"
+        )}
+        style={cardFrameStyle(isExpanded)}
+      >
+        <div className="flex items-start gap-3">
+          {/* Index Badge or Type Icon */}
+          <div
+            className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
+            style={{
+              backgroundColor: article.type === 'liked' ? "var(--destructive)" : "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
+          >
+            {article.type === 'liked' ? (
+              <Heart className="w-3.5 h-3.5 fill-current" />
+            ) : (
+              <Bookmark className="w-3.5 h-3.5 fill-current" />
+            )}
+          </div>
+
+          {/* Title and Source */}
+          <div className="flex-1 min-w-0">
+            <h3
+              className={cn(
+                "font-bold leading-tight group-hover:text-primary transition-colors font-serif",
+                isExpanded
+                  ? "text-base"
+                  : "text-sm line-clamp-2"
+              )}
+            >
+              {article.title}
+            </h3>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">
+                {article.source}
+              </p>
+              {readTime && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: "rgba(168, 85, 247, 0.2)",
+                    color: "var(--primary)",
+                  }}
+                >
+                  {readTime}m
+                </span>
+              )}
+              {article.type === 'both' && (
+                <Badge variant="outline" className="text-[9px]">
+                  <Heart className="w-3 h-3 mr-1" /> Liked
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Image Thumbnail */}
+          {showImage && (
+            <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden">
+              <SafeImage
+                src={article.image}
+                alt={article.title}
+                width={64}
+                height={64}
+                className="h-full w-full object-cover"
+                sizes="64px"
+              />
+            </div>
+          )}
+
+          {/* Expand Indicator */}
+          <div className="flex-shrink-0 self-center">
+            {isExpanded ? (
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Content */}
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t border-border/50">
+            {showImage && (
+              <div className="mb-4 rounded-lg overflow-hidden">
+                <SafeImage
+                  src={article.image}
+                  alt={article.title}
+                  width={896}
+                  height={192}
+                  className="h-48 w-full object-cover"
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                />
+              </div>
+            )}
+
+            <p className="text-sm text-muted-foreground mb-4 line-clamp-4">
+              {article.summary}
+            </p>
+
+            {/* Action Buttons */}
+            <CardActionButtons
+              articleId={article.id}
+              url={article.url}
+              inQueue={inQueue}
+              likedIds={likedIds}
+              bookmarkIds={bookmarkIds}
+              onRead={onRead}
+              onToggleQueue={onToggleQueue}
+              onLike={onLike}
+              onBookmark={onBookmark}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function SavedArticlesPage() {
   const [bookmarks, setBookmarks] = useState<NewsArticle[]>([])
@@ -216,273 +590,6 @@ export default function SavedArticlesPage() {
     createShelfMutation.mutate({ name })
   }
 
-  const renderResearchShelvesCard = () => (
-    <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
-      <CardContent className="p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-serif text-lg font-bold">Research Shelves</h3>
-          <Badge>{shelvesQuery.data?.length ?? 0}</Badge>
-        </div>
-        <div className="mb-3 flex gap-2">
-          <input
-            value={newShelfName}
-            onChange={(event) => setNewShelfName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") handleCreateShelf()
-            }}
-            placeholder="New shelf"
-            className="min-w-0 flex-1 rounded-md border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2 text-sm text-foreground"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCreateShelf}
-            disabled={createShelfMutation.isPending || !newShelfName.trim()}
-          >
-            <PlusCircle className="h-4 w-4" />
-          </Button>
-        </div>
-        {shelvesQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading shelves...</p>
-        ) : shelvesQuery.data && shelvesQuery.data.length > 0 ? (
-          <div className="space-y-2">
-            {shelvesQuery.data.map((shelf) => (
-              <div
-                key={shelf.id ?? shelf.name}
-                className="rounded-md border border-white/10 bg-[var(--news-bg-primary)]/50 px-3 py-2"
-              >
-                <div className="text-sm font-medium">{shelf.name}</div>
-                {shelf.description && (
-                  <div className="text-xs text-muted-foreground">{shelf.description}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Create shelves for topics, open questions, and claim trails.
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  )
-
-  const renderArticleCard = (article: NewsArticle & { type?: "bookmark" | "liked" | "both" }, index?: number) => {
-    const showImage = hasRealImage(article.image)
-    const isExpanded = expandedArticleUrl === article.url
-    const inQueue = isArticleInQueue(article.url)
-    const readTime = article._queueData?.readingTimeMinutes
-    const isLiked = typeof article.id === "number" ? likedIds.has(article.id) : false
-    const isBookmarked = typeof article.id === "number" ? bookmarkIds.has(article.id) : false
-
-    return (
-      <div
-        key={`${article.url}-${index ?? article.id ?? article.title}`}
-        onClick={() => setExpandedArticleUrl(isExpanded ? null : article.url)}
-        className={cn(
-          "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
-          "transform hover:scale-[1.02]"
-        )}
-        style={{
-          marginLeft: typeof index === 'number' ? `${Math.min(index * 4, 16)}px` : 0,
-          marginTop: typeof index === 'number' && index > 0 ? "-8px" : "0px",
-        }}
-      >
-        <div
-          className={cn(
-            "relative rounded-2xl border overflow-hidden backdrop-blur-sm",
-            "transition-all duration-300",
-            "p-4 flex flex-col",
-            isExpanded
-              ? "shadow-2xl ring-2"
-              : "shadow-lg group-hover:shadow-xl"
-          )}
-          style={{
-            backgroundColor: isExpanded
-              ? "var(--news-bg-secondary)"
-              : "var(--card)",
-            borderColor: isExpanded
-              ? "var(--primary)"
-              : "var(--border)",
-            outlineColor: isExpanded
-              ? "var(--primary)"
-              : undefined,
-            outlineWidth: isExpanded ? "2px" : "0px",
-            outlineOffset: isExpanded ? "0px" : "0px",
-          }}
-        >
-          <div className="flex items-start gap-3">
-            {/* Index Badge or Type Icon */}
-            <div
-              className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
-              style={{
-                backgroundColor: article.type === 'liked' ? "var(--destructive)" : "var(--primary)",
-                color: "var(--primary-foreground)",
-              }}
-            >
-              {article.type === 'liked' ? (
-                <Heart className="w-3.5 h-3.5 fill-current" />
-              ) : (
-                <Bookmark className="w-3.5 h-3.5 fill-current" />
-              )}
-            </div>
-
-            {/* Title and Source */}
-            <div className="flex-1 min-w-0">
-              <h3
-                className={cn(
-                  "font-bold leading-tight group-hover:text-primary transition-colors font-serif",
-                  isExpanded
-                    ? "text-base"
-                    : "text-sm line-clamp-2"
-                )}
-              >
-                {article.title}
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs text-muted-foreground">
-                  {article.source}
-                </p>
-                {readTime && (
-                  <span
-                    className="text-xs px-1.5 py-0.5 rounded"
-                    style={{
-                      backgroundColor: "rgba(168, 85, 247, 0.2)",
-                      color: "var(--primary)",
-                    }}
-                  >
-                    {readTime}m
-                  </span>
-                )}
-                {article.type === 'both' && (
-                  <Badge variant="outline" className="text-[9px]">
-                    <Heart className="w-3 h-3 mr-1" /> Liked
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Image Thumbnail */}
-            {showImage && (
-              <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden">
-                <SafeImage
-                  src={article.image}
-                  alt={article.title}
-                  width={64}
-                  height={64}
-                  className="h-full w-full object-cover"
-                  sizes="64px"
-                />
-              </div>
-            )}
-
-            {/* Expand Indicator */}
-            <div className="flex-shrink-0 self-center">
-              {isExpanded ? (
-                <ChevronDown className="w-5 h-5 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="w-5 h-5 text-muted-foreground" />
-              )}
-            </div>
-          </div>
-
-          {/* Expanded Content */}
-          {isExpanded && (
-            <div className="mt-4 pt-4 border-t border-border/50">
-              {showImage && (
-                <div className="mb-4 rounded-lg overflow-hidden">
-                  <SafeImage
-                    src={article.image}
-                    alt={article.title}
-                    width={896}
-                    height={192}
-                    className="h-48 w-full object-cover"
-                    sizes="(min-width: 1024px) 50vw, 100vw"
-                  />
-                </div>
-              )}
-              
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-4">
-                {article.summary}
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleArticleClick(article)
-                  }}
-                >
-                  Read Article
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (inQueue) {
-                      removeArticleFromQueue(article.url)
-                    } else {
-                      addArticleToQueue(article)
-                    }
-                  }}
-                >
-                  {inQueue ? (
-                    <><MinusCircle className="w-4 h-4 mr-1" /> Remove from Queue</>
-                  ) : (
-                    <><PlusCircle className="w-4 h-4 mr-1" /> Add to Queue</>
-                  )}
-                </Button>
-
-                {typeof article.id === "number" && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void toggleLike(article.id)
-                      }}
-                      className={isLiked ? "text-red-400" : "text-muted-foreground"}
-                    >
-                      <Heart className={`w-4 h-4 mr-1 ${isLiked ? "fill-current" : ""}`} />
-                      Like
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void toggleBookmark(article.id)
-                      }}
-                      className={isBookmarked ? "text-yellow-400" : "text-muted-foreground"}
-                    >
-                      <Bookmark className={`w-4 h-4 mr-1 ${isBookmarked ? "fill-current" : ""}`} />
-                      Bookmark
-                    </Button>
-                  </>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  asChild
-                >
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    Open Source
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-[var(--news-bg-primary)]">
       {/* Header */}
@@ -605,20 +712,22 @@ export default function SavedArticlesPage() {
               </div>
             ) : allSavedArticles.length === 0 ? (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50 lg:col-span-2">
-                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                    <Inbox className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2 font-serif">No saved articles yet</h3>
-                    <p className="text-sm text-muted-foreground max-w-md">
-                      Articles you bookmark or like will appear here. Click the bookmark or heart icon on any article to save it.
-                    </p>
-                    <Link href="/" className="mt-4">
-                      <Button>Browse News</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
+                <EmptyStateCard
+                  cardClassName="lg:col-span-2"
+                  icon={Inbox}
+                  title="No saved articles yet"
+                  description="Articles you bookmark or like will appear here. Click the bookmark or heart icon on any article to save it."
+                  showBrowseLink
+                />
                 <div className="space-y-6">
-                  {renderResearchShelvesCard()}
+                  <ResearchShelvesCard
+                    shelves={shelvesQuery.data}
+                    shelvesLoading={shelvesQuery.isLoading}
+                    newShelfName={newShelfName}
+                    onNewShelfNameChange={setNewShelfName}
+                    onCreateShelf={handleCreateShelf}
+                    isPending={createShelfMutation.isPending}
+                  />
                 </div>
               </div>
             ) : (
@@ -626,7 +735,29 @@ export default function SavedArticlesPage() {
                 {/* Main Content - Saved Articles */}
                 <div className="lg:col-span-2">
                   <div className="space-y-3">
-                    {allSavedArticles.map((article, index) => renderArticleCard(article, index))}
+                    {allSavedArticles.map((article, index) => (
+                      <ArticleCard
+                        key={`${article.url}-${index}`}
+                        article={article}
+                        index={index}
+                        isExpanded={expandedArticleUrl === article.url}
+                        inQueue={isArticleInQueue(article.url)}
+                        hasRealImage={hasRealImage}
+                        likedIds={likedIds}
+                        bookmarkIds={bookmarkIds}
+                        onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === article.url ? null : article.url)}
+                        onRead={() => handleArticleClick(article)}
+                        onToggleQueue={() => {
+                          if (isArticleInQueue(article.url)) {
+                            removeArticleFromQueue(article.url)
+                          } else {
+                            addArticleToQueue(article)
+                          }
+                        }}
+                        onLike={(id) => void toggleLike(id)}
+                        onBookmark={(id) => void toggleBookmark(id)}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -692,7 +823,14 @@ export default function SavedArticlesPage() {
                     </CardContent>
                   </Card>
 
-                  {renderResearchShelvesCard()}
+                  <ResearchShelvesCard
+                    shelves={shelvesQuery.data}
+                    shelvesLoading={shelvesQuery.isLoading}
+                    newShelfName={newShelfName}
+                    onNewShelfNameChange={setNewShelfName}
+                    onCreateShelf={handleCreateShelf}
+                    isPending={createShelfMutation.isPending}
+                  />
 
                   {/* Stats Card */}
                   <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
@@ -745,21 +883,37 @@ export default function SavedArticlesPage() {
                 <span className="text-muted-foreground">Loading bookmarks...</span>
               </div>
             ) : bookmarks.length === 0 ? (
-              <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <Bookmark className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2 font-serif">No bookmarks yet</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Articles you bookmark will appear here. Click the bookmark icon on any article to save it for later.
-                  </p>
-                  <Link href="/" className="mt-4">
-                    <Button>Browse News</Button>
-                  </Link>
-                </CardContent>
-              </Card>
+              <EmptyStateCard
+                icon={Bookmark}
+                title="No bookmarks yet"
+                description="Articles you bookmark will appear here. Click the bookmark icon on any article to save it for later."
+                showBrowseLink
+              />
             ) : (
               <div className="space-y-3">
-                {bookmarks.map((bookmark, index) => renderArticleCard({ ...bookmark, type: "bookmark" }, index))}
+                {bookmarks.map((bookmark, index) => (
+                  <ArticleCard
+                    key={`${bookmark.url}-${index}`}
+                    article={{ ...bookmark, type: "bookmark" }}
+                    index={index}
+                    isExpanded={expandedArticleUrl === bookmark.url}
+                    inQueue={isArticleInQueue(bookmark.url)}
+                    hasRealImage={hasRealImage}
+                    likedIds={likedIds}
+                    bookmarkIds={bookmarkIds}
+                    onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === bookmark.url ? null : bookmark.url)}
+                    onRead={() => handleArticleClick(bookmark)}
+                    onToggleQueue={() => {
+                      if (isArticleInQueue(bookmark.url)) {
+                        removeArticleFromQueue(bookmark.url)
+                      } else {
+                        addArticleToQueue(bookmark)
+                      }
+                    }}
+                    onLike={(id) => void toggleLike(id)}
+                    onBookmark={(id) => void toggleBookmark(id)}
+                  />
+                ))}
               </div>
             )}
           </TabsContent>
@@ -772,21 +926,37 @@ export default function SavedArticlesPage() {
                 <span className="text-muted-foreground">Loading liked articles...</span>
               </div>
             ) : likedArticles.length === 0 ? (
-              <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <Heart className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2 font-serif">No liked articles yet</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Articles you like will appear here. Click the heart icon on any article to show your appreciation.
-                  </p>
-                  <Link href="/" className="mt-4">
-                    <Button>Browse News</Button>
-                  </Link>
-                </CardContent>
-              </Card>
+              <EmptyStateCard
+                icon={Heart}
+                title="No liked articles yet"
+                description="Articles you like will appear here. Click the heart icon on any article to show your appreciation."
+                showBrowseLink
+              />
             ) : (
               <div className="space-y-3">
-                {likedArticles.map((liked, index) => renderArticleCard({ ...liked, type: "liked" }, index))}
+                {likedArticles.map((liked, index) => (
+                  <ArticleCard
+                    key={`${liked.url}-${index}`}
+                    article={{ ...liked, type: "liked" }}
+                    index={index}
+                    isExpanded={expandedArticleUrl === liked.url}
+                    inQueue={isArticleInQueue(liked.url)}
+                    hasRealImage={hasRealImage}
+                    likedIds={likedIds}
+                    bookmarkIds={bookmarkIds}
+                    onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === liked.url ? null : liked.url)}
+                    onRead={() => handleArticleClick(liked)}
+                    onToggleQueue={() => {
+                      if (isArticleInQueue(liked.url)) {
+                        removeArticleFromQueue(liked.url)
+                      } else {
+                        addArticleToQueue(liked)
+                      }
+                    }}
+                    onLike={(id) => void toggleLike(id)}
+                    onBookmark={(id) => void toggleBookmark(id)}
+                  />
+                ))}
               </div>
             )}
           </TabsContent>
@@ -826,15 +996,11 @@ export default function SavedArticlesPage() {
               )}
 
               {queuedArticles.length === 0 ? (
-                <Card className="border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50">
-                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                    <List className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2 font-serif">Your queue is empty</h3>
-                    <p className="text-sm text-muted-foreground max-w-md">
-                      Add articles to your reading queue from your saved items or directly from the news feed.
-                    </p>
-                  </CardContent>
-                </Card>
+                <EmptyStateCard
+                  icon={List}
+                  title="Your queue is empty"
+                  description="Add articles to your reading queue from your saved items or directly from the news feed."
+                />
               ) : (
                 <div className="space-y-3">
                   {queuedArticles.map((article, index) => (

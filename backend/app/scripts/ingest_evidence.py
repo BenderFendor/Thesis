@@ -1,7 +1,7 @@
 """CLI entry point for the Phase 1 evidence-spine ingestors.
 
 Usage:
-    python -m app.scripts.ingest_evidence --source wikidata|littlesis|mbfc|edgar|all [--limit N]
+    python -m app.scripts.ingest_evidence --source wikidata|littlesis|mbfc|edgar|ads_txt|all [--limit N]
 
 Runs against the app's configured database (see `app.database.AsyncSessionLocal`).
 Safe to run repeatedly -- see `app.services.evidence_ingest` for the
@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import cast
 
 from sqlalchemy import select
@@ -29,11 +33,24 @@ from app.services.atlas_graph_helpers import normalize_entity_label
 from app.services.entity_backfill import _catalog_domain, _catalog_sources
 from app.services.evidence_ingest import (
     IngestReport,
+    ingest_ads_supply,
     ingest_edgar_subsidiaries,
     ingest_littlesis_ownership,
     ingest_mbfc_ownership,
     ingest_wikidata_ownership_claims,
     run_ownership_smoke_check,
+)
+from app.services.primary_source_adapters import (
+    CapturedPayload,
+    ingest_article_records,
+    ingest_companies_house_records,
+    ingest_corporate_records,
+    ingest_fcc_records,
+    ingest_gleif_records,
+    ingest_irs_990_records,
+    ingest_sellers_json_records,
+    ingest_sponsorship_records,
+    ingest_usaspending_records,
 )
 
 logger = get_logger(__name__)
@@ -85,6 +102,20 @@ async def _entity_id_for_domain(db: AsyncSession, domain: str) -> str | None:
     return cast(str, row.entity_id) if row is not None else None
 
 
+async def _catalog_publishers(db: AsyncSession) -> dict[str, str]:
+    """Return publication entity id -> canonical website for ads.txt capture."""
+    publishers: dict[str, str] = {}
+    for _name, config in _catalog_sources().items():
+        domain = _catalog_domain(config)
+        website = cast(str | None, config.get("site_url") or config.get("url"))
+        if not domain or not website:
+            continue
+        entity_id = await _entity_id_for_domain(db, domain)
+        if entity_id:
+            publishers[entity_id] = website
+    return publishers
+
+
 async def _entity_id_for_cik(db: AsyncSession, cik: str) -> str | None:
     row = (
         await db.execute(
@@ -128,10 +159,31 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Run Phase 1 evidence-spine ingestors")
     parser.add_argument(
         "--source",
-        choices=["wikidata", "littlesis", "mbfc", "edgar", "all"],
+        choices=[
+            "wikidata",
+            "littlesis",
+            "mbfc",
+            "edgar",
+            "ads_txt",
+            "gleif",
+            "companies_house",
+            "corporate_records",
+            "irs_990",
+            "usaspending",
+            "fcc",
+            "article_records",
+            "sellers_json",
+            "sponsorship",
+            "all",
+        ],
         required=True,
     )
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--input",
+        type=Path,
+        help="Frozen JSON payload for a primary-source adapter; never enables network retrieval.",
+    )
     parser.add_argument(
         "--skip-smoke-check",
         action="store_true",
@@ -145,7 +197,28 @@ async def main() -> None:
         raise RuntimeError("Database not available for evidence ingestion")
     factory = cast(async_sessionmaker[AsyncSession], AsyncSessionLocal)
 
-    sources = ["wikidata", "littlesis", "mbfc", "edgar"] if args.source == "all" else [args.source]
+    sources = (
+        ["wikidata", "littlesis", "mbfc", "edgar", "ads_txt"]
+        if args.source == "all"
+        else [args.source]
+    )
+
+    broad_adapters = {
+        "gleif": ingest_gleif_records,
+        "companies_house": ingest_companies_house_records,
+        "corporate_records": ingest_corporate_records,
+        "irs_990": ingest_irs_990_records,
+        "usaspending": ingest_usaspending_records,
+        "fcc": ingest_fcc_records,
+        "article_records": ingest_article_records,
+        "sellers_json": ingest_sellers_json_records,
+        "sponsorship": ingest_sponsorship_records,
+    }
+    broad_source = args.source in broad_adapters
+    if broad_source and args.input is None:
+        parser.error(f"--source {args.source} requires --input with frozen capture metadata")
+    if args.source == "companies_house" and not os.getenv("COMPANIES_HOUSE_API_KEY"):
+        parser.error("COMPANIES_HOUSE_API_KEY is required; no fallback source is permitted")
 
     async with factory() as db:
         for source in sources:
@@ -162,6 +235,28 @@ async def main() -> None:
                 if args.limit is not None:
                     ciks = dict(list(ciks.items())[: args.limit])
                 report = await ingest_edgar_subsidiaries(db, ciks=ciks)
+            elif source == "ads_txt":
+                report = await ingest_ads_supply(
+                    db, publishers=await _catalog_publishers(db), limit=args.limit
+                )
+            elif source in broad_adapters:
+                assert args.input is not None
+                raw_input = json.loads(args.input.read_text(encoding="utf-8"))
+                captured = raw_input["capture"]
+                payload = CapturedPayload(
+                    source_url=str(captured["source_url"]),
+                    body=Path(str(captured["body_path"])).read_bytes(),
+                    retrieved_at=datetime.fromisoformat(
+                        str(captured["retrieved_at"]).replace("Z", "+00:00")
+                    ).replace(tzinfo=None),
+                    http_status=int(captured.get("http_status", 200)),
+                    content_type=str(captured.get("content_type", "application/json")),
+                )
+                report = await broad_adapters[source](
+                    db,
+                    payload=payload,
+                    records=cast(list[dict[str, object]], raw_input["records"]),
+                )
             else:  # pragma: no cover - argparse choices already restrict this
                 raise ValueError(f"unknown source {source!r}")
             await db.commit()

@@ -72,51 +72,56 @@ export function CareerTimeline({ data }: { data: ReporterCareerTimeline }) {
         </div>
       ))}
 
-      <div className="space-y-2">
+      <div className="relative space-y-4 border-l border-white/10 pl-6">
         {data.timeline.map((entry, index) => {
           const start = formatTimelineDate(entry.start_date);
           const end = formatTimelineDate(entry.end_date);
           const range =
             start && end ? (start === end ? start : `${start} – ${end}`) : start || end || "Undated";
           return (
-            <div
-              key={`${entry.outlet}-${entry.source}-${index}`}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 transition-all hover:bg-white/[0.03]"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/wiki/source/${encodeURIComponent(entry.outlet)}`}
-                    className="truncate font-serif text-sm hover:text-white transition-colors"
-                  >
-                    {entry.outlet}
-                  </Link>
-                  <Badge variant="outline" className="shrink-0 text-[9px] font-mono tracking-widest uppercase">
-                    {entry.source === "byline" ? "Byline" : "Affiliation"}
-                  </Badge>
+            <div key={`${entry.outlet}-${entry.source}-${index}`} className="relative">
+              <span
+                aria-hidden="true"
+                className="absolute -left-[29px] top-4 h-2.5 w-2.5 rounded-full border-2 border-primary/70 bg-background"
+              />
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 transition-all hover:bg-white/[0.03]">
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-primary/80">{range}</div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Link
+                      href={`/wiki/source/${encodeURIComponent(entry.outlet)}`}
+                      className="truncate font-serif text-sm hover:text-white transition-colors"
+                    >
+                      {entry.outlet}
+                    </Link>
+                    <Badge variant="outline" className="shrink-0 text-[9px] font-mono tracking-widest uppercase">
+                      {entry.source === "byline" ? "Byline" : "Affiliation"}
+                    </Badge>
+                  </div>
+                  {entry.role ? (
+                    <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {entry.role}
+                    </div>
+                  ) : null}
                 </div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {range}
-                  {entry.role ? ` · ${entry.role}` : ""}
+                <div className="flex shrink-0 items-center gap-2">
+                  {entry.article_count != null ? (
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
+                      {entry.article_count} articles
+                    </span>
+                  ) : null}
+                  {entry.evidence_url ? (
+                    <a
+                      href={entry.evidence_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground transition-colors hover:text-white"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Evidence
+                    </a>
+                  ) : null}
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {entry.article_count != null ? (
-                  <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
-                    {entry.article_count} articles
-                  </span>
-                ) : null}
-                {entry.evidence_url ? (
-                  <a
-                    href={entry.evidence_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground transition-colors hover:text-white"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Evidence
-                  </a>
-                ) : null}
               </div>
             </div>
           );

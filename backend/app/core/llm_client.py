@@ -15,6 +15,7 @@ from app.core.config import (
     get_llamacpp_instruct_params,
     get_llamacpp_model,
     get_openai_client,
+    resolve_opencode_model,
     settings,
 )
 from app.core.logging import get_session_dir
@@ -132,7 +133,7 @@ class LLMClient:
             model = (
                 get_llamacpp_model()
                 if settings.llm_backend == "llamacpp"
-                else settings.open_router_model
+                else resolve_opencode_model(settings.open_router_model)
             )
 
         from app.core.tracing import get_tracer

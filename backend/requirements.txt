@@ -40,7 +40,6 @@ types-psutil>=7.0.0
 
 # Algorithm dependencies
 rank_bm25>=0.2.2
-hdbscan>=0.8.33
 
 # Build helpers for the Rust RSS parser
 maturin>=1.10.0

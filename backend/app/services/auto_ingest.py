@@ -41,26 +41,39 @@ Design:
 from __future__ import annotations
 
 import time
+import os
+from uuid import uuid4
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, WikiIndexStatus, get_utc_now
+from app.models.evidence import EvidenceIngestRun
+from app.models.atlas import AtlasIngestStatusResponse, EvidenceIngestRunRecord
 from app.services.entity_backfill import run_backfill
 from app.services.evidence_ingest import (
+    METHOD_VERSION,
     IngestReport,
+    ingest_ads_supply,
     ingest_edgar_subsidiaries,
     ingest_littlesis_ownership,
     ingest_mbfc_ownership,
     ingest_wikidata_ownership_claims,
 )
 from app.services.funding_bias_analysis import run_funding_bias_analysis
+from app.services.primary_source_adapters import ADAPTER_REGISTRY
+from app.services.reporter_agency_flag import flag_agency_reporters
+from app.services.reporter_merge import merge_duplicate_reporters
+from app.services.reporter_name_cleanup import cleanup_dirty_reporter_names
+from app.services.reporter_outlet_repair import repair_feedburner_collision
+from app.services.reporter_split_backfill import split_composite_reporters
+from app.scripts.ingest_reporter_bylines import ingest_reporter_bylines
 
 logger = get_logger("auto_ingest")
 
@@ -68,6 +81,10 @@ logger = get_logger("auto_ingest")
 # table, matching how that table already tracks background-indexing state.
 _MARKER_ENTITY_TYPE = "auto_ingest"
 _MARKER_ENTITY_NAME = "atlas_pipeline"
+
+
+class PartialIngestError(RuntimeError):
+    """Raised after all required adapters run when any adapter is incomplete."""
 
 
 @dataclass(frozen=True)
@@ -82,30 +99,127 @@ class Stage:
     network_bound: bool = False
 
 
+async def _run_reporter_outlet_repair(db: AsyncSession) -> object:
+    """Repair the feedburner.com site_url collision (audit rec 1).
+
+    Must run before `entity_backfill`: repointing the stale
+    `rss_catalog_key` glue first prevents `entity_backfill`'s OR-match from
+    re-attaching the corrected `domain` external id onto the wrong entity.
+    See `app.services.reporter_outlet_repair` for the full mechanism.
+    """
+    report = await repair_feedburner_collision(db)
+    await db.commit()
+    return report
+
+
 async def _run_entity_backfill(db: AsyncSession) -> object:
     report = await run_backfill(db)
     await db.commit()
     return report
 
 
+async def _run_reporter_name_cleanup(db: AsyncSession) -> object:
+    """Clean dirty reporter names (audit rec 5). Must run before merge/split."""
+    report = await cleanup_dirty_reporter_names(db)
+    await db.commit()
+    return report
+
+
+async def _run_reporter_agency_flag(db: AsyncSession) -> object:
+    """Flag pure wire/agency reporter rows (audit rec 4)."""
+    report = await flag_agency_reporters(db)
+    await db.commit()
+    return report
+
+
+async def _run_reporter_split_backfill(db: AsyncSession) -> object:
+    """Split existing composite multi-author reporter rows (audit rec 2b)."""
+    report = await split_composite_reporters(db)
+    await db.commit()
+    return report
+
+
+async def _run_reporter_merge(db: AsyncSession) -> object:
+    """Merge exact-normalized-name duplicate reporters (audit rec 3).
+
+    Runs after name cleanup (a cleaned name can newly match an existing
+    row) and after the split backfill (splitting can also create a fresh
+    exact-name match against an existing individual reporter).
+    """
+    report = await merge_duplicate_reporters(db)
+    await db.commit()
+    return report
+
+
 async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
     """Run every evidence-ingestion source; one source's failure doesn't skip the rest."""
-    from app.scripts.ingest_evidence import EDGAR_PARENT_CIKS, _catalog_domain_map
+    from app.scripts.ingest_evidence import (
+        EDGAR_PARENT_CIKS,
+        _catalog_domain_map,
+        _catalog_publishers,
+    )
+
+    for contract in ADAPTER_REGISTRY.values():
+        missing = [name for name in contract.required_credentials if not os.getenv(name)]
+        if not missing:
+            continue
+        db.add(
+            EvidenceIngestRun(
+                id=f"ingest_{uuid4().hex}",
+                adapter=contract.name,
+                adapter_version=contract.version,
+                scope={"mode": "catalog", "configured": False},
+                status="blocked",
+                network_mode="disabled",
+                missing_credentials=missing,
+                failure=f"missing required credentials: {', '.join(missing)}",
+                retryable=False,
+                completed_at=get_utc_now(),
+            )
+        )
+        await db.commit()
 
     domain_map = _catalog_domain_map()
+    publishers = await _catalog_publishers(db)
     sources: list[tuple[str, Callable[[], Awaitable[IngestReport]]]] = [
         ("wikidata", lambda: ingest_wikidata_ownership_claims(db)),
         ("littlesis", lambda: ingest_littlesis_ownership(db)),
         ("mbfc", lambda: ingest_mbfc_ownership(db, catalog_domains=domain_map)),
         ("edgar", lambda: ingest_edgar_subsidiaries(db, ciks=dict(EDGAR_PARENT_CIKS))),
+        ("ads_txt", lambda: ingest_ads_supply(db, publishers=publishers)),
     ]
 
     results: dict[str, IngestReport] = {}
+    failures: dict[str, str] = {}
     for source_name, run_source in sources:
+        run_id = f"ingest_{uuid4().hex}"
+        run = EvidenceIngestRun(
+            id=run_id,
+            adapter=source_name,
+            adapter_version=METHOD_VERSION,
+            scope={"mode": "catalog"},
+            status="running",
+            network_mode="live",
+            missing_credentials=[],
+        )
+        db.add(run)
+        await db.commit()
         try:
             report = await run_source()
-            await db.commit()
             results[source_name] = report
+            run.status = "partial" if report.acceptance_failures else "success"
+            run.documents_count = report.documents_created
+            run.snapshots_count = report.snapshots_created
+            run.observations_count = report.observations_created
+            run.claims_count = report.claims_created
+            run.accepted_count = report.accepted
+            run.candidate_count = report.candidates
+            run.failure = "; ".join(report.acceptance_failures) or None
+            run.retryable = bool(report.acceptance_failures)
+            run.completed_at = get_utc_now()
+            if report.acceptance_failures:
+                failures[source_name] = str(run.failure)
+            await db.commit()
             logger.info(
                 "auto-ingest: evidence source '%s' complete "
                 "(claims created=%d deduped=%d accepted=%d candidates=%d)",
@@ -115,13 +229,30 @@ async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
                 report.accepted,
                 report.candidates,
             )
+            if report.adjudications_opened:
+                logger.info(
+                    "auto-ingest: evidence source '%s' opened/existing adjudication items: %d",
+                    source_name,
+                    len(report.adjudications_opened),
+                )
         except Exception as exc:
             await db.rollback()
+            persisted_run = await db.get(EvidenceIngestRun, run_id)
+            if persisted_run is not None:
+                persisted_run.status = "failed"
+                persisted_run.failure = f"{type(exc).__name__}: {exc}"
+                persisted_run.retryable = True
+                persisted_run.completed_at = get_utc_now()
+                await db.commit()
+            failures[source_name] = f"{type(exc).__name__}: {exc}"
             logger.warning(
                 "auto-ingest: evidence source '%s' failed (offline or unreachable?): %s",
                 source_name,
                 exc,
             )
+    if failures:
+        summary = "; ".join(f"{name}: {failure}" for name, failure in failures.items())
+        raise PartialIngestError(f"required evidence adapters were partial: {summary}")
     return results
 
 
@@ -131,9 +262,34 @@ async def _run_funding_bias_analysis(db: AsyncSession) -> object:
     return run
 
 
+async def _run_reporter_byline_ingest(db: AsyncSession) -> object:
+    """Feed reporter byline evidence from the local article corpus.
+
+    Local/DB-only (no network fetch), so this runs on every restart like
+    `entity_backfill` -- but it is not O(corpus) on a steady-state restart:
+    `ingest_reporter_bylines` skips any reporter already marked researched,
+    so only reporters new since the last run are processed. See
+    `app.scripts.ingest_reporter_bylines` for the full design.
+    """
+    report = await ingest_reporter_bylines(db)
+    return report
+
+
 STAGES: list[Stage] = [
+    Stage("reporter_outlet_repair", _run_reporter_outlet_repair, network_bound=False),
     Stage("entity_backfill", _run_entity_backfill, network_bound=False),
+    # Reporter data-quality stages (docs/agents/traces/
+    # reporter-coverage-quality-audit.md): order matters. Cleanup first (a
+    # dirty name must be clean before split/merge compare it); split before
+    # merge (splitting can create a fresh exact-name duplicate); agency
+    # flag can run anywhere in this group since it only touches exact
+    # known-agency names.
+    Stage("reporter_name_cleanup", _run_reporter_name_cleanup, network_bound=False),
+    Stage("reporter_agency_flag", _run_reporter_agency_flag, network_bound=False),
+    Stage("reporter_split_backfill", _run_reporter_split_backfill, network_bound=False),
+    Stage("reporter_merge", _run_reporter_merge, network_bound=False),
     Stage("evidence_ingestion", _run_evidence_ingestion, network_bound=True),
+    Stage("reporter_byline_ingest", _run_reporter_byline_ingest, network_bound=False),
     Stage("funding_bias_analysis", _run_funding_bias_analysis, network_bound=False),
 ]
 
@@ -176,6 +332,47 @@ async def _record_successful_run(db: AsyncSession) -> None:
         row.last_indexed_at = now
         row.updated_at = now
     await db.commit()
+
+
+async def get_ingest_status(db: AsyncSession, *, limit: int = 40) -> AtlasIngestStatusResponse:
+    """Return persisted adapter freshness and exact failures for the Atlas UI."""
+    rows = list(
+        (
+            await db.execute(
+                select(EvidenceIngestRun).order_by(desc(EvidenceIngestRun.started_at)).limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    records = [EvidenceIngestRunRecord.model_validate(row, from_attributes=True) for row in rows]
+    successes = [row.completed_at for row in rows if row.status == "success" and row.completed_at]
+    last_success = max(successes, default=None)
+    active = any(row.status == "running" for row in rows)
+    incomplete = any(row.status in {"partial", "failed", "blocked"} for row in rows)
+    if active:
+        freshness = "running"
+    elif incomplete and (last_success is None or rows[0].status != "success"):
+        freshness = "partial"
+    elif last_success is None:
+        freshness = "never"
+    else:
+        now = get_utc_now()
+        compare_now = now if last_success.tzinfo else now.replace(tzinfo=None)
+        freshness = (
+            "fresh"
+            if compare_now - last_success < timedelta(hours=settings.auto_ingest_interval_hours)
+            else "stale"
+        )
+    return AtlasIngestStatusResponse(
+        freshness=cast(Any, freshness),
+        last_success_at=last_success,
+        has_retryable_failures=any(row.retryable for row in rows),
+        missing_credentials=sorted(
+            {credential for row in rows for credential in (row.missing_credentials or [])}
+        ),
+        runs=records,
+    )
 
 
 async def run_auto_ingest() -> None:
@@ -251,6 +448,14 @@ async def run_auto_ingest() -> None:
     if ran_network_bound:
         async with factory() as db:
             await _record_successful_run(db)
+
+    if ran_network_bound:
+        # Ingested data may have changed entity/relationship counts; drop the
+        # cached `/api/wiki/atlas/stats` response so the next poll reflects it
+        # instead of waiting out the TTL.
+        from app.services.atlas_graph import invalidate_atlas_stats_cache
+
+        invalidate_atlas_stats_cache()
 
     logger.info(
         "Auto-ingest complete (%.2fs total)",

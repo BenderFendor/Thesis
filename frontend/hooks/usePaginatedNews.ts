@@ -10,6 +10,7 @@ import {
   fetchNewsPaginated,
   fetchCachedNewsPaginated
 } from "@/lib/api"
+import { serializeSources } from "@/lib/utils"
 
 interface UsePaginatedNewsOptions {
   limit?: number
@@ -31,14 +32,6 @@ interface UsePaginatedNewsReturn {
   refetch: () => void
   invalidate: () => void
   error: Error | null
-}
-
-function serializeSources(sources?: string[]): string | null {
-  if (!sources?.length) {
-    return null
-  }
-
-  return [...sources].sort().join(",")
 }
 
 export function usePaginatedNews(

@@ -14,6 +14,9 @@ from app.models.atlas import (
     AtlasGraphFilters,
     AtlasGraphResponse,
     AtlasIndexResponse,
+    AtlasIngestStatusResponse,
+    AtlasMeasurementRecord,
+    AtlasMeasurementsResponse,
     AtlasRelationType,
     AtlasSearchResponse,
     AtlasStatsResponse,
@@ -21,9 +24,11 @@ from app.models.atlas import (
 )
 from app.services.atlas_entity import get_atlas_entity, list_atlas_index, search_atlas
 from app.services.atlas_export import build_atlas_export
-from app.services.atlas_graph import build_atlas_graph, build_atlas_stats
+from app.services.atlas_graph import build_atlas_graph, get_atlas_stats_cached
 from app.services.atlas_graph_helpers import normalize_entity_id_alias, normalize_entity_type_alias
 from app.services.funding_bias_analysis import get_funding_bias_analysis_response
+from app.services.auto_ingest import get_ingest_status
+from app.services.media_measurements import calculate_media_measurements
 
 router = APIRouter(prefix="/api/wiki/atlas", tags=["wiki-atlas"])
 _ENTITY_TYPES = {"outlet", "organization", "person", "reporter"}
@@ -115,7 +120,15 @@ async def get_atlas_graph(
 @router.get("/stats", response_model=AtlasStatsResponse)
 async def get_atlas_stats(db: AsyncSession = Depends(get_db)) -> AtlasStatsResponse:
     """Return aggregate Atlas graph statistics without node/edge payloads."""
-    return await build_atlas_stats(db)
+    return await get_atlas_stats_cached(db)
+
+
+@router.get("/ingestion-status", response_model=AtlasIngestStatusResponse)
+async def get_atlas_ingestion_status(
+    db: AsyncSession = Depends(get_db), limit: int = Query(40, ge=1, le=200)
+) -> AtlasIngestStatusResponse:
+    """Return adapter freshness, partial runs, credentials, and retryable failures."""
+    return await get_ingest_status(db, limit=limit)
 
 
 @router.get("/search", response_model=AtlasSearchResponse)
@@ -158,6 +171,7 @@ async def get_atlas_index(
     country: str | None = Query(None),
     funding: str | None = Query(None),
     bias: str | None = Query(None),
+    kind: str | None = Query(None),
     sort: Literal[
         "name", "most_connected", "most_articles", "recently_indexed", "lowest_confidence"
     ] = Query("name"),
@@ -172,6 +186,7 @@ async def get_atlas_index(
         country=_split_csv(country),
         funding=_split_csv(funding),
         bias=_split_csv(bias),
+        kind=_split_csv(kind),
         sort=sort,
         cursor=cursor,
         limit=limit,
@@ -189,6 +204,22 @@ async def get_funding_bias_analysis(
     database.
     """
     return await get_funding_bias_analysis_response(db)
+
+
+@router.get("/analysis/media-measurements", response_model=AtlasMeasurementsResponse)
+async def get_media_measurements(
+    db: AsyncSession = Depends(get_db),
+    source_name: str | None = Query(None, max_length=200),
+) -> AtlasMeasurementsResponse:
+    """Calculate and return reproducible article and ownership measurements."""
+    traces = await calculate_media_measurements(db, source_name=source_name)
+    await db.commit()
+    return AtlasMeasurementsResponse(
+        source_name=source_name,
+        measurements=[
+            AtlasMeasurementRecord.model_validate(trace, from_attributes=True) for trace in traces
+        ],
+    )
 
 
 @router.post("/export")

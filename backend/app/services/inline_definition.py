@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.config import settings
+from app.core.config import resolve_opencode_model, settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 from app.services.prompting import build_text_system_prompt
@@ -42,7 +42,7 @@ async def define_term_with_gemini(term: str, context: str | None = None) -> dict
                 },
                 {"role": "user", "content": prompt},
             ],
-            model=settings.open_router_model,
+            model=resolve_opencode_model(settings.open_router_model),
             max_tokens=300,
             temperature=0.3,
         )

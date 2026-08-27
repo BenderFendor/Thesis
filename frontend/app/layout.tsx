@@ -3,8 +3,9 @@ import Script from 'next/script'
 import { GeistMono } from 'geist/font/mono'
 import { Instrument_Serif, Outfit } from 'next/font/google'
 import './globals.css'
-import { Providers } from './providers'
+import { buildAppearanceBootstrapScript } from '@/lib/appearance-settings'
 import { BrowserTelemetry } from '@/components/observability/browser-telemetry'
+import { Providers } from './providers'
 
 const instrumentSerif = Instrument_Serif({
   weight: '400',
@@ -35,6 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: buildAppearanceBootstrapScript() }} />
         {process.env.NODE_ENV === 'development' ? (
           <Script
             src="https://unpkg.com/react-grab@0.1.48/dist/index.global.js"

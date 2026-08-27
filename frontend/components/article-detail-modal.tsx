@@ -201,6 +201,1726 @@ function LanguageForensicsCard({
   )
 }
 
+const isTextInputFocused = () => {
+  const active = document.activeElement
+  if (!active) return false
+  if (active instanceof HTMLInputElement) return true
+  if (active instanceof HTMLTextAreaElement) return true
+  if (active instanceof HTMLElement && active.isContentEditable) return true
+  return false
+}
+
+const getConfidenceColor = (confidence: FactCheckResult["confidence"]) => {
+  switch (confidence) {
+    case "high":
+      return "bg-primary/15 text-primary border border-primary/40"
+    case "medium":
+      return "bg-amber-500/15 text-amber-200 border border-amber-500/40"
+    case "low":
+      return "bg-rose-500/15 text-rose-200 border border-rose-500/40"
+    default:
+      return "bg-slate-600/20 text-slate-200 border border-slate-500/40"
+  }
+}
+
+const getCredibilityColor = (credibility: string) => {
+  switch (credibility) {
+    case "high":
+      return "bg-primary/15 text-primary border-primary/30"
+    case "medium":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    case "low":
+      return "bg-red-500/20 text-red-400 border-red-500/30"
+    default:
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+  }
+}
+
+const getBiasColor = (bias: string) => {
+  switch (bias) {
+    case "left":
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+    case "center":
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    case "right":
+      return "bg-red-500/20 text-red-400 border-red-500/30"
+    default:
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+  }
+}
+
+const hasRealImage = (src?: string | null) => {
+  if (!src) return false
+  const trimmed = src.trim()
+  if (!trimmed) return false
+  if (trimmed === "none") return false
+  const lower = trimmed.toLowerCase()
+  return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
+}
+
+const formatDate = (date: string) => {
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return date
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+const getArticleTextForMetrics = (
+  fullArticleText: string | null | undefined,
+  content: string | undefined,
+  summary: string | undefined,
+) => (fullArticleText || content || summary || "").trim()
+
+const getArticleWordMetrics = (text: string) => {
+  const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
+  return { wordCount, estimatedReadMinutes: Math.max(1, Math.ceil(wordCount / 230)) }
+}
+
+const getReporterName = (article: NewsArticle) =>
+  article.author?.trim() || article.authors?.find((value) => value.trim().length > 0) || ""
+
+const getArticleHost = (url?: string | null) =>
+  url && isExtractableUrl(url) ? new URL(url).hostname : undefined
+
+const shouldShowSummary = (
+  summary: string | undefined,
+  content: string | undefined,
+  fullArticleText: string | null | undefined,
+) => {
+  const summaryText = (summary || "").trim()
+  const contentText = (content || "").trim()
+  const fullText = (fullArticleText || "").trim()
+  return Boolean(summaryText && summaryText !== fullText && summaryText !== contentText)
+}
+
+const getArticleWikiContext = (
+  fullArticleText: string | null | undefined,
+  content: string | undefined,
+  summary: string | undefined,
+) => (fullArticleText || "").trim() || (content || "").trim() || (summary || "").trim()
+
+const getRenderedLanguageDiagnostics = (
+  aiAnalysis: ArticleAnalysis | null | undefined,
+  languageDiagnostics: LanguageDiagnostics | null | undefined,
+) => (aiAnalysis?.language_diagnostics?.success ? aiAnalysis.language_diagnostics : languageDiagnostics)
+
+function ModalWikiSheet({
+  open,
+  onOpenChange,
+  tab,
+  onTabChange,
+  source,
+  reporterName,
+  hasSourceWiki,
+  hasReporterWiki,
+  articleHost,
+  articleWikiContext,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  tab: "source" | "reporter"
+  onTabChange: (tab: "source" | "reporter") => void
+  source: string
+  reporterName: string
+  hasSourceWiki: boolean
+  hasReporterWiki: boolean
+  articleHost?: string
+  articleWikiContext: string
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full border-l border-white/10 bg-background p-0 sm:max-w-xl">
+        <div className="flex h-full flex-col">
+          <SheetHeader className="border-b border-white/10 px-5 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <SheetTitle className="font-serif text-xl">
+                  {tab === "source" ? source : reporterName}
+                </SheetTitle>
+                <SheetDescription className="mt-1 text-xs">
+                  Inline wiki preview from cached public-source research with direct links to the full wiki pages.
+                </SheetDescription>
+              </div>
+              {tab === "source" && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/wiki/source/${encodeURIComponent(source)}`}>
+                    Open full wiki
+                  </Link>
+                </Button>
+              )}
+            </div>
+            {hasSourceWiki && hasReporterWiki && (
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onTabChange("source")}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
+                    tab === "source"
+                      ? "border-white/20 bg-white/10 text-foreground"
+                      : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
+                  }`}
+                >
+                  Source
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTabChange("reporter")}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
+                    tab === "reporter"
+                      ? "border-white/20 bg-white/10 text-foreground"
+                      : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
+                  }`}
+                >
+                  Reporter
+                </button>
+              </div>
+            )}
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {tab === "source" ? (
+              <SourceResearchPanel
+                sourceName={source}
+                website={articleHost}
+                autoRun={true}
+              />
+            ) : reporterName ? (
+              <ReporterProfilePanel
+                reporterName={reporterName}
+                organization={source}
+                articleContext={articleWikiContext}
+              />
+            ) : (
+              <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                Reporter information is not available for this article.
+              </div>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function ModalHeaderControls({
+  onNavigate,
+  handleNavigate,
+  isExpanded,
+  onToggleExpanded,
+  onClose,
+}: {
+  onNavigate?: (direction: "prev" | "next") => void
+  handleNavigate: (direction: "prev" | "next") => void
+  isExpanded: boolean
+  onToggleExpanded: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border/40 bg-background/75 p-4 backdrop-blur-xl">
+      <div className="flex items-center gap-2 flex-1">
+        {onNavigate ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleNavigate("prev")}
+              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+              title="Previous (ArrowLeft)"
+            >
+              Prev
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleNavigate("next")}
+              className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+              title="Next (ArrowRight)"
+            >
+              Next
+            </Button>
+          </>
+        ) : null}
+      </div>
+      <div className="flex items-center justify-center flex-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleExpanded}
+          className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+        >
+          {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
+      </div>
+      <div className="flex items-center justify-end flex-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ModalProgressRail({
+  trackRef,
+  progress,
+}: {
+  trackRef: { current: HTMLDivElement | null }
+  progress: number
+}) {
+  return (
+    <div
+      ref={trackRef}
+      role="scrollbar"
+      aria-label="Article reading progress"
+      aria-controls="article-detail-scroll-region"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      className="absolute inset-y-24 right-2 z-10 hidden w-3 cursor-row-resize rounded-full bg-white/5 lg:block"
+    >
+      <div
+        className="pointer-events-none w-full rounded-full bg-primary/80 transition-[height] duration-150"
+        style={{ height: `${Math.max(progress * 100, 8)}%` }}
+      />
+    </div>
+  )
+}
+
+function ModalHero({
+  article,
+  isExpanded,
+  layoutIdPrefix,
+  reporterName,
+  onOpenSourceWiki,
+  onOpenReporterWiki,
+  onClose,
+}: {
+  article: NewsArticle
+  isExpanded: boolean
+  layoutIdPrefix?: string
+  reporterName: string
+  onOpenSourceWiki: () => void
+  onOpenReporterWiki: () => void
+  onClose: () => void
+}) {
+  const heroImage = article && hasRealImage(article.image) ? article.image : null
+  const heroLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-image-${article.id}` : undefined
+  const titleLayoutId = layoutIdPrefix && article ? `${layoutIdPrefix}-title-${article.id}` : undefined
+
+  return (
+    <div className={`relative overflow-hidden ${isExpanded ? 'min-h-96 h-[60vh]' : 'h-56'} ${heroImage ? "bg-card" : "editorial-modal-fallback"}`}>
+      {heroImage ? (
+        <>
+          <motion.img
+            layoutId={heroLayoutId}
+            src={heroImage}
+            alt={article.title}
+            className="h-full w-full object-cover opacity-70"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+        </>
+      ) : (
+        <div className="editorial-modal-fallback absolute inset-0" />
+      )}
+
+      {/* Hero Content */}
+      <div className="absolute inset-0 flex flex-col justify-end">
+        <div className="mx-auto w-full max-w-6xl px-6 pb-10 md:px-8 md:pb-12">
+          {/* Badges */}
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <Badge className={getCredibilityColor(article.credibility)}>
+              {article.credibility.toUpperCase()} CREDIBILITY
+            </Badge>
+            <Badge className={getBiasColor(article.bias)}>{article.bias.toUpperCase()} BIAS</Badge>
+            {article.category && (
+              <Badge variant="outline" className="text-xs uppercase">
+                {article.category}
+              </Badge>
+            )}
+          </div>
+
+          {/* Title */}
+          <motion.h1
+            layoutId={titleLayoutId}
+            className={`mb-6 font-serif leading-tight text-foreground ${isExpanded ? 'text-4xl md:text-6xl' : 'text-2xl md:text-4xl'
+              }`}
+          >
+            {article.title}
+          </motion.h1>
+
+          {/* Meta */}
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenSourceWiki()
+              }}
+              className="font-medium hover:text-primary hover:underline transition-colors"
+            >
+              {article.source}
+            </button>
+            <Link
+              href={`/source/${encodeURIComponent(article.sourceId)}`}
+              className="text-muted-foreground hover:text-primary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose()
+              }}
+              title="Open source page"
+            >
+              <LinkIcon className="h-3.5 w-3.5" />
+            </Link>
+            <Link
+              href={`/wiki/source/${encodeURIComponent(article.source)}`}
+              className="text-muted-foreground hover:text-primary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose()
+              }}
+              title="View wiki profile"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+            </Link>
+            {reporterName && (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  className="hover:text-primary hover:underline transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpenReporterWiki()
+                  }}
+                  title="Open reporter wiki preview"
+                >
+                  Reporter: {reporterName}
+                </button>
+                <Link
+                  href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                  }}
+                  title="Search reporter in wiki"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                </Link>
+              </>
+            )}
+            {!reporterName && article.authors && article.authors.length > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-foreground/80 text-xs">
+                  {article.authors.slice(0, 2).join(", ")}
+                </span>
+              </>
+            )}
+            <span>•</span>
+            <span>{formatDate(article.publishedAt)}</span>
+            <span>•</span>
+            <span>{article.country}</span>
+            {article.translated && (
+              <>
+                <span>•</span>
+                <Badge variant="outline" className="text-xs">
+                  Translated from {article.originalLanguage.toUpperCase()}
+                </Badge>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalSummaryQuote({ summary, isExpanded }: { summary: string; isExpanded: boolean }) {
+  return (
+    <div className={isExpanded ? "mb-12 border-l-4 border-primary bg-card/50 px-6 py-4" : "mb-8 border-l-4 border-primary bg-card/50 px-5 py-4"}>
+      <p className={`text-foreground/80 leading-relaxed italic ${isExpanded ? 'text-2xl' : 'text-lg'
+        }`}>
+        {summary}
+      </p>
+    </div>
+  )
+}
+
+function ModalArticleReader({
+  articleLoading,
+  fullArticleText,
+  articleUrl,
+  articleSummary,
+  showHighlights,
+  visibleHighlights,
+  activeHighlightId,
+  onHighlightClick,
+  articleContentRef,
+  isExpanded,
+  highlightColor,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: {
+  articleLoading: boolean
+  fullArticleText: string | null | undefined
+  articleUrl: string
+  articleSummary: string
+  showHighlights: boolean
+  visibleHighlights: Highlight[]
+  activeHighlightId: string | null
+  onHighlightClick: (stableId: string, element: HTMLElement) => void
+  articleContentRef: { current: HTMLDivElement | null }
+  isExpanded: boolean
+  highlightColor: Highlight["color"]
+  onCreate: (payload: {
+    highlightedText: string
+    color: Highlight["color"]
+    range: { start: number; end: number }
+  }) => Promise<void> | void
+  onUpdate: (payload: { highlightId: number; note: string }) => Promise<void> | void
+  onDelete: (payload: { highlightId: number }) => Promise<void> | void
+}) {
+  return (
+    <div className="space-y-6">
+      <h2 className={`font-bold text-foreground mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
+        }`}>Full Article</h2>
+
+      {articleLoading && fullArticleText && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-4">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground text-sm">Updating full article text...</p>
+        </div>
+      )}
+
+      {articleLoading && !fullArticleText ? (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-6">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading full article text...</p>
+        </div>
+      ) : (
+        <>
+          <ArticleContent
+            ref={articleContentRef}
+            content={fullArticleText || articleSummary || ""}
+            highlights={showHighlights ? visibleHighlights : []}
+            activeHighlightId={activeHighlightId}
+            onHighlightClick={onHighlightClick}
+            className={`reading-prose ${isExpanded ? 'space-y-6' : 'space-y-5'}`}
+          />
+          <HighlightToolbar
+            articleUrl={articleUrl}
+            containerRef={articleContentRef}
+            highlightColor={highlightColor}
+            autoCreate
+            highlights={visibleHighlights}
+            onCreate={onCreate}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+function ModalAiCleanNote({
+  aiAnalysis,
+  fullArticleText,
+  articleContent,
+}: {
+  aiAnalysis: ArticleAnalysis | null
+  fullArticleText: string | null | undefined
+  articleContent?: string
+}) {
+  if (!(aiAnalysis?.full_text && aiAnalysis.full_text !== fullArticleText && aiAnalysis.full_text !== articleContent)) {
+    return null
+  }
+  return (
+    <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold text-white">Clean Reading View</h3>
+      </div>
+      <p className="text-sm text-gray-400 mb-3">A clean text version is available.</p>
+      <details className="text-sm">
+        <summary className="cursor-pointer text-primary hover:text-primary/80">Show AI Version</summary>
+        <div className="mt-3 text-gray-300 leading-relaxed whitespace-pre-wrap">
+          {aiAnalysis.full_text}
+        </div>
+      </details>
+    </div>
+  )
+}
+
+function ModalTags({ tags }: { tags: string[] }) {
+  return (
+    <div>
+      <h4 className="text-sm font-medium text-gray-400 mb-3">Tags</h4>
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <Badge key={tag} variant="outline" className="text-xs">
+            {tag}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const getModalActionStates = (
+  article: NewsArticle,
+  isLiked: (articleId: number) => boolean,
+  isFavorite: (sourceId: string) => boolean,
+  isBookmarked: (articleId: number) => boolean,
+  isArticleInQueue: (url: string) => boolean,
+) => ({
+  liked: Boolean(article.id && isLiked(article.id)),
+  favorited: Boolean(article && isFavorite(article.sourceId)),
+  bookmarked: Boolean(article.id && isBookmarked(article.id)),
+  inQueue: Boolean(article && isArticleInQueue(article.url)),
+})
+
+function ModalActions({
+  article,
+  canPersist,
+  bookmarkLoading,
+  aiAnalysisLoading,
+  canRequestAiAnalysis,
+  aiAnalysisRequested,
+  aiHasError,
+  aiActionLabel,
+  isLiked,
+  isFavorite,
+  isBookmarked,
+  isArticleInQueue,
+  onLike,
+  onFavorite,
+  onBookmark,
+  onAiAnalysis,
+  onQueueToggle,
+}: {
+  article: NewsArticle
+  canPersist: boolean
+  bookmarkLoading: boolean
+  aiAnalysisLoading: boolean
+  canRequestAiAnalysis: boolean
+  aiAnalysisRequested: boolean
+  aiHasError: boolean
+  aiActionLabel: string
+  isLiked: (articleId: number) => boolean
+  isFavorite: (sourceId: string) => boolean
+  isBookmarked: (articleId: number) => boolean
+  isArticleInQueue: (url: string) => boolean
+  onLike: () => void
+  onFavorite: () => void
+  onBookmark: () => void
+  onAiAnalysis: () => void
+  onQueueToggle: () => void
+}) {
+  const { liked, favorited, bookmarked, inQueue } = getModalActionStates(article, isLiked, isFavorite, isBookmarked, isArticleInQueue)
+
+  return (
+    <div className="flex items-center justify-between pt-6 border-t border-gray-800 relative z-10 mb-20">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onLike}
+          className={liked ? "text-red-400" : "text-gray-400"}
+          disabled={!canPersist}
+          title={canPersist ? "Like article" : "Only indexed articles can be liked."}
+        >
+          <Heart className={`h-4 w-4 mr-2 ${liked ? "fill-current" : ""}`} />
+          Like
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onFavorite}
+          className={favorited ? "text-yellow-400" : "text-gray-400"}
+          title={favorited ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star className={`h-4 w-4 mr-2 ${favorited ? "fill-current" : ""}`} />
+          Favorite
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBookmark}
+          className={bookmarked ? "text-yellow-400" : "text-gray-400"}
+          disabled={bookmarkLoading || !canPersist}
+          title={canPersist ? "Bookmark article" : "Only indexed articles can be bookmarked."}
+        >
+          <Bookmark className={`h-4 w-4 ${bookmarked ? "fill-current" : ""}`} />
+          Bookmark
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onAiAnalysis}
+          disabled={!canRequestAiAnalysis || aiAnalysisLoading}
+          className={aiAnalysisRequested && !aiHasError ? "text-emerald-400" : "text-gray-400"}
+          title="AI analysis is opt-in to reduce API calls"
+        >
+          {aiAnalysisLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4 mr-2" />
+          )}
+          {aiActionLabel}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onQueueToggle}
+          className={inQueue ? "text-blue-400" : "text-gray-400"}
+        >
+          {inQueue ? (
+            <MinusCircle className="h-4 w-4 mr-2" />
+          ) : (
+            <PlusCircle className="h-4 w-4 mr-2" />
+          )}
+          {inQueue ? "Remove from Queue" : "Add to Queue"}
+        </Button>
+
+      </div>
+      {!canPersist ? (
+        <span className="text-xs text-muted-foreground">
+          This article is readable here, but likes and bookmarks only work for indexed archive items.
+        </span>
+      ) : null}
+      <Button variant="outline" size="sm" asChild>
+        <a href={article.url} target="_blank" rel="noopener noreferrer">
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Read Original
+        </a>
+      </Button>
+    </div>
+  )
+}
+
+function ModalAnnotationsPanel({
+  highlightCount,
+  highlightSyncStatus,
+  onRetrySync,
+  showHighlights,
+  onToggleShowHighlights,
+  wordCount,
+  estimatedReadMinutes,
+  highlightColor,
+  onColorSelect,
+  obsidianMarkdown,
+  articleTitle,
+  articleUrl,
+  articleScrollProgress,
+  onBackToTop,
+}: {
+  highlightCount: number
+  highlightSyncStatus: "idle" | "syncing" | "failed" | "offline"
+  onRetrySync: () => void
+  showHighlights: boolean
+  onToggleShowHighlights: () => void
+  wordCount: number
+  estimatedReadMinutes: number
+  highlightColor: Highlight["color"]
+  onColorSelect: (color: Highlight["color"]) => void
+  obsidianMarkdown: string
+  articleTitle: string
+  articleUrl: string
+  articleScrollProgress: number
+  onBackToTop: () => void
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-secondary/70 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground">Reader</div>
+          <h2 className="text-lg font-semibold text-foreground">Annotations</h2>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-muted-foreground">{highlightCount}</span>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground">
+            {highlightSyncStatus === "syncing"
+              ? "Saving"
+              : highlightSyncStatus === "offline"
+                ? "Offline"
+                : highlightSyncStatus === "failed"
+                  ? "Failed"
+                  : "Synced"}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {highlightSyncStatus === "failed" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRetrySync}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry sync
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onToggleShowHighlights}
+          className="gap-2"
+        >
+          {showHighlights ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showHighlights ? "Hide" : "Show"}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {wordCount > 0 ? `${wordCount} words • ${estimatedReadMinutes} min read` : `${estimatedReadMinutes} min read`}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(["yellow", "blue", "red", "green", "purple"] as const).map((color) => (
+          <button
+            key={color}
+            type="button"
+            onClick={() => {
+              onColorSelect(color)
+            }}
+            className={`h-7 w-7 rounded border ${highlightColor === color ? "border-foreground" : "border-transparent"} ${
+              color === "yellow"
+                ? "bg-amber-200/80 text-amber-900"
+                : color === "blue"
+                  ? "bg-sky-200/80 text-sky-900"
+                  : color === "red"
+                    ? "bg-rose-200/80 text-rose-900"
+                    : color === "green"
+                      ? "bg-emerald-200/80 text-emerald-900"
+                      : "bg-purple-200/80 text-purple-900"
+            }`}
+            aria-label={`Annotation color ${color}`}
+          />
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            const markdown = obsidianMarkdown
+            const title = articleTitle.replace(/[:\\/]/g, "-")
+
+            try {
+              await navigator.clipboard.writeText(markdown)
+              const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&clipboard=true`
+              window.location.href = obsidianUrl
+              toast.success("Opening in Obsidian...")
+            } catch {
+              const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&content=${encodeURIComponent(markdown)}`
+              window.location.href = obsidianUrl
+              toast.success("Opening in Obsidian...")
+            }
+
+            logUserAction("highlight_sent_to_obsidian", { url: articleUrl })
+          }}
+          className="col-span-2 gap-2 border-accent/40 bg-accent/15 text-accent-foreground hover:bg-accent/25"
+        >
+          <PlusCircle className="h-4 w-4" />
+          Add to Obsidian
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            await navigator.clipboard.writeText(obsidianMarkdown)
+            toast.success("Obsidian Markdown copied")
+            logUserAction("highlight_markdown_copied", { url: articleUrl })
+          }}
+          className="gap-2"
+        >
+          <Copy className="h-4 w-4" />
+          Copy
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const sanitizeFilename = (value: string) =>
+              value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)+/g, "")
+                .slice(0, 80) || "annotations"
+
+            const blob = new Blob([obsidianMarkdown], { type: "text/markdown" })
+            const fileName = `${sanitizeFilename(articleTitle)}.md`
+            const link = document.createElement("a")
+            link.href = URL.createObjectURL(blob)
+            link.download = fileName
+            link.click()
+            URL.revokeObjectURL(link.href)
+            logUserAction("highlight_markdown_downloaded", { url: articleUrl })
+            toast.success("Obsidian Markdown exported")
+          }}
+          className="gap-2"
+        >
+          <Download className="h-4 w-4" />
+          Export
+        </Button>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        Select text to highlight. Click a highlight to add a note.
+      </p>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+        <div>Reading progress</div>
+        <div className="font-mono text-foreground">{Math.round(articleScrollProgress * 100)}%</div>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onBackToTop}
+        className="mt-2 w-full gap-2"
+      >
+        <Minimize2 className="h-4 w-4 rotate-180" />
+        Back to top
+      </Button>
+    </div>
+  )
+}
+
+function ModalHighlightsList({
+  highlights,
+  articleTitle,
+  articleSource,
+  onHighlightClick,
+  articleContentRef,
+  editingId,
+  editingNote,
+  onStartEdit,
+  onCancelEdit,
+  onNoteChange,
+  onSaveNote,
+  onDelete,
+}: {
+  highlights: LocalHighlight[]
+  articleTitle: string
+  articleSource: string
+  onHighlightClick: (stableId: string, element: HTMLElement) => void
+  articleContentRef: { current: HTMLDivElement | null }
+  editingId: string | null
+  editingNote: string
+  onStartEdit: (highlight: LocalHighlight) => void
+  onCancelEdit: () => void
+  onNoteChange: (value: string) => void
+  onSaveNote: (stableId: string, note: string) => void
+  onDelete: (highlight: LocalHighlight) => void
+}) {
+  return (
+    <div className="space-y-3">
+      {highlights.length === 0 ? (
+        <div className="rounded-lg border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground">
+          No annotations yet.
+        </div>
+      ) : (
+        highlights
+          .filter(h => !h.deleted)
+          .sort((a, b) => a.character_start - b.character_start)
+          .map((highlight, idx) => (
+            <div key={highlightStableId(highlight)} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+              <div className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background font-mono text-xs font-bold text-muted-foreground shadow-sm">
+                {idx + 1}
+              </div>
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => {
+                  const stableId = highlightStableId(highlight)
+                  const el = articleContentRef.current?.querySelector(
+                    `mark[data-highlight-stable-id=\"${stableId}\"]`
+                  ) as HTMLElement | null
+                  if (el) {
+                    onHighlightClick(stableId, el)
+                  }
+
+                }}
+              >
+                <div
+                  className={`rounded-md px-3 py-2 text-sm ${
+                    highlight.color === "yellow"
+                      ? "bg-amber-200/80 text-amber-900"
+                      : highlight.color === "blue"
+                        ? "bg-sky-200/80 text-sky-900"
+                        : highlight.color === "red"
+                          ? "bg-rose-200/80 text-rose-900"
+                          : highlight.color === "green"
+                            ? "bg-emerald-200/80 text-emerald-900"
+                            : "bg-purple-200/80 text-purple-900"
+                  }`}
+                >
+                  {highlight.highlighted_text}
+                </div>
+              </button>
+
+              {editingId === highlightStableId(highlight) ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editingNote}
+                    onChange={(event) => onNoteChange(event.target.value)}
+                    placeholder="Add a note..."
+                    rows={3}
+                    className="w-full rounded border border-border/60 bg-background px-2 py-1 text-sm text-foreground"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onSaveNote(highlightStableId(highlight), editingNote)
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onCancelEdit}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap break-words">
+                    {highlight.note?.trim() ? highlight.note : "No note"}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/search?query=${encodeURIComponent(`Context: ${articleTitle} by ${articleSource}\n\nExplain this highlighted passage:\n\n> ${highlight.highlighted_text}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-all hover:bg-primary/15 hover:border-primary/40 hover:text-primary"
+                      title="Research this highlight"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Link>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onStartEdit(highlight)
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onDelete(highlight)
+                      }}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+      )}
+    </div>
+  )
+}
+
+function ModalAiStatusBlocks({
+  aiAnalysisRequested,
+  aiAnalysisLoading,
+  aiAnalysis,
+}: {
+  aiAnalysisRequested: boolean
+  aiAnalysisLoading: boolean
+  aiAnalysis: ArticleAnalysis | null
+}) {
+  return (
+    <>
+      {!aiAnalysisRequested && (
+        <div className="rounded-sm border border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">AI Analysis</p>
+          <p className="mt-2 text-foreground/80 font-serif">
+            AI analysis is off by default. Use the “Run Analysis” button when you need it.
+          </p>
+        </div>
+      )}
+
+      {aiAnalysisRequested && aiAnalysisLoading && (
+        <div className="rounded-lg border border-border/60 bg-secondary/70 p-5 text-sm text-muted-foreground">
+          Running AI analysis…
+        </div>
+      )}
+
+      {aiAnalysisRequested && aiAnalysis && aiAnalysis.error && (
+        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-5 text-sm text-rose-200">
+          {aiAnalysis.error}
+        </div>
+      )}
+    </>
+  )
+}
+
+function ModalFactCheckDialog({
+  factCheckResults,
+  claimsOpen,
+  onOpenChange,
+  statusCounts,
+  activeStatusFilter,
+  onFilterChange,
+  filteredClaims,
+  selectedClaim,
+  onSelectClaim,
+  agenticLoading,
+  agenticError,
+  agenticAnswer,
+  agenticHistory,
+  onRunAgenticSearch,
+}: {
+  factCheckResults: FactCheckResult[]
+  claimsOpen: boolean
+  onOpenChange: (open: boolean) => void
+  statusCounts: Record<FactCheckStatus, number>
+  activeStatusFilter: FactCheckStatusFilter
+  onFilterChange: (filter: FactCheckStatusFilter) => void
+  filteredClaims: FactCheckResult[]
+  selectedClaim: FactCheckResult | null
+  onSelectClaim: (claim: FactCheckResult) => void
+  agenticLoading: boolean
+  agenticError: string | null
+  agenticAnswer: string | null
+  agenticHistory: Array<{ claim: string; answer: string; timestamp: number }>
+  onRunAgenticSearch: (claim: FactCheckResult) => void
+}) {
+  return (
+    <Dialog open={claimsOpen} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedClaim && factCheckResults.length) {
+              onSelectClaim(factCheckResults[0]!)
+            }
+          }}
+          className="group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card/90 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          aria-label="Open verified claims report"
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-80" />
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary/80 transition-transform duration-300 group-hover:rotate-3" />
+              <h3 className="text-lg font-semibold text-foreground">Fact Check Results</h3>
+            </div>
+            <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground/85">
+              {factCheckResults.length} claims
+            </span>
+          </div>
+          <p className="mb-4 max-w-xl text-sm text-muted-foreground">
+            Review each claim, inspect the model’s evidence summary, and run live research without leaving the article.
+          </p>
+          <div className="space-y-3">
+            {factCheckResults.slice(0, 3).map((result, index) => (
+              <div
+                key={`${result.claim}-${index}`}
+                className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/40 p-3 transition-all duration-300 group-hover:border-primary/30"
+              >
+                <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-xs uppercase tracking-wide`}>
+                  {VERIFICATION_LABEL_MAP[result.verification_status]}
+                </Badge>
+                <p className="line-clamp-2 text-sm text-foreground/80">&quot;{result.claim}&quot;</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex items-center justify-between text-xs text-foreground/70">
+            <span>Open the verification workspace</span>
+            <div className="flex items-center gap-2 font-semibold">
+              <span>Open</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </div>
+          </div>
+        </button>
+      </DialogTrigger>
+
+      <DialogContent className="max-h-screen overflow-hidden border border-border/60 bg-background/95 p-0 text-foreground shadow-2xl shadow-black/60 sm:max-w-5xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <Sparkles className="h-5 w-5 text-primary/80" />
+            Verification Report
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Review claims, inspect evidence, and run live research against the same article context.
+          </p>
+        </DialogHeader>
+
+        <div className="grid max-h-screen md:grid-cols-12">
+          <div className="border-b border-border/60 bg-card/40 p-5 md:col-span-4 md:border-b-0 md:border-r lg:col-span-3">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Claim Filters
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {STATUS_FILTERS.map((status) => {
+                const isAll = status === "all"
+                const count = isAll ? factCheckResults.length : statusCounts[status as FactCheckStatus]
+                const isDisabled = !isAll && count === 0
+                const isActive = activeStatusFilter === status
+
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/50 bg-primary/10 text-foreground" : "border-border/60 bg-background/40 text-foreground/75 hover:border-primary/40 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-border/60 hover:text-foreground/75" : "cursor-pointer"}`}
+                    onClick={() => {
+                      if (isDisabled) return
+                      onFilterChange(status)
+                    }}
+                  >
+                    {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
+                    <span className="ml-2 rounded-full bg-background/70 px-2 py-0.5 text-xs font-bold text-foreground/80">
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="mt-5">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Claims</h4>
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1 md:max-h-full">
+                {filteredClaims.map((claim, index) => {
+                  const isActive = selectedClaim?.claim === claim.claim
+                  return (
+                    <button
+                      key={`${claim.claim}-${index}`}
+                      type="button"
+                      className={`w-full rounded-xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 ${isActive ? "border-primary/50 bg-primary/10 shadow-lg shadow-black/20" : "border-border/60 bg-background/45"}`}
+                      onClick={() => {
+                        onSelectClaim(claim)
+                      }}
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-xs uppercase tracking-wide`}>
+                          {VERIFICATION_LABEL_MAP[claim.verification_status]}
+                        </Badge>
+                      </div>
+                      <span className="line-clamp-3 text-sm text-foreground/85">{claim.claim}</span>
+                    </button>
+                  )
+                })}
+
+                {filteredClaims.length === 0 && (
+                  <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-xs text-muted-foreground">
+                    No claims in this category yet. Try another filter.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5 overflow-y-auto p-6 md:col-span-8 lg:col-span-9">
+            {selectedClaim ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border/60 bg-card/60 p-5">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-xs uppercase tracking-wide`}>
+                        {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
+                      </Badge>
+                      <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-xs uppercase tracking-wide`}>
+                        confidence: {selectedClaim.confidence}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-base font-medium leading-relaxed text-foreground">&quot;{selectedClaim.claim}&quot;</p>
+                  {selectedClaim.notes && (
+                    <p className="mt-3 text-sm text-muted-foreground">{selectedClaim.notes}</p>
+                  )}
+                  <div className="mt-4 space-y-2">
+                    <h5 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Evidence</h5>
+                    <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-sm leading-relaxed text-foreground/85">
+                      {selectedClaim.evidence || "Evidence details not provided."}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-foreground/75">
+                      {selectedClaim.sources?.slice(0, 4).map((source, idx) => (
+                        <a
+                          key={`${source}-${idx}`}
+                          href={source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group/link inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/50 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
+                        >
+                          <LinkIcon className="h-3 w-3" />
+                          <span className="max-w-48 truncate">{source}</span>
+                          <ExternalLink className="h-3 w-3 transition group-hover/link:translate-x-0.5" />
+                        </a>
+                      ))}
+                      {(!selectedClaim.sources || selectedClaim.sources.length === 0) && (
+                        <span className="rounded-full border border-border/60 px-3 py-1">No sources provided</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
+                      onClick={() => {
+                        if (typeof navigator !== "undefined") {
+                          navigator.clipboard.writeText(`${selectedClaim.claim}\n\nEvidence: ${selectedClaim.evidence ?? "N/A"}`).catch(() => null)
+                        }
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy claim
+                    </button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a
+                        href={`/search?query=${encodeURIComponent(selectedClaim.claim)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Search className="mr-1 h-3.5 w-3.5" />
+                        Open research workspace
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-slate-950/90 p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Search className="h-4 w-4" /> Live Research
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Query the current research backend with this claim and article context.
+                      </p>
+                    </div>
+                    {agenticHistory.length > 0 && (
+                      <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
+                        Last run {new Date(agenticHistory[0]!.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      onClick={() => onRunAgenticSearch(selectedClaim)}
+                      disabled={agenticLoading}
+                      className="inline-flex items-center gap-2"
+                    >
+                      {agenticLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Researching
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Live Research
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="inline-flex items-center gap-2 text-foreground/80 hover:text-foreground"
+                      onClick={() => onRunAgenticSearch(selectedClaim)}
+                      disabled={agenticLoading}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Retry
+                    </Button>
+                  </div>
+
+                  {agenticError && (
+                    <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+                      <XCircle className="mt-0.5 h-4 w-4" />
+                      <span>{agenticError}</span>
+                    </div>
+                  )}
+
+                  {agenticAnswer && (
+                    <div className="mt-4 space-y-2 rounded-xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground">
+                      <div className="flex items-start gap-2 text-xs uppercase tracking-widest text-foreground/70">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4" />
+                        Research answer
+                      </div>
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{agenticAnswer}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card/40 p-6 text-center text-sm text-muted-foreground">
+                <Sparkles className="h-6 w-6 text-primary/80" />
+                <p>Select a claim from the list to view its evidence and run deeper research.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ModalAiAnalysisBlock({
+  aiAnalysis,
+  factCheckResults,
+  claimsOpen,
+  onOpenChange,
+  statusCounts,
+  activeStatusFilter,
+  onFilterChange,
+  filteredClaims,
+  selectedClaim,
+  onSelectClaim,
+  agenticLoading,
+  agenticError,
+  agenticAnswer,
+  agenticHistory,
+  onRunAgenticSearch,
+}: {
+  aiAnalysis: ArticleAnalysis
+  factCheckResults: FactCheckResult[]
+  claimsOpen: boolean
+  onOpenChange: (open: boolean) => void
+  statusCounts: Record<FactCheckStatus, number>
+  activeStatusFilter: FactCheckStatusFilter
+  onFilterChange: (filter: FactCheckStatusFilter) => void
+  filteredClaims: FactCheckResult[]
+  selectedClaim: FactCheckResult | null
+  onSelectClaim: (claim: FactCheckResult) => void
+  agenticLoading: boolean
+  agenticError: string | null
+  agenticAnswer: string | null
+  agenticHistory: Array<{ claim: string; answer: string; timestamp: number }>
+  onRunAgenticSearch: (claim: FactCheckResult) => void
+}) {
+  return (
+    <div className="sticky top-6 space-y-6">
+      {aiAnalysis.summary && (
+        <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-6 shadow-2xl shadow-black/40">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">AI Summary</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
+        </div>
+      )}
+
+      {aiAnalysis.bias_analysis && (
+        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+            <AlertTriangle className="h-5 w-5 text-yellow-400" />
+            Bias Analysis
+          </h3>
+          {aiAnalysis.bias_analysis.overall_bias_score && (
+            <div className="mb-3">
+              <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                Score: {aiAnalysis.bias_analysis.overall_bias_score}/10
+              </Badge>
+            </div>
+          )}
+          <div className="space-y-3 text-sm">
+            <div>
+              <span className="text-muted-foreground">Tone:</span>
+              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.tone_bias}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Framing:</span>
+              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.framing_bias}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aiAnalysis.source_analysis && (
+        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Source Info</h3>
+          <div className="space-y-3 text-sm">
+            <div>
+              <span className="text-muted-foreground">Credibility:</span>
+              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.credibility_assessment}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Political Leaning:</span>
+              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.political_leaning}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {factCheckResults.length > 0 && (
+        <ModalFactCheckDialog
+          factCheckResults={factCheckResults}
+          claimsOpen={claimsOpen}
+          onOpenChange={onOpenChange}
+          statusCounts={statusCounts}
+          activeStatusFilter={activeStatusFilter}
+          onFilterChange={onFilterChange}
+          filteredClaims={filteredClaims}
+          selectedClaim={selectedClaim}
+          onSelectClaim={onSelectClaim}
+          agenticLoading={agenticLoading}
+          agenticError={agenticError}
+          agenticAnswer={agenticAnswer}
+          agenticHistory={agenticHistory}
+          onRunAgenticSearch={onRunAgenticSearch}
+        />
+      )}
+
+      {aiAnalysis.fact_check_suggestions && aiAnalysis.fact_check_suggestions.length > 0 && (
+        <div className="bg-cyan-500/5 border border-cyan-500/30 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Fact Check</h3>
+          <ul className="space-y-2 text-sm">
+            {aiAnalysis.fact_check_suggestions.slice(0, 3).map((suggestion, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <span className="text-cyan-400 mt-1">•</span>
+                <span className="text-gray-300">{suggestion}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ModalSourceTransparency({
+  sourceLoading,
+  source,
+  article,
+  reporterName,
+  showSourceDetails,
+  onToggleDetails,
+  debugMode,
+  debugOpen,
+  debugLoading,
+  debugData,
+  matchedEntryIndex,
+  onToggleDebug,
+  onOpenSourceWiki,
+  onOpenReporterWiki,
+  onClose,
+}: {
+  sourceLoading: boolean
+  source: NewsSource | null | undefined
+  article: NewsArticle
+  reporterName: string
+  showSourceDetails: boolean
+  onToggleDetails: () => void
+  debugMode: boolean
+  debugOpen: boolean
+  debugLoading: boolean
+  debugData: SourceDebugData | null
+  matchedEntryIndex: number | null
+  onToggleDebug: () => void
+  onOpenSourceWiki: () => void
+  onOpenReporterWiki: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-yellow-400" />
+          Source
+        </h3>
+        <Button variant="outline" size="sm" onClick={onToggleDetails}>
+          {showSourceDetails ? "Hide" : "Show"}
+        </Button>
+      </div>
+
+      {sourceLoading ? (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+        </div>
+      ) : source ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <DollarSign className="h-4 w-4 text-green-400" />
+            <span className="text-gray-400">Funding:</span>
+            <span className="text-white text-xs">{source.funding?.join(", ") || "N/A"}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400">Published:</span>
+            <span className="text-white text-xs">{formatDate(article.publishedAt)}</span>
+          </div>
+          {reporterName && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-400">Reporter:</span>
+              <button
+                type="button"
+                className="text-white text-xs hover:text-primary hover:underline transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenReporterWiki()
+                }}
+              >
+                {reporterName}
+              </button>
+              <Link
+                href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onClose()
+                }}
+                title="Open reporter wiki page"
+              >
+                <BookOpen className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+
+          {showSourceDetails && (
+            <div className="space-y-3 pt-3 border-t border-gray-700 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">Publisher:</span>
+                <button
+                  type="button"
+                  className="text-white hover:text-primary hover:underline transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpenSourceWiki()
+                  }}
+                >
+                  {source.name}
+                </button>
+                <Link
+                  href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                  }}
+                  title="View wiki profile"
+                >
+                  <BookOpen className="h-3 w-3" />
+                </Link>
+              </div>
+              <div>
+                <span className="text-gray-400">Country:</span>
+                <span className="text-white ml-2">{source.country}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-gray-400 text-sm">Source info unavailable</p>
+      )}
+
+      {debugMode && (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleDebug}
+            className="w-full mt-4"
+          >
+            <Bug className="h-4 w-4 mr-1" /> {debugOpen ? "Hide" : "Show"} Debug
+          </Button>
+
+          {debugOpen && (
+            <div className="mt-4 p-4 bg-black/40 rounded border border-gray-800">
+              {debugLoading ? (
+                <div className="flex items-center justify-center p-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                </div>
+              ) : debugData ? (
+                <div className="space-y-2 text-xs">
+                  <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
+                  <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
+                  {matchedEntryIndex !== null && (
+                    <div className="text-primary">Matched at index: {matchedEntryIndex}</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-400 text-xs">No debug data</div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function ModalCompactAiSection({
+  isExpanded,
+  aiAnalysisLoading,
+  aiAnalysis,
+  factCheckCount,
+  onExpand,
+}: {
+  isExpanded: boolean
+  aiAnalysisLoading: boolean
+  aiAnalysis: ArticleAnalysis | null
+  factCheckCount: number
+  onExpand: () => void
+}) {
+  return (
+    <>
+      {!isExpanded && aiAnalysisLoading && (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-slate-950/85 p-4">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground">AI is analyzing the article in the background.</p>
+        </div>
+      )}
+
+      {!isExpanded && aiAnalysis?.summary && (
+        <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
+          </div>
+          <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
+          {factCheckCount > 0 && (
+            <p className="mt-3 text-xs uppercase tracking-widest text-muted-foreground">
+              {factCheckCount} claim{factCheckCount === 1 ? "" : "s"} ready for verification review
+            </p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExpand}
+            className="mt-3 w-full border-border/60 bg-background/50"
+          >
+            <Maximize2 className="h-4 w-4 mr-2" />
+            Expand for Full AI Analysis
+          </Button>
+        </div>
+      )}
+    </>
+  )
+}
+
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
@@ -244,14 +1964,6 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     onNavigate(direction)
   }, [onNavigate])
 
-  const isTextInputFocused = () => {
-    const active = document.activeElement
-    if (!active) return false
-    if (active instanceof HTMLInputElement) return true
-    if (active instanceof HTMLTextAreaElement) return true
-    if (active instanceof HTMLElement && active.isContentEditable) return true
-    return false
-  }
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
   const [claimsOpen, setClaimsOpen] = useState(false)
   const [activeStatusFilter, setActiveStatusFilter] = useState<FactCheckStatusFilter>("all")
@@ -739,32 +2451,6 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     return factCheckResults.filter((claim) => claim.verification_status === activeStatusFilter)
   }, [factCheckResults, activeStatusFilter])
 
-  const getConfidenceColor = (confidence: FactCheckResult["confidence"]) => {
-    switch (confidence) {
-      case "high":
-        return "bg-primary/15 text-primary border border-primary/40"
-      case "medium":
-        return "bg-amber-500/15 text-amber-200 border border-amber-500/40"
-      case "low":
-        return "bg-rose-500/15 text-rose-200 border border-rose-500/40"
-      default:
-        return "bg-slate-600/20 text-slate-200 border border-slate-500/40"
-    }
-  }
-
-  const getCredibilityColor = (credibility: string) => {
-    switch (credibility) {
-      case "high":
-        return "bg-primary/15 text-primary border-primary/30"
-      case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-      case "low":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
-  }
-
   const getNextHighlightOp = useCallback((highlight: LocalHighlight, fallback: "update" | "delete") => {
     if (highlight.pending_op === "create") return "create"
     if (!(highlight.server_id ?? highlight.id)) {
@@ -809,46 +2495,10 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
 
 
-  const getBiasColor = (bias: string) => {
-    switch (bias) {
-      case "left":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-      case "center":
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-      case "right":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
-  }
-
-  const hasRealImage = (src?: string | null) => {
-    if (!src) return false
-    const trimmed = src.trim()
-    if (!trimmed) return false
-    if (trimmed === "none") return false
-    const lower = trimmed.toLowerCase()
-    return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
-  }
-
-  const formatDate = (date: string) => {
-    const parsed = new Date(date)
-    if (Number.isNaN(parsed.getTime())) return date
-    return parsed.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  }
-
   const currentArticle = article
   const canPersistArticle = currentArticle.isPersisted !== false
-  const heroImage = currentArticle && hasRealImage(currentArticle.image) ? currentArticle.image : null
-  const heroLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-image-${currentArticle.id}` : undefined
-  const titleLayoutId = layoutIdPrefix && currentArticle ? `${layoutIdPrefix}-title-${currentArticle.id}` : undefined
-  const articleTextForMetrics = (fullArticleText || currentArticle?.content || currentArticle?.summary || "").trim()
-  const wordCount = articleTextForMetrics ? articleTextForMetrics.split(/\s+/).filter(Boolean).length : 0
-  const estimatedReadMinutes = Math.max(1, Math.ceil(wordCount / 230))
+  const articleTextForMetrics = getArticleTextForMetrics(fullArticleText, currentArticle?.content, currentArticle?.summary)
+  const { wordCount, estimatedReadMinutes } = getArticleWordMetrics(articleTextForMetrics)
   const {
     data: languageDiagnostics,
     isFetching: languageDiagnosticsLoading,
@@ -866,20 +2516,11 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   })
-  const renderedLanguageDiagnostics = aiAnalysis?.language_diagnostics?.success
-    ? aiAnalysis.language_diagnostics
-    : languageDiagnostics
-  const summaryText = (currentArticle?.summary || "").trim()
-  const contentText = (currentArticle?.content || "").trim()
-  const fullText = (fullArticleText || "").trim()
-  const articleWikiContext = (fullText || contentText || summaryText).trim()
-  const reporterName = currentArticle?.author?.trim() || currentArticle?.authors?.find((value) => value.trim().length > 0) || ""
-  const showSummary = Boolean(
-    summaryText &&
-      summaryText !== fullText &&
-      summaryText !== contentText
-  )
-  const articleHost = currentArticle && isExtractableUrl(currentArticle.url) ? new URL(currentArticle.url).hostname : undefined
+  const renderedLanguageDiagnostics = getRenderedLanguageDiagnostics(aiAnalysis, languageDiagnostics)
+  const articleWikiContext = getArticleWikiContext(fullArticleText, currentArticle?.content, currentArticle?.summary)
+  const reporterName = getReporterName(currentArticle)
+  const showSummary = shouldShowSummary(currentArticle?.summary, currentArticle?.content, fullArticleText)
+  const articleHost = getArticleHost(currentArticle.url)
   const hasReporterWiki = Boolean(reporterName)
   const hasSourceWiki = Boolean(currentArticle?.source?.trim())
   const openSourceWiki = () => {
@@ -969,6 +2610,190 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     }
   }, [isOpen, isExpanded, currentArticle?.url, fullArticleText])
 
+  const handleToolbarCreate = async ({ highlightedText, color, range }: {
+    highlightedText: string
+    color: Highlight["color"]
+    range: { start: number; end: number }
+  }) => {
+    const nextFingerprint = createHighlightFingerprint({
+      character_start: range.start,
+      character_end: range.end,
+      highlighted_text: highlightedText,
+    })
+    const hasDuplicate = highlights.some((item) => {
+      if (item.deleted) return false
+      return (
+        createHighlightFingerprint({
+          character_start: item.character_start,
+          character_end: item.character_end,
+          highlighted_text: item.highlighted_text,
+        }) === nextFingerprint
+      )
+    })
+
+    if (hasDuplicate) {
+      toast.error("That exact text is already highlighted")
+      return
+    }
+
+    const clientId = generateClientId()
+    lastCreatedClientIdRef.current = clientId
+
+    const nextLocal: LocalHighlight = markPending({
+      highlight: {
+        client_id: clientId,
+        sync_status: "pending",
+        pending_op: "create",
+        local_updated_at: new Date().toISOString(),
+        article_url: article.url,
+        highlighted_text: highlightedText,
+        color,
+        character_start: range.start,
+        character_end: range.end,
+      },
+      op: "create",
+    })
+
+    updateHighlightsWithHistory((prev) => {
+      return dedupeLocalHighlights([...prev, nextLocal])
+    })
+
+    setTimeout(() => {
+      const anchor = articleContentRef.current?.querySelector(
+        `mark[data-highlight-stable-id=\"client:${clientId}\"]`
+      ) as HTMLElement | null
+
+      setHighlightPopoverHighlight(nextLocal)
+      setHighlightPopoverAnchorEl(anchor)
+      setHighlightPopoverOpen(true)
+    }, 10)
+  }
+
+  const handleToolbarUpdate = async ({ highlightId, note }: { highlightId: number; note: string }) => {
+    updateHighlightsWithHistory((prev) => {
+      return prev.map((item) => {
+        const id = item.server_id ?? item.id
+        if (id !== highlightId) return item
+        return markPending({ highlight: { ...item, note }, op: "update" })
+      })
+    })
+  }
+
+  const handleToolbarDelete = async ({ highlightId }: { highlightId: number }) => {
+    updateHighlightsWithHistory((prev) => {
+      return prev.map((item) => {
+        const id = item.server_id ?? item.id
+        if (id !== highlightId) return item
+        return markPending({ highlight: item, op: "delete" })
+      })
+    })
+  }
+
+  const handleRetrySync = () => {
+    void syncHighlights(article.url, highlights)
+  }
+
+  const handleToggleShowHighlights = () => {
+    setShowHighlights((prev) => !prev)
+  }
+
+  const handleColorSelect = (color: Highlight["color"]) => {
+    setHighlightColor(color)
+
+    const lastClientId = lastCreatedClientIdRef.current
+    if (!lastClientId) return
+
+    updateHighlightsWithHistory((prev) => {
+      return prev.map((item) => {
+        if (item.client_id !== lastClientId) return item
+        return markPending({
+          highlight: { ...item, color },
+          op: getNextHighlightOp(item, "update"),
+        })
+      })
+    })
+  }
+
+  const handleBackToTop = () => {
+    contentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const handleToggleDebug = () => {
+    setDebugOpen(!debugOpen)
+    if (!debugOpen) loadDebug()
+  }
+
+  const handleSelectClaim = (claim: FactCheckResult) => {
+    setSelectedClaim(claim)
+    setAgenticAnswer(null)
+    setAgenticError(null)
+  }
+
+  const handleStartEdit = (highlight: LocalHighlight) => {
+    setSidebarEditingId(highlightStableId(highlight))
+    setSidebarEditingNote(highlight.note || "")
+  }
+
+  const handleCancelEdit = () => {
+    setSidebarEditingId(null)
+    setSidebarEditingNote("")
+  }
+
+  const handleSaveNote = async (stableId: string, note: string) => {
+    await handleSaveHighlightNote(stableId, note)
+    setSidebarEditingId(null)
+    setSidebarEditingNote("")
+  }
+
+  const handleHighlightDelete = (removed: LocalHighlight) => {
+    try {
+      updateHighlightByStableId(highlightStableId(removed), (item) =>
+        markPending({
+          highlight: item,
+          op: getNextHighlightOp(item, "delete"),
+        })
+      )
+
+      toast("Annotation removed", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            updateHighlightsWithHistory((prev) => {
+              return prev.map((item) => {
+                if (item.client_id !== removed.client_id) return item
+                return {
+                  ...item,
+                  deleted: false,
+                  sync_status: "pending" as HighlightSyncStatus,
+                  pending_op: undefined,
+                  local_updated_at: new Date().toISOString(),
+                  last_error: undefined,
+                }
+              })
+            })
+          },
+        },
+      })
+    } catch (error) {
+      console.error("Failed to delete highlight", error)
+      toast.error("Failed to delete annotation")
+    }
+  }
+
+  const handleQueueToggle = () => {
+    if (article && isArticleInQueue(article.url)) {
+      removeArticleFromQueue(article.url)
+    } else if (article) {
+      addArticleToQueue(article)
+    }
+  }
+
+  const handleFavoriteToggle = () => {
+    if (article) toggleFavorite(article.sourceId)
+  }
+
+  const aiHasError = Boolean(aiAnalysis?.error)
+
   if (!isOpen || !currentArticle) return null
 
   return (
@@ -991,1422 +2816,234 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
         <DialogTitle>{currentArticle.title}</DialogTitle>
       </DialogHeader>
       {/* Inline Definition Popover */}
-       <InlineDefinition
-         result={inlineResult}
-         open={inlineOpen}
-         setOpen={setInlineOpen}
-         anchorPosition={inlineAnchorPosition}
-       />
-       <HighlightNotePopover
-          open={highlightPopoverOpen}
-          highlight={highlightPopoverHighlight}
-          anchorEl={highlightPopoverAnchorEl}
-          onClose={() => setHighlightPopoverOpen(false)}
-          onSave={handleSaveHighlightNote}
-          articleTitle={currentArticle.title}
-          articleSource={currentArticle.source}
-        />
-        <Sheet open={wikiPanelOpen} onOpenChange={setWikiPanelOpen}>
-          <SheetContent className="w-full border-l border-white/10 bg-background p-0 sm:max-w-xl">
-            <div className="flex h-full flex-col">
-              <SheetHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <SheetTitle className="font-serif text-xl">
-                      {wikiPanelTab === "source" ? currentArticle.source : reporterName}
-                    </SheetTitle>
-                    <SheetDescription className="mt-1 text-xs">
-                      Inline wiki preview from cached public-source research with direct links to the full wiki pages.
-                    </SheetDescription>
-                  </div>
-                  {wikiPanelTab === "source" && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/wiki/source/${encodeURIComponent(currentArticle.source)}`}>
-                        Open full wiki
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-                {hasSourceWiki && hasReporterWiki && (
-                  <div className="mt-4 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setWikiPanelTab("source")}
-                      className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
-                        wikiPanelTab === "source"
-                          ? "border-white/20 bg-white/10 text-foreground"
-                          : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
-                      }`}
-                    >
-                      Source
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWikiPanelTab("reporter")}
-                      className={`rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-[0.18em] transition-colors ${
-                        wikiPanelTab === "reporter"
-                          ? "border-white/20 bg-white/10 text-foreground"
-                          : "border-white/10 bg-transparent text-muted-foreground hover:bg-white/5"
-                      }`}
-                    >
-                      Reporter
-                    </button>
-                  </div>
-                )}
-              </SheetHeader>
-
-              <div className="flex-1 overflow-y-auto p-4">
-                {wikiPanelTab === "source" ? (
-                  <SourceResearchPanel
-                    sourceName={currentArticle.source}
-                    website={articleHost}
-                    autoRun={true}
-                  />
-                ) : reporterName ? (
-                  <ReporterProfilePanel
-                    reporterName={reporterName}
-                    organization={currentArticle.source}
-                    articleContext={articleWikiContext}
-                  />
-                ) : (
-                  <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
-                    Reporter information is not available for this article.
-                  </div>
-                )}
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+      <InlineDefinition
+        result={inlineResult}
+        open={inlineOpen}
+        setOpen={setInlineOpen}
+        anchorPosition={inlineAnchorPosition}
+      />
+      <HighlightNotePopover
+        open={highlightPopoverOpen}
+        highlight={highlightPopoverHighlight}
+        anchorEl={highlightPopoverAnchorEl}
+        onClose={() => setHighlightPopoverOpen(false)}
+        onSave={handleSaveHighlightNote}
+        articleTitle={currentArticle.title}
+        articleSource={currentArticle.source}
+      />
+      <ModalWikiSheet
+        open={wikiPanelOpen}
+        onOpenChange={setWikiPanelOpen}
+        tab={wikiPanelTab}
+        onTabChange={setWikiPanelTab}
+        source={currentArticle.source}
+        reporterName={reporterName}
+        hasSourceWiki={hasSourceWiki}
+        hasReporterWiki={hasReporterWiki}
+        articleHost={articleHost}
+        articleWikiContext={articleWikiContext}
+      />
 
         <div className="flex h-full flex-col overflow-hidden">
-        {/* Header Controls */}
-          <div className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border/40 bg-background/75 p-4 backdrop-blur-xl">
-          <div className="flex items-center gap-2 flex-1">
-            {onNavigate ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigate("prev")}
-                  className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-                  title="Previous (ArrowLeft)"
-                >
-                  Prev
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigate("next")}
-                  className="rounded-md border border-border/40 bg-card/60 px-4 text-xs uppercase tracking-wider text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-                  title="Next (ArrowRight)"
-                >
-                  Next
-                </Button>
-              </>
-            ) : null}
-          </div>
-          <div className="flex items-center justify-center flex-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-            >
-              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div className="flex items-center justify-end flex-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-9 w-9 rounded-md border border-border/40 bg-card/60 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-         </div>
+          <ModalHeaderControls
+            onNavigate={onNavigate}
+            handleNavigate={handleNavigate}
+            isExpanded={isExpanded}
+            onToggleExpanded={() => setIsExpanded(!isExpanded)}
+            onClose={onClose}
+          />
 
-        {/* Content Wrapper */}
-        <div
-          id="article-detail-scroll-region"
-          ref={contentScrollRef}
-          className="no-scrollbar relative flex-1 overflow-y-auto bg-background"
-        >
+          {/* Content Wrapper */}
           <div
-            ref={progressTrackRef}
-            role="scrollbar"
-            aria-label="Article reading progress"
-            aria-controls="article-detail-scroll-region"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(articleScrollProgress * 100)}
-            className="absolute inset-y-24 right-2 z-10 hidden w-3 cursor-row-resize rounded-full bg-white/5 lg:block"
+            id="article-detail-scroll-region"
+            ref={contentScrollRef}
+            className="no-scrollbar relative flex-1 overflow-y-auto bg-background"
           >
-            <div
-              className="pointer-events-none w-full rounded-full bg-primary/80 transition-[height] duration-150"
-              style={{ height: `${Math.max(articleScrollProgress * 100, 8)}%` }}
+            <ModalProgressRail trackRef={progressTrackRef} progress={articleScrollProgress} />
+            {/* Hero Section */}
+            <ModalHero
+              article={currentArticle}
+              isExpanded={isExpanded}
+              layoutIdPrefix={layoutIdPrefix}
+              reporterName={reporterName}
+              onOpenSourceWiki={openSourceWiki}
+              onOpenReporterWiki={openReporterWiki}
+              onClose={onClose}
             />
-          </div>
-          {/* Hero Section */}
-          <div className={`relative overflow-hidden ${isExpanded ? 'min-h-96 h-[60vh]' : 'h-56'} ${heroImage ? "bg-card" : "editorial-modal-fallback"}`}>
-            {heroImage ? (
-              <>
-                <motion.img
-                  layoutId={heroLayoutId}
-                  src={heroImage}
-                  alt={article.title}
-                  className="h-full w-full object-cover opacity-70"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
-              </>
-            ) : (
-              <div className="editorial-modal-fallback absolute inset-0" />
-            )}
 
-            {/* Hero Content */}
-            <div className="absolute inset-0 flex flex-col justify-end">
-              <div className="mx-auto w-full max-w-6xl px-6 pb-10 md:px-8 md:pb-12">
-                {/* Badges */}
-                <div className="flex flex-wrap items-center gap-3 mb-6">
-                  <Badge className={getCredibilityColor(article.credibility)}>
-                    {article.credibility.toUpperCase()} CREDIBILITY
-                  </Badge>
-                  <Badge className={getBiasColor(article.bias)}>{article.bias.toUpperCase()} BIAS</Badge>
-                  {article.category && (
-                    <Badge variant="outline" className="text-xs uppercase">
-                      {article.category}
-                    </Badge>
-                  )}
+            {/* Main Content Area */}
+            <div className={isExpanded ? "mx-auto max-w-6xl px-6 py-10 md:px-8 md:py-12" : "px-6 py-8 md:px-8"}>
+              {/* Summary Quote */}
+              {showSummary && (
+                <ModalSummaryQuote summary={currentArticle.summary} isExpanded={isExpanded} />
+              )}
+
+              {/* Two Column Layout */}
+              <div className={`grid gap-8 ${isExpanded ? 'grid-cols-1 lg:grid-cols-3 gap-12' : 'grid-cols-1'
+                }`}>
+                {/* Main Article Content - 2/3 width */}
+                <div className={isExpanded ? "lg:col-span-2 space-y-8" : "space-y-6"}>
+                  {/* Full Article Content - Show immediately */}
+                  <ModalArticleReader
+                    articleLoading={articleLoading}
+                    fullArticleText={fullArticleText}
+                    articleUrl={currentArticle.url}
+                    articleSummary={currentArticle.summary}
+                    showHighlights={showHighlights}
+                    visibleHighlights={visibleHighlights}
+                    activeHighlightId={activeHighlightId}
+                    onHighlightClick={handleHighlightClick}
+                    articleContentRef={articleContentRef}
+                    isExpanded={isExpanded}
+                    highlightColor={highlightColor}
+                    onCreate={handleToolbarCreate}
+                    onUpdate={handleToolbarUpdate}
+                    onDelete={handleToolbarDelete}
+                  />
+
+                  {/* AI Analysis Note - Only show if AI provides additional insights */}
+                  <ModalAiCleanNote
+                    aiAnalysis={aiAnalysis}
+                    fullArticleText={fullArticleText}
+                    articleContent={currentArticle.content}
+                  />
+
+                  {/* Tags */}
+                  <ModalTags tags={currentArticle.tags} />
+
+                  {/* Actions */}
+                  <ModalActions
+                    article={currentArticle}
+                    canPersist={canPersistArticle}
+                    bookmarkLoading={bookmarkLoading}
+                    aiAnalysisLoading={aiAnalysisLoading}
+                    canRequestAiAnalysis={canRequestAiAnalysis}
+                    aiAnalysisRequested={aiAnalysisRequested}
+                    aiHasError={aiHasError}
+                    aiActionLabel={aiActionLabel}
+                    isLiked={isLiked}
+                    isFavorite={isFavorite}
+                    isBookmarked={isBookmarked}
+                    isArticleInQueue={isArticleInQueue}
+                    onLike={handleLikeToggle}
+                    onFavorite={handleFavoriteToggle}
+                    onBookmark={handleBookmarkToggle}
+                    onAiAnalysis={loadAiAnalysis}
+                    onQueueToggle={handleQueueToggle}
+                  />
                 </div>
 
-                {/* Title */}
-                <motion.h1
-                  layoutId={titleLayoutId}
-                  className={`mb-6 font-serif leading-tight text-foreground ${isExpanded ? 'text-4xl md:text-6xl' : 'text-2xl md:text-4xl'
-                    }`}
-                >
-                  {article.title}
-                </motion.h1>
+                {/* Sidebar - 1/3 width - Only show in expanded mode */}
+                {isExpanded && (
+                  <div className="lg:col-span-1 space-y-6">
+                    <ModalAnnotationsPanel
+                      highlightCount={highlights.length}
+                      highlightSyncStatus={highlightSyncStatus}
+                      onRetrySync={handleRetrySync}
+                      showHighlights={showHighlights}
+                      onToggleShowHighlights={handleToggleShowHighlights}
+                      wordCount={wordCount}
+                      estimatedReadMinutes={estimatedReadMinutes}
+                      highlightColor={highlightColor}
+                      onColorSelect={handleColorSelect}
+                      obsidianMarkdown={obsidianMarkdown}
+                      articleTitle={currentArticle.title}
+                      articleUrl={currentArticle.url}
+                      articleScrollProgress={articleScrollProgress}
+                      onBackToTop={handleBackToTop}
+                    />
 
-                {/* Meta */}
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openSourceWiki()
-                    }}
-                    className="font-medium hover:text-primary hover:underline transition-colors"
-                  >
-                    {article.source}
-                  </button>
-                  <Link
-                    href={`/source/${encodeURIComponent(article.sourceId)}`}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onClose()
-                    }}
-                    title="Open source page"
-                  >
-                    <LinkIcon className="h-3.5 w-3.5" />
-                  </Link>
-                  <Link
-                    href={`/wiki/source/${encodeURIComponent(article.source)}`}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onClose()
-                    }}
-                    title="View wiki profile"
-                  >
-                    <BookOpen className="h-3.5 w-3.5" />
-                  </Link>
-                  {reporterName && (
-                    <>
-                      <span>•</span>
-                      <button
-                        type="button"
-                        className="hover:text-primary hover:underline transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openReporterWiki()
-                        }}
-                        title="Open reporter wiki preview"
-                      >
-                        Reporter: {reporterName}
-                      </button>
-                      <Link
-                        href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
-                        className="text-muted-foreground hover:text-primary transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onClose()
-                        }}
-                        title="Search reporter in wiki"
-                      >
-                        <BookOpen className="h-3.5 w-3.5" />
-                      </Link>
-                    </>
-                  )}
-                  {!reporterName && currentArticle.authors && currentArticle.authors.length > 0 && (
-                    <>
-                      <span>•</span>
-                      <span className="text-foreground/80 text-xs">
-                        {currentArticle.authors.slice(0, 2).join(", ")}
-                      </span>
-                    </>
-                  )}
-                  <span>•</span>
-                  <span>{formatDate(article.publishedAt)}</span>
-                  <span>•</span>
-                  <span>{article.country}</span>
-                  {article.translated && (
-                    <>
-                      <span>•</span>
-                      <Badge variant="outline" className="text-xs">
-                        Translated from {article.originalLanguage.toUpperCase()}
-                      </Badge>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+                    <ModalHighlightsList
+                      highlights={highlights}
+                      articleTitle={currentArticle.title}
+                      articleSource={currentArticle.source}
+                      onHighlightClick={handleHighlightClick}
+                      articleContentRef={articleContentRef}
+                      editingId={sidebarEditingId}
+                      editingNote={sidebarEditingNote}
+                      onStartEdit={handleStartEdit}
+                      onCancelEdit={handleCancelEdit}
+                      onNoteChange={setSidebarEditingNote}
+                      onSaveNote={handleSaveNote}
+                      onDelete={handleHighlightDelete}
+                    />
 
-          {/* Main Content Area */}
-          <div className={isExpanded ? "mx-auto max-w-6xl px-6 py-10 md:px-8 md:py-12" : "px-6 py-8 md:px-8"}>
-            {/* Summary Quote */}
-            {showSummary && (
-              <div className={isExpanded ? "mb-12 border-l-4 border-primary bg-card/50 px-6 py-4" : "mb-8 border-l-4 border-primary bg-card/50 px-5 py-4"}>
-                <p className={`text-foreground/80 leading-relaxed italic ${isExpanded ? 'text-2xl' : 'text-lg'
-                  }`}>
-                  {article.summary}
-                </p>
-              </div>
-            )}
+                    <ModalAiStatusBlocks
+                      aiAnalysisRequested={aiAnalysisRequested}
+                      aiAnalysisLoading={aiAnalysisLoading}
+                      aiAnalysis={aiAnalysis}
+                    />
 
-            {/* Two Column Layout */}
-            <div className={`grid gap-8 ${isExpanded ? 'grid-cols-1 lg:grid-cols-3 gap-12' : 'grid-cols-1'
-              }`}>
-              {/* Main Article Content - 2/3 width */}
-              <div className={isExpanded ? "lg:col-span-2 space-y-8" : "space-y-6"}>
-                {/* Full Article Content - Show immediately */}
-                <div className="space-y-6">
-                  <h2 className={`font-bold text-foreground mb-6 font-serif ${isExpanded ? 'text-3xl' : 'text-xl'
-                    }`}>Full Article</h2>
+                    <LanguageForensicsCard
+                      diagnostics={renderedLanguageDiagnostics}
+                      loading={languageDiagnosticsLoading}
+                      error={languageDiagnosticsQueryError?.message ?? renderedLanguageDiagnostics?.error ?? null}
+                    />
 
-                  {articleLoading && fullArticleText && (
-                    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-4">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      <p className="text-muted-foreground text-sm">Updating full article text...</p>
-                    </div>
-                  )}
+                    <SourceResearchPanel
+                      sourceName={currentArticle.source}
+                      website={articleHost}
+                    />
 
-                  {articleLoading && !fullArticleText ? (
-                    <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/60 p-6">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                      <p className="text-muted-foreground">Loading full article text...</p>
-                    </div>
-                  ) : (
-                    <>
-                        <ArticleContent
-                          ref={articleContentRef}
-                          content={fullArticleText || article.summary || ""}
-                            highlights={showHighlights ? visibleHighlights : []}
+                    <RelatedArticles
+                      articleId={currentArticle.id}
+                      onArticleClick={(relatedArticle) => {
+                        window.open(relatedArticle.url, "_blank", "noopener,noreferrer");
+                      }}
+                      limit={5}
+                    />
 
-                          activeHighlightId={activeHighlightId}
-                          onHighlightClick={handleHighlightClick}
-                          className={`reading-prose ${isExpanded ? 'space-y-6' : 'space-y-5'}`}
-                        />
-                        <HighlightToolbar
-                        articleUrl={article.url}
-                        containerRef={articleContentRef}
-                        highlightColor={highlightColor}
-                        autoCreate
-                         highlights={visibleHighlights}
-                        onCreate={async ({ highlightedText, color, range }) => {
-                          const nextFingerprint = createHighlightFingerprint({
-                            character_start: range.start,
-                            character_end: range.end,
-                            highlighted_text: highlightedText,
-                          })
-                          const hasDuplicate = highlights.some((item) => {
-                            if (item.deleted) return false
-                            return (
-                              createHighlightFingerprint({
-                                character_start: item.character_start,
-                                character_end: item.character_end,
-                                highlighted_text: item.highlighted_text,
-                              }) === nextFingerprint
-                            )
-                          })
-
-                          if (hasDuplicate) {
-                            toast.error("That exact text is already highlighted")
-                            return
-                          }
-
-                          const clientId = generateClientId()
-                          lastCreatedClientIdRef.current = clientId
-
-                          const nextLocal: LocalHighlight = markPending({
-                            highlight: {
-                              client_id: clientId,
-                              sync_status: "pending",
-                              pending_op: "create",
-                              local_updated_at: new Date().toISOString(),
-                              article_url: article.url,
-                              highlighted_text: highlightedText,
-                              color,
-                              character_start: range.start,
-                              character_end: range.end,
-                            },
-                            op: "create",
-                          })
-
-                          updateHighlightsWithHistory((prev) => {
-                            return dedupeLocalHighlights([...prev, nextLocal])
-                          })
-
-                          setTimeout(() => {
-                            const anchor = articleContentRef.current?.querySelector(
-                              `mark[data-highlight-stable-id=\"client:${clientId}\"]`
-                            ) as HTMLElement | null
-
-                            setHighlightPopoverHighlight(nextLocal)
-                            setHighlightPopoverAnchorEl(anchor)
-                            setHighlightPopoverOpen(true)
-                          }, 10)
-                        }}
-                        onUpdate={async ({ highlightId, note }) => {
-                          updateHighlightsWithHistory((prev) => {
-                            return prev.map((item) => {
-                              const id = item.server_id ?? item.id
-                              if (id !== highlightId) return item
-                              return markPending({ highlight: { ...item, note }, op: "update" })
-                            })
-                          })
-                        }}
-                        onDelete={async ({ highlightId }) => {
-                          updateHighlightsWithHistory((prev) => {
-                            return prev.map((item) => {
-                              const id = item.server_id ?? item.id
-                              if (id !== highlightId) return item
-                              return markPending({ highlight: item, op: "delete" })
-                            })
-                          })
-                        }}
+                    {/* AI Analysis - Integrated */}
+                    {aiAnalysis?.success && (
+                      <ModalAiAnalysisBlock
+                        aiAnalysis={aiAnalysis}
+                        factCheckResults={factCheckResults}
+                        claimsOpen={claimsOpen}
+                        onOpenChange={handleClaimsOpenChange}
+                        statusCounts={statusCounts}
+                        activeStatusFilter={activeStatusFilter}
+                        onFilterChange={setActiveStatusFilter}
+                        filteredClaims={filteredClaims}
+                        selectedClaim={selectedClaim}
+                        onSelectClaim={handleSelectClaim}
+                        agenticLoading={agenticLoading}
+                        agenticError={agenticError}
+                        agenticAnswer={agenticAnswer}
+                        agenticHistory={agenticHistory}
+                        onRunAgenticSearch={runAgenticSearch}
                       />
-                    </>
-                  )}
-                </div>
+                    )}
 
-                {/* AI Analysis Note - Only show if AI provides additional insights */}
-                {aiAnalysis?.full_text && aiAnalysis.full_text !== fullArticleText && aiAnalysis.full_text !== article.content && (
-                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      <h3 className="text-sm font-semibold text-white">Clean Reading View</h3>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-3">A clean text version is available.</p>
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-primary hover:text-primary/80">Show AI Version</summary>
-                      <div className="mt-3 text-gray-300 leading-relaxed whitespace-pre-wrap">
-                        {aiAnalysis.full_text}
-                      </div>
-                    </details>
+                    {/* Source Transparency */}
+                    <ModalSourceTransparency
+                      sourceLoading={sourceLoading}
+                      source={source}
+                      article={currentArticle}
+                      reporterName={reporterName}
+                      showSourceDetails={showSourceDetails}
+                      onToggleDetails={() => setShowSourceDetails(!showSourceDetails)}
+                      debugMode={debugMode}
+                      debugOpen={debugOpen}
+                      debugLoading={debugLoading}
+                      debugData={debugData}
+                      matchedEntryIndex={matchedEntryIndex}
+                      onToggleDebug={handleToggleDebug}
+                      onOpenSourceWiki={openSourceWiki}
+                      onOpenReporterWiki={openReporterWiki}
+                      onClose={onClose}
+                    />
                   </div>
                 )}
-
-                {/* Tags */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-400 mb-3">Tags</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {article.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between pt-6 border-t border-gray-800 relative z-10 mb-20">
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        void handleLikeToggle()
-                      }}
-                      className={article?.id && isLiked(article.id) ? "text-red-400" : "text-gray-400"}
-                      disabled={!canPersistArticle}
-                      title={canPersistArticle ? "Like article" : "Only indexed articles can be liked."}
-                    >
-                      <Heart className={`h-4 w-4 mr-2 ${article?.id && isLiked(article.id) ? "fill-current" : ""}`} />
-                      Like
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => article && toggleFavorite(article.sourceId)}
-                      className={article && isFavorite(article.sourceId) ? "text-yellow-400" : "text-gray-400"}
-                      title={article && isFavorite(article.sourceId) ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      <Star className={`h-4 w-4 mr-2 ${article && isFavorite(article.sourceId) ? "fill-current" : ""}`} />
-                      Favorite
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleBookmarkToggle}
-                      className={article?.id && isBookmarked(article.id) ? "text-yellow-400" : "text-gray-400"}
-                      disabled={bookmarkLoading || !canPersistArticle}
-                      title={canPersistArticle ? "Bookmark article" : "Only indexed articles can be bookmarked."}
-                    >
-                      <Bookmark className={`h-4 w-4 ${article?.id && isBookmarked(article.id) ? "fill-current" : ""}`} />
-                      Bookmark
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadAiAnalysis}
-                      disabled={!canRequestAiAnalysis || aiAnalysisLoading}
-                      className={aiAnalysisRequested && !aiAnalysis?.error ? "text-emerald-400" : "text-gray-400"}
-                      title="AI analysis is opt-in to reduce API calls"
-                    >
-                      {aiAnalysisLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4 mr-2" />
-                      )}
-                      {aiActionLabel}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (article && isArticleInQueue(article.url)) {
-                          removeArticleFromQueue(article.url)
-                        } else if (article) {
-                          addArticleToQueue(article)
-                        }
-                      }}
-                      className={article && isArticleInQueue(article.url) ? "text-blue-400" : "text-gray-400"}
-                    >
-                      {article && isArticleInQueue(article.url) ? (
-                        <MinusCircle className="h-4 w-4 mr-2" />
-                      ) : (
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                      )}
-                      {article && isArticleInQueue(article.url) ? "Remove from Queue" : "Add to Queue"}
-                    </Button>
-
-                  </div>
-                  {!canPersistArticle ? (
-                    <span className="text-xs text-muted-foreground">
-                      This article is readable here, but likes and bookmarks only work for indexed archive items.
-                    </span>
-                  ) : null}
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={article.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Read Original
-                    </a>
-                  </Button>
-                </div>
               </div>
 
-                  {/* Sidebar - 1/3 width - Only show in expanded mode */}
-              {isExpanded && (
-                <div className="lg:col-span-1 space-y-6">
-                  <div className="rounded-lg border border-border/60 bg-secondary/70 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs uppercase tracking-widest text-muted-foreground">Reader</div>
-                        <h2 className="text-lg font-semibold text-foreground">Annotations</h2>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs text-muted-foreground">{highlights.length}</span>
-                        <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                          {highlightSyncStatus === "syncing"
-                            ? "Saving"
-                            : highlightSyncStatus === "offline"
-                              ? "Offline"
-                              : highlightSyncStatus === "failed"
-                                ? "Failed"
-                                : "Synced"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {highlightSyncStatus === "failed" && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            void syncHighlights(article.url, highlights)
-                          }}
-                          className="gap-2"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                          Retry sync
-                        </Button>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowHighlights((prev) => !prev)}
-                        className="gap-2"
-                      >
-                        {showHighlights ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        {showHighlights ? "Hide" : "Show"}
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {wordCount > 0 ? `${wordCount} words • ${estimatedReadMinutes} min read` : `${estimatedReadMinutes} min read`}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(["yellow", "blue", "red", "green", "purple"] as const).map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => {
-                            setHighlightColor(color)
-
-                            const lastClientId = lastCreatedClientIdRef.current
-                            if (!lastClientId) return
-
-                            updateHighlightsWithHistory((prev) => {
-                              return prev.map((item) => {
-                                if (item.client_id !== lastClientId) return item
-                                return markPending({
-                                  highlight: { ...item, color },
-                                  op: getNextHighlightOp(item, "update"),
-                                })
-                              })
-                            })
-                          }}
-                          className={`h-7 w-7 rounded border ${highlightColor === color ? "border-foreground" : "border-transparent"} ${
-                            color === "yellow"
-                              ? "bg-amber-200/80 text-amber-900"
-                              : color === "blue"
-                                ? "bg-sky-200/80 text-sky-900"
-                                : color === "red"
-                                  ? "bg-rose-200/80 text-rose-900"
-                                  : color === "green"
-                                    ? "bg-emerald-200/80 text-emerald-900"
-                                    : "bg-purple-200/80 text-purple-900"
-                          }`}
-                          aria-label={`Annotation color ${color}`}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const markdown = obsidianMarkdown
-                          const title = article.title.replace(/[:\\/]/g, "-")
-                          
-                          try {
-                            await navigator.clipboard.writeText(markdown)
-                            const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&clipboard=true`
-                            window.location.href = obsidianUrl
-                            toast.success("Opening in Obsidian...")
-                          } catch {
-                            const obsidianUrl = `obsidian://new?file=${encodeURIComponent("News Clippings/" + title)}&content=${encodeURIComponent(markdown)}`
-                            window.location.href = obsidianUrl
-                            toast.success("Opening in Obsidian...")
-                          }
-                          
-                          logUserAction("highlight_sent_to_obsidian", { url: article.url })
-                        }}
-                        className="col-span-2 gap-2 border-accent/40 bg-accent/15 text-accent-foreground hover:bg-accent/25"
-                      >
-                        <PlusCircle className="h-4 w-4" />
-                        Add to Obsidian
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(obsidianMarkdown)
-                          toast.success("Obsidian Markdown copied")
-                          logUserAction("highlight_markdown_copied", { url: article.url })
-                        }}
-                        className="gap-2"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const sanitizeFilename = (value: string) =>
-                            value
-                              .toLowerCase()
-                              .replace(/[^a-z0-9]+/g, "-")
-                              .replace(/(^-|-$)+/g, "")
-                              .slice(0, 80) || "annotations"
-
-                          const blob = new Blob([obsidianMarkdown], { type: "text/markdown" })
-                          const fileName = `${sanitizeFilename(article.title)}.md`
-                          const link = document.createElement("a")
-                          link.href = URL.createObjectURL(blob)
-                          link.download = fileName
-                          link.click()
-                          URL.revokeObjectURL(link.href)
-                          logUserAction("highlight_markdown_downloaded", { url: article.url })
-                          toast.success("Obsidian Markdown exported")
-                        }}
-                        className="gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Export
-                      </Button>
-                    </div>
-
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Select text to highlight. Click a highlight to add a note.
-                    </p>
-                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
-                      <div>Reading progress</div>
-                      <div className="font-mono text-foreground">{Math.round(articleScrollProgress * 100)}%</div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => contentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-                      className="mt-2 w-full gap-2"
-                    >
-                      <Minimize2 className="h-4 w-4 rotate-180" />
-                      Back to top
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {highlights.length === 0 ? (
-                      <div className="rounded-lg border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground">
-                        No annotations yet.
-                      </div>
-                    ) : (
-                      highlights
-                        .filter(h => !h.deleted)
-                        .sort((a, b) => a.character_start - b.character_start)
-                        .map((highlight, idx) => (
-                           <div key={highlightStableId(highlight)} className="relative rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
-                            <div className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-background font-mono text-xs font-bold text-muted-foreground shadow-sm">
-                              {idx + 1}
-                            </div>
-                            <button
-                              type="button"
-                              className="w-full text-left"
-                              onClick={() => {
-                                 const stableId = highlightStableId(highlight)
-                                  const el = articleContentRef.current?.querySelector(
-                                    `mark[data-highlight-stable-id=\"${stableId}\"]`
-                                  ) as HTMLElement | null
-                                  if (el) {
-                                    handleHighlightClick(stableId, el)
-                                  }
-
-                              }}
-                            >
-                              <div
-                                className={`rounded-md px-3 py-2 text-sm ${
-                                  highlight.color === "yellow"
-                                    ? "bg-amber-200/80 text-amber-900"
-                                    : highlight.color === "blue"
-                                      ? "bg-sky-200/80 text-sky-900"
-                                      : highlight.color === "red"
-                                        ? "bg-rose-200/80 text-rose-900"
-                                        : highlight.color === "green"
-                                          ? "bg-emerald-200/80 text-emerald-900"
-                                          : "bg-purple-200/80 text-purple-900"
-                                }`}
-                              >
-                                {highlight.highlighted_text}
-                              </div>
-                            </button>
-
-                            {sidebarEditingId === highlightStableId(highlight) ? (
-                              <div className="space-y-2">
-                                <textarea
-                                  value={sidebarEditingNote}
-                                  onChange={(event) => setSidebarEditingNote(event.target.value)}
-                                  placeholder="Add a note..."
-                                  rows={3}
-                                  className="w-full rounded border border-border/60 bg-background px-2 py-1 text-sm text-foreground"
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={async () => {
-                                      await handleSaveHighlightNote(highlightStableId(highlight), sidebarEditingNote)
-                                      setSidebarEditingId(null)
-                                      setSidebarEditingNote("")
-                                    }}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setSidebarEditingId(null)
-                                      setSidebarEditingNote("")
-                                    }}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap break-words">
-                                  {highlight.note?.trim() ? highlight.note : "No note"}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Link
-                                    href={`/search?query=${encodeURIComponent(`Context: ${currentArticle.title} by ${currentArticle.source}\n\nExplain this highlighted passage:\n\n> ${highlight.highlighted_text}`)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-all hover:bg-primary/15 hover:border-primary/40 hover:text-primary"
-                                    title="Research this highlight"
-                                  >
-                                    <Search className="h-3.5 w-3.5" />
-                                  </Link>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSidebarEditingId(highlightStableId(highlight))
-                                      setSidebarEditingNote(highlight.note || "")
-                                    }}
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={async () => {
-                                      try {
-                                        const removed = highlight
-
-                                        updateHighlightByStableId(highlightStableId(removed), (item) =>
-                                          markPending({
-                                            highlight: item,
-                                            op: getNextHighlightOp(item, "delete"),
-                                          })
-                                        )
-
-                                        toast("Annotation removed", {
-                                          action: {
-                                            label: "Undo",
-                                            onClick: () => {
-                                              updateHighlightsWithHistory((prev) => {
-                                                return prev.map((item) => {
-                                                  if (item.client_id !== removed.client_id) return item
-                                                  return {
-                                                    ...item,
-                                                    deleted: false,
-                                                    sync_status: "pending" as HighlightSyncStatus,
-                                                    pending_op: undefined,
-                                                    local_updated_at: new Date().toISOString(),
-                                                    last_error: undefined,
-                                                  }
-                                                })
-                                              })
-                                            },
-                                          },
-                                        })
-                                      } catch (error) {
-                                        console.error("Failed to delete highlight", error)
-                                        toast.error("Failed to delete annotation")
-                                      }
-                                    }}
-                                    className="text-destructive hover:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                    )}
-                  </div>
-
-                  {!aiAnalysisRequested && (
-                    <div className="rounded-sm border border-white/10 bg-white/5 p-5 text-sm text-muted-foreground">
-                      <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">AI Analysis</p>
-                      <p className="mt-2 text-foreground/80 font-serif">
-                        AI analysis is off by default. Use the “Run Analysis” button when you need it.
-                      </p>
-                    </div>
-                  )}
-
-                  <LanguageForensicsCard
-                    diagnostics={renderedLanguageDiagnostics}
-                    loading={languageDiagnosticsLoading}
-                    error={languageDiagnosticsQueryError?.message ?? renderedLanguageDiagnostics?.error ?? null}
-                  />
-
-                  <SourceResearchPanel
-                    sourceName={article.source}
-                    website={articleHost}
-                  />
-
-                  <RelatedArticles
-                    articleId={article.id}
-                    onArticleClick={(relatedArticle) => {
-                      window.open(relatedArticle.url, "_blank", "noopener,noreferrer");
-                    }}
-                    limit={5}
-                  />
-
-                  {aiAnalysisRequested && aiAnalysisLoading && (
-                    <div className="rounded-lg border border-border/60 bg-secondary/70 p-5 text-sm text-muted-foreground">
-                      Running AI analysis…
-                    </div>
-                  )}
-
-                  {aiAnalysisRequested && aiAnalysis && aiAnalysis.error && (
-                    <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-5 text-sm text-rose-200">
-                      {aiAnalysis.error}
-                    </div>
-                  )}
-
-                  {/* AI Analysis - Integrated */}
-                  {aiAnalysis && aiAnalysis.success && (
-                    <div className="sticky top-6 space-y-6">
-                      {/* AI Summary */}
-                      {aiAnalysis.summary && (
-                        <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-6 shadow-2xl shadow-black/40">
-                          <div className="mb-3 flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                            <h3 className="text-lg font-semibold text-foreground">AI Summary</h3>
-                          </div>
-                          <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
-                        </div>
-                      )}
-
-                      {/* Bias Analysis */}
-                      {aiAnalysis.bias_analysis && (
-                        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
-                          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-                            <AlertTriangle className="h-5 w-5 text-yellow-400" />
-                            Bias Analysis
-                          </h3>
-                          {aiAnalysis.bias_analysis.overall_bias_score && (
-                            <div className="mb-3">
-                              <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                                Score: {aiAnalysis.bias_analysis.overall_bias_score}/10
-                              </Badge>
-                            </div>
-                          )}
-                          <div className="space-y-3 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Tone:</span>
-                              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.tone_bias}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Framing:</span>
-                              <p className="mt-1 text-foreground">{aiAnalysis.bias_analysis.framing_bias}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Source Analysis */}
-                      {aiAnalysis.source_analysis && (
-                        <div className="rounded-2xl border border-border/60 bg-card/60 p-6">
-                          <h3 className="mb-4 text-lg font-semibold text-foreground">Source Info</h3>
-                          <div className="space-y-3 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Credibility:</span>
-                              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.credibility_assessment}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Political Leaning:</span>
-                              <p className="mt-1 text-foreground">{aiAnalysis.source_analysis.political_leaning}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Fact Check Results Preview */}
-                      {factCheckResults.length > 0 && (
-                        <Dialog open={claimsOpen} onOpenChange={handleClaimsOpenChange}>
-                          <DialogTrigger asChild>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!selectedClaim && factCheckResults.length) {
-                                  setSelectedClaim(factCheckResults[0]!)
-                                }
-                              }}
-                              className="group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card/90 hover:shadow-xl hover:shadow-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                              aria-label="Open verified claims report"
-                            >
-                              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-80" />
-                              <div className="mb-4 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                  <Sparkles className="h-5 w-5 text-primary/80 transition-transform duration-300 group-hover:rotate-3" />
-                                  <h3 className="text-lg font-semibold text-foreground">Fact Check Results</h3>
-                                </div>
-                                <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground/85">
-                                  {factCheckResults.length} claims
-                                </span>
-                              </div>
-                              <p className="mb-4 max-w-xl text-sm text-muted-foreground">
-                                Review each claim, inspect the model’s evidence summary, and run live research without leaving the article.
-                              </p>
-                              <div className="space-y-3">
-                                {factCheckResults.slice(0, 3).map((result, index) => (
-                                  <div
-                                    key={`${result.claim}-${index}`}
-                                    className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/40 p-3 transition-all duration-300 group-hover:border-primary/30"
-                                  >
-                                    <Badge className={`${VERIFICATION_STYLE_MAP[result.verification_status]} text-xs uppercase tracking-wide`}>
-                                      {VERIFICATION_LABEL_MAP[result.verification_status]}
-                                    </Badge>
-                                    <p className="line-clamp-2 text-sm text-foreground/80">&quot;{result.claim}&quot;</p>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="mt-5 flex items-center justify-between text-xs text-foreground/70">
-                                <span>Open the verification workspace</span>
-                                <div className="flex items-center gap-2 font-semibold">
-                                  <span>Open</span>
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </div>
-                              </div>
-                            </button>
-                          </DialogTrigger>
-
-                          <DialogContent className="max-h-screen overflow-hidden border border-border/60 bg-background/95 p-0 text-foreground shadow-2xl shadow-black/60 sm:max-w-5xl">
-                            <DialogHeader className="border-b border-border/60 px-6 py-5">
-                              <DialogTitle className="flex items-center gap-2 text-foreground">
-                                <Sparkles className="h-5 w-5 text-primary/80" />
-                                Verification Report
-                              </DialogTitle>
-                              <p className="text-sm text-muted-foreground">
-                                Review claims, inspect evidence, and run live research against the same article context.
-                              </p>
-                            </DialogHeader>
-
-                            <div className="grid max-h-screen md:grid-cols-12">
-                              <div className="border-b border-border/60 bg-card/40 p-5 md:col-span-4 md:border-b-0 md:border-r lg:col-span-3">
-                                <div className="mb-4">
-                                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                                    Claim Filters
-                                  </p>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                  {STATUS_FILTERS.map((status) => {
-                                    const isAll = status === "all"
-                                    const count = isAll ? factCheckResults.length : statusCounts[status as FactCheckStatus]
-                                    const isDisabled = !isAll && count === 0
-                                    const isActive = activeStatusFilter === status
-
-                                    return (
-                                      <button
-                                        key={status}
-                                        type="button"
-                                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all ${isActive ? "border-primary/50 bg-primary/10 text-foreground" : "border-border/60 bg-background/40 text-foreground/75 hover:border-primary/40 hover:text-foreground"} ${isDisabled ? "cursor-not-allowed opacity-40 hover:border-border/60 hover:text-foreground/75" : "cursor-pointer"}`}
-                                        onClick={() => {
-                                          if (isDisabled) return
-                                          setActiveStatusFilter(status)
-                                        }}
-                                      >
-                                        {status === "all" ? "All" : VERIFICATION_LABEL_MAP[status as FactCheckStatus]}
-                                        <span className="ml-2 rounded-full bg-background/70 px-2 py-0.5 text-xs font-bold text-foreground/80">
-                                          {count}
-                                        </span>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-
-                                <div className="mt-5">
-                                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Claims</h4>
-                                  <div className="max-h-96 space-y-2 overflow-y-auto pr-1 md:max-h-full">
-                                    {filteredClaims.map((claim, index) => {
-                                      const isActive = selectedClaim?.claim === claim.claim
-                                      return (
-                                        <button
-                                          key={`${claim.claim}-${index}`}
-                                          type="button"
-                                          className={`w-full rounded-xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 ${isActive ? "border-primary/50 bg-primary/10 shadow-lg shadow-black/20" : "border-border/60 bg-background/45"}`}
-                                          onClick={() => {
-                                            setSelectedClaim(claim)
-                                            setAgenticAnswer(null)
-                                            setAgenticError(null)
-                                          }}
-                                        >
-                                          <div className="mb-2 flex items-center gap-2">
-                                            <Badge className={`${VERIFICATION_STYLE_MAP[claim.verification_status]} text-xs uppercase tracking-wide`}>
-                                              {VERIFICATION_LABEL_MAP[claim.verification_status]}
-                                            </Badge>
-                                          </div>
-                                          <span className="line-clamp-3 text-sm text-foreground/85">{claim.claim}</span>
-                                        </button>
-                                      )
-                                    })}
-
-                                    {filteredClaims.length === 0 && (
-                                      <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-xs text-muted-foreground">
-                                        No claims in this category yet. Try another filter.
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="space-y-5 overflow-y-auto p-6 md:col-span-8 lg:col-span-9">
-                                {selectedClaim ? (
-                                  <div className="space-y-4">
-                                    <div className="rounded-2xl border border-border/60 bg-card/60 p-5">
-                                      <div className="mb-4 flex items-start justify-between gap-3">
-                                        <div className="flex flex-wrap gap-2">
-                                          <Badge className={`${VERIFICATION_STYLE_MAP[selectedClaim.verification_status]} text-xs uppercase tracking-wide`}>
-                                            {VERIFICATION_LABEL_MAP[selectedClaim.verification_status]}
-                                          </Badge>
-                                          <Badge className={`${getConfidenceColor(selectedClaim.confidence)} text-xs uppercase tracking-wide`}>
-                                            confidence: {selectedClaim.confidence}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                      <p className="text-base font-medium leading-relaxed text-foreground">&quot;{selectedClaim.claim}&quot;</p>
-                                      {selectedClaim.notes && (
-                                        <p className="mt-3 text-sm text-muted-foreground">{selectedClaim.notes}</p>
-                                      )}
-                                      <div className="mt-4 space-y-2">
-                                        <h5 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Evidence</h5>
-                                        <div className="rounded-xl border border-border/60 bg-background/40 p-4 text-sm leading-relaxed text-foreground/85">
-                                          {selectedClaim.evidence || "Evidence details not provided."}
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-foreground/75">
-                                          {selectedClaim.sources?.slice(0, 4).map((source, idx) => (
-                                            <a
-                                              key={`${source}-${idx}`}
-                                              href={source}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="group/link inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/50 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
-                                            >
-                                              <LinkIcon className="h-3 w-3" />
-                                              <span className="max-w-48 truncate">{source}</span>
-                                              <ExternalLink className="h-3 w-3 transition group-hover/link:translate-x-0.5" />
-                                            </a>
-                                          ))}
-                                          {(!selectedClaim.sources || selectedClaim.sources.length === 0) && (
-                                            <span className="rounded-full border border-border/60 px-3 py-1">No sources provided</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                        <button
-                                          type="button"
-                                          className="inline-flex items-center gap-1 rounded-full border border-border/60 px-3 py-1 transition hover:border-primary/40 hover:text-foreground"
-                                          onClick={() => {
-                                            if (typeof navigator !== "undefined") {
-                                              navigator.clipboard.writeText(`${selectedClaim.claim}\n\nEvidence: ${selectedClaim.evidence ?? "N/A"}`).catch(() => null)
-                                            }
-                                          }}
-                                        >
-                                          <Copy className="h-3.5 w-3.5" />
-                                          Copy claim
-                                        </button>
-                                        <Button variant="outline" size="sm" asChild>
-                                          <a
-                                            href={`/search?query=${encodeURIComponent(selectedClaim.claim)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          >
-                                            <Search className="mr-1 h-3.5 w-3.5" />
-                                            Open research workspace
-                                          </a>
-                                        </Button>
-                                      </div>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-border/60 bg-slate-950/90 p-5">
-                                      <div className="mb-3 flex items-start justify-between gap-3">
-                                        <div>
-                                          <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                            <Search className="h-4 w-4" /> Live Research
-                                          </h4>
-                                          <p className="text-xs text-muted-foreground">
-                                            Query the current research backend with this claim and article context.
-                                          </p>
-                                        </div>
-                                        {agenticHistory.length > 0 && (
-                                          <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-1 text-xs uppercase tracking-wide text-foreground/80">
-                                            Last run {new Date(agenticHistory[0]!.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <Button
-                                          onClick={() => runAgenticSearch(selectedClaim)}
-                                          disabled={agenticLoading}
-                                          className="inline-flex items-center gap-2"
-                                        >
-                                          {agenticLoading ? (
-                                            <>
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                              Researching
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Sparkles className="h-4 w-4" />
-                                              Live Research
-                                            </>
-                                          )}
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="inline-flex items-center gap-2 text-foreground/80 hover:text-foreground"
-                                          onClick={() => runAgenticSearch(selectedClaim)}
-                                          disabled={agenticLoading}
-                                        >
-                                          <RefreshCw className="h-3.5 w-3.5" />
-                                          Retry
-                                        </Button>
-                                      </div>
-
-                                      {agenticError && (
-                                        <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200">
-                                          <XCircle className="mt-0.5 h-4 w-4" />
-                                          <span>{agenticError}</span>
-                                        </div>
-                                      )}
-
-                                      {agenticAnswer && (
-                                        <div className="mt-4 space-y-2 rounded-xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground">
-                                          <div className="flex items-start gap-2 text-xs uppercase tracking-widest text-foreground/70">
-                                            <CheckCircle2 className="mt-0.5 h-4 w-4" />
-                                            Research answer
-                                          </div>
-                                          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{agenticAnswer}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card/40 p-6 text-center text-sm text-muted-foreground">
-                                    <Sparkles className="h-6 w-6 text-primary/80" />
-                                    <p>Select a claim from the list to view its evidence and run deeper research.</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-
-                      {/* Fact Check Suggestions */}
-                      {aiAnalysis.fact_check_suggestions && aiAnalysis.fact_check_suggestions.length > 0 && (
-                        <div className="bg-cyan-500/5 border border-cyan-500/30 rounded-lg p-6">
-                          <h3 className="text-lg font-semibold text-white mb-3">Fact Check</h3>
-                          <ul className="space-y-2 text-sm">
-                            {aiAnalysis.fact_check_suggestions.slice(0, 3).map((suggestion, index) => (
-                              <li key={index} className="flex items-start gap-2">
-                                <span className="text-cyan-400 mt-1">•</span>
-                                <span className="text-gray-300">{suggestion}</span>
-                              </li>
-                            ))}
-                          </ul>
-                    </div>
-                  )}
-
-                </div>
-              )}
-
-                  {/* Source Transparency */}
-                  <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-yellow-400" />
-                        Source
-                      </h3>
-                      <Button variant="outline" size="sm" onClick={() => setShowSourceDetails(!showSourceDetails)}>
-                        {showSourceDetails ? "Hide" : "Show"}
-                      </Button>
-                    </div>
-
-                    {sourceLoading ? (
-                      <div className="flex items-center justify-center p-4">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                      </div>
-                    ) : source ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <DollarSign className="h-4 w-4 text-green-400" />
-                          <span className="text-gray-400">Funding:</span>
-                          <span className="text-white text-xs">{source.funding?.join(", ") || "N/A"}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-gray-400">Published:</span>
-                          <span className="text-white text-xs">{formatDate(article.publishedAt)}</span>
-                        </div>
-                        {reporterName && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-gray-400">Reporter:</span>
-                            <button
-                              type="button"
-                              className="text-white text-xs hover:text-primary hover:underline transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                openReporterWiki()
-                              }}
-                            >
-                              {reporterName}
-                            </button>
-                            <Link
-                              href={`/wiki/reporters?search=${encodeURIComponent(reporterName)}`}
-                              className="text-muted-foreground hover:text-primary transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onClose()
-                              }}
-                              title="Open reporter wiki page"
-                            >
-                              <BookOpen className="h-3 w-3" />
-                            </Link>
-                          </div>
-                        )}
-
-                        {showSourceDetails && (
-                          <div className="space-y-3 pt-3 border-t border-gray-700 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-400">Publisher:</span>
-                              <button
-                                type="button"
-                                className="text-white hover:text-primary hover:underline transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  openSourceWiki()
-                                }}
-                              >
-                                {source.name}
-                              </button>
-                              <Link
-                                href={`/wiki/source/${encodeURIComponent(source.name)}`}
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onClose()
-                                }}
-                                title="View wiki profile"
-                              >
-                                <BookOpen className="h-3 w-3" />
-                              </Link>
-                            </div>
-                            <div>
-                              <span className="text-gray-400">Country:</span>
-                              <span className="text-white ml-2">{source.country}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 text-sm">Source info unavailable</p>
-                    )}
-
-                    {debugMode && (
-                      <>
-                        {/* Debug Button */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setDebugOpen(!debugOpen); if (!debugOpen) loadDebug(); }}
-                          className="w-full mt-4"
-                        >
-                          <Bug className="h-4 w-4 mr-1" /> {debugOpen ? "Hide" : "Show"} Debug
-                        </Button>
-
-                        {/* Debug Panel */}
-                        {debugOpen && (
-                          <div className="mt-4 p-4 bg-black/40 rounded border border-gray-800">
-                            {debugLoading ? (
-                              <div className="flex items-center justify-center p-4">
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                              </div>
-                            ) : debugData ? (
-                              <div className="space-y-2 text-xs">
-                                <div className="text-gray-400">Entries: {debugData.feed_status?.entries_count}</div>
-                                <div className="text-gray-400">Has Images: {debugData.image_analysis?.entries_with_images}/{debugData.image_analysis?.total_entries}</div>
-                                {matchedEntryIndex !== null && (
-                                  <div className="text-primary">Matched at index: {matchedEntryIndex}</div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-gray-400 text-xs">No debug data</div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-            </div>
-
               {/* Compact AI Loading Indicator */}
-              {!isExpanded && aiAnalysisLoading && (
-                <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-slate-950/85 p-4">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                  <p className="text-sm text-muted-foreground">AI is analyzing the article in the background.</p>
-                </div>
-              )}
-
-              {/* Compact AI Summary - Show when not expanded */}
-              {!isExpanded && aiAnalysis?.summary && (
-                <div className="rounded-2xl border border-border/60 bg-slate-950/85 p-4">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
-                  </div>
-                  <p className="text-sm leading-relaxed text-foreground/85">{aiAnalysis.summary}</p>
-                  {factCheckResults.length > 0 && (
-                    <p className="mt-3 text-xs uppercase tracking-widest text-muted-foreground">
-                      {factCheckResults.length} claim{factCheckResults.length === 1 ? "" : "s"} ready for verification review
-                    </p>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsExpanded(true)}
-                    className="mt-3 w-full border-border/60 bg-background/50"
-                  >
-                    <Maximize2 className="h-4 w-4 mr-2" />
-                    Expand for Full AI Analysis
-                  </Button>
-                </div>
-              )}
+              <ModalCompactAiSection
+                isExpanded={isExpanded}
+                aiAnalysisLoading={aiAnalysisLoading}
+                aiAnalysis={aiAnalysis}
+                factCheckCount={factCheckResults.length}
+                onExpand={() => setIsExpanded(true)}
+              />
             </div>
           </div>
         </div>

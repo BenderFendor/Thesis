@@ -49,6 +49,1343 @@ import { NoveltyBadge } from "@/components/novelty-badge";
 import { SemanticTags } from "@/components/semantic-tags";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
+function getArticlePreview(article: NewsArticle): string {
+  const text = article.summary || article.content || "No description available";
+  const words = text.split(/\s+/);
+  return words.length > 150 ? words.slice(0, 150).join(" ") + " ..." : text;
+}
+
+function handleCardKeyDown(
+  event: React.KeyboardEvent<HTMLElement>,
+  onActivate: () => void,
+) {
+  activateCardFromKeyDown(event, onActivate);
+}
+
+type DigestCodeRendererProps = {
+  node?: unknown;
+  className?: string;
+  children?: React.ReactNode;
+  onOpenArticle: (article: NewsArticle) => void;
+} & React.HTMLAttributes<HTMLElement>;
+
+function DigestCodeRenderer({
+  node,
+  className,
+  children,
+  onOpenArticle,
+  ...props
+}: DigestCodeRendererProps) {
+  const text = String(children).replace(/\n$/, "");
+  const nodeWithLang = node as { lang?: string } | undefined;
+  const isStructured =
+    (className === "language-json:articles") ||
+    // Some markdown renderers include the fence label in node.lang or node.meta
+    (typeof nodeWithLang?.lang === 'string' && nodeWithLang.lang === 'json:articles') ||
+    (text.trim().startsWith('{') && text.includes('"articles"'));
+  if (isStructured) {
+    // try parse and render ArticleInlineEmbed components
+    try {
+      const payload = JSON.parse(text);
+      const items = Array.isArray(payload.articles) ? payload.articles : [];
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
+          {items.map((it: { url?: string; link?: string } | null, idx: number) => {
+            const articleRef =
+              typeof it === "object" && it !== null
+                ? (it as { url?: string; link?: string })
+                : {};
+            const url = articleRef.url || articleRef.link || `about:blank#${idx}`;
+            return (
+              <ArticleInlineEmbed
+                key={url}
+                url={url}
+                onOpen={onOpenArticle}
+              />
+            );
+          })}
+        </div>
+      );
+    } catch (err) {
+      console.error('Failed to parse structured articles JSON in markdown code block', err);
+    }
+  }
+  // fallback: simple inline code style
+  return (
+    <code
+      className="px-2 py-1 rounded text-sm"
+      style={{ backgroundColor: "rgba(0,0,0,0.3)", color: "rgb(168,85,247)" }}
+      {...props}
+    >
+      {text}
+    </code>
+  );
+}
+
+interface QueueCardMetaProps {
+  article: NewsArticle;
+  estimatedReadTime?: number;
+  readingHistoryIds: number[];
+}
+
+function QueueCardMeta({
+  article,
+  estimatedReadTime,
+  readingHistoryIds,
+}: QueueCardMetaProps) {
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <p
+        className="text-xs"
+        style={{
+          color: "var(--muted-foreground)",
+        }}
+      >
+        {article.source}
+      </p>
+      {estimatedReadTime && (
+        <span
+          className="text-xs px-1.5 py-0.5 rounded"
+          style={{
+            backgroundColor: "var(--primary)",
+            color: "var(--primary)",
+          }}
+        >
+          {estimatedReadTime}m
+        </span>
+      )}
+      {typeof article.id === "number" && readingHistoryIds.length > 0 && (
+        <NoveltyBadge
+          articleId={article.id}
+          readingHistory={readingHistoryIds}
+        />
+      )}
+      {!article._queueData?.preloadedAt && (
+        <Badge
+          className="text-xs flex items-center gap-1 animate-pulse"
+          style={{
+            backgroundColor: "rgba(59, 130, 246, 0.15)",
+            color: "rgb(59, 130, 246)",
+          }}
+        >
+          <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+          Loading...
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+interface QueueCardExpandableProps {
+  article: NewsArticle;
+  onOpen: () => void;
+  onRemove: () => void;
+}
+
+function QueueCardExpandable({
+  article,
+  onOpen,
+  onRemove,
+}: QueueCardExpandableProps) {
+  return (
+    <div
+      className="space-y-3 pt-3 mt-3 border-t animate-in fade-in slide-in-from-top-2 duration-200"
+      style={{ borderColor: "var(--border)" }}
+    >
+      {article.image && (
+        <SafeImage
+          src={article.image}
+          alt={article.title}
+          width={640}
+          height={160}
+          className="w-full h-40 object-cover rounded-lg"
+        />
+      )}
+      <p
+        className="text-sm"
+        style={{
+          color: "var(--foreground)",
+        }}
+      >
+        {getArticlePreview(article)}
+      </p>
+      <div className="flex gap-2 pt-2">
+        <Button
+          size="sm"
+          className="flex-1"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpen();
+          }}
+          style={{
+            backgroundColor: "var(--primary)",
+            color: "var(--primary-foreground)",
+          }}
+        >
+          Read Article
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface QueueCardProps {
+  article: NewsArticle;
+  index: number;
+  isExpanded: boolean;
+  estimatedReadTime?: number;
+  readingHistoryIds: number[];
+  onToggle: () => void;
+  onOpen: () => void;
+  onRemove: () => void;
+}
+
+function QueueCard({
+  article,
+  index,
+  isExpanded,
+  estimatedReadTime,
+  readingHistoryIds,
+  onToggle,
+  onOpen,
+  onRemove,
+}: QueueCardProps) {
+  return (
+    <div
+      onClick={onToggle}
+      onKeyDown={(event) => handleCardKeyDown(event, onToggle)}
+      role="button"
+      tabIndex={0}
+      className={cn(
+        "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
+        "transform hover:scale-105"
+      )}
+      style={{
+        marginLeft: `${Math.min(index * 4, 16)}px`,
+        marginTop: index > 0 ? "-8px" : "0px",
+      }}
+    >
+      <div
+        className={cn(
+          "relative rounded-xl border overflow-hidden backdrop-blur-sm",
+          "transition-all duration-300",
+          "p-4 flex flex-col",
+          isExpanded
+            ? "shadow-2xl ring-2"
+            : "shadow-lg group-hover:shadow-xl"
+        )}
+        style={{
+          backgroundColor: isExpanded
+            ? "var(--news-bg-secondary)"
+            : "var(--card)",
+          borderColor: isExpanded
+            ? "var(--primary)"
+            : "var(--border)",
+          outlineColor: isExpanded
+            ? "var(--primary)"
+            : undefined,
+          outlineWidth: isExpanded ? "2px" : "0px",
+          outlineOffset: "0px",
+        }}
+      >
+        <div className="flex items-start gap-3">
+          {/* Index Badge */}
+          <div
+            className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
+            style={{
+              backgroundColor: "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
+          >
+            {index + 1}
+          </div>
+
+          {/* Title and Source */}
+          <div className="flex-1 min-w-0">
+            <h3
+              className={cn(
+                "font-bold leading-tight group-hover:text-primary transition-colors",
+                isExpanded
+                  ? "text-base"
+                  : "text-sm line-clamp-2"
+              )}
+              style={{
+                color: "var(--foreground)",
+              }}
+            >
+              {article.title}
+            </h3>
+            <QueueCardMeta
+              article={article}
+              estimatedReadTime={estimatedReadTime}
+              readingHistoryIds={readingHistoryIds}
+            />
+            {/* Semantic Tags */}
+            {typeof article.id === "number" && isExpanded && (
+              <SemanticTags
+                articleId={article.id}
+                maxTags={3}
+                className="mt-2"
+              />
+            )}
+          </div>
+
+          {/* Image Thumbnail - Right Side */}
+          {article.image && !isExpanded && (
+            <div
+              className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <SafeImage
+                src={article.image}
+                alt={article.title}
+                width={64}
+                height={48}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+
+          {/* Expand Indicator */}
+          <div
+            className="flex-shrink-0 transition-transform"
+            style={{
+              color: "var(--muted-foreground)",
+              transform: isExpanded
+                ? "rotate(180deg)"
+                : "rotate(0deg)",
+            }}
+          >
+            <ChevronDown className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Expandable Content */}
+        {isExpanded && (
+          <QueueCardExpandable
+            article={article}
+            onOpen={onOpen}
+            onRemove={onRemove}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface ArticleDetailHeaderProps {
+  article: NewsArticle;
+  index: number;
+  count: number;
+  readTime?: number;
+  onPrevious: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}
+
+function ArticleDetailHeader({
+  article,
+  index,
+  count,
+  readTime,
+  onPrevious,
+  onNext,
+  onClose,
+}: ArticleDetailHeaderProps) {
+  return (
+    <div
+      className="flex items-center justify-between p-6 border-b flex-shrink-0"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="flex-1 mr-4">
+        <h1 className="font-bold text-2xl leading-tight font-serif">
+          {article.title}
+        </h1>
+        <p
+          className="text-sm mt-2"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {article.source}
+        </p>
+        <div className="flex items-center gap-3 mt-2">
+          <p
+            className="text-xs"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Article {index + 1} of {count}
+          </p>
+          {readTime && (
+            <span
+              className="text-xs px-2 py-1 rounded-full"
+              style={{
+                backgroundColor: "rgba(168, 85, 247, 0.2)",
+                color: "var(--primary)",
+                border: "1px solid rgba(168, 85, 247, 0.3)",
+              }}
+            >
+              {readTime} min read
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onPrevious}
+          disabled={index === 0}
+          title="Previous article (← Arrow)"
+        >
+          ← Prev
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onNext}
+          disabled={index === count - 1}
+          title="Next article (→ Arrow)"
+        >
+          Next →
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onClose}
+          className="flex-shrink-0"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface FullArticleSectionProps {
+  article: NewsArticle;
+  articleLoading: boolean;
+  fullArticleText: string | null;
+}
+
+function FullArticleSection({
+  article,
+  articleLoading,
+  fullArticleText,
+}: FullArticleSectionProps) {
+  return (
+    <div>
+      <h3 className="font-bold text-lg mb-2">Full Article</h3>
+      {articleLoading ? (
+        <div className="flex items-center gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <p className="text-gray-400 text-sm">
+            Loading full article text...
+          </p>
+        </div>
+      ) : fullArticleText ? (
+        <div
+          className="text-gray-300 leading-relaxed whitespace-pre-wrap text-sm"
+          style={{ color: "var(--foreground)" }}
+        >
+          {fullArticleText}
+        </div>
+      ) : (
+        <div
+          className="text-gray-300 leading-relaxed text-sm"
+          style={{ color: "var(--foreground)" }}
+        >
+          {article.content || article.summary}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ArticleDetailActionButtonsProps {
+  isLiked: boolean;
+  isFavorite: boolean;
+  isBookmarked: boolean;
+  isRead: boolean;
+  onLike: () => void;
+  onFavorite: () => void;
+  onBookmark: () => void;
+  onMarkRead: () => void;
+}
+
+function ArticleDetailActionButtons({
+  isLiked,
+  isFavorite,
+  isBookmarked,
+  isRead,
+  onLike,
+  onFavorite,
+  onBookmark,
+  onMarkRead,
+}: ArticleDetailActionButtonsProps) {
+  return (
+    <div
+      className="flex gap-2 pt-4 border-t flex-wrap"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onLike}
+        className={
+          isLiked ? "text-red-400" : "text-gray-400"
+        }
+      >
+        <Heart
+          className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""
+            }`}
+        />
+        Like
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onFavorite}
+        className={
+          isFavorite
+            ? "text-yellow-400"
+            : "text-gray-400"
+        }
+      >
+        <Star
+          className={`h-4 w-4 mr-2 ${isFavorite ? "fill-current" : ""
+            }`}
+        />
+        Favorite
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onBookmark}
+        className={
+          isBookmarked ? "text-yellow-400" : "text-gray-400"
+        }
+      >
+        <Bookmark
+          className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""
+            }`}
+        />
+        Bookmark
+      </Button>
+      <Button
+        size="sm"
+        variant={
+          isRead
+            ? "default"
+            : "outline"
+        }
+        onClick={onMarkRead}
+        className={
+          isRead
+            ? "text-green-400"
+            : "text-gray-400"
+        }
+        title="Mark as read (M)"
+      >
+        Read
+      </Button>
+    </div>
+  );
+}
+
+interface ArticleDetailMainProps {
+  article: NewsArticle;
+  articleLoading: boolean;
+  fullArticleText: string | null;
+  isLiked: boolean;
+  isFavorite: boolean;
+  isBookmarked: boolean;
+  isRead: boolean;
+  onLike: () => void;
+  onFavorite: () => void;
+  onBookmark: () => void;
+  onMarkRead: () => void;
+}
+
+function ArticleDetailMain({
+  article,
+  articleLoading,
+  fullArticleText,
+  isLiked,
+  isFavorite,
+  isBookmarked,
+  isRead,
+  onLike,
+  onFavorite,
+  onBookmark,
+  onMarkRead,
+}: ArticleDetailMainProps) {
+  return (
+    <div className="lg:col-span-2 space-y-6">
+      {/* Featured Image */}
+      {article.image && (
+        <div className="rounded-lg overflow-hidden">
+          <SafeImage
+            src={article.image}
+            alt={article.title}
+            width={1280}
+            height={384}
+            className="w-full h-96 object-cover"
+          />
+        </div>
+      )}
+
+      {/* Metadata Bar */}
+      <div
+        className="flex flex-wrap gap-4 text-sm pb-4 border-b"
+        style={{
+          color: "var(--muted-foreground)",
+          borderColor: "var(--border)",
+        }}
+      >
+        {article.publishedAt && (
+          <div>
+            <span className="font-semibold">Published:</span>{" "}
+            {new Date(
+              article.publishedAt
+            ).toLocaleDateString()}
+          </div>
+        )}
+        <div>
+          <span className="font-semibold">Source:</span>{" "}
+          {article.source}
+        </div>
+      </div>
+
+      {/* Summary/Content */}
+      <div
+        className="space-y-4 text-base leading-relaxed"
+        style={{ color: "var(--foreground)" }}
+      >
+        {article.summary &&
+          article.summary !== article.content && (
+            <div>
+              <h3 className="font-bold text-lg mb-2">Summary</h3>
+              <p>{article.summary}</p>
+            </div>
+          )}
+
+        {/* Full Article Text */}
+        <FullArticleSection
+          article={article}
+          articleLoading={articleLoading}
+          fullArticleText={fullArticleText}
+        />
+
+        {article.content &&
+          !fullArticleText &&
+          !articleLoading && (
+            <div>
+              <h3 className="font-bold text-lg mb-2">
+                Article Text
+              </h3>
+              <p className="whitespace-pre-wrap text-sm">
+                {article.content}
+              </p>
+            </div>
+          )}
+
+        {!article.summary &&
+          !article.content &&
+          !fullArticleText && (
+            <p>No content available for this article.</p>
+          )}
+      </div>
+
+      {/* Action Buttons */}
+      <ArticleDetailActionButtons
+        isLiked={isLiked}
+        isFavorite={isFavorite}
+        isBookmarked={isBookmarked}
+        isRead={isRead}
+        onLike={onLike}
+        onFavorite={onFavorite}
+        onBookmark={onBookmark}
+        onMarkRead={onMarkRead}
+      />
+    </div>
+  );
+}
+
+function KeyboardShortcutsCard() {
+  return (
+    <div
+      className="rounded-lg p-4 border text-xs"
+      style={{
+        backgroundColor: "var(--card)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <h3 className="font-semibold text-sm text-white mb-2">
+        Keyboard Shortcuts
+      </h3>
+      <div className="space-y-1" style={{ color: "var(--muted-foreground)" }}>
+        <div>
+          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">→</kbd>
+          Next article
+        </div>
+        <div>
+          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">←</kbd>
+          Previous article
+        </div>
+        <div>
+          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">M</kbd>
+          Mark as read
+        </div>
+        <div>
+          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">Esc</kbd>
+          Close article
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AiSummaryCardProps {
+  aiAnalysisLoading: boolean;
+  aiAnalysis: ArticleAnalysis | null;
+}
+
+function AiSummaryCard({
+  aiAnalysisLoading,
+  aiAnalysis,
+}: AiSummaryCardProps) {
+  if (aiAnalysisLoading) {
+    return (
+      <div
+        className="flex items-center justify-center p-4 rounded-lg border"
+        style={{
+          backgroundColor: "var(--card)",
+          borderColor: "var(--border)",
+        }}
+      >
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  if (!aiAnalysis?.success || !aiAnalysis.summary) {
+    return null;
+  }
+  return (
+    <div
+      className="rounded-lg p-4 border"
+      style={{
+        backgroundColor:
+          "rgba(168, 85, 247, 0.1)",
+        borderColor: "rgba(168, 85, 247, 0.3)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <h3 className="font-semibold text-sm text-white">
+          AI Summary
+        </h3>
+      </div>
+      <p
+        className="text-sm leading-relaxed"
+        style={{
+          color: "var(--foreground)",
+        }}
+      >
+        {aiAnalysis.summary}
+      </p>
+    </div>
+  );
+}
+
+interface BiasAnalysisCardProps {
+  aiAnalysis: ArticleAnalysis | null;
+}
+
+function BiasAnalysisCard({ aiAnalysis }: BiasAnalysisCardProps) {
+  if (!aiAnalysis?.success || !aiAnalysis.bias_analysis) {
+    return null;
+  }
+  return (
+    <div
+      className="rounded-lg p-4 border"
+      style={{
+        backgroundColor: "var(--card)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <h3 className="flex items-center gap-2 font-semibold text-sm text-white mb-2">
+        <AlertTriangle className="h-4 w-4 text-yellow-400" />
+        Bias Analysis
+      </h3>
+      {aiAnalysis.bias_analysis.overall_bias_score && (
+        <Badge className="mb-2 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+          Score: {aiAnalysis.bias_analysis.overall_bias_score}/10
+        </Badge>
+      )}
+      <div className="space-y-2 text-xs">
+        {aiAnalysis.bias_analysis.tone_bias && (
+          <div>
+            <span style={{ color: "var(--muted-foreground)" }}>
+              Tone:
+            </span>
+            <p style={{ color: "var(--foreground)" }}>
+              {aiAnalysis.bias_analysis.tone_bias}
+            </p>
+          </div>
+        )}
+        {aiAnalysis.bias_analysis.framing_bias && (
+          <div>
+            <span style={{ color: "var(--muted-foreground)" }}>
+              Framing:
+            </span>
+            <p style={{ color: "var(--foreground)" }}>
+              {aiAnalysis.bias_analysis.framing_bias}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface SourceDebugPanelProps {
+  debugLoading: boolean;
+  debugData: SourceDebugData | null;
+}
+
+function SourceDebugPanel({
+  debugLoading,
+  debugData,
+}: SourceDebugPanelProps) {
+  if (debugLoading) {
+    return (
+      <div className="flex items-center justify-center">
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  if (debugData) {
+    return (
+      <div
+        style={{
+          color: "var(--foreground)",
+        }}
+      >
+        Feed has{" "}
+        {debugData.parsed_entries?.length || 0} entries
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        color: "var(--muted-foreground)",
+      }}
+    >
+      No debug data
+    </div>
+  );
+}
+
+interface SourceCardProps {
+  sourceLoading: boolean;
+  source: NewsSource | null;
+  showSourceDetails: boolean;
+  onToggleDetails: () => void;
+  debugOpen: boolean;
+  onToggleDebug: () => void;
+  debugLoading: boolean;
+  debugData: SourceDebugData | null;
+}
+
+function SourceCard({
+  sourceLoading,
+  source,
+  showSourceDetails,
+  onToggleDetails,
+  debugOpen,
+  onToggleDebug,
+  debugLoading,
+  debugData,
+}: SourceCardProps) {
+  return (
+    <div
+      className="rounded-lg p-4 border"
+      style={{
+        backgroundColor: "var(--card)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <h3 className="flex items-center gap-2 font-semibold text-sm text-white mb-3">
+        <AlertTriangle className="h-4 w-4 text-yellow-400" />
+        Source
+      </h3>
+      {sourceLoading ? (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+        </div>
+      ) : source ? (
+        <div className="space-y-2 text-xs">
+          {source.funding && source.funding.length > 0 && (
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-400" />
+              <span
+                style={{
+                  color: "var(--foreground)",
+                }}
+              >
+                {source.funding.join(", ")}
+              </span>
+            </div>
+          )}
+          {showSourceDetails && source.url && (
+            <div
+              className="pt-2 border-t space-y-2"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div>
+                <span
+                  style={{
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  Website:
+                </span>
+                <p
+                  style={{
+                    color: "var(--foreground)",
+                  }}
+                >
+                  {source.url}
+                </p>
+              </div>
+              <div>
+                <span
+                  style={{
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  Category:
+                </span>
+                <p
+                  style={{
+                    color: "var(--foreground)",
+                  }}
+                >
+                  {source.category.join(", ")}
+                </p>
+              </div>
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onToggleDetails}
+            className="w-full mt-2 text-xs"
+          >
+            {showSourceDetails ? "Hide" : "Show"} Details
+          </Button>
+        </div>
+      ) : (
+        <p
+          className="text-xs"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          Source info unavailable
+        </p>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onToggleDebug}
+        className="w-full mt-2 text-xs"
+      >
+        <Bug className="h-3 w-3 mr-1" />{" "}
+        {debugOpen ? "Hide" : "Show"} Debug
+      </Button>
+      {debugOpen && (
+        <div
+          className="mt-2 p-2 rounded text-xs"
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
+            borderColor: "var(--border)",
+          }}
+        >
+          <SourceDebugPanel
+            debugLoading={debugLoading}
+            debugData={debugData}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ArticleDetailFooterProps {
+  article: NewsArticle;
+  isRead: boolean;
+  onMarkRead: () => void;
+  onRemove: () => void;
+}
+
+function ArticleDetailFooter({
+  article,
+  isRead,
+  onMarkRead,
+  onRemove,
+}: ArticleDetailFooterProps) {
+  return (
+    <div
+      className="flex gap-3 p-6 border-t flex-shrink-0"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <Button
+        className="flex-1"
+        asChild
+        style={{
+          backgroundColor: "var(--primary)",
+          color: "var(--primary-foreground)",
+        }}
+      >
+        <a
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Read on Source
+        </a>
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={onMarkRead}
+        className={
+          isRead
+            ? "text-green-400"
+            : "text-gray-400 hover:text-green-400"
+        }
+        title="Mark as read (M)"
+      >
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={onRemove}
+        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+interface ArticleDetailViewProps {
+  article: NewsArticle;
+  index: number;
+  count: number;
+  readTime?: number;
+  articleLoading: boolean;
+  fullArticleText: string | null;
+  aiAnalysis: ArticleAnalysis | null;
+  aiAnalysisLoading: boolean;
+  source: NewsSource | null;
+  sourceLoading: boolean;
+  showSourceDetails: boolean;
+  onToggleSourceDetails: () => void;
+  debugOpen: boolean;
+  onToggleDebug: () => void;
+  debugLoading: boolean;
+  debugData: SourceDebugData | null;
+  isLiked: boolean;
+  isFavorite: boolean;
+  isBookmarked: boolean;
+  isRead: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onClose: () => void;
+  onLike: () => void;
+  onFavorite: () => void;
+  onBookmark: () => void;
+  onMarkRead: () => void;
+  onRemove: () => void;
+}
+
+function ArticleDetailView({
+  article,
+  index,
+  count,
+  readTime,
+  articleLoading,
+  fullArticleText,
+  aiAnalysis,
+  aiAnalysisLoading,
+  source,
+  sourceLoading,
+  showSourceDetails,
+  onToggleSourceDetails,
+  debugOpen,
+  onToggleDebug,
+  debugLoading,
+  debugData,
+  isLiked,
+  isFavorite,
+  isBookmarked,
+  isRead,
+  onPrevious,
+  onNext,
+  onClose,
+  onLike,
+  onFavorite,
+  onBookmark,
+  onMarkRead,
+  onRemove,
+}: ArticleDetailViewProps) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <ArticleDetailHeader
+        article={article}
+        index={index}
+        count={count}
+        readTime={readTime}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        onClose={onClose}
+      />
+      {/* Detail Content - Two Column Layout */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+          {/* Main Content - 2/3 width */}
+          <ArticleDetailMain
+            key={`article-${article.url}`}
+            article={article}
+            articleLoading={articleLoading}
+            fullArticleText={fullArticleText}
+            isLiked={isLiked}
+            isFavorite={isFavorite}
+            isBookmarked={isBookmarked}
+            isRead={isRead}
+            onLike={onLike}
+            onFavorite={onFavorite}
+            onBookmark={onBookmark}
+            onMarkRead={onMarkRead}
+          />
+
+          {/* AI Analysis Sidebar - 1/3 width */}
+          <div className="lg:col-span-1 space-y-4" key={`sidebar-${article.url}`}>
+            <KeyboardShortcutsCard />
+            <AiSummaryCard
+              aiAnalysisLoading={aiAnalysisLoading}
+              aiAnalysis={aiAnalysis}
+            />
+            <BiasAnalysisCard aiAnalysis={aiAnalysis} />
+            <SourceCard
+              sourceLoading={sourceLoading}
+              source={source}
+              showSourceDetails={showSourceDetails}
+              onToggleDetails={onToggleSourceDetails}
+              debugOpen={debugOpen}
+              onToggleDebug={onToggleDebug}
+              debugLoading={debugLoading}
+              debugData={debugData}
+            />
+          </div>
+        </div>
+      </div>
+
+      <ArticleDetailFooter
+        article={article}
+        isRead={isRead}
+        onMarkRead={onMarkRead}
+        onRemove={onRemove}
+      />
+    </div>
+  );
+}
+
+interface QueueDigestViewProps {
+  articleCount: number;
+  digestLoading: boolean;
+  queueDigest: string | null;
+  embedModalArticle: NewsArticle | null;
+  embedModalOpen: boolean;
+  onClose: () => void;
+  onOpenArticle: (article: NewsArticle) => void;
+  onEmbedClose: () => void;
+  onNavigateArticle: (direction: "next" | "previous") => void;
+}
+
+function QueueDigestView({
+  articleCount,
+  digestLoading,
+  queueDigest,
+  embedModalArticle,
+  embedModalOpen,
+  onClose,
+  onOpenArticle,
+  onEmbedClose,
+  onNavigateArticle,
+}: QueueDigestViewProps) {
+  return (
+    <>
+      <SheetHeader
+        className="px-6 pt-6 pb-4 border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <SheetTitle className="text-3xl font-semibold font-serif">
+              Reading Digest
+            </SheetTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {articleCount} articles summarized for quick review
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      </SheetHeader>
+
+      <div className="flex-1 overflow-y-auto">
+        {digestLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p style={{ color: "var(--muted-foreground)" }}>
+                Generating your digest...
+              </p>
+            </div>
+          </div>
+        ) : queueDigest ? (
+          <div
+            className="px-6 py-8 prose prose-invert max-w-none"
+            style={{ color: "var(--foreground)" }}
+          >
+            <ReactMarkdown
+              components={{
+                h1: ({ ...props }) => (
+                  <h1
+                    className="font-semibold font-serif text-2xl mt-6 mb-3"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                h2: ({ ...props }) => (
+                  <h2
+                    className="font-semibold font-serif text-xl mt-5 mb-2"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                h3: ({ ...props }) => (
+                  <h3
+                    className="font-semibold font-serif text-lg mt-4 mb-2"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                p: ({ ...props }) => (
+                  <p
+                    className="mb-3 leading-relaxed text-base"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                ul: ({ ...props }) => (
+                  <ul
+                    className="list-disc list-inside mb-3 space-y-1"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                ol: ({ ...props }) => (
+                  <ol
+                    className="list-decimal list-inside mb-3 space-y-1"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                li: ({ ...props }) => (
+                  <li
+                    className="ml-2"
+                    style={{ color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                blockquote: ({ ...props }) => (
+                  <blockquote
+                    className="border-l-4 pl-4 italic my-3"
+                    style={{
+                      borderColor: "var(--primary)",
+                      color: "var(--muted-foreground)",
+                    }}
+                    {...props}
+                  />
+                ),
+                // Custom code renderer: detect the special json:articles fence and render inline embeds
+                code: (props) => (
+                  <DigestCodeRenderer {...props} onOpenArticle={onOpenArticle} />
+                ),
+                pre: ({ ...props }) => (
+                  <pre
+                    className="p-4 rounded mb-3 overflow-x-auto text-sm"
+                    style={{ backgroundColor: "rgba(0, 0, 0, 0.4)", color: "var(--foreground)" }}
+                    {...props}
+                  />
+                ),
+                strong: ({ ...props }) => (
+                  <strong className="font-semibold" style={{ color: "var(--primary)" }} {...props} />
+                ),
+                em: ({ ...props }) => (
+                  <em className="italic" style={{ color: "var(--foreground)" }} {...props} />
+                ),
+              }}
+            >
+              {queueDigest}
+            </ReactMarkdown>
+            {embedModalArticle && (
+              <ArticleDetailModal
+                article={embedModalArticle}
+                isOpen={embedModalOpen}
+                onClose={onEmbedClose}
+                onNavigate={(direction) => {
+                  if (direction === "next") {
+                    onNavigateArticle("next")
+                  } else {
+                    onNavigateArticle("previous")
+                  }
+                }}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p style={{ color: "var(--muted-foreground)" }}>
+              Failed to generate digest
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function ReadingQueueSidebar() {
   const READ_SPEED_WPM = 230; // Average adult reading speed
   const { queuedArticles, removeArticleFromQueue, isLoaded } =
@@ -147,13 +1484,6 @@ export function ReadingQueueSidebar() {
 
   const handleRemove = (articleUrl: string) => {
     removeArticleFromQueue(articleUrl);
-  };
-
-  const handleCardKeyDown = (
-    event: React.KeyboardEvent<HTMLElement>,
-    onActivate: () => void,
-  ) => {
-    activateCardFromKeyDown(event, onActivate);
   };
 
   const handleMarkAsRead = (articleUrl: string) => {
@@ -321,6 +1651,16 @@ export function ReadingQueueSidebar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleNavigateArticle, queuedArticles, selectedArticle, selectedArticleUrl]);
 
+  const handleOpenDigest = () => {
+    setShowQueueOverview(true);
+    generateQueueDigest();
+  };
+
+  const handleToggleDebug = (article: NewsArticle) => {
+    setDebugOpen(!debugOpen);
+    if (!debugOpen) loadDebugData(article);
+  };
+
   return (
     <>
       <Sheet>
@@ -352,742 +1692,61 @@ export function ReadingQueueSidebar() {
         >
           {/* Full-screen article detail view */}
           {selectedArticle ? (
-            <div className="flex flex-col h-full overflow-hidden">
-              {/* Detail Header */}
-              <div
-                className="flex items-center justify-between p-6 border-b flex-shrink-0"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <div className="flex-1 mr-4">
-                  <h1 className="font-bold text-2xl leading-tight font-serif">
-                    {selectedArticle.title}
-                  </h1>
-                  <p
-                    className="text-sm mt-2"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {selectedArticle.source}
-                  </p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <p
-                      className="text-xs"
-                      style={{ color: "var(--muted-foreground)" }}
-                    >
-                      Article {selectedArticleIndex + 1} of {queuedArticles.length}
-                    </p>
-                    {estimatedReadTimes[selectedArticle.url] && (
-                      <span
-                        className="text-xs px-2 py-1 rounded-full"
-                        style={{
-                          backgroundColor: "rgba(168, 85, 247, 0.2)",
-                          color: "var(--primary)",
-                          border: "1px solid rgba(168, 85, 247, 0.3)",
-                        }}
-                      >
-                        {estimatedReadTimes[selectedArticle.url]} min read
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleNavigateArticle("previous")}
-                    disabled={selectedArticleIndex === 0}
-                    title="Previous article (← Arrow)"
-                  >
-                    ← Prev
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleNavigateArticle("next")}
-                    disabled={selectedArticleIndex === queuedArticles.length - 1}
-                    title="Next article (→ Arrow)"
-                  >
-                    Next →
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setSelectedArticleUrl(null)}
-                    className="flex-shrink-0"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Detail Content - Two Column Layout */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-                  {/* Main Content - 2/3 width */}
-                  <div className="lg:col-span-2 space-y-6" key={`article-${selectedArticle.url}`}>
-                    {/* Featured Image */}
-                    {selectedArticle.image && (
-                      <div className="rounded-lg overflow-hidden">
-                        <SafeImage
-                          src={selectedArticle.image}
-                          alt={selectedArticle.title}
-                          width={1280}
-                          height={384}
-                          className="w-full h-96 object-cover"
-                        />
-                      </div>
-                    )}
-
-                    {/* Metadata Bar */}
-                    <div
-                      className="flex flex-wrap gap-4 text-sm pb-4 border-b"
-                      style={{
-                        color: "var(--muted-foreground)",
-                        borderColor: "var(--border)",
-                      }}
-                    >
-                      {selectedArticle.publishedAt && (
-                        <div>
-                          <span className="font-semibold">Published:</span>{" "}
-                          {new Date(
-                            selectedArticle.publishedAt
-                          ).toLocaleDateString()}
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-semibold">Source:</span>{" "}
-                        {selectedArticle.source}
-                      </div>
-                    </div>
-
-                    {/* Summary/Content */}
-                    <div
-                      className="space-y-4 text-base leading-relaxed"
-                      style={{ color: "var(--foreground)" }}
-                    >
-                      {selectedArticle.summary &&
-                        selectedArticle.summary !== selectedArticle.content && (
-                          <div>
-                            <h3 className="font-bold text-lg mb-2">Summary</h3>
-                            <p>{selectedArticle.summary}</p>
-                          </div>
-                        )}
-
-                      {/* Full Article Text */}
-                      <div>
-                        <h3 className="font-bold text-lg mb-2">Full Article</h3>
-                        {articleLoading ? (
-                          <div className="flex items-center gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                            <p className="text-gray-400 text-sm">
-                              Loading full article text...
-                            </p>
-                          </div>
-                        ) : fullArticleText ? (
-                          <div
-                            className="text-gray-300 leading-relaxed whitespace-pre-wrap text-sm"
-                            style={{ color: "var(--foreground)" }}
-                          >
-                            {fullArticleText}
-                          </div>
-                        ) : (
-                          <div
-                            className="text-gray-300 leading-relaxed text-sm"
-                            style={{ color: "var(--foreground)" }}
-                          >
-                            {selectedArticle.content || selectedArticle.summary}
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedArticle.content &&
-                        !fullArticleText &&
-                        !articleLoading && (
-                          <div>
-                            <h3 className="font-bold text-lg mb-2">
-                              Article Text
-                            </h3>
-                            <p className="whitespace-pre-wrap text-sm">
-                              {selectedArticle.content}
-                            </p>
-                          </div>
-                        )}
-
-                      {!selectedArticle.summary &&
-                        !selectedArticle.content &&
-                        !fullArticleText && (
-                          <p>No content available for this article.</p>
-                        )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div
-                      className="flex gap-2 pt-4 border-t flex-wrap"
-                      style={{ borderColor: "var(--border)" }}
-                    >
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => selectedArticle?.id && toggleLike(selectedArticle.id)}
-                        className={
-                          selectedArticle?.id && isLiked(selectedArticle.id) ? "text-red-400" : "text-gray-400"
-                        }
-                      >
-                        <Heart
-                          className={`h-4 w-4 mr-2 ${selectedArticle?.id && isLiked(selectedArticle.id) ? "fill-current" : ""
-                            }`}
-                        />
-                        Like
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          selectedArticle &&
-                          toggleFavorite(selectedArticle.sourceId)
-                        }
-                        className={
-                          selectedArticle &&
-                            isFavorite(selectedArticle.sourceId)
-                            ? "text-yellow-400"
-                            : "text-gray-400"
-                        }
-                      >
-                        <Star
-                          className={`h-4 w-4 mr-2 ${selectedArticle &&
-                              isFavorite(selectedArticle.sourceId)
-                              ? "fill-current"
-                              : ""
-                            }`}
-                        />
-                        Favorite
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => selectedArticle?.id && toggleBookmark(selectedArticle.id)}
-                        className={
-                          selectedArticle?.id && isBookmarked(selectedArticle.id) ? "text-yellow-400" : "text-gray-400"
-                        }
-                      >
-                        <Bookmark
-                          className={`h-4 w-4 ${selectedArticle?.id && isBookmarked(selectedArticle.id) ? "fill-current" : ""
-                            }`}
-                        />
-                        Bookmark
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={
-                          readArticles.has(selectedArticle.url)
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() =>
-                          handleMarkAsRead(selectedArticle.url)
-                        }
-                        className={
-                          readArticles.has(selectedArticle.url)
-                            ? "text-green-400"
-                            : "text-gray-400"
-                        }
-                        title="Mark as read (M)"
-                      >
-                        Read
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* AI Analysis Sidebar - 1/3 width */}
-                  <div className="lg:col-span-1 space-y-4" key={`sidebar-${selectedArticle.url}`}>
-                    {/* Keyboard Shortcuts */}
-                    <div
-                      className="rounded-lg p-4 border text-xs"
-                      style={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                      }}
-                    >
-                      <h3 className="font-semibold text-sm text-white mb-2">
-                        Keyboard Shortcuts
-                      </h3>
-                      <div className="space-y-1" style={{ color: "var(--muted-foreground)" }}>
-                        <div>
-                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">→</kbd>
-                          Next article
-                        </div>
-                        <div>
-                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">←</kbd>
-                          Previous article
-                        </div>
-                        <div>
-                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">M</kbd>
-                          Mark as read
-                        </div>
-                        <div>
-                          <kbd className="px-2 py-1 bg-gray-700 rounded text-xs mr-2">Esc</kbd>
-                          Close article
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* AI Summary */}
-                    {aiAnalysisLoading ? (
-                      <div
-                        className="flex items-center justify-center p-4 rounded-lg border"
-                        style={{
-                          backgroundColor: "var(--card)",
-                          borderColor: "var(--border)",
-                        }}
-                      >
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                      </div>
-                    ) : aiAnalysis?.success && aiAnalysis.summary ? (
-                      <div
-                        className="rounded-lg p-4 border"
-                        style={{
-                          backgroundColor:
-                            "rgba(168, 85, 247, 0.1)",
-                          borderColor: "rgba(168, 85, 247, 0.3)",
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-3">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          <h3 className="font-semibold text-sm text-white">
-                            AI Summary
-                          </h3>
-                        </div>
-                        <p
-                          className="text-sm leading-relaxed"
-                          style={{
-                            color: "var(--foreground)",
-                          }}
-                        >
-                          {aiAnalysis.summary}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {/* Bias Analysis */}
-                    {aiAnalysis?.success && aiAnalysis.bias_analysis && (
-                      <div
-                        className="rounded-lg p-4 border"
-                        style={{
-                          backgroundColor: "var(--card)",
-                          borderColor: "var(--border)",
-                        }}
-                      >
-                        <h3 className="flex items-center gap-2 font-semibold text-sm text-white mb-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                          Bias Analysis
-                        </h3>
-                        {aiAnalysis.bias_analysis.overall_bias_score && (
-                          <Badge className="mb-2 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                            Score: {aiAnalysis.bias_analysis.overall_bias_score}/10
-                          </Badge>
-                        )}
-                        <div className="space-y-2 text-xs">
-                          {aiAnalysis.bias_analysis.tone_bias && (
-                            <div>
-                              <span style={{ color: "var(--muted-foreground)" }}>
-                                Tone:
-                              </span>
-                              <p style={{ color: "var(--foreground)" }}>
-                                {aiAnalysis.bias_analysis.tone_bias}
-                              </p>
-                            </div>
-                          )}
-                          {aiAnalysis.bias_analysis.framing_bias && (
-                            <div>
-                              <span style={{ color: "var(--muted-foreground)" }}>
-                                Framing:
-                              </span>
-                              <p style={{ color: "var(--foreground)" }}>
-                                {aiAnalysis.bias_analysis.framing_bias}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Source Info */}
-                    <div
-                      className="rounded-lg p-4 border"
-                      style={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                      }}
-                    >
-                      <h3 className="flex items-center gap-2 font-semibold text-sm text-white mb-3">
-                        <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                        Source
-                      </h3>
-                      {sourceLoading ? (
-                        <div className="flex items-center justify-center p-4">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                        </div>
-                      ) : source ? (
-                        <div className="space-y-2 text-xs">
-                          {source.funding && source.funding.length > 0 && (
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-green-400" />
-                              <span
-                                style={{
-                                  color: "var(--foreground)",
-                                }}
-                              >
-                                {source.funding.join(", ")}
-                              </span>
-                            </div>
-                          )}
-                          {showSourceDetails && source.url && (
-                            <div
-                              className="pt-2 border-t space-y-2"
-                              style={{ borderColor: "var(--border)" }}
-                            >
-                              <div>
-                                <span
-                                  style={{
-                                    color: "var(--muted-foreground)",
-                                  }}
-                                >
-                                  Website:
-                                </span>
-                                <p
-                                  style={{
-                                    color: "var(--foreground)",
-                                  }}
-                                >
-                                  {source.url}
-                                </p>
-                              </div>
-                              <div>
-                                <span
-                                  style={{
-                                    color: "var(--muted-foreground)",
-                                  }}
-                                >
-                                  Category:
-                                </span>
-                                <p
-                                  style={{
-                                    color: "var(--foreground)",
-                                  }}
-                                >
-                                  {source.category.join(", ")}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setShowSourceDetails(!showSourceDetails)
-                            }
-                            className="w-full mt-2 text-xs"
-                          >
-                            {showSourceDetails ? "Hide" : "Show"} Details
-                          </Button>
-                        </div>
-                      ) : (
-                        <p
-                          className="text-xs"
-                          style={{ color: "var(--muted-foreground)" }}
-                        >
-                          Source info unavailable
-                        </p>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDebugOpen(!debugOpen);
-                          if (!debugOpen) loadDebugData(selectedArticle);
-                        }}
-                        className="w-full mt-2 text-xs"
-                      >
-                        <Bug className="h-3 w-3 mr-1" />{" "}
-                        {debugOpen ? "Hide" : "Show"} Debug
-                      </Button>
-                      {debugOpen && (
-                        <div
-                          className="mt-2 p-2 rounded text-xs"
-                          style={{
-                            backgroundColor: "rgba(0, 0, 0, 0.4)",
-                            borderColor: "var(--border)",
-                          }}
-                        >
-                          {debugLoading ? (
-                            <div className="flex items-center justify-center">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                            </div>
-                          ) : debugData ? (
-                            <div
-                              style={{
-                                color: "var(--foreground)",
-                              }}
-                            >
-                              Feed has{" "}
-                              {debugData.parsed_entries?.length || 0} entries
-                            </div>
-                          ) : (
-                            <div
-                              style={{
-                                color: "var(--muted-foreground)",
-                              }}
-                            >
-                              No debug data
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detail Footer Actions */}
-              <div
-                className="flex gap-3 p-6 border-t flex-shrink-0"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Button
-                  className="flex-1"
-                  asChild
-                  style={{
-                    backgroundColor: "var(--primary)",
-                    color: "var(--primary-foreground)",
-                  }}
-                >
-                  <a
-                    href={selectedArticle.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Read on Source
-                  </a>
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    handleMarkAsRead(selectedArticle.url);
-                  }}
-                  className={
-                    readArticles.has(selectedArticle.url)
-                      ? "text-green-400"
-                      : "text-gray-400 hover:text-green-400"
-                  }
-                  title="Mark as read (M)"
-                >
-                  </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    handleRemove(selectedArticle.url);
-                    setSelectedArticleUrl(null);
-                  }}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <ArticleDetailView
+              article={selectedArticle}
+              index={selectedArticleIndex}
+              count={queuedArticles.length}
+              readTime={estimatedReadTimes[selectedArticle.url]}
+              articleLoading={articleLoading}
+              fullArticleText={fullArticleText}
+              aiAnalysis={aiAnalysis}
+              aiAnalysisLoading={aiAnalysisLoading}
+              source={source}
+              sourceLoading={sourceLoading}
+              showSourceDetails={showSourceDetails}
+              onToggleSourceDetails={() =>
+                setShowSourceDetails(!showSourceDetails)
+              }
+              debugOpen={debugOpen}
+            onToggleDebug={() => handleToggleDebug(selectedArticle)}
+              debugLoading={debugLoading}
+              debugData={debugData}
+              isLiked={Boolean(selectedArticle.id) && isLiked(selectedArticle.id)}
+              isFavorite={isFavorite(selectedArticle.sourceId)}
+              isBookmarked={Boolean(selectedArticle.id) && isBookmarked(selectedArticle.id)}
+              isRead={readArticles.has(selectedArticle.url)}
+              onPrevious={() => handleNavigateArticle("previous")}
+              onNext={() => handleNavigateArticle("next")}
+              onClose={() => setSelectedArticleUrl(null)}
+              onLike={() => {
+                if (selectedArticle.id) toggleLike(selectedArticle.id);
+              }}
+              onFavorite={() => toggleFavorite(selectedArticle.sourceId)}
+              onBookmark={() => {
+                if (selectedArticle.id) toggleBookmark(selectedArticle.id);
+              }}
+              onMarkRead={() => handleMarkAsRead(selectedArticle.url)}
+              onRemove={() => {
+                handleRemove(selectedArticle.url);
+                setSelectedArticleUrl(null);
+              }}
+            />
           ) : showQueueOverview ? (
             /* Queue Digest View */
-            <>
-              <SheetHeader
-                className="px-6 pt-6 pb-4 border-b"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <SheetTitle className="text-3xl font-semibold font-serif">
-                      Reading Digest
-                    </SheetTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {queuedArticles.length} articles summarized for quick review
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowQueueOverview(false)}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </SheetHeader>
-
-              <div className="flex-1 overflow-y-auto">
-                {digestLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      <p style={{ color: "var(--muted-foreground)" }}>
-                        Generating your digest...
-                      </p>
-                    </div>
-                  </div>
-                ) : queueDigest ? (
-                  <div
-                    className="px-6 py-8 prose prose-invert max-w-none"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <ReactMarkdown
-                      components={{
-                        h1: ({ ...props }) => (
-                          <h1
-                            className="font-semibold font-serif text-2xl mt-6 mb-3"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        h2: ({ ...props }) => (
-                          <h2
-                            className="font-semibold font-serif text-xl mt-5 mb-2"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        h3: ({ ...props }) => (
-                          <h3
-                            className="font-semibold font-serif text-lg mt-4 mb-2"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        p: ({ ...props }) => (
-                          <p
-                            className="mb-3 leading-relaxed text-base"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        ul: ({ ...props }) => (
-                          <ul
-                            className="list-disc list-inside mb-3 space-y-1"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        ol: ({ ...props }) => (
-                          <ol
-                            className="list-decimal list-inside mb-3 space-y-1"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        li: ({ ...props }) => (
-                          <li
-                            className="ml-2"
-                            style={{ color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        blockquote: ({ ...props }) => (
-                          <blockquote
-                            className="border-l-4 pl-4 italic my-3"
-                            style={{
-                              borderColor: "var(--primary)",
-                              color: "var(--muted-foreground)",
-                            }}
-                            {...props}
-                          />
-                        ),
-                        // Custom code renderer: detect the special json:articles fence and render inline embeds
-                        code: ({ node, className, children, ...props }) => {
-                          const text = String(children).replace(/\n$/, "");
-                          const nodeWithLang = node as { lang?: string } | undefined;
-                          const isStructured =
-                            (className === "language-json:articles") ||
-                            // Some markdown renderers include the fence label in node.lang or node.meta
-                            (typeof nodeWithLang?.lang === 'string' && nodeWithLang.lang === 'json:articles') ||
-                            (text.trim().startsWith('{') && text.includes('"articles"'));
-                          if (isStructured) {
-                            // try parse and render ArticleInlineEmbed components
-                            try {
-                              const payload = JSON.parse(text);
-                              const items = Array.isArray(payload.articles) ? payload.articles : [];
-                              return (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
-                                  {items.map((it: { url?: string; link?: string } | null, idx: number) => {
-                                    const articleRef =
-                                      typeof it === "object" && it !== null
-                                        ? (it as { url?: string; link?: string })
-                                        : {};
-                                    const url = articleRef.url || articleRef.link || `about:blank#${idx}`;
-                                    return (
-                                      <ArticleInlineEmbed
-                                        key={url}
-                                        url={url}
-                                        onOpen={(article) => {
-                                          setEmbedModalArticle(article);
-                                          setEmbedModalOpen(true);
-                                        }}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              );
-                            } catch (err) {
-                              console.error('Failed to parse structured articles JSON in markdown code block', err);
-                            }
-                          }
-                          // fallback: simple inline code style
-                          return (
-                            <code
-                              className="px-2 py-1 rounded text-sm"
-                              style={{ backgroundColor: "rgba(0,0,0,0.3)", color: "rgb(168,85,247)" }}
-                              {...props}
-                            >
-                              {text}
-                            </code>
-                          );
-                        },
-                        pre: ({ ...props }) => (
-                          <pre
-                            className="p-4 rounded mb-3 overflow-x-auto text-sm"
-                            style={{ backgroundColor: "rgba(0, 0, 0, 0.4)", color: "var(--foreground)" }}
-                            {...props}
-                          />
-                        ),
-                        strong: ({ ...props }) => (
-                          <strong className="font-semibold" style={{ color: "var(--primary)" }} {...props} />
-                        ),
-                        em: ({ ...props }) => (
-                          <em className="italic" style={{ color: "var(--foreground)" }} {...props} />
-                        ),
-                      }}
-                    >
-                      {queueDigest}
-                    </ReactMarkdown>
-                      {embedModalArticle && (
-                      <ArticleDetailModal
-                        article={embedModalArticle}
-                        isOpen={embedModalOpen}
-                        onClose={() => setEmbedModalOpen(false)}
-                        onNavigate={(direction) => {
-                          if (direction === "next") {
-                            handleNavigateArticle("next")
-                          } else {
-                            handleNavigateArticle("previous")
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p style={{ color: "var(--muted-foreground)" }}>
-                      Failed to generate digest
-                    </p>
-                  </div>
-                )}
-              </div>
-            </>
+            <QueueDigestView
+              articleCount={queuedArticles.length}
+              digestLoading={digestLoading}
+              queueDigest={queueDigest}
+              embedModalArticle={embedModalArticle}
+              embedModalOpen={embedModalOpen}
+              onClose={() => setShowQueueOverview(false)}
+              onOpenArticle={(article) => {
+                setEmbedModalArticle(article);
+                setEmbedModalOpen(true);
+              }}
+              onEmbedClose={() => setEmbedModalOpen(false)}
+              onNavigateArticle={handleNavigateArticle}
+            />
           ) : (
             /* List View */
             <>
@@ -1103,10 +1762,7 @@ export function ReadingQueueSidebar() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        setShowQueueOverview(true);
-                        generateQueueDigest();
-                      }}
+                      onClick={handleOpenDigest}
                       disabled={queuedArticles.length === 0}
                       title="Generate a digest of all articles"
                       className="hidden sm:inline-flex"
@@ -1117,10 +1773,7 @@ export function ReadingQueueSidebar() {
                     <Button
                       size="icon"
                       variant="outline"
-                      onClick={() => {
-                        setShowQueueOverview(true);
-                        generateQueueDigest();
-                      }}
+                      onClick={handleOpenDigest}
                       disabled={queuedArticles.length === 0}
                       title="Generate a digest of all articles"
                       className="h-9 w-9 sm:hidden"
@@ -1171,230 +1824,21 @@ export function ReadingQueueSidebar() {
                 ) : (
                   <div className="space-y-3">
                     {/* Articles List */}
-                    {queuedArticles.map((article, index) => {
-                      const isExpanded = expandedIndex === index;
-
-                      return (
-                        <div
-                          key={`${article.url}-${index}`}
-                          onClick={() =>
-                            setExpandedIndex(isExpanded ? null : index)
-                          }
-                          onKeyDown={(event) =>
-                            handleCardKeyDown(event, () =>
-                              setExpandedIndex(isExpanded ? null : index)
-                            )
-                          }
-                          role="button"
-                          tabIndex={0}
-                          className={cn(
-                            "w-full transition-all duration-300 ease-out cursor-pointer text-left group",
-                            "transform hover:scale-105"
-                          )}
-                          style={{
-                            marginLeft: `${Math.min(index * 4, 16)}px`,
-                            marginTop: index > 0 ? "-8px" : "0px",
-                          }}
-                        >
-                          <div
-                            className={cn(
-                              "relative rounded-xl border overflow-hidden backdrop-blur-sm",
-                              "transition-all duration-300",
-                              "p-4 flex flex-col",
-                              isExpanded
-                                ? "shadow-2xl ring-2"
-                                : "shadow-lg group-hover:shadow-xl"
-                            )}
-                            style={{
-                              backgroundColor: isExpanded
-                                ? "var(--news-bg-secondary)"
-                                : "var(--card)",
-                              borderColor: isExpanded
-                                ? "var(--primary)"
-                                : "var(--border)",
-                              outlineColor: isExpanded
-                                ? "var(--primary)"
-                                : undefined,
-                              outlineWidth: isExpanded ? "2px" : "0px",
-                              outlineOffset: isExpanded ? "0px" : "0px",
-                            }}
-                          >
-                            <div className="flex items-start gap-3">
-                              {/* Index Badge */}
-                              <div
-                                className="flex-shrink-0 text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center"
-                                style={{
-                                  backgroundColor: "var(--primary)",
-                                  color: "var(--primary-foreground)",
-                                }}
-                              >
-                                {index + 1}
-                              </div>
-
-                              {/* Title and Source */}
-                              <div className="flex-1 min-w-0">
-                                <h3
-                                  className={cn(
-                                    "font-bold leading-tight group-hover:text-primary transition-colors",
-                                    isExpanded
-                                      ? "text-base"
-                                      : "text-sm line-clamp-2"
-                                  )}
-                                  style={{
-                                    color: isExpanded
-                                      ? "var(--foreground)"
-                                      : "var(--foreground)",
-                                  }}
-                                >
-                                  {article.title}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <p
-                                    className="text-xs"
-                                    style={{
-                                      color: "var(--muted-foreground)",
-                                    }}
-                                  >
-                                    {article.source}
-                                  </p>
-                                  {estimatedReadTimes[article.url] && (
-                                    <span
-                                      className="text-xs px-1.5 py-0.5 rounded"
-                                      style={{
-                                        backgroundColor: "var(--primary)",
-                                        color: "var(--primary)",
-                                      }}
-                                    >
-                                      {estimatedReadTimes[article.url]}m
-                                    </span>
-                                  )}
-                                  {typeof article.id === "number" && readingHistoryIds.length > 0 && (
-                                    <NoveltyBadge
-                                      articleId={article.id}
-                                      readingHistory={readingHistoryIds}
-                                    />
-                                  )}
-                                  {!article._queueData?.preloadedAt && (
-                                    <Badge
-                                      className="text-xs flex items-center gap-1 animate-pulse"
-                                      style={{
-                                        backgroundColor: "rgba(59, 130, 246, 0.15)",
-                                        color: "rgb(59, 130, 246)",
-                                      }}
-                                    >
-                                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
-                                      Loading...
-                                    </Badge>
-                                  )}
-                                </div>
-                                {/* Semantic Tags */}
-                                {typeof article.id === "number" && isExpanded && (
-                                  <SemanticTags
-                                    articleId={article.id}
-                                    maxTags={3}
-                                    className="mt-2"
-                                  />
-                                )}
-                              </div>
-
-                              {/* Image Thumbnail - Right Side */}
-                              {article.image && !isExpanded && (
-                                <div
-                                  className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
-                                  style={{ borderColor: "var(--border)" }}
-                                >
-                                  <SafeImage
-                                    src={article.image}
-                                    alt={article.title}
-                                    width={64}
-                                    height={48}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              )}
-
-                              {/* Expand Indicator */}
-                              <div
-                                className="flex-shrink-0 transition-transform"
-                                style={{
-                                  color: "var(--muted-foreground)",
-                                  transform: isExpanded
-                                    ? "rotate(180deg)"
-                                    : "rotate(0deg)",
-                                }}
-                              >
-                                <ChevronDown className="h-5 w-5" />
-                              </div>
-                            </div>
-
-                            {/* Expandable Content */}
-                            {isExpanded && (
-                              <div
-                                className="space-y-3 pt-3 mt-3 border-t animate-in fade-in slide-in-from-top-2 duration-200"
-                                style={{ borderColor: "var(--border)" }}
-                              >
-                                {article.image && (
-                                  <SafeImage
-                                    src={article.image}
-                                    alt={article.title}
-                                    width={640}
-                                    height={160}
-                                    className="w-full h-40 object-cover rounded-lg"
-                                  />
-                                )}
-                                <p
-                                  className="text-sm"
-                                  style={{
-                                    color: "var(--foreground)",
-                                  }}
-                                >
-                                  {(() => {
-                                    const text =
-                                      article.summary ||
-                                      article.content ||
-                                      "No description available";
-                                    const words = text.split(/\s+/);
-                                    if (words.length > 150) {
-                                      return words.slice(0, 150).join(" ") + " ...";
-                                    }
-                                    return text;
-                                  })()}
-                                </p>
-                                <div className="flex gap-2 pt-2">
-                                  <Button
-                                    size="sm"
-                                    className="flex-1"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setSelectedArticleUrl(article.url);
-                                    }}
-                                    style={{
-                                      backgroundColor: "var(--primary)",
-                                      color: "var(--primary-foreground)",
-                                    }}
-                                  >
-                                    Read Article
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleRemove(article.url);
-                                    }}
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {queuedArticles.map((article, index) => (
+                      <QueueCard
+                        key={`${article.url}-${index}`}
+                        article={article}
+                        index={index}
+                        isExpanded={expandedIndex === index}
+                        estimatedReadTime={estimatedReadTimes[article.url]}
+                        readingHistoryIds={readingHistoryIds}
+                        onToggle={() =>
+                          setExpandedIndex(expandedIndex === index ? null : index)
+                        }
+                        onOpen={() => setSelectedArticleUrl(article.url)}
+                        onRemove={() => handleRemove(article.url)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

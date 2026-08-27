@@ -232,45 +232,59 @@ pub fn extract_article_from_html(html: &str) -> ArticleExtraction {
     }
 }
 
+fn push_image_candidates(
+    candidates: &mut Vec<ImageCandidate>,
+    urls: Vec<String>,
+    source: &str,
+    priority: usize,
+) {
+    for url in urls {
+        candidates.push(ImageCandidate {
+            url,
+            source: source.to_string(),
+            priority,
+        });
+    }
+}
+
+fn push_link_image_candidates(document: &Html, candidates: &mut Vec<ImageCandidate>) {
+    let Some(sel) = selector("link[rel='image_src']") else {
+        return;
+    };
+    for link in document.select(&sel) {
+        if let Some(href) = link.value().attr("href") {
+            let cleaned = href.trim();
+            if cleaned.is_empty() {
+                continue;
+            }
+            candidates.push(ImageCandidate {
+                url: cleaned.to_string(),
+                source: "link:image_src".to_string(),
+                priority: 3,
+            });
+        }
+    }
+}
+
 /// Extracts Open Graph and Twitter image URLs from an HTML document, along
 /// with link-rel image references, ranked by source priority.
 pub fn extract_og_image_from_html(html: &str) -> OgImageExtraction {
     let document = Html::parse_document(html);
     let mut candidates = Vec::new();
 
-    let og_images = meta_contents(&document, "meta[property='og:image']");
-    for url in og_images {
-        candidates.push(ImageCandidate {
-            url,
-            source: "og:image".to_string(),
-            priority: 1,
-        });
-    }
-
-    let twitter_images = meta_contents(&document, "meta[name='twitter:image']");
-    for url in twitter_images {
-        candidates.push(ImageCandidate {
-            url,
-            source: "twitter:image".to_string(),
-            priority: 2,
-        });
-    }
-
-    if let Some(sel) = selector("link[rel='image_src']") {
-        for link in document.select(&sel) {
-            if let Some(href) = link.value().attr("href") {
-                let cleaned = href.trim();
-                if cleaned.is_empty() {
-                    continue;
-                }
-                candidates.push(ImageCandidate {
-                    url: cleaned.to_string(),
-                    source: "link:image_src".to_string(),
-                    priority: 3,
-                });
-            }
-        }
-    }
+    push_image_candidates(
+        &mut candidates,
+        meta_contents(&document, "meta[property='og:image']"),
+        "og:image",
+        1,
+    );
+    push_image_candidates(
+        &mut candidates,
+        meta_contents(&document, "meta[name='twitter:image']"),
+        "twitter:image",
+        2,
+    );
+    push_link_image_candidates(&document, &mut candidates);
 
     let image_url = candidates.first().map(|candidate| candidate.url.clone());
 

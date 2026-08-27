@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { ArrowUpRight, Clock3, ExternalLink, Network, ShieldCheck } from "lucide-react";
 
-import type { AtlasEntityRecord } from "./lib/atlas-schema";
+import type { AtlasEntityRecord, AtlasMeasurementsResponse } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";
 
 interface AtlasInspectorProps {
   record: AtlasEntityRecord | undefined;
   loading: boolean;
   error: Error | null;
+  measurements?: AtlasMeasurementsResponse;
+  measurementsLoading?: boolean;
   onSelectConnection: (entityId: string) => void;
 }
 
@@ -36,7 +38,7 @@ function dateLabel(value?: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
 }
 
-export function AtlasInspector({ record, loading, error, onSelectConnection }: AtlasInspectorProps) {
+export function AtlasInspector({ record, loading, error, measurements, measurementsLoading, onSelectConnection }: AtlasInspectorProps) {
   if (loading) {
     return (
       <div className={styles.inspector} aria-busy="true">
@@ -81,6 +83,7 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
     .map(([key, value]) => [key, displayValue(value)] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
     .slice(0, 18);
+  const dossierSections = record.dossier_sections ?? [];
 
   return (
     <div className={styles.inspector}>
@@ -136,7 +139,45 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
           </section>
         ) : null}
 
-        <section>
+        {dossierSections.length > 0 ? dossierSections.map((section) => (
+          <section key={section.key} className={section.key === "summary" ? styles.inspectorSection : undefined}>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#d7b35f]" />
+              <h3 className={styles.controlLabel}>{section.title}</h3>
+            </div>
+            <div className={styles.detailGrid}>
+              {section.statements.map((statement, index) => (
+                <div key={`${statement.label}-${index}`} className={`${styles.detailCard} col-span-2`}>
+                  <div className={styles.microLabel}>{statement.label}</div>
+                  <div className={styles.detailValue}>{statement.answer}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 font-mono text-[9px] uppercase tracking-[0.12em] text-[#77736a]">
+                    <span>{humanize(statement.state)}</span>
+                    {statement.lifecycle_state ? <span>{humanize(statement.lifecycle_state)}</span> : null}
+                    {statement.predicate ? <span>{statement.predicate}</span> : null}
+                  </div>
+                  {statement.evidence.length > 0 ? (
+                    <details className="mt-3 text-xs text-[#c9c3b6]">
+                      <summary className="cursor-pointer text-[#d7b35f]">Open claim evidence ({statement.evidence.length})</summary>
+                      <div className="mt-2 space-y-2">
+                        {statement.evidence.map((item) => (
+                          <div key={item.id} className="rounded border border-white/10 p-2">
+                            <div>{item.source_name || item.source_type}</div>
+                            <div>Captured: {dateLabel(item.retrieved_at)}</div>
+                            {item.snapshot_sha256 ? <div className="break-all">Snapshot: {item.snapshot_sha256}</div> : null}
+                            {Object.keys(item.locator).length > 0 ? <div>Locator: {JSON.stringify(item.locator)}</div> : null}
+                            {item.evidence_class ? <div>Evidence class: {item.evidence_class}</div> : null}
+                            {item.policy_version ? <div>Policy: {item.policy_version}</div> : null}
+                            {item.acceptance_decision ? <div>Decision: {item.acceptance_decision}</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        )) : <section>
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[#d7b35f]" />
             <h3 className={styles.controlLabel}>Identity and context</h3>
@@ -155,6 +196,40 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
               </div>
             )}
           </div>
+        </section>}
+
+        <section className={styles.inspectorSection}>
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-[#d7b35f]" />
+            <h3 className={styles.controlLabel}>Corpus measurements</h3>
+          </div>
+          {measurementsLoading ? (
+            <div className={`${styles.detailCard} mt-2`}>Calculating from the indexed corpus.</div>
+          ) : measurements?.measurements.length ? (
+            <div className={styles.detailGrid}>
+              {measurements.measurements.map((measurement) => {
+                const denominator = measurement.result.denominator;
+                const window = measurement.result.corpus_window as { start?: string | null; end?: string | null } | undefined;
+                return (
+                  <div key={measurement.id} className={`${styles.detailCard} col-span-2`}>
+                    <div className={styles.microLabel}>{humanize(measurement.measurement_name)}</div>
+                    <div className={styles.detailValue}>
+                      Denominator: {typeof denominator === "number" ? denominator : "not available"}
+                    </div>
+                    <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-[#77736a]">
+                      {measurement.algorithm_version} · {window?.start ? dateLabel(window.start) : "No dated articles"} to {window?.end ? dateLabel(window.end) : "No dated articles"}
+                    </div>
+                    <details className="mt-2 text-xs text-[#c9c3b6]">
+                      <summary className="cursor-pointer text-[#d7b35f]">Open calculation trace</summary>
+                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-white/10 p-2">{JSON.stringify(measurement.result, null, 2)}</pre>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={`${styles.detailCard} mt-2`}>No measurement is available for this indexed corpus.</div>
+          )}
         </section>
 
         <section className={styles.inspectorSection}>
@@ -177,7 +252,7 @@ export function AtlasInspector({ record, loading, error, onSelectConnection }: A
                   <span>
                     <span className="block text-sm text-[#f0ede4]">{entity.label}</span>
                     <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-[#77736a]">
-                      {humanize(edge.relation_type)} · {edge.direction}
+                      {humanize(edge.predicate || edge.relation_type)} · {humanize(edge.lifecycle_state)}
                     </span>
                   </span>
                   <span className="text-right">

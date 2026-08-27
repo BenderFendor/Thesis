@@ -18,7 +18,12 @@ from collections.abc import Iterable
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
-from app.core.config import get_llamacpp_model, get_openai_client, settings
+from app.core.config import (
+    get_llamacpp_model,
+    get_openai_client,
+    resolve_opencode_model,
+    settings,
+)
 from app.core.logging import get_logger
 from app.services.prompting import (
     COPY_STYLE_GUIDE,
@@ -447,7 +452,7 @@ Respond ONLY with valid JSON (no markdown):
                 model=(
                     get_llamacpp_model()
                     if settings.llm_backend == "llamacpp"
-                    else settings.open_router_model
+                    else resolve_opencode_model(settings.open_router_model)
                 ),
                 messages=cast(
                     Iterable[ChatCompletionMessageParam],

@@ -1,0 +1,919 @@
+
+
+<!doctype html>
+<html class="no-js"  lang="en-GB">
+			
+
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="description" content="POLITICO to complement and strengthen Axel Springer’s U.S. presence / Axel Springer to support growth and expand POLITICO’s offering internationally">
+	<meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<script>
+		window.onload = function() {
+			if (screen.width < 414) {
+				var vp = document.getElementById('viewport');
+				var scale = Math.floor(screen.width/414*100)/100;
+				vp.setAttribute('content','width=414, initial-scale=' + scale);
+			}
+		}
+	</script>
+	<meta name="format-detection" content="telephone=no">
+
+	<meta property="og:type" content="article" />
+	<meta property="og:title" content="Axel Springer Completes Acquisition of POLITICO" />
+			<meta property="og:description" content="POLITICO to complement and strengthen Axel Springer’s U.S. presence / Axel Springer to support growth and expand POLITICO’s offering internationally" />
+		<meta property="og:url" content="https://www.axelspringer.com/en/ax-press-release/axel-springer-completes-acquisition-of-politico" />
+					<meta property="og:image" content="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg">
+		<meta property="og:image:url" content="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg">
+		<meta property="og:image:secure_url" content="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg">
+		<meta name="twitter:image" content="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg">
+	
+	<link rel="shortcut icon" href="https://www.axelspringer.com/wp-content/themes/axelspringer/assets/img/favicon.png">
+
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:creator" content="@axelspringer" />
+	<meta name="twitter:site" content="@axelspringer" />
+	<meta name="twitter:title" content="Axel Springer Completes Acquisition of POLITICO">
+	<meta name="twitter:description" content="POLITICO to complement and strengthen Axel Springer’s U.S. presence / Axel Springer to support growth and expand POLITICO’s offering internationally">
+	
+
+			
+
+<!-- Sourcepoint -->
+<script>
+	!function () { var e = function () { var e, t = "__tcfapiLocator", a = [], n = window; for (; n;) { try { if (n.frames[t]) { e = n; break } } catch (e) { } if (n === window.top) break; n = n.parent } e || (!function e() { var a = n.document, r = !!n.frames[t]; if (!r) if (a.body) { var i = a.createElement("iframe"); i.style.cssText = "display:none", i.name = t, a.body.appendChild(i) } else setTimeout(e, 5); return !r }(), n.__tcfapi = function () { for (var e, t = arguments.length, n = new Array(t), r = 0; r < t; r++)n[r] = arguments[r]; if (!n.length) return a; if ("setGdprApplies" === n[0]) n.length > 3 && 2 === parseInt(n[1], 10) && "boolean" == typeof n[3] && (e = n[3], "function" == typeof n[2] && n[2]("set", !0)); else if ("ping" === n[0]) { var i = { gdprApplies: e, cmpLoaded: !1, cmpStatus: "stub" }; "function" == typeof n[2] && n[2](i) } else a.push(n) }, n.addEventListener("message", (function (e) { var t = "string" == typeof e.data, a = {}; try { a = t ? JSON.parse(e.data) : e.data } catch (e) { } var n = a.__tcfapiCall; n && window.__tcfapi(n.command, n.version, (function (a, r) { var i = { __tcfapiReturn: { returnValue: a, success: r, callId: n.callId } }; t && (i = JSON.stringify(i)), e.source.postMessage(i, "*") }), n.parameter) }), !1)) }; "undefined" != typeof module ? module.exports = e : e() }();
+</script>
+<script>
+	window._sp_ = {
+		config: {
+			accountId: 1490,
+			consentLanguage: "en",
+			propertyHref :  "https://www.axelspringer.com",
+			baseEndpoint: "https://cmp.axelspringer.com"
+		}
+	}
+	window.privacyManagerModalId = '241519';
+</script>
+<script src="https://cmp.axelspringer.com/wrapperMessagingWithoutDetection.js"></script>
+
+<style>
+.ub-cmp-embed-wrapper {
+	background: #eee;
+	border-radius: 10px;
+	margin: 1.5rem auto;
+	max-width: 52rem;
+	padding: 1rem;
+	visibility: hidden;
+}
+
+.ub-cmp-initialized .ub-cmp-embed-wrapper {
+	visibility: visible;
+}
+
+.ub-cmp-embed-wrapper__button {
+	background-color: #0000ff;
+	border-width: 0;
+	border-radius: 5px;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 700;
+	font-family: verdana, geneva, sans-serif;
+	margin: 10px;
+	padding: 10px 15px;
+	width: auto;
+}
+
+.ub-cmp-embed-wrapper__link {
+	color: #0000ff;
+}
+</style>
+
+<script>
+	function showPrivacyManager() {
+		_sp_.loadPrivacyManagerModal(privacyManagerModalId);
+	}
+
+	function loadContentOfPurpose(purposeId) {
+		console.log("[CMP] loadContentOfPurpose(" + purposeId + ")");
+		const elements = document.querySelectorAll('[data-cmp-purpose="' + purposeId + '"]');
+
+		for (i = 0; i < elements.length; ++i) {
+			var element = elements[i];
+
+			if (element.tagName === 'SCRIPT') {
+				if (element.getAttribute('type') === 'text/plain') {
+					var src = element.getAttribute('src');
+					var newScriptTag = document.createElement('script');
+					newScriptTag.type = 'text/javascript';
+					newScriptTag.innerHTML = element.innerHTML;
+
+					if (src) {
+						newScriptTag.setAttribute('src', src);
+					}
+
+					element.parentNode.insertBefore(newScriptTag, element);
+					element.remove();
+				}
+			} else {
+				element.innerHTML = element.dataset.html;
+				element.classList.remove("ub-cmp-embed-wrapper");	// Styling entfernen
+
+				var scripts = element.querySelectorAll('script[src]');
+
+				for (var j = 0; j < scripts.length; j++) {
+					var oldScriptTag = scripts[j];
+					var url = oldScriptTag.getAttribute('src');
+
+					var newScriptTag = document.createElement('script');
+					newScriptTag.setAttribute('src', url);
+					newScriptTag.setAttribute('type', 'text/javascript');
+					oldScriptTag.parentNode.insertBefore(newScriptTag, oldScriptTag.nextSibling);
+					oldScriptTag.remove();
+
+					//console.log('scriptTagReplaced', url)
+				}
+			}
+		}
+	}
+
+	function grantConsentForPurpose(purposeId) {
+		__tcfapi('postCustomConsent', 2, (data) => {},
+			[], [purposeId], []
+		);
+
+		loadContentOfPurpose(purposeId);
+	}
+
+	function loadContentOfConsentedPurposes() {
+		__tcfapi('getCustomVendorConsents', 2, function(vendorConsents, success) {
+			if (success) {
+				//console.log("[CMP] vendorConsents object:");
+				//console.log(vendorConsents);
+
+				for (var purpose of vendorConsents.consentedPurposes) {
+					loadContentOfPurpose(purpose._id);
+				}
+			}
+		});
+	}
+
+	__tcfapi('addEventListener', 2, function(tcData,success) {
+		console.log("[CMP] TCF API EventListener status: " + tcData.eventStatus);
+
+		if (success && (tcData.eventStatus === 'tcloaded' || tcData.eventStatus === 'useractioncomplete')) {
+			console.log("[CMP] Load consented content ...");
+			loadContentOfConsentedPurposes();
+		}
+
+		document.body.classList.add('ub-cmp-initialized');
+	});
+</script>
+<!-- /Sourcepoint -->
+	
+
+	<style class="globalStyles">
+		:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--color--primary: #0000ff;--wp--preset--color--neon-green: #00ff00;--wp--preset--color--pink: #ff00ff;--wp--preset--color--red: #ff0000;--wp--preset--color--ice-blue: #00ffff;--wp--preset--color--light-grey: #ededed;--wp--preset--color--dark-grey: #878787;--wp--preset--color--white-grey: #f6f6f6;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small: 13px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 36px;--wp--preset--font-size--x-large: 42px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}:root { --wp--style--global--content-size: 800px;--wp--style--global--wide-size: 1208px; }:where(body) { margin: 0; }.wp-site-blocks > .alignleft { float: left; margin-right: 2em; }.wp-site-blocks > .alignright { float: right; margin-left: 2em; }.wp-site-blocks > .aligncenter { justify-content: center; margin-left: auto; margin-right: auto; }:where(.wp-site-blocks) > * { margin-block-start: 1.5rem; margin-block-end: 0; }:where(.wp-site-blocks) > :first-child { margin-block-start: 0; }:where(.wp-site-blocks) > :last-child { margin-block-end: 0; }:root { --wp--style--block-gap: 1.5rem; }:root :where(.is-layout-flow) > :first-child{margin-block-start: 0;}:root :where(.is-layout-flow) > :last-child{margin-block-end: 0;}:root :where(.is-layout-flow) > *{margin-block-start: 1.5rem;margin-block-end: 0;}:root :where(.is-layout-constrained) > :first-child{margin-block-start: 0;}:root :where(.is-layout-constrained) > :last-child{margin-block-end: 0;}:root :where(.is-layout-constrained) > *{margin-block-start: 1.5rem;margin-block-end: 0;}:root :where(.is-layout-flex){gap: 1.5rem;}:root :where(.is-layout-grid){gap: 1.5rem;}.is-layout-flow > .alignleft{float: left;margin-inline-start: 0;margin-inline-end: 2em;}.is-layout-flow > .alignright{float: right;margin-inline-start: 2em;margin-inline-end: 0;}.is-layout-flow > .aligncenter{margin-left: auto !important;margin-right: auto !important;}.is-layout-constrained > .alignleft{float: left;margin-inline-start: 0;margin-inline-end: 2em;}.is-layout-constrained > .alignright{float: right;margin-inline-start: 2em;margin-inline-end: 0;}.is-layout-constrained > .aligncenter{margin-left: auto !important;margin-right: auto !important;}.is-layout-constrained > :where(:not(.alignleft):not(.alignright):not(.alignfull)){max-width: var(--wp--style--global--content-size);margin-left: auto !important;margin-right: auto !important;}.is-layout-constrained > .alignwide{max-width: var(--wp--style--global--wide-size);}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}body{background-color: var(--wp--preset--color--white);color: var(--wp--preset--color--black);font-size: 1rem;line-height: 1.15;padding-top: var(--wp--preset--spacing--50);padding-right: var(--wp--preset--spacing--50);padding-bottom: var(--wp--preset--spacing--50);padding-left: var(--wp--preset--spacing--50);}a:where(:not(.wp-element-button)){text-decoration: underline;}:root :where(.wp-element-button, .wp-block-button__link){background-color: #32373c;border-width: 0;color: #fff;font-family: inherit;font-size: inherit;font-style: inherit;font-weight: inherit;letter-spacing: inherit;line-height: inherit;padding-top: calc(0.667em + 2px);padding-right: calc(1.333em + 2px);padding-bottom: calc(0.667em + 2px);padding-left: calc(1.333em + 2px);text-decoration: none;text-transform: inherit;}:root :where(.wp-block-pullquote){font-size: 1.5em;line-height: 1.6;}:root :where(p){margin-right: 0;margin-left: 0;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-primary-color{color: var(--wp--preset--color--primary) !important;}.has-neon-green-color{color: var(--wp--preset--color--neon-green) !important;}.has-pink-color{color: var(--wp--preset--color--pink) !important;}.has-red-color{color: var(--wp--preset--color--red) !important;}.has-ice-blue-color{color: var(--wp--preset--color--ice-blue) !important;}.has-light-grey-color{color: var(--wp--preset--color--light-grey) !important;}.has-dark-grey-color{color: var(--wp--preset--color--dark-grey) !important;}.has-white-grey-color{color: var(--wp--preset--color--white-grey) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-primary-background-color{background-color: var(--wp--preset--color--primary) !important;}.has-neon-green-background-color{background-color: var(--wp--preset--color--neon-green) !important;}.has-pink-background-color{background-color: var(--wp--preset--color--pink) !important;}.has-red-background-color{background-color: var(--wp--preset--color--red) !important;}.has-ice-blue-background-color{background-color: var(--wp--preset--color--ice-blue) !important;}.has-light-grey-background-color{background-color: var(--wp--preset--color--light-grey) !important;}.has-dark-grey-background-color{background-color: var(--wp--preset--color--dark-grey) !important;}.has-white-grey-background-color{background-color: var(--wp--preset--color--white-grey) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-primary-border-color{border-color: var(--wp--preset--color--primary) !important;}.has-neon-green-border-color{border-color: var(--wp--preset--color--neon-green) !important;}.has-pink-border-color{border-color: var(--wp--preset--color--pink) !important;}.has-red-border-color{border-color: var(--wp--preset--color--red) !important;}.has-ice-blue-border-color{border-color: var(--wp--preset--color--ice-blue) !important;}.has-light-grey-border-color{border-color: var(--wp--preset--color--light-grey) !important;}.has-dark-grey-border-color{border-color: var(--wp--preset--color--dark-grey) !important;}.has-white-grey-border-color{border-color: var(--wp--preset--color--white-grey) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+	</style>
+
+	<link rel="stylesheet" href="https://www.axelspringer.com/wp-content/themes/axelspringer/static/css/main.min.css?v=1783942857974">
+	
+	<style id='wp-block-paragraph-inline-css' type='text/css'>
+.is-small-text{font-size:.875em}.is-regular-text{font-size:1em}.is-large-text{font-size:2.25em}.is-larger-text{font-size:3em}.has-drop-cap:not(:focus):first-letter{float:left;font-size:8.4em;font-style:normal;font-weight:100;line-height:.68;margin:.05em .1em 0 0;text-transform:uppercase}body.rtl .has-drop-cap:not(:focus):first-letter{float:none;margin-left:.1em}p.has-drop-cap.has-background{overflow:hidden}:root :where(p.has-background){padding:1.25em 2.375em}:where(p.has-text-color:not(.has-link-color)) a{color:inherit}p.has-text-align-left[style*="writing-mode:vertical-lr"],p.has-text-align-right[style*="writing-mode:vertical-rl"]{rotate:180deg}
+/*# sourceURL=https://www.axelspringer.com/wp-includes/blocks/paragraph/style.min.css */
+</style>
+
+</head>
+	
+	<body class="wp-singular ax-press-release-template-default single single-ax-press-release postid-100904 wp-theme-unitb wp-child-theme-axelspringer u-theme-press" data-post-id="100904" data-xhr-url="https://www.axelspringer.com/wp-json/unitb-teaser-block/get-block">
+		
+
+
+	<!-- Tealium Data Layer -->
+	<script type="text/plain" data-cmp-purpose="5f9b6fddebb95e544606716e">
+	var utag_data = {
+    "page_cms_path": "/en/ax-press-release/axel-springer-completes-acquisition-of-politico",
+    "user_language": "en",
+    "page_document_type": "single",
+    "page_id": 100904,
+    "page_publication_date": "2021-10-19",
+    "page_taxonomie": "News Media,News Media International",
+    "page_headline": "Axel Springer Completes Acquisition of POLITICO",
+    "page_kicker": "",
+    "page_category": "Ver\u00f6ffentlichung_Testliste (EN)",
+    "page_has_image_opener": "true",
+    "page_has_images": "true",
+    "page_estimatedReadingtime": 2
+};
+	</script>
+
+	<script type="text/plain" data-cmp-purpose="5f9b6fddebb95e544606716e">
+	(
+		function (a, b, c, d) {
+			a = '//tags.tiqcdn.com/utag/axelspringer/asse-axelspringer.de/prod/utag.js';
+			b = document;
+			c = 'script';
+			d = b.createElement(c);
+			d.src = a;
+			d.type = 'text/java' + c;
+			d.async = true;
+			a = b.getElementsByTagName(c)[0];
+			a.parentNode.insertBefore(d, a);
+		}
+	)()
+	</script>
+	<!-- /Tealium Data Layer -->
+
+		
+
+
+
+
+
+
+    <div class="u-page ">
+        
+
+
+
+
+<header                                                                                                                                     class="u-header u-theme-press "
+                             data-component="Header"
+        >
+    <div class="u-header__inner">
+        <div class="u-header__left">
+            <a class="u-header__logo-link" href="https://www.axelspringer.com/en/" title="Home">
+                
+
+
+
+
+<div                                                                                                                                     class="u-header__logo u-logo "
+                             data-component="Logo"
+         ><span class="u-logo__text">axel springer</span><span class="u-logo__line">~</span></div>
+
+
+            </a>
+        </div>
+        <div class="u-header__right u-hide-on-print">
+
+            <form class="u-header__search-form" action="https://www.axelspringer.com/en/">
+                <input type="text" class="u-header__search-input" name="s" required />
+                <button type="submit" class="u-header__search-submit" title="Search">
+                    <svg class="u-header__search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" heigh="28">
+                        <path d="M20 17.6h-1.264l-.448-.432c1.568-1.824 2.512-4.192 2.512-6.768C20.8 4.656 16.144 0 10.4 0 4.656 0 0 4.656 0 10.4c0 5.744 4.656 10.4 10.4 10.4 2.576 0 4.944-.944 6.768-2.512l.432.448V20l8 7.984 2.384-2.384-7.984-8zm-9.6 0c-3.984 0-7.2-3.216-7.2-7.2s3.216-7.2 7.2-7.2 7.2 3.216 7.2 7.2-3.216 7.2-7.2 7.2z"/>
+                    </svg>
+                </button>
+            </form>
+            <button type="button" class="u-header__search-toggler" title="Search">
+                <svg class="u-header__search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" heigh="28">
+                    <path d="M20 17.6h-1.264l-.448-.432c1.568-1.824 2.512-4.192 2.512-6.768C20.8 4.656 16.144 0 10.4 0 4.656 0 0 4.656 0 10.4c0 5.744 4.656 10.4 10.4 10.4 2.576 0 4.944-.944 6.768-2.512l.432.448V20l8 7.984 2.384-2.384-7.984-8zm-9.6 0c-3.984 0-7.2-3.216-7.2-7.2s3.216-7.2 7.2-7.2 7.2 3.216 7.2 7.2-3.216 7.2-7.2 7.2z"/>
+                </svg>
+            </button>
+
+                            <ul class="u-language-switcher">
+                                                                        <li class="u-language-switcher__item">
+                                <a class="u-language-switcher__link u-link-hover-1" href="https://www.axelspringer.com/de/ax-press-release/axel-springer-schliesst-uebernahme-von-politico-ab">Deutsch</a>
+                            </li>
+                                                                                                        </ul>
+            
+            <button class="u-header__menu-toggler">
+                <svg width='24' height='24' class="u-header__menu-toggler-icon">
+                    <rect class='u-header__menu-toggler-icon-bar-1' width='24' height='3.5' x='0' y='2' />
+                    <rect class='u-header__menu-toggler-icon-bar-2' width='20' height='3.5' x='4' y='10' />
+                    <rect class='u-header__menu-toggler-icon-bar-3' width='24' height='3.5' x='0' y='18' />
+                    <rect class='u-header__menu-toggler-icon-cross-1' width='24' height='3.5' x='0' y='0' />
+                    <rect class='u-header__menu-toggler-icon-cross-2' width='24' height='3.5' x='0' y='16' />
+                </svg>
+            </button>
+        </div>
+
+    </div>
+    <div class="u-header__menu u-hide-on-print">
+        <nav class="u-main-menu">
+            <ul class="u-main-menu__inner">
+                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/welcome-to-axel-springer"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-150300 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Welcome to Axel Springer
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/who-we-are"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-141409 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Who We Are
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/what-defines-us"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-141408 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    What Defines Us
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/blog"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-102134 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Corporate Blog
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://career.axelspringer.com/en/"                                                                                                                                     class="menu-item menu-item-type-custom menu-item-object-custom menu-item-102299 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Careers With Us
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/press"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-105767 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Press
+</a>                                                    </div>
+                                                                    </li>
+                                                                <li class="u-main-menu__item">
+                        <div class="u-main-menu__item-link-wrapper">
+                            
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/contact-2"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-102607 u-main-menu__item-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Contact
+</a>                                                    </div>
+                                                                    </li>
+                                        </ul>
+        </nav>
+    </div>
+</header>
+
+
+        <main class="u-page__main">
+            								
+    
+	
+    	
+
+
+
+
+<section                                                                                                                                     class="u-press-header u-module u-theme-press "
+                             data-block-id=""
+        >
+    <div class="u-press-header__top-bar u-hide-on-print">
+                  
+
+
+
+
+            <div                                                                                                                                     class="u-back-button u-hide-on-print u-module--extended u-theme-ice-blue "
+                 >
+            <div class="u-back-button__inner">
+                <a class="u-back-button__button u-button u-button--style-square-theme u-button--icon-left u-button-hover" href="https://www.axelspringer.com/en/press/press-releases">
+                    <svg width="28px" height="28px" viewBox="0 0 28 28" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                        <g transform="translate(13.5, 14.5) scale(-1, 1) translate(-13.5, -14.5) translate(4, 6)" stroke="currentColor" stroke-linecap="square" stroke-width="1.5" fill="none" fill-rule="evenodd">
+                            <line x1="0.5" y1="8.2" x2="17.5" y2="8.2"></line>
+                            <polyline points="10.75 0 19 8.25 10.75 16.5"></polyline>
+                        </g>
+                    </svg>
+                    All Press Releases
+                </a>
+            </div>
+        </div>
+    
+                          <div class="u-press-header__abo-button-wrapper">
+              
+
+
+
+
+<div                                                                                                                                     class="u-abo-button u-theme-press "
+                             data-component="AboButton"
+        >
+    <button class="u-abo-button__open u-button u-button--style-round u-button--icon-left u-button-hover">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+            <g id="arrow-right" transform="translate(13.500000, 14.000000) rotate(90.000000) translate(-13.500000, -14.000000) translate(2.500000, 5.500000)" stroke="currentColor" stroke-linecap="square" stroke-width="1.5" fill="none" fill-rule="evenodd">
+                <line x1="5.689893e-16" y1="8.3" x2="20.5" y2="8.3"></line>
+                <polyline points="13.75 0 22 8.25 13.75 16.5"></polyline>
+            </g>
+        </svg>
+        Subscribe
+    </button>
+    <div class="u-abo-button__dropdown-wrapper">
+        <div class="u-abo-button__dropdown">
+            <button class="u-abo-button__close u-button u-button--style-round u-button--icon-left u-button-hover">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                    <path class="u-abo-button__close-icon-line" d="M21 7L7 21M7 7l14 14" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </button>
+            <div class="u-abo-button__links">
+                                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/press-mailing-list"                                                                                                                                     class="u-abo-button__link u-button-hover u-link  "
+                             target="_self"
+                    rel=""
+        >
+                                                                                        <svg class="u-abo-button__icon" width="28px" height="28px" viewBox="0 0 28 28" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                                    <g transform="translate(4.000000, 6.000000)" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" fill="none" fill-rule="evenodd">
+                                        <path d="M2,0 L18,0 C19.1,0 20,0.9 20,2 L20,14 C20,15.1 19.1,16 18,16 L2,16 C0.9,16 0,15.1 0,14 L0,2 C0,0.9 0.9,0 2,0 Z"></path>
+                                        <polyline points="20 2 10 9 0 2"></polyline>
+                                    </g>
+                                </svg>
+                                                        <span class="u-abo-button__link-label">Mailing list</span>
+                        </a>                                    
+
+
+
+
+    
+<a href="https://twitter.com/axelspringer_en"                                                                                                                                     class="u-abo-button__link u-button-hover u-link  "
+                             target="_self"
+                    rel=""
+        >
+                                                                                        <svg class="u-abo-button__icon" width="28px" height="28px" viewBox="0 0 1668.56 1221.19" version="1.1" xmlns:svg="http://www.w3.org/2000/svg"
+                                    xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+                                    style="enable-background:new 0 0 1668.56 1221.19;" xml:space="preserve">
+                                    <g transform="translate(52.390088,-25.058597)">
+                                        <path d="M283.94,167.31l386.39,516.64L281.5,1104h87.51l340.42-367.76L984.48,1104h297.8L874.15,558.3l361.92-390.99
+                                            h-87.51l-313.51,338.7l-253.31-338.7H283.94z M412.63,231.77h136.81l604.13,807.76h-136.81L412.63,231.77z" stroke="none" stroke-width="1" fill-rule="evenodd" fill="currentColor"/>
+                                    </g>
+                                </svg>
+                                                        <span class="u-abo-button__link-label">Twitter</span>
+                        </a>                                    
+
+
+
+
+    
+<a href="https://www.linkedin.com/company/162606/"                                                                                                                                     class="u-abo-button__link u-button-hover u-link  "
+                             target="_self"
+                    rel=""
+        >
+                                                                                        <svg class="u-abo-button__icon" width="28px" height="28px" viewBox="0 0 28 28" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                                    <path d="M26,24.8181818 L20.6956726,24.8181818 L20.6956726,17.1482184 C20.6956726,15.140616 19.8659454,13.7700816 18.0413923,13.7700816 C16.6458137,13.7700816 15.8697084,14.6949478 15.5084666,15.5862842 C15.3730009,15.9062153 15.3941675,16.3518834 15.3941675,16.7975516 L15.3941675,24.8181818 L10.1392286,24.8181818 C10.1392286,24.8181818 10.2069614,11.2315891 10.1392286,9.99657134 L15.3941675,9.99657134 L15.3941675,12.3227078 C15.7046096,11.3056343 17.3838194,9.85406928 20.0634995,9.85406928 C23.3880527,9.85406928 26,11.9860117 26,16.5768131 L26,24.8181818 L26,24.8181818 Z M4.82502352,8.14264758 L4.7911571,8.14264758 C3.09783631,8.14264758 2,7.00961656 2,5.57341941 C2,4.10928068 3.13029163,3 4.85747883,3 C6.58325494,3 7.64440263,4.10648652 7.67826905,5.56922817 C7.67826905,7.00542532 6.58325494,8.14264758 4.82502352,8.14264758 L4.82502352,8.14264758 L4.82502352,8.14264758 Z M2.60536218,9.99657134 L7.28316087,9.99657134 L7.28316087,24.8181818 L2.60536218,24.8181818 L2.60536218,9.99657134 L2.60536218,9.99657134 Z" fill="currentColor" stroke="none" stroke-width="1" fill-rule="evenodd"></path>
+                                </svg>
+                                                        <span class="u-abo-button__link-label">LinkedIn</span>
+                        </a>                                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/feed/?post_type=ax-press-release"                                                                                                                                     class="u-abo-button__link u-button-hover u-link  "
+                             target="_self"
+                    rel=""
+        >
+                                                                                        <svg class="u-abo-button__icon" xmlns="http://www.w3.org/2000/svg" width="28px" height="28px" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                                    <path d="M8.1677964 23.785935c0 2.161243-1.7520191 3.913262-3.913262 3.913262-2.1612431 0-3.91320107-1.752019-3.91320107-3.913262s1.75201907-3.913262 3.91326207-3.913262c2.1612431 0 3.913201 1.75208 3.913201 3.913262zm10.7338056 2.887239c-.510477-9.446923-8.077241-17.0232189-17.534245-17.5342455-.55819941-.0301856-1.02602367.4183291-1.02602367.9773225v2.937285c0 .514203.39657516.945425.90967867.978788 6.8335586.445094 12.311123 5.909032 12.757132 12.757133.03342.513104.464647.909679.97879.909679h2.937284c.559055.000061 1.007569-.467763.977384-1.025962zm8.814417.0176C27.203099 12.403066 15.707247.83993655 1.3497586.32451096.79797531.30471258.34133333.75047746.34133333 1.3025665V4.239789c0 .5270363.41765663.9559969.94426437.9776289C12.9677 5.6964243 22.344229 15.074724 22.823174 26.754993c.02156.526609.450531.944265.977628.944265h2.937223c.552028-.000061.997793-.456702.977994-1.008486z" fill="currentColor" />
+                                </svg>
+                                                        <span class="u-abo-button__link-label">RSS feed</span>
+                        </a>                            </div>
+        </div>
+    </div>
+</div>
+
+          </div>
+            </div>
+    <div class="u-press-header__headline-wrapper">
+      <span class="u-press-header__date">19.10.2021</span>
+      <h1 class="u-press-header__headline">Axel Springer Completes Acquisition of POLITICO</h1>
+    </div>
+        <figure class="u-press-header__picture-wrapper">
+        
+
+
+
+
+                                    
+    
+                        
+                
+                
+
+        <picture                                                                                                                                     class="u-press-header__picture u-picture u-picture--has-aspect-ratio "
+                             data-component="Picture"
+                    style="--height: 810; --width: 1440"
+        >
+                                                    <source media="(min-width: 51.875rem)" srcset="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg" type="image/webp">
+                                        <source media="(min-width: 51.875rem)" srcset="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office.jpg" type="image/jpeg">
+                                        <source srcset="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office-595x334.jpg" type="image/webp">
+                                        <source srcset="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office-595x334.jpg" type="image/jpeg">
+                        <img                                                                                                                                     class="u-press-header__img  "
+         src="https://www.axelspringer.com/data/uploads/2021/10/25181944/politco-office-595x334.jpg" alt="" width="1440" height="810"  />
+        </picture>
+
+                            </figure>
+    </section>
+
+
+	<div class="u-page__main-content">
+		    
+    <div class="u-page__share-button u-module--extended">
+    
+
+
+
+
+
+<div                                                                                                                                     class="u-theme-ice-blue u-share-button   "
+                             data-component="ShareButton"
+                    data-url="https://www.axelspringer.com/en/ax-press-release/axel-springer-completes-acquisition-of-politico"
+                    data-text="POLITICO to complement and strengthen Axel Springer’s U.S. presence / Axel Springer to support growth and expand POLITICO’s offering internationally"
+                    data-title="Axel Springer Completes Acquisition of POLITICO"
+        >
+    <button class="u-share-button__close u-button-hover">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+            <path class="u-share-button__close-icon-line" d="M21 7L7 21M7 7l14 14"/>
+        </svg>
+    </button>
+    <button class="u-share-button__open u-button-hover">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+            <circle class="u-share-button__open-icon-line" cx="20" cy="7" r="3"></circle>
+            <circle class="u-share-button__open-icon-line" cx="8" cy="14" r="3"></circle>
+            <circle class="u-share-button__open-icon-line" cx="20" cy="21" r="3"></circle>
+            <line class="u-share-button__open-icon-line" x1="10.59" y1="15.51" x2="17.42" y2="19.49"></line>
+            <line class="u-share-button__open-icon-line" x1="17.41" y1="8.51" x2="10.59" y2="12.49"></line>
+        </svg>
+    </button>
+    <div class="u-share-button__links">
+        <a class="u-share-button__link u-button-hover" href="https://twitter.com/share?text=&amp;url=https%3A%2F%2Fwww.axelspringer.com%2Fen%2Fax-press-release%2Faxel-springer-completes-acquisition-of-politico" target="_blank" rel="noopener noreferrer">
+            <svg width="28px" height="28px" viewBox="0 0 1668.56 1221.19" version="1.1" xmlns:svg="http://www.w3.org/2000/svg"
+                xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+                style="enable-background:new 0 0 1668.56 1221.19;" xml:space="preserve">
+                <g transform="translate(52.390088,-25.058597)">
+                    <path class="u-share-button__link-icon-line" d="M283.94,167.31l386.39,516.64L281.5,1104h87.51l340.42-367.76L984.48,1104h297.8L874.15,558.3l361.92-390.99
+                        h-87.51l-313.51,338.7l-253.31-338.7H283.94z M412.63,231.77h136.81l604.13,807.76h-136.81L412.63,231.77z"/>
+                </g>
+            </svg>
+        </a>
+        <a class="u-share-button__link u-button-hover" href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fwww.axelspringer.com%2Fen%2Fax-press-release%2Faxel-springer-completes-acquisition-of-politico" target="_blank" rel="noopener noreferrer">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                <path class="u-share-button__link-icon-line" d="M26 24.8181818h-5.3043274v-7.6699634c0-2.0076024-.8297272-3.3781368-2.6542803-3.3781368-1.3955786 0-2.1716839.9248662-2.5329257 1.8162026-.1354657.3199311-.1142991.7655992-.1142991 1.2112674v8.0206302h-5.2549389s.0677328-13.5865927 0-14.82161046h5.2549389v2.32613646c.3104421-1.0170735 1.9896519-2.46863852 4.669332-2.46863852C23.3880527 9.85406928 26 11.9860117 26 16.5768131v8.2413687zM4.82502352 8.14264758H4.7911571C3.09783631 8.14264758 2 7.00961656 2 5.57341941 2 4.10928068 3.13029163 3 4.85747883 3c1.72577611 0 2.7869238 1.10648652 2.82079022 2.56922817 0 1.43619715-1.09501411 2.57341941-2.85324553 2.57341941zM2.60536218 9.99657134h4.67779869V24.8181818H2.60536218V9.99657134z"/>
+            </svg>
+        </a>
+        <a class="u-share-button__link u-share-button__link--mail u-button-hover" href="mailto:?Subject=An%20interesting%20post%3A%20Axel%20Springer%20Completes%20Acquisition%20of%20POLITICO&amp;body=Here%20is%20an%20interesting%20post%20%22Axel%20Springer%20Completes%20Acquisition%20of%20POLITICO%22%0A%0Ahttps%3A%2F%2Fwww.axelspringer.com%2Fen%2Fax-press-release%2Faxel-springer-completes-acquisition-of-politico" target="_blank" rel="noopener noreferrer">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <path class="u-share-button__link-icon-line" d="M502.3 190.8a6 6 0 019.7 4.7V400a48 48 0 01-48 48H48a48 48 0 01-48-48V195.6a6 6 0 019.7-4.7c22.4 17.4 52.1 39.5 154.1 113.6 21.1 15.4 56.7 47.8 92.2 47.6 35.7.3 72-32.8 92.3-47.6 102-74.1 131.6-96.3 154-113.7zM256 320c23.2.4 56.6-29.2 73.4-41.4 132.7-96.3 142.8-104.7 173.4-128.7A24 24 0 00512 131v-19a48 48 0 00-48-48H48a48 48 0 00-48 48v19a24 24 0 009.2 18.9c30.6 23.9 40.7 32.4 173.4 128.7 16.8 12.2 50.2 41.8 73.4 41.4z"/>
+            </svg>
+        </a>
+    </div>
+</div>
+
+    </div>
+
+	        <p class="u-page__excerpt"><strong>POLITICO to complement and strengthen Axel Springer’s U.S. presence / Axel Springer to support growth and expand POLITICO’s offering internationally</strong></p>
+	
+    			
+<p>BERLIN and WASHINGTON – October 19, 2021 – Axel Springer today announced it has completed its acquisition of POLITICO, one of the world’s most influential sources for political news. The publishing group is now the 100 percent owner of the media properties previously owned by Robert Allbritton: POLITICO, POLITICO’s 50 percent interest in POLITICO Europe, Protocol, E&amp;E News and Agency IQ. The transaction was completed following receipt of all required regulatory approvals and pursuant to the terms of the agreement previously announced on August 26, 2021.</p>
+
+
+
+<p>POLITICO complements Axel Springer’s portfolio as a central asset in the firm’s already strong presence in the dynamic and increasingly diverse U.S. media market.</p>
+
+
+
+<p>Mathias Döpfner, CEO of Axel Springer, commented: “We have always believed deeply in the digital journalism business model and POLITICO is a prime example of how to make it work. They have a superior team with the highest quality standards and an impressive sense of how to convey their superior offerings in a digitized world. POLITICO’s strong growth and high profitability across a diversified earnings base is a testament to its success story. We will work with POLITICO to further elevate its growth potential and aim to help expand its offering internationally.”</p>
+
+
+
+<p>Jan Bayer, President News Media of Axel Springer, added: “We have known, appreciated and trusted each other for years through our joint venture POLITICO Europe, which we have successfully operated and grown together since 2014. I am extremely pleased to now take this existing partnership to a new level. We believe in this business, in this newsroom and this leadership team.”</p>
+
+
+
+<p>Robert L. Allbritton, Founder and Publisher of POLITICO and Protocol, said: “Today marks the dawn of a new era of opportunity for everyone connected to POLITICO. Axel Springer is the perfect owner to take our publications to the next level as we build on our excellence in Washington and Brussels, and enter new markets and territories as we have done successfully with Protocol’s essential coverage the new power dynamics of technology and E&amp;Es brilliant coverage of the energy sector and the existential issues surrounding our planet’s climate.”</p>
+
+
+
+<p><strong>For Axel Springer</strong><br>Finsbury Glover Hering<br>Andrew Johnson<br>914-497-5138<br><a href="mailto:andrew.johnson@fgh.com"><strong>andrew.johnson@fgh.com</strong></a></p>
+
+
+
+<p><strong>For POLITICO</strong><br>Brad Dayspring<br>202-550-4458<br><a href="mailto:bdayspring@politico.com"><strong>bdayspring@politico.com</strong></a></p>
+
+		
+
+	</div>
+
+		
+
+
+
+
+        <section                                                                                                                                     class="u-article-tags u-module u-theme-press "
+                             data-block-id=""
+        >
+        <span class="u-article-tags__label">Tags</span>
+        <div class="u-article-tags__list-wrapper">
+            <div class="u-article-tags__list">
+                                    
+
+
+
+
+
+    <a                                                                                                                                     class="u-tag  "
+                             href="https://www.axelspringer.com/en/tag/news-media"
+        >News Media</a>
+
+                                    
+
+
+
+
+
+    <a                                                                                                                                     class="u-tag  "
+                             href="https://www.axelspringer.com/en/tag/news-media-international"
+        >News Media International</a>
+
+                            </div>
+        </div>
+    </section>
+    
+	
+
+                            
+
+
+
+
+
+
+<section                                                                                                                                     class="u-person-info-list u-module u-module--extended u-theme-press "
+                             data-block-id=""
+        >
+                <div class="u-person-info-list__group is-first">
+
+            
+                                            
+
+
+
+
+<section                                                                                                                                     class="u-person-info-list__group-item u-person-info  "
+                 >
+    <div class="u-person-info__inner">
+
+        
+
+
+
+
+                
+    
+                        
+                
+                
+
+        <picture                                                                                                                                     class="u-person-info__image u-picture u-picture--has-aspect-ratio "
+                             data-component="Picture"
+                    style="--height: 382; --width: 382"
+        >
+                                                                            <source srcset="https://www.axelspringer.com/data/uploads/2021/01/johannes-gunst.jpg" type="image/webp">
+                                        <source srcset="https://www.axelspringer.com/data/uploads/2021/01/johannes-gunst.jpg" type="image/jpeg">
+                        <img                                                                                                                                     class=" "
+         src="https://www.axelspringer.com/data/uploads/2021/01/johannes-gunst.jpg" alt="" width="382" height="382"  />
+        </picture>
+
+
+        <div class="u-person-info__content-wrapper">
+                            <strong class="u-person-info__name"> Johannes Gunst</strong>
+                                        <span class="u-person-info__position">Deputy Director Corporate Communications</span>
+                                                    <a href="mailto:johannes.gunst@axelspringer.de" class="u-person-info__email">johannes.gunst@axelspringer.de</a>
+                                        <a href="tel:+49 30 2591 77641" class="u-person-info__phone">+49 30 2591 77641</a>
+                                </div>
+
+    </div></section>
+
+            
+        </div>
+    </section>
+
+
+
+            
+
+
+    
+
+
+<section                                                                                                                                     class="u-download-link u-hide-on-print u-module u-module--extended  u-theme-press "
+                             data-block-id=""
+        >
+    <div class="u-download-link__inner">
+                    <a id="download" class="u-download-link__anchor"></a>
+        
+        <a href="https://www.axelspringer.com/data/uploads/2021/10/28204048/axel-springer-completes-acquisition-of-politico.zip" class="u-download-link__link" target="_blank" rel="noopener noreferrer">
+            <div class="u-download-link__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                    <path d="M13.8 3.5v17M22 13.8L13.7 22l-8.2-8.2" stroke-linecap="square" stroke-width="1.5" />
+                    <path stroke-width="1.3" stroke-width="1.5" d="M1 21v5h26v-5"/>
+                </svg>
+            </div>
+            <div class="u-download-link__content">
+                <strong class="u-download-link__title">Download text and pictures in a .zip file</strong>
+                <span class="u-download-link__description">Filesize approx. 0.07 MB</span>
+            </div>
+        </a>
+    </div>
+</section>
+
+
+    
+			
+	        </main>
+
+        
+
+
+
+
+<footer                                                                                                                                     class="u-footer u-module u-module--extended u-theme-press "
+                             data-component="Footer"
+                    data-block-id=""
+        >
+    <button class="u-footer__scroll-to-top-button u-hide-on-print">
+        <svg width="28px" height="28px" viewBox="0 0 28 28" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+            <g stroke="none" stroke-width="1" fill-rule="evenodd">
+                <g transform="translate(13.500000, 14.000000) scale(1, -1) rotate(90.000000) translate(-13.500000, -14.000000) translate(2.500000, 5.500000)" stroke="#0000FF" stroke-linecap="square" stroke-width="1.5">
+                    <line x1="0" y1="8.3" x2="20.5" y2="8.3" id="Shape"></line>
+                    <polyline id="Shape" points="13.75 0 22 8.25 13.75 16.5" fill="none"></polyline>
+                </g>
+            </g>
+        </svg>
+    </button>
+    <div class="u-footer__inner">
+
+        <ul class="u-footer__menu u-hide-on-print">
+                                    <li class="u-footer__menu-item">
+                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/disclaimer"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-101147 u-footer__menu-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Disclaimer
+</a>                </li>
+                                                <li class="u-footer__menu-item">
+                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/imprint"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-100832 u-footer__menu-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Imprint
+</a>                </li>
+                                                <li class="u-footer__menu-item">
+                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/data-and-privacy"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-privacy-policy menu-item-101148 u-footer__menu-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Data and Privacy
+</a>                </li>
+                                                <li class="u-footer__menu-item">
+                    
+
+    
+
+
+    
+<a href="javascript:showPrivacyManager();"                                                                                                                                     class="u-show-privacy-manager menu-item menu-item-type-custom menu-item-object-custom menu-item-103775 u-footer__menu-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Privacy
+</a>                </li>
+                                                <li class="u-footer__menu-item">
+                    
+
+
+
+
+    
+<a href="https://www.axelspringer.com/en/contact-2"                                                                                                                                     class="menu-item menu-item-type-post_type menu-item-object-page menu-item-144511 u-footer__menu-link u-link  "
+                             target="_self"
+                    rel=""
+        >
+    Contact
+</a>                </li>
+                            </ul>
+
+        <div class="u-footer__social-links u-hide-on-print">
+                        <a class="u-footer__social-link u-footer__social-link--linkedin" href="https://www.linkedin.com/company/axelspringer/" target="_blank" rel="noopener noreferrer" title="LinkedIn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                    <path d="M26 24.8181818h-5.3043274v-7.6699634c0-2.0076024-.8297272-3.3781368-2.6542803-3.3781368-1.3955786 0-2.1716839.9248662-2.5329257 1.8162026-.1354657.3199311-.1142991.7655992-.1142991 1.2112674v8.0206302h-5.2549389s.0677328-13.5865927 0-14.82161046h5.2549389v2.32613646c.3104421-1.0170735 1.9896519-2.46863852 4.669332-2.46863852C23.3880527 9.85406928 26 11.9860117 26 16.5768131v8.2413687zM4.82502352 8.14264758H4.7911571C3.09783631 8.14264758 2 7.00961656 2 5.57341941 2 4.10928068 3.13029163 3 4.85747883 3c1.72577611 0 2.7869238 1.10648652 2.82079022 2.56922817 0 1.43619715-1.09501411 2.57341941-2.85324553 2.57341941zM2.60536218 9.99657134h4.67779869V24.8181818H2.60536218V9.99657134z"/>
+                </svg>
+            </a>
+                        <a class="u-footer__social-link u-footer__social-link--twitter" href="https://twitter.com/axelspringer" target="_blank" rel="noopener noreferrer" title="X (Twitter)">
+                <svg width="28px" height="28px" viewBox="0 0 1668.56 1221.19" version="1.1" xmlns:svg="http://www.w3.org/2000/svg"
+                xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+                style="enable-background:new 0 0 1668.56 1221.19;" xml:space="preserve">
+                    <g transform="translate(52.390088,-25.058597)">
+                        <path d="M283.94,167.31l386.39,516.64L281.5,1104h87.51l340.42-367.76L984.48,1104h297.8L874.15,558.3l361.92-390.99
+                            h-87.51l-313.51,338.7l-253.31-338.7H283.94z M412.63,231.77h136.81l604.13,807.76h-136.81L412.63,231.77z" stroke="none" stroke-width="1" fill-rule="evenodd" fill="currentColor"/>
+                    </g>
+                </svg>
+            </a>
+                        <a class="u-footer__social-link u-footer__social-link--youtube" href="https://www.youtube.com/axelspringer" target="_blank" rel="noopener noreferrer" title="Youtube">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                    <path d="M10.9009253 18L10.9 10l8 4.0137916L10.9009253 18zM27.62 8.31421336s-.273875-1.95939042-1.113-2.82223309c-1.064875-1.13298085-2.258375-1.13831252-2.80525-1.20406984C19.7835 4 13.906125 4 13.906125 4h-.01225S8.0165 4 4.09825 4.28791043c-.54775.06575732-1.740375.071089-2.806125 1.20406984C.453 6.35482294.18 8.31421336.18 8.31421336s-.28 2.30150619-.28 4.60212378v2.15755096c0 2.3015062.28 4.6021238.28 4.6021238s.273 1.9593904 1.112125 2.8222331C2.357875 23.6312258 3.757 23.5956813 4.38 23.7138668 6.62 23.9324655 13.9 24 13.9 24s5.8835-.0088861 9.80175-.2967966c.546875-.0666459 1.740375-.0719776 2.80525-1.2049584.839125-.8628427 1.113-2.8222331 1.113-2.8222331s.28-2.3006176.28-4.6021238v-2.15755096c0-2.30061759-.28-4.60212378-.28-4.60212378z"/>
+                </svg>
+            </a>
+                        <a class="u-footer__social-link u-footer__social-link--instagram" href="https://www.instagram.com/axelspringer_se/" target="_blank" rel="noopener noreferrer" title="Instagram">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+                    <path d="M14.3356727,-0.00113250019 C14.4449044,-0.0011019026 14.5512033,-0.00105550672 14.6546902,-0.000992313567 L15.7692882,0.000636209201 C17.0960701,0.00405309334 17.8266965,0.0127930483 18.4560492,0.0309479422 L18.6882758,0.0382053447 L18.6882758,0.0382053447 L18.9168074,0.0463933492 C19.1835275,0.0565075202 19.454544,0.0686195717 19.7712985,0.0830721577 C21.2614575,0.151039055 22.2791826,0.387728358 23.169699,0.733842699 C24.0903364,1.09157199 24.8710944,1.57028569 25.6494626,2.34859837 C26.4277753,3.12696662 26.906489,3.90772454 27.2642739,4.82836202 C27.6103326,5.71887843 27.8470219,6.73660353 27.9149888,8.22676248 C27.9294414,8.54351695 27.9415535,8.81453348 27.9516676,9.0812541 L27.9598556,9.3097863 C27.9842856,10.0362617 27.9947177,10.8183214 27.9980041,12.4846853 L27.9988123,13.0412672 C27.9989101,13.1392523 27.9989901,13.2399286 27.9990533,13.3434169 L27.9990533,14.6546902 C27.9989901,14.758177 27.9989101,14.8588518 27.9988123,14.9568355 L27.9980041,15.5134096 C27.9950636,17.0043462 27.9864026,17.787362 27.967113,18.4560492 L27.9598556,18.6882758 L27.9598556,18.6882758 L27.9516676,18.9168074 C27.9415535,19.1835275 27.9294414,19.454544 27.9149888,19.7712985 C27.8470219,21.2614575 27.6103326,22.2791826 27.2642739,23.169699 C26.906489,24.0903364 26.4277753,24.8710944 25.6494626,25.6494626 C24.8710944,26.4277753 24.0903364,26.906489 23.169699,27.2642739 C22.2791826,27.6103326 21.2614575,27.8470219 19.7712985,27.9149888 C19.454544,27.9294414 19.1835275,27.9415535 18.9168074,27.9516676 L18.6882758,27.9598556 L18.6882758,27.9598556 L18.4560492,27.967113 C17.787362,27.9864026 17.0043462,27.9950636 15.5134096,27.9980041 L14.9568355,27.9988123 C14.8588518,27.9989101 14.758177,27.9989901 14.6546902,27.9990533 L13.3434169,27.9990533 C13.2399286,27.9989901 13.1392523,27.9989101 13.0412672,27.9988123 L12.4846853,27.9980041 C10.8183214,27.9947177 10.0362617,27.9842856 9.3097863,27.9598556 L9.0812541,27.9516676 C8.81453348,27.9415535 8.54351695,27.9294414 8.22676248,27.9149888 C6.73660353,27.8470219 5.71887843,27.6103326 4.82836202,27.2642739 C3.90772454,26.906489 3.12696662,26.4277753 2.34859837,25.6494626 C1.57028569,24.8710944 1.09157199,24.0903364 0.733842699,23.169699 C0.387728358,22.2791826 0.151039055,21.2614575 0.0830721577,19.7712985 C0.0686195717,19.454544 0.0565075202,19.1835275 0.0463933492,18.9168074 L0.0382053447,18.6882758 L0.0382053447,18.6882758 L0.0309479422,18.4560492 C0.0127930483,17.8266965 0.00405309334,17.0960701 0.000636209199,15.7692882 L-0.000992313569,14.6546902 C-0.00111869988,14.4477164 -0.00117789707,14.2294947 -0.00117789707,13.9990583 L-0.00113250019,13.6624389 C-0.0011019026,13.5532056 -0.00105550673,13.4469052 -0.000992313569,13.3434169 L0.000636209199,12.2288032 C0.00448020386,10.7361533 0.01506121,9.99802619 0.0382053447,9.3097863 L0.0463933492,9.0812541 C0.0565075202,8.81453348 0.0686195717,8.54351695 0.0830721577,8.22676248 C0.151039055,6.73660353 0.387728358,5.71887843 0.733842699,4.82836202 C1.09157199,3.90772454 1.57028569,3.12696662 2.34859837,2.34859837 C3.12696662,1.57028569 3.90772454,1.09157199 4.82836202,0.733842699 C5.71887843,0.387728358 6.73660353,0.151039055 8.22676248,0.0830721577 C8.54351695,0.0686195717 8.81453348,0.0565075202 9.0812541,0.0463933492 L9.3097863,0.0382053447 C9.99802619,0.01506121 10.7361533,0.00448020386 12.2288032,0.000636209201 L13.3434169,-0.000992313567 C13.5503936,-0.00111869988 13.7686185,-0.00117789707 13.9990583,-0.00117789707 Z M14.9670985,2.52178622 L13.0310038,2.52178622 C10.1687128,2.5245221 9.67961049,2.54197475 8.34174491,2.60301575 C6.97673841,2.66525853 6.23543796,2.89333388 5.74210832,3.08506388 C5.08861466,3.33903667 4.62223837,3.64241468 4.13235431,4.13235431 C3.64241468,4.62223837 3.33903667,5.08861466 3.08506388,5.74210832 C2.89333388,6.23543796 2.66525853,6.97673841 2.60301575,8.34174491 C2.54197475,9.67961049 2.5245221,10.1687128 2.52178622,13.0310038 L2.52178622,14.9670985 C2.5245221,17.8293482 2.54197475,18.3184505 2.60301575,19.6563161 C2.66525853,21.0213226 2.89333388,21.762623 3.08506388,22.2559527 C3.33903667,22.9094463 3.64247025,23.3758226 4.13235431,23.8657067 C4.62223837,24.3556463 5.08861466,24.6590243 5.74210832,24.9129971 C6.23543796,25.1047271 6.97673841,25.3328025 8.34174491,25.3950452 C9.6794594,25.4560862 10.1684563,25.4735389 13.0309357,25.4762748 L14.967168,25.4762748 C17.8296141,25.4735389 18.318652,25.4560862 19.6563161,25.3950452 C21.0213226,25.3328025 21.762623,25.1047271 22.2559527,24.9129971 C22.9094463,24.6590243 23.3758226,24.3556463 23.8657067,23.8657067 C24.3556463,23.3758226 24.6590243,22.9094463 24.9129971,22.2559527 C25.1047271,21.762623 25.3328025,21.0213226 25.3950452,19.6563161 C25.4560862,18.3184505 25.4735389,17.8293482 25.4762748,14.9670985 L25.4762748,13.0310038 C25.4735389,10.1687128 25.4560862,9.67961049 25.3950452,8.34174491 C25.3328025,6.97673841 25.1047271,6.23543796 24.9129971,5.74210832 C24.6590243,5.08861466 24.3556463,4.62223837 23.8657067,4.13235431 C23.3758226,3.64241468 22.9094463,3.33903667 22.2559527,3.08506388 C21.762623,2.89333388 21.0213226,2.66525853 19.6563161,2.60301575 C18.3184505,2.54197475 17.8293482,2.5245221 14.9670985,2.52178622 Z M13.9990583,6.8097388 C17.9695922,6.8097388 21.1883222,10.0284688 21.1883222,13.9990583 C21.1883222,17.9695922 17.9695922,21.1883222 13.9990583,21.1883222 C10.0284688,21.1883222 6.8097388,17.9695922 6.8097388,13.9990583 C6.8097388,10.0284688 10.0284688,6.8097388 13.9990583,6.8097388 Z M13.9990583,9.33229436 C11.4216513,9.33229436 9.33229436,11.4216513 9.33229436,13.9990583 C9.33229436,16.5764097 11.4216513,18.6657666 13.9990583,18.6657666 C16.5764097,18.6657666 18.6657666,16.5764097 18.6657666,13.9990583 C18.6657666,11.4216513 16.5764097,9.33229436 13.9990583,9.33229436 Z M21.4723605,4.8456455 C22.4002225,4.8456455 23.1524155,5.59783844 23.1524155,6.52570052 C23.1524155,7.4535626 22.4002225,8.20569996 21.4723605,8.20569996 C20.544554,8.20569996 19.792361,7.4535626 19.792361,6.52570052 C19.792361,5.59783844 20.544554,4.8456455 21.4723605,4.8456455 Z"></path>
+                </svg>
+            </a>
+        </div>
+
+        <p class="u-footer__copyright">
+                                    © Axel Springer SE 2026<br />Axel Springer is the media and tech company.        </p>
+    </div>
+</footer>
+
+    </div>
+
+			
+
+
+		<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/axelspringer/*","/wp-content/themes/unitb/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+
+
+		<script src="https://www.axelspringer.com/wp-content/themes/axelspringer/static/js/bundle.min.js?v=1783942857974"></script>
+	</body>
+</html>

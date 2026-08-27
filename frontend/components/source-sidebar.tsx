@@ -219,7 +219,7 @@ export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarP
           </div>
           <div className="space-y-2">
             <Link
-              href="/wiki"
+              href="/wiki/ownership"
               className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
               onClick={onClose}
             >

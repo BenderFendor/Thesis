@@ -128,6 +128,188 @@ def _window_start(window: str) -> datetime:
     return now - timedelta(days=1)
 
 
+def _resolve_query_embeddings(
+    embedded_ids: list[str],
+    embedding_rows: list[Any],
+) -> tuple[list[int], list[list[float]]]:
+    resolved_article_ids: list[int] = []
+    query_embeddings: list[list[float]] = []
+    for chroma_id, raw_embedding in zip(embedded_ids, embedding_rows, strict=False):
+        if not chroma_id.startswith("article_"):
+            continue
+        try:
+            article_id = int(chroma_id.replace("article_", ""))
+        except ValueError:
+            continue
+
+        if hasattr(raw_embedding, "tolist"):
+            query_embedding = cast(list[float], cast(Any, raw_embedding).tolist())
+        else:
+            query_embedding = list(cast(Sequence[float], raw_embedding))
+        if not query_embedding:
+            continue
+        resolved_article_ids.append(article_id)
+        query_embeddings.append(query_embedding)
+    return resolved_article_ids, query_embeddings
+
+
+def _clusters_from_ids_batches(
+    resolved_article_ids: list[int],
+    ids_batches: list[list[str]],
+    distance_batches: list[list[float | None]],
+) -> dict[int, ClusterCandidate]:
+    clusters: dict[int, ClusterCandidate] = {}
+    for article_id, ids_batch, distances_batch in zip(
+        resolved_article_ids,
+        ids_batches,
+        distance_batches,
+        strict=False,
+    ):
+        member_ids: list[int] = []
+        similarities: dict[int, float] = {}
+        for member_chroma_id, distance in zip(ids_batch, distances_batch, strict=False):
+            if not member_chroma_id.startswith("article_"):
+                continue
+            try:
+                member_id = int(member_chroma_id.replace("article_", ""))
+            except ValueError:
+                continue
+            similarity = 1 - distance if distance is not None else 0.0
+            if similarity < SIMILARITY_THRESHOLD:
+                continue
+            member_ids.append(member_id)
+            similarities[member_id] = similarity
+
+        if article_id not in member_ids:
+            member_ids.insert(0, article_id)
+            similarities[article_id] = similarities.get(article_id, 1.0)
+
+        if len(member_ids) < MIN_CLUSTER_SIZE:
+            continue
+
+        clusters[article_id] = ClusterCandidate(
+            anchor_id=article_id,
+            member_ids=member_ids,
+            similarities=similarities,
+        )
+    return clusters
+
+
+def _embedding_for_article(embedded: Any) -> list[float] | None:
+    embeddings = embedded.get("embeddings") if embedded else None
+    if embeddings is None or len(embeddings) == 0:
+        return None
+    query_embedding_raw = embeddings[0]
+    if len(query_embedding_raw) == 0:
+        return None
+    if isinstance(query_embedding_raw, list):
+        return query_embedding_raw
+    if hasattr(query_embedding_raw, "tolist"):
+        return cast(list[float], cast(Any, query_embedding_raw).tolist())
+    return list(query_embedding_raw)
+
+
+def _merge_candidate_clusters(
+    candidates: Sequence[ClusterCandidate],
+    candidate_by_anchor: dict[int, ClusterCandidate],
+) -> list[ClusterCandidate]:
+    all_ids: set[int] = set()
+    for cluster in candidates:
+        all_ids.update(cluster.member_ids)
+
+    parent: dict[int, int] = {article_id: article_id for article_id in all_ids}
+
+    def find(article_id: int) -> int:
+        """Find."""
+        root = article_id
+        while parent[root] != root:
+            root = parent[root]
+        while parent[article_id] != article_id:
+            next_id = parent[article_id]
+            parent[article_id] = root
+            article_id = next_id
+        return root
+
+    def union(a: int, b: int) -> None:
+        """Union."""
+        root_a = find(a)
+        root_b = find(b)
+        if root_a != root_b:
+            parent[root_b] = root_a
+
+    for cluster in candidates:
+        anchor_id = cluster.anchor_id
+        for member_id in cluster.member_ids:
+            union(anchor_id, member_id)
+
+    components: dict[int, set[int]] = {}
+    for article_id in parent:
+        root = find(article_id)
+        components.setdefault(root, set()).add(article_id)
+
+    clusters: list[ClusterCandidate] = []
+    for members in components.values():
+        if len(members) < MIN_CLUSTER_SIZE:
+            continue
+        anchors = [anchor_id for anchor_id in members if anchor_id in candidate_by_anchor]
+        if not anchors:
+            anchor_id = min(members)
+            similarities: dict[int, float] = {}
+        else:
+            best_anchor = anchors[0]
+            best_score = (-1, -1.0)
+            for anchor_id in anchors:
+                candidate = candidate_by_anchor[anchor_id]
+                size_score = len(candidate.member_ids)
+                sim_total = sum(candidate.similarities.values())
+                sim_avg = sim_total / max(len(candidate.similarities), 1)
+                score = (size_score, sim_avg)
+                if score > best_score:
+                    best_score = score
+                    best_anchor = anchor_id
+            anchor_id = best_anchor
+            similarities = candidate_by_anchor[anchor_id].similarities
+
+        clusters.append(
+            ClusterCandidate(
+                anchor_id=anchor_id,
+                member_ids=list(members),
+                similarities=similarities,
+            )
+        )
+
+    return clusters
+
+
+def _normalize_snapshot_articles(raw_articles: list[Any]) -> list[dict[str, Any]]:
+    articles: list[dict[str, Any]] = []
+    for article in raw_articles:
+        if not isinstance(article, dict):
+            continue
+        normalized_article = {**article}
+        normalized_article.setdefault("similarity", 1.0)
+        normalized_article.setdefault("gdelt_context", None)
+        articles.append(normalized_article)
+    return articles
+
+
+def _attach_article_gdelt_context(
+    article: dict[str, Any],
+    events_by_article: dict[int, list[dict[str, Any]]],
+    tone_baseline_avg: float | None,
+) -> dict[str, Any]:
+    article_id = article.get("id")
+    if article_id is None:
+        article.setdefault("gdelt_context", None)
+        return article
+    context = build_article_gdelt_context(
+        events_by_article.get(int(article_id), []),
+        tone_baseline_avg=tone_baseline_avg,
+    )
+    article["gdelt_context"] = context
+    return article
+
+
 class ChromaTopicService:
     """Chroma Topic Service."""
 
@@ -216,24 +398,14 @@ class ChromaTopicService:
         else:
             payload.setdefault("gdelt_context", None)
 
-        def _attach_article_context(article: dict[str, Any]) -> dict[str, Any]:
-            article_id = article.get("id")
-            if article_id is None:
-                article.setdefault("gdelt_context", None)
-                return article
-            context = build_article_gdelt_context(
-                events_by_article.get(int(article_id), []),
-                tone_baseline_avg=tone_baseline_avg,
-            )
-            article["gdelt_context"] = context
-            return article
-
         representative = payload.get("representative_article")
         if isinstance(representative, dict):
-            payload["representative_article"] = _attach_article_context(representative)
+            payload["representative_article"] = _attach_article_gdelt_context(
+                representative, events_by_article, tone_baseline_avg
+            )
 
         payload["articles"] = [
-            _attach_article_context(article)
+            _attach_article_gdelt_context(article, events_by_article, tone_baseline_avg)
             for article in cast(list[dict[str, Any]], payload.get("articles") or [])
             if isinstance(article, dict)
         ]
@@ -416,25 +588,9 @@ class ChromaTopicService:
             if not embedded_ids or not embedding_rows:
                 return {}
 
-            resolved_article_ids: list[int] = []
-            query_embeddings: list[list[float]] = []
-            for chroma_id, raw_embedding in zip(embedded_ids, embedding_rows, strict=False):
-                if not chroma_id.startswith("article_"):
-                    continue
-                try:
-                    article_id = int(chroma_id.replace("article_", ""))
-                except ValueError:
-                    continue
-
-                if hasattr(raw_embedding, "tolist"):
-                    query_embedding = cast(list[float], cast(Any, raw_embedding).tolist())
-                else:
-                    query_embedding = list(cast(Sequence[float], raw_embedding))
-                if not query_embedding:
-                    continue
-                resolved_article_ids.append(article_id)
-                query_embeddings.append(query_embedding)
-
+            resolved_article_ids, query_embeddings = _resolve_query_embeddings(
+                embedded_ids, embedding_rows
+            )
             if not resolved_article_ids:
                 return {}
 
@@ -456,43 +612,7 @@ class ChromaTopicService:
 
         ids_batches = cast(list[list[str]], result.get("ids") or [])
         distance_batches = cast(list[list[float | None]], result.get("distances") or [])
-        clusters: dict[int, ClusterCandidate] = {}
-
-        for article_id, ids_batch, distances_batch in zip(
-            resolved_article_ids,
-            ids_batches,
-            distance_batches,
-            strict=False,
-        ):
-            member_ids: list[int] = []
-            similarities: dict[int, float] = {}
-            for member_chroma_id, distance in zip(ids_batch, distances_batch, strict=False):
-                if not member_chroma_id.startswith("article_"):
-                    continue
-                try:
-                    member_id = int(member_chroma_id.replace("article_", ""))
-                except ValueError:
-                    continue
-                similarity = 1 - distance if distance is not None else 0.0
-                if similarity < SIMILARITY_THRESHOLD:
-                    continue
-                member_ids.append(member_id)
-                similarities[member_id] = similarity
-
-            if article_id not in member_ids:
-                member_ids.insert(0, article_id)
-                similarities[article_id] = similarities.get(article_id, 1.0)
-
-            if len(member_ids) < MIN_CLUSTER_SIZE:
-                continue
-
-            clusters[article_id] = ClusterCandidate(
-                anchor_id=article_id,
-                member_ids=member_ids,
-                similarities=similarities,
-            )
-
-        return clusters
+        return _clusters_from_ids_batches(resolved_article_ids, ids_batches, distance_batches)
 
     async def get_search_suggestions(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Get Search Suggestions."""
@@ -567,15 +687,7 @@ class ChromaTopicService:
         if best_match is None:
             return None
 
-        raw_articles = best_match.get("articles") or []
-        articles = []
-        for article in raw_articles:
-            if not isinstance(article, dict):
-                continue
-            normalized_article = {**article}
-            normalized_article.setdefault("similarity", 1.0)
-            normalized_article.setdefault("gdelt_context", None)
-            articles.append(normalized_article)
+        articles = _normalize_snapshot_articles(best_match.get("articles") or [])
         published_dates = sorted(
             article["published_at"] for article in articles if article.get("published_at")
         )
@@ -758,72 +870,7 @@ class ChromaTopicService:
             logger.warning("No Chroma cluster candidates found; using lexical fallback")
             return self._cluster_articles_lexical(article_window)
 
-        all_ids: set[int] = set()
-        for cluster in candidates:
-            all_ids.update(cluster.member_ids)
-
-        parent: dict[int, int] = {article_id: article_id for article_id in all_ids}
-
-        def find(article_id: int) -> int:
-            """Find."""
-            root = article_id
-            while parent[root] != root:
-                root = parent[root]
-            while parent[article_id] != article_id:
-                next_id = parent[article_id]
-                parent[article_id] = root
-                article_id = next_id
-            return root
-
-        def union(a: int, b: int) -> None:
-            """Union."""
-            root_a = find(a)
-            root_b = find(b)
-            if root_a != root_b:
-                parent[root_b] = root_a
-
-        for cluster in candidates:
-            anchor_id = cluster.anchor_id
-            for member_id in cluster.member_ids:
-                union(anchor_id, member_id)
-
-        components: dict[int, set[int]] = {}
-        for article_id in parent:
-            root = find(article_id)
-            components.setdefault(root, set()).add(article_id)
-
-        clusters: list[ClusterCandidate] = []
-        for members in components.values():
-            if len(members) < MIN_CLUSTER_SIZE:
-                continue
-            anchors = [anchor_id for anchor_id in members if anchor_id in candidate_by_anchor]
-            if not anchors:
-                anchor_id = min(members)
-                similarities: dict[int, float] = {}
-            else:
-                best_anchor = anchors[0]
-                best_score = (-1, -1.0)
-                for anchor_id in anchors:
-                    candidate = candidate_by_anchor[anchor_id]
-                    size_score = len(candidate.member_ids)
-                    sim_total = sum(candidate.similarities.values())
-                    sim_avg = sim_total / max(len(candidate.similarities), 1)
-                    score = (size_score, sim_avg)
-                    if score > best_score:
-                        best_score = score
-                        best_anchor = anchor_id
-                anchor_id = best_anchor
-                similarities = candidate_by_anchor[anchor_id].similarities
-
-            clusters.append(
-                ClusterCandidate(
-                    anchor_id=anchor_id,
-                    member_ids=list(members),
-                    similarities=similarities,
-                )
-            )
-
-        return clusters
+        return _merge_candidate_clusters(candidates, candidate_by_anchor)
 
     def _article_keyword_set(self, article: Article) -> set[str]:
         return {keyword.lower() for keyword in self._extract_keywords(article)}
@@ -898,18 +945,9 @@ class ChromaTopicService:
                 ids=[chroma_id],
                 include=_get_chroma_include("embeddings"),
             )
-            embeddings = embedded.get("embeddings") if embedded else None
-            if embeddings is None or len(embeddings) == 0:
+            query_embedding = _embedding_for_article(embedded)
+            if query_embedding is None:
                 return None
-            query_embedding_raw = embeddings[0]
-            if len(query_embedding_raw) == 0:
-                return None
-            if isinstance(query_embedding_raw, list):
-                query_embedding = query_embedding_raw
-            elif hasattr(query_embedding_raw, "tolist"):
-                query_embedding = cast(list[float], cast(Any, query_embedding_raw).tolist())
-            else:
-                query_embedding = list(query_embedding_raw)
 
             result = vector_store.collection.query(
                 query_embeddings=cast(

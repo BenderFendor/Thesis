@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AtlasEdge, AtlasNode } from "../lib/atlas-schema";
 import type { AtlasLayoutMode } from "../lib/atlas-query-state";
-import type { AtlasLayoutResponse, AtlasPosition } from "../lib/atlas-layout-protocol";
+import { AtlasForceLayoutRunner, type AtlasPosition } from "../lib/atlas-force-layout";
 
 interface UseAtlasLayoutOptions {
   nodes: AtlasNode[];
@@ -17,6 +17,11 @@ interface UseAtlasLayoutOptions {
 }
 
 const layoutCache = new Map<string, Record<string, AtlasPosition>>();
+
+// Iterations run on the main thread in small batches per animation frame so
+// the simulation stays interactive instead of blocking a single long task.
+const ITERATIONS_PER_FRAME = 4;
+const POST_INTERVAL_MS = 48;
 
 function topologyKey(options: UseAtlasLayoutOptions): string {
   const ids = options.nodes.map((node) => node.id).sort().join("|");
@@ -40,38 +45,7 @@ export function useAtlasLayout(options: UseAtlasLayoutOptions) {
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    const worker = new Worker(new URL("../../../workers/atlas-layout.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    worker.onmessage = (event: MessageEvent<AtlasLayoutResponse>) => {
-      if (event.data.requestId !== requestIdRef.current) return;
-      const complete = event.data.type === "complete";
-      setResult({ key, positions: event.data.positions, stable: complete });
-      if (complete) {
-        layoutCache.set(key, event.data.positions);
-        worker.terminate();
-      }
-    };
-    worker.onerror = () => {
-      const fallback = Object.fromEntries(
-        options.nodes.map((node, index) => {
-          const angle = (index / Math.max(options.nodes.length, 1)) * Math.PI * 2;
-          const radius = Math.min(options.width, options.height) * 0.32;
-          return [
-            node.id,
-            {
-              x: options.width / 2 + Math.cos(angle) * radius,
-              y: options.height / 2 + Math.sin(angle) * radius,
-            },
-          ];
-        }),
-      );
-      setResult({ key, positions: fallback, stable: true });
-      worker.terminate();
-    };
-    worker.postMessage({
-      type: "layout",
-      requestId,
+    const runner = new AtlasForceLayoutRunner({
       width: options.width,
       height: options.height,
       layout: options.layout,
@@ -90,9 +64,54 @@ export function useAtlasLayout(options: UseAtlasLayoutOptions) {
       })),
     });
 
+    let rafId = 0;
+    let lastPosted = 0;
+
+    function frame() {
+      if (requestIdRef.current !== requestId) return;
+      try {
+        for (let step = 0; step < ITERATIONS_PER_FRAME && runner.hasNext(); step += 1) {
+          runner.step();
+        }
+      } catch {
+        // Never leave the graph stuck un-stable: mirror the old worker's
+        // onerror fallback with a deterministic ring layout.
+        const fallback = Object.fromEntries(
+          options.nodes.map((node, index) => {
+            const angle = (index / Math.max(options.nodes.length, 1)) * Math.PI * 2;
+            const radius = Math.min(options.width, options.height) * 0.32;
+            return [
+              node.id,
+              {
+                x: options.width / 2 + Math.cos(angle) * radius,
+                y: options.height / 2 + Math.sin(angle) * radius,
+              },
+            ];
+          }),
+        );
+        setResult({ key, positions: fallback, stable: true });
+        layoutCache.set(key, fallback);
+        return;
+      }
+      if (runner.hasNext()) {
+        const now = performance.now();
+        if (now - lastPosted > POST_INTERVAL_MS) {
+          lastPosted = now;
+          setResult({ key, positions: runner.getPositions(), stable: false });
+        }
+        rafId = requestAnimationFrame(frame);
+        return;
+      }
+      const positions = runner.getPositions();
+      setResult({ key, positions, stable: true });
+      layoutCache.set(key, positions);
+    }
+
+    rafId = requestAnimationFrame(frame);
+
     return () => {
-      worker.postMessage({ type: "cancel", requestId });
-      worker.terminate();
+      requestIdRef.current += 1;
+      cancelAnimationFrame(rafId);
     };
   }, [cached, empty, key, options]);
 

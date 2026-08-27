@@ -8,7 +8,7 @@ import re
 from typing import Any
 from collections.abc import Sequence
 
-from app.core.config import get_openai_client, settings
+from app.core.config import get_openai_client, resolve_opencode_model, settings
 from app.core.logging import get_logger
 from app.services.prompting import build_json_system_prompt
 from app.services.source_profile_extractor import FIELD_KEYS, SourceDocument
@@ -53,7 +53,7 @@ async def extract_fields_from_documents(
     try:
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=settings.source_research_model,
+                model=resolve_opencode_model(settings.source_research_model),
                 messages=[
                     {"role": "system", "content": EXTRACTION_PROMPT},
                     {

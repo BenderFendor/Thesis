@@ -58,6 +58,41 @@ function isCloudflaredTunnelHostname(hostname: string): boolean {
   return CLOUDFLARED_TUNNEL_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
+// Rewrites a localhost-style backend URL to the current browser hostname so
+// remote browsers on the LAN or a Cloudflare tunnel can reach this machine.
+const rewriteRemoteBackendUrl = (url: URL): string | null => {
+  const browserHostname = window.location.hostname
+
+  if (
+    PUBLIC_FRONTEND_DOMAIN &&
+    PUBLIC_API_FALLBACK &&
+    isLocalHostname(url.hostname) &&
+    isPublicFrontendHostname(browserHostname) &&
+    !browserHostname.startsWith("api.")
+  ) {
+    return PUBLIC_API_FALLBACK
+  }
+
+  const shouldRewriteLocalHost =
+    isLanHostname(browserHostname) ||
+    isCloudflaredTunnelHostname(browserHostname)
+
+  if (!browserHostname || !isLocalHostname(url.hostname) || !shouldRewriteLocalHost) {
+    return null
+  }
+
+  url.hostname = browserHostname
+  url.protocol = window.location.protocol
+
+  if (window.location.protocol === 'https:') {
+    url.port = ''
+  } else if (!url.port) {
+    url.port = DEFAULT_BACKEND_PORT
+  }
+
+  return url.toString().replace(/\/+$/, "")
+}
+
 // Default to localhost backend when env var is not set. If the UI is opened from
 // another device on the LAN or Cloudflare tunnel, rewrite localhost-style backend
 // URLs to the current browser hostname so remote browsers can reach this machine.
@@ -71,36 +106,7 @@ const resolveBaseUrl = (value?: string) => {
 
   try {
     const url = new URL(normalized)
-    const browserHostname = window.location.hostname
-
-    if (
-      PUBLIC_FRONTEND_DOMAIN &&
-      PUBLIC_API_FALLBACK &&
-      isLocalHostname(url.hostname) &&
-      isPublicFrontendHostname(browserHostname) &&
-      !browserHostname.startsWith("api.")
-    ) {
-      return PUBLIC_API_FALLBACK
-    }
-
-    const shouldRewriteLocalHost =
-      isLanHostname(browserHostname) ||
-      isCloudflaredTunnelHostname(browserHostname)
-
-    if (!browserHostname || !isLocalHostname(url.hostname) || !shouldRewriteLocalHost) {
-      return normalized
-    }
-
-    url.hostname = browserHostname
-    url.protocol = window.location.protocol
-
-    if (window.location.protocol === 'https:') {
-      url.port = ''
-    } else if (!url.port) {
-      url.port = DEFAULT_BACKEND_PORT
-    }
-
-    return url.toString().replace(/\/+$/, "")
+    return rewriteRemoteBackendUrl(url) ?? normalized
   } catch {
     return normalized
   }
@@ -1839,6 +1845,285 @@ export async function fetchSourceCredibility(domain: string): Promise<SourceCred
   return response.json()
 }
 
+interface StreamRuntime {
+  articles: NewsArticle[];
+  sources: Set<string>;
+  errors: string[];
+  streamId: string | undefined;
+  hasReceivedData: boolean;
+  settled: boolean;
+  lastMessageTime: number;
+  onProgress?: (progress: StreamProgress) => void;
+  onSourceComplete?: (source: string, articles: NewsArticle[]) => void;
+  onError?: (error: string) => void;
+  clearTimers: () => void;
+  abort: () => void;
+  resolve: (value: StreamResult) => void;
+  reject: (error: unknown) => void;
+}
+
+type StreamResult = {
+  articles: NewsArticle[];
+  sources: string[];
+  streamId?: string;
+  errors: string[];
+};
+
+function streamResolve(rt: StreamRuntime, extraErrors?: string[]): void {
+  if (rt.settled) return;
+  rt.settled = true;
+  rt.clearTimers();
+  rt.resolve({
+    articles: removeDuplicateArticles(rt.articles),
+    sources: Array.from(rt.sources),
+    streamId: rt.streamId,
+    errors: extraErrors ? [...rt.errors, ...extraErrors] : rt.errors,
+  });
+}
+
+function streamReject(rt: StreamRuntime, error: unknown): void {
+  if (rt.settled) return;
+  rt.settled = true;
+  rt.clearTimers();
+  rt.reject(error);
+}
+
+function queueStreamBatches(
+  articlesToQueue: NewsArticle[],
+  rt: StreamRuntime,
+  batchLabel: string,
+  finalProgress: () => StreamProgress,
+): void {
+  (async () => {
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < articlesToQueue.length; i += BATCH_SIZE) {
+      const batch = articlesToQueue.slice(i, i + BATCH_SIZE);
+      rt.articles.push(...batch);
+      batch.forEach((article) => rt.sources.add(article.source));
+      if (rt.onSourceComplete) {
+        rt.onSourceComplete(`${batchLabel}-${Math.floor(i / BATCH_SIZE)}`, batch);
+      }
+      if (i + BATCH_SIZE < articlesToQueue.length) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    rt.onProgress?.(finalProgress());
+  })();
+}
+
+function handleInitialEvent(data: StreamEvent, rt: StreamRuntime): void {
+  rt.hasReceivedData = true;
+  if (data.articles && Array.isArray(data.articles)) {
+    const mappedArticles = mapBackendArticles(data.articles);
+    const cacheAge = data.cache_age_seconds || 999;
+    logger.debug(
+      `Stream ${rt.streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
+    );
+    queueStreamBatches(mappedArticles, rt, "initial-batch", () => ({
+      completed: 0,
+      total: 0,
+      percentage: 0,
+      message: `Instantly loaded ${mappedArticles.length} articles from cache`,
+    }));
+  } else {
+    console.warn(
+      "[streamNews] 'initial' event received but 'articles' is not an array or is missing.",
+      data,
+    );
+  }
+}
+
+function handleCacheDataEvent(data: StreamEvent, rt: StreamRuntime): void {
+  rt.hasReceivedData = true;
+  if (data.articles && Array.isArray(data.articles)) {
+    const mappedArticles = mapBackendArticles(data.articles);
+    const cacheAge = data.cache_age_seconds || 999;
+    logger.debug(
+      `Stream ${rt.streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
+    );
+    queueStreamBatches(mappedArticles, rt, "cache-batch", () => ({
+      completed: rt.sources.size,
+      total: rt.sources.size,
+      percentage: 0,
+      message: `Loaded ${mappedArticles.length} cached articles`,
+    }));
+    if (cacheAge < 120) {
+      logger.debug(
+        `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`,
+      );
+      setTimeout(() => {
+        if (!rt.settled && rt.hasReceivedData) {
+          logger.debug("Auto-completing stream after fresh cache timeout");
+          rt.abort();
+        }
+      }, 5000);
+    }
+  } else {
+    console.warn(
+      "[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.",
+      data,
+    );
+  }
+}
+
+function handleSourceCompleteEvent(data: StreamEvent, rt: StreamRuntime): void {
+  rt.hasReceivedData = true;
+  if (data.articles && data.source) {
+    const mappedArticles = mapBackendArticles(data.articles);
+    rt.articles.push(...mappedArticles);
+    rt.sources.add(data.source);
+    logger.debug(
+      `Stream ${rt.streamId} source complete: ${data.source} (${mappedArticles.length} articles)`,
+    );
+    rt.onSourceComplete?.(data.source, mappedArticles);
+    if (data.progress) rt.onProgress?.(data.progress);
+  }
+}
+
+function handleSourceErrorEvent(data: StreamEvent, rt: StreamRuntime): void {
+  const errorMsg = `Error loading ${data.source}: ${data.error}`;
+  console.warn(`Stream ${rt.streamId} source error:`, errorMsg);
+  rt.errors.push(errorMsg);
+  rt.onError?.(errorMsg);
+  if (data.progress) rt.onProgress?.(data.progress);
+}
+
+function handleCompleteEvent(data: StreamEvent, rt: StreamRuntime): void {
+  logger.debug(`Stream ${rt.streamId} complete:`, {
+    totalArticles: data.total_articles,
+    successfulSources: data.successful_sources,
+    failedSources: data.failed_sources,
+    message: data.message,
+  });
+  streamResolve(rt);
+}
+
+function handleErrorEvent(data: StreamEvent, rt: StreamRuntime): void {
+  console.error(`Stream ${rt.streamId} error:`, data.error);
+  if (rt.hasReceivedData) {
+    streamResolve(rt, [data.error || "Stream error"]);
+  } else {
+    streamReject(rt, new Error(data.error || "Stream error"));
+  }
+}
+
+function dispatchStreamEvent(data: StreamEvent, rt: StreamRuntime): void {
+  if (data.stream_id && !rt.streamId) {
+    rt.streamId = data.stream_id;
+  }
+  logger.debug(`Stream event [${data.status}]:`, {
+    streamId: data.stream_id,
+    source: data.source,
+    articlesCount: data.articles?.length,
+    progress: data.progress,
+    message: data.message,
+  });
+  switch (data.status) {
+    case "initial":
+      handleInitialEvent(data, rt);
+      break;
+    case "starting":
+      logger.debug(`Stream ${rt.streamId} starting: ${data.message}`);
+      rt.onProgress?.({
+        completed: 0,
+        total: 0,
+        percentage: 0,
+        message: data.message,
+      });
+      break;
+    case "cache_data":
+      handleCacheDataEvent(data, rt);
+      break;
+    case "source_complete":
+      handleSourceCompleteEvent(data, rt);
+      break;
+    case "source_error":
+      handleSourceErrorEvent(data, rt);
+      break;
+    case "complete":
+      handleCompleteEvent(data, rt);
+      break;
+    case "error":
+      handleErrorEvent(data, rt);
+      break;
+    default:
+      logger.debug(`Stream ${rt.streamId} unknown status: ${data.status}`);
+  }
+}
+
+async function pumpStreamEvents(
+  rt: StreamRuntime,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    try {
+      const { done, value } = await reader.read();
+      if (done) {
+        logger.debug("Stream reader completed");
+        if (!rt.hasReceivedData) {
+          streamReject(rt, new Error("Stream ended without receiving data"));
+        } else {
+          streamResolve(rt);
+        }
+        return;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+      rt.lastMessageTime = Date.now();
+
+      const lines = buffer.split("\n");
+      buffer = lines[lines.length - 1]!;
+
+      for (let i = 0; i < lines.length - 1; i++) {
+        const line = lines[i];
+        if (!line || line.startsWith(":")) continue;
+        if (line.startsWith("data: ")) {
+          const eventData = line.substring(6);
+          try {
+            let data: StreamEvent;
+            try {
+              data = JSON.parse(eventData);
+            } catch {
+              console.warn(
+                "[streamNews] First JSON.parse failed, attempting to re-parse",
+              );
+              data = JSON.parse(JSON.parse(`"${eventData}"`));
+            }
+            dispatchStreamEvent(data, rt);
+          } catch (parseError) {
+            console.error(
+              "Error parsing stream event:",
+              parseError,
+              "Raw data:",
+              eventData,
+            );
+            rt.onError?.(
+              `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            );
+          }
+        }
+      }
+    } catch (readError: unknown) {
+      rt.clearTimers();
+      if (readError instanceof Error && readError.name === "AbortError") {
+        console.warn("Stream reader aborted");
+        streamResolve(rt, ["Stream aborted"]);
+      } else {
+        if (isLikelyNetworkError(readError)) {
+          logger.warn("News stream disconnected before completion.");
+        } else {
+          console.error("Stream reader error:", readError);
+        }
+        streamReject(rt, readError);
+      }
+      return;
+    }
+  }
+}
+
 // Enhanced news streaming function
 export function streamNews(options: StreamOptions = {}): {
   promise: Promise<{
@@ -1872,27 +2157,42 @@ export function streamNews(options: StreamOptions = {}): {
   }
   const sseUrl = `${baseUrl}/news/stream?${params.toString()}`;
 
-  const promise = new Promise<{
-    articles: NewsArticle[];
-    sources: string[];
-    streamId?: string;
-    errors: string[];
-  }>(async (resolve, reject) => {
-    const articles: NewsArticle[] = [];
-    const sources = new Set<string>();
-    const errors: string[] = [];
-    let streamId: string | undefined;
-    let hasReceivedData = false;
-    let settled = false;
+  const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
+
+  (async () => {
+    const rt: StreamRuntime = {
+      articles: [],
+      sources: new Set<string>(),
+      errors: [],
+      streamId: undefined,
+      hasReceivedData: false,
+      settled: false,
+      lastMessageTime: Date.now(),
+      onProgress,
+      onSourceComplete,
+      onError,
+      clearTimers: () => {},
+      abort: () => {},
+      resolve,
+      reject,
+    };
     let abortController: AbortController | null = null;
+    let timeoutInterval: ReturnType<typeof setInterval> | undefined;
+    let stallInterval: ReturnType<typeof setInterval> | undefined;
+
+    rt.clearTimers = () => {
+      clearInterval(timeoutInterval);
+      clearInterval(stallInterval);
+    };
+    rt.abort = () => {
+      abortController?.abort();
+    };
 
     logger.debug(`Connecting to unified stream endpoint: ${sseUrl}`);
 
     try {
-      // Create abort controller for fetch
       abortController = new AbortController();
 
-      // Handle external signal abort
       const handleAbort = () => {
         if (abortController && !abortController.signal.aborted) {
           console.warn("Streaming aborted by external signal");
@@ -1903,22 +2203,12 @@ export function streamNews(options: StreamOptions = {}): {
       if (signal) {
         if (signal.aborted) {
           handleAbort();
-          if (!settled) {
-            settled = true;
-            resolve({
-              articles: removeDuplicateArticles(articles),
-              sources: Array.from(sources),
-              streamId,
-              errors: ["Aborted before connection"],
-            });
-          }
+          streamResolve(rt, ["Aborted before connection"]);
           return;
         }
         signal.addEventListener("abort", handleAbort, { once: true });
       }
 
-      // Use fetch with manual SSE handling instead of EventSource
-      // This gives us better control over connection lifecycle
       const response = await fetch(sseUrl, {
         method: "GET",
         signal: abortController.signal,
@@ -1940,402 +2230,51 @@ export function streamNews(options: StreamOptions = {}): {
       logger.debug("Stream connection opened, reading body...");
 
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let lastMessageTime = Date.now();
       const messageTimeout = 120000; // 2 minutes
       const cacheLoadTimeout = 15000; // 15 seconds - if cache loads but no complete event, auto-resolve
 
-      // Start timeout monitor
-      const timeoutInterval = setInterval(() => {
-        const timeSinceLastMessage = Date.now() - lastMessageTime;
+      timeoutInterval = setInterval(() => {
+        const timeSinceLastMessage = Date.now() - rt.lastMessageTime;
         if (timeSinceLastMessage > messageTimeout) {
           console.error("Stream timeout - no data received in 2 minutes");
-          if (abortController) {
-            abortController.abort();
-          }
+          rt.abort();
         }
       }, 5000);
 
-      // Stall detector - if we've received cache but nothing for 10s, auto-complete
-      const stallInterval = setInterval(() => {
+      stallInterval = setInterval(() => {
         if (
-          hasReceivedData &&
-          !settled &&
-          Date.now() - lastMessageTime > cacheLoadTimeout
+          rt.hasReceivedData &&
+          !rt.settled &&
+          Date.now() - rt.lastMessageTime > cacheLoadTimeout
         ) {
           console.warn(
-            `Stream ${streamId} stalled after cache load - auto-completing`,
+            `Stream ${rt.streamId} stalled after cache load - auto-completing`,
           );
-          clearInterval(timeoutInterval);
-          clearInterval(stallInterval);
-          if (!settled) {
-            settled = true;
-            resolve({
-              articles: removeDuplicateArticles(articles),
-              sources: Array.from(sources),
-              streamId,
-              errors: [
-                ...errors,
-                "Stream auto-completed due to inactivity after cache load",
-              ],
-            });
-          }
+          streamResolve(rt, [
+            "Stream auto-completed due to inactivity after cache load",
+          ]);
         }
       }, 3000);
 
-      while (true) {
-        try {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            logger.debug("Stream reader completed");
-            clearInterval(timeoutInterval);
-            clearInterval(stallInterval);
-            if (!settled) {
-              settled = true;
-              if (!hasReceivedData) {
-                reject(new Error("Stream ended without receiving data"));
-              } else {
-                resolve({
-                  articles: removeDuplicateArticles(articles),
-                  sources: Array.from(sources),
-                  streamId,
-                  errors,
-                });
-              }
-            }
-            break;
-          }
-
-          // Decode chunk and add to buffer
-          const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
-          lastMessageTime = Date.now(); // Reset timeout on receiving data
-
-          // Process complete SSE messages from buffer
-          const lines = buffer.split("\n");
-          buffer = lines[lines.length - 1]!; // Keep incomplete line in buffer
-
-          for (let i = 0; i < lines.length - 1; i++) {
-            const line = lines[i];
-
-            // Skip empty lines and comments
-            if (!line || line.startsWith(":")) {
-              continue;
-            }
-
-            // Process SSE data line
-            if (line.startsWith("data: ")) {
-              const eventData = line.substring(6);
-
-              try {
-                let data: StreamEvent;
-                try {
-                  data = JSON.parse(eventData);
-                } catch {
-                  console.warn(
-                    "[streamNews] First JSON.parse failed, attempting to re-parse",
-                  );
-                  data = JSON.parse(JSON.parse(`"${eventData}"`));
-                }
-
-                logger.debug(`Stream event [${data.status}]:`, {
-                  streamId: data.stream_id,
-                  source: data.source,
-                  articlesCount: data.articles?.length,
-                  progress: data.progress,
-                  message: data.message,
-                });
-
-                // Update stream ID
-                if (data.stream_id && !streamId) {
-                  streamId = data.stream_id;
-                }
-
-                switch (data.status) {
-                  case "initial":
-                    // INSTANT response with cached data
-                    hasReceivedData = true;
-                    if (data.articles && Array.isArray(data.articles)) {
-                      const mappedArticles = mapBackendArticles(data.articles);
-                      const BATCH_SIZE = 500;
-                      const cacheAge = data.cache_age_seconds || 999;
-
-                      logger.debug(
-                        `Stream ${streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
-                      );
-
-                      // Process articles in batches to avoid UI freeze
-                      (async () => {
-                        for (
-                          let i = 0;
-                          i < mappedArticles.length;
-                          i += BATCH_SIZE
-                        ) {
-                          const batch = mappedArticles.slice(i, i + BATCH_SIZE);
-                          articles.push(...batch);
-                          batch.forEach((article) =>
-                            sources.add(article.source),
-                          );
-
-                          // Notify about this batch immediately
-                          if (onSourceComplete) {
-                            onSourceComplete(
-                              `initial-batch-${Math.floor(i / BATCH_SIZE)}`,
-                              batch,
-                            );
-                          }
-
-                          // Yield to the event loop to prevent blocking
-                          if (i + BATCH_SIZE < mappedArticles.length) {
-                            await new Promise((resolve) =>
-                              setTimeout(resolve, 0),
-                            );
-                          }
-                        }
-
-                        // Final progress update after all batches loaded
-                        onProgress?.({
-                          completed: 0,
-                          total: 0,
-                          percentage: 0,
-                          message: `Instantly loaded ${mappedArticles.length} articles from cache`,
-                        });
-                      })();
-                    } else {
-                      console.warn(
-                        "[streamNews] 'initial' event received but 'articles' is not an array or is missing.",
-                        data,
-                      );
-                    }
-                    break;
-
-                  case "starting":
-                    logger.debug(
-                      `Stream ${streamId} starting: ${data.message}`,
-                    );
-                    onProgress?.({
-                      completed: 0,
-                      total: 0,
-                      percentage: 0,
-                      message: data.message,
-                    });
-                    break;
-
-                  case "cache_data":
-                    hasReceivedData = true;
-                    if (data.articles && Array.isArray(data.articles)) {
-                      const mappedArticles = mapBackendArticles(data.articles);
-                      const BATCH_SIZE = 500;
-                      const cacheAge = data.cache_age_seconds || 999;
-
-                      logger.debug(
-                        `Stream ${streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
-                      );
-
-                      // Process articles in batches to avoid UI freeze
-                      (async () => {
-                        for (
-                          let i = 0;
-                          i < mappedArticles.length;
-                          i += BATCH_SIZE
-                        ) {
-                          const batch = mappedArticles.slice(i, i + BATCH_SIZE);
-                          articles.push(...batch);
-                          batch.forEach((article) =>
-                            sources.add(article.source),
-                          );
-
-                          // Notify about this batch immediately
-                          if (onSourceComplete) {
-                            onSourceComplete(
-                              `cache-batch-${Math.floor(i / BATCH_SIZE)}`,
-                              batch,
-                            );
-                          }
-
-                          // Yield to the event loop to prevent blocking
-                          if (i + BATCH_SIZE < mappedArticles.length) {
-                            await new Promise((resolve) =>
-                              setTimeout(resolve, 0),
-                            );
-                          }
-                        }
-
-                        // Final progress update after all batches loaded
-                        onProgress?.({
-                          completed: sources.size,
-                          total: sources.size,
-                          percentage: 0,
-                          message: `Loaded ${mappedArticles.length} cached articles`,
-                        });
-
-                        // If cache is fresh (<120s), set a short timeout to auto-complete if server doesn't send complete event
-                        if (cacheAge < 120) {
-                          logger.debug(
-                            `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`,
-                          );
-                          setTimeout(() => {
-                            if (!settled && hasReceivedData) {
-                              logger.debug(
-                                `Auto-completing stream after fresh cache timeout`,
-                              );
-                              if (abortController) {
-                                abortController.abort();
-                              }
-                            }
-                          }, 5000);
-                        }
-                      })();
-                    } else {
-                      console.warn(
-                        "[streamNews] 'cache_data' event received but 'articles' is not an array or is missing.",
-                        data,
-                      );
-                    }
-                    break;
-
-                  case "source_complete":
-                    hasReceivedData = true;
-                    if (data.articles && data.source) {
-                      const mappedArticles = mapBackendArticles(data.articles);
-                      articles.push(...mappedArticles);
-                      sources.add(data.source);
-
-                      logger.debug(
-                        `Stream ${streamId} source complete: ${data.source} (${mappedArticles.length} articles)`,
-                      );
-
-                      onSourceComplete?.(data.source, mappedArticles);
-
-                      if (data.progress) {
-                        onProgress?.(data.progress);
-                      }
-                    }
-                    break;
-
-                  case "source_error":
-                    const errorMsg = `Error loading ${data.source}: ${data.error}`;
-                    console.warn(`Stream ${streamId} source error:`, errorMsg);
-                    errors.push(errorMsg);
-                    onError?.(errorMsg);
-
-                    if (data.progress) {
-                      onProgress?.(data.progress);
-                    }
-                    break;
-
-                  case "complete":
-                    logger.debug(`Stream ${streamId} complete:`, {
-                      totalArticles: data.total_articles,
-                      successfulSources: data.successful_sources,
-                      failedSources: data.failed_sources,
-                      message: data.message,
-                    });
-
-                    clearInterval(timeoutInterval);
-                    clearInterval(stallInterval);
-
-                    if (!settled) {
-                      settled = true;
-                      resolve({
-                        articles: removeDuplicateArticles(articles),
-                        sources: Array.from(sources),
-                        streamId,
-                        errors,
-                      });
-                    }
-                    break;
-
-                  case "error":
-                    console.error(`Stream ${streamId} error:`, data.error);
-                    clearInterval(timeoutInterval);
-                    clearInterval(stallInterval);
-
-                    if (hasReceivedData) {
-                      if (!settled) {
-                        settled = true;
-                        resolve({
-                          articles: removeDuplicateArticles(articles),
-                          sources: Array.from(sources),
-                          streamId,
-                          errors: [...errors, data.error || "Stream error"],
-                        });
-                      }
-                    } else {
-                      if (!settled) {
-                        settled = true;
-                        reject(new Error(data.error || "Stream error"));
-                      }
-                    }
-                    break;
-
-                  default:
-                    logger.debug(
-                      `Stream ${streamId} unknown status: ${data.status}`,
-                    );
-                }
-              } catch (parseError) {
-                console.error(
-                  "Error parsing stream event:",
-                  parseError,
-                  "Raw data:",
-                  eventData,
-                );
-                onError?.(
-                  `Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-                );
-              }
-            }
-          }
-        } catch (readError: unknown) {
-          clearInterval(timeoutInterval);
-          clearInterval(stallInterval);
-
-          if (readError instanceof Error && readError.name === "AbortError") {
-            console.warn("Stream reader aborted");
-            if (!settled) {
-              settled = true;
-              resolve({
-                articles: removeDuplicateArticles(articles),
-                sources: Array.from(sources),
-                streamId,
-                errors: [...errors, "Stream aborted"],
-              });
-            }
-          } else {
-            if (isLikelyNetworkError(readError)) {
-              logger.warn("News stream disconnected before completion.")
-            } else {
-              console.error("Stream reader error:", readError);
-            }
-            if (!settled) {
-              settled = true;
-              reject(readError);
-            }
-          }
-          break;
-        }
-      }
+      await pumpStreamEvents(rt, reader);
     } catch (error) {
       console.error("Stream fetch error:", error);
 
-      if (!settled) {
-        settled = true;
+      if (!rt.settled) {
+        rt.settled = true;
         if (error instanceof Error && error.name === "AbortError") {
           resolve({
-            articles: removeDuplicateArticles(articles),
-            sources: Array.from(sources),
-            streamId,
-            errors: [...errors, "Aborted"],
+            articles: removeDuplicateArticles(rt.articles),
+            sources: Array.from(rt.sources),
+            streamId: rt.streamId,
+            errors: [...rt.errors, "Aborted"],
           });
         } else {
           reject(error);
         }
       }
     }
-  });
+  })();
 
   return { promise, url: sseUrl };
 }
@@ -2349,6 +2288,189 @@ const hashStringToInt = (value: string) => {
   return Math.abs(hash);
 };
 
+function resolveArticleImage(article: BackendArticle): string {
+  const rawImage = article.image || article.image_url;
+  return rawImage && rawImage !== "none" ? rawImage : "/placeholder.svg";
+}
+
+function resolveArticlePublished(article: BackendArticle): string {
+  return (
+    article.published_at ||
+    article.publishedAt ||
+    article.published ||
+    new Date().toISOString()
+  );
+}
+
+function resolveArticleUrlKey(
+  article: BackendArticle,
+  sourceName: string,
+  published: string,
+): { url: string; stableKey: string } {
+  const url =
+    article.url ||
+    article.link ||
+    article.article_url ||
+    article.original_url ||
+    "";
+  const stableKey = url || `${sourceName}|${article.title || ""}|${published}`;
+  return { url, stableKey };
+}
+
+function resolveArticleId(article: BackendArticle, stableKey: string): number {
+  if (typeof article.id === "number") return article.id;
+  if (typeof article.article_id === "number") return article.article_id;
+  return hashStringToInt(stableKey);
+}
+
+function resolveArticleAuthors(
+  article: BackendArticle,
+  author?: string,
+): string[] {
+  if (Array.isArray(article.authors)) {
+    return article.authors.filter(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    );
+  }
+  return author ? [author] : [];
+}
+
+function resolveArticleCountries(
+  article: BackendArticle,
+  sourceName: string,
+): { country: string; sourceCountry: string; mentionedCountries: string[] } {
+  const rawCountry =
+    typeof article.country === "string" ? article.country : undefined;
+  const fallbackCountry = rawCountry || getCountryFromSource(sourceName);
+  const country = normalizeCountryCode(fallbackCountry);
+  const sourceCountry = normalizeCountryCode(
+    typeof article.source_country === "string"
+      ? article.source_country
+      : fallbackCountry,
+  );
+  const mentionedCountries = Array.isArray(article.mentioned_countries)
+    ? article.mentioned_countries
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => normalizeCountryCode(value))
+    : [];
+  return { country, sourceCountry, mentionedCountries };
+}
+
+function resolveArticleCredibility(
+  article: BackendArticle,
+  sourceName: string,
+): "high" | "medium" | "low" {
+  const credibilityValue =
+    typeof article.credibility === "string"
+      ? article.credibility.toLowerCase()
+      : undefined;
+  if (
+    credibilityValue &&
+    ["high", "medium", "low"].includes(credibilityValue)
+  ) {
+    return credibilityValue as "high" | "medium" | "low";
+  }
+  return getCredibilityFromSource(sourceName);
+}
+
+function resolveArticleBias(
+  article: BackendArticle,
+  sourceName: string,
+): "left" | "center" | "right" {
+  const biasValue =
+    typeof article.bias === "string" ? article.bias.toLowerCase() : undefined;
+  if (biasValue && ["left", "center", "right"].includes(biasValue)) {
+    return biasValue as "left" | "center" | "right";
+  }
+  return getBiasFromSource(sourceName);
+}
+
+function resolveArticleSourceId(
+  article: BackendArticle,
+  sourceName: string,
+): string {
+  return typeof article.source_id === "string" &&
+    article.source_id.trim().length > 0
+    ? article.source_id.trim().toLowerCase()
+    : sourceName.toLowerCase().replace(/\s+/g, "-");
+}
+
+function resolveGeoSignal(
+  article: BackendArticle,
+): { id: string; label: string } | undefined {
+  const geoSignal =
+    article.geo_signal && typeof article.geo_signal === "object"
+      ? (article.geo_signal as { id?: unknown; label?: unknown })
+      : null;
+  if (
+    geoSignal &&
+    typeof geoSignal.id === "string" &&
+    typeof geoSignal.label === "string"
+  ) {
+    return { id: geoSignal.id, label: geoSignal.label };
+  }
+  return undefined;
+}
+
+function mapBackendArticle(article: BackendArticle): NewsArticle {
+  const sourceName = article.source || article.source_name || "Unknown";
+  const summary = article.summary || article.description || "";
+  const content = article.content || undefined;
+  const image = resolveArticleImage(article);
+  const published = resolveArticlePublished(article);
+  const parsedTimestamp = new Date(published).getTime();
+  const category = article.category || "general";
+  const { url, stableKey } = resolveArticleUrlKey(
+    article,
+    sourceName,
+    published,
+  );
+  const resolvedId = resolveArticleId(article, stableKey);
+  const isPersisted =
+    (typeof article.id === "number" ||
+      typeof article.article_id === "number") &&
+    article.is_persisted !== false;
+  const author =
+    article.author ||
+    (Array.isArray(article.authors) ? article.authors[0] : undefined);
+  const authors = resolveArticleAuthors(article, author);
+  const { country, sourceCountry, mentionedCountries } =
+    resolveArticleCountries(article, sourceName);
+  const credibility = resolveArticleCredibility(article, sourceName);
+  const bias = resolveArticleBias(article, sourceName);
+  const normalizedSourceId = resolveArticleSourceId(article, sourceName);
+  const geoSignal = resolveGeoSignal(article);
+
+  return {
+    id: resolvedId,
+    title: article.title || "No title",
+    source: sourceName,
+    sourceId: normalizedSourceId,
+    country,
+    credibility,
+    bias,
+    summary: summary || "No description",
+    content,
+    image,
+    publishedAt: published,
+    _parsedTimestamp: Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp,
+    category,
+    url,
+    tags: [category, sourceName].filter(Boolean),
+    originalLanguage: article.original_language || "en",
+    translated: article.translated ?? false,
+    author: author || undefined,
+    authors,
+    hasFullContent:
+      typeof article.content === "string" && article.content.trim().length > 0,
+    source_country: sourceCountry,
+    mentioned_countries: mentionedCountries,
+    geo_signal: geoSignal,
+    isPersisted,
+  };
+}
+
 // Helper function to map backend articles to frontend format
 export function mapBackendArticles(
   backendArticles: BackendArticle[],
@@ -2356,123 +2478,7 @@ export function mapBackendArticles(
   logger.debug(
     `[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`,
   );
-  return backendArticles.map((article) => {
-    const sourceName = article.source || article.source_name || "Unknown";
-
-    const summary = article.summary || article.description || "";
-    const content = article.content || undefined;
-    const rawImage = article.image || article.image_url;
-    const image =
-      rawImage && rawImage !== "none" ? rawImage : "/placeholder.svg";
-    const published =
-      article.published_at ||
-      article.publishedAt ||
-      article.published ||
-      new Date().toISOString();
-    const parsedTimestamp = new Date(published).getTime();
-    const category = article.category || "general";
-    const rawUrl =
-      article.url ||
-      article.link ||
-      article.article_url ||
-      article.original_url ||
-      "";
-    const stableKey =
-      rawUrl || `${sourceName}|${article.title || ""}|${published}`;
-    const hasStableBackendId =
-      typeof article.id === "number" || typeof article.article_id === "number";
-    const resolvedId =
-      typeof article.id === "number"
-        ? article.id
-        : typeof article.article_id === "number"
-          ? article.article_id
-          : hashStringToInt(stableKey);
-    const isPersisted = hasStableBackendId && article.is_persisted !== false;
-    const url = rawUrl;
-    const author =
-      article.author ||
-      (Array.isArray(article.authors) ? article.authors[0] : undefined);
-    const authors = Array.isArray(article.authors)
-      ? article.authors.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-      : author
-        ? [author]
-        : [];
-
-    const rawCountry = typeof article.country === "string" ? article.country : undefined;
-    const country = normalizeCountryCode(rawCountry || getCountryFromSource(sourceName));
-    const sourceCountry = normalizeCountryCode(
-      typeof article.source_country === "string"
-        ? article.source_country
-        : rawCountry || getCountryFromSource(sourceName),
-    );
-    const mentionedCountries = Array.isArray(article.mentioned_countries)
-      ? article.mentioned_countries
-          .filter((value): value is string => typeof value === "string")
-          .map((value) => normalizeCountryCode(value))
-      : [];
-    const credibilityValue =
-      typeof article.credibility === "string"
-        ? article.credibility.toLowerCase()
-        : undefined;
-    const biasValue =
-      typeof article.bias === "string" ? article.bias.toLowerCase() : undefined;
-
-    const credibility =
-      credibilityValue && ["high", "medium", "low"].includes(credibilityValue)
-        ? (credibilityValue as "high" | "medium" | "low")
-        : getCredibilityFromSource(sourceName);
-
-    const bias =
-      biasValue && ["left", "center", "right"].includes(biasValue)
-        ? (biasValue as "left" | "center" | "right")
-        : getBiasFromSource(sourceName);
-
-    const normalizedSourceId =
-      typeof article.source_id === "string" && article.source_id.trim().length > 0
-        ? article.source_id.trim().toLowerCase()
-        : sourceName.toLowerCase().replace(/\s+/g, "-")
-    const geoSignal =
-      article.geo_signal && typeof article.geo_signal === "object"
-        ? (article.geo_signal as { id?: unknown; label?: unknown })
-        : null
-
-    const mappedArticle: NewsArticle = {
-      id: resolvedId,
-      title: article.title || "No title",
-      source: sourceName,
-      sourceId: normalizedSourceId,
-      country,
-      credibility,
-      bias,
-      summary: summary || "No description",
-      content,
-      image,
-      publishedAt: published,
-      _parsedTimestamp: Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp,
-      category,
-      url,
-      tags: [category, sourceName].filter(Boolean),
-      originalLanguage: article.original_language || "en",
-      translated: article.translated ?? false,
-      author: author || undefined,
-      authors,
-      hasFullContent: typeof article.content === "string" && article.content.trim().length > 0,
-      source_country: sourceCountry,
-      mentioned_countries: mentionedCountries,
-      geo_signal:
-        geoSignal &&
-        typeof geoSignal.id === "string" &&
-        typeof geoSignal.label === "string"
-          ? {
-              id: geoSignal.id,
-              label: geoSignal.label,
-            }
-          : undefined,
-      isPersisted,
-    };
-
-    return mappedArticle;
-  });
+  return backendArticles.map(mapBackendArticle);
 }
 
 // Helper function to remove duplicate articles
@@ -4880,7 +4886,7 @@ export async function fetchBlindspotViewer(params?: {
   lens?: BlindspotLens["id"];
   window?: "1d" | "1w" | "1m";
   category?: string;
-  sources?: string;
+  sources?: string | null;
   perLane?: number;
 }): Promise<BlindspotViewerResponse> {
   const searchParams = new URLSearchParams();

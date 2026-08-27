@@ -64,11 +64,18 @@ class Settings:
     open_router_model: str = os.getenv("OPEN_ROUTER_MODEL", "z-ai/glm-4.5-air:free")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
     source_research_model: str = os.getenv("SOURCE_RESEARCH_MODEL", "z-ai/glm-4.5-air:free")
-    # LLM backend selection: "openrouter" (default) or "llamacpp"
+    # LLM backend selection: "openrouter" (default), "llamacpp", or "opencode"
     llm_backend: str = os.getenv("LLM_BACKEND", "openrouter")
     llamacpp_base_url: str = os.getenv("LLAMACPP_BASE_URL", "http://localhost:8080/v1")
     llamacpp_model: str = os.getenv("LLAMACPP_MODEL", "local")
     llamacpp_api_key: str = os.getenv("LLAMACPP_API_KEY", "no-key")
+
+    # OpenCode Zen gateway (https://opencode.ai/docs/zen). Exposes an
+    # OpenAI-compatible /chat/completions endpoint that serves the free
+    # models used by the Pi/OhMyPi integration (e.g. "x-preview-f-free").
+    opencode_api_key: str | None = os.getenv("OPENCODE_API_KEY")
+    opencode_base_url: str = os.getenv("OPENCODE_BASE_URL", "https://opencode.ai/zen/v1")
+    opencode_model: str = os.getenv("OPENCODE_MODEL", "x-preview-f-free")
 
     # llama.cpp Instruct mode settings for reasoning tasks
     llamacpp_temperature: float = 1.0
@@ -157,9 +164,10 @@ def create_gemini_client(logger: logging.Logger) -> genai.Client | None:
 def create_openai_client(logger: logging.Logger) -> OpenAI | None:
     """Initialise and return an OpenAI-compatible client for the configured LLM backend.
 
-    Supports two backends selected by LLM_BACKEND:
+    Supports three backends selected by LLM_BACKEND:
       "openrouter" (default) — routes to OpenRouter using OPEN_ROUTER_API_KEY.
       "llamacpp"             — routes to a local llama.cpp server (no auth required).
+      "opencode"             — routes to OpenCode Zen using OPENCODE_API_KEY.
     """
     if settings.llm_backend == "llamacpp":
         try:
@@ -171,6 +179,25 @@ def create_openai_client(logger: logging.Logger) -> OpenAI | None:
             return client
         except Exception as e:
             logger.error("Failed to initialize llama.cpp client: %s", e)
+            return None
+
+    if settings.llm_backend == "opencode":
+        if not settings.opencode_api_key:
+            logger.warning("OPENCODE_API_KEY not found in environment variables")
+            return None
+        try:
+            client = OpenAI(
+                base_url=settings.opencode_base_url,
+                api_key=settings.opencode_api_key,
+            )
+            logger.info(
+                "LLM backend: OpenCode Zen at %s (model %s)",
+                settings.opencode_base_url,
+                settings.opencode_model,
+            )
+            return client
+        except Exception as e:
+            logger.error("Failed to initialize OpenCode client: %s", e)
             return None
 
     # Fall back to OpenRouter when llama.cpp is not selected.
@@ -206,6 +233,19 @@ def get_llamacpp_model() -> str:
     if _llamacpp_resolved_model is not None:
         return _llamacpp_resolved_model
     return settings.llamacpp_model
+
+
+def resolve_opencode_model(default: str) -> str:
+    """Return the model id to use with the shared OpenAI-compatible client.
+
+    Only the "opencode" backend remaps the caller-supplied default to the Zen
+    gateway model (OPENCODE_MODEL). Other backends return the default unchanged
+    so per-service models (OPEN_ROUTER_MODEL, SOURCE_RESEARCH_MODEL) keep
+    working exactly as before.
+    """
+    if settings.llm_backend == "opencode":
+        return settings.opencode_model
+    return default
 
 
 def check_llamacpp_server(logger: logging.Logger) -> None:

@@ -3275,6 +3275,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/atlas/ingestion-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Atlas Ingestion Status
+         * @description Return adapter freshness, partial runs, credentials, and retryable failures.
+         */
+        get: operations["get_atlas_ingestion_status_api_wiki_atlas_ingestion_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wiki/atlas/search": {
         parameters: {
             query?: never;
@@ -3371,6 +3391,26 @@ export interface paths {
          *     database.
          */
         get: operations["get_funding_bias_analysis_api_wiki_atlas_analysis_funding_bias_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/atlas/analysis/media-measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media Measurements
+         * @description Calculate and return reproducible article and ownership measurements.
+         */
+        get: operations["get_media_measurements_api_wiki_atlas_analysis_media_measurements_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3826,6 +3866,46 @@ export interface components {
             denominator: number;
         };
         /**
+         * AtlasDossierSection
+         * @description A typed, non-empty dossier section.
+         */
+        AtlasDossierSection: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "summary" | "identity_public_records" | "ownership_control" | "newsroom_people" | "funding_government_awards" | "advertising_sponsorship" | "publishing_distribution" | "evidence_conflicts_freshness_gaps";
+            /** Title */
+            title: string;
+            /** Statements */
+            statements?: components["schemas"]["AtlasDossierStatement"][];
+        };
+        /**
+         * AtlasDossierStatement
+         * @description One plain-language dossier answer with its exact evidence state.
+         */
+        AtlasDossierStatement: {
+            /** Label */
+            label: string;
+            /** Answer */
+            answer: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "known" | "unknown" | "not_researched" | "source_unavailable" | "chain_incomplete";
+            /** Predicate */
+            predicate?: string | null;
+            /** Lifecycle State */
+            lifecycle_state?: ("current" | "historical" | "proposed" | "pending" | "disputed" | "rejected" | "superseded") | null;
+            /** Evidence */
+            evidence?: components["schemas"]["AtlasEvidenceRef"][];
+            /** Qualifiers */
+            qualifiers?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * AtlasEdge
          * @description A relationship between two Atlas nodes, candidate or accepted.
          */
@@ -3842,6 +3922,21 @@ export interface components {
              */
             relation_type: "ownership" | "owned_by" | "parent_org" | "part_of" | "publishes" | "employed_by" | "current_outlet" | "coauthor" | "shared_outlet" | "founded_by" | "sibling_via_owner";
             /**
+             * Predicate
+             * @default
+             */
+            predicate: string;
+            /**
+             * Display Group
+             * @default other
+             */
+            display_group: string;
+            /**
+             * Relation Type Deprecated
+             * @default true
+             */
+            relation_type_deprecated: boolean;
+            /**
              * Direction
              * @default directed
              * @enum {string}
@@ -3854,6 +3949,18 @@ export interface components {
             weight: number;
             /** Ownership Percentage */
             ownership_percentage?: number | null;
+            /** Voting Interest */
+            voting_interest?: {
+                [key: string]: string;
+            } | null;
+            /** Economic Interest */
+            economic_interest?: {
+                [key: string]: string;
+            } | null;
+            /** Beneficial Interest */
+            beneficial_interest?: {
+                [key: string]: string;
+            } | null;
             /** Confidence */
             confidence?: number | null;
             /** Confidence Tier */
@@ -3884,6 +3991,12 @@ export interface components {
              * @enum {string}
              */
             fact_status: "candidate" | "accepted" | "disputed" | "rejected" | "superseded";
+            /**
+             * Lifecycle State
+             * @default current
+             * @enum {string}
+             */
+            lifecycle_state: "current" | "historical" | "proposed" | "pending" | "disputed" | "rejected" | "superseded";
             /**
              * Accepted Fact
              * @default false
@@ -3937,6 +4050,10 @@ export interface components {
             details?: {
                 [key: string]: unknown;
             };
+            /** Entity Kind */
+            entity_kind?: string | null;
+            /** Dossier Sections */
+            dossier_sections?: components["schemas"]["AtlasDossierSection"][];
             /** Evidence */
             evidence?: components["schemas"]["AtlasEvidenceRef"][];
             /** Connections */
@@ -3967,6 +4084,14 @@ export interface components {
             };
             /** Entailment */
             entailment?: string | null;
+            /** Evidence Class */
+            evidence_class?: string | null;
+            /** Policy Version */
+            policy_version?: string | null;
+            /** Acceptance Decision */
+            acceptance_decision?: string | null;
+            /** Contradictions */
+            contradictions?: string[];
         };
         /**
          * AtlasExportRequest
@@ -4033,7 +4158,7 @@ export interface components {
              * Limit Nodes
              * @default 350
              */
-            limit_nodes: number;
+            limit_nodes: number | null;
             /**
              * Limit Edges
              * @default 1500
@@ -4182,6 +4307,59 @@ export interface components {
             };
         };
         /**
+         * AtlasIngestStatusResponse
+         * @description Freshness and failure summary for Atlas ingestion.
+         */
+        AtlasIngestStatusResponse: {
+            /**
+             * Freshness
+             * @enum {string}
+             */
+            freshness: "fresh" | "stale" | "never" | "running" | "partial";
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * Has Retryable Failures
+             * @default false
+             */
+            has_retryable_failures: boolean;
+            /** Missing Credentials */
+            missing_credentials?: string[];
+            /** Runs */
+            runs?: components["schemas"]["EvidenceIngestRunRecord"][];
+        };
+        /**
+         * AtlasMeasurementRecord
+         * @description One reproducible media measurement with complete scope metadata.
+         */
+        AtlasMeasurementRecord: {
+            /** Id */
+            id: string;
+            /** Measurement Name */
+            measurement_name: string;
+            /** Algorithm Version */
+            algorithm_version: string;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * AtlasMeasurementsResponse
+         * @description The measurement traces calculated for an outlet or the full corpus.
+         */
+        AtlasMeasurementsResponse: {
+            /** Source Name */
+            source_name?: string | null;
+            /** Measurements */
+            measurements?: components["schemas"]["AtlasMeasurementRecord"][];
+        };
+        /**
          * AtlasNode
          * @description A single entity (source, organization, or reporter) in the Atlas graph.
          */
@@ -4236,6 +4414,22 @@ export interface components {
             updated_at?: string | null;
             /** Flags */
             flags?: string[];
+            /** Current Parent */
+            current_parent?: string | null;
+            /** Pending Change */
+            pending_change?: string | null;
+            /**
+             * Evidence Coverage
+             * @default not researched
+             */
+            evidence_coverage: string;
+            /**
+             * Freshness
+             * @default unknown
+             */
+            freshness: string;
+            /** Unresolved Gap */
+            unresolved_gap?: string | null;
         };
         /**
          * AtlasSearchItem
@@ -4259,6 +4453,22 @@ export interface components {
             confidence_tier?: ("verified" | "strong" | "likely" | "unresolved" | "conflicting" | "stale") | null;
             /** Profile Path */
             profile_path?: string | null;
+            /** Current Parent */
+            current_parent?: string | null;
+            /** Pending Change */
+            pending_change?: string | null;
+            /**
+             * Evidence Coverage
+             * @default not researched
+             */
+            evidence_coverage: string;
+            /**
+             * Freshness
+             * @default unknown
+             */
+            freshness: string;
+            /** Unresolved Gap */
+            unresolved_gap?: string | null;
         };
         /**
          * AtlasSearchResponse
@@ -4308,6 +4518,11 @@ export interface components {
              * @default false
              */
             indexing_active: boolean;
+            research_coverage?: components["schemas"]["AtlasCoverageMetric"];
+            /** Research Coverage By Entity Type */
+            research_coverage_by_entity_type?: {
+                [key: string]: components["schemas"]["AtlasCoverageMetric"];
+            };
         };
         /**
          * BlindspotCardResponse
@@ -4806,6 +5021,78 @@ export interface components {
             method_version: string;
             /** Evidence */
             evidence?: components["schemas"]["EvidenceObservationRecord"][];
+        };
+        /**
+         * EvidenceIngestRunRecord
+         * @description Public status for one persisted adapter run.
+         */
+        EvidenceIngestRunRecord: {
+            /** Id */
+            id: string;
+            /** Adapter */
+            adapter: string;
+            /** Adapter Version */
+            adapter_version: string;
+            /** Scope */
+            scope?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "success" | "partial" | "failed" | "blocked" | "skipped";
+            /**
+             * Network Mode
+             * @enum {string}
+             */
+            network_mode: "live" | "offline" | "disabled";
+            /**
+             * Documents Count
+             * @default 0
+             */
+            documents_count: number;
+            /**
+             * Snapshots Count
+             * @default 0
+             */
+            snapshots_count: number;
+            /**
+             * Observations Count
+             * @default 0
+             */
+            observations_count: number;
+            /**
+             * Claims Count
+             * @default 0
+             */
+            claims_count: number;
+            /**
+             * Accepted Count
+             * @default 0
+             */
+            accepted_count: number;
+            /**
+             * Candidate Count
+             * @default 0
+             */
+            candidate_count: number;
+            /** Failure */
+            failure?: string | null;
+            /**
+             * Retryable
+             * @default false
+             */
+            retryable: boolean;
+            /** Missing Credentials */
+            missing_credentials?: string[];
         };
         /**
          * EvidenceObservationRecord
@@ -11668,6 +11955,37 @@ export interface operations {
             };
         };
     };
+    get_atlas_ingestion_status_api_wiki_atlas_ingestion_status_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasIngestStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_atlas_entities_api_wiki_atlas_search_get: {
         parameters: {
             query: {
@@ -11770,6 +12088,7 @@ export interface operations {
                 country?: string | null;
                 funding?: string | null;
                 bias?: string | null;
+                kind?: string | null;
                 sort?: "name" | "most_connected" | "most_articles" | "recently_indexed" | "lowest_confidence";
                 cursor?: string | null;
                 limit?: number;
@@ -11816,6 +12135,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FundingBiasAnalysisResponse"];
+                };
+            };
+        };
+    };
+    get_media_measurements_api_wiki_atlas_analysis_media_measurements_get: {
+        parameters: {
+            query?: {
+                source_name?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtlasMeasurementsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

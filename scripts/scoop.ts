@@ -281,6 +281,37 @@ function requestBody(rawBody: string | undefined): JsonValue | undefined {
   }
 }
 
+interface RequestTarget {
+  path: string;
+  query: URLSearchParams;
+  headers: Headers;
+  cookies: string[];
+}
+
+function applyParameter(
+  target: RequestTarget,
+  parameter: ParameterObject,
+  value: JsonValue | JsonValue[],
+): void {
+  if (parameter.in === "path") {
+    target.path = target.path.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
+    return;
+  }
+  if (parameter.in === "query") {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      target.query.append(parameter.name, String(item));
+    }
+    return;
+  }
+  if (parameter.in === "header") {
+    target.headers.set(parameter.name, Array.isArray(value) ? value.join(",") : String(value));
+    return;
+  }
+  if (parameter.in === "cookie") {
+    target.cookies.push(`${parameter.name}=${encodeURIComponent(String(value))}`);
+  }
+}
+
 export function prepareRequest(
   spec: OpenApiSpec,
   operationId: string,
@@ -294,49 +325,41 @@ export function prepareRequest(
     if (!known.has(name)) fail(`Unknown parameter for ${operationId}: ${name}`);
   }
 
-  let path = descriptor.path;
-  const query = new URLSearchParams();
-  const headers = new Headers({ Accept: "application/json" });
-  const cookies: string[] = [];
-
+  const target: RequestTarget = {
+    path: descriptor.path,
+    query: new URLSearchParams(),
+    headers: new Headers({ Accept: "application/json" }),
+    cookies: [],
+  };
   for (const parameter of parameters) {
     const values = supplied.get(parameter.name);
     if (!values?.length) {
       if (parameter.required) fail(`Missing required parameter: ${parameter.name}`);
       continue;
     }
-    const value = serializeParameter(parameter, values);
-    if (parameter.in === "path") {
-      path = path.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
-    } else if (parameter.in === "query") {
-      for (const item of Array.isArray(value) ? value : [value]) query.append(parameter.name, String(item));
-    } else if (parameter.in === "header") {
-      headers.set(parameter.name, Array.isArray(value) ? value.join(",") : String(value));
-    } else if (parameter.in === "cookie") {
-      cookies.push(`${parameter.name}=${encodeURIComponent(String(value))}`);
-    }
+    applyParameter(target, parameter, serializeParameter(parameter, values));
   }
 
   for (const item of options.header ?? []) {
     const [name, value] = splitAssignment(item, "Header");
-    headers.set(name, value);
+    target.headers.set(name, value);
   }
-  if (cookies.length) headers.set("Cookie", cookies.join("; "));
+  if (target.cookies.length) target.headers.set("Cookie", target.cookies.join("; "));
 
   const body = requestBody(options.body);
   if (descriptor.operation.requestBody?.required === true && body === undefined) {
     fail(`Missing required --body for ${operationId}`);
   }
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined) target.headers.set("Content-Type", "application/json");
 
   const baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000";
-  const queryString = query.toString();
+  const queryString = target.query.toString();
   return {
     descriptor,
-    url: `${baseUrl.replace(/\/$/, "")}${path}${queryString ? `?${queryString}` : ""}`,
+    url: `${baseUrl.replace(/\/$/, "")}${target.path}${queryString ? `?${queryString}` : ""}`,
     init: {
       method: descriptor.method,
-      headers,
+      headers: target.headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     },
   };
@@ -560,6 +583,38 @@ const INVESTIGATE_WORKFLOWS: Record<string, InvestigateWorkflow> = {
     summary: "Profile a reporter or journalist",
   },
 };
+
+function investigateParameters(
+  workflow: InvestigateWorkflow,
+  target: string,
+  options: CliOptions,
+): string[] {
+  const params: string[] = [...(options.param ?? [])];
+
+  // Forward --refresh to force_refresh query parameter
+  if (options.refresh && workflow.useBody) params.push("force_refresh=true");
+
+  for (const [optionKey, parameterName] of Object.entries(workflow.parameterOptions ?? {})) {
+    const cliValue = options[optionKey];
+    if (cliValue !== undefined) params.push(`${parameterName}=${String(cliValue)}`);
+  }
+  // Set target as path/query parameter for GET operations
+  if (workflow.targetParam) {
+    params.push(`${workflow.targetParam}=${target}`);
+  }
+  return params;
+}
+
+function investigateBody(workflow: InvestigateWorkflow, target: string, options: CliOptions): string | undefined {
+  if (!workflow.useBody) return undefined;
+  const body: Record<string, unknown> = { name: target };
+  for (const optionKey of workflow.bodyOptionKeys ?? []) {
+    const value = options[optionKey];
+    if (value !== undefined) body[optionKey] = value;
+  }
+  return JSON.stringify(body);
+}
+
 export async function runInvestigateCommand(
   spec: OpenApiSpec,
   subcommand: string,
@@ -570,32 +625,8 @@ export async function runInvestigateCommand(
   const workflow = INVESTIGATE_WORKFLOWS[subcommand];
   if (!workflow) fail(`Unknown investigate subcommand: ${subcommand}`);
 
-  const params: string[] = [...(options.param ?? [])];
-
-  // Forward --refresh to force_refresh query parameter
-  if (options.refresh && workflow.useBody) params.push("force_refresh=true");
-
-  for (const [optionKey, parameterName] of Object.entries(workflow.parameterOptions ?? {})) {
-    const cliValue = options[optionKey];
-    if (cliValue !== undefined) params.push(`${parameterName}=${String(cliValue)}`);
-  }
-  let body: string | undefined;
-
-  // Build body for POST operations
-  if (workflow.useBody) {
-    const bodyObj: Record<string, unknown> = { name: target };
-    for (const optionKey of workflow.bodyOptionKeys ?? []) {
-      const value = options[optionKey];
-      if (value !== undefined) bodyObj[optionKey] = value;
-    }
-    body = JSON.stringify(bodyObj);
-  }
-
-  // Set target as path/query parameter for GET operations
-  if (workflow.targetParam) {
-    params.push(`${workflow.targetParam}=${target}`);
-  }
-
+  const params = investigateParameters(workflow, target, options);
+  const body = investigateBody(workflow, target, options);
   const investigateOptions: CliOptions = { ...options, param: params, body, _: options._ };
   const result = await callOperation(spec, workflow.operationId, investigateOptions, fetchImpl);
 
@@ -610,6 +641,125 @@ export async function runInvestigateCommand(
     : result.body;
   printValue(output, options.output ?? "json");
   return result.response.ok ? 0 : 1;
+}
+
+function runSchemaGroup(action: string | undefined, options: CliOptions): number {
+  if (action === "check" || action === "export" || action === "refresh") {
+    return runSchemaCommand(action, options);
+  }
+  fail("schema requires check, export, or refresh");
+}
+
+function apiListCommand(spec: OpenApiSpec, options: CliOptions): number {
+  const operations = listOperations(spec).filter(
+    (operation) => !options.tag || operation.tags.includes(options.tag),
+  );
+  if (options.json) {
+    printValue(
+      operations.map(({ operation: _operation, pathParameters: _pathParameters, ...item }) => item),
+      "json",
+    );
+  } else {
+    for (const item of operations) {
+      console.log(`${item.operationId}\t${item.method}\t${item.path}\t${item.summary}`);
+    }
+  }
+  return 0;
+}
+
+function apiDescribeCommand(spec: OpenApiSpec, target: string | undefined): number {
+  if (!target) fail("api describe requires an operationId");
+  const item = findOperation(spec, target);
+  printValue({
+    operationId: item.operationId,
+    method: item.method,
+    path: item.path,
+    summary: item.summary,
+    tags: item.tags,
+    parameters: [...item.pathParameters, ...(item.operation.parameters ?? [])],
+    requestBody: item.operation.requestBody,
+    responses: item.operation.responses,
+  });
+  return 0;
+}
+
+async function apiCallCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+  if (!target) fail("api call requires an operationId");
+  const result = await callOperation(spec, target, options);
+  const output = options["include-meta"]
+    ? {
+        operationId: result.request.descriptor.operationId,
+        method: result.request.descriptor.method,
+        url: result.request.url,
+        status: result.response.status,
+        body: result.body,
+      }
+    : result.body;
+  if (!options.stream) printValue(output, options.output);
+  return result.response.ok ? 0 : 1;
+}
+
+async function apiSmokeCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+  if (!target) fail("api smoke requires an operationId");
+  const result = await callOperation(spec, target, options);
+  const report = evaluateSmoke(result, options);
+  printValue(report, options.output);
+  return report.ok ? 0 : 1;
+}
+
+async function runApiCommand(
+  spec: OpenApiSpec,
+  action: string | undefined,
+  target: string | undefined,
+  options: CliOptions,
+): Promise<number> {
+  if (action === "list") return apiListCommand(spec, options);
+  if (action === "describe") return apiDescribeCommand(spec, target);
+  if (action === "call") return apiCallCommand(spec, target, options);
+  if (action === "smoke") return apiSmokeCommand(spec, target, options);
+  fail(`Unknown command: ${options._.join(" ")}`);
+}
+
+function wsListCommand(spec: OpenApiSpec, options: CliOptions): number {
+  const sockets = listWebSockets(spec);
+  if (options.json) printValue(sockets, "json");
+  else {
+    for (const item of sockets) {
+      console.log(`${item.operationId}\tWS\t${item.path}\t${item.summary ?? ""}`);
+    }
+  }
+  return 0;
+}
+
+async function wsListenCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+  if (!target) fail("ws listen requires an operationId or path");
+  const result = await listenWebSocket(spec, target, options);
+  if (options["include-meta"] || Number(options.count ?? 1) === 0) {
+    printValue(result, options.output);
+  }
+  return 0;
+}
+
+async function runWsCommand(
+  spec: OpenApiSpec,
+  action: string | undefined,
+  target: string | undefined,
+  options: CliOptions,
+): Promise<number> {
+  if (action === "list") return wsListCommand(spec, options);
+  if (action === "listen") return wsListenCommand(spec, target, options);
+  fail(`Unknown command: ${options._.join(" ")}`);
+}
+
+function runInvestigateGroup(
+  spec: OpenApiSpec,
+  action: string | undefined,
+  target: string | undefined,
+  options: CliOptions,
+): Promise<number> {
+  if (!action) fail("investigate requires a subcommand: organization, ownership, source, or reporter");
+  if (!target) fail(`investigate ${action} requires a name`);
+  return runInvestigateCommand(spec, action, target, options);
 }
 
 function usage(): string {
@@ -656,89 +806,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     process.stdout.write(usage());
     return 0;
   }
-  if (group === "schema") {
-    if (action !== "check" && action !== "export" && action !== "refresh") {
-      fail("schema requires check, export, or refresh");
-    }
-    return runSchemaCommand(action, options);
-  }
-
+  if (group === "schema") return runSchemaGroup(action, options);
   const spec = loadSpec(options.spec ?? process.env.SCOOP_OPENAPI ?? DEFAULT_SPEC);
-  if (group === "api" && action === "list") {
-    const operations = listOperations(spec).filter(
-      (operation) => !options.tag || operation.tags.includes(options.tag),
-    );
-    if (options.json) {
-      printValue(
-        operations.map(({ operation: _operation, pathParameters: _pathParameters, ...item }) => item),
-        "json",
-      );
-    } else {
-      for (const item of operations) {
-        console.log(`${item.operationId}\t${item.method}\t${item.path}\t${item.summary}`);
-      }
-    }
-    return 0;
-  }
-  if (group === "api" && action === "describe") {
-    if (!target) fail("api describe requires an operationId");
-    const item = findOperation(spec, target);
-    printValue({
-      operationId: item.operationId,
-      method: item.method,
-      path: item.path,
-      summary: item.summary,
-      tags: item.tags,
-      parameters: [...item.pathParameters, ...(item.operation.parameters ?? [])],
-      requestBody: item.operation.requestBody,
-      responses: item.operation.responses,
-    });
-    return 0;
-  }
-  if (group === "api" && (action === "call" || action === "smoke")) {
-    if (!target) fail(`api ${action} requires an operationId`);
-    const result = await callOperation(spec, target, options);
-    if (action === "smoke") {
-      const report = evaluateSmoke(result, options);
-      printValue(report, options.output);
-      return report.ok ? 0 : 1;
-    }
-    const output = options["include-meta"]
-      ? {
-          operationId: result.request.descriptor.operationId,
-          method: result.request.descriptor.method,
-          url: result.request.url,
-          status: result.response.status,
-          body: result.body,
-        }
-      : result.body;
-    if (!options.stream) printValue(output, options.output);
-    return result.response.ok ? 0 : 1;
-  }
-  if (group === "ws" && action === "list") {
-    const sockets = listWebSockets(spec);
-    if (options.json) printValue(sockets, "json");
-    else {
-      for (const item of sockets) {
-        console.log(`${item.operationId}\tWS\t${item.path}\t${item.summary ?? ""}`);
-      }
-    }
-    return 0;
-  }
-  if (group === "ws" && action === "listen") {
-    if (!target) fail("ws listen requires an operationId or path");
-    const result = await listenWebSocket(spec, target, options);
-    if (options["include-meta"] || Number(options.count ?? 1) === 0) {
-      printValue(result, options.output);
-    }
-    return 0;
-  }
-  if (group === "investigate") {
-    if (!action) fail("investigate requires a subcommand: organization, ownership, source, or reporter");
-    if (!target) fail(`investigate ${action} requires a name`);
-    return runInvestigateCommand(spec, action, target, options);
-  }
-
+  if (group === "api") return runApiCommand(spec, action, target, options);
+  if (group === "ws") return runWsCommand(spec, action, target, options);
+  if (group === "investigate") return runInvestigateGroup(spec, action, target, options);
   fail(`Unknown command: ${options._.join(" ")}`);
 }
 

@@ -177,7 +177,7 @@ async def news_research_stream_endpoint(
                     break
                 try:
                     # event_raw is formatted as "data: {...}\n\n"
-                    json_str = event_raw.replace("data: ", "").strip()
+                    json_str = event_raw.removeprefix("data: ").strip()
                     if not json_str:
                         continue
 

@@ -201,6 +201,1254 @@ function mapReferencedArticleToNewsArticle(
   };
 }
 
+
+
+  const sampleQueries = [
+    "What are the different perspectives on climate change?",
+    "Compare how different sources cover technology news",
+    "Summarize the latest political developments",
+    "Which sources have covered AI recently?",
+    "Analyze bias in coverage of international conflicts",
+  ];
+
+  const sourcePreviewLimit = 5;
+
+  const formatShortDate = (date: string) => {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  const buildArticleEmbeds = (message?: Message | null): NewsArticle[] => {
+    if (!message) return [];
+
+    const structuredArticles = message.structured_articles_json?.articles ?? [];
+    const structuredFallback: NewsArticle[] = structuredArticles.map(
+      (article) => {
+        const tags = [article.category, article.source].filter(
+          (value): value is string => Boolean(value),
+        );
+        const link =
+          typeof article.link === "string" && article.link
+            ? article.link
+            : typeof article.url === "string"
+              ? article.url
+              : "";
+        const description =
+          article.summary || article.description || "No description";
+
+        return {
+          id: Date.now() + Math.random(),
+          title: article.title || "No title",
+          source: article.source || "Unknown",
+          sourceId: (article.source || "unknown")
+            .toLowerCase()
+            .replace(/\s+/g, "-"),
+          country: "United States",
+          credibility: "medium" as const,
+          bias: "center" as const,
+          summary: description,
+          content: description,
+          image: article.image || "/placeholder.svg",
+          publishedAt: article.published || new Date().toISOString(),
+          category: article.category || "general",
+          url: link,
+          tags,
+          originalLanguage: "en",
+          translated: false,
+        };
+      },
+    );
+
+    if (message.referenced_articles && message.referenced_articles.length > 0) {
+      return message.referenced_articles;
+    }
+
+    return structuredFallback;
+  }
+
+function EmbeddedContent({
+  content,
+  articles,
+  onOpenArticle,
+}: {
+  content: string;
+  articles: NewsArticle[];
+  onOpenArticle: (article: NewsArticle) => void;
+}) {
+    // Remove parentheses around standalone URLs (not markdown links)
+    // Match patterns like " (https://...)" or "(https://...)" but not "[text](url)"
+    const cleanedContent = content.replace(
+      /(?<!\])\(https?:\/\/[^\)]+\)/gi,
+      (match) => {
+        return match.slice(1, -1); // Remove the surrounding parentheses
+      },
+    );
+
+    if (!articles || articles.length === 0) {
+      // No articles, just render text
+      return (
+        <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              strong: ({ ...props }) => (
+                <span className="font-semibold text-foreground" {...props} />
+              ),
+              a: ({ href, children, ...props }) => {
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline decoration-primary/30 underline-offset-2"
+                    {...props}
+                  >
+                    {children}
+                  </a>
+                );
+              },
+              h1: ({ ...props }) => (
+                <h1
+                  className="text-xl font-semibold text-foreground mt-6 mb-3"
+                  {...props}
+                />
+              ),
+              h2: ({ ...props }) => (
+                <h2
+                  className="text-lg font-semibold text-foreground mt-5 mb-2"
+                  {...props}
+                />
+              ),
+              h3: ({ ...props }) => (
+                <h3
+                  className="text-base font-medium text-foreground mt-4 mb-2"
+                  {...props}
+                />
+              ),
+              ul: ({ ...props }) => (
+                <ul className="my-3 space-y-1" {...props} />
+              ),
+              li: ({ ...props }) => (
+                <li className="text-foreground/80" {...props} />
+              ),
+              p: ({ ...props }) => (
+                <p className="text-foreground/80 leading-7 mb-4" {...props} />
+              ),
+            }}
+          >
+            {cleanedContent}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+
+    // Create a URL to article mapping for quick lookup
+    const urlToArticleMap = new Map<string, NewsArticle>();
+    articles.forEach((article) => {
+      if (article.url) {
+        urlToArticleMap.set(article.url, article);
+        // Also add without trailing slash
+        urlToArticleMap.set(article.url.replace(/\/$/, ""), article);
+      }
+    });
+
+    return (
+      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            strong: ({ ...props }) => (
+              <span className="font-semibold text-foreground" {...props} />
+            ),
+            h1: ({ ...props }) => (
+              <h1
+                className="text-xl font-semibold text-foreground mt-6 mb-3"
+                {...props}
+              />
+            ),
+            h2: ({ ...props }) => (
+              <h2
+                className="text-lg font-semibold text-foreground mt-5 mb-2"
+                {...props}
+              />
+            ),
+            h3: ({ ...props }) => (
+              <h3
+                className="text-base font-medium text-foreground mt-4 mb-2"
+                {...props}
+              />
+            ),
+            ul: ({ ...props }) => (
+              <ul className="my-3 space-y-1" {...props} />
+            ),
+            li: ({ ...props }) => (
+              <li className="text-foreground/80" {...props} />
+            ),
+            p: ({ ...props }) => (
+              <p className="text-foreground/80 leading-7 mb-4" {...props} />
+            ),
+            a: ({ href, children, ...props }) => {
+              // Check if this URL matches one of our articles
+              const article = href
+                ? urlToArticleMap.get(href) ||
+                  urlToArticleMap.get(href.replace(/\/$/, ""))
+                : null;
+
+              if (article) {
+                // Replace the link with an inline article card
+                return (
+                  <button
+                    onClick={() => onOpenArticle(article)}
+                    className="not-prose group relative my-6 block w-full overflow-hidden rounded-3xl border border-border/40 bg-card/30 text-left transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-card/50 hover:shadow-2xl hover:shadow-black/30"
+                  >
+                      <div className="flex flex-col sm:flex-row gap-4 p-4">
+                        {article.image && (
+                          <div className="h-48 flex-shrink-0 overflow-hidden rounded-2xl bg-card sm:h-24 sm:w-32">
+                            <SafeImage
+                              src={article.image}
+                              alt={article.title}
+                              width={128}
+                              height={96}
+                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                          </div>
+                        )}
+                      <div className="flex flex-col justify-between py-1 min-w-0 flex-1">
+                        <div>
+                          <h4 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors text-base">
+                            {article.title}
+                          </h4>
+                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                            {article.summary}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          <span className="text-primary/80">
+                            {article.source}
+                          </span>
+                          <span>•</span>
+                          <span>
+                            {new Date(article.publishedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              }
+
+              // Regular link (not an article)
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline decoration-primary/30 underline-offset-2"
+                  {...props}
+                >
+                  {children}
+                </a>
+              );
+            },
+          }}
+        >
+          {cleanedContent}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+type VersionInfo = ReturnType<typeof getMessageVersionInfo>;
+
+type MessageItemProps = {
+  message: Message;
+  messages: Message[];
+  activeAssistantVersions: Record<string, string>;
+  editingMessageId: string | null;
+  editingDraft: string;
+  setEditingDraft: (value: string) => void;
+  isSearching: boolean;
+  expandedStepMessageIds: Set<string>;
+  onStop: () => void;
+  onCopy: (content: string) => void;
+  onEdit: (messageId: string) => void;
+  onReset: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onSelectVersion: (groupId: string, messageId: string) => void;
+  onToggleSteps: (messageId: string) => void;
+  onOpenArticle: (article: NewsArticle) => void;
+}
+
+function MessageActionBar(props: {
+  message: Message;
+  isAssistant: boolean;
+  isInlineEditing: boolean;
+  isSearching: boolean;
+  versionInfo: VersionInfo | null;
+  onSelectVersion: (groupId: string, messageId: string) => void;
+  onCopy: (content: string) => void;
+  onEdit: (messageId: string) => void;
+  onReset: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
+}) {
+  const { message, isAssistant, isInlineEditing, isSearching, versionInfo, onSelectVersion, onCopy, onEdit, onReset, onDelete } = props;
+  return (
+    <>
+                                {!message.isStreaming && !message.toolType && (
+                                  <div className="mt-3 flex items-center justify-between gap-3 text-muted-foreground">
+                                    <div className="flex min-w-0 items-center gap-1">
+                                      {versionInfo && (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                              onSelectVersion(
+                                                versionInfo.groupId,
+                                                versionInfo.versionIds[
+                                                  versionInfo.currentIndex - 1
+                                                ]!,
+                                              )
+                                            }
+                                            disabled={versionInfo.currentIndex === 0}
+                                            className="h-7 w-7 px-0"
+                                            aria-label="Previous message version"
+                                          >
+                                            <ChevronLeft className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <span className="font-mono text-xs">
+                                            {versionInfo.currentIndex + 1}/
+                                            {versionInfo.totalVersions}
+                                          </span>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                              onSelectVersion(
+                                                versionInfo.groupId,
+                                                versionInfo.versionIds[
+                                                  versionInfo.currentIndex + 1
+                                                ]!,
+                                              )
+                                            }
+                                            disabled={
+                                              versionInfo.currentIndex ===
+                                              versionInfo.totalVersions - 1
+                                            }
+                                            className="h-7 w-7 px-0"
+                                            aria-label="Next message version"
+                                          >
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {isInlineEditing ? null : (
+                                        <>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                          onCopy(message.content)
+                                        }
+                                        className="h-8 px-2 text-xs"
+                                      >
+                                        <Copy className="mr-1 h-3.5 w-3.5" />
+                                        Copy
+                                      </Button>
+                                      {!isAssistant && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => onEdit(message.id)}
+                                          className="h-8 px-2 text-xs"
+                                        >
+                                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                                          Edit
+                                        </Button>
+                                      )}
+                                      {isAssistant && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => onReset(message.id)}
+                                          disabled={isSearching}
+                                          className="h-8 px-2 text-xs"
+                                        >
+                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                          Retry
+                                        </Button>
+                                      )}
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onDelete(message.id)}
+                                        disabled={isSearching}
+                                        className="h-8 px-2 text-xs"
+                                      >
+                                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                        Delete
+                                      </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+    </>
+  );
+}
+
+function MessageStepsToggle(props: {
+  message: Message;
+  isAssistant: boolean;
+  stepsExpanded: boolean;
+  onToggleSteps: (messageId: string) => void;
+}) {
+  const { message, isAssistant, stepsExpanded, onToggleSteps } = props;
+  const stepCount = message.thinking_steps?.length ?? 0;
+  return (
+    <>
+                                {isAssistant &&
+                                  !message.isStreaming &&
+                                  stepCount > 0 && (
+                                    <div className="mt-3">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          onToggleSteps(message.id)
+                                        }
+                                        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        {stepsExpanded ? (
+                                          <ChevronUp className="w-4 h-4" />
+                                        ) : (
+                                          <ChevronDown className="w-4 h-4" />
+                                        )}
+                                        {stepsExpanded
+                                          ? "Hide steps"
+                                          : `Show steps (${stepCount})`}
+                                      </button>
+                                      {stepsExpanded && (
+                                        <div className="mt-3 space-y-2">
+                                          {message.thinking_steps?.map(
+                                            (step, idx) => (
+                                              <div
+                                                key={`${message.id}-step-${idx}`}
+                                                className="rounded-2xl border border-border/20 bg-background/40 p-3"
+                                              >
+                                                <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground/70">
+                                                  Step {idx + 1}:{" "}
+                                                  {step.type.replace("_", " ")}
+                                                </div>
+                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                  {step.content}
+                                                </p>
+                                              </div>
+                                            ),
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+    </>
+  );
+}
+
+function ConversationMessageItem(props: MessageItemProps) {
+  const {
+    message,
+    messages,
+    activeAssistantVersions,
+    editingMessageId,
+    editingDraft,
+    setEditingDraft,
+    isSearching,
+    expandedStepMessageIds,
+    onStop,
+    onCopy,
+    onEdit,
+    onReset,
+    onDelete,
+    onSaveEdit,
+    onCancelEdit,
+    onSelectVersion,
+    onToggleSteps,
+    onOpenArticle,
+  } = props;
+                            const isAssistant = message.type === "assistant";
+                            const isInlineEditing =
+                              !isAssistant && editingMessageId === message.id;
+                            const stepCount =
+                              message.thinking_steps?.length ?? 0;
+                            const stepsExpanded = expandedStepMessageIds.has(
+                              message.id,
+                            );
+                            const versionInfo = getMessageVersionInfo(
+                              messages,
+                              message.id,
+                              activeAssistantVersions,
+                            );
+                            const messageClass =
+                              message.type === "user"
+                                ? "border-border/5 bg-[var(--news-bg-secondary)]/30 ml-20"
+                                : message.error
+                                  ? "border-border/5 bg-destructive/5 mr-12"
+                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4";
+                              return (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 18 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.3, ease: "easeOut" }}
+                                  className={`rounded-xl border px-5 py-3.5 ${messageClass}`}
+                                >
+                                  <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                                    <span>
+                                      {isAssistant ? "Assistant" : "You"}
+                                    </span>
+                                  <span>
+                                    {message.timestamp.toLocaleTimeString(
+                                      "en-US",
+                                      { hour: "2-digit", minute: "2-digit" },
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="mt-3 text-base text-foreground/90">
+                                  {isInlineEditing ? (
+                                    <form
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        onSaveEdit();
+                                      }}
+                                      className="space-y-3"
+                                    >
+                                      <textarea
+                                        value={editingDraft}
+                                        onChange={(event) =>
+                                          setEditingDraft(event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (
+                                            event.key === "Enter" &&
+                                            !event.shiftKey
+                                          ) {
+                                            event.preventDefault();
+                                            onSaveEdit();
+                                          }
+                                          if (event.key === "Escape") {
+                                            event.preventDefault();
+                                            onCancelEdit();
+                                          }
+                                        }}
+                                        autoFocus
+                                        disabled={isSearching}
+                                        className="min-h-28 w-full resize-y rounded-2xl border border-primary/30 bg-background/60 px-4 py-3 text-base text-foreground focus:outline-none"
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={onCancelEdit}
+                                          disabled={isSearching}
+                                        >
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          type="submit"
+                                          size="sm"
+                                          disabled={
+                                            !editingDraft.trim() || isSearching
+                                          }
+                                        >
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </form>
+                                  ) : isAssistant ? (
+                                    message.isStreaming ? (
+                                      <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                                        <span>
+                                          {message.streamingStatus ||
+                                            "Working..."}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={onStop}
+                                          className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-border/40 transition-colors"
+                                          title="Stop generation"
+                                        >
+                                          <Square className="h-3 w-3" />
+                                          Stop
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <EmbeddedContent
+                                        content={message.content}
+                                        articles={buildArticleEmbeds(message)}
+                                        onOpenArticle={onOpenArticle}
+                                      />
+                                    )
+                                  ) : (
+                                    <p>{message.content}</p>
+                                  )}
+                                </div>
+
+<MessageActionBar
+                                message={message}
+                                isAssistant={isAssistant}
+                                isInlineEditing={isInlineEditing}
+                                isSearching={isSearching}
+                                versionInfo={versionInfo}
+                                onSelectVersion={onSelectVersion}
+                                onCopy={onCopy}
+                                onEdit={onEdit}
+                                onReset={onReset}
+                                onDelete={onDelete}
+                              />
+
+<MessageStepsToggle
+                                message={message}
+                                isAssistant={isAssistant}
+                                stepsExpanded={stepsExpanded}
+                                onToggleSteps={onToggleSteps}
+                              />
+
+                              </motion.div>
+                             );
+}
+
+type ChatScrollAreaProps = {
+  conversationMessages: Message[];
+  messages: Message[];
+  activeAssistantVersions: Record<string, string>;
+  editingMessageId: string | null;
+  editingDraft: string;
+  setEditingDraft: (value: string) => void;
+  isSearching: boolean;
+  expandedStepMessageIds: Set<string>;
+  chatScrollRef: React.RefObject<HTMLDivElement | null>;
+  onStop: () => void;
+  onCopy: (content: string) => void;
+  onEdit: (messageId: string) => void;
+  onReset: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onSelectVersion: (groupId: string, messageId: string) => void;
+  onToggleSteps: (messageId: string) => void;
+  onOpenArticle: (article: NewsArticle) => void;
+}
+
+function ChatScrollArea(props: ChatScrollAreaProps) {
+  const { conversationMessages, messages, activeAssistantVersions, editingMessageId, editingDraft, setEditingDraft, isSearching, expandedStepMessageIds, chatScrollRef, onStop, onCopy, onEdit, onReset, onDelete, onSaveEdit, onCancelEdit, onSelectVersion, onToggleSteps, onOpenArticle } = props;
+  return (
+                      <div
+                        ref={chatScrollRef}
+                        className="custom-scrollbar flex-1 min-h-0 space-y-6 overflow-y-auto px-2 py-6"
+                      >
+                        {conversationMessages.length === 0 ? (
+                          <div className="rounded-2xl border border-border/40 bg-card/50 p-6 text-sm text-muted-foreground backdrop-blur-xl">
+                            Ask a question to start.
+                          </div>
+                        ) : (
+                          conversationMessages.map((message) => (
+                          <ConversationMessageItem
+                            key={message.id}
+                            message={message}
+                            messages={messages}
+                            activeAssistantVersions={activeAssistantVersions}
+                            editingMessageId={editingMessageId}
+                            editingDraft={editingDraft}
+                            setEditingDraft={setEditingDraft}
+                            isSearching={isSearching}
+                            expandedStepMessageIds={expandedStepMessageIds}
+                            onStop={onStop}
+                            onCopy={onCopy}
+                            onEdit={onEdit}
+                            onReset={onReset}
+                            onDelete={onDelete}
+                            onSaveEdit={onSaveEdit}
+                            onCancelEdit={onCancelEdit}
+                            onSelectVersion={onSelectVersion}
+                            onToggleSteps={onToggleSteps}
+                            onOpenArticle={onOpenArticle}
+                          />
+                          ))
+                         )}
+                      </div>
+  );
+}
+
+type ChatComposerFormProps = {
+  query: string;
+  setQuery: (value: string) => void;
+  isSearching: boolean;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  composerFormRef: React.RefObject<HTMLFormElement | null>;
+  onSearch: (e: React.FormEvent) => void;
+};
+
+function ChatComposerForm(props: ChatComposerFormProps) {
+  const { query, setQuery, isSearching, inputRef, composerFormRef, onSearch } = props;
+  return (
+                      <div className="border-t border-border/20 bg-background/70 p-4 backdrop-blur-xl">
+                        <form
+                          ref={composerFormRef}
+                          onSubmit={onSearch}
+                          className="space-y-2"
+                        >
+                          <div className="flex items-center gap-2 rounded-2xl border border-border/40 bg-card/50 p-2 pl-4 shadow-xl shadow-black/10 transition-all duration-300 ease-out focus-within:border-primary/40 focus-within:bg-card/60">
+                            <textarea
+                              ref={inputRef}
+                              value={query}
+                              onChange={(e) => setQuery(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  onSearch(e);
+                                }
+                              }}
+                              placeholder="Ask a question and press Enter..."
+                              className="h-10 w-full resize-none bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                              disabled={isSearching}
+                            />
+                          </div>
+                          {query.length >= 3 && (
+                            <SearchSuggestions
+                              query={query}
+                              onSuggestionClick={(suggestion) => {
+                                setQuery(suggestion.label);
+                                inputRef.current?.focus();
+                              }}
+                              className="pt-2"
+                            />
+                          )}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap gap-2">
+                              {/* Hide sample queries in active mode to preserve vertical space */}
+                            </div>
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={!query.trim() || isSearching}
+                              className="h-10 rounded-full bg-primary px-6 text-background transition-all duration-300 ease-out active:scale-95"
+                            >
+                              {isSearching ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  Send <ArrowRight className="w-4 h-4 ml-1" />
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </form>
+                      </div>
+  );
+}
+
+type ResearchSidePanelsProps = {
+  thinkingSteps: ThinkingStep[];
+  latestAssistantMessage: Message | undefined;
+  latestUserMessage: Message | undefined;
+  latestSemanticMessage: Message | undefined;
+  groupedSources: Array<{
+    sourceId: string;
+    sourceName: string;
+    articles: NewsArticle[];
+  }>;
+  expandedSourceIds: Set<string>;
+  onToggleSource: (sourceId: string) => void;
+  onOpenArticle: (article: NewsArticle) => void;
+};
+
+function ResearchSidePanels(props: ResearchSidePanelsProps) {
+  const { thinkingSteps, latestAssistantMessage, latestUserMessage, latestSemanticMessage, groupedSources, expandedSourceIds, onToggleSource, onOpenArticle } = props;
+  return (
+    <div className="space-y-6 px-5 py-6 md:px-6">
+                      <section className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
+                            Research Log
+                          </h3>
+                          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground/55">
+                            {thinkingSteps.length} steps
+                          </span>
+                        </div>
+                        <div className="space-y-3 text-sm">
+                          {thinkingSteps.length > 0 ? (
+                            thinkingSteps.slice(-6).map((step, idx) => (
+                              <div
+                                key={`${step.type}-${idx}`}
+                                className="rounded-r-2xl border-l-2 border-primary/25 bg-background/25 px-3 py-2.5"
+                              >
+                                <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground/65">
+                                  {step.type.replace("_", " ")}
+                                </div>
+                                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/80">
+                                  {step.content}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              Reasoning steps will appear as the agent works.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+
+                      {latestAssistantMessage &&
+                        !latestAssistantMessage.isStreaming &&
+                        latestAssistantMessage.content && (
+                          <section className="border-t border-border/15 pt-6">
+                            <VerificationPanel
+                              query={latestUserMessage?.content || ""}
+                              mainAnswer={latestAssistantMessage.content}
+                              className="rounded-2xl border-border/20 bg-card/30"
+                            />
+                          </section>
+                        )}
+
+                      {latestSemanticMessage?.semanticResults &&
+                        latestSemanticMessage.semanticResults.length > 0 && (
+                          <section className="border-t border-border/15 pt-6">
+                            <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
+                              Related Coverage
+                            </h3>
+                            <div className="mt-3 space-y-2">
+                              {latestSemanticMessage.semanticResults.map(
+                                ({ article, similarityScore }) => (
+                                  <button
+                                    key={`semantic-${article.url || article.id}`}
+                                    onClick={() => onOpenArticle(article)}
+                                    className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
+                                  >
+                                    <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
+                                      {article.title}
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                      <span>{article.source}</span>
+                                      {typeof similarityScore === "number" && (
+                                        <span className="rounded-full border border-border/20 bg-background/60 px-2 py-0.5 text-xs text-muted-foreground">
+                                          {Math.round(similarityScore * 100)}%
+                                          match
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          </section>
+                        )}
+
+                      {groupedSources.length > 0 && (
+                        <section className="border-t border-border/15 pt-6">
+                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
+                            Sources Used
+                          </h3>
+                          <div className="mt-3 space-y-4">
+                            {groupedSources.map((group) => {
+                              const isExpanded = expandedSourceIds.has(
+                                group.sourceId,
+                              );
+                              const visibleArticles = isExpanded
+                                ? group.articles
+                                : group.articles.slice(0, sourcePreviewLimit);
+
+                              return (
+                                <div
+                                  key={group.sourceId}
+                                  className="border-t border-border/10 pt-4 first:border-t-0 first:pt-0"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-medium text-foreground">
+                                        {group.sourceName}
+                                      </div>
+                                      <div className="mt-1.5 font-mono text-xs uppercase tracking-wide text-muted-foreground/70">
+                                        {group.articles.length} articles
+                                      </div>
+                                    </div>
+                                    {group.articles.length >
+                                      sourcePreviewLimit && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          onToggleSource(group.sourceId)
+                                        }
+                                        className="font-mono text-xs uppercase tracking-wider text-primary hover:underline"
+                                      >
+                                        {isExpanded
+                                          ? "Collapse"
+                                          : `Show all (${group.articles.length})`}
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="mt-3 space-y-2">
+                                    {visibleArticles.map((article) => (
+                                      <button
+                                        key={`${group.sourceId}-${article.url || article.id}`}
+                                        onClick={() => onOpenArticle(article)}
+                                        className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
+                                      >
+                                        <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
+                                          {article.title}
+                                        </div>
+                                        <div className="mt-2.5 flex items-center justify-between font-mono text-xs uppercase tracking-wide text-muted-foreground/60">
+                                          <span>{article.source}</span>
+                                          <span>
+                                            {formatShortDate(
+                                              article.publishedAt,
+                                            )}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      )}
+    </div>
+  );
+}
+
+type ResearchChatViewProps = {
+  conversationMessages: Message[];
+  messages: Message[];
+  activeAssistantVersions: Record<string, string>;
+  editingMessageId: string | null;
+  editingDraft: string;
+  setEditingDraft: (value: string) => void;
+  isSearching: boolean;
+  expandedStepMessageIds: Set<string>;
+  expandedSourceIds: Set<string>;
+  chatScrollRef: React.RefObject<HTMLDivElement | null>;
+  composerFormRef: React.RefObject<HTMLFormElement | null>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  query: string;
+  setQuery: (value: string) => void;
+  onSearch: (e: React.FormEvent) => void;
+  onStop: () => void;
+  onCopy: (content: string) => void;
+  onEdit: (messageId: string) => void;
+  onReset: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onSelectVersion: (groupId: string, messageId: string) => void;
+  onToggleSteps: (messageId: string) => void;
+  onToggleSource: (sourceId: string) => void;
+  onOpenArticle: (article: NewsArticle) => void;
+  thinkingSteps: ThinkingStep[];
+  latestAssistantMessage: Message | undefined;
+  latestUserMessage: Message | undefined;
+  latestSemanticMessage: Message | undefined;
+  groupedSources: Array<{
+    sourceId: string;
+    sourceName: string;
+    articles: NewsArticle[];
+  }>;
+};
+
+function ResearchChatView(props: ResearchChatViewProps) {
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row">
+      <section className="flex min-w-0 flex-1 flex-col lg:basis-8/12">
+        <div className="flex-1 min-h-0">
+          <div className="mx-auto flex h-full w-full max-w-7xl flex-col px-4 md:px-6">
+            <ChatScrollArea
+              conversationMessages={props.conversationMessages}
+              messages={props.messages}
+              activeAssistantVersions={props.activeAssistantVersions}
+              editingMessageId={props.editingMessageId}
+              editingDraft={props.editingDraft}
+              setEditingDraft={props.setEditingDraft}
+              isSearching={props.isSearching}
+              expandedStepMessageIds={props.expandedStepMessageIds}
+              chatScrollRef={props.chatScrollRef}
+              onStop={props.onStop}
+              onCopy={props.onCopy}
+              onEdit={props.onEdit}
+              onReset={props.onReset}
+              onDelete={props.onDelete}
+              onSaveEdit={props.onSaveEdit}
+              onCancelEdit={props.onCancelEdit}
+              onSelectVersion={props.onSelectVersion}
+              onToggleSteps={props.onToggleSteps}
+              onOpenArticle={props.onOpenArticle}
+            />
+            <ChatComposerForm
+              query={props.query}
+              setQuery={props.setQuery}
+              isSearching={props.isSearching}
+              inputRef={props.inputRef}
+              composerFormRef={props.composerFormRef}
+              onSearch={props.onSearch}
+            />
+          </div>
+        </div>
+      </section>
+      <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
+        <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
+          <ResearchSidePanels
+            thinkingSteps={props.thinkingSteps}
+            latestAssistantMessage={props.latestAssistantMessage}
+            latestUserMessage={props.latestUserMessage}
+            latestSemanticMessage={props.latestSemanticMessage}
+            groupedSources={props.groupedSources}
+            expandedSourceIds={props.expandedSourceIds}
+            onToggleSource={props.onToggleSource}
+            onOpenArticle={props.onOpenArticle}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+type WorkspaceHeaderProps = {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+  isEmpty: boolean;
+  activeBriefTitle: string;
+  messageCount: number;
+  latestAssistantMessage: Message | undefined;
+  isSearching: boolean;
+  onStop: () => void;
+};
+
+function WorkspaceHeader(props: WorkspaceHeaderProps) {
+  const { sidebarCollapsed, onToggleSidebar, isEmpty, activeBriefTitle, messageCount, latestAssistantMessage, isSearching, onStop } = props;
+  return (
+          <header className="sticky top-0 z-20 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-2xl">
+            <div className="flex w-full items-start gap-4 px-4 py-4 md:px-6 lg:px-8">
+              <button
+                onClick={onToggleSidebar}
+                className="mt-0.5 shrink-0 rounded-full border border-border/30 bg-background/70 p-2 text-muted-foreground transition-all duration-300 ease-out hover:border-border/50 hover:text-foreground active:scale-95"
+                aria-label={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight size={16} />
+                ) : (
+                  <ChevronLeft size={16} />
+                )}
+              </button>
+
+              <div className="min-w-0 flex-1">
+                {isEmpty ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <h1 className="truncate font-serif text-base font-medium tracking-tight text-foreground">
+                          Scoop Research
+                        </h1>
+                        <span className="hidden h-1 w-1 rounded-full bg-border/70 md:inline-block" />
+                        <span className="hidden font-mono text-xs uppercase tracking-widest text-muted-foreground/55 md:inline">
+                          Workspace
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="max-w-xl text-sm text-muted-foreground">
+                        Start a focused question to build a source-backed brief.
+                      </p>
+                      <Link href="/">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
+                        >
+                          <Home className="mr-2 h-3.5 w-3.5" />
+                          Back to News
+                        </Button>
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-w-0 items-center gap-3">
+                    <h2 className="min-w-0 flex-1 truncate font-serif text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl">
+                      {activeBriefTitle}
+                    </h2>
+                    <div className="hidden shrink-0 items-center gap-4 font-mono text-xs uppercase tracking-widest text-muted-foreground/65 xl:flex">
+                      <span>{messageCount} messages</span>
+                      {latestAssistantMessage?.articles_searched ? (
+                        <span>
+                          {latestAssistantMessage.articles_searched} sources searched
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      {(isSearching || latestAssistantMessage?.isStreaming) && (
+                        <div className="flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-xs text-primary/80">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span className="hidden font-mono text-xs uppercase tracking-widest sm:inline">
+                            {latestAssistantMessage?.streamingStatus ||
+                              "Running"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={onStop}
+                            className="flex items-center justify-center rounded-full p-1 transition-colors hover:bg-primary/15"
+                            title="Stop generation"
+                          >
+                            <Square className="h-2.5 w-2.5 fill-current" />
+                          </button>
+                        </div>
+                      )}
+                      <Link href="/">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
+                        >
+                          <Home className="mr-2 h-3.5 w-3.5" />
+                          Back to News
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+  );
+}
+
+type EmptyResearchViewProps = {
+  query: string;
+  setQuery: (value: string) => void;
+  isSearching: boolean;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  onSearch: (e: React.FormEvent) => void;
+  onSampleQuery: (sampleQuery: string) => void;
+};
+
+function EmptyResearchView(props: EmptyResearchViewProps) {
+  const { query, setQuery, isSearching, inputRef, onSearch, onSampleQuery } = props;
+  return (
+              <div className="flex-1 flex flex-col p-4 lg:p-8">
+                <div className="flex-1 max-w-2xl mx-auto w-full flex flex-col justify-center -mt-16">
+                  <motion.div
+                    className="mb-6"
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
+                        <Cpu className="w-4 h-4 text-primary" />
+                      </div>
+                      <h1 className="font-serif text-3xl tracking-tight text-foreground">
+                        Research Workspace
+                      </h1>
+                    </div>
+                    <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+                      Ask a focused question to start a multi-source research
+                      brief.
+                    </p>
+                  </motion.div>
+
+                  <div className="group relative w-full">
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 blur-xl transition duration-500 group-hover:opacity-100"></div>
+                    <div className="relative rounded-2xl border border-border/40 bg-card/40 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl transition-all duration-300 ease-out focus-within:border-primary/30">
+                      <form onSubmit={onSearch}>
+                        <textarea
+                          ref={inputRef}
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              onSearch(e);
+                            }
+                          }}
+                          placeholder="Ask a question about coverage, bias, or context..."
+                          className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                        />
+                        {query.length >= 3 && (
+                          <SearchSuggestions
+                            query={query}
+                            onSuggestionClick={(suggestion) => {
+                              setQuery(suggestion.label);
+                              inputRef.current?.focus();
+                            }}
+                            className="mt-2 pt-2 border-t border-border/40"
+                          />
+                        )}
+                        <div className="mt-2 flex items-center justify-between border-t border-border/20 px-3 pb-1 pt-3">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                            >
+                              <Filter className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                            >
+                              <Clock className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={!query.trim() || isSearching}
+                            className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-medium text-background transition-all duration-300 ease-out active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isSearching ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                Start Research{" "}
+                                <ArrowRight className="w-4 h-4" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    {sampleQueries.slice(0, 3).map((q) => (
+                      <motion.button
+                        key={q}
+                        onClick={() => onSampleQuery(q)}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="group rounded-2xl border border-border/40 bg-card/40 p-5 text-left transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-card/60 hover:border-primary/30"
+                      >
+                        <p className="text-sm text-muted-foreground/70 leading-relaxed group-hover:text-foreground transition-colors">
+                          {q}
+                        </p>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+  );
+}
+
 function NewsResearchPageContent() {
   const { replace } = useRouter();
   const searchParams = useSearchParams();
@@ -670,14 +1918,7 @@ function NewsResearchPageContent() {
           { syncSummary: false });
         }, 30000);
 
-        const processEvent = (line: string) => {
-          if (!line.startsWith("data: ")) return;
-          const raw = line.slice(6).trim();
-          if (!raw || raw === "[DONE]") return;
-          try {
-            const data = JSON.parse(raw) as ResearchStreamMessage;
-
-            if (isStatusMessage(data)) {
+        const processStatus = (data: StatusMessage) => {
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
                   msg.id !== assistantId
@@ -685,7 +1926,9 @@ function NewsResearchPageContent() {
                     : { ...msg, streamingStatus: data.message },
                 ),
               { syncSummary: false });
-            } else if (isThinkingStepMessage(data)) {
+            
+        }
+        const processThinking = (data: ThinkingStepMessage) => {
               thinkingSteps.push(data.step);
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
@@ -698,7 +1941,9 @@ function NewsResearchPageContent() {
                       },
                 ),
               { syncSummary: false });
-            } else if (isArticlesJsonMessage(data)) {
+            
+        }
+        const processArticles = (data: ArticlesJsonMessage) => {
               try {
                 let parsed: StructuredArticlesPayload | null = null;
                 try {
@@ -729,7 +1974,9 @@ function NewsResearchPageContent() {
               } catch (jsonError) {
                 console.error("Failed to parse structured articles:", jsonError);
               }
-            } else if (isReferencedArticlesMessage(data)) {
+            
+        }
+        const processReferenced = (data: ReferencedArticlesMessage) => {
               const referencedArticlesPayload: ReferencedArticlePayload[] =
                 Array.isArray(data.articles) ? data.articles : [];
               const referencedArticles = referencedArticlesPayload.map(
@@ -746,7 +1993,9 @@ function NewsResearchPageContent() {
                       },
                 ),
               { syncSummary: false });
-            } else if (isCompleteMessage(data)) {
+            
+        }
+        const processComplete = (data: CompleteMessage) => {
               window.clearTimeout(stallTimeout);
               finalResult = data.result;
               const referencedArticles = (
@@ -779,7 +2028,9 @@ function NewsResearchPageContent() {
               setIsSearching(false);
               abortControllerRef.current = null;
               inputRef.current?.focus();
-            } else if (isErrorMessage(data)) {
+            
+        }
+        const processError = (data: ErrorMessage) => {
               window.clearTimeout(stallTimeout);
               let errorMessage = data.message || "Research hit an error.";
               const lowered = errorMessage.toLowerCase();
@@ -810,11 +2061,25 @@ function NewsResearchPageContent() {
               setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
               setIsSearching(false);
               abortControllerRef.current = null;
-            }
-          } catch (parseError) {
+            
+        }
+        const processEvent = (line: string) => {
+          if (!line.startsWith("data: ")) return;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === "[DONE]") return;
+          try {
+            const data = JSON.parse(raw) as ResearchStreamMessage;
+
+                        if (isStatusMessage(data)) return processStatus(data);
+            if (isThinkingStepMessage(data)) return processThinking(data);
+            if (isArticlesJsonMessage(data)) return processArticles(data);
+            if (isReferencedArticlesMessage(data)) return processReferenced(data);
+            if (isCompleteMessage(data)) return processComplete(data);
+            if (isErrorMessage(data)) return processError(data);
+} catch (parseError) {
             console.error("Failed to parse research stream message:", parseError);
           }
-        };
+        };;
 
         const response = await fetch(streamUrl.toString(), {
           signal: abortController.signal,
@@ -1102,13 +2367,7 @@ function NewsResearchPageContent() {
     }
   };
 
-  const sampleQueries = [
-    "What are the different perspectives on climate change?",
-    "Compare how different sources cover technology news",
-    "Summarize the latest political developments",
-    "Which sources have covered AI recently?",
-    "Analyze bias in coverage of international conflicts",
-  ];
+
 
   const handleSampleQuery = (sampleQuery: string) => {
     clearMessageEditing();
@@ -1116,252 +2375,11 @@ function NewsResearchPageContent() {
     inputRef.current?.focus();
   };
 
-  const formatShortDate = (date: string) => {
-    const parsed = new Date(date);
-    if (Number.isNaN(parsed.getTime())) return date;
-    return parsed.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
+;
 
-  const renderContentWithEmbeds = (
-    content: string,
-    articles: NewsArticle[],
-  ) => {
-    // Remove parentheses around standalone URLs (not markdown links)
-    // Match patterns like " (https://...)" or "(https://...)" but not "[text](url)"
-    const cleanedContent = content.replace(
-      /(?<!\])\(https?:\/\/[^\)]+\)/gi,
-      (match) => {
-        return match.slice(1, -1); // Remove the surrounding parentheses
-      },
-    );
+;
 
-    if (!articles || articles.length === 0) {
-      // No articles, just render text
-      return (
-        <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              strong: ({ ...props }) => (
-                <span className="font-semibold text-foreground" {...props} />
-              ),
-              a: ({ href, children, ...props }) => {
-                return (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline decoration-primary/30 underline-offset-2"
-                    {...props}
-                  >
-                    {children}
-                  </a>
-                );
-              },
-              h1: ({ ...props }) => (
-                <h1
-                  className="text-xl font-semibold text-foreground mt-6 mb-3"
-                  {...props}
-                />
-              ),
-              h2: ({ ...props }) => (
-                <h2
-                  className="text-lg font-semibold text-foreground mt-5 mb-2"
-                  {...props}
-                />
-              ),
-              h3: ({ ...props }) => (
-                <h3
-                  className="text-base font-medium text-foreground mt-4 mb-2"
-                  {...props}
-                />
-              ),
-              ul: ({ ...props }) => (
-                <ul className="my-3 space-y-1" {...props} />
-              ),
-              li: ({ ...props }) => (
-                <li className="text-foreground/80" {...props} />
-              ),
-              p: ({ ...props }) => (
-                <p className="text-foreground/80 leading-7 mb-4" {...props} />
-              ),
-            }}
-          >
-            {cleanedContent}
-          </ReactMarkdown>
-        </div>
-      );
-    }
-
-    // Create a URL to article mapping for quick lookup
-    const urlToArticleMap = new Map<string, NewsArticle>();
-    articles.forEach((article) => {
-      if (article.url) {
-        urlToArticleMap.set(article.url, article);
-        // Also add without trailing slash
-        urlToArticleMap.set(article.url.replace(/\/$/, ""), article);
-      }
-    });
-
-    return (
-      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            strong: ({ ...props }) => (
-              <span className="font-semibold text-foreground" {...props} />
-            ),
-            h1: ({ ...props }) => (
-              <h1
-                className="text-xl font-semibold text-foreground mt-6 mb-3"
-                {...props}
-              />
-            ),
-            h2: ({ ...props }) => (
-              <h2
-                className="text-lg font-semibold text-foreground mt-5 mb-2"
-                {...props}
-              />
-            ),
-            h3: ({ ...props }) => (
-              <h3
-                className="text-base font-medium text-foreground mt-4 mb-2"
-                {...props}
-              />
-            ),
-            ul: ({ ...props }) => (
-              <ul className="my-3 space-y-1" {...props} />
-            ),
-            li: ({ ...props }) => (
-              <li className="text-foreground/80" {...props} />
-            ),
-            p: ({ ...props }) => (
-              <p className="text-foreground/80 leading-7 mb-4" {...props} />
-            ),
-            a: ({ href, children, ...props }) => {
-              // Check if this URL matches one of our articles
-              const article = href
-                ? urlToArticleMap.get(href) ||
-                  urlToArticleMap.get(href.replace(/\/$/, ""))
-                : null;
-
-              if (article) {
-                // Replace the link with an inline article card
-                return (
-                  <button
-                    onClick={() => {
-                      setSelectedArticle(article);
-                      setIsArticleModalOpen(true);
-                    }}
-                    className="not-prose group relative my-6 block w-full overflow-hidden rounded-3xl border border-border/40 bg-card/30 text-left transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-card/50 hover:shadow-2xl hover:shadow-black/30"
-                  >
-                      <div className="flex flex-col sm:flex-row gap-4 p-4">
-                        {article.image && (
-                          <div className="h-48 flex-shrink-0 overflow-hidden rounded-2xl bg-card sm:h-24 sm:w-32">
-                            <SafeImage
-                              src={article.image}
-                              alt={article.title}
-                              width={128}
-                              height={96}
-                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          </div>
-                        )}
-                      <div className="flex flex-col justify-between py-1 min-w-0 flex-1">
-                        <div>
-                          <h4 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors text-base">
-                            {article.title}
-                          </h4>
-                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                            {article.summary}
-                          </p>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          <span className="text-primary/80">
-                            {article.source}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {new Date(article.publishedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              }
-
-              // Regular link (not an article)
-              return (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline decoration-primary/30 underline-offset-2"
-                  {...props}
-                >
-                  {children}
-                </a>
-              );
-            },
-          }}
-        >
-          {cleanedContent}
-        </ReactMarkdown>
-      </div>
-    );
-  };
-
-  const buildArticleEmbeds = (message?: Message | null): NewsArticle[] => {
-    if (!message) return [];
-
-    const structuredArticles = message.structured_articles_json?.articles ?? [];
-    const structuredFallback: NewsArticle[] = structuredArticles.map(
-      (article) => {
-        const tags = [article.category, article.source].filter(
-          (value): value is string => Boolean(value),
-        );
-        const link =
-          typeof article.link === "string" && article.link
-            ? article.link
-            : typeof article.url === "string"
-              ? article.url
-              : "";
-        const description =
-          article.summary || article.description || "No description";
-
-        return {
-          id: Date.now() + Math.random(),
-          title: article.title || "No title",
-          source: article.source || "Unknown",
-          sourceId: (article.source || "unknown")
-            .toLowerCase()
-            .replace(/\s+/g, "-"),
-          country: "United States",
-          credibility: "medium" as const,
-          bias: "center" as const,
-          summary: description,
-          content: description,
-          image: article.image || "/placeholder.svg",
-          publishedAt: article.published || new Date().toISOString(),
-          category: article.category || "general",
-          url: link,
-          tags,
-          originalLanguage: "en",
-          translated: false,
-        };
-      },
-    );
-
-    if (message.referenced_articles && message.referenced_articles.length > 0) {
-      return message.referenced_articles;
-    }
-
-    return structuredFallback;
-  };
+;
 
   const isEmpty = messages.length === 0;
   const latestUserMessage = useMemo(
@@ -1389,7 +2407,7 @@ function NewsResearchPageContent() {
     () => buildArticleEmbeds(latestAssistantMessage),
     [latestAssistantMessage],
   );
-  const sourcePreviewLimit = 5;
+
   const groupedSources = useMemo(() => {
     const groups = new Map<
       string,
@@ -1448,709 +2466,63 @@ function NewsResearchPageContent() {
         </div>
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-2xl">
-            <div className="flex w-full items-start gap-4 px-4 py-4 md:px-6 lg:px-8">
-              <button
-                onClick={toggleSidebar}
-                className="mt-0.5 shrink-0 rounded-full border border-border/30 bg-background/70 p-2 text-muted-foreground transition-all duration-300 ease-out hover:border-border/50 hover:text-foreground active:scale-95"
-                aria-label={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-              >
-                {sidebarCollapsed ? (
-                  <ChevronRight size={16} />
-                ) : (
-                  <ChevronLeft size={16} />
-                )}
-              </button>
-
-              <div className="min-w-0 flex-1">
-                {isEmpty ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <h1 className="truncate font-serif text-base font-medium tracking-tight text-foreground">
-                          Scoop Research
-                        </h1>
-                        <span className="hidden h-1 w-1 rounded-full bg-border/70 md:inline-block" />
-                        <span className="hidden font-mono text-xs uppercase tracking-widest text-muted-foreground/55 md:inline">
-                          Workspace
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                      <p className="max-w-xl text-sm text-muted-foreground">
-                        Start a focused question to build a source-backed brief.
-                      </p>
-                      <Link href="/">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
-                        >
-                          <Home className="mr-2 h-3.5 w-3.5" />
-                          Back to News
-                        </Button>
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex min-w-0 items-center gap-3">
-                    <h2 className="min-w-0 flex-1 truncate font-serif text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl">
-                      {activeBriefTitle}
-                    </h2>
-                    <div className="hidden shrink-0 items-center gap-4 font-mono text-xs uppercase tracking-widest text-muted-foreground/65 xl:flex">
-                      <span>{conversationMessages.length} messages</span>
-                      {latestAssistantMessage?.articles_searched ? (
-                        <span>
-                          {latestAssistantMessage.articles_searched} sources searched
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2.5">
-                      {(isSearching || latestAssistantMessage?.isStreaming) && (
-                        <div className="flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-xs text-primary/80">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span className="hidden font-mono text-xs uppercase tracking-widest sm:inline">
-                            {latestAssistantMessage?.streamingStatus ||
-                              "Running"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleStop}
-                            className="flex items-center justify-center rounded-full p-1 transition-colors hover:bg-primary/15"
-                            title="Stop generation"
-                          >
-                            <Square className="h-2.5 w-2.5 fill-current" />
-                          </button>
-                        </div>
-                      )}
-                      <Link href="/">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-9 rounded-full px-4 text-xs text-muted-foreground transition-all duration-300 ease-out hover:bg-card/50 hover:text-foreground"
-                        >
-                          <Home className="mr-2 h-3.5 w-3.5" />
-                          Back to News
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </header>
-
+          <WorkspaceHeader
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={toggleSidebar}
+            isEmpty={isEmpty}
+            activeBriefTitle={activeBriefTitle}
+            messageCount={conversationMessages.length}
+            latestAssistantMessage={latestAssistantMessage}
+            isSearching={isSearching}
+            onStop={handleStop}
+          />
           <main className="flex h-full flex-1 flex-col overflow-hidden bg-transparent">
             {isEmpty ? (
-              <div className="flex-1 flex flex-col p-4 lg:p-8">
-                <div className="flex-1 max-w-2xl mx-auto w-full flex flex-col justify-center -mt-16">
-                  <motion.div
-                    className="mb-6"
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
-                        <Cpu className="w-4 h-4 text-primary" />
-                      </div>
-                      <h1 className="font-serif text-3xl tracking-tight text-foreground">
-                        Research Workspace
-                      </h1>
-                    </div>
-                    <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-                      Ask a focused question to start a multi-source research
-                      brief.
-                    </p>
-                  </motion.div>
-
-                  <div className="group relative w-full">
-                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 blur-xl transition duration-500 group-hover:opacity-100"></div>
-                    <div className="relative rounded-2xl border border-border/40 bg-card/40 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl transition-all duration-300 ease-out focus-within:border-primary/30">
-                      <form onSubmit={handleSearch}>
-                        <textarea
-                          ref={inputRef}
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSearch(e);
-                            }
-                          }}
-                          placeholder="Ask a question about coverage, bias, or context..."
-                          className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-                        />
-                        {query.length >= 3 && (
-                          <SearchSuggestions
-                            query={query}
-                            onSuggestionClick={(suggestion) => {
-                              setQuery(suggestion.label);
-                              inputRef.current?.focus();
-                            }}
-                            className="mt-2 pt-2 border-t border-border/40"
-                          />
-                        )}
-                        <div className="mt-2 flex items-center justify-between border-t border-border/20 px-3 pb-1 pt-3">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
-                            >
-                              <Filter className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
-                            >
-                              <Clock className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <button
-                            type="submit"
-                            disabled={!query.trim() || isSearching}
-                            className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-medium text-background transition-all duration-300 ease-out active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isSearching ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <>
-                                Start Research{" "}
-                                <ArrowRight className="w-4 h-4" />
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-                    {sampleQueries.slice(0, 3).map((q) => (
-                      <motion.button
-                        key={q}
-                        onClick={() => handleSampleQuery(q)}
-                        initial={{ opacity: 0, y: 18 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="group rounded-2xl border border-border/40 bg-card/40 p-5 text-left transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-card/60 hover:border-primary/30"
-                      >
-                        <p className="text-sm text-muted-foreground/70 leading-relaxed group-hover:text-foreground transition-colors">
-                          {q}
-                        </p>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <EmptyResearchView
+                query={query}
+                setQuery={setQuery}
+                isSearching={isSearching}
+                inputRef={inputRef}
+                onSearch={handleSearch}
+                onSampleQuery={handleSampleQuery}
+              />
             ) : (
-              <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row">
-                <section className="flex min-w-0 flex-1 flex-col lg:basis-8/12">
-                  <div className="flex-1 min-h-0">
-                    <div className="mx-auto flex h-full w-full max-w-7xl flex-col px-4 md:px-6">
-                      <div
-                        ref={chatScrollRef}
-                        className="custom-scrollbar flex-1 min-h-0 space-y-6 overflow-y-auto px-2 py-6"
-                      >
-                        {conversationMessages.length === 0 ? (
-                          <div className="rounded-2xl border border-border/40 bg-card/50 p-6 text-sm text-muted-foreground backdrop-blur-xl">
-                            Ask a question to start.
-                          </div>
-                        ) : (
-                          conversationMessages.map((message) => {
-                            const isAssistant = message.type === "assistant";
-                            const isInlineEditing =
-                              !isAssistant && editingMessageId === message.id;
-                            const stepCount =
-                              message.thinking_steps?.length ?? 0;
-                            const stepsExpanded = expandedStepMessageIds.has(
-                              message.id,
-                            );
-                            const versionInfo = getMessageVersionInfo(
-                              messages,
-                              message.id,
-                              activeAssistantVersions,
-                            );
-                            const messageClass =
-                              message.type === "user"
-                                ? "border-border/5 bg-[var(--news-bg-secondary)]/30 ml-20"
-                                : message.error
-                                  ? "border-border/5 bg-destructive/5 mr-12"
-                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4";
-                              return (
-                                <motion.div
-                                  key={message.id}
-                                  initial={{ opacity: 0, y: 18 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ duration: 0.3, ease: "easeOut" }}
-                                  className={`rounded-xl border px-5 py-3.5 ${messageClass}`}
-                                >
-                                  <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                                    <span>
-                                      {isAssistant ? "Assistant" : "You"}
-                                    </span>
-                                  <span>
-                                    {message.timestamp.toLocaleTimeString(
-                                      "en-US",
-                                      { hour: "2-digit", minute: "2-digit" },
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="mt-3 text-base text-foreground/90">
-                                  {isInlineEditing ? (
-                                    <form
-                                      onSubmit={(event) => {
-                                        event.preventDefault();
-                                        void handleSaveEditedMessage();
-                                      }}
-                                      className="space-y-3"
-                                    >
-                                      <textarea
-                                        value={editingDraft}
-                                        onChange={(event) =>
-                                          setEditingDraft(event.target.value)
-                                        }
-                                        onKeyDown={(event) => {
-                                          if (
-                                            event.key === "Enter" &&
-                                            !event.shiftKey
-                                          ) {
-                                            event.preventDefault();
-                                            void handleSaveEditedMessage();
-                                          }
-                                          if (event.key === "Escape") {
-                                            event.preventDefault();
-                                            handleCancelEditMessage();
-                                          }
-                                        }}
-                                        autoFocus
-                                        disabled={isSearching}
-                                        className="min-h-28 w-full resize-y rounded-2xl border border-primary/30 bg-background/60 px-4 py-3 text-base text-foreground focus:outline-none"
-                                      />
-                                      <div className="flex justify-end gap-2">
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={handleCancelEditMessage}
-                                          disabled={isSearching}
-                                        >
-                                          Cancel
-                                        </Button>
-                                        <Button
-                                          type="submit"
-                                          size="sm"
-                                          disabled={
-                                            !editingDraft.trim() || isSearching
-                                          }
-                                        >
-                                          Save
-                                        </Button>
-                                      </div>
-                                    </form>
-                                  ) : isAssistant ? (
-                                    message.isStreaming ? (
-                                      <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-                                        <span>
-                                          {message.streamingStatus ||
-                                            "Working..."}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={handleStop}
-                                          className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-border/40 transition-colors"
-                                          title="Stop generation"
-                                        >
-                                          <Square className="h-3 w-3" />
-                                          Stop
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      renderContentWithEmbeds(
-                                        message.content,
-                                        buildArticleEmbeds(message),
-                                      )
-                                    )
-                                  ) : (
-                                    <p>{message.content}</p>
-                                  )}
-                                </div>
-
-                                {!message.isStreaming && !message.toolType && (
-                                  <div className="mt-3 flex items-center justify-between gap-3 text-muted-foreground">
-                                    <div className="flex min-w-0 items-center gap-1">
-                                      {versionInfo && (
-                                        <>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleSelectMessageVersion(
-                                                versionInfo.groupId,
-                                                versionInfo.versionIds[
-                                                  versionInfo.currentIndex - 1
-                                                ]!,
-                                              )
-                                            }
-                                            disabled={versionInfo.currentIndex === 0}
-                                            className="h-7 w-7 px-0"
-                                            aria-label="Previous message version"
-                                          >
-                                            <ChevronLeft className="h-3.5 w-3.5" />
-                                          </Button>
-                                          <span className="font-mono text-xs">
-                                            {versionInfo.currentIndex + 1}/
-                                            {versionInfo.totalVersions}
-                                          </span>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleSelectMessageVersion(
-                                                versionInfo.groupId,
-                                                versionInfo.versionIds[
-                                                  versionInfo.currentIndex + 1
-                                                ]!,
-                                              )
-                                            }
-                                            disabled={
-                                              versionInfo.currentIndex ===
-                                              versionInfo.totalVersions - 1
-                                            }
-                                            className="h-7 w-7 px-0"
-                                            aria-label="Next message version"
-                                          >
-                                            <ChevronRight className="h-3.5 w-3.5" />
-                                          </Button>
-                                        </>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      {isInlineEditing ? null : (
-                                        <>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() =>
-                                          void handleCopyMessage(message.content)
-                                        }
-                                        className="h-8 px-2 text-xs"
-                                      >
-                                        <Copy className="mr-1 h-3.5 w-3.5" />
-                                        Copy
-                                      </Button>
-                                      {!isAssistant && (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleEditMessage(message.id)}
-                                          className="h-8 px-2 text-xs"
-                                        >
-                                          <Pencil className="mr-1 h-3.5 w-3.5" />
-                                          Edit
-                                        </Button>
-                                      )}
-                                      {isAssistant && (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleResetMessage(message.id)}
-                                          disabled={isSearching}
-                                          className="h-8 px-2 text-xs"
-                                        >
-                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                          Retry
-                                        </Button>
-                                      )}
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteMessage(message.id)}
-                                        disabled={isSearching}
-                                        className="h-8 px-2 text-xs"
-                                      >
-                                        <Trash2 className="mr-1 h-3.5 w-3.5" />
-                                        Delete
-                                      </Button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {isAssistant &&
-                                  !message.isStreaming &&
-                                  stepCount > 0 && (
-                                    <div className="mt-3">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          toggleStepVisibility(message.id)
-                                        }
-                                        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                                      >
-                                        {stepsExpanded ? (
-                                          <ChevronUp className="w-4 h-4" />
-                                        ) : (
-                                          <ChevronDown className="w-4 h-4" />
-                                        )}
-                                        {stepsExpanded
-                                          ? "Hide steps"
-                                          : `Show steps (${stepCount})`}
-                                      </button>
-                                      {stepsExpanded && (
-                                        <div className="mt-3 space-y-2">
-                                          {message.thinking_steps?.map(
-                                            (step, idx) => (
-                                              <div
-                                                key={`${message.id}-step-${idx}`}
-                                                className="rounded-2xl border border-border/20 bg-background/40 p-3"
-                                              >
-                                                <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground/70">
-                                                  Step {idx + 1}:{" "}
-                                                  {step.type.replace("_", " ")}
-                                                </div>
-                                                <p className="mt-2 text-xs text-muted-foreground">
-                                                  {step.content}
-                                                </p>
-                                              </div>
-                                            ),
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                              </motion.div>
-                             );
-                           })
-                         )}
-                      </div>
-
-                      <div className="border-t border-border/20 bg-background/70 p-4 backdrop-blur-xl">
-                        <form
-                          ref={composerFormRef}
-                          onSubmit={handleSearch}
-                          className="space-y-2"
-                        >
-                          <div className="flex items-center gap-2 rounded-2xl border border-border/40 bg-card/50 p-2 pl-4 shadow-xl shadow-black/10 transition-all duration-300 ease-out focus-within:border-primary/40 focus-within:bg-card/60">
-                            <textarea
-                              ref={inputRef}
-                              value={query}
-                              onChange={(e) => setQuery(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleSearch(e);
-                                }
-                              }}
-                              placeholder="Ask a question and press Enter..."
-                              className="h-10 w-full resize-none bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-                              disabled={isSearching}
-                            />
-                          </div>
-                          {query.length >= 3 && (
-                            <SearchSuggestions
-                              query={query}
-                              onSuggestionClick={(suggestion) => {
-                                setQuery(suggestion.label);
-                                inputRef.current?.focus();
-                              }}
-                              className="pt-2"
-                            />
-                          )}
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex flex-wrap gap-2">
-                              {/* Hide sample queries in active mode to preserve vertical space */}
-                            </div>
-                            <Button
-                              type="submit"
-                              size="sm"
-                              disabled={!query.trim() || isSearching}
-                              className="h-10 rounded-full bg-primary px-6 text-background transition-all duration-300 ease-out active:scale-95"
-                            >
-                              {isSearching ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <>
-                                  Send <ArrowRight className="w-4 h-4 ml-1" />
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
-                  <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
-                    <div className="space-y-6 px-5 py-6 md:px-6">
-                      <section className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
-                            Research Log
-                          </h3>
-                          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground/55">
-                            {thinkingSteps.length} steps
-                          </span>
-                        </div>
-                        <div className="space-y-3 text-sm">
-                          {thinkingSteps.length > 0 ? (
-                            thinkingSteps.slice(-6).map((step, idx) => (
-                              <div
-                                key={`${step.type}-${idx}`}
-                                className="rounded-r-2xl border-l-2 border-primary/25 bg-background/25 px-3 py-2.5"
-                              >
-                                <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground/65">
-                                  {step.type.replace("_", " ")}
-                                </div>
-                                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/80">
-                                  {step.content}
-                                </p>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Reasoning steps will appear as the agent works.
-                            </p>
-                          )}
-                        </div>
-                      </section>
-
-                      {latestAssistantMessage &&
-                        !latestAssistantMessage.isStreaming &&
-                        latestAssistantMessage.content && (
-                          <section className="border-t border-border/15 pt-6">
-                            <VerificationPanel
-                              query={latestUserMessage?.content || ""}
-                              mainAnswer={latestAssistantMessage.content}
-                              className="rounded-2xl border-border/20 bg-card/30"
-                            />
-                          </section>
-                        )}
-
-                      {latestSemanticMessage?.semanticResults &&
-                        latestSemanticMessage.semanticResults.length > 0 && (
-                          <section className="border-t border-border/15 pt-6">
-                            <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
-                              Related Coverage
-                            </h3>
-                            <div className="mt-3 space-y-2">
-                              {latestSemanticMessage.semanticResults.map(
-                                ({ article, similarityScore }) => (
-                                  <button
-                                    key={`semantic-${article.url || article.id}`}
-                                    onClick={() => {
-                                      setSelectedArticle(article);
-                                      setIsArticleModalOpen(true);
-                                    }}
-                                    className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
-                                  >
-                                    <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
-                                      {article.title}
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                      <span>{article.source}</span>
-                                      {typeof similarityScore === "number" && (
-                                        <span className="rounded-full border border-border/20 bg-background/60 px-2 py-0.5 text-xs text-muted-foreground">
-                                          {Math.round(similarityScore * 100)}%
-                                          match
-                                        </span>
-                                      )}
-                                    </div>
-                                  </button>
-                                ),
-                              )}
-                            </div>
-                          </section>
-                        )}
-
-                      {groupedSources.length > 0 && (
-                        <section className="border-t border-border/15 pt-6">
-                          <h3 className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
-                            Sources Used
-                          </h3>
-                          <div className="mt-3 space-y-4">
-                            {groupedSources.map((group) => {
-                              const isExpanded = expandedSourceIds.has(
-                                group.sourceId,
-                              );
-                              const visibleArticles = isExpanded
-                                ? group.articles
-                                : group.articles.slice(0, sourcePreviewLimit);
-
-                              return (
-                                <div
-                                  key={group.sourceId}
-                                  className="border-t border-border/10 pt-4 first:border-t-0 first:pt-0"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-medium text-foreground">
-                                        {group.sourceName}
-                                      </div>
-                                      <div className="mt-1.5 font-mono text-xs uppercase tracking-wide text-muted-foreground/70">
-                                        {group.articles.length} articles
-                                      </div>
-                                    </div>
-                                    {group.articles.length >
-                                      sourcePreviewLimit && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          toggleSourceVisibility(group.sourceId)
-                                        }
-                                        className="font-mono text-xs uppercase tracking-wider text-primary hover:underline"
-                                      >
-                                        {isExpanded
-                                          ? "Collapse"
-                                          : `Show all (${group.articles.length})`}
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div className="mt-3 space-y-2">
-                                    {visibleArticles.map((article) => (
-                                      <button
-                                        key={`${group.sourceId}-${article.url || article.id}`}
-                                        onClick={() => {
-                                          setSelectedArticle(article);
-                                          setIsArticleModalOpen(true);
-                                        }}
-                                        className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
-                                      >
-                                        <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
-                                          {article.title}
-                                        </div>
-                                        <div className="mt-2.5 flex items-center justify-between font-mono text-xs uppercase tracking-wide text-muted-foreground/60">
-                                          <span>{article.source}</span>
-                                          <span>
-                                            {formatShortDate(
-                                              article.publishedAt,
-                                            )}
-                                          </span>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      )}
-                    </div>
-                  </div>
-                </aside>
-              </div>
+              <ResearchChatView
+                conversationMessages={conversationMessages}
+                messages={messages}
+                activeAssistantVersions={activeAssistantVersions}
+                editingMessageId={editingMessageId}
+                editingDraft={editingDraft}
+                setEditingDraft={setEditingDraft}
+                isSearching={isSearching}
+                expandedStepMessageIds={expandedStepMessageIds}
+                expandedSourceIds={expandedSourceIds}
+                chatScrollRef={chatScrollRef}
+                composerFormRef={composerFormRef}
+                inputRef={inputRef}
+                query={query}
+                setQuery={setQuery}
+                onSearch={handleSearch}
+                onStop={handleStop}
+                onCopy={handleCopyMessage}
+                onEdit={handleEditMessage}
+                onReset={handleResetMessage}
+                onDelete={handleDeleteMessage}
+                onSaveEdit={handleSaveEditedMessage}
+                onCancelEdit={handleCancelEditMessage}
+                onSelectVersion={handleSelectMessageVersion}
+                onToggleSteps={toggleStepVisibility}
+                onToggleSource={toggleSourceVisibility}
+                onOpenArticle={(article) => {
+                  setSelectedArticle(article);
+                  setIsArticleModalOpen(true);
+                }}
+                thinkingSteps={thinkingSteps}
+                latestAssistantMessage={latestAssistantMessage}
+                latestUserMessage={latestUserMessage}
+                latestSemanticMessage={latestSemanticMessage}
+                groupedSources={groupedSources}
+              />
             )}
           </main>
         </div>

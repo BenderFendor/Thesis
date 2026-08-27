@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
+import os
 import signal
 import time
 from datetime import datetime, UTC
@@ -58,6 +60,7 @@ from app.services.scheduler import (
 from app.services.wiki_indexer import periodic_wiki_refresh
 from app.services.auto_ingest import run_auto_ingest
 from app.services.source_credibility import run_credibility_scoring_scheduler
+from app.services.gdelt_query import get_gdelt_query_service
 from app.services.startup_metrics import startup_metrics
 from app.services.websocket_manager import manager
 from app.core.tracing import setup_tracing
@@ -131,6 +134,20 @@ if settings.otel_enabled:
 
 _background_tasks: list[asyncio.Task[Any]] = []
 _leader_lock_file: str | None = None  # Set only in the leader worker
+
+
+def _startup_leader_lock_path() -> Path:
+    """Return a lock shared by workers of this server, not unrelated servers."""
+    repository = Path(__file__).resolve().parents[2]
+    bind = (
+        os.getenv("SCOOP_RUNTIME_INSTANCE")
+        or os.getenv("GUNICORN_BIND")
+        or os.getenv("BACKEND_PORT")
+        or os.getenv("PORT")
+        or "127.0.0.1:8000"
+    )
+    identity = hashlib.sha256(f"{repository}\0{bind}".encode()).hexdigest()[:20]
+    return Path("/tmp/thesis_startup_lock") / identity / "leader.lock"
 
 
 def _register_background_task(task: asyncio.Task[Any]) -> None:
@@ -428,14 +445,11 @@ async def on_startup() -> None:
         logger.info("Database disabled; skipping initialisation and persistence")
         startup_metrics.add_note("database_disabled", True)
     # Use file-based lock to ensure startup tasks run only once across all workers
-    import os
-    from pathlib import Path
-
-    startup_lock_dir = "/tmp/thesis_startup_lock"
+    lock_file_path = _startup_leader_lock_path()
     is_leader = False
     try:
-        Path(startup_lock_dir).mkdir(parents=True, exist_ok=True)
-        lock_file = str(Path(startup_lock_dir) / "leader.lock")
+        lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = str(lock_file_path)
 
         # Remove a stale lock file left by a previous process that was killed
         # without running on_shutdown (e.g. SIGKILL).
@@ -571,6 +585,9 @@ async def on_shutdown() -> None:
 
     if tasks_snapshot:
         await asyncio.gather(*tasks_snapshot, return_exceptions=True)
+
+    # Release pooled HTTP clients held by process-lifetime singletons.
+    await get_gdelt_query_service().close()
 
     # Release the leader lock so the next restart can elect a new leader.
     if _leader_lock_file:

@@ -176,25 +176,20 @@ fn normalize_similarity_input(text: &str) -> String {
         .to_lowercase()
 }
 
+fn word_set(text: &str) -> HashSet<String> {
+    text.split_whitespace()
+        .map(|token| {
+            token
+                .trim_matches(|ch: char| !ch.is_alphanumeric())
+                .to_lowercase()
+        })
+        .filter(|token| !token.is_empty())
+        .collect()
+}
+
 fn sentence_word_overlap(text1: &str, text2: &str) -> f64 {
-    let left = text1
-        .split_whitespace()
-        .map(|token| {
-            token
-                .trim_matches(|ch: char| !ch.is_alphanumeric())
-                .to_lowercase()
-        })
-        .filter(|token| !token.is_empty())
-        .collect::<HashSet<_>>();
-    let right = text2
-        .split_whitespace()
-        .map(|token| {
-            token
-                .trim_matches(|ch: char| !ch.is_alphanumeric())
-                .to_lowercase()
-        })
-        .filter(|token| !token.is_empty())
-        .collect::<HashSet<_>>();
+    let left = word_set(text1);
+    let right = word_set(text2);
 
     if left.is_empty() || right.is_empty() {
         return 0.0;
@@ -232,6 +227,27 @@ pub fn calculate_text_similarity(text1: &str, text2: &str) -> f64 {
     normalized_levenshtein(&left, &right)
 }
 
+fn best_sentence_match<'a>(
+    sentence1: &str,
+    sentences2: &'a [String],
+) -> Option<(usize, &'a String, f64)> {
+    let mut best_match: Option<(usize, &String, f64)> = None;
+    for (j, sentence2) in sentences2.iter().enumerate() {
+        if sentence_word_overlap(sentence1, sentence2) < SENTENCE_WORD_OVERLAP_THRESHOLD {
+            continue;
+        }
+        let ratio = calculate_text_similarity(sentence1, sentence2);
+        if ratio > SENTENCE_MATCH_THRESHOLD
+            && best_match
+                .as_ref()
+                .is_none_or(|(_, _, best_ratio)| ratio > *best_ratio)
+        {
+            best_match = Some((j, sentence2, ratio));
+        }
+    }
+    best_match
+}
+
 fn generate_sentence_diff(
     text1: &str,
     text2: &str,
@@ -243,23 +259,9 @@ fn generate_sentence_diff(
     let mut similar = Vec::new();
 
     for (i, sentence1) in sentences1.iter().enumerate() {
-        let mut best_match: Option<(usize, &String, f64)> = None;
-        for (j, sentence2) in sentences2.iter().enumerate() {
-            let overlap = sentence_word_overlap(sentence1, sentence2);
-            if overlap < SENTENCE_WORD_OVERLAP_THRESHOLD {
-                continue;
-            }
-
-            let ratio = calculate_text_similarity(sentence1, sentence2);
-            if ratio > SENTENCE_MATCH_THRESHOLD {
-                match best_match {
-                    Some((_, _, best_ratio)) if ratio <= best_ratio => {}
-                    _ => best_match = Some((j, sentence2, ratio)),
-                }
-            }
-        }
-
-        if let Some((matched_index, matched_sentence, ratio)) = best_match {
+        if let Some((matched_index, matched_sentence, ratio)) =
+            best_sentence_match(sentence1, &sentences2)
+        {
             similar.push(SentenceMatch {
                 source_1_index: i,
                 source_2_index: matched_index,

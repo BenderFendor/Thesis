@@ -43,31 +43,17 @@ impl CountryAliasData {
                     let tokens = original_tokens(alias);
                     if !tokens.is_empty() {
                         case_sensitive_patterns.push(alias.clone());
-                        let entry = unique_exact_alias_to_code
-                            .entry(tokens)
-                            .or_insert_with(|| code.clone());
-                        if entry != code {
-                            unique_exact_alias_to_code.remove(&original_tokens(alias));
-                        }
                     }
+                    insert_unique_alias(&mut unique_exact_alias_to_code, tokens, code);
                 } else {
                     let pattern_id = all_patterns.len() as u32;
-                    let lowered = alias.to_lowercase();
-                    all_patterns.push(lowered);
+                    all_patterns.push(alias.to_lowercase());
                     pattern_to_codes
                         .entry(pattern_id)
                         .or_default()
                         .insert(code.clone());
 
-                    let tokens = lowered_tokens(alias);
-                    if !tokens.is_empty() {
-                        let entry = unique_alias_to_code
-                            .entry(tokens)
-                            .or_insert_with(|| code.clone());
-                        if entry != code {
-                            unique_alias_to_code.remove(&lowered_tokens(alias));
-                        }
-                    }
+                    insert_unique_alias(&mut unique_alias_to_code, lowered_tokens(alias), code);
                 }
             }
         }
@@ -93,6 +79,21 @@ impl CountryAliasData {
             max_alias_tokens,
             case_sensitive_patterns,
         }
+    }
+}
+
+fn insert_unique_alias(map: &mut HashMap<Vec<String>, String>, tokens: Vec<String>, code: &str) {
+    if tokens.is_empty() {
+        return;
+    }
+    let should_remove = {
+        let entry = map
+            .entry(tokens.clone())
+            .or_insert_with(|| code.to_string());
+        entry.as_str() != code
+    };
+    if should_remove {
+        map.remove(&tokens);
     }
 }
 
@@ -161,12 +162,28 @@ fn get_alias_data() -> Option<&'static CountryAliasData> {
     COUNTRY_ALIAS_DATA.as_ref()
 }
 
+fn lookup_alias_code(
+    data: &CountryAliasData,
+    original_tokens: &[String],
+    lowered_tokens: &[String],
+    start: usize,
+    width: usize,
+) -> Option<String> {
+    let exact_slice = original_tokens[start..start + width].to_vec();
+    if let Some(code) = data.unique_exact_alias_to_code.get(&exact_slice) {
+        return Some(code.clone());
+    }
+    let lowered_slice = lowered_tokens[start..start + width].to_vec();
+    data.unique_alias_to_code.get(&lowered_slice).cloned()
+}
+
 /// Scans the given text for country name mentions using a pre-loaded
 /// Aho-Corasick automaton and multi-token alias matching against the
 /// `country_aliases.json` dataset.
 ///
 /// Returns a sorted list of unique ISO country codes (e.g. `["FR", "GB",
 /// "US"]`).
+
 #[pyfunction]
 pub fn rust_extract_mentioned_countries(text: &str) -> Vec<String> {
     if text.trim().is_empty() {
@@ -201,15 +218,10 @@ pub fn rust_extract_mentioned_countries(text: &str) -> Vec<String> {
     for i in 0..lowered_tokens_vec.len() {
         let max_width = data.max_alias_tokens.min(lowered_tokens_vec.len() - i);
         for width in (1..=max_width).rev() {
-            let exact_slice: Vec<String> = original_tokens_vec[i..i + width].to_vec();
-            if let Some(code) = data.unique_exact_alias_to_code.get(&exact_slice) {
-                mentions.insert(code.clone());
-                break;
-            }
-
-            let lowered_slice: Vec<String> = lowered_tokens_vec[i..i + width].to_vec();
-            if let Some(code) = data.unique_alias_to_code.get(&lowered_slice) {
-                mentions.insert(code.clone());
+            if let Some(code) =
+                lookup_alias_code(data, &original_tokens_vec, &lowered_tokens_vec, i, width)
+            {
+                mentions.insert(code);
                 break;
             }
         }

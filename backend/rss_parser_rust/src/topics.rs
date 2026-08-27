@@ -199,6 +199,203 @@ fn passes_lexical_match(base_tokens: &HashSet<String>, candidate_tokens: &HashSe
     jaccard >= LEXICAL_MIN_JACCARD || overlap > LEXICAL_MIN_TOKEN_OVERLAP
 }
 
+fn build_token_index(keyword_data: &[ArticleKeywords]) -> HashMap<String, Vec<i64>> {
+    let mut token_index: HashMap<String, Vec<i64>> = HashMap::new();
+    for keywords in keyword_data {
+        for token in &keywords.tokens {
+            token_index
+                .entry(token.clone())
+                .or_default()
+                .push(keywords.article_id);
+        }
+    }
+    token_index
+}
+
+fn collect_candidate_overlaps(
+    keywords: &ArticleKeywords,
+    order_index: &HashMap<i64, u32>,
+    token_index: &HashMap<String, Vec<i64>>,
+) -> HashMap<i64, usize> {
+    let base_index = *order_index.get(&keywords.article_id).unwrap_or(&0);
+    let mut overlaps: HashMap<i64, usize> = HashMap::new();
+    for token in &keywords.tokens {
+        let Some(neighbors) = token_index.get(token) else {
+            continue;
+        };
+        if neighbors.len() > LEXICAL_MAX_TOKEN_POSTINGS {
+            continue;
+        }
+        for &neighbor_id in neighbors {
+            let neighbor_index = *order_index.get(&neighbor_id).unwrap_or(&0);
+            if neighbor_index <= base_index {
+                continue;
+            }
+            *overlaps.entry(neighbor_id).or_default() += 1;
+        }
+    }
+    overlaps
+}
+
+fn union_lexical_candidates(
+    article_id: i64,
+    keywords: &ArticleKeywords,
+    order_index: &HashMap<i64, u32>,
+    token_index: &HashMap<String, Vec<i64>>,
+    keywords_by_id: &HashMap<i64, &ArticleKeywords>,
+    parent: &mut HashMap<i64, i64>,
+) {
+    if keywords.tokens.len() < LEXICAL_MIN_TOKEN_OVERLAP {
+        return;
+    }
+    for (&neighbor_id, &overlap) in &collect_candidate_overlaps(keywords, order_index, token_index)
+    {
+        if overlap < LEXICAL_MIN_TOKEN_OVERLAP {
+            continue;
+        }
+        let Some(neighbor_keywords) = keywords_by_id.get(&neighbor_id) else {
+            continue;
+        };
+        if passes_lexical_match(&keywords.token_set, &neighbor_keywords.token_set) {
+            union_components(parent, article_id, neighbor_id);
+        }
+    }
+}
+
+fn find_root(parent: &mut HashMap<i64, i64>, x: i64) -> i64 {
+    let mut root = x;
+    while parent[&root] != root {
+        root = parent[&root];
+    }
+    let mut current = x;
+    while parent[&current] != current {
+        let next = parent[&current];
+        parent.insert(current, root);
+        current = next;
+    }
+    root
+}
+
+fn union_components(parent: &mut HashMap<i64, i64>, a: i64, b: i64) {
+    let root_a = find_root(parent, a);
+    let root_b = find_root(parent, b);
+    if root_a != root_b {
+        parent.insert(root_b, root_a);
+    }
+}
+
+fn token_set_for(keywords_by_id: &HashMap<i64, &ArticleKeywords>, id: i64) -> HashSet<String> {
+    keywords_by_id
+        .get(&id)
+        .map(|k| k.token_set.clone())
+        .unwrap_or_default()
+}
+
+fn filter_cluster_members(
+    ordered_members: &[i64],
+    anchor_id: i64,
+    anchor_tokens: &HashSet<String>,
+    keywords_by_id: &HashMap<i64, &ArticleKeywords>,
+) -> Vec<i64> {
+    let mut filtered = Vec::new();
+    for &member_id in ordered_members {
+        if member_id == anchor_id {
+            filtered.push(member_id);
+            continue;
+        }
+        let Some(member_keywords) = keywords_by_id.get(&member_id) else {
+            continue;
+        };
+        if passes_lexical_match(anchor_tokens, &member_keywords.token_set) {
+            filtered.push(member_id);
+        }
+    }
+    filtered
+}
+
+fn rounded_jaccard(overlap: usize, union_size: usize) -> f64 {
+    if union_size > 0 {
+        (overlap as f64 / union_size as f64 * 1000.0).round() / 1000.0
+    } else {
+        0.0
+    }
+}
+
+fn anchor_similarities(
+    anchor_id: i64,
+    anchor_tokens: &HashSet<String>,
+    filtered_members: &[i64],
+    keywords_by_id: &HashMap<i64, &ArticleKeywords>,
+) -> HashMap<i64, f64> {
+    let mut similarities = HashMap::new();
+    for &member_id in filtered_members {
+        if member_id == anchor_id {
+            similarities.insert(member_id, 1.0);
+            continue;
+        }
+        let Some(member_keywords) = keywords_by_id.get(&member_id) else {
+            continue;
+        };
+        if anchor_tokens.is_empty() || member_keywords.token_set.is_empty() {
+            similarities.insert(member_id, 0.0);
+            continue;
+        }
+        let overlap = anchor_tokens
+            .intersection(&member_keywords.token_set)
+            .count();
+        let union_size = anchor_tokens.len() + member_keywords.token_set.len() - overlap;
+        similarities.insert(member_id, rounded_jaccard(overlap, union_size));
+    }
+    similarities
+}
+
+fn build_clusters(
+    keyword_data: &[ArticleKeywords],
+    order_index: &HashMap<i64, u32>,
+    ids: &[i64],
+    mut parent: HashMap<i64, i64>,
+) -> Vec<ClusterCandidate> {
+    let keywords_by_id: HashMap<i64, &ArticleKeywords> =
+        keyword_data.iter().map(|k| (k.article_id, k)).collect();
+
+    let mut components: HashMap<i64, HashSet<i64>> = HashMap::new();
+    for &id in ids {
+        let root = find_root(&mut parent, id);
+        components.entry(root).or_default().insert(id);
+    }
+
+    let mut clusters: Vec<ClusterCandidate> = Vec::new();
+    for members in components.values() {
+        if members.len() < MIN_CLUSTER_SIZE {
+            continue;
+        }
+        let mut ordered_members: Vec<i64> = members.iter().copied().collect();
+        ordered_members.sort_by_key(|id| order_index.get(id).copied().unwrap_or(0));
+
+        let anchor_id = ordered_members[0];
+        let anchor_tokens = token_set_for(&keywords_by_id, anchor_id);
+        let filtered_members =
+            filter_cluster_members(&ordered_members, anchor_id, &anchor_tokens, &keywords_by_id);
+        if filtered_members.len() < MIN_CLUSTER_SIZE {
+            continue;
+        }
+
+        let similarities = anchor_similarities(
+            anchor_id,
+            &anchor_tokens,
+            &filtered_members,
+            &keywords_by_id,
+        );
+        clusters.push(ClusterCandidate {
+            anchor_id,
+            member_ids: filtered_members,
+            similarities,
+        });
+    }
+
+    clusters
+}
+
 /// Groups articles into clusters based on shared title keywords using a
 /// union-find algorithm over token overlap.
 ///
@@ -218,164 +415,26 @@ pub fn cluster_articles_lexical(articles: Vec<ArticleInput>) -> Vec<ClusterCandi
     let keyword_data = build_article_keywords(&articles);
     let keywords_by_id: HashMap<i64, &ArticleKeywords> =
         keyword_data.iter().map(|k| (k.article_id, k)).collect();
-
-    let mut token_to_article_ids: HashMap<String, Vec<i64>> = HashMap::new();
-    for kw in &keyword_data {
-        for token in &kw.tokens {
-            token_to_article_ids
-                .entry(token.clone())
-                .or_default()
-                .push(kw.article_id);
-        }
-    }
+    let token_index = build_token_index(&keyword_data);
 
     let ids: Vec<i64> = articles.iter().map(|a| a.article_id).collect();
-    let mut parent: HashMap<i64, i64> = HashMap::new();
-    for &id in &ids {
-        parent.insert(id, id);
-    }
-
-    fn find(parent: &mut HashMap<i64, i64>, x: i64) -> i64 {
-        let root = {
-            let mut current = x;
-            loop {
-                let p = parent[&current];
-                if p == current {
-                    break current;
-                }
-                current = p;
-            }
-        };
-        let mut current = x;
-        while parent[&current] != current {
-            let next = parent[&current];
-            parent.insert(current, root);
-            current = next;
-        }
-        root
-    }
-
-    fn union(parent: &mut HashMap<i64, i64>, a: i64, b: i64) {
-        let ra = find(parent, a);
-        let rb = find(parent, b);
-        if ra != rb {
-            parent.insert(rb, ra);
-        }
-    }
+    let mut parent: HashMap<i64, i64> = ids.iter().map(|&id| (id, id)).collect();
 
     for article in &articles {
-        let article_id = article.article_id;
-        let kw = match keywords_by_id.get(&article_id) {
-            Some(k) => k,
-            None => continue,
+        let Some(keywords) = keywords_by_id.get(&article.article_id) else {
+            continue;
         };
-        if kw.tokens.len() < LEXICAL_MIN_TOKEN_OVERLAP {
-            continue;
-        }
-
-        let base_index = *order_index.get(&article_id).unwrap_or(&0);
-        let mut candidate_overlaps: HashMap<i64, usize> = HashMap::new();
-
-        for token in &kw.tokens {
-            let neighbors = match token_to_article_ids.get(token) {
-                Some(n) => n,
-                None => continue,
-            };
-            if neighbors.len() > LEXICAL_MAX_TOKEN_POSTINGS {
-                continue;
-            }
-            for &neighbor_id in neighbors {
-                let neighbor_index = *order_index.get(&neighbor_id).unwrap_or(&0);
-                if neighbor_index <= base_index {
-                    continue;
-                }
-                *candidate_overlaps.entry(neighbor_id).or_default() += 1;
-            }
-        }
-
-        for (&neighbor_id, &overlap) in &candidate_overlaps {
-            if overlap < LEXICAL_MIN_TOKEN_OVERLAP {
-                continue;
-            }
-            let neighbor_kw = match keywords_by_id.get(&neighbor_id) {
-                Some(k) => k,
-                None => continue,
-            };
-            if passes_lexical_match(&kw.token_set, &neighbor_kw.token_set) {
-                union(&mut parent, article_id, neighbor_id);
-            }
-        }
+        union_lexical_candidates(
+            article.article_id,
+            keywords,
+            &order_index,
+            &token_index,
+            &keywords_by_id,
+            &mut parent,
+        );
     }
 
-    let mut components: HashMap<i64, HashSet<i64>> = HashMap::new();
-    for &id in &ids {
-        let root = find(&mut parent, id);
-        components.entry(root).or_default().insert(id);
-    }
-
-    let mut clusters: Vec<ClusterCandidate> = Vec::new();
-    for members in components.values() {
-        if members.len() < MIN_CLUSTER_SIZE {
-            continue;
-        }
-
-        let mut ordered_members: Vec<i64> = members.iter().copied().collect();
-        ordered_members.sort_by_key(|id| order_index.get(id).copied().unwrap_or(0));
-
-        let anchor_id = ordered_members[0];
-        let anchor_kw = keywords_by_id.get(&anchor_id);
-        let anchor_tokens: HashSet<String> =
-            anchor_kw.map(|k| k.token_set.clone()).unwrap_or_default();
-
-        let filtered_members: Vec<i64> = ordered_members
-            .iter()
-            .filter(|&&member_id| {
-                if member_id == anchor_id {
-                    return true;
-                }
-                let member_kw = keywords_by_id.get(&member_id);
-                let member_tokens: HashSet<String> =
-                    member_kw.map(|k| k.token_set.clone()).unwrap_or_default();
-                passes_lexical_match(&anchor_tokens, &member_tokens)
-            })
-            .copied()
-            .collect();
-
-        if filtered_members.len() < MIN_CLUSTER_SIZE {
-            continue;
-        }
-
-        let mut similarities: HashMap<i64, f64> = HashMap::new();
-        for &member_id in &filtered_members {
-            if member_id == anchor_id {
-                similarities.insert(member_id, 1.0);
-                continue;
-            }
-            let member_kw = keywords_by_id.get(&member_id);
-            let member_tokens: HashSet<String> =
-                member_kw.map(|k| k.token_set.clone()).unwrap_or_default();
-            if anchor_tokens.is_empty() || member_tokens.is_empty() {
-                similarities.insert(member_id, 0.0);
-                continue;
-            }
-            let overlap = anchor_tokens.intersection(&member_tokens).count();
-            let union_size = anchor_tokens.len() + member_tokens.len() - overlap;
-            let sim = if union_size > 0 {
-                (overlap as f64 / union_size as f64 * 1000.0).round() / 1000.0
-            } else {
-                0.0
-            };
-            similarities.insert(member_id, sim);
-        }
-
-        clusters.push(ClusterCandidate {
-            anchor_id,
-            member_ids: filtered_members,
-            similarities,
-        });
-    }
-
-    clusters
+    build_clusters(&keyword_data, &order_index, &ids, parent)
 }
 
 /// Chooses the best human-readable label for a topic cluster from a scored
@@ -525,7 +584,7 @@ mod tests {
             },
             ArticleInput {
                 article_id: 4,
-                title: "Climate scientists warn about global warming impact".into(),
+                title: "Climate scientists report warming temperatures in oceans".into(),
                 order_index: 3,
             },
         ];

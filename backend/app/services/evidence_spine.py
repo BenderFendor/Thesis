@@ -53,6 +53,21 @@ class EvidenceSpineError(RuntimeError):
     """Raised for any evidence-spine lookup, evaluation, or materialization failure."""
 
 
+class ContradictionError(EvidenceSpineError):
+    """Raised when a claim contradicts an accepted relationship.
+
+    Opening (or reusing) an `AdjudicationItem` for the pair is the designed
+    success path for this outcome -- it is not an acceptance failure. Callers
+    that treat plain `EvidenceSpineError` as a hard failure should catch this
+    subclass separately and route it to human review instead.
+    """
+
+    def __init__(self, message: str, *, adjudication_item_id: str) -> None:
+        """Store the adjudication item id alongside the standard error message."""
+        super().__init__(message)
+        self.adjudication_item_id = adjudication_item_id
+
+
 def canonical_json(value: Any) -> str:
     """Serialize *value* deterministically for stable hashing."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
@@ -512,12 +527,24 @@ async def materialize_claim(
     if conflict is not None:
         conflicting_relationship, comparison = conflict
         item = await _open_adjudication_item(db, claim, conflicting_relationship, comparison)
-        raise EvidenceSpineError(
+        raise ContradictionError(
             f"claim contradicts accepted relationship {conflicting_relationship.id} "
-            f"({comparison.reason}); opened adjudication item {item.id}"
+            f"({comparison.reason}); opened adjudication item {item.id}",
+            adjudication_item_id=cast(str, item.id),
         )
     _check_interest_claim(claim)
     relationship_id = f"rel_{digest[:32]}"
+    lifecycle_state = str(qualifiers.get("lifecycle_state") or "current").lower()
+    if lifecycle_state not in {
+        "current",
+        "historical",
+        "proposed",
+        "pending",
+        "disputed",
+        "rejected",
+        "superseded",
+    }:
+        lifecycle_state = "current"
     relationship = AcceptedRelationship(
         id=relationship_id,
         subject_entity_id=claim.subject_entity_id,
@@ -531,6 +558,7 @@ async def materialize_claim(
         materialized_by=reviewer,
         acceptance_policy_version=evaluation.policy_version,
         status="accepted",
+        lifecycle_state=lifecycle_state,
         relationship_hash=digest,
     )
     db.add(relationship)

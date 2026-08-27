@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Any, cast
 
 import httpx
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import SCOOP_WIKIMEDIA_UA
@@ -326,6 +326,67 @@ def _normalize_for_resolver(name: str) -> str:
     return " ".join(name.lower().strip().split())
 
 
+async def _get_or_create_split_reporter(session: AsyncSession, individual_name: str) -> Reporter:
+    """Find or create the one `Reporter` row for a single split-out author name."""
+    normalized = _normalize_for_resolver(individual_name)
+    # `.limit(1)`, not `scalar_one_or_none()`: duplicate-name rows can
+    # already exist in the corpus (Fix 3's problem); prefer the one with
+    # the most articles rather than erroring on ambiguity.
+    existing = await session.execute(
+        select(Reporter)
+        .where(Reporter.normalized_name == normalized)
+        .order_by(Reporter.article_count.desc().nullslast(), Reporter.id.asc())
+        .limit(1)
+    )
+    reporter = existing.scalar_one_or_none()
+    if reporter is None:
+        reporter = Reporter(name=individual_name.strip(), normalized_name=normalized)
+        session.add(reporter)
+        await session.flush()
+    return reporter
+
+
+async def _handle_composite_byline(
+    session: AsyncSession, author_name: str, source_name: str | None, entity_name: str
+) -> bool:
+    """Split a multi-author byline into individual `Reporter` rows (audit rec 2).
+
+    Returns True when `author_name` was a composite byline and has been
+    fully handled (caller should skip its normal single-author flow).
+    Deliberately skips the network-heavy dossier enrichment
+    (`build_reporter_dossier`) for the split individuals -- they still get a
+    real `Reporter` row and `ArticleAuthor` link, which is all
+    `ingest_reporter_bylines` needs to grant them coverage; full dossier
+    enrichment can catch up on a later stale-reindex pass like any other
+    `local_byline` row.
+    """
+    from app.services.reporter_name_splitter import split_byline
+
+    split_result = split_byline(author_name)
+    if not split_result.was_split:
+        return False
+
+    for individual_name in split_result.authors:
+        reporter = await _get_or_create_split_reporter(session, individual_name)
+        # Matches on the *original* composite `Article.author` string --
+        # every article credited to "A and B" links to both A's and B's
+        # reporter row.
+        await _create_article_author_links(session, reporter, author_name, source_name)
+        link_count = await session.execute(
+            select(func.count(ArticleAuthor.id)).where(ArticleAuthor.reporter_id == reporter.id)
+        )
+        reporter.article_count = int(link_count.scalar_one())
+        await session.commit()
+
+    await _upsert_index_status(session, "reporter", entity_name, "complete")
+    logger.debug(
+        "Split composite byline %r into %d individual reporter(s)",
+        author_name,
+        len(split_result.authors),
+    )
+    return True
+
+
 def _is_fetchable_article_url(url: str) -> bool:
     from urllib.parse import urlparse
 
@@ -430,14 +491,11 @@ async def _get_unresolved_author_names(
     return unresolved
 
 
-async def _build_local_byline_profile(
+async def _query_byline_articles(
     session: AsyncSession,
     author_name: str,
     source_name: str | None,
-) -> dict[str, Any]:
-    """Build an evidence-backed local profile when public entity matching is weak."""
-    normalized_name = _normalize_for_resolver(author_name)
-    resolver_key = build_resolver_key(author_name, source_name)
+) -> list[tuple[Any, Any, Any, Any]]:
     stmt = (
         select(Article.title, Article.url, Article.published_at, Article.category)
         .where(Article.author == author_name)
@@ -446,8 +504,20 @@ async def _build_local_byline_profile(
     )
     if source_name:
         stmt = stmt.where(Article.source == source_name)
+    return list((await session.execute(stmt)).tuples().all())
 
-    rows = (await session.execute(stmt)).all()
+
+def _collect_article_evidence(
+    rows: list[tuple[Any, Any, Any, Any]],
+    source_name: str | None,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[str],
+    list[str],
+    Any,
+]:
+    """Aggregate recent byline rows into dossier evidence lists."""
     article_items: list[dict[str, Any]] = []
     activity_articles: list[dict[str, Any]] = []
     article_urls: list[str] = []
@@ -476,23 +546,26 @@ async def _build_local_byline_profile(
                 "sources": [url] if isinstance(url, str) and url else [],
             }
         )
+    return article_items, activity_articles, article_urls, categories, latest
 
+
+def _source_site_for(source_name: str | None) -> str | None:
     source_config = get_rss_sources().get(source_name or "", {}) if source_name else {}
-    source_site = source_config.get("site_url") or source_config.get("url")
-    activity_summary = await build_reporter_activity_summary(author_name.strip(), activity_articles)
-    author_pages = [
-        item["url"]
-        for item in activity_summary.get("author_pages", [])
-        if isinstance(item, dict) and isinstance(item.get("url"), str)
-    ]
-    external_profiles = [
-        item["url"]
-        for item in activity_summary.get("external_profiles", [])
-        if isinstance(item, dict) and isinstance(item.get("url"), str)
-    ]
+    return source_config.get("site_url") or source_config.get("url")
 
-    wayback_target_url = author_pages[0] if author_pages else None
 
+async def _gather_byline_enrichment(
+    reporter_name: str,
+    source_name: str | None,
+    wayback_target_url: str | None,
+) -> tuple[
+    list[dict[str, str]],
+    dict[str, Any],
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Run web/social/wiki/openalex/wayback connectors concurrently."""
     web_search_results: list[dict[str, str]] = []
     social_profiles: dict[str, Any] = {"found": False}
     wiki_bio: dict[str, Any] = {"found": False}
@@ -500,10 +573,10 @@ async def _build_local_byline_profile(
     wayback_results: list[dict[str, Any]] = []
     ws_client = httpx.AsyncClient(timeout=15.0)
     try:
-        ws_task = search_reporter_web(author_name.strip(), source_name, http_client=ws_client)
-        social_task = find_social_profiles(author_name.strip(), source_name, http_client=ws_client)
-        wiki_task = fetch_journalist_bio(author_name.strip(), http_client=ws_client)
-        oa_task = search_openalex_author(ws_client, author_name.strip(), source_name or None)
+        ws_task = search_reporter_web(reporter_name, source_name, http_client=ws_client)
+        social_task = find_social_profiles(reporter_name, source_name, http_client=ws_client)
+        wiki_task = fetch_journalist_bio(reporter_name, http_client=ws_client)
+        oa_task = search_openalex_author(ws_client, reporter_name, source_name or None)
         gather_tasks = [ws_task, social_task, wiki_task, oa_task]
         if wayback_target_url:
             gather_tasks.append(fetch_wayback_snapshots(ws_client, wayback_target_url))
@@ -530,7 +603,15 @@ async def _build_local_byline_profile(
         web_search_results = []
     finally:
         await ws_client.aclose()
+    return web_search_results, social_profiles, wiki_bio, openalex_results, wayback_results
 
+
+async def _resolve_author_page_urls(
+    session: AsyncSession,
+    author_name: str,
+    author_pages: list[str],
+) -> tuple[str | None, str | None]:
+    """Derive canonical and article page URLs from prior ArticleAuthor signals."""
     canonical_author_url: str | None = None
     author_page_url: str | None = None
     try:
@@ -557,17 +638,10 @@ async def _build_local_byline_profile(
             canonical_author_url = author_page_url
     except Exception:
         pass
+    return canonical_author_url, author_page_url
 
-    source_items = []
-    if source_name:
-        source_items.append(
-            {
-                "label": "Observed outlet",
-                "value": source_name,
-                "sources": [source_site] if isinstance(source_site, str) else [],
-            }
-        )
 
+def _build_social_items(social_profiles: Any) -> list[dict[str, Any]]:
     social_items: list[dict[str, Any]] = []
     if isinstance(social_profiles, dict):
         mastodon_data = social_profiles.get("mastodon") or {}
@@ -590,7 +664,10 @@ async def _build_local_byline_profile(
                     else [],
                 }
             )
+    return social_items
 
+
+def _build_openalex_items(openalex_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     openalex_items: list[dict[str, Any]] = []
     for oa_author in openalex_results:
         name_val = oa_author.get("display_name", "")
@@ -605,7 +682,10 @@ async def _build_local_byline_profile(
                 "sources": [oa_author["id"]] if oa_author.get("id") else [],
             }
         )
+    return openalex_items
 
+
+def _build_wayback_items(wayback_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     wayback_items: list[dict[str, Any]] = []
     seen_ts = set()
     for snap in wayback_results:
@@ -620,7 +700,20 @@ async def _build_local_byline_profile(
                 "sources": [snap.get("original_url") or ""] if snap.get("original_url") else [],
             }
         )
+    return wayback_items
 
+
+def _build_local_dossier_sections(
+    author_name: str,
+    article_urls: list[str],
+    source_items: list[dict[str, Any]],
+    social_items: list[dict[str, Any]],
+    article_items: list[dict[str, Any]],
+    author_pages: list[str],
+    external_profiles: list[str],
+    openalex_items: list[dict[str, Any]],
+    wayback_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     dossier_sections: list[dict[str, Any]] = [
         {
             "id": "identity",
@@ -629,7 +722,7 @@ async def _build_local_byline_profile(
             "items": [
                 {
                     "label": "Name",
-                    "value": author_name.strip(),
+                    "value": author_name,
                     "sources": article_urls[:5],
                 },
                 {
@@ -697,6 +790,72 @@ async def _build_local_byline_profile(
                 "items": wayback_items,
             }
         )
+    return dossier_sections
+
+
+async def _build_local_byline_profile(
+    session: AsyncSession,
+    author_name: str,
+    source_name: str | None,
+) -> dict[str, Any]:
+    """Build an evidence-backed local profile when public entity matching is weak."""
+    normalized_name = _normalize_for_resolver(author_name)
+    resolver_key = build_resolver_key(author_name, source_name)
+    rows = await _query_byline_articles(session, author_name, source_name)
+    article_items, activity_articles, article_urls, categories, latest = _collect_article_evidence(
+        rows, source_name
+    )
+
+    source_site = _source_site_for(source_name)
+    activity_summary = await build_reporter_activity_summary(author_name.strip(), activity_articles)
+    author_pages = [
+        item["url"]
+        for item in activity_summary.get("author_pages", [])
+        if isinstance(item, dict) and isinstance(item.get("url"), str)
+    ]
+    external_profiles = [
+        item["url"]
+        for item in activity_summary.get("external_profiles", [])
+        if isinstance(item, dict) and isinstance(item.get("url"), str)
+    ]
+    wayback_target_url = author_pages[0] if author_pages else None
+
+    (
+        web_search_results,
+        social_profiles,
+        wiki_bio,
+        openalex_results,
+        wayback_results,
+    ) = await _gather_byline_enrichment(author_name.strip(), source_name, wayback_target_url)
+
+    canonical_author_url, author_page_url = await _resolve_author_page_urls(
+        session, author_name, author_pages
+    )
+
+    source_items = []
+    if source_name:
+        source_items.append(
+            {
+                "label": "Observed outlet",
+                "value": source_name,
+                "sources": [source_site] if isinstance(source_site, str) else [],
+            }
+        )
+
+    social_items = _build_social_items(social_profiles)
+    openalex_items = _build_openalex_items(openalex_results)
+    wayback_items = _build_wayback_items(wayback_results)
+    dossier_sections = _build_local_dossier_sections(
+        author_name.strip(),
+        article_urls,
+        source_items,
+        social_items,
+        article_items,
+        author_pages,
+        external_profiles,
+        openalex_items,
+        wayback_items,
+    )
 
     return {
         "name": author_name.strip(),
@@ -783,6 +942,14 @@ async def index_unresolved_reporters(
 
             try:
                 await _upsert_index_status(session, "reporter", entity_name, "indexing")
+
+                # Audit rec 2: a composite multi-author byline ("A and B")
+                # must not become one junk `Reporter` row -- split it into
+                # individuals before falling into the normal single-name
+                # resolution flow below.
+                if await _handle_composite_byline(session, author_name, source_name, entity_name):
+                    resolved += 1
+                    continue
 
                 profile = await build_reporter_dossier(
                     name=author_name,
@@ -909,6 +1076,10 @@ async def index_source_reporters(
             try:
                 await _upsert_index_status(session, "reporter", entity_name, "indexing")
 
+                if await _handle_composite_byline(session, author_name, source_name, entity_name):
+                    resolved += 1
+                    continue
+
                 profile = await build_reporter_dossier(
                     name=author_name,
                     organization=source_name,
@@ -1002,6 +1173,113 @@ async def index_source_reporters(
             await client.aclose()
 
 
+async def _fetch_wikidata_journalist_pairs(
+    client: httpx.AsyncClient,
+    employer_names: list[str],
+) -> list[tuple[str, str]]:
+    """Query Wikidata SPARQL in batches and return unique journalist-employer pairs."""
+    all_journalist_names: list[tuple[str, str]] = []
+
+    for batch_start in range(0, len(employer_names), SPARQL_BATCH_SIZE):
+        batch = employer_names[batch_start : batch_start + SPARQL_BATCH_SIZE]
+        quoted = " ".join(f'"{employer}"@en' for employer in batch)
+        query = WIKIDATA_JOURNALIST_SPARQL % quoted
+
+        logger.info(
+            "Querying Wikidata SPARQL batch %d-%d/%d ...",
+            batch_start + 1,
+            min(batch_start + SPARQL_BATCH_SIZE, len(employer_names)),
+            len(employer_names),
+        )
+
+        sparql_url = (
+            f"{WIKIDATA_SPARQL_URL}?{urllib.parse.urlencode({'format': 'json', 'query': query})}"
+        )
+        response = await client.get(
+            sparql_url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": SCOOP_WIKIMEDIA_UA,
+            },
+        )
+
+        if response.status_code != 200:
+            logger.warning(
+                "Wikidata SPARQL batch failed: HTTP %d at batch %d-%d",
+                response.status_code,
+                batch_start + 1,
+                min(batch_start + SPARQL_BATCH_SIZE, len(employer_names)),
+            )
+            continue
+
+        data = response.json()
+        batch_bindings: Any = (data.get("results") or {}).get("bindings") or []
+
+        for binding in batch_bindings:
+            name = str(binding.get("journalistLabel", {}).get("value", "")).strip()
+            employer = str(binding.get("employerLabel", {}).get("value", "")).strip()
+            if name and employer:
+                all_journalist_names.append((name, employer))
+
+        logger.debug("Batch returned %d results", len(batch_bindings))
+
+    return list(dict.fromkeys(all_journalist_names))
+
+
+async def _seed_reporter_from_wikidata_pair(
+    session: AsyncSession,
+    client: httpx.AsyncClient,
+    name: str,
+    employer: str,
+) -> str:
+    """Resolve one journalist-employer pair into a Reporter row.
+
+    Returns "skipped" when an already-matched reporter exists, "seeded" when
+    a new dossier was resolved, "unmatched" when the dossier did not match a
+    public entity, or "failed" when the dossier build raised.
+    """
+    resolver_key = build_resolver_key(name, employer)
+    entity_name = resolver_key or _normalize_for_resolver(name)
+
+    stmt = select(Reporter).where(Reporter.resolver_key == resolver_key)
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+    if existing and existing.match_status == "matched":
+        return "skipped"
+
+    try:
+        profile = await build_reporter_dossier(
+            name=name,
+            organization=employer,
+            http_client=client,
+        )
+
+        if profile.get("match_status") != "matched":
+            return "unmatched"
+
+        _enrich_profile_mbfc(profile)
+        _enrich_profile_littlesis(profile)
+        await upsert_reporter_profile(session, profile)
+        reporter = await session.execute(
+            select(Reporter).where(Reporter.resolver_key == profile.get("resolver_key"))
+        )
+        reporter_obj = reporter.scalar_one_or_none()
+        if reporter_obj:
+            await _index_reporter_articles(
+                session,
+                reporter_obj,
+                profile,
+                name,
+                employer,
+                client,
+            )
+        await _upsert_index_status(session, "reporter", entity_name, "complete")
+        return "seeded"
+    except Exception as exc:
+        await session.rollback()
+        logger.error("SPARQL seed failed for %s: %s", name, exc)
+        return "failed"
+
+
 async def seed_reporters_from_wikidata(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
@@ -1022,53 +1300,7 @@ async def seed_reporters_from_wikidata(
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=30.0)
     try:
-        all_journalist_names: list[tuple[str, str]] = []
-
-        for batch_start in range(0, len(employer_names), SPARQL_BATCH_SIZE):
-            batch = employer_names[batch_start : batch_start + SPARQL_BATCH_SIZE]
-            quoted = " ".join(f'"{employer}"@en' for employer in batch)
-            query = WIKIDATA_JOURNALIST_SPARQL % quoted
-
-            logger.info(
-                "Querying Wikidata SPARQL batch %d-%d/%d ...",
-                batch_start + 1,
-                min(batch_start + SPARQL_BATCH_SIZE, len(employer_names)),
-                len(employer_names),
-            )
-
-            sparql_url = (
-                f"{WIKIDATA_SPARQL_URL}?"
-                f"{urllib.parse.urlencode({'format': 'json', 'query': query})}"
-            )
-            response = await client.get(
-                sparql_url,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": SCOOP_WIKIMEDIA_UA,
-                },
-            )
-
-            if response.status_code != 200:
-                logger.warning(
-                    "Wikidata SPARQL batch failed: HTTP %d at batch %d-%d",
-                    response.status_code,
-                    batch_start + 1,
-                    min(batch_start + SPARQL_BATCH_SIZE, len(employer_names)),
-                )
-                continue
-
-            data = response.json()
-            batch_bindings: Any = (data.get("results") or {}).get("bindings") or []
-
-            for binding in batch_bindings:
-                name = str(binding.get("journalistLabel", {}).get("value", "")).strip()
-                employer = str(binding.get("employerLabel", {}).get("value", "")).strip()
-                if name and employer:
-                    all_journalist_names.append((name, employer))
-
-            logger.debug("Batch returned %d results", len(batch_bindings))
-
-        all_journalist_names = list(dict.fromkeys(all_journalist_names))
+        all_journalist_names = await _fetch_wikidata_journalist_pairs(client, employer_names)
 
         logger.info(
             "Wikidata SPARQL returned %d unique journalist-employer pairs",
@@ -1082,58 +1314,20 @@ async def seed_reporters_from_wikidata(
         session = await _get_session()
         try:
             for i, (name, employer) in enumerate(all_journalist_names, 1):
-                resolver_key = build_resolver_key(name, employer)
-                entity_name = resolver_key or _normalize_for_resolver(name)
-
-                stmt = select(Reporter).where(Reporter.resolver_key == resolver_key)
-                existing = (await session.execute(stmt)).scalar_one_or_none()
-                if existing and existing.match_status == "matched":
+                status = await _seed_reporter_from_wikidata_pair(session, client, name, employer)
+                if status == "skipped":
                     resolved += 1
                     continue
-
-                try:
-                    profile = await build_reporter_dossier(
-                        name=name,
-                        organization=employer,
-                        http_client=client,
-                    )
-
-                    if profile.get("match_status") == "matched":
-                        _enrich_profile_mbfc(profile)
-                        _enrich_profile_littlesis(profile)
-                        await upsert_reporter_profile(session, profile)
-                        reporter = await session.execute(
-                            select(Reporter).where(
-                                Reporter.resolver_key == profile.get("resolver_key")
-                            )
+                if status == "seeded":
+                    resolved += 1
+                    if resolved % 20 == 0:
+                        logger.info(
+                            "[%d/%d] SPARQL seeded: %d resolved",
+                            i,
+                            total,
+                            resolved,
                         )
-                        reporter_obj = reporter.scalar_one_or_none()
-                        if reporter_obj:
-                            await _index_reporter_articles(
-                                session,
-                                reporter_obj,
-                                profile,
-                                name,
-                                employer,
-                                client,
-                            )
-                        await _upsert_index_status(session, "reporter", entity_name, "complete")
-                        resolved += 1
-
-                        if resolved % 20 == 0:
-                            logger.info(
-                                "[%d/%d] SPARQL seeded: %d resolved",
-                                i,
-                                total,
-                                resolved,
-                            )
-
-                    else:
-                        failed += 1
-
-                except Exception as exc:
-                    await session.rollback()
-                    logger.error("SPARQL seed failed for %s: %s", name, exc)
+                else:
                     failed += 1
 
                 if i < total:

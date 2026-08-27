@@ -11,6 +11,7 @@ import {
   Suspense,
   type KeyboardEvent,
   type MouseEvent,
+  type ChangeEvent,
 } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
@@ -60,6 +61,7 @@ import {
   buildSourceGroups,
   compareSourceGroupsForGrid,
   getVisibleSourceIds,
+  type SourceGroup,
 } from "@/lib/source-groups"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
 import {
@@ -241,6 +243,620 @@ function SourceArticleCard({
         </div>
       </CardContent>
     </motion.article>
+  )
+}
+
+interface GridViewSearchBarProps {
+  value: string
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void
+  variant: "virtualized" | "main"
+}
+
+function GridViewSearchBar({ value, onChange, variant }: GridViewSearchBarProps) {
+  const isVirtualized = variant === "virtualized"
+  return (
+    <div className={isVirtualized ? "relative" : "relative w-full max-w-xl"}>
+      <Search
+        className={
+          isVirtualized
+            ? "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            : "absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70 sm:left-3.5 sm:h-4 sm:w-4"
+        }
+      />
+      <input
+        type="text"
+        placeholder={isVirtualized ? "Search articles..." : "Search the news..."}
+        value={value}
+        onChange={onChange}
+        className={
+          isVirtualized
+            ? "w-full rounded-xl bg-white/5 px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            : "w-full rounded-lg bg-white/5 px-9 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50 sm:rounded-xl sm:px-10"
+        }
+      />
+    </div>
+  )
+}
+
+interface ModeSwitcherProps {
+  viewMode: GridViewMode
+  clusterWindow: "1d" | "1w" | "1m"
+  onModeSelect: (mode: GridViewMode) => void
+  onClusterWindow: (value: "1d" | "1w" | "1m") => void
+}
+
+function ModeSwitcher({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) {
+  return (
+    <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
+      <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
+        <Button
+          variant={viewMode === "source" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => onModeSelect("source")}
+          className={cn(
+            "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
+            viewMode === "source"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <List className="mr-1.5 h-3.5 w-3.5" />
+          By Source
+        </Button>
+        <Button
+          variant={viewMode === "topic" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => onModeSelect("topic")}
+          className={cn(
+            "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
+            viewMode === "topic"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Layers className="mr-1.5 h-3.5 w-3.5" />
+          By Topic
+        </Button>
+      </div>
+
+      {viewMode === "topic" && (
+        <Select
+          value={clusterWindow}
+          onValueChange={(value) => onClusterWindow(value as "1d" | "1w" | "1m")}
+        >
+          <SelectTrigger className="h-9 rounded-lg border-white/5 bg-white/5 text-xs uppercase tracking-widest">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-lg border-white/10 bg-background/95 backdrop-blur-xl">
+            <SelectItem value="1d" className="text-xs uppercase tracking-widest">
+              Last 24h
+            </SelectItem>
+            <SelectItem value="1w" className="text-xs uppercase tracking-widest">
+              Last 7d
+            </SelectItem>
+            <SelectItem value="1m" className="text-xs uppercase tracking-widest">
+              Last 30d
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  )
+}
+
+interface SourceGroupSectionProps {
+  group: SourceGroup
+  isExpanded: boolean
+  likedIds: Set<number>
+  hasRealImage: (src?: string | null) => boolean
+  isArticleInQueue: (url: string) => boolean
+  isFavorite: (sourceId: string) => boolean
+  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
+  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
+  onToggleFavorite: (sourceId: string) => void
+  onToggleExpand: () => void
+}
+
+function SourceGroupSection({
+  group,
+  isExpanded,
+  likedIds,
+  hasRealImage,
+  isArticleInQueue,
+  isFavorite,
+  onArticleClick,
+  onLike,
+  onQueueToggle,
+  onToggleFavorite,
+  onToggleExpand,
+}: SourceGroupSectionProps) {
+  const displayedArticles = isExpanded
+    ? group.articles
+    : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
+
+  return (
+    <section
+      data-source-id={group.sourceId}
+      className="grid-source-group flex flex-col"
+    >
+      <div className="mb-2 flex flex-col gap-2 border-t border-white/10 pt-3 sm:mb-6 sm:gap-4 sm:border-t-0 sm:pt-0 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-1 sm:space-y-3">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Link
+              href={`/source/${encodeURIComponent(group.sourceId)}`}
+              className="min-w-0 break-words font-serif text-2xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
+            >
+              {group.sourceName}
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onToggleFavorite(group.sourceId)}
+              className="h-8 w-8 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0 sm:h-9 sm:w-9"
+            >
+              <Star
+                className={cn(
+                  "h-4 w-4",
+                  isFavorite(group.sourceId)
+                    ? "fill-amber-400 text-amber-400"
+                    : "text-white/40",
+                )}
+              />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground sm:gap-2">
+          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
+            {group.articles.length} articles
+          </span>
+          {group.credibility && (
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
+              {group.credibility} credibility
+            </span>
+          )}
+          {group.bias && (
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
+              {group.bias} bias
+            </span>
+          )}
+        </div>
+      </div>
+
+      {displayedArticles.length > 0 && (
+        <div className="flex-1">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <AnimatePresence>
+              {displayedArticles.map((article, itemIndex) => (
+                <SourceArticleCard
+                  key={article.url ? `url:${article.url}` : `id:${article.id}`}
+                  article={article}
+                  index={itemIndex}
+                  likedIds={likedIds}
+                  hasRealImage={hasRealImage}
+                  isArticleInQueue={isArticleInQueue}
+                  onArticleClick={(article) => onArticleClick(article, group.articles)}
+                  onLike={onLike}
+                  onQueueToggle={onQueueToggle}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+
+      {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
+        <div className="mt-4 flex justify-center pb-4 sm:mt-8 sm:pb-8">
+          <Button
+            variant="outline"
+            onClick={onToggleExpand}
+            className="rounded-full border-white/10 bg-transparent px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white sm:px-8 sm:py-5"
+          >
+            {isExpanded ? "Show fewer stories" : `View all ${group.articles.length} stories`}
+          </Button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+interface TopicClusterCardProps {
+  cluster: AllCluster
+  index: number
+  isExpanded: boolean
+  getDisplayLabel: (cluster: AllCluster) => string
+  onExpand: () => void
+  onCompare: (event: MouseEvent<HTMLButtonElement>) => void
+}
+
+function TopicClusterCard({
+  cluster,
+  index,
+  isExpanded,
+  getDisplayLabel,
+  onExpand,
+  onCompare,
+}: TopicClusterCardProps) {
+  const representative = cluster.representative_article
+  if (!representative) return null
+
+  const imageUrl = pickClusterImageUrl(cluster)
+  const previewStats = getClusterPreviewStats(cluster)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.05 }}
+      data-cluster-id={cluster.cluster_id}
+      role="button"
+      tabIndex={0}
+      className={cn(
+        "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-lg sm:bg-black/20",
+        isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/10 sm:border-white/5",
+      )}
+      onClick={onExpand}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key !== "Enter" && event.key !== " ") return
+        event.preventDefault()
+        onExpand()
+      }}
+    >
+      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
+        {imageUrl ? (
+          <SafeImage
+            src={imageUrl}
+            alt={representative.title}
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+          />
+        ) : (
+          <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+        <div className="absolute right-1 top-1 z-10 text-white drop-shadow-md sm:right-4 sm:top-4">
+          {isExpanded ? (
+            <ChevronDown className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-white/75 group-hover:text-white sm:h-5 sm:w-5" />
+          )}
+        </div>
+        <div className="absolute left-4 top-4 z-10 hidden sm:block">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCompare}
+            className="h-8 rounded-full bg-black/50 px-3 text-xs uppercase tracking-widest text-white backdrop-blur hover:bg-black/70"
+          >
+            Compare
+          </Button>
+        </div>
+        <div className="absolute bottom-4 left-4 right-4 hidden sm:block">
+          <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
+            {getDisplayLabel(cluster)}
+          </h3>
+        </div>
+      </div>
+      <CardContent className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pt-3 sm:uppercase sm:tracking-widest">
+        <h3 className="line-clamp-3 font-serif text-sm leading-tight text-foreground/90 sm:hidden">
+          {getDisplayLabel(cluster)}
+        </h3>
+        <span className="flex items-center gap-1 sm:gap-2">
+          <Newspaper className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.sourceCount} sources
+        </span>
+        <span className="flex items-center gap-1 sm:gap-2">
+          <List className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.articleCount} stories
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCompare}
+          className="mt-auto h-6 w-full rounded-full bg-white/5 px-2 text-xs font-medium text-foreground hover:bg-white/10 sm:hidden"
+        >
+          Compare
+        </Button>
+      </CardContent>
+    </motion.div>
+  )
+}
+
+interface ExpandedTopicPanelProps {
+  cluster: AllCluster
+  articles: NewsArticle[]
+  likedIds: Set<number>
+  hasRealImage: (src?: string | null) => boolean
+  isArticleInQueue: (url: string) => boolean
+  getDisplayLabel: (cluster: AllCluster) => string
+  onArticleClick: (article: NewsArticle) => void
+  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
+  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
+  onClose: () => void
+}
+
+function ExpandedTopicPanel({
+  cluster,
+  articles,
+  likedIds,
+  hasRealImage,
+  isArticleInQueue,
+  getDisplayLabel,
+  onArticleClick,
+  onLike,
+  onQueueToggle,
+  onClose,
+}: ExpandedTopicPanelProps) {
+  return (
+    <div
+      data-cluster-expanded-for={cluster.cluster_id}
+      className="col-span-full overflow-hidden rounded-lg border border-primary/30 bg-black/20"
+    >
+      <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <Layers className="h-5 w-5 text-primary" />
+          <h3 className="font-serif text-2xl text-foreground">
+            {getDisplayLabel(cluster)}
+          </h3>
+          <Badge
+            variant="outline"
+            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+          >
+            {getClusterPreviewStats(cluster).sourceCount} sources
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+          >
+            {getClusterPreviewStats(cluster).articleCount} stories
+          </Badge>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
+        >
+          Close topic
+        </Button>
+      </div>
+
+      <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
+        <ContradictionPanel clusterId={cluster.cluster_id} />
+        <StoryLineagePanel clusterId={cluster.cluster_id} />
+
+        {articles.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+            {articles.map((article, index) => (
+              <SourceArticleCard
+                key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
+                article={article}
+                index={index}
+                likedIds={likedIds}
+                hasRealImage={hasRealImage}
+                isArticleInQueue={isArticleInQueue}
+                onArticleClick={(article) => onArticleClick(article)}
+                onLike={onLike}
+                onQueueToggle={onQueueToggle}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
+            No articles found for this topic
+          </div>
+        )}
+
+        {cluster.keywords.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
+            {cluster.keywords.slice(0, 8).map((keyword) => (
+              <Badge
+                key={keyword}
+                variant="outline"
+                className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
+              >
+                {keyword}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface TopicFeedProps {
+  clustersLoading: boolean
+  clusters: AllCluster[]
+  clustersStatus: string | null
+  sortedClusters: AllCluster[]
+  expandedClusterId: number | null
+  expandedCluster: AllCluster | null
+  expandedClusterArticles: NewsArticle[]
+  likedIds: Set<number>
+  hasRealImage: (src?: string | null) => boolean
+  isArticleInQueue: (url: string) => boolean
+  getDisplayLabel: (cluster: AllCluster) => string
+  onExpand: (cluster: AllCluster) => void
+  onCompare: (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => void
+  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
+  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
+  onCloseExpanded: () => void
+}
+
+function TopicFeed({
+  clustersLoading,
+  clusters,
+  clustersStatus,
+  sortedClusters,
+  expandedClusterId,
+  expandedCluster,
+  expandedClusterArticles,
+  likedIds,
+  hasRealImage,
+  isArticleInQueue,
+  getDisplayLabel,
+  onExpand,
+  onCompare,
+  onArticleClick,
+  onLike,
+  onQueueToggle,
+  onCloseExpanded,
+}: TopicFeedProps) {
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {clustersLoading ? (
+        <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
+          <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
+          Mapping topic clusters...
+        </div>
+      ) : clusters.length === 0 ? (
+        <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
+          {clustersStatus === "initializing" ? "Building topics..." : "No topics found"}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          {sortedClusters.map((cluster, index) => {
+            if (!cluster.representative_article) return null
+            const isExpanded = expandedClusterId === cluster.cluster_id
+            return (
+              <Fragment key={cluster.cluster_id}>
+                <TopicClusterCard
+                  cluster={cluster}
+                  index={index}
+                  isExpanded={isExpanded}
+                  getDisplayLabel={getDisplayLabel}
+                  onExpand={() => onExpand(cluster)}
+                  onCompare={(event) => onCompare(cluster, event)}
+                />
+                {isExpanded && expandedCluster && (
+                  <ExpandedTopicPanel
+                    cluster={expandedCluster}
+                    articles={expandedClusterArticles}
+                    likedIds={likedIds}
+                    hasRealImage={hasRealImage}
+                    isArticleInQueue={isArticleInQueue}
+                    getDisplayLabel={getDisplayLabel}
+                    onArticleClick={(article) => onArticleClick(article, expandedClusterArticles)}
+                    onLike={onLike}
+                    onQueueToggle={onQueueToggle}
+                    onClose={onCloseExpanded}
+                  />
+                )}
+              </Fragment>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface TrendingSectionProps {
+  showTrending: boolean
+  viewMode: GridViewMode
+}
+
+function TrendingSection({ showTrending, viewMode }: TrendingSectionProps) {
+  if (!showTrending) return null
+  if (viewMode === "topic") {
+    return (
+      <div className="hidden sm:block">
+        <TrendingFeed />
+      </div>
+    )
+  }
+  return <TrendingFeed />
+}
+
+interface MoreSourcesButtonProps {
+  visible: number
+  total: number
+  onLoadMore: () => void
+}
+
+function MoreSourcesButton({ visible, total, onLoadMore }: MoreSourcesButtonProps) {
+  return (
+    <div className="flex justify-center pb-8">
+      <Button
+        variant="outline"
+        onClick={onLoadMore}
+        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
+      >
+        {`Load 10 more sources (${visible}/${total})`}
+      </Button>
+    </div>
+  )
+}
+
+interface VirtualizedModeViewProps {
+  searchTerm: string
+  empty: boolean
+  displayArticles: NewsArticle[]
+  resolvedTotalCount: number
+  isArticleModalOpen: boolean
+  selectedArticle: NewsArticle | null
+  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onModalClose: () => void
+  onModalNavigate: (direction: "prev" | "next") => void
+}
+
+function VirtualizedModeView({
+  searchTerm,
+  empty,
+  displayArticles,
+  resolvedTotalCount,
+  isArticleModalOpen,
+  selectedArticle,
+  onSearchChange,
+  onArticleClick,
+  onModalClose,
+  onModalNavigate,
+}: VirtualizedModeViewProps) {
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+      <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
+          <GridViewSearchBar value={searchTerm} variant="virtualized" onChange={onSearchChange} />
+        </div>
+      </div>
+
+      {empty ? (
+        <div className="flex flex-1 items-center justify-center py-16 text-center">
+          <div>
+            <Newspaper className="mx-auto mb-4 h-10 w-10 text-muted-foreground/30" />
+            <h3 className="font-serif text-2xl text-foreground/50">No articles found</h3>
+          </div>
+        </div>
+      ) : (
+        <Suspense fallback={<Skeleton className="h-96 w-full opacity-20" />}>
+          <VirtualizedGrid
+            articles={displayArticles}
+            hasNextPage={false}
+            isFetchingNextPage={false}
+            fetchNextPage={() => {}}
+            onArticleClick={(article) => onArticleClick(article, displayArticles)}
+            totalCount={resolvedTotalCount}
+          />
+        </Suspense>
+      )}
+
+      {isArticleModalOpen && selectedArticle && (
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={onModalClose}
+          onNavigate={onModalNavigate}
+        />
+      )}
+    </div>
   )
 }
 
@@ -591,6 +1207,17 @@ export function GridView({
     containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    resetSourceBrowseState()
+    setSearchTerm(event.target.value)
+  }
+
+  const handleModeSelect = (mode: GridViewMode) => {
+    resetSourceBrowseState()
+    setViewMode(mode)
+    onViewModeChange?.(mode)
+  }
+
   if (isLoadingState && displayArticles.length === 0) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-background" style={{ minHeight: "calc(100vh - 140px)" }}>
@@ -604,54 +1231,18 @@ export function GridView({
 
   if (useVirtualization) {
     return (
-      <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
-          <div className="px-4 py-3 sm:px-6 lg:px-8">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search articles..."
-                value={searchTerm}
-                onChange={(event) => {
-                  resetSourceBrowseState()
-                  setSearchTerm(event.target.value)
-                }}
-                className="w-full rounded-xl bg-white/5 px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              />
-            </div>
-          </div>
-        </div>
-
-        {displayArticles.length === 0 && !isLoadingState ? (
-          <div className="flex flex-1 items-center justify-center py-16 text-center">
-            <div>
-              <Newspaper className="mx-auto mb-4 h-10 w-10 text-muted-foreground/30" />
-              <h3 className="font-serif text-2xl text-foreground/50">No articles found</h3>
-            </div>
-          </div>
-        ) : (
-          <Suspense fallback={<Skeleton className="h-96 w-full opacity-20" />}>
-            <VirtualizedGrid
-              articles={displayArticles}
-              hasNextPage={false}
-              isFetchingNextPage={false}
-              fetchNextPage={() => {}}
-              onArticleClick={(article) => handleArticleClick(article, displayArticles)}
-              totalCount={resolvedTotalCount}
-            />
-          </Suspense>
-        )}
-
-        {isArticleModalOpen && selectedArticle && (
-          <ArticleDetailModal
-            article={selectedArticle}
-            isOpen={isArticleModalOpen}
-            onClose={handleModalClose}
-            onNavigate={handleModalNavigate}
-          />
-        )}
-      </div>
+      <VirtualizedModeView
+        searchTerm={searchTerm}
+        empty={displayArticles.length === 0 && !isLoadingState}
+        displayArticles={displayArticles}
+        resolvedTotalCount={resolvedTotalCount}
+        isArticleModalOpen={isArticleModalOpen}
+        selectedArticle={selectedArticle}
+        onSearchChange={handleSearchChange}
+        onArticleClick={handleArticleClick}
+        onModalClose={handleModalClose}
+        onModalNavigate={handleModalNavigate}
+      />
     )
   }
 
@@ -660,79 +1251,13 @@ export function GridView({
       <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
           <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full max-w-xl">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70 sm:left-3.5 sm:h-4 sm:w-4" />
-              <input
-                type="text"
-                placeholder="Search the news..."
-                value={searchTerm}
-                onChange={(event) => {
-                  resetSourceBrowseState()
-                  setSearchTerm(event.target.value)
-                }}
-                className="w-full rounded-lg bg-white/5 px-9 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50 sm:rounded-xl sm:px-10"
-              />
-            </div>
-
-            <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
-              <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
-                <Button
-                  variant={viewMode === "source" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    resetSourceBrowseState()
-                    setViewMode("source")
-                    onViewModeChange?.("source")
-                  }}
-                  className={cn(
-                    "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
-                    viewMode === "source"
-                      ? "bg-white/10 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <List className="mr-1.5 h-3.5 w-3.5" />
-                  By Source
-                </Button>
-                <Button
-                  variant={viewMode === "topic" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    resetSourceBrowseState()
-                    setViewMode("topic")
-                    onViewModeChange?.("topic")
-                  }}
-                  className={cn(
-                    "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
-                    viewMode === "topic"
-                      ? "bg-white/10 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Layers className="mr-1.5 h-3.5 w-3.5" />
-                  By Topic
-                </Button>
-              </div>
-
-              {viewMode === "topic" && (
-                <Select value={clusterWindow} onValueChange={(value) => setClusterWindow(value as "1d" | "1w" | "1m")}>
-                  <SelectTrigger className="h-9 rounded-lg border-white/5 bg-white/5 text-xs uppercase tracking-widest">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-lg border-white/10 bg-background/95 backdrop-blur-xl">
-                    <SelectItem value="1d" className="text-xs uppercase tracking-widest">
-                      Last 24h
-                    </SelectItem>
-                    <SelectItem value="1w" className="text-xs uppercase tracking-widest">
-                      Last 7d
-                    </SelectItem>
-                    <SelectItem value="1m" className="text-xs uppercase tracking-widest">
-                      Last 30d
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            <GridViewSearchBar value={searchTerm} variant="main" onChange={handleSearchChange} />
+            <ModeSwitcher
+              viewMode={viewMode}
+              clusterWindow={clusterWindow}
+              onModeSelect={handleModeSelect}
+              onClusterWindow={(value) => setClusterWindow(value)}
+            />
           </div>
         </div>
       </div>
@@ -742,15 +1267,7 @@ export function GridView({
         className="scroll-smooth pb-24 lg:flex-1 lg:overflow-y-auto"
       >
         <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
-          {showTrending && (
-            viewMode === "topic" ? (
-              <div className="hidden sm:block">
-                <TrendingFeed />
-              </div>
-            ) : (
-              <TrendingFeed />
-            )
-          )}
+          <TrendingSection showTrending={showTrending} viewMode={viewMode} />
 
           {displayArticles.length === 0 && !isLoadingState ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
@@ -761,298 +1278,51 @@ export function GridView({
               </p>
             </motion.div>
           ) : viewMode === "source" ? (
-            visibleSourceGroups.map((group) => {
-              const isExpanded = expandedSourceId === group.sourceId
-              const displayedArticles = isExpanded
-                ? group.articles
-                : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
-
-              return (
-                <section
-                  key={group.sourceId}
-                  data-source-id={group.sourceId}
-                  className="grid-source-group flex flex-col"
-                >
-                  <div className="mb-2 flex flex-col gap-2 border-t border-white/10 pt-3 sm:mb-6 sm:gap-4 sm:border-t-0 sm:pt-0 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-1 sm:space-y-3">
-                      <div className="flex items-center gap-2 sm:gap-4">
-                        <Link
-                          href={`/source/${encodeURIComponent(group.sourceId)}`}
-                          className="min-w-0 break-words font-serif text-2xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
-                        >
-                          {group.sourceName}
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleFavorite(group.sourceId)}
-                          className="h-8 w-8 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0 sm:h-9 sm:w-9"
-                        >
-                          <Star
-                            className={cn(
-                              "h-4 w-4",
-                              isFavorite(group.sourceId)
-                                ? "fill-amber-400 text-amber-400"
-                                : "text-white/40",
-                            )}
-                          />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground sm:gap-2">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-                        {group.articles.length} articles
-                      </span>
-                      {group.credibility && (
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-                          {group.credibility} credibility
-                        </span>
-                      )}
-                      {group.bias && (
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-                          {group.bias} bias
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {displayedArticles.length > 0 && (
-                    <div className="flex-1">
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                        <AnimatePresence>
-                          {displayedArticles.map((article, itemIndex) => (
-                            <SourceArticleCard
-                              key={article.url ? `url:${article.url}` : `id:${article.id}`}
-                              article={article}
-                              index={itemIndex}
-                              likedIds={likedIds}
-                              hasRealImage={hasRealImage}
-                              isArticleInQueue={isArticleInQueue}
-                              onArticleClick={(article) => handleArticleClick(article, group.articles)}
-                              onLike={handleLike}
-                              onQueueToggle={handleQueueToggle}
-                            />
-                          ))}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  )}
-
-                  {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
-                    <div className="mt-4 flex justify-center pb-4 sm:mt-8 sm:pb-8">
-                      <Button
-                        variant="outline"
-                        onClick={() => setExpandedSourceId(isExpanded ? null : group.sourceId)}
-                        className="rounded-full border-white/10 bg-transparent px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white sm:px-8 sm:py-5"
-                      >
-                        {isExpanded ? "Show fewer stories" : `View all ${group.articles.length} stories`}
-                      </Button>
-                    </div>
-                  )}
-                </section>
-              )
-            })
+            visibleSourceGroups.map((group) => (
+              <SourceGroupSection
+                key={group.sourceId}
+                group={group}
+                isExpanded={expandedSourceId === group.sourceId}
+                likedIds={likedIds}
+                hasRealImage={hasRealImage}
+                isArticleInQueue={isArticleInQueue}
+                isFavorite={isFavorite}
+                onArticleClick={handleArticleClick}
+                onLike={handleLike}
+                onQueueToggle={handleQueueToggle}
+                onToggleFavorite={toggleFavorite}
+                onToggleExpand={() => setExpandedSourceId(expandedSourceId === group.sourceId ? null : group.sourceId)}
+              />
+            ))
           ) : (
-            <div className="space-y-4 sm:space-y-6">
-              {clustersLoading ? (
-                <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
-                  <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
-                  Mapping topic clusters...
-                </div>
-              ) : clusters.length === 0 ? (
-                <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
-                  {clustersStatus === "initializing" ? "Building topics..." : "No topics found"}
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-                    {sortedClusters.map((cluster, index) => {
-                      const representative = cluster.representative_article
-                      if (!representative) return null
-
-                      const imageUrl = pickClusterImageUrl(cluster)
-                      const isExpanded = expandedClusterId === cluster.cluster_id
-                      const previewStats = getClusterPreviewStats(cluster)
-
-                      return (
-                        <Fragment key={cluster.cluster_id}>
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.05 }}
-                            data-cluster-id={cluster.cluster_id}
-                            role="button"
-                            tabIndex={0}
-	                            className={cn(
-	                              "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-lg sm:bg-black/20",
-	                              isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/10 sm:border-white/5",
-	                            )}
-                            onClick={() => handleExpandCluster(cluster)}
-                            onKeyDown={(event) => {
-                              if (event.target !== event.currentTarget) return
-                              if (event.key !== "Enter" && event.key !== " ") return
-                              event.preventDefault()
-                              void handleExpandCluster(cluster)
-                            }}
-                          >
-      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
-                              {imageUrl ? (
-                                <SafeImage
-                                  src={imageUrl}
-                                  alt={representative.title}
-                                  fill
-                                  sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                                  className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
-                                />
-                              ) : (
-                                <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
-                              )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-	                              <div className="absolute right-1 top-1 z-10 text-white drop-shadow-md sm:right-4 sm:top-4">
-	                                {isExpanded ? (
-	                                  <ChevronDown className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-	                                ) : (
-	                                  <ChevronRight className="h-3.5 w-3.5 text-white/75 group-hover:text-white sm:h-5 sm:w-5" />
-	                                )}
-	                              </div>
-	                              <div className="absolute left-4 top-4 z-10 hidden sm:block">
-	                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(event) => handleOpenClusterCompare(cluster, event)}
-                                  className="h-8 rounded-full bg-black/50 px-3 text-xs uppercase tracking-widest text-white backdrop-blur hover:bg-black/70"
-                                >
-                                  Compare
-                                </Button>
-                              </div>
-	                              <div className="absolute bottom-4 left-4 right-4 hidden sm:block">
-	                                <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
-	                                  {getClusterDisplayLabel(cluster)}
-	                                </h3>
-	                              </div>
-	                            </div>
-	                            <CardContent className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pt-3 sm:uppercase sm:tracking-widest">
-	                              <h3 className="line-clamp-3 font-serif text-sm leading-tight text-foreground/90 sm:hidden">
-	                                {getClusterDisplayLabel(cluster)}
-	                              </h3>
-	                              <span className="flex items-center gap-1 sm:gap-2">
-	                                <Newspaper className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.sourceCount} sources
-	                              </span>
-	                              <span className="flex items-center gap-1 sm:gap-2">
-	                                <List className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.articleCount} stories
-	                              </span>
-	                              <Button
-	                                variant="ghost"
-	                                size="sm"
-	                                onClick={(event) => handleOpenClusterCompare(cluster, event)}
-	                                className="mt-auto h-6 w-full rounded-full bg-white/5 px-2 text-xs font-medium text-foreground hover:bg-white/10 sm:hidden"
-	                              >
-	                                Compare
-	                              </Button>
-	                            </CardContent>
-                          </motion.div>
-
-                          {isExpanded && expandedCluster && (
-                            <div
-                              data-cluster-expanded-for={cluster.cluster_id}
-                              className="col-span-full overflow-hidden rounded-lg border border-primary/30 bg-black/20"
-                            >
-                              <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <Layers className="h-5 w-5 text-primary" />
-                                  <h3 className="font-serif text-2xl text-foreground">
-                                    {getClusterDisplayLabel(expandedCluster)}
-                                  </h3>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                                  >
-                                    {getClusterPreviewStats(expandedCluster).sourceCount} sources
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                                  >
-                                    {getClusterPreviewStats(expandedCluster).articleCount} stories
-                                  </Badge>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    setExpandedClusterId(null)
-                                  }}
-                                  className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
-                                >
-                                  Close topic
-                                </Button>
-                              </div>
-
-                              <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
-                                <ContradictionPanel clusterId={expandedCluster.cluster_id} />
-                                <StoryLineagePanel clusterId={expandedCluster.cluster_id} />
-
-                                {expandedClusterArticles.length > 0 ? (
-                                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-                                    {expandedClusterArticles.map((article, index) => (
-                                      <SourceArticleCard
-                                        key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
-                                        article={article}
-                                        index={index}
-                                        likedIds={likedIds}
-                                        hasRealImage={hasRealImage}
-                                        isArticleInQueue={isArticleInQueue}
-                                        onArticleClick={(article) => handleArticleClick(article, expandedClusterArticles)}
-                                        onLike={handleLike}
-                                        onQueueToggle={handleQueueToggle}
-                                      />
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
-                                    No articles found for this topic
-                                  </div>
-                                )}
-
-                                {expandedCluster.keywords.length > 0 && (
-                                  <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-                                    <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
-                                    {expandedCluster.keywords.slice(0, 8).map((keyword) => (
-                                      <Badge
-                                        key={keyword}
-                                        variant="outline"
-                                        className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-                                      >
-                                        {keyword}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+            <TopicFeed
+              clustersLoading={clustersLoading}
+              clusters={clusters}
+              clustersStatus={clustersStatus}
+              sortedClusters={sortedClusters}
+              expandedClusterId={expandedClusterId}
+              expandedCluster={expandedCluster}
+              expandedClusterArticles={expandedClusterArticles}
+              likedIds={likedIds}
+              hasRealImage={hasRealImage}
+              isArticleInQueue={isArticleInQueue}
+              getDisplayLabel={getClusterDisplayLabel}
+              onExpand={(cluster) => handleExpandCluster(cluster)}
+              onCompare={handleOpenClusterCompare}
+              onArticleClick={handleArticleClick}
+              onLike={handleLike}
+              onQueueToggle={handleQueueToggle}
+              onCloseExpanded={() => setExpandedClusterId(null)}
+            />
           )}
 
           {!useVirtualization && viewMode === "source" && hasMoreSourceGroups && (
-            <div className="flex justify-center pb-8">
-              <Button
-                        variant="outline"
-                        onClick={() => setSourceBatchCount((prev) => prev + 1)}
-                        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
-                      >
-                        {`Load 10 more sources (${visibleSourceIds.size}/${sortedSourceIds.length})`}
-                      </Button>
-                    </div>
-                  )}
+            <MoreSourcesButton
+              visible={visibleSourceIds.size}
+              total={sortedSourceIds.length}
+              onLoadMore={() => setSourceBatchCount((prev) => prev + 1)}
+            />
+          )}
         </div>
       </div>
 

@@ -534,3 +534,33 @@ Future Codex agents should:
 - Always try RSS catalog name matching as a fallback when article-source attribution is missing
 - Wikidata employer labels are often multi-word ("The New York Times Company") — use substring matching not exact comparison
 - Build catalog name lookup as a flat dict of base-name → full-name for fast matching
+# 2026-07-21 — Background ingestion needs source-level truth
+
+Context:
+- A stage-level success marker could be written after individual evidence adapters failed because the orchestration function returned a partial result.
+- One global `/tmp` leader lock allowed an unrelated backend on another port to suppress startup work.
+
+What worked:
+- Persist one run per adapter with counts, exact failure, retryability, network mode, and completion state.
+- Raise a partial-stage result after every required adapter has had a chance to run, so later adapters still execute and the full-success marker stays unset.
+- Key the leader lock by normalized repository path plus backend bind or explicit runtime instance.
+
+Future agents should:
+- Treat a returned orchestration result as successful only when every required source is complete.
+- Expose the persisted run ledger through the user-facing status contract.
+- Test both same-bind worker sharing and different-bind isolation for startup locks.
+
+# 2026-07-21 — Corpus replay needs an isolated PostgreSQL cluster
+
+Context:
+- The configured development role cannot create databases, SQLite cannot run the PostgreSQL Alembic path, and migration `20260721_0004` assumed a pre-existing legacy table.
+
+What worked:
+- Start a private PostgreSQL cluster with `initdb` inside a temporary directory and connect through its private Unix socket.
+- Run Alembic to head before application legacy-table bootstrap, then run the resolver, adapters, policy, materializer, measurements, APIs, and assertions with network disabled.
+- Keep automated engine verification separate from independent reviewer identity; never write the test identity into the release manifest.
+
+Future agents should:
+- Use the disposable-cluster replay rather than clearing or cloning the configured database.
+- Make additive migrations tolerate the clean-database table creation order.
+- Treat capture completion, parser expectations, engine execution, and independent review as separate gates.

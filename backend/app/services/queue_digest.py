@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.core.config import settings
+from app.core.config import resolve_opencode_model, settings
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
 from app.services.prompting import (
@@ -49,7 +49,7 @@ async def generate_queue_digest(
                 {"role": "system", "content": DIGEST_SYSTEM_PROMPT},
                 {"role": "user", "content": _build_digest_prompt(articles, grouped)},
             ],
-            model=settings.open_router_model,
+            model=resolve_opencode_model(settings.open_router_model),
         )
 
         if not response or not response.choices:

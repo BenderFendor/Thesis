@@ -1,5 +1,79 @@
 # Log
 
+## 2026-08-27: Retired reporter rows hidden from wiki and list endpoints
+
+- Soft-retired (merged/split) reporters leaked through the wiki directory,
+  dossier, articles, and entity-research list endpoints: `list_wiki_reporters`,
+  `get_source_reporters`, `_load_wiki_reporters`, and `entity_research.list_reporters`
+  now filter `retirement_reason IS NULL`, and `get_reporter_dossier` plus
+  `get_reporter_articles` follow the `merged_into` chain like
+  `entity_research.get_reporter`, so old merged links serve the winner instead
+  of an empty husk with a stale article count.
+- Wikidata statement document ids switched from the readable
+  `doc_wikidata_{qid}_{prop}_{statement_id}` form to a stable-hash form;
+  `_get_or_create_wikidata_document` probes the legacy id first so re-ingests
+  reuse existing documents instead of orphaning a duplicate per statement.
+- The Atlas force layout runs on the main thread after the old worker was
+  removed; the rAF loop now falls back to the deterministic ring layout if the
+  simulation throws, mirroring the worker's former `onerror` path.
+- `.gitignore` now excludes `.chroma.corrupt-*/` (crash dumps) and `.omp/`
+  (local harness state).
+
+Verification:
+
+- New `backend/tests/test_reporter_retirement.py` (6 tests): directory hides
+  merged/split rows, dossier and articles follow the merge chain, retired rows
+  excluded from entity-research listings, and the legacy wikidata document id
+  is reused. All pass.
+- Scoped pytest (11), frontend jest (33 suites + 5 atlas suites, 147 tests),
+  strict mypy (180 files), tsc, and ruff check/format all pass.
+
+## 2026-08-25: Appearance settings page with live token editing
+
+- Added `/settings`, an appearance page reachable from the workspace sidebar under Library. It exposes the design tokens as controls: six semantic colors (background, surface, text, secondary text, accent, border), text scale, body and heading weight, density presets plus a spacing scale, corner radius, shadow strength, and motion full/off with a speed multiplier.
+- Controls edit semantic tokens only. `frontend/lib/appearance-settings.ts` owns one validated settings object (hand-rolled normalization: per-field defaults, range clamping, hex normalization, unknown keys dropped) and applies it by writing CSS custom properties to `document.documentElement`. Fields equal to their default are removed instead of written, so untouched tokens keep following the light and dark themes; changed colors intentionally span both themes.
+- Live application paths: a blocking head script (`buildAppearanceBootstrapScript`) re-applies stored settings before hydration so reloads do not flash, and `AppearanceSettingsSync` (mounted in `Providers`) re-applies on every store change including cross-tab updates. No `setState` in effects; the store is a `useSyncExternalStore` snapshot over the shared storage bus in `lib/storage.ts`.
+- Persistence is `localStorage` key `appearanceSettings` with reset to defaults, JSON export download, and JSON import (invalid imports are rejected with a toast and never applied). Density presets (Compact 0.9, Default 1.0, Roomy 1.1) are derived views over `spaceScale`; moving the slider shows Custom.
+- `app/globals.css` gained a runtime appearance layer: `@theme inline` overrides for the Tailwind text scale, spacing unit, and default transition duration; base-layer body/heading weight hooks (heading weight uses an `!important` preference with an `inherit` fallback so it beats weight utilities only when set); alpha scaling for the standard `shadow-*` utilities via `--appearance-shadow-strength`; and a `data-motion-off` kill switch mirroring the existing `prefers-reduced-motion` guard. All defaults are neutral, so the layer is invisible until a setting changes.
+
+Verification:
+
+- New `frontend/__tests__/appearance-settings.test.ts`: 14 tests covering normalization (junk input, version rejection, range clamping, hex forms), save/load round-trip with stable snapshots, corrupt-JSON fallback, subscriber notifications, reset, override-diff application semantics, and the bootstrap script executed in jsdom (applies overrides, ignores corrupt payloads). All pass.
+- Scoped suites touching shared modules pass: `global-navigation`, `storage-snapshot`, `news-view-state`, `appearance-settings` (33 tests). `tsc -p frontend/tsconfig.json --noEmit` and eslint on all changed files are clean.
+- Browser-verified against `next dev`: accent change repaints the preview button and sidebar instantly; reload keeps the change (bootstrap applies before hydration); reset clears storage and vars; text scale 1.2 renders `text-xl` at exactly 24px; density, motion off, and JSON import all apply live; the light/dark toggle still works and an active accent override spans both themes. Screenshots in `tmp/appearance-settings/`.
+
+## 2026-08-25: OpenCode Zen free LLM backend
+
+- Added `LLM_BACKEND=opencode` as a third selectable LLM provider. It routes to OpenCode Zen at `https://opencode.ai/zen/v1` with `OPENCODE_API_KEY` and model `OPENCODE_MODEL` (default `x-preview-f-free`, "Ox Alpha Free"), the same free models the local Pi integration uses.
+- Extended `create_openai_client()` in `backend/app/core/config.py` with the OpenCode branch and added `resolve_opencode_model()`, which remaps service model strings to the Zen model only when that backend is selected; `openrouter` and `llamacpp` behavior is unchanged.
+- Wired the backend into `news_research_agent._get_llm()`, `agentic_search` LLM selection/banner/guard, the `LLMClient` default model, and every direct-client call site (funding researcher x2, source analysis scorer, source field extractor, source query generator, source profile synthesizer, source search planner, article analysis, inline definition, queue digest).
+- Documented `OPENCODE_API_KEY`, `OPENCODE_BASE_URL`, and `OPENCODE_MODEL` in `backend/.env.example` and added `LLM_BACKEND` plus `OPENCODE_API_KEY` rows to the README configuration table.
+
+Verification:
+
+- New `backend/tests/test_llm_backend_opencode.py`: 6 tests covering factory wiring, fail-closed missing key, unchanged openrouter/llamacpp endpoints, resolver scoping, research-agent binding, and agentic-search selection; focused run of that file plus `test_llm_client_params.py` and `test_agentic_search.py` passed (9 passed).
+- All changed modules import cleanly; repo-pinned ruff check and format pass on all changed files; strict mypy on the changed `app/` modules reports no new errors (`agentic_search.py` keeps its 8 pre-existing findings outside the gated package).
+- Live smoke with `LLM_BACKEND=opencode`: real `chat.completions.create` against Zen returned `x-preview-f-free`; an earlier probe confirmed OpenAI-compatible tool calling on the free model.
+
+## 2026-07-21: Dossier contracts and observable evidence ingestion
+
+- Scoped startup leadership by repository and backend bind so unrelated local servers cannot suppress ingestion.
+- Added persistent source-level evidence ingest runs and an Atlas ingestion-status endpoint. Partial and failed adapters no longer create a full-success marker.
+- Added public entity kinds and relationship lifecycle states without replacing storage kinds or acceptance status.
+- Added typed dossier sections with explicit missing-data states and separate current, proposed, pending, and disputed relationships.
+- Added exact edge predicates, display groups, and decimal voting, economic, and beneficial interest ranges. Ranged interests no longer emit midpoint floats.
+- Added `./scripts/scoop evidence replay`. It verifies 20 pinned primary-source bundles, starts a private temporary PostgreSQL cluster, runs real migrations and the full offline evidence/dossier path, exports claim bundles, and fails closed while independent signoffs are missing.
+- Connected the existing ads.txt parser to the evidence spine as a candidate-only adapter with exact seller-account and capture qualifiers.
+- Added source-native parsers and candidate writers for corporate records, GLEIF, Companies House, IRS Form 990, USAspending, FCC, article records, sellers.json, and sponsorship disclosures. Byline/employment, seller/advertiser, sponsorship, FCC ownership/political purchases, and funding amount types stay distinct.
+- Replaced corpus placeholders with pinned primary-source facts, linked each multi-source record to its exact capture, and made replay fail when an expected claim does not clear policy. CNN now materializes current WBD branding, the proposed Paramount transaction, and Paramount voting control as three separate accepted relationships without creating an Ellison-to-CNN shortcut.
+- Added six versioned media measurements and an Atlas measurement endpoint and dossier panel. Every trace carries its corpus window, denominator, coverage, algorithm version, inputs, and result.
+- Fixed the clean-database migration chain so the organization-subsidiaries revision is safe before legacy table bootstrap.
+
+Verification:
+
+- Focused backend Ruff, strict mypy, 40 Atlas/ingestion tests, the 20-case disposable replay, frontend dossier tests, lint, and live Atlas API smoke passed.
+- Full repository verification is recorded in `docs/agents/traces/media-intelligence-dossiers.md`.
+
 ## 2026-07-21: Deterministic media investigation profiles
 
 - Added curated `scoop investigate organization|ownership|source|reporter` commands that compose generated OpenAPI operations.
@@ -1292,3 +1366,19 @@ First end-to-end pipeline run on real data: RSS ingestion → DB persist → rep
 - `PYTHONPATH=backend uv run python backend/scripts/verify_reporter_intelligence.py --audit-quality`: 1,176 verified reporters, 0 quality failures.
 - `PYTHONPATH=backend uv run python backend/scripts/verify_reporter_intelligence.py --audit-profiles`: 0 profile quality failures.
 - `PYTHONPATH=backend uv run python backend/scripts/verify_reporter_intelligence.py --audit-eligible-cohort --eligible-target-verified-percent 70 --eligible-top-sources 25`: expected non-zero while 70% coverage and zero likely/unmatched leakage remain unmet.
+
+## 2026-08-25: Code-Quality Audit Pass: High-Confidence Fixes
+
+**What Changed:**
+- Fixed a crash in `reporter_merge._pick_winner`: duplicate-name groups mixing NULL and set `created_at` raised TypeError (datetime vs "" in one sort key); winner selection now sorts on a numeric timestamp with NULLs losing ties.
+- Fixed silent SSE payload corruption in `/api/news/research/stream`: `str.replace("data: ", "")` stripped every occurrence inside event JSON, mutating tool results; now uses `removeprefix`.
+- Wired `GDELTQueryService.close()` into `app.main.on_shutdown`; the pooled httpx client was never released.
+- Added deterministic ordering (`order_by(id)`) to the un-ordered LIMIT/OFFSET pagination on `/research/entity/reporters` and `/organizations` (unstable pages under PostgreSQL).
+- Removed dead code proven by zero references repo-wide: `app/services/hdbscan_clustering.py`, `app/services/rss_source_prompt.py`, the unused `_required_internal_fetches_before_external` helper, the now-orphaned `hdbscan` dependency line, and 4 duplicated `serializeSources` implementations consolidated into `frontend/lib/utils.ts`.
+- Resolved all 7 remaining strict-mypy errors in new reporter/atlas services using the repo's existing `cast(int/str, x.id)` convention.
+- Pinned `uvx ruff@0.15.22` in `verify.sh` and `scripts/self-test`: unpinned ruff now resolves to 0.16.4 whose changed config semantics report ~754 false errors against the repo's own rule selection; formatted 15 drifted WIP files so `ruff format --check` is green again.
+
+**Verification:**
+- Backend strict mypy: 0 errors in 180 files (was 7). Pinned ruff check + format --check: clean.
+- Scoped pytest: 63 passed across reporter/atlas/evidence/stream/pagination/shutdown suites, including 4 new regression tests (`test_reporter_merge.py::test_pick_winner_tolerates_null_created_at`, `tests/test_research_stream.py`, `tests/test_shutdown_gdelt_close.py`, `tests/test_entity_research_pagination.py`). The stream test was confirmed failing before its fix.
+- Frontend tsc clean, eslint 0 errors (1 pre-existing TanStack Virtual warning), scoped jest green except 2 pre-existing failures in `blindspot-view.test.tsx` (reproduced on an unmodified tree via stash roundtrip).

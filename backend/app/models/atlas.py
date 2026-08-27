@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 AtlasEntityType = Literal["outlet", "organization", "person", "reporter"]
 AtlasRelationType = Literal[
@@ -30,6 +30,9 @@ AtlasConfidenceTier = Literal[
     "stale",
 ]
 AtlasFactStatus = Literal["candidate", "accepted", "disputed", "rejected", "superseded"]
+AtlasLifecycleState = Literal[
+    "current", "historical", "proposed", "pending", "disputed", "rejected", "superseded"
+]
 
 
 class AtlasEvidenceRef(BaseModel):
@@ -44,6 +47,10 @@ class AtlasEvidenceRef(BaseModel):
     snapshot_sha256: str | None = None
     locator: dict[str, Any] = Field(default_factory=dict)
     entailment: str | None = None
+    evidence_class: str | None = None
+    policy_version: str | None = None
+    acceptance_decision: str | None = None
+    contradictions: list[str] = Field(default_factory=list)
 
 
 class AtlasNode(BaseModel):
@@ -67,6 +74,11 @@ class AtlasNode(BaseModel):
     profile_path: str | None = None
     updated_at: datetime | None = None
     flags: list[str] = Field(default_factory=list)
+    current_parent: str | None = None
+    pending_change: str | None = None
+    evidence_coverage: str = "not researched"
+    freshness: str = "unknown"
+    unresolved_gap: str | None = None
 
 
 class AtlasEdge(BaseModel):
@@ -76,9 +88,15 @@ class AtlasEdge(BaseModel):
     source_id: str
     target_id: str
     relation_type: AtlasRelationType
+    predicate: str = ""
+    display_group: str = "other"
+    relation_type_deprecated: bool = True
     direction: Literal["directed", "undirected"] = "directed"
     weight: float = 1.0
     ownership_percentage: float | None = None
+    voting_interest: dict[str, str] | None = None
+    economic_interest: dict[str, str] | None = None
+    beneficial_interest: dict[str, str] | None = None
     confidence: float | None = None
     confidence_tier: AtlasConfidenceTier | None = None
     evidence_count: int = 0
@@ -89,6 +107,7 @@ class AtlasEdge(BaseModel):
     is_inferred: bool = False
     raw_relation_type: str | None = None
     fact_status: AtlasFactStatus = "candidate"
+    lifecycle_state: AtlasLifecycleState = "current"
     accepted_fact: bool = False
     qualifiers: dict[str, Any] = Field(default_factory=dict)
     claim_ids: list[str] = Field(default_factory=list)
@@ -96,6 +115,43 @@ class AtlasEdge(BaseModel):
     retracted_at: datetime | None = None
     acceptance_policy_version: str | None = None
     evidence_root_count: int = 0
+
+    @model_validator(mode="after")
+    def fill_exact_relationship_contract(self) -> AtlasEdge:
+        """Ensure compatibility edges still expose a predicate and display group."""
+        if not self.predicate:
+            self.predicate = self.raw_relation_type or self.relation_type
+        if self.display_group == "other":
+            if self.predicate in {
+                "directly_owns",
+                "owns_equity_in",
+                "controls",
+                "brand_of",
+                "operated_by",
+                "successor_of",
+                "ownership",
+            }:
+                self.display_group = "ownership_control"
+            elif self.predicate in {
+                "employed_by",
+                "current_outlet",
+                "coauthor",
+                "shared_outlet",
+                "founded_by",
+            }:
+                self.display_group = "newsroom_people"
+            elif self.predicate in {"publishes", "distributed_by", "syndicated_by"}:
+                self.display_group = "publishing_distribution"
+            elif self.predicate in {
+                "authorizes_inventory_seller",
+                "sponsors_content",
+                "political_ad_purchase",
+                "advertising_inventory_sold_by",
+            }:
+                self.display_group = "advertising_sponsorship"
+            elif self.predicate == "funds":
+                self.display_group = "funding_government_awards"
+        return self
 
 
 class AtlasCoverageMetric(BaseModel):
@@ -146,7 +202,9 @@ class AtlasGraphFilters(BaseModel):
     selected: str | None = None
     neighbors: int = Field(default=0, ge=0, le=2)
     layout: Literal["clustered", "ownership", "geography", "radial"] = "clustered"
-    limit_nodes: int = Field(default=350, ge=1, le=600)
+    limit_nodes: int | None = Field(default=350, ge=1, le=600)
+    """Max ranked nodes to keep. `None` means no cap (used by the entity
+    index/search, which page or group the full corpus themselves)."""
     limit_edges: int = Field(default=1500, ge=1, le=2500)
     include_evidence_preview: bool = True
     as_of: datetime | None = None
@@ -179,6 +237,10 @@ class AtlasStatsResponse(BaseModel):
     by_index_status: dict[str, int] = Field(default_factory=dict)
     last_indexed_at: datetime | None = None
     indexing_active: bool = False
+    research_coverage: AtlasCoverageMetric = Field(default_factory=AtlasCoverageMetric)
+    """Entities with `evidence_coverage != "not researched"` (at least one
+    edge citing evidence touches the entity) versus the corpus total."""
+    research_coverage_by_entity_type: dict[str, AtlasCoverageMetric] = Field(default_factory=dict)
 
 
 class AtlasSearchItem(BaseModel):
@@ -191,6 +253,40 @@ class AtlasSearchItem(BaseModel):
     country_code: str | None = None
     confidence_tier: AtlasConfidenceTier | None = None
     profile_path: str | None = None
+    current_parent: str | None = None
+    pending_change: str | None = None
+    evidence_coverage: str = "not researched"
+    freshness: str = "unknown"
+    unresolved_gap: str | None = None
+
+
+class AtlasDossierStatement(BaseModel):
+    """One plain-language dossier answer with its exact evidence state."""
+
+    label: str
+    answer: str
+    state: Literal["known", "unknown", "not_researched", "source_unavailable", "chain_incomplete"]
+    predicate: str | None = None
+    lifecycle_state: AtlasLifecycleState | None = None
+    evidence: list[AtlasEvidenceRef] = Field(default_factory=list)
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+
+
+class AtlasDossierSection(BaseModel):
+    """A typed, non-empty dossier section."""
+
+    key: Literal[
+        "summary",
+        "identity_public_records",
+        "ownership_control",
+        "newsroom_people",
+        "funding_government_awards",
+        "advertising_sponsorship",
+        "publishing_distribution",
+        "evidence_conflicts_freshness_gaps",
+    ]
+    title: str
+    statements: list[AtlasDossierStatement] = Field(default_factory=list)
 
 
 class AtlasSearchResponse(BaseModel):
@@ -223,8 +319,59 @@ class AtlasEntityRecord(BaseModel):
     last_verified_at: datetime | None = None
     profile_path: str | None = None
     details: dict[str, Any] = Field(default_factory=dict)
+    entity_kind: str | None = None
+    dossier_sections: list[AtlasDossierSection] = Field(default_factory=list)
     evidence: list[AtlasEvidenceRef] = Field(default_factory=list)
     connections: list[AtlasConnectionRecord] = Field(default_factory=list)
+
+
+class AtlasMeasurementRecord(BaseModel):
+    """One reproducible media measurement with complete scope metadata."""
+
+    id: str
+    measurement_name: str
+    algorithm_version: str
+    result: dict[str, Any]
+    created_at: datetime
+
+
+class AtlasMeasurementsResponse(BaseModel):
+    """The measurement traces calculated for an outlet or the full corpus."""
+
+    source_name: str | None = None
+    measurements: list[AtlasMeasurementRecord] = Field(default_factory=list)
+
+
+class EvidenceIngestRunRecord(BaseModel):
+    """Public status for one persisted adapter run."""
+
+    id: str
+    adapter: str
+    adapter_version: str
+    scope: dict[str, Any] = Field(default_factory=dict)
+    started_at: datetime
+    completed_at: datetime | None = None
+    status: Literal["running", "success", "partial", "failed", "blocked", "skipped"]
+    network_mode: Literal["live", "offline", "disabled"]
+    documents_count: int = 0
+    snapshots_count: int = 0
+    observations_count: int = 0
+    claims_count: int = 0
+    accepted_count: int = 0
+    candidate_count: int = 0
+    failure: str | None = None
+    retryable: bool = False
+    missing_credentials: list[str] = Field(default_factory=list)
+
+
+class AtlasIngestStatusResponse(BaseModel):
+    """Freshness and failure summary for Atlas ingestion."""
+
+    freshness: Literal["fresh", "stale", "never", "running", "partial"]
+    last_success_at: datetime | None = None
+    has_retryable_failures: bool = False
+    missing_credentials: list[str] = Field(default_factory=list)
+    runs: list[EvidenceIngestRunRecord] = Field(default_factory=list)
 
 
 class AtlasIndexResponse(BaseModel):

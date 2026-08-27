@@ -4,12 +4,12 @@ import {
   Globe,
   Grid3X3,
   Network,
+  Palette,
   Radio,
   ScrollText,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react"
-
 export type ViewMode = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
 export interface ViewNavigationItem {
@@ -59,6 +59,13 @@ export const LIBRARY_NAVIGATION: readonly RouteNavigationItem[] = [
     description: "Manage source filters and subscriptions",
     icon: SlidersHorizontal,
     match: (pathname) => pathname.startsWith("/sources") || pathname.startsWith("/source/"),
+  },
+  {
+    href: "/settings",
+    label: "Appearance",
+    description: "Tune colors, typography, spacing, and motion",
+    icon: Palette,
+    match: (pathname) => pathname.startsWith("/settings"),
   },
 ]
 

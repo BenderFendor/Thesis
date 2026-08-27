@@ -1,5 +1,7 @@
 import {
   AtlasGraphResponseSchema,
+  AtlasIndexResponseSchema,
+  AtlasStatsResponseSchema,
   FundingBiasAnalysisResponseSchema,
   metricPercentage,
   parseFundingAndBias,
@@ -74,6 +76,8 @@ describe("Atlas runtime graph schema", () => {
           source_id: "outlet:abc",
           target_id: "outlet:abc",
           relation_type: "shared_outlet",
+          predicate: "shared_outlet",
+          display_group: "newsroom_people",
           evidence_preview: [
             {
               id: "evidence:1",
@@ -170,5 +174,88 @@ describe("FundingBiasAnalysisResponseSchema", () => {
     });
     expect(parsed.statistic?.cramers_v).toBe(0.6);
     expect(parsed.statistic?.table[0]).toEqual([2, 8]);
+  });
+});
+
+describe("Atlas stats research-coverage metric", () => {
+  it("parses research_coverage and its per-entity-type breakdown", () => {
+    const parsed = AtlasStatsResponseSchema.parse({
+      graph_version: "v1",
+      generated_at: "2026-07-22T12:00:00Z",
+      stats: {
+        total_outlets: 2,
+        total_organizations: 1,
+        total_people: 1,
+        total_reporters: 0,
+        visible_outlets: 2,
+        visible_organizations: 1,
+        visible_people: 1,
+        visible_reporters: 0,
+        visible_relationships: 1,
+        current_relationships: 1,
+        ownership_coverage: { numerator: 1, denominator: 2 },
+        evidence_coverage: { numerator: 1, denominator: 1 },
+        unresolved_source_links: 1,
+      },
+      by_entity_type: { outlet: 2, organization: 1, person: 1 },
+      by_relation_type: { ownership: 1 },
+      by_index_status: {},
+      last_indexed_at: null,
+      indexing_active: false,
+      research_coverage: { numerator: 2, denominator: 4 },
+      research_coverage_by_entity_type: {
+        outlet: { numerator: 1, denominator: 2 },
+        organization: { numerator: 1, denominator: 1 },
+        person: { numerator: 0, denominator: 1 },
+      },
+    });
+    expect(parsed.research_coverage).toEqual({ numerator: 2, denominator: 4 });
+    expect(parsed.research_coverage_by_entity_type.organization).toEqual({ numerator: 1, denominator: 1 });
+  });
+
+  it("defaults research_coverage when the backend omits it", () => {
+    const parsed = AtlasStatsResponseSchema.parse({
+      graph_version: "v1",
+      generated_at: "2026-07-22T12:00:00Z",
+      stats: {
+        total_outlets: 0,
+        total_organizations: 0,
+        total_people: 0,
+        total_reporters: 0,
+        visible_outlets: 0,
+        visible_organizations: 0,
+        visible_people: 0,
+        visible_reporters: 0,
+        visible_relationships: 0,
+        current_relationships: 0,
+        ownership_coverage: { numerator: 0, denominator: 0 },
+        evidence_coverage: { numerator: 0, denominator: 0 },
+        unresolved_source_links: 0,
+      },
+      by_entity_type: {},
+      by_relation_type: {},
+      by_index_status: {},
+      last_indexed_at: null,
+      indexing_active: false,
+    });
+    expect(parsed.research_coverage).toEqual({ numerator: 0, denominator: 0 });
+    expect(parsed.research_coverage_by_entity_type).toEqual({});
+  });
+});
+
+describe("Atlas index kind facet", () => {
+  it("parses the kind facet alongside the existing country/funding/bias facets", () => {
+    const parsed = AtlasIndexResponseSchema.parse({
+      items: [],
+      total: 0,
+      facets: {
+        entity_type: { organization: 2 },
+        kind: { "legal entity": 1, "organization without legal identity": 1 },
+        country: {},
+        funding: {},
+        bias: {},
+      },
+    });
+    expect(parsed.facets.kind).toEqual({ "legal entity": 1, "organization without legal identity": 1 });
   });
 });

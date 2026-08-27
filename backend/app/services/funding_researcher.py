@@ -29,7 +29,12 @@ import httpx
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
-from app.core.config import get_llamacpp_model, get_openai_client, settings
+from app.core.config import (
+    get_llamacpp_model,
+    get_openai_client,
+    resolve_opencode_model,
+    settings,
+)
 from app.core.logging import get_logger
 from app.services.async_utils import gather_limited
 
@@ -742,64 +747,17 @@ class FundingResearcher:
                 entity = entities[0] if entities else None
             if not entity or not isinstance(entity, dict):
                 return {}
-            qid = entity.get("id")
             claims = entity.get("claims") or {}
-
-            item_ids: list[str] = []
-            ownership_ids = _extract_wikidata_item_ids(claims, "P127")
-            parent_ids = _extract_wikidata_item_ids(claims, "P749")
-            part_of_ids = _extract_wikidata_item_ids(claims, "P361")
-            headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
-            subsidiary_ids = _extract_wikidata_item_ids(claims, "P355")
-            org_type_ids = _extract_wikidata_item_ids(claims, "P1454")
-            org_type_ids += _extract_wikidata_item_ids(claims, "P31")
-            owned_with_proportion = _extract_wikidata_items_with_proportion(claims, "P127")
-            parent_with_proportion = _extract_wikidata_items_with_proportion(claims, "P749")
-            item_ids.extend(
-                ownership_ids
-                + parent_ids
-                + part_of_ids
-                + headquarters_ids
-                + subsidiary_ids
-                + org_type_ids
+            relations = _collect_wikidata_relations(claims)
+            labels = await self._resolve_wikidata_labels(
+                relations["ownership_ids"]
+                + relations["parent_ids"]
+                + relations["part_of_ids"]
+                + relations["headquarters_ids"]
+                + relations["subsidiary_ids"]
+                + relations["org_type_ids"]
             )
-
-            labels = await self._resolve_wikidata_labels(item_ids)
-
-            return {
-                "source": "wikidata",
-                "qid": qid,
-                "wikidata_url": f"https://www.wikidata.org/wiki/{qid}" if qid else None,
-                "owned_by": [
-                    labels.get(item_id) for item_id in ownership_ids if labels.get(item_id)
-                ],
-                "parent_orgs": [
-                    labels.get(item_id) for item_id in parent_ids if labels.get(item_id)
-                ],
-                "part_of": [labels.get(item_id) for item_id in part_of_ids if labels.get(item_id)],
-                "headquarters": [
-                    labels.get(item_id) for item_id in headquarters_ids if labels.get(item_id)
-                ],
-                "subsidiaries": [
-                    labels.get(item_id) for item_id in subsidiary_ids if labels.get(item_id)
-                ],
-                "org_types": [
-                    labels.get(item_id) for item_id in org_type_ids if labels.get(item_id)
-                ],
-                "owned_with_proportion": [
-                    (labels.get(item_id), percentage)
-                    for item_id, percentage in owned_with_proportion
-                    if labels.get(item_id)
-                ],
-                "parent_with_proportion": [
-                    (labels.get(item_id), percentage)
-                    for item_id, percentage in parent_with_proportion
-                    if labels.get(item_id)
-                ],
-                "inception": _extract_wikidata_time(claims, "P571"),
-                "official_website": _extract_wikidata_url(claims, "P856"),
-                "confidence": "medium",
-            }
+            return _build_wikidata_payload(entity.get("id"), labels, claims, relations)
         except Exception as exc:
             logger.warning("Wikidata fetch failed for %s: %s", page_title, exc)
             return {}
@@ -901,146 +859,12 @@ class FundingResearcher:
             "research_confidence": "low",
         }
 
-        # Merge known data (highest priority for major outlets)
-        if known:
-            org["funding_type"] = known.get("funding_type") or org["funding_type"]
-            org["parent_org"] = known.get("parent") or org["parent_org"]
-            org["description"] = known.get("description") or org["description"]
-            org["org_type"] = known.get("org_type") or org["org_type"]
-            org["cik"] = known.get("cik") or org["cik"]
-            if not org["ein"] and known.get("ein"):
-                org["ein"] = str(known["ein"])
-            if not org["annual_revenue"] and known.get("annual_revenue"):
-                org["annual_revenue"] = known["annual_revenue"]
-            if not org["ownership_percentage"] and known.get("ownership_percentage"):
-                org["ownership_percentage"] = known["ownership_percentage"]
-            if not org["funding_sources"] and known.get("funding_sources"):
-                org["funding_sources"] = known["funding_sources"]
-            org["media_bias_rating"] = known.get("media_bias_rating")
-            org["factual_reporting"] = known.get("factual_reporting")
-            org["research_sources"].append("known_data")
-            org["research_confidence"] = "high"
-
-        # Merge Wikipedia data
-        if wikipedia:
-            wiki_ownership = wikipedia.get("ownership") or {}
-            if not org["parent_org"] and wiki_ownership.get("parent"):
-                org["parent_org"] = wiki_ownership["parent"]
-            if not org["funding_type"] and wiki_ownership.get("funding_type"):
-                org["funding_type"] = wiki_ownership["funding_type"]
-            if not org["description"]:
-                org["description"] = wikipedia.get("description")
-            org["recent_ownership_changes"] = wikipedia.get("recent_ownership_changes")
-            org["wikipedia_url"] = wikipedia.get("url")
-            org["research_sources"].append("wikipedia")
-            if org["research_confidence"] == "low":
-                org["research_confidence"] = "medium"
-
-        # Merge Wikidata from English Wikipedia title lookup
-        if wikidata:
-            org["wikidata_url"] = wikidata.get("wikidata_url")
-            org["wikidata_qid"] = wikidata.get("qid")
-            org["owned_by"] = wikidata.get("owned_by") or []
-            org["parent_orgs"] = wikidata.get("parent_orgs") or []
-            org["part_of"] = wikidata.get("part_of") or []
-            org["headquarters"] = wikidata.get("headquarters") or []
-            org["subsidiaries"] = wikidata.get("subsidiaries") or []
-            if not org["org_type"]:
-                org["org_type"] = _select_organization_type(
-                    cast(list[str], wikidata.get("org_types") or [])
-                )
-            org["inception"] = wikidata.get("inception")
-            org["official_website"] = wikidata.get("official_website")
-            if not org["parent_org"] and org["parent_orgs"]:
-                org["parent_org"] = org["parent_orgs"][0]
-            if not org["website"] and org["official_website"]:
-                org["website"] = org["official_website"]
-
-            # Extract ownership_percentage from Wikidata proportion qualifiers (P1107)
-            if not org.get("ownership_percentage"):
-                wiki_owned_proportion = wikidata.get("owned_with_proportion") or []
-                wiki_parent_proportion = wikidata.get("parent_with_proportion") or []
-                for _name, pct in wiki_owned_proportion + wiki_parent_proportion:
-                    if pct is not None:
-                        org["ownership_percentage"] = pct
-                        break
-
-            org["research_sources"].append("wikidata")
-            if org["research_confidence"] == "low":
-                org["research_confidence"] = "medium"
-
-        # Merge Wikidata SPARQL fallback (orgs without English Wikipedia)
-        if wikidata_sparql:
-            if not org["wikidata_qid"]:
-                org["wikidata_qid"] = wikidata_sparql.get("qid")
-            if not org["wikidata_url"]:
-                org["wikidata_url"] = wikidata_sparql.get("wikidata_url")
-            if wikidata_sparql.get("owned_by"):
-                org["owned_by"] = wikidata_sparql["owned_by"]
-            if wikidata_sparql.get("parent_orgs"):
-                org["parent_orgs"] = wikidata_sparql["parent_orgs"]
-                if not org["parent_org"]:
-                    org["parent_org"] = org["parent_orgs"][0]
-            if wikidata_sparql.get("part_of"):
-                org["part_of"] = wikidata_sparql["part_of"]
-            if wikidata_sparql.get("headquarters"):
-                org["headquarters"] = wikidata_sparql["headquarters"]
-            if wikidata_sparql.get("subsidiaries"):
-                org["subsidiaries"] = wikidata_sparql["subsidiaries"]
-            if not org["org_type"]:
-                org["org_type"] = _select_organization_type(
-                    cast(list[str], wikidata_sparql.get("org_types") or [])
-                )
-            if not org["ownership_percentage"]:
-                proportions = (wikidata_sparql.get("owned_with_proportion") or []) + (
-                    wikidata_sparql.get("parent_with_proportion") or []
-                )
-                org["ownership_percentage"] = next(
-                    (percentage for _owner, percentage in proportions if percentage is not None),
-                    None,
-                )
-            if wikidata_sparql.get("inception"):
-                org["inception"] = wikidata_sparql["inception"]
-            if wikidata_sparql.get("official_website"):
-                org["official_website"] = wikidata_sparql["official_website"]
-            if "wikidata_sparql" not in org["research_sources"]:
-                org["research_sources"].append("wikidata_sparql")
-            if org["research_confidence"] == "low":
-                org["research_confidence"] = "medium"
-
-        # Merge ProPublica nonprofit data only when higher-priority sources do not
-        # identify the outlet as commercial. Partial nonprofit matches are common
-        # for foundations and charities whose names overlap with commercial media
-        # brands, so commercial identity should win completely.
-        known_commercial = str(org.get("funding_type") or "").lower() == "commercial"
-        is_person = str(org.get("org_type") or "").casefold() in {"human", "person"}
-        if nonprofit and not known_commercial and not is_person:
-            nonprofit_ein = nonprofit.get("ein")
-            org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
-            org["annual_revenue"] = nonprofit.get("annual_revenue")
-            if not org.get("funding_type"):
-                org["funding_type"] = nonprofit.get("funding_type")
-            org["research_sources"].append("propublica")
-            if org["research_confidence"] == "low":
-                org["research_confidence"] = "high"
-
-        # Merge SEC EDGAR data
-        if sec:
-            org["cik"] = sec.get("cik")
-            if sec.get("ein"):
-                org["ein"] = org["ein"] or str(sec["ein"])
-            if sec.get("tickers") and not org.get("funding_type"):
-                org["funding_type"] = "commercial"
-            if sec.get("tickers") and not org.get("org_type"):
-                org["org_type"] = "public company"
-            if sec.get("revenue"):
-                org["annual_revenue"] = org["annual_revenue"] or sec["revenue"]
-            if sec.get("total_assets"):
-                org["annual_revenue"] = org["annual_revenue"] or sec["total_assets"]
-            if "sec_edgar" not in org["research_sources"]:
-                org["research_sources"].append("sec_edgar")
-            if org["research_confidence"] == "low":
-                org["research_confidence"] = "medium"
+        _merge_known_data(org, known)
+        _merge_wikipedia_data(org, wikipedia)
+        _merge_wikidata_data(org, wikidata)
+        _merge_wikidata_sparql_data(org, wikidata_sparql)
+        _merge_nonprofit_data(org, nonprofit)
+        _merge_sec_data(org, sec)
 
         return org
 
@@ -1299,71 +1123,22 @@ class FundingResearcher:
             if not entity or not isinstance(entity, dict):
                 return {}
             claims = entity.get("claims") or {}
-
-            item_ids: list[str] = []
-            ownership_ids = _extract_wikidata_item_ids(claims, "P127")
-            parent_ids = _extract_wikidata_item_ids(claims, "P749")
-            part_of_ids = _extract_wikidata_item_ids(claims, "P361")
-            headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
-            founder_ids = _extract_wikidata_item_ids(claims, "P112")
-            ceo_ids = _extract_wikidata_item_ids(claims, "P169")
-            subsidiary_ids = _extract_wikidata_item_ids(claims, "P355")
-            org_type_ids = _extract_wikidata_item_ids(claims, "P1454")
-            org_type_ids += _extract_wikidata_item_ids(claims, "P31")
-
-            # Extract ownership proportion (P1107) from P127 and P749
-            owned_with_proportion = _extract_wikidata_items_with_proportion(claims, "P127")
-            parent_with_proportion = _extract_wikidata_items_with_proportion(claims, "P749")
-            owned_proportion_ids = [iid for iid, _ in owned_with_proportion]
-            parent_proportion_ids = [iid for iid, _ in parent_with_proportion]
-
-            item_ids.extend(
-                ownership_ids
-                + parent_ids
-                + part_of_ids
-                + headquarters_ids
-                + founder_ids
-                + ceo_ids
-                + subsidiary_ids
-                + owned_proportion_ids
-                + parent_proportion_ids
-                + org_type_ids
+            relations = _collect_wikidata_relations(claims, include_people=True)
+            labels = await self._resolve_wikidata_labels(
+                relations["ownership_ids"]
+                + relations["parent_ids"]
+                + relations["part_of_ids"]
+                + relations["headquarters_ids"]
+                + relations["founder_ids"]
+                + relations["ceo_ids"]
+                + relations["subsidiary_ids"]
+                + relations["owned_proportion_ids"]
+                + relations["parent_proportion_ids"]
+                + relations["org_type_ids"]
             )
-
-            labels = await self._resolve_wikidata_labels(item_ids)
-
-            return {
-                "source": "wikidata",
-                "qid": qid,
-                "wikidata_url": f"https://www.wikidata.org/wiki/{qid}",
-                "owned_by": [labels.get(iid) for iid in ownership_ids if labels.get(iid)],
-                "parent_orgs": [labels.get(iid) for iid in parent_ids if labels.get(iid)],
-                "part_of": [labels.get(iid) for iid in part_of_ids if labels.get(iid)],
-                "headquarters": [labels.get(iid) for iid in headquarters_ids if labels.get(iid)],
-                "founders": [labels.get(iid) for iid in founder_ids if labels.get(iid)],
-                "ceos": [labels.get(iid) for iid in ceo_ids if labels.get(iid)],
-                "subsidiaries": [labels.get(iid) for iid in subsidiary_ids if labels.get(iid)],
-                "org_types": [labels.get(iid) for iid in org_type_ids if labels.get(iid)],
-                "inception": _extract_wikidata_time(claims, "P571"),
-                "official_website": _extract_wikidata_url(claims, "P856"),
-                "confidence": "medium",
-                # Proportion-qualified ownership data from P127/P749+P1107
-                "owned_with_proportion": [
-                    (labels.get(iid), pct) for iid, pct in owned_with_proportion if labels.get(iid)
-                ],
-                "parent_with_proportion": [
-                    (labels.get(iid), pct) for iid, pct in parent_with_proportion if labels.get(iid)
-                ],
-                # Full raw claims dict (mainsnak + qualifiers + references per
-                # statement) -- evidence_ingest.py's ownership ingestor reads
-                # this directly for per-statement reference/quantity data that
-                # the flattened label lists above lose. Kept private-ish (not
-                # documented for other callers) to avoid growing this method's
-                # public contract; see app/services/evidence_ingest.py.
-                "raw_claims": claims,
-                "labels": labels,
-                "raw_response_text": raw_response_text,
-            }
+            payload = _build_wikidata_payload(qid, labels, claims, relations, include_details=True)
+            payload["raw_response_text"] = raw_response_text
+            return payload
         except Exception as exc:
             logger.warning("Wikidata fetch by QID %s failed: %s", qid, exc)
             return {}
@@ -1451,40 +1226,7 @@ class FundingResearcher:
         known_key = self._normalize_name(org_name)
 
         # Staleness check: cross-reference KNOWN_ORGS against LLM knowledge
-        staleness_flags: list[str] = []
-        if known_key not in KNOWN_ORGS:
-            # Org is NOT in our hardcoded database — AI inference is needed
-            pass
-        else:
-            # Org IS in KNOWN_ORGS — verify with LLM for staleness
-            known_entry = KNOWN_ORGS[known_key]
-            try:
-                verify_prompt = (
-                    f"You are a media ownership fact-checker. "
-                    f"The KNOWN_ORGS database has this entry for '{org_name}': "
-                    f"{json.dumps(known_entry)}. "
-                    f"Is any of this information materially outdated as of 2025? "
-                    f"Answer only YES or NO."
-                )
-                verify_response = self.client.chat.completions.create(
-                    model=(
-                        get_llamacpp_model()
-                        if settings.llm_backend == "llamacpp"
-                        else settings.open_router_model
-                    ),
-                    messages=cast(
-                        Iterable[ChatCompletionMessageParam],
-                        [{"role": "user", "content": verify_prompt}],
-                    ),
-                    max_tokens=10,
-                    temperature=0.0,
-                )
-                verify_content = verify_response.choices[0].message.content or ""
-                if "YES" in verify_content.upper() and "NO" not in verify_content.upper():
-                    staleness_flags.append("KNOWN_ORGS entry flagged as stale by LLM")
-                    logger.info("KNOWN_ORGS entry for %s flagged stale by LLM", org_name)
-            except Exception as e:
-                logger.warning("KNOWN_ORGS staleness check failed: %s", e)
+        staleness_flags = _collect_staleness_flags(self.client, org_name, known_key)
 
         try:
             missing_fields = [
@@ -1500,9 +1242,7 @@ class FundingResearcher:
                 )
                 if not org.get(field)
             ]
-            if missing_fields or staleness_flags:
-                pass
-            else:
+            if not missing_fields and not staleness_flags:
                 return org
 
             missing_desc = ", ".join(missing_fields) if missing_fields else "staleness validation"
@@ -1562,7 +1302,7 @@ Respond in JSON:
                 model=(
                     get_llamacpp_model()
                     if settings.llm_backend == "llamacpp"
-                    else settings.open_router_model
+                    else resolve_opencode_model(settings.open_router_model)
                 ),
                 messages=cast(
                     Iterable[ChatCompletionMessageParam],
@@ -1581,30 +1321,7 @@ Respond in JSON:
 
             if json_match:
                 ai_data = json.loads(json_match.group())
-
-                outlet_types = {
-                    "news organization",
-                    "nonprofit",
-                    "public broadcaster",
-                    "publisher",
-                    "state media",
-                }
-                if str(org.get("org_type") or "").casefold() in outlet_types:
-                    if not org.get("media_bias_rating"):
-                        org["media_bias_rating"] = ai_data.get("media_bias_rating")
-                    if not org.get("factual_reporting"):
-                        org["factual_reporting"] = ai_data.get("factual_reporting")
-
-                if ai_data.get("funding_transparency"):
-                    org["funding_transparency"] = ai_data["funding_transparency"]
-                if (
-                    str(org.get("org_type") or "").casefold() == "publisher"
-                    and ai_data.get("has_paywall") is not None
-                ):
-                    org["has_paywall"] = bool(ai_data["has_paywall"])
-
-                if "ai_inference" not in org.get("research_sources", []):
-                    org["research_sources"].append("ai_inference")
+                _apply_ai_enhancements(org, ai_data)
             else:
                 logger.warning("AI returned no JSON object for org %s", org_name)
 
@@ -1762,3 +1479,303 @@ def _extract_wikidata_items_with_proportion(
                 proportion = _format_wikidata_proportion(qual_value)
         results.append((item_id, proportion))
     return results
+
+
+def _collect_wikidata_relations(
+    claims: dict[str, Any], *, include_people: bool = False
+) -> dict[str, Any]:
+    """Collect item ids and proportion pairs for the Wikidata relation properties."""
+    ownership_ids = _extract_wikidata_item_ids(claims, "P127")
+    parent_ids = _extract_wikidata_item_ids(claims, "P749")
+    part_of_ids = _extract_wikidata_item_ids(claims, "P361")
+    headquarters_ids = _extract_wikidata_item_ids(claims, "P159")
+    subsidiary_ids = _extract_wikidata_item_ids(claims, "P355")
+    org_type_ids = _extract_wikidata_item_ids(claims, "P1454")
+    org_type_ids += _extract_wikidata_item_ids(claims, "P31")
+    owned_with_proportion = _extract_wikidata_items_with_proportion(claims, "P127")
+    parent_with_proportion = _extract_wikidata_items_with_proportion(claims, "P749")
+    return {
+        "ownership_ids": ownership_ids,
+        "parent_ids": parent_ids,
+        "part_of_ids": part_of_ids,
+        "headquarters_ids": headquarters_ids,
+        "subsidiary_ids": subsidiary_ids,
+        "org_type_ids": org_type_ids,
+        "owned_with_proportion": owned_with_proportion,
+        "parent_with_proportion": parent_with_proportion,
+        "owned_proportion_ids": [iid for iid, _pct in owned_with_proportion],
+        "parent_proportion_ids": [iid for iid, _pct in parent_with_proportion],
+        "founder_ids": (_extract_wikidata_item_ids(claims, "P112") if include_people else []),
+        "ceo_ids": _extract_wikidata_item_ids(claims, "P169") if include_people else [],
+    }
+
+
+def _labels_for_ids(labels: dict[str, str], item_ids: list[str]) -> list[str]:
+    """Resolve item ids to labels, preserving order and dropping unknown ids."""
+    return [label for item_id in item_ids if (label := labels.get(item_id))]
+
+
+def _label_proportion_pairs(
+    labels: dict[str, str], pairs: list[tuple[str, str | None]]
+) -> list[tuple[str, str | None]]:
+    """Resolve proportion pairs to (label, proportion), dropping unknown ids."""
+    return [(label, pct) for item_id, pct in pairs if (label := labels.get(item_id))]
+
+
+def _build_wikidata_payload(
+    qid: str | None,
+    labels: dict[str, str],
+    claims: dict[str, Any],
+    relations: dict[str, Any],
+    *,
+    include_details: bool = False,
+) -> dict[str, Any]:
+    """Build a Wikidata result payload from collected relation ids and labels."""
+    payload: dict[str, Any] = {
+        "source": "wikidata",
+        "qid": qid,
+        "wikidata_url": f"https://www.wikidata.org/wiki/{qid}" if qid else None,
+        "owned_by": _labels_for_ids(labels, relations["ownership_ids"]),
+        "parent_orgs": _labels_for_ids(labels, relations["parent_ids"]),
+        "part_of": _labels_for_ids(labels, relations["part_of_ids"]),
+        "headquarters": _labels_for_ids(labels, relations["headquarters_ids"]),
+        "subsidiaries": _labels_for_ids(labels, relations["subsidiary_ids"]),
+        "org_types": _labels_for_ids(labels, relations["org_type_ids"]),
+        "inception": _extract_wikidata_time(claims, "P571"),
+        "official_website": _extract_wikidata_url(claims, "P856"),
+        "confidence": "medium",
+        "owned_with_proportion": _label_proportion_pairs(
+            labels, relations["owned_with_proportion"]
+        ),
+        "parent_with_proportion": _label_proportion_pairs(
+            labels, relations["parent_with_proportion"]
+        ),
+    }
+    if include_details:
+        payload.update(
+            {
+                "founders": _labels_for_ids(labels, relations["founder_ids"]),
+                "ceos": _labels_for_ids(labels, relations["ceo_ids"]),
+                "raw_claims": claims,
+                "labels": labels,
+            }
+        )
+    return payload
+
+
+def _merge_known_data(org: dict[str, Any], known: dict[str, Any]) -> None:
+    """Merge KNOWN_ORGS data (highest priority for major outlets)."""
+    if not known:
+        return
+    org["funding_type"] = known.get("funding_type") or org["funding_type"]
+    org["parent_org"] = known.get("parent") or org["parent_org"]
+    org["description"] = known.get("description") or org["description"]
+    org["org_type"] = known.get("org_type") or org["org_type"]
+    org["cik"] = known.get("cik") or org["cik"]
+    if not org["ein"] and known.get("ein"):
+        org["ein"] = str(known["ein"])
+    if not org["annual_revenue"] and known.get("annual_revenue"):
+        org["annual_revenue"] = known["annual_revenue"]
+    if not org["ownership_percentage"] and known.get("ownership_percentage"):
+        org["ownership_percentage"] = known["ownership_percentage"]
+    if not org["funding_sources"] and known.get("funding_sources"):
+        org["funding_sources"] = known["funding_sources"]
+    org["media_bias_rating"] = known.get("media_bias_rating")
+    org["factual_reporting"] = known.get("factual_reporting")
+    org["research_sources"].append("known_data")
+    org["research_confidence"] = "high"
+
+
+def _merge_wikipedia_data(org: dict[str, Any], wikipedia: dict[str, Any]) -> None:
+    """Merge Wikipedia organization data."""
+    if not wikipedia:
+        return
+    wiki_ownership = wikipedia.get("ownership") or {}
+    if not org["parent_org"] and wiki_ownership.get("parent"):
+        org["parent_org"] = wiki_ownership["parent"]
+    if not org["funding_type"] and wiki_ownership.get("funding_type"):
+        org["funding_type"] = wiki_ownership["funding_type"]
+    if not org["description"]:
+        org["description"] = wikipedia.get("description")
+    org["recent_ownership_changes"] = wikipedia.get("recent_ownership_changes")
+    org["wikipedia_url"] = wikipedia.get("url")
+    org["research_sources"].append("wikipedia")
+    if org["research_confidence"] == "low":
+        org["research_confidence"] = "medium"
+
+
+def _merge_wikidata_data(org: dict[str, Any], wikidata: dict[str, Any]) -> None:
+    """Merge Wikidata data from English Wikipedia title lookup."""
+    if not wikidata:
+        return
+    org["wikidata_url"] = wikidata.get("wikidata_url")
+    org["wikidata_qid"] = wikidata.get("qid")
+    org["owned_by"] = wikidata.get("owned_by") or []
+    org["parent_orgs"] = wikidata.get("parent_orgs") or []
+    org["part_of"] = wikidata.get("part_of") or []
+    org["headquarters"] = wikidata.get("headquarters") or []
+    org["subsidiaries"] = wikidata.get("subsidiaries") or []
+    if not org["org_type"]:
+        org["org_type"] = _select_organization_type(
+            cast(list[str], wikidata.get("org_types") or [])
+        )
+    org["inception"] = wikidata.get("inception")
+    org["official_website"] = wikidata.get("official_website")
+    if not org["parent_org"] and org["parent_orgs"]:
+        org["parent_org"] = org["parent_orgs"][0]
+    if not org["website"] and org["official_website"]:
+        org["website"] = org["official_website"]
+
+    # Extract ownership_percentage from Wikidata proportion qualifiers (P1107)
+    if not org.get("ownership_percentage"):
+        wiki_owned_proportion = wikidata.get("owned_with_proportion") or []
+        wiki_parent_proportion = wikidata.get("parent_with_proportion") or []
+        for _name, pct in wiki_owned_proportion + wiki_parent_proportion:
+            if pct is not None:
+                org["ownership_percentage"] = pct
+                break
+
+    org["research_sources"].append("wikidata")
+    if org["research_confidence"] == "low":
+        org["research_confidence"] = "medium"
+
+
+def _merge_wikidata_sparql_data(
+    org: dict[str, Any], wikidata_sparql: dict[str, Any] | None
+) -> None:
+    """Merge the Wikidata SPARQL fallback (orgs without English Wikipedia)."""
+    if not wikidata_sparql:
+        return
+    if not org["wikidata_qid"]:
+        org["wikidata_qid"] = wikidata_sparql.get("qid")
+    if not org["wikidata_url"]:
+        org["wikidata_url"] = wikidata_sparql.get("wikidata_url")
+    for field in ("owned_by", "part_of", "headquarters", "subsidiaries"):
+        if wikidata_sparql.get(field):
+            org[field] = wikidata_sparql[field]
+    if wikidata_sparql.get("parent_orgs"):
+        org["parent_orgs"] = wikidata_sparql["parent_orgs"]
+        if not org["parent_org"]:
+            org["parent_org"] = org["parent_orgs"][0]
+    if not org["org_type"]:
+        org["org_type"] = _select_organization_type(
+            cast(list[str], wikidata_sparql.get("org_types") or [])
+        )
+    if not org["ownership_percentage"]:
+        proportions = (wikidata_sparql.get("owned_with_proportion") or []) + (
+            wikidata_sparql.get("parent_with_proportion") or []
+        )
+        org["ownership_percentage"] = next(
+            (percentage for _owner, percentage in proportions if percentage is not None),
+            None,
+        )
+    if wikidata_sparql.get("inception"):
+        org["inception"] = wikidata_sparql["inception"]
+    if wikidata_sparql.get("official_website"):
+        org["official_website"] = wikidata_sparql["official_website"]
+    if "wikidata_sparql" not in org["research_sources"]:
+        org["research_sources"].append("wikidata_sparql")
+    if org["research_confidence"] == "low":
+        org["research_confidence"] = "medium"
+
+
+def _merge_nonprofit_data(org: dict[str, Any], nonprofit: dict[str, Any]) -> None:
+    """Merge ProPublica nonprofit data.
+
+    Skipped when higher-priority sources identify the outlet as commercial
+    or as a person.
+    """
+    known_commercial = str(org.get("funding_type") or "").lower() == "commercial"
+    is_person = str(org.get("org_type") or "").casefold() in {"human", "person"}
+    if nonprofit and not known_commercial and not is_person:
+        nonprofit_ein = nonprofit.get("ein")
+        org["ein"] = str(nonprofit_ein) if nonprofit_ein is not None else None
+        org["annual_revenue"] = nonprofit.get("annual_revenue")
+        if not org.get("funding_type"):
+            org["funding_type"] = nonprofit.get("funding_type")
+        org["research_sources"].append("propublica")
+        if org["research_confidence"] == "low":
+            org["research_confidence"] = "high"
+
+
+def _merge_sec_data(org: dict[str, Any], sec: dict[str, Any] | None) -> None:
+    """Merge SEC EDGAR data."""
+    if not sec:
+        return
+    org["cik"] = sec.get("cik")
+    if sec.get("ein"):
+        org["ein"] = org["ein"] or str(sec["ein"])
+    if sec.get("tickers") and not org.get("funding_type"):
+        org["funding_type"] = "commercial"
+    if sec.get("tickers") and not org.get("org_type"):
+        org["org_type"] = "public company"
+    if sec.get("revenue"):
+        org["annual_revenue"] = org["annual_revenue"] or sec["revenue"]
+    if sec.get("total_assets"):
+        org["annual_revenue"] = org["annual_revenue"] or sec["total_assets"]
+    if "sec_edgar" not in org["research_sources"]:
+        org["research_sources"].append("sec_edgar")
+    if org["research_confidence"] == "low":
+        org["research_confidence"] = "medium"
+
+
+def _collect_staleness_flags(client: OpenAI, org_name: str, known_key: str) -> list[str]:
+    """Flag a KNOWN_ORGS entry as stale when the LLM says it is outdated."""
+    if known_key not in KNOWN_ORGS:
+        return []
+    known_entry = KNOWN_ORGS[known_key]
+    try:
+        verify_prompt = (
+            f"You are a media ownership fact-checker. "
+            f"The KNOWN_ORGS database has this entry for '{org_name}': "
+            f"{json.dumps(known_entry)}. "
+            f"Is any of this information materially outdated as of 2025? "
+            f"Answer only YES or NO."
+        )
+        verify_response = client.chat.completions.create(
+            model=(
+                get_llamacpp_model()
+                if settings.llm_backend == "llamacpp"
+                else resolve_opencode_model(settings.open_router_model)
+            ),
+            messages=cast(
+                Iterable[ChatCompletionMessageParam],
+                [{"role": "user", "content": verify_prompt}],
+            ),
+            max_tokens=10,
+            temperature=0.0,
+        )
+        verify_content = verify_response.choices[0].message.content or ""
+        if "YES" in verify_content.upper() and "NO" not in verify_content.upper():
+            logger.info("KNOWN_ORGS entry for %s flagged stale by LLM", org_name)
+            return ["KNOWN_ORGS entry flagged as stale by LLM"]
+    except Exception as e:
+        logger.warning("KNOWN_ORGS staleness check failed: %s", e)
+    return []
+
+
+def _apply_ai_enhancements(org: dict[str, Any], ai_data: dict[str, Any]) -> None:
+    """Apply AI-provided ratings and transparency flags to the org dict."""
+    outlet_types = {
+        "news organization",
+        "nonprofit",
+        "public broadcaster",
+        "publisher",
+        "state media",
+    }
+    if str(org.get("org_type") or "").casefold() in outlet_types:
+        if not org.get("media_bias_rating"):
+            org["media_bias_rating"] = ai_data.get("media_bias_rating")
+        if not org.get("factual_reporting"):
+            org["factual_reporting"] = ai_data.get("factual_reporting")
+
+    if ai_data.get("funding_transparency"):
+        org["funding_transparency"] = ai_data["funding_transparency"]
+    if (
+        str(org.get("org_type") or "").casefold() == "publisher"
+        and ai_data.get("has_paywall") is not None
+    ):
+        org["has_paywall"] = bool(ai_data["has_paywall"])
+
+    if "ai_inference" not in org.get("research_sources", []):
+        org["research_sources"].append("ai_inference")

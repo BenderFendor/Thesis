@@ -139,7 +139,7 @@ describe("BlindspotView", () => {
     renderWithQueryClient(<BlindspotView category="all" />)
 
     expect(await screen.findByText("Media Blindspots")).toBeInTheDocument()
-    expect(await screen.findByText("Campaign rally")).toBeInTheDocument()
+    expect((await screen.findAllByText("Campaign rally")).length).toBeGreaterThan(0)
 
     const [lensSelect] = await screen.findAllByRole("combobox")
     await user.selectOptions(lensSelect!, "credibility")
@@ -150,7 +150,7 @@ describe("BlindspotView", () => {
       )
     })
 
-    expect(await screen.findByText("Verification push")).toBeInTheDocument()
+    expect((await screen.findAllByText("Verification push")).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/For High Credibility/i).length).toBeGreaterThan(0)
   })
 
@@ -159,12 +159,12 @@ describe("BlindspotView", () => {
 
     renderWithQueryClient(<BlindspotView category="all" />)
 
-    expect(await screen.findByText("Campaign rally")).toBeInTheDocument()
+    expect((await screen.findAllByText("Campaign rally")).length).toBeGreaterThan(0)
     expect(screen.queryByText("Blindspot 11")).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /show 2 more blindspots/i }))
 
-    expect(await screen.findByText("Blindspot 11")).toBeInTheDocument()
+    expect((await screen.findAllByText("Blindspot 11")).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/2 sampled articles/i).length).toBeGreaterThan(0)
   })
 })

@@ -32,6 +32,8 @@ import {
   exportAtlas,
   fetchAtlasEntity,
   fetchAtlasGraph,
+  fetchAtlasIngestStatus,
+  fetchMediaMeasurements,
   fetchAtlasStats,
   searchAtlas,
 } from "./lib/atlas-api";
@@ -132,6 +134,12 @@ export function IntelligenceAtlasWorkspace() {
   const statsQuery = useQuery({
     queryKey: ["atlas", "stats"],
     queryFn: ({ signal }) => fetchAtlasStats(signal),
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const ingestStatusQuery = useQuery({
+    queryKey: ["atlas", "ingestion-status"],
+    queryFn: ({ signal }) => fetchAtlasIngestStatus(signal),
     staleTime: 30_000,
     retry: 1,
   });
@@ -249,6 +257,7 @@ export function IntelligenceAtlasWorkspace() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["atlas", "graph"] }),
       queryClient.invalidateQueries({ queryKey: ["atlas", "stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["atlas", "ingestion-status"] }),
       parsedState.selected
         ? queryClient.invalidateQueries({ queryKey: ["atlas", "entity", parsedState.selected] })
         : Promise.resolve(),
@@ -272,6 +281,13 @@ export function IntelligenceAtlasWorkspace() {
   const selectedSourceName = entityQuery.data?.entity_type === "outlet"
     ? entityQuery.data.label
     : selectedNode?.entity_type === "outlet" ? selectedNode.label : null;
+  const measurementsQuery = useQuery({
+    queryKey: ["atlas", "media-measurements", selectedSourceName],
+    queryFn: ({ signal }) => fetchMediaMeasurements(selectedSourceName ?? "", signal),
+    enabled: Boolean(selectedSourceName),
+    staleTime: 300_000,
+    retry: 1,
+  });
 
   return (
     <main className={styles.atlas}>
@@ -322,6 +338,21 @@ export function IntelligenceAtlasWorkspace() {
             })}
           </nav>
 
+          {ingestStatusQuery.data ? (
+            <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-2 text-xs text-[#c9c3b6]" role="status">
+              <span>Evidence ingestion: {ingestStatusQuery.data.freshness}</span>
+              <span>Last success: {ingestStatusQuery.data.last_success_at ? new Date(ingestStatusQuery.data.last_success_at).toLocaleString() : "never"}</span>
+              {statsQuery.data ? (
+                <span>
+                  Researched {statsQuery.data.research_coverage.numerator.toLocaleString()} of{" "}
+                  {statsQuery.data.research_coverage.denominator.toLocaleString()} entities
+                </span>
+              ) : null}
+              {ingestStatusQuery.data.has_retryable_failures ? <span className="text-amber-300">Retryable failures need attention</span> : null}
+              {ingestStatusQuery.data.missing_credentials.length > 0 ? <span className="text-amber-300">Missing credentials: {ingestStatusQuery.data.missing_credentials.join(", ")}</span> : null}
+            </div>
+          ) : null}
+
           {isGraphView ? (
             <AtlasStageShell
               state={parsedState}
@@ -365,6 +396,8 @@ export function IntelligenceAtlasWorkspace() {
             record={entityQuery.data}
             loading={entityQuery.isLoading}
             error={entityQuery.error instanceof Error ? entityQuery.error : null}
+            measurements={measurementsQuery.data}
+            measurementsLoading={measurementsQuery.isLoading}
             onSelectConnection={(entityId) => selectEntity(entityId, nodesById.get(entityId)?.entity_type)}
           />
         </DialogContent>
