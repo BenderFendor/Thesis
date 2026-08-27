@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `cb03f64937be8b2931cc48ad516a9204e5a8a15d`
+Commit: `f76ed7e6bd94bbd5851858e3cb53fee5f6e7c2c4`
 
 Files: 567
-Functions: 7503
+Functions: 7537
 Parse errors: 0
 CC max/p95: 56 / 12
 Cognitive max/p95: 94 / 13
-Hard violations: 468
-Warning-only: 174
+Hard violations: 465
+Warning-only: 175
 
 ## Hard violations
 
@@ -16,8 +16,6 @@ Warning-only: 174
 |---|---|---:|---:|
 | `backend/scripts/verify_and_promote_reporters.py:664` | `_process_reporter` | 41 | 94 |
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
-| `backend/app/services/reporter_author_page_scraper.py:135` | `scrape_author_profile` | 39 | 80 |
-| `backend/app/proof_suite/runner.py:143` | `evaluate_case_against_database` | 44 | 77 |
 | `backend/scripts/wikidata_verify_strong.py:59` | `main_async` | 36 | 75 |
 | `backend/scripts/verify_and_promote_reporters.py:441` | `_parse_rss_authors` | 29 | 68 |
 | `backend/scripts/validate_rss_sources.py:153` | `validate_sources` | 45 | 62 |
@@ -25,7 +23,6 @@ Warning-only: 174
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
 | `backend/app/services/littlesis_integration.py:99` | `_iter_json_records` | 21 | 64 |
 | `backend/app/services/reporter_confidence_scorer.py:270` | `compute_confidence_tier` | 42 | 42 |
-| `backend/scripts/check_import_cycles.py:47` | `build_graph` | 18 | 59 |
 | `backend/app/services/verification_agent.py:420` | `_search_internal_sources` | 23 | 58 |
 | `backend/app/services/atlas_export.py:15` | `build_atlas_export` | 32 | 57 |
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
@@ -209,7 +206,6 @@ Warning-only: 174
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts:95` | `parseAtlasQueryState` | 16 | 15 |
 | `backend/app/services/gdelt_query.py:196` | `_normalize_context_article` | 16 | 14 |
 | `frontend/lib/news-lens.ts:70` | `sourceMatchesLens` | 16 | 14 |
-| `backend/app/proof_suite/runner.py:94` | `assert_snapshot_pinned_truth` | 16 | 13 |
 | `frontend/app/debug/page.tsx:1488` | `<anonymous>` | 16 | 13 |
 | `frontend/app/debug/page.tsx:1910` | `DebugDashboardPage` | 16 | 13 |
 | `backend/app/services/queue_digest.py:153` | `_build_structured_articles_block` | 16 | 10 |
@@ -398,6 +394,7 @@ Warning-only: 174
 | `backend/scripts/verify_and_promote_reporters.py:284` | `_promote_reporter` | 12 | 12 |
 | `frontend/components/blindspot-view.tsx:172` | `LeadStory` | 12 | 12 |
 | `backend/app/api/routes/entity_research.py:226` | `_organization_response_from_record` | 12 | 11 |
+| `backend/app/proof_suite/runner.py:180` | `_record_relationship_shape` | 12 | 11 |
 | `backend/app/scripts/replay_evidence_corpus.py:375` | `_expectation_matches` | 12 | 11 |
 | `backend/app/services/entity_wiki_service.py:227` | `_build_fallback_overview` | 12 | 11 |
 | `backend/app/services/funding_researcher.py:920` | `_search_sec_edgar` | 12 | 11 |
@@ -508,7 +505,7 @@ Warning-only: 174
 | `backend/scripts/verify_and_promote_reporters.py:908` | `_get_non_verified_reporter_ids` | 10 | 14 |
 | `scripts/scoop.ts:236` | `coerceScalar` | 10 | 14 |
 | `backend/app/services/mbfc_integration.py:322` | `compute_weighted_mbfc_bias` | 10 | 13 |
-| `backend/app/services/reporter_author_page_scraper.py:119` | `_extract_person_jsonld` | 8 | 15 |
+| `backend/app/services/reporter_author_page_scraper.py:105` | `_extract_person_jsonld` | 9 | 14 |
 | `backend/app/services/reporter_indexer.py:609` | `_resolve_author_page_urls` | 10 | 13 |
 | `backend/app/services/reporter_outlet_repair.py:152` | `_retract_wrong_claims` | 9 | 14 |
 | `backend/rss_parser_rust/src/country_mentions.rs:188` | `rust_extract_mentioned_countries` | 9 | 14 |
@@ -612,6 +609,7 @@ Warning-only: 174
 | `backend/scripts/verify_and_promote_reporters.py:360` | `_record_supporting_evidence` | 10 | 8 |
 | `backend/scripts/verify_reporter_intelligence.py:103` | `_is_combined_byline_name` | 9 | 9 |
 | `backend/app/api/routes/wiki.py:394` | `_build_source_card` | 9 | 8 |
+| `backend/app/proof_suite/runner.py:134` | `assert_snapshot_pinned_truth` | 9 | 8 |
 | `backend/app/services/chroma_topics.py:890` | `_normalize_keyword` | 9 | 8 |
 | `backend/app/services/debug_logger.py:258` | `_check_performance` | 9 | 8 |
 | `backend/app/services/evidence_spine.py:576` | `list_relationships` | 9 | 8 |
