@@ -1,20 +1,19 @@
 # Complexity Snapshot
 
-Commit: `67a0b7d5635ab6171668cc33ce410a81e595912a`
+Commit: `9f5ca46ef6e5fa3c207ed3f74bb180a5c9865cb3`
 
 Files: 566
-Functions: 7483
+Functions: 7499
 Parse errors: 0
-CC max/p95: 59 / 12
-Cognitive max/p95: 100 / 13
-Hard violations: 471
-Warning-only: 173
+CC max/p95: 56 / 12
+Cognitive max/p95: 94 / 13
+Hard violations: 468
+Warning-only: 174
 
 ## Hard violations
 
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
-| `backend/app/services/image_extraction.py:87` | `extract_image_from_entry` | 59 | 100 |
 | `backend/scripts/verify_and_promote_reporters.py:664` | `_process_reporter` | 41 | 94 |
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
 | `backend/app/services/reporter_author_page_scraper.py:135` | `scrape_author_profile` | 39 | 80 |
@@ -318,7 +317,6 @@ Warning-only: 173
 | `backend/scripts/backfill_article_author_links.py:502` | `prune_invalid_local_byline_links` | 13 | 16 |
 | `backend/app/api/routes/search.py:17` | `semantic_search` | 13 | 15 |
 | `backend/app/services/funding_researcher.py:765` | `_resolve_wikidata_labels` | 13 | 15 |
-| `backend/app/services/image_extraction.py:303` | `fetch_og_image` | 13 | 15 |
 | `backend/scripts/backfill_article_author_links.py:111` | `_clean_author_names` | 13 | 15 |
 | `backend/app/services/atlas_entity.py:822` | `_organization_entity_details` | 13 | 14 |
 | `backend/app/services/funding_researcher.py:644` | `_search_propublica_nonprofit` | 13 | 14 |
@@ -329,7 +327,6 @@ Warning-only: 173
 | `frontend/components/cluster-detail-modal.tsx:357` | `GdeltContextStrip` | 13 | 14 |
 | `backend/app/services/entity_wiki_service.py:1299` | `_sellers_json_transparency_items` | 13 | 13 |
 | `backend/app/services/evidence_spine.py:474` | `materialize_claim` | 13 | 13 |
-| `backend/app/services/image_extraction.py:278` | `_resolve_url` | 13 | 13 |
 | `backend/scripts/verify_and_promote_reporters.py:643` | `_try_wikidata_employer_check` | 13 | 13 |
 | `frontend/app/source/[sourceId]/page.tsx:24` | `SourcePage` | 13 | 13 |
 | `frontend/components/cluster-detail-modal.tsx:1211` | `<anonymous>` | 13 | 13 |
@@ -556,6 +553,7 @@ Warning-only: 173
 | `backend/app/services/blindspot_viewer.py:1240` | `_collect_cluster_candidates` | 7 | 13 |
 | `backend/app/services/entity_backfill.py:146` | `_process_publisher_org` | 10 | 10 |
 | `backend/app/services/entity_wiki_service.py:1131` | `build_source_sections` | 7 | 13 |
+| `backend/app/services/image_extraction.py:99` | `_media_content_candidates` | 9 | 11 |
 | `backend/app/services/material_interest.py:258` | `_run` | 9 | 11 |
 | `backend/app/services/media_measurements.py:184` | `_original_vs_syndicated_trace` | 10 | 10 |
 | `backend/app/services/primary_source_adapters.py:1094` | `ingest_sellers_json_records` | 10 | 10 |
