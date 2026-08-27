@@ -1,16 +1,4 @@
-"""Record Wikidata employer evidence for strong-tier reporters.
-
-For every strong-tier reporter with a Wikidata QID, checks if their career_history
-entries (from Wikidata P108 employer labels) match any source they've written for.
-If there's a match, records a Wikidata citation and recomputes confidence without
-treating the Wikidata item as a publisher author page.
-
-Pure DB operation — no network calls.
-
-Usage:
-    python scripts/wikidata_verify_strong.py
-    python scripts/wikidata_verify_strong.py --dry-run
-"""
+"""Record Wikidata employer evidence for strong-tier reporters."""
 
 from __future__ import annotations
 
@@ -19,12 +7,14 @@ import asyncio
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 REPO_BACKEND = Path(__file__).resolve().parents[1]
 if str(REPO_BACKEND) not in sys.path:
     sys.path.insert(0, str(REPO_BACKEND))
 
 from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from app.core.logging import get_logger  # noqa: E402
 from app.data.rss_sources import get_rss_sources  # noqa: E402
@@ -35,166 +25,232 @@ from app.database import (  # noqa: E402
     Reporter,
     get_utc_now,
 )
-from app.services.reporter_confidence_scorer import (  # noqa: E402
-    update_reporter_confidence,
-)
+from app.services.reporter_confidence_scorer import update_reporter_confidence  # noqa: E402
 
 logger = get_logger("wikidata_verify")
 
 
-async def _get_session():
+async def _get_session() -> AsyncSession:
     if AsyncSessionLocal is None:
         raise RuntimeError("Database not available")
     return AsyncSessionLocal()
 
 
 def _employer_matches_source(employer: str, source: str) -> bool:
-    e = employer.strip().lower()
-    s = source.strip().lower()
-    if not e or not s:
+    employer_name = employer.strip().lower()
+    source_name = source.strip().lower()
+    return bool(
+        employer_name
+        and source_name
+        and (
+            employer_name == source_name
+            or employer_name in source_name
+            or source_name in employer_name
+        )
+    )
+
+
+async def _strong_wikidata_reporters(session: AsyncSession) -> list[Reporter]:
+    result = await session.execute(
+        select(Reporter).where(
+            Reporter.confidence_tier == "strong",
+            Reporter.wikidata_qid.isnot(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def _reporter_sources(
+    session: AsyncSession, reporters: list[Reporter]
+) -> dict[int, set[str]]:
+    reporter_ids = [int(reporter.id) for reporter in reporters if reporter.id]
+    if not reporter_ids:
+        return {}
+    result = await session.execute(
+        select(ArticleAuthor.reporter_id, Article.source)
+        .join(Article, Article.id == ArticleAuthor.article_id)
+        .where(ArticleAuthor.reporter_id.in_(reporter_ids))
+        .distinct()
+    )
+    sources: dict[int, set[str]] = {}
+    for reporter_id, source in result.all():
+        sources.setdefault(int(reporter_id), set()).add(str(source))
+    return sources
+
+
+def _catalog_names() -> dict[str, str]:
+    names: dict[str, str] = {}
+    for source_name in get_rss_sources():
+        base = source_name.split(" - ")[0].strip().lower()
+        names.setdefault(base, source_name)
+    return names
+
+
+def _wikidata_employers(reporter: Reporter) -> list[str]:
+    career = reporter.career_history if isinstance(reporter.career_history, list) else []
+    employers = [
+        str(entry.get("organization") or "").strip()
+        for entry in career
+        if isinstance(entry, dict)
+    ]
+    return list(dict.fromkeys(employer for employer in employers if employer))
+
+
+def _first_employer_source_match(
+    employers: list[str], sources: list[tuple[str, str]]
+) -> tuple[str, str] | None:
+    for employer in employers:
+        match = next(
+            (
+                display_name
+                for match_name, display_name in sources
+                if _employer_matches_source(employer, match_name)
+            ),
+            None,
+        )
+        if match is not None:
+            return employer, match
+    return None
+
+
+def _matched_employer_source(
+    employers: list[str],
+    reporter_sources: set[str],
+    catalog_names: dict[str, str],
+) -> tuple[str, str] | None:
+    attributed = [(source, source) for source in reporter_sources]
+    direct = _first_employer_source_match(employers, attributed)
+    if direct is not None:
+        return direct
+    return _first_employer_source_match(employers, list(catalog_names.items()))
+
+
+def _wikidata_url(reporter: Reporter) -> str:
+    return str(
+        reporter.wikidata_url
+        or f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
+    )
+
+
+def _append_employer_citation(
+    reporter: Reporter, employer: str, source: str
+) -> None:
+    url = _wikidata_url(reporter)
+    citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
+    duplicate = any(
+        isinstance(citation, dict) and str(citation.get("url") or "") == url
+        for citation in citations
+    )
+    if not duplicate:
+        citations.append(
+            {
+                "label": "Wikidata employer match",
+                "url": url,
+                "source_type": "wikidata_employer_match",
+                "note": f"Wikidata employer '{employer}' matches source '{source}'.",
+            }
+        )
+    reporter.citations = citations
+    reporter.research_sources = sorted(
+        set((reporter.research_sources or []) + ["wikidata_employer_match"])
+    )
+    reporter.updated_at = get_utc_now()
+
+
+async def _persist_employer_evidence(
+    session: AsyncSession,
+    reporter: Reporter,
+    employer: str,
+    source: str,
+    *,
+    dry_run: bool,
+) -> bool:
+    _append_employer_citation(reporter, employer, source)
+    if dry_run:
         return False
-    return e == s or e in s or s in e
+    reporter_id = int(reporter.id or 0)
+    await session.commit()
+    await update_reporter_confidence(session, reporter_id)
+    await session.refresh(reporter)
+    logger.info(
+        "Recorded Wikidata employer evidence: %s (employer=%s, source=%s, tier=%s)",
+        reporter.name,
+        employer,
+        source,
+        reporter.confidence_tier,
+    )
+    return True
+
+
+async def _verify_reporter(
+    session: AsyncSession,
+    reporter: Reporter,
+    reporter_sources: dict[int, set[str]],
+    catalog_names: dict[str, str],
+    *,
+    dry_run: bool,
+) -> str:
+    employers = _wikidata_employers(reporter)
+    if not employers:
+        return "no_employer"
+    match = _matched_employer_source(
+        employers,
+        reporter_sources.get(int(reporter.id or 0), set()),
+        catalog_names,
+    )
+    if match is None:
+        return "no_match"
+    employer, source = match
+    updated = await _persist_employer_evidence(
+        session, reporter, employer, source, dry_run=dry_run
+    )
+    return "updated" if updated else "dry_run_match"
+
+
+def _summary_counts(statuses: list[str]) -> dict[str, int]:
+    return {
+        "updated": statuses.count("updated"),
+        "no_employer": statuses.count("no_employer"),
+        "no_match": statuses.count("no_match"),
+    }
+
+
+def _print_summary(total: int, counts: dict[str, int], dry_run: bool) -> None:
+    print()
+    print("=" * 72)
+    print(f"WIKIDATA EMPLOYER VERIFY  (dry_run={dry_run})")
+    print("=" * 72)
+    print(f"Strong+Wikidata rptrs: {total}")
+    print(f"Evidence rows updated: {counts['updated']}")
+    print(f"Skipped: no employer   {counts['no_employer']}")
+    print(f"Skipped: no match      {counts['no_match']}")
+    print("=" * 72)
+    print("=" * 72)
 
 
 async def main_async(args: argparse.Namespace) -> int:
     session = await _get_session()
     try:
-        # Get all strong reporters with Wikidata QID
-        result = await session.execute(
-            select(Reporter).where(
-                Reporter.confidence_tier == "strong",
-                Reporter.wikidata_qid.isnot(None),
-            )
-        )
-        reporters = result.scalars().all()
-
+        reporters = await _strong_wikidata_reporters(session)
         if not reporters:
             logger.info("No strong+wikidata reporters found")
             return 0
-
-        # Get source attribution per reporter
-        reporter_ids = [int(r.id or 0) for r in reporters if r.id]
-        source_result = await session.execute(
-            select(ArticleAuthor.reporter_id, Article.source)
-            .join(Article, Article.id == ArticleAuthor.article_id)
-            .where(ArticleAuthor.reporter_id.in_(reporter_ids))
-            .distinct()
-        )
-        reporter_sources: dict[int, set[str]] = {}
-        for rid, src in source_result.all():
-            reporter_sources.setdefault(int(rid), set()).add(str(src))
-
-        updated = 0
-        skipped_no_employer = 0
-        skipped_no_match = 0
-
-        # Build RSS catalog source name set for employer matching
-        catalog_sources = get_rss_sources()
-        catalog_names: dict[str, str] = {}
-        for name, cfg in catalog_sources.items():
-            base = name.split(" - ")[0].strip().lower()
-            if base not in catalog_names:
-                catalog_names[base] = name
-
-        for reporter in reporters:
-            rid = int(reporter.id or 0)
-
-            # Load career history from Wikidata
-            career = reporter.career_history if isinstance(reporter.career_history, list) else []
-            wd_employers: list[str] = []
-            for entry in career:
-                if not isinstance(entry, dict):
-                    continue
-                org = str(entry.get("organization") or "").strip()
-                if org and org not in wd_employers:
-                    wd_employers.append(org)
-
-            if not wd_employers:
-                skipped_no_employer += 1
-                continue
-
-            # Get source from article attribution, or fall back to RSS catalog
-            sources = reporter_sources.get(rid, set())
-            matched_source: str | None = None
-            matched_employer: str | None = None
-
-            if sources:
-                # Match Wikidata employer against article-attributed source
-                for employer in wd_employers:
-                    for source in sources:
-                        if _employer_matches_source(employer, source):
-                            matched_source = source
-                            matched_employer = employer
-                            break
-                    if matched_source:
-                        break
-
-            if not matched_source:
-                # Fall back: match employer against RSS catalog names
-                for employer in wd_employers:
-                    for cat_name, cat_full in catalog_names.items():
-                        if _employer_matches_source(employer, cat_name):
-                            matched_source = cat_full
-                            matched_employer = employer
-                            break
-                    if matched_source:
-                        break
-
-            if not matched_source:
-                skipped_no_match += 1
-                continue
-
-            wikidata_url = (
-                reporter.wikidata_url or f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
+        sources = await _reporter_sources(session, reporters)
+        catalog = _catalog_names()
+        statuses = [
+            await _verify_reporter(
+                session,
+                reporter,
+                sources,
+                catalog,
+                dry_run=args.dry_run,
             )
-
-            citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-            citation = {
-                "label": "Wikidata employer match",
-                "url": wikidata_url,
-                "source_type": "wikidata_employer_match",
-                "note": (
-                    f"Wikidata employer '{matched_employer}' matches source '{matched_source}'."
-                ),
-            }
-            if not any(
-                isinstance(c, dict) and str(c.get("url") or "") == wikidata_url for c in citations
-            ):
-                citations.append(citation)
-            reporter.citations = citations
-            reporter.research_sources = sorted(
-                set((reporter.research_sources or []) + ["wikidata_employer_match"])
-            )
-            reporter.updated_at = get_utc_now()
-
-            if not args.dry_run:
-                await session.commit()
-                await update_reporter_confidence(session, rid)
-                await session.refresh(reporter)
-                updated += 1
-                logger.info(
-                    "Recorded Wikidata employer evidence: %s (employer=%s, source=%s, tier=%s)",
-                    reporter.name,
-                    matched_employer,
-                    matched_source,
-                    reporter.confidence_tier,
-                )
-
-        print()
-        print("=" * 72)
-        print(f"WIKIDATA EMPLOYER VERIFY  (dry_run={args.dry_run})")
-        print("=" * 72)
-        print(f"Strong+Wikidata rptrs: {len(reporters)}")
-        print(f"Evidence rows updated: {updated}")
-        print(f"Skipped: no employer   {skipped_no_employer}")
-        print(f"Skipped: no match      {skipped_no_match}")
-        print("=" * 72)
-        print("=" * 72)
-
+            for reporter in reporters
+        ]
+        _print_summary(len(reporters), _summary_counts(statuses), args.dry_run)
+        return 0
     finally:
         await session.close()
-
-    return 0
 
 
 def main() -> int:
