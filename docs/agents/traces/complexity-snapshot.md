@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `b9d004418c48ed74919287ac4c7f2e7f105f5c3b`
+Commit: `2580dd338a31dd94ef77d33258b369f8fb01f50e`
 
 Files: 567
-Functions: 7701
+Functions: 7719
 Parse errors: 0
 CC max/p95: 56 / 11
 Cognitive max/p95: 64 / 12
-Hard violations: 442
-Warning-only: 178
+Hard violations: 440
+Warning-only: 179
 
 ## Hard violations
 
@@ -17,7 +17,6 @@ Warning-only: 178
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
-| `backend/app/services/source_analysis_scorer.py:174` | `_score_funding` | 37 | 44 |
 | `backend/app/api/routes/news.py:337` | `get_news_paginated` | 27 | 52 |
 | `frontend/components/highlight-toolbar.tsx:155` | `handleSelection` | 34 | 24 |
 | `backend/tools/research_tui.py:592` | `run_cli_query` | 30 | 50 |
@@ -96,7 +95,6 @@ Warning-only: 178
 | `backend/app/services/ad_supply_transparency.py:53` | `parse_ads_txt` | 20 | 31 |
 | `backend/scripts/reporter_source_verifier.py:207` | `extract_articles` | 20 | 31 |
 | `backend/app/services/og_image.py:301` | `backfill_missing_images` | 17 | 31 |
-| `backend/app/services/source_analysis_scorer.py:536` | `_format_context_for_llm` | 18 | 30 |
 | `backend/tools/research_lab.py:327` | `run_once` | 20 | 27 |
 | `frontend/components/article-detail-modal.tsx:2135` | `syncHighlights` | 17 | 30 |
 | `frontend/lib/highlight-store.ts:115` | `mergeHighlights` | 20 | 27 |
@@ -214,7 +212,6 @@ Warning-only: 178
 | `backend/app/services/gdelt_aggregates.py:125` | `compute_source_tone_deviation` | 15 | 15 |
 | `backend/app/services/reporter_career_timeline.py:75` | `_affiliation_timeline_entries` | 15 | 15 |
 | `backend/app/services/reporter_cms_crawl.py:104` | `_try_drupal_api` | 15 | 15 |
-| `backend/app/services/source_analysis_scorer.py:356` | `_llm_score_axes` | 15 | 15 |
 | `frontend/app/search/page.tsx:1690` | `<anonymous>` | 15 | 15 |
 | `backend/app/services/funding_researcher.py:396` | `research_organization` | 15 | 14 |
 | `backend/app/services/funding_researcher.py:1566` | `_merge_known_data` | 15 | 14 |
@@ -435,6 +432,7 @@ Warning-only: 178
 | `frontend/app/search/page.tsx:2066` | `processEvent` | 11 | 10 |
 | `frontend/components/article-detail-modal.tsx:2367` | `runAgenticSearch` | 11 | 10 |
 | `frontend/components/story-lineage-panel.tsx:19` | `StoryLineagePanel` | 11 | 10 |
+| `backend/app/services/source_analysis_scorer.py:302` | `_score_funding` | 11 | 9 |
 | `backend/app/services/story_lineage.py:276` | `_claim_relation` | 11 | 9 |
 | `frontend/app/wiki/reporters/page.tsx:51` | `ReporterCard` | 11 | 9 |
 | `frontend/components/globe-view.tsx:1480` | `ExpandedBriefingTab` | 11 | 9 |
@@ -560,7 +558,7 @@ Warning-only: 178
 | `backend/app/services/reporter_agency_flag.py:72` | `flag_agency_reporters` | 9 | 10 |
 | `backend/app/services/reporter_indexer.py:82` | `_enrich_profile_mbfc` | 10 | 9 |
 | `backend/app/services/reporter_indexer.py:706` | `_build_local_dossier_sections` | 10 | 9 |
-| `backend/app/services/source_analysis_scorer.py:282` | `_score_credibility` | 9 | 10 |
+| `backend/app/services/source_analysis_scorer.py:116` | `_funding_model_adjustment` | 9 | 10 |
 | `backend/app/services/source_field_extractor.py:137` | `_parse_extracted_fields` | 9 | 10 |
 | `backend/app/services/source_profile_synthesizer.py:44` | `synthesize_source_fields` | 10 | 9 |
 | `backend/news_research_agent.py:477` | `_normalize_ddg_result` | 10 | 9 |
@@ -595,6 +593,7 @@ Warning-only: 178
 | `backend/app/services/gdelt_aggregates.py:29` | `build_article_gdelt_context` | 9 | 8 |
 | `backend/app/services/reading_queue.py:189` | `update_queue_item` | 9 | 8 |
 | `backend/app/services/reporter_public_records.py:770` | `build_reporter_activity_summary` | 9 | 8 |
+| `backend/app/services/source_analysis_scorer.py:103` | `_ownership_risks` | 9 | 8 |
 | `backend/app/services/source_credibility.py:346` | `_compute_source_network_diversity` | 9 | 8 |
 | `backend/rss_parser_rust/src/topics.rs:123` | `normalize_keyword` | 9 | 8 |
 | `backend/scripts/verify_and_promote_reporters.py:408` | `_rss_item_record` | 9 | 8 |
