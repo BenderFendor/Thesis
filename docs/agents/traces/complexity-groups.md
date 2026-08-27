@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 462
-Files with hard violations: 188
+Hard violations: 454
+Files with hard violations: 186
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -25,7 +25,6 @@ Files with hard violations: 188
 | `backend/scripts/backfill_article_author_links.py` | 6 | 19 | 33 |
 | `backend/app/services/rss_ingestion.py` | 5 | 33 | 64 |
 | `backend/scripts/measure_wiki_profile_coverage.py` | 5 | 29 | 39 |
-| `backend/app/api/routes/news.py` | 5 | 27 | 52 |
 | `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts` | 5 | 27 | 19 |
 | `backend/tools/research_lab.py` | 5 | 26 | 43 |
 | `frontend/components/globe-view.tsx` | 5 | 24 | 15 |
@@ -39,7 +38,6 @@ Files with hard violations: 188
 | `backend/app/services/source_research.py` | 4 | 16 | 26 |
 | `backend/app/services/source_credibility.py` | 4 | 14 | 18 |
 | `backend/app/database.py` | 4 | 13 | 21 |
-| `backend/app/services/source_analysis_scorer.py` | 3 | 37 | 44 |
 | `backend/app/services/evidence_export.py` | 3 | 33 | 39 |
 | `backend/tools/research_tui.py` | 3 | 30 | 50 |
 | `backend/app/services/atlas_evidence_projection.py` | 3 | 26 | 41 |
@@ -95,7 +93,6 @@ Files with hard violations: 188
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `backend/app/core/profiling.py` | 2 | 12 | 19 |
-| `backend/app/services/atlas_export.py` | 1 | 32 | 57 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
 | `backend/app/services/contradiction_extractor.py` | 1 | 27 | 44 |
@@ -175,6 +172,7 @@ Files with hard violations: 188
 | `backend/app/services/reporter_confidence_scorer.py` | 1 | 11 | 11 |
 | `backend/app/services/reporter_profiler.py` | 1 | 11 | 17 |
 | `backend/app/services/scheduler.py` | 1 | 11 | 17 |
+| `backend/app/services/source_analysis_scorer.py` | 1 | 11 | 9 |
 | `backend/rss_parser_rust/src/algorithms.rs` | 1 | 11 | 17 |
 | `backend/rss_parser_rust/src/fetcher.rs` | 1 | 11 | 18 |
 | `backend/scripts/import_littlesis.py` | 1 | 11 | 16 |
@@ -469,16 +467,6 @@ Files with hard violations: 188
 | 65 | `_select_sources` | 16 | 32 |
 | 283 | `_measure_reporter_coverage` | 17 | 22 |
 
-### `backend/app/api/routes/news.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 337 | `get_news_paginated` | 27 | 52 |
-| 845 | `get_sources` | 20 | 33 |
-| 188 | `_filter_cached_articles` | 13 | 21 |
-| 596 | `get_browse_index` | 13 | 20 |
-| 679 | `get_recent_news` | 11 | 11 |
-
 ### `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts`
 
 | line | function | CC | cognitive |
@@ -601,14 +589,6 @@ Files with hard violations: 188
 | 1436 | `article_record_to_dict` | 13 | 12 |
 | 1715 | `fetch_articles_page` | 12 | 12 |
 | 1188 | `init_db` | 10 | 16 |
-
-### `backend/app/services/source_analysis_scorer.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 174 | `_score_funding` | 37 | 44 |
-| 536 | `_format_context_for_llm` | 18 | 30 |
-| 356 | `_llm_score_axes` | 15 | 15 |
 
 ### `backend/app/services/evidence_export.py`
 
@@ -1009,12 +989,6 @@ Files with hard violations: 188
 |---:|---|---:|---:|
 | 477 | `get_bottleneck_summary` | 11 | 19 |
 | 267 | `get_summary` | 12 | 16 |
-
-### `backend/app/services/atlas_export.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 15 | `build_atlas_export` | 32 | 57 |
 
 ### `frontend/features/intelligence-atlas/atlas-stage-shell.tsx`
 
@@ -1489,6 +1463,12 @@ Files with hard violations: 188
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 33 | `_get_due_rss_sources` | 11 | 17 |
+
+### `backend/app/services/source_analysis_scorer.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 302 | `_score_funding` | 11 | 9 |
 
 ### `backend/rss_parser_rust/src/algorithms.rs`
 
