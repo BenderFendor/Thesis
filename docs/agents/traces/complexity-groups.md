@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 469
-Files with hard violations: 192
+Hard violations: 468
+Files with hard violations: 191
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -98,7 +98,6 @@ Files with hard violations: 192
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `backend/app/core/profiling.py` | 2 | 12 | 19 |
 | `backend/app/api/routes/stream.py` | 1 | 36 | 66 |
-| `backend/scripts/wikidata_verify_strong.py` | 1 | 36 | 75 |
 | `backend/app/services/atlas_export.py` | 1 | 32 | 57 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
@@ -1034,12 +1033,6 @@ Files with hard violations: 192
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 84 | `event_generator` | 36 | 66 |
-
-### `backend/scripts/wikidata_verify_strong.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 59 | `main_async` | 36 | 75 |
 
 ### `backend/app/services/atlas_export.py`
 
