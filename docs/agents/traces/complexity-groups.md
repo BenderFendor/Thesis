@@ -1,6 +1,6 @@
 # Complexity groups
 
-Hard violations: 477
+Hard violations: 469
 Files with hard violations: 192
 
 | file | violations | max CC | max cognitive |
@@ -12,7 +12,6 @@ Files with hard violations: 192
 | `backend/app/services/chroma_topics.py` | 11 | 16 | 24 |
 | `frontend/components/article-detail-modal.tsx` | 10 | 33 | 30 |
 | `backend/app/services/primary_source_adapters.py` | 10 | 19 | 32 |
-| `backend/scripts/verify_and_promote_reporters.py` | 9 | 41 | 94 |
 | `frontend/app/search/page.tsx` | 9 | 22 | 21 |
 | `backend/app/services/reporter_indexer.py` | 9 | 20 | 35 |
 | `backend/scripts/wayback_verify_reporters.py` | 9 | 17 | 48 |
@@ -195,6 +194,7 @@ Files with hard violations: 192
 | `backend/tests/benchmarks/benchmarks.py` | 1 | 10 | 17 |
 | `backend/app/services/reporter_awards.py` | 1 | 9 | 18 |
 | `backend/app/services/reporter_split_backfill.py` | 1 | 9 | 16 |
+| `backend/scripts/verify_and_promote_reporters.py` | 1 | 9 | 19 |
 | `backend/app/services/source_profile_synthesizer.py` | 1 | 8 | 16 |
 | `backend/rss_parser_rust/src/country_mentions.rs` | 1 | 6 | 20 |
 
@@ -313,20 +313,6 @@ Files with hard violations: 192
 | 178 | `parse_companies_house_api` | 11 | 11 |
 | 923 | `ingest_fcc_records` | 11 | 13 |
 | 1043 | `ingest_article_records` | 11 | 12 |
-
-### `backend/scripts/verify_and_promote_reporters.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 664 | `_process_reporter` | 41 | 94 |
-| 441 | `_parse_rss_authors` | 29 | 68 |
-| 141 | `_extract_author_from_jsonld` | 17 | 48 |
-| 564 | `_try_wayback_author_page` | 18 | 28 |
-| 492 | `_try_rss_feed_verification` | 15 | 26 |
-| 232 | `_discover_author_urls_for_reporter` | 13 | 20 |
-| 643 | `_try_wikidata_employer_check` | 13 | 13 |
-| 284 | `_promote_reporter` | 12 | 12 |
-| 71 | `_try_curl_cffi_article_signals` | 11 | 11 |
 
 ### `frontend/app/search/page.tsx`
 
@@ -1624,6 +1610,12 @@ Files with hard violations: 192
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 81 | `split_composite_reporters` | 9 | 16 |
+
+### `backend/scripts/verify_and_promote_reporters.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 398 | `_split_creator` | 9 | 19 |
 
 ### `backend/app/services/source_profile_synthesizer.py`
 
