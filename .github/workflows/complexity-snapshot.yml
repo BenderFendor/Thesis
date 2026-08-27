@@ -18,8 +18,12 @@ jobs:
         run: |
           curl -fsSL -o /tmp/cccc.tar.gz https://github.com/moznion/cccc/releases/download/v1.6.0/cccc-v1.6.0-x86_64-unknown-linux-musl.tar.gz
           echo "8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b  /tmp/cccc.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/cccc.tar.gz -C /tmp
-          find /tmp -type f -name cccc -perm -111 -exec cp {} /usr/local/bin/cccc \; -quit
+          mkdir -p /tmp/cccc-extract
+          tar -xzf /tmp/cccc.tar.gz -C /tmp/cccc-extract
+          CCCC="$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)"
+          test -n "$CCCC"
+          sudo cp "$CCCC" /usr/local/bin/cccc
+          cccc --version
       - name: Measure and write snapshot
         run: |
           cccc backend frontend scripts \
