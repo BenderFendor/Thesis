@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `5807f3584b183320ac8e289abf2984c0991ee6eb`
+Commit: `1db342604282bfc7f5522318ae7697d28432564e`
 
 Files: 567
-Functions: 7653
+Functions: 7674
 Parse errors: 0
 CC max/p95: 56 / 11
-Cognitive max/p95: 66 / 13
-Hard violations: 447
+Cognitive max/p95: 64 / 13
+Hard violations: 446
 Warning-only: 179
 
 ## Hard violations
@@ -15,7 +15,6 @@ Warning-only: 179
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
-| `backend/app/api/routes/stream.py:84` | `event_generator` | 36 | 66 |
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
 | `backend/app/services/verification_agent.py:420` | `_search_internal_sources` | 23 | 58 |
 | `backend/app/services/atlas_export.py:15` | `build_atlas_export` | 32 | 57 |
