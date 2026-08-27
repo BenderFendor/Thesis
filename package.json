@@ -8,11 +8,15 @@
     "cli:test": "node --test scripts/tests/scoop.test.ts",
     "cli:typecheck": "frontend/node_modules/.bin/tsc -p scripts/tsconfig.json",
     "cli:schema:check": "./scripts/scoop schema check",
-    "deps:cycles": "bash ./scripts/check-cycles"
+    "deps:cycles": "bash ./scripts/check-cycles",
+    "quality:duplicates": "jscpd --config .jscpd.json",
+    "quality:maintainability": "node scripts/check-maintainability.mjs"
   },
   "devDependencies": {
     "@types/d3-geo": "^3.1.0",
-    "@types/three": "^0.180.0"
+    "@types/three": "^0.180.0",
+    "code-multivitals": "1.6.2",
+    "jscpd": "5.0.16"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",
