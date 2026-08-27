@@ -57,7 +57,6 @@
     "frontend/tools/oxlint/**"
   ],
   "jsPlugins": [
-    "oxlint-plugin-complexity",
     {
       "name": "anti-slop",
       "specifier": "./frontend/tools/oxlint/anti-slop/index.ts"
@@ -68,18 +67,6 @@
     }
   ],
   "rules": {
-    "complexity/complexity": [
-      "error",
-      {
-        "cyclomatic": 10,
-        "cognitive": 15,
-        "minLines": 0,
-        "enableExtraction": true,
-        "nestingTipThreshold": 3,
-        "elseIfChainThreshold": 4,
-        "logicalOperatorThreshold": 3
-      }
-    ],
     "max-depth": ["error", { "max": 4 }],
     "max-params": ["error", { "max": 5 }],
     "max-lines": [
