@@ -26,10 +26,7 @@ jobs:
           cccc --version
       - name: Measure and write snapshot
         run: |
-          cccc backend frontend scripts \
-            --exclude 'frontend/node_modules/**' --exclude 'frontend/.next/**' \
-            --exclude 'frontend/coverage/**' --exclude 'frontend/lib/generated/**' \
-            --exclude 'frontend/tools/oxlint/**' --pretty > /tmp/cccc.json
+          cccc backend frontend scripts --config cccc.toml --pretty > /tmp/cccc.json
           python - <<'PY'
           import json, os
           from pathlib import Path
