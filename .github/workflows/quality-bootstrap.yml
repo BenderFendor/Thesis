@@ -1,0 +1,45 @@
+name: Quality bootstrap
+
+on:
+  push:
+    branches:
+      - quality/crap-mi-oxlint-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: ${{ !contains(github.event.head_commit.message, '[quality-bootstrap]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install repository quality tools
+        run: |
+          npm install --save-dev --save-exact jscpd@5.0.16 code-multivitals@1.6.2
+          npm --prefix frontend uninstall --save-dev oxlint-plugin-complexity
+          npm --prefix frontend install --save-dev --save-exact knip@6.32.2 @barney-media/crap-typescript@0.5.0
+          npm pkg set 'scripts.quality:duplicates=jscpd --config .jscpd.json'
+          npm pkg set 'scripts.quality:maintainability=node scripts/check-maintainability.mjs'
+          npm --prefix frontend pkg set 'scripts.deadcode=knip --config knip.json'
+          npm --prefix frontend pkg set 'scripts.crap=crap-typescript --config crap.config.json'
+      - name: Remove bootstrap workflow
+        run: rm .github/workflows/quality-bootstrap.yml
+      - name: Commit generated lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "chore: add repository quality analyzers [quality-bootstrap]"
+          git push origin HEAD:quality/crap-mi-oxlint-hardening
