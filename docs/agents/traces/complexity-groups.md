@@ -1,6 +1,6 @@
 # Complexity groups
 
-Hard violations: 486
+Hard violations: 485
 Files with hard violations: 194
 
 | file | violations | max CC | max cognitive |
@@ -60,7 +60,6 @@ Files with hard violations: 194
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
 | `backend/app/vector_store.py` | 3 | 12 | 14 |
 | `backend/scripts/validate_rss_sources.py` | 2 | 45 | 62 |
-| `backend/app/proof_suite/runner.py` | 2 | 44 | 77 |
 | `frontend/app/sources/[source]/debug/page.tsx` | 2 | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx` | 2 | 34 | 24 |
 | `backend/app/services/persistence.py` | 2 | 31 | 46 |
@@ -168,6 +167,7 @@ Files with hard violations: 194
 | `frontend/app/source/[sourceId]/page.tsx` | 1 | 13 | 13 |
 | `frontend/hooks/useReadingQueue.ts` | 1 | 13 | 18 |
 | `backend/app/api/routes/image_proxy.py` | 1 | 12 | 12 |
+| `backend/app/proof_suite/runner.py` | 1 | 12 | 11 |
 | `backend/app/services/debug_logger.py` | 1 | 12 | 18 |
 | `backend/app/services/reporter_directory.py` | 1 | 12 | 20 |
 | `backend/app/services/source_url_guard.py` | 1 | 12 | 14 |
@@ -782,13 +782,6 @@ Files with hard violations: 194
 |---:|---|---:|---:|
 | 153 | `validate_sources` | 45 | 62 |
 | 90 | `_first_article_domain` | 19 | 29 |
-
-### `backend/app/proof_suite/runner.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 143 | `evaluate_case_against_database` | 44 | 77 |
-| 94 | `assert_snapshot_pinned_truth` | 16 | 13 |
 
 ### `frontend/app/sources/[source]/debug/page.tsx`
 
@@ -1471,6 +1464,12 @@ Files with hard violations: 194
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 71 | `proxy_image` | 12 | 12 |
+
+### `backend/app/proof_suite/runner.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 180 | `_record_relationship_shape` | 12 | 11 |
 
 ### `backend/app/services/debug_logger.py`
 
