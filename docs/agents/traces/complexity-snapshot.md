@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `2580dd338a31dd94ef77d33258b369f8fb01f50e`
+Commit: `3d37c933e14ad214025d427021b21482c94e586e`
 
 Files: 567
-Functions: 7719
+Functions: 7740
 Parse errors: 0
 CC max/p95: 56 / 11
 Cognitive max/p95: 64 / 12
-Hard violations: 440
+Hard violations: 435
 Warning-only: 179
 
 ## Hard violations
@@ -17,7 +17,6 @@ Warning-only: 179
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
-| `backend/app/api/routes/news.py:337` | `get_news_paginated` | 27 | 52 |
 | `frontend/components/highlight-toolbar.tsx:155` | `handleSelection` | 34 | 24 |
 | `backend/tools/research_tui.py:592` | `run_cli_query` | 30 | 50 |
 | `backend/app/services/evidence_export.py:70` | `build_bundle_files` | 33 | 39 |
@@ -76,7 +75,6 @@ Warning-only: 179
 | `frontend/components/article-detail-modal.tsx:122` | `LanguageForensicsCard` | 23 | 11 |
 | `backend/app/services/ad_supply_transparency.py:268` | `build_sellers_json_summary` | 22 | 34 |
 | `backend/scripts/backfill_atlas_relationships.py:40` | `run_backfill` | 21 | 34 |
-| `backend/app/api/routes/news.py:845` | `get_sources` | 20 | 33 |
 | `backend/scripts/measure_wiki_profile_coverage.py:388` | `main_async` | 22 | 29 |
 | `backend/scripts/backfill_article_author_links.py:327` | `_load_groups` | 16 | 33 |
 | `backend/app/services/evidence_policy.py:249` | `evaluate_acceptance` | 22 | 24 |
@@ -233,7 +231,6 @@ Warning-only: 179
 | `backend/app/services/verification_output.py:37` | `format_markdown_report` | 13 | 22 |
 | `backend/app/services/chroma_topics.py:1052` | `_build_breaking_clusters` | 12 | 22 |
 | `backend/app/services/blindspot_viewer.py:887` | `_source_scores_by_cluster` | 10 | 22 |
-| `backend/app/api/routes/news.py:188` | `_filter_cached_articles` | 13 | 21 |
 | `backend/app/services/cache.py:39` | `_shape_articles` | 13 | 21 |
 | `backend/app/services/cache.py:157` | `update_source_cache` | 13 | 21 |
 | `backend/app/api/routes/blindspots.py:285` | `get_blind_spots_dashboard` | 14 | 19 |
@@ -266,7 +263,6 @@ Warning-only: 179
 | `frontend/lib/api.ts:4885` | `fetchBlindspotViewer` | 14 | 8 |
 | `frontend/components/grid-view.tsx:921` | `<anonymous>` | 14 | 7 |
 | `frontend/lib/api.ts:1786` | `<anonymous>` | 14 | 7 |
-| `backend/app/api/routes/news.py:596` | `get_browse_index` | 13 | 20 |
 | `backend/app/services/evidence_ingest.py:1082` | `ingest_edgar_subsidiaries` | 13 | 20 |
 | `backend/scripts/wayback_verify_reporters.py:288` | `_extract_visible_names` | 13 | 20 |
 | `backend/app/services/reporter_directory.py:30` | `enumerate_instance_directory` | 12 | 20 |
@@ -419,7 +415,6 @@ Warning-only: 179
 | `frontend/components/chat-sidebar.tsx:300` | `<anonymous>` | 11 | 12 |
 | `frontend/features/intelligence-atlas/funding-bias-panel.tsx:17` | `FundingBiasField` | 11 | 12 |
 | `backend/agentic_search.py:187` | `main` | 11 | 11 |
-| `backend/app/api/routes/news.py:679` | `get_recent_news` | 11 | 11 |
 | `backend/app/services/primary_source_adapters.py:178` | `parse_companies_house_api` | 11 | 11 |
 | `backend/app/services/reporter_confidence_scorer.py:292` | `_load_confidence_context` | 11 | 11 |
 | `backend/app/vector_store.py:544` | `batch_add_articles` | 11 | 11 |
@@ -459,7 +454,6 @@ Warning-only: 179
 
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
-| `backend/app/api/routes/news.py:40` | `_selected_sources` | 10 | 15 |
 | `backend/app/core/llm_client.py:124` | `chat_completions_create` | 10 | 15 |
 | `backend/app/scripts/index_wiki.py:27` | `main` | 10 | 15 |
 | `backend/app/services/evidence_ingest.py:484` | `_handle_ownership_property` | 10 | 15 |
@@ -583,6 +577,7 @@ Warning-only: 179
 | `backend/news_research_agent.py:1962` | `_research_stream_impl` | 9 | 9 |
 | `backend/scripts/verify_and_promote_reporters.py:911` | `_verification_summary` | 9 | 9 |
 | `backend/scripts/verify_reporter_intelligence.py:103` | `_is_combined_byline_name` | 9 | 9 |
+| `backend/app/api/routes/news.py:186` | `_filter_cached_articles` | 9 | 8 |
 | `backend/app/api/routes/wiki.py:394` | `_build_source_card` | 9 | 8 |
 | `backend/app/proof_suite/runner.py:134` | `assert_snapshot_pinned_truth` | 9 | 8 |
 | `backend/app/services/chroma_topics.py:890` | `_normalize_keyword` | 9 | 8 |
