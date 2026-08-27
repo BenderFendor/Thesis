@@ -71,13 +71,32 @@
     "complexity/complexity": [
       "error",
       {
-        "cyclomatic": 12,
-        "cognitive": 12,
+        "cyclomatic": 10,
+        "cognitive": 15,
         "minLines": 0,
         "enableExtraction": true,
         "nestingTipThreshold": 3,
         "elseIfChainThreshold": 4,
         "logicalOperatorThreshold": 3
+      }
+    ],
+    "max-depth": ["error", { "max": 4 }],
+    "max-params": ["error", { "max": 5 }],
+    "max-lines": [
+      "warn",
+      {
+        "max": 500,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "max-lines-per-function": [
+      "warn",
+      {
+        "max": 50,
+        "skipBlankLines": true,
+        "skipComments": true,
+        "IIFEs": true
       }
     ],
     "anti-slop/no-chained-type-assertions": "error",
