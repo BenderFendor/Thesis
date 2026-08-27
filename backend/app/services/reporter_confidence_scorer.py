@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import unquote, urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import ArticleAuthor, Reporter, ReporterClaim, IdentityEdge
+from app.database import ArticleAuthor, IdentityEdge, Reporter, ReporterClaim
 from app.services.reporter_public_records import clean_author_name
 
 _INVALID_AUTHOR_HOST_SUFFIXES = (".example.com", ".invalid", ".local", ".test")
@@ -62,32 +64,65 @@ JOURNALISM_EVIDENCE_TERMS = (
     "writer",
 )
 
+CONFIDENCE_VERIFIED = "verified"
+CONFIDENCE_STRONG = "strong"
+CONFIDENCE_LIKELY = "likely"
+CONFIDENCE_UNMATCHED = "unmatched"
+
+
+@dataclass(slots=True)
+class _ConfidenceContext:
+    reporter: Reporter
+    edges: list[IdentityEdge]
+    claims: list[ReporterClaim]
+    article_observation_count: int
+    has_person_name: bool
+    has_canonical: bool
+    has_author_page: bool
+    has_author_page_evidence: bool
+    has_byline_evidence: bool
+    has_journalism_evidence: bool
+    has_wikidata: bool
+    source_types: set[str] = field(default_factory=set)
+    edge_types: set[str] = field(default_factory=set)
+
+    @property
+    def claims_count(self) -> int:
+        return len(self.claims)
+
+    @property
+    def source_type_count(self) -> int:
+        return len(self.source_types)
+
+    @property
+    def has_identity_edges_3plus(self) -> bool:
+        return len(self.edge_types) >= 3 or len(self.edges) >= 3
+
+
+@dataclass(slots=True)
+class _ConfidenceDecision:
+    tier: str
+    score: float
+    evidence: dict[str, Any] = field(default_factory=dict)
+
 
 def _normalized_identity_label(value: str | None) -> str:
     normalized = " ".join(str(value or "").strip().split()).casefold()
-    if normalized.startswith("the "):
-        normalized = normalized[4:]
-    return normalized
+    return normalized[4:] if normalized.startswith("the ") else normalized
 
 
 def _source_names_from_career_history(reporter: Reporter) -> list[str]:
     """Return organization labels attached to a local reporter profile."""
-    source_names: list[str] = []
-    seen: set[str] = set()
-    entries = reporter.career_history or []
-    if not isinstance(entries, list):
-        return source_names
-
+    entries = reporter.career_history if isinstance(reporter.career_history, list) else []
+    names: dict[str, str] = {}
     for entry in entries:
         if not isinstance(entry, dict):
             continue
         organization = str(entry.get("organization") or "").strip()
         normalized = _normalized_identity_label(organization)
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        source_names.append(organization)
-    return source_names
+        if normalized:
+            names.setdefault(normalized, organization)
+    return list(names.values())
 
 
 def _is_source_label_byline(value: str | None, source_name: str | None) -> bool:
@@ -96,25 +131,25 @@ def _is_source_label_byline(value: str | None, source_name: str | None) -> bool:
     return bool(author_label and source_label and author_label == source_label)
 
 
+def _identity_value_is_clean(value: str) -> bool:
+    cleaned = clean_author_name(value)
+    if not cleaned:
+        return False
+    normalized_matches = _normalized_identity_label(value) == _normalized_identity_label(cleaned)
+    return normalized_matches and not _looks_like_combined_byline_name(value)
+
+
 def _has_clean_local_byline_identity(reporter: Reporter) -> bool:
     """Return False when a local-byline row still exposes source/raw byline residue."""
     if reporter.match_status != "local_byline":
         return True
-
     raw_values = [
         value
         for value in (str(reporter.name or ""), str(reporter.canonical_name or ""))
         if value.strip()
     ]
-    for raw_value in raw_values:
-        cleaned = clean_author_name(raw_value)
-        if not cleaned:
-            return False
-        if _normalized_identity_label(raw_value) != _normalized_identity_label(cleaned):
-            return False
-        if _looks_like_combined_byline_name(raw_value):
-            return False
-
+    if not all(_identity_value_is_clean(value) for value in raw_values):
+        return False
     source_names = _source_names_from_career_history(reporter)
     return not any(
         _is_source_label_byline(raw_value, source_name)
@@ -130,8 +165,6 @@ def _looks_like_combined_byline_name(value: str | None) -> bool:
     lowered = cleaned.lower()
     if any(separator in lowered for separator in (" and ", " with ", " & ", " y ")):
         return True
-    if "," not in cleaned:
-        return False
     parts = [part.strip() for part in cleaned.split(",") if part.strip()]
     if len(parts) < 2:
         return False
@@ -148,11 +181,8 @@ def _wayback_original_url(value: str) -> str | None:
     if _normalized_host(parsed.netloc) != "web.archive.org":
         return None
     path = unquote(parsed.path or "")
-    for marker in ("http://", "https://"):
-        marker_index = path.find(marker)
-        if marker_index >= 0:
-            return path[marker_index:]
-    return None
+    marker_positions = [position for marker in ("http://", "https://") if (position := path.find(marker)) >= 0]
+    return path[min(marker_positions):] if marker_positions else None
 
 
 def is_public_author_url(value: str | None) -> bool:
@@ -161,11 +191,27 @@ def is_public_author_url(value: str | None) -> bool:
         return False
     parsed = urlparse(value)
     host = _normalized_host(parsed.netloc)
-    if parsed.scheme not in {"http", "https"} or not host:
-        return False
-    if host in _INVALID_AUTHOR_HOSTS:
-        return False
-    return not any(host.endswith(suffix) for suffix in _INVALID_AUTHOR_HOST_SUFFIXES)
+    valid_origin = parsed.scheme in {"http", "https"} and bool(host)
+    blocked_host = host in _INVALID_AUTHOR_HOSTS or any(
+        host.endswith(suffix) for suffix in _INVALID_AUTHOR_HOST_SUFFIXES
+    )
+    return valid_origin and not blocked_host
+
+
+def _is_non_author_identity_host(host: str) -> bool:
+    return host in _NON_AUTHOR_IDENTITY_HOSTS or host.endswith(".wikipedia.org")
+
+
+def _is_feed_path(path: str) -> bool:
+    return path.endswith((".xml", ".rss", ".atom", ".json")) or "rss" in path.split("/")
+
+
+def _profile_path_segment(segment: str) -> bool:
+    return (
+        segment in _AUTHOR_PROFILE_PATH_HINTS
+        or segment.startswith(("author-", "reporter-"))
+        or segment.endswith("reporter")
+    )
 
 
 def is_author_profile_url(value: str | None) -> bool:
@@ -179,58 +225,39 @@ def is_author_profile_url(value: str | None) -> bool:
 
     parsed = urlparse(value)
     host = _normalized_host(parsed.netloc)
-    if host in _NON_AUTHOR_IDENTITY_HOSTS or host.endswith(".wikipedia.org"):
-        return False
-
     path = (parsed.path or "").strip("/").lower()
-    if not path:
+    if _is_non_author_identity_host(host) or not path or _is_feed_path(path):
         return False
-    if path.endswith((".xml", ".rss", ".atom", ".json")) or "rss" in path.split("/"):
-        return False
+    return any(_profile_path_segment(segment) for segment in path.split("/") if segment)
 
-    segments = [segment for segment in path.split("/") if segment]
-    return any(
-        segment in _AUTHOR_PROFILE_PATH_HINTS
-        or segment.startswith(("author-", "reporter-"))
-        or segment.endswith("reporter")
-        for segment in segments
-    )
+
+def _citation_verifies_url(citation: object, valid_urls: set[str]) -> bool:
+    if not isinstance(citation, dict):
+        return False
+    if str(citation.get("url") or "") not in valid_urls:
+        return False
+    label = str(citation.get("label") or "")
+    source_type = str(citation.get("source_type") or "")
+    return label in _VERIFIED_AUTHOR_PAGE_LABELS or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
 
 
 def has_verified_author_page_citation(reporter: Reporter) -> bool:
     """Return True when a citation supports a real author/profile page."""
-    author_page_url = str(reporter.author_page_url or "")
-    canonical_author_url = str(reporter.canonical_author_url or "")
-    if not (is_author_profile_url(author_page_url) or is_author_profile_url(canonical_author_url)):
-        return False
-
+    valid_urls = {
+        url
+        for url in (str(reporter.author_page_url or ""), str(reporter.canonical_author_url or ""))
+        if is_author_profile_url(url)
+    }
     citations = reporter.citations if isinstance(reporter.citations, list) else []
-    citation_urls = {author_page_url, canonical_author_url} - {""}
-    for citation in citations:
-        if not isinstance(citation, dict):
-            continue
-        citation_url = str(citation.get("url") or "")
-        if citation_url not in citation_urls:
-            continue
-        label = str(citation.get("label") or "")
-        source_type = str(citation.get("source_type") or "")
-        if (
-            label in _VERIFIED_AUTHOR_PAGE_LABELS
-            or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
-        ):
-            return True
-    return False
+    return bool(valid_urls) and any(_citation_verifies_url(citation, valid_urls) for citation in citations)
 
 
 def has_person_like_reporter_name(reporter: Reporter) -> bool:
     """Return True when the reporter row exposes a usable person-like name."""
     if not _has_clean_local_byline_identity(reporter):
         return False
-    canonical = str(reporter.canonical_name or "")
-    raw_name = str(reporter.name or "")
-    return bool(
-        clean_author_name(canonical) and not _looks_like_combined_byline_name(canonical)
-    ) or bool(clean_author_name(raw_name) and not _looks_like_combined_byline_name(raw_name))
+    names = (str(reporter.canonical_name or ""), str(reporter.name or ""))
+    return any(clean_author_name(name) and not _looks_like_combined_byline_name(name) for name in names)
 
 
 def has_journalism_profile_evidence(reporter: Reporter) -> bool:
@@ -241,9 +268,8 @@ def has_journalism_profile_evidence(reporter: Reporter) -> bool:
         str(reporter.overview or ""),
         str(reporter.match_explanation or ""),
     ]
-    for collection in (reporter.career_history, reporter.dossier_sections, reporter.citations):
-        if isinstance(collection, list):
-            parts.append(str(collection))
+    collections = (reporter.career_history, reporter.dossier_sections, reporter.citations)
+    parts.extend(str(collection) for collection in collections if isinstance(collection, list))
     haystack = " ".join(parts).lower()
     return any(term in haystack for term in JOURNALISM_EVIDENCE_TERMS)
 
@@ -251,198 +277,260 @@ def has_journalism_profile_evidence(reporter: Reporter) -> bool:
 def has_supporting_byline_evidence(reporter: Reporter) -> bool:
     """Return True when citations support byline presence but not profile identity."""
     citations = reporter.citations if isinstance(reporter.citations, list) else []
+    labels = _SUPPORTING_BYLINE_LABELS
+    source_types = {"rss_feed_author", "byline_frequency"}
     return any(
         isinstance(citation, dict)
         and (
-            str(citation.get("label") or "") in _SUPPORTING_BYLINE_LABELS
-            or str(citation.get("source_type") or "") in {"rss_feed_author", "byline_frequency"}
+            str(citation.get("label") or "") in labels
+            or str(citation.get("source_type") or "") in source_types
         )
         for citation in citations
     )
 
 
-CONFIDENCE_VERIFIED = "verified"
-CONFIDENCE_STRONG = "strong"
-CONFIDENCE_LIKELY = "likely"
-CONFIDENCE_UNMATCHED = "unmatched"
+async def _load_confidence_context(session: AsyncSession, reporter: Reporter) -> _ConfidenceContext:
+    edges_result = await session.execute(select(IdentityEdge).where(IdentityEdge.reporter_id == reporter.id))
+    edges = list(edges_result.scalars().all())
+    claims_result = await session.execute(
+        select(ReporterClaim)
+        .where(ReporterClaim.reporter_id == reporter.id, ReporterClaim.is_current.is_(True))
+        .order_by(ReporterClaim.created_at.desc())
+    )
+    claims = list(claims_result.scalars().all())
+    article_result = await session.execute(
+        select(ArticleAuthor).where(ArticleAuthor.reporter_id == reporter.id)
+    )
+    article_observation_count = len(list(article_result.scalars().all()))
+
+    has_person_name = has_person_like_reporter_name(reporter)
+    has_journalism_evidence = has_journalism_profile_evidence(reporter)
+    return _ConfidenceContext(
+        reporter=reporter,
+        edges=edges,
+        claims=claims,
+        article_observation_count=article_observation_count,
+        has_person_name=has_person_name,
+        has_canonical=has_person_name and is_author_profile_url(reporter.canonical_author_url),
+        has_author_page=has_person_name and is_author_profile_url(reporter.author_page_url),
+        has_author_page_evidence=has_person_name and has_verified_author_page_citation(reporter),
+        has_byline_evidence=has_person_name and has_supporting_byline_evidence(reporter),
+        has_journalism_evidence=has_journalism_evidence,
+        has_wikidata=has_person_name and has_journalism_evidence and bool(reporter.wikidata_qid),
+        source_types={str(claim.source_type) for claim in claims if claim.source_type},
+        edge_types={str(edge.edge_type) for edge in edges if edge.edge_type},
+    )
+
+
+def _publisher_confirmed(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_canonical and context.has_author_page_evidence:
+        return _ConfidenceDecision(CONFIDENCE_VERIFIED, 0.95, {"publisher_confirmed": True})
+    return None
+
+
+def _wikidata_multisource(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_wikidata and context.has_identity_edges_3plus and context.claims_count >= 1:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.88,
+            {
+                "wikidata_matched": True,
+                "multi_source_identity": len(context.edge_types),
+                "has_claims": context.claims_count,
+            },
+        )
+    return None
+
+
+def _multisource_claims(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_identity_edges_3plus and context.claims_count >= 3:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.85,
+            {"multi_source_identity": len(context.edge_types), "has_claims": context.claims_count},
+        )
+    return None
+
+
+def _wikidata_with_claims(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_wikidata and context.claims_count >= 1:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.80,
+            {"wikidata_matched": True, "has_claims": context.claims_count},
+        )
+    return None
+
+
+def _wikidata_only(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_wikidata:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.78,
+            {"wikidata_matched": True, "entity_resolved": True},
+        )
+    return None
+
+
+def _canonical_profile(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_canonical:
+        return _ConfidenceDecision(CONFIDENCE_STRONG, 0.80, {"canonical_url_found": True})
+    return None
+
+
+def _publisher_byline(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.has_byline_evidence and context.article_observation_count >= 5:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.70,
+            {
+                "article_observations": context.article_observation_count,
+                "publisher_byline_evidence": True,
+            },
+        )
+    return None
+
+
+def _multi_article_claim(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.article_observation_count >= 5 and context.claims_count >= 1:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.70,
+            {
+                "article_observations": context.article_observation_count,
+                "has_claims": context.claims_count,
+                "multi_article_evidence": True,
+            },
+        )
+    return None
+
+
+def _diverse_claims(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.claims_count >= 3 and context.source_type_count >= 2:
+        return _ConfidenceDecision(
+            CONFIDENCE_STRONG,
+            0.75,
+            {"multiple_claims": {"count": context.claims_count, "source_types": context.source_type_count}},
+        )
+    return None
+
+
+def _identity_edge(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    has_wikidata_edge = "wikidata" in context.edge_types
+    has_sameas_edge = "sameAs" in context.edge_types
+    if not (has_wikidata_edge or has_sameas_edge):
+        return None
+    tier = CONFIDENCE_STRONG if has_wikidata_edge else CONFIDENCE_LIKELY
+    score = 0.75 if has_wikidata_edge else 0.60
+    return _ConfidenceDecision(tier, score, {"identity_edges": list(context.edge_types)})
+
+
+def _claim_only(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    if context.claims_count >= 1:
+        return _ConfidenceDecision(CONFIDENCE_LIKELY, 0.50, {"has_claims": context.claims_count})
+    return None
+
+
+def _article_observations(context: _ConfidenceContext) -> _ConfidenceDecision | None:
+    count = context.article_observation_count
+    if count >= 3:
+        return _ConfidenceDecision(
+            CONFIDENCE_LIKELY,
+            0.60,
+            {"article_observations": count, "multi_article_evidence": True},
+        )
+    if count == 2:
+        return _ConfidenceDecision(CONFIDENCE_LIKELY, 0.55, {"article_observations": count})
+    if count == 1:
+        return _ConfidenceDecision(
+            CONFIDENCE_LIKELY,
+            0.45,
+            {"article_observations": count, "single_article_observation": True},
+        )
+    return None
+
+
+_DECISION_RULES: tuple[
+    Callable[[_ConfidenceContext], _ConfidenceDecision | None], ...
+] = (
+    _publisher_confirmed,
+    _wikidata_multisource,
+    _multisource_claims,
+    _wikidata_with_claims,
+    _wikidata_only,
+    _canonical_profile,
+    _publisher_byline,
+    _multi_article_claim,
+    _diverse_claims,
+    _identity_edge,
+    _claim_only,
+    _article_observations,
+)
+
+
+def _choose_decision(context: _ConfidenceContext) -> _ConfidenceDecision:
+    for rule in _DECISION_RULES:
+        decision = rule(context)
+        if decision is not None:
+            return decision
+    return _ConfidenceDecision(CONFIDENCE_UNMATCHED, 0.10)
+
+
+def _score_boosts(context: _ConfidenceContext) -> tuple[float, list[str]]:
+    boosts: list[str] = []
+    total = 0.0
+    if context.source_type_count > 1:
+        amount = min(0.05 * (context.source_type_count - 1), 0.10)
+        total += amount
+        boosts.append(f"+{amount:.2f} from {context.source_type_count} source types")
+    if context.has_author_page:
+        total += 0.05
+        boosts.append("+0.05 from author page URL")
+    if context.reporter.wikipedia_url:
+        total += 0.05
+        boosts.append("+0.05 from Wikipedia extract")
+    if context.reporter.twitter_handle or context.reporter.linkedin_url:
+        total += 0.03
+        boosts.append("+0.03 from social links")
+    return total, boosts
+
+
+def _base_evidence(context: _ConfidenceContext, score: float, tier: str) -> dict[str, Any]:
+    return {
+        "score": score,
+        "tier": tier,
+        "person_like_name": context.has_person_name,
+        "journalism_profile_evidence": context.has_journalism_evidence,
+        "claims_count": context.claims_count,
+        "article_observation_count": context.article_observation_count,
+        "source_type_count": context.source_type_count,
+        "edge_count": len(context.edges),
+    }
+
+
+def _non_person_result(context: _ConfidenceContext) -> tuple[str, float, dict[str, Any]]:
+    evidence = _base_evidence(context, 0.10, CONFIDENCE_UNMATCHED)
+    evidence["non_person_name_filtered"] = True
+    return CONFIDENCE_UNMATCHED, 0.10, evidence
 
 
 async def compute_confidence_tier(
     session: AsyncSession,
     reporter: Reporter,
 ) -> tuple[str, float, dict[str, Any]]:
-    """Compute confidence tier and numeric score for a reporter.
+    """Compute confidence from an ordered set of explicit evidence rules."""
+    context = await _load_confidence_context(session, reporter)
+    if not context.has_person_name:
+        return _non_person_result(context)
 
-    Returns (tier_name, score_0_to_1, evidence_summary).
-
-    Scoring logic:
-    - Has Wikidata QID + journalist occupation match -> tier=strong, base score=0.85
-    - Has canonical_author_url + author_page_url -> tier=verified, score=0.95 (publisher-confirmed)
-    - Has canonical_author_url only (found in article JSON-LD) -> tier=strong, score=0.80
-    - Has wikidata identity_edge records -> tier=strong, score=0.75
-    - Has sameAs identity_edge records -> tier=likely, score=0.60
-    - claims_count >= 3 from >= 2 source_types -> tier=strong, score=0.75
-    - claims_count >= 1 -> tier=likely, score=0.50
-    - Has persisted ArticleAuthor observations -> tier=likely, score scales by count
-    - No claims, no wikidata -> tier=unmatched, score=0.10
-    """
-    reporter_id = reporter.id
-    score = 0.10
-    tier = CONFIDENCE_UNMATCHED
-    evidence: dict[str, Any] = {}
-
-    has_person_name = has_person_like_reporter_name(reporter)
-    has_canonical = has_person_name and is_author_profile_url(reporter.canonical_author_url)
-    has_author_page = has_person_name and is_author_profile_url(reporter.author_page_url)
-    has_author_page_evidence = has_person_name and has_verified_author_page_citation(reporter)
-    has_byline_evidence = has_person_name and has_supporting_byline_evidence(reporter)
-    has_journalism_evidence = has_journalism_profile_evidence(reporter)
-    has_wikidata = has_person_name and has_journalism_evidence and bool(reporter.wikidata_qid)
-
-    edges_stmt = select(IdentityEdge).where(IdentityEdge.reporter_id == reporter_id)
-    edges_result = await session.execute(edges_stmt)
-    edges = list(edges_result.scalars().all())
-
-    claims_stmt = (
-        select(ReporterClaim)
-        .where(
-            ReporterClaim.reporter_id == reporter_id,
-            ReporterClaim.is_current.is_(True),
-        )
-        .order_by(ReporterClaim.created_at.desc())
-    )
-    claims_result = await session.execute(claims_stmt)
-    claims = list(claims_result.scalars().all())
-    claims_count = len(claims)
-
-    article_author_stmt = select(ArticleAuthor).where(ArticleAuthor.reporter_id == reporter_id)
-    article_author_result = await session.execute(article_author_stmt)
-    article_observations = list(article_author_result.scalars().all())
-    article_observation_count = len(article_observations)
-
-    source_types = set(c.source_type for c in claims if c.source_type)
-    source_type_count = len(source_types)
-
-    edge_types = set(e.edge_type for e in edges)
-    has_sameas_edge = "sameAs" in edge_types
-    has_wikidata_edge = "wikidata" in edge_types
-    has_identity_edges_3plus = len(edge_types) >= 3 or len(edges) >= 3
-
-    if not has_person_name:
-        evidence["score"] = score
-        evidence["tier"] = tier
-        evidence["person_like_name"] = False
-        evidence["journalism_profile_evidence"] = has_journalism_evidence
-        evidence["claims_count"] = claims_count
-        evidence["article_observation_count"] = article_observation_count
-        evidence["source_type_count"] = source_type_count
-        evidence["edge_count"] = len(edges)
-        evidence["non_person_name_filtered"] = True
-        return tier, score, evidence
-
-    # Tier logic
-    if has_canonical and has_author_page_evidence:
-        tier = CONFIDENCE_VERIFIED
-        score = 0.95
-        evidence["publisher_confirmed"] = True
-    elif has_wikidata and has_identity_edges_3plus and claims_count >= 1:
-        tier = CONFIDENCE_STRONG
-        score = 0.88
-        evidence["wikidata_matched"] = True
-        evidence["multi_source_identity"] = len(edge_types)
-        evidence["has_claims"] = claims_count
-    elif has_identity_edges_3plus and claims_count >= 3:
-        tier = CONFIDENCE_STRONG
-        score = 0.85
-        evidence["multi_source_identity"] = len(edge_types)
-        evidence["has_claims"] = claims_count
-    elif has_wikidata and claims_count >= 1:
-        tier = CONFIDENCE_STRONG
-        score = 0.80
-        evidence["wikidata_matched"] = True
-        evidence["has_claims"] = claims_count
-    elif has_wikidata:
-        tier = CONFIDENCE_STRONG
-        score = 0.78
-        evidence["wikidata_matched"] = True
-        evidence["entity_resolved"] = True
-    elif has_canonical:
-        tier = CONFIDENCE_STRONG
-        score = 0.80
-        evidence["canonical_url_found"] = True
-    elif has_byline_evidence and article_observation_count >= 5:
-        tier = CONFIDENCE_STRONG
-        score = 0.70
-        evidence["article_observations"] = article_observation_count
-        evidence["publisher_byline_evidence"] = True
-    elif article_observation_count >= 5 and claims_count >= 1:
-        tier = CONFIDENCE_STRONG
-        score = 0.70
-        evidence["article_observations"] = article_observation_count
-        evidence["has_claims"] = claims_count
-        evidence["multi_article_evidence"] = True
-    elif claims_count >= 3 and source_type_count >= 2:
-        tier = CONFIDENCE_STRONG
-        score = 0.75
-        evidence["multiple_claims"] = {"count": claims_count, "source_types": source_type_count}
-    elif has_sameas_edge or has_wikidata_edge:
-        if has_wikidata_edge:
-            tier = CONFIDENCE_STRONG
-            score = max(score, 0.75)
-        else:
-            tier = CONFIDENCE_LIKELY
-            score = max(score, 0.60)
-        evidence["identity_edges"] = list(edge_types)
-    elif claims_count >= 1:
-        tier = CONFIDENCE_LIKELY
-        score = 0.50
-        evidence["has_claims"] = claims_count
-    elif article_observation_count >= 3:
-        tier = CONFIDENCE_LIKELY
-        score = 0.60
-        evidence["article_observations"] = article_observation_count
-        evidence["multi_article_evidence"] = True
-    elif article_observation_count >= 2:
-        tier = CONFIDENCE_LIKELY
-        score = 0.55
-        evidence["article_observations"] = article_observation_count
-    elif article_observation_count == 1:
-        tier = CONFIDENCE_LIKELY
-        score = 0.45
-        evidence["article_observations"] = article_observation_count
-        evidence["single_article_observation"] = True
-
-    # Score boosts
-    boosts: list[str] = []
-    if source_type_count > 1:
-        boost = min(0.05 * (source_type_count - 1), 0.10)
-        score += boost
-        boosts.append(f"+{boost:.2f} from {source_type_count} source types")
-    if has_author_page:
-        score += 0.05
-        boosts.append("+0.05 from author page URL")
-    if reporter.wikipedia_url:
-        score += 0.05
-        boosts.append("+0.05 from Wikipedia extract")
-    if reporter.twitter_handle or reporter.linkedin_url:
-        score += 0.03
-        boosts.append("+0.03 from social links")
-
-    score = min(score, 1.0)
-    score = round(score, 3)
-
-    evidence["score"] = score
-    evidence["tier"] = tier
-    evidence["person_like_name"] = has_person_name
-    evidence["journalism_profile_evidence"] = has_journalism_evidence
-    evidence["claims_count"] = claims_count
-    evidence["article_observation_count"] = article_observation_count
-    evidence["source_type_count"] = source_type_count
-    evidence["edge_count"] = len(edges)
+    decision = _choose_decision(context)
+    boost_total, boosts = _score_boosts(context)
+    score = round(min(decision.score + boost_total, 1.0), 3)
+    evidence = _base_evidence(context, score, decision.tier)
+    evidence.update(decision.evidence)
     if boosts:
         evidence["boosts"] = boosts
-
-    return tier, score, evidence
+    return decision.tier, score, evidence
 
 
 def tier_rank(tier: str) -> int:
@@ -456,17 +544,16 @@ async def update_reporter_confidence(
     reporter_id: int,
 ) -> str:
     """Recompute and persist confidence tier for a reporter. Returns the tier."""
-    stmt = select(Reporter).where(Reporter.id == reporter_id)
-    reporter = (await session.execute(stmt)).scalar_one_or_none()
+    reporter = (
+        await session.execute(select(Reporter).where(Reporter.id == reporter_id))
+    ).scalar_one_or_none()
     if not reporter:
         return CONFIDENCE_UNMATCHED
 
-    tier, score, evidence = await compute_confidence_tier(session, reporter)
-
+    tier, score, _evidence = await compute_confidence_tier(session, reporter)
     reporter.confidence_tier = tier
     reporter.confidence_score = score  # type: ignore[assignment]
     await session.commit()
-
     return tier
 
 
