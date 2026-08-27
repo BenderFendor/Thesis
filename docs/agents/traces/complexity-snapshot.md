@@ -1,27 +1,22 @@
 # Complexity Snapshot
 
-Commit: `efea0bb11ea30fdb6754153c73474200067a8099`
+Commit: `5807f3584b183320ac8e289abf2984c0991ee6eb`
 
 Files: 567
-Functions: 7562
+Functions: 7653
 Parse errors: 0
 CC max/p95: 56 / 11
-Cognitive max/p95: 94 / 13
-Hard violations: 462
-Warning-only: 176
+Cognitive max/p95: 66 / 13
+Hard violations: 447
+Warning-only: 179
 
 ## Hard violations
 
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
-| `backend/scripts/verify_and_promote_reporters.py:664` | `_process_reporter` | 41 | 94 |
 | `frontend/app/debug/page.tsx:306` | `SystemStatusSection` | 56 | 19 |
-| `backend/scripts/wikidata_verify_strong.py:59` | `main_async` | 36 | 75 |
-| `backend/scripts/verify_and_promote_reporters.py:441` | `_parse_rss_authors` | 29 | 68 |
-| `backend/scripts/validate_rss_sources.py:153` | `validate_sources` | 45 | 62 |
 | `backend/app/api/routes/stream.py:84` | `event_generator` | 36 | 66 |
 | `backend/app/services/rss_ingestion.py:499` | `_refresh_news_cache_with_rust` | 33 | 64 |
-| `backend/app/services/littlesis_integration.py:99` | `_iter_json_records` | 21 | 64 |
 | `backend/app/services/verification_agent.py:420` | `_search_internal_sources` | 23 | 58 |
 | `backend/app/services/atlas_export.py:15` | `build_atlas_export` | 32 | 57 |
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
@@ -33,7 +28,6 @@ Warning-only: 176
 | `frontend/components/article-detail-modal.tsx:1946` | `ArticleDetailModalContent` | 33 | 13 |
 | `backend/scripts/verify_reporter_intelligence.py:642` | `_compute_source_metrics` | 22 | 49 |
 | `backend/scripts/enrich_local_reporter_author_pages.py:406` | `_confirmed_author_page` | 25 | 48 |
-| `backend/scripts/verify_and_promote_reporters.py:141` | `_extract_author_from_jsonld` | 17 | 48 |
 | `backend/scripts/wayback_verify_reporters.py:488` | `_extract_author_from_jsonld` | 17 | 48 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py:99` | `infer_ownership_label` | 30 | 47 |
@@ -114,7 +108,6 @@ Warning-only: 176
 | `backend/scripts/reporter_source_verifier.py:248` | `extract_reporter_from_article` | 20 | 24 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:63` | `SourceIntelligenceOperations` | 20 | 13 |
 | `frontend/components/article-inline-embed.tsx:23` | `buildNewsArticle` | 20 | 8 |
-| `backend/scripts/validate_rss_sources.py:90` | `_first_article_domain` | 19 | 29 |
 | `frontend/components/cluster-detail-modal.tsx:993` | `ComparisonTab` | 17 | 29 |
 | `backend/app/services/reporter_profile_store.py:129` | `upsert_reporter_profile` | 16 | 29 |
 | `backend/scripts/wayback_verify_reporters.py:551` | `_discover_author_page_urls` | 15 | 29 |
@@ -132,7 +125,6 @@ Warning-only: 176
 | `frontend/components/article-detail-modal.tsx:793` | `ModalActions` | 19 | 18 |
 | `backend/app/services/article_extraction.py:237` | `_extract_rebelmouse_article` | 19 | 15 |
 | `frontend/components/globe-view.tsx:308` | `CollapsedPanelHeader` | 19 | 15 |
-| `backend/scripts/verify_and_promote_reporters.py:564` | `_try_wayback_author_page` | 18 | 28 |
 | `backend/scripts/enrich_local_reporter_author_pages.py:490` | `enrich_local_reporter_author_pages` | 15 | 28 |
 | `backend/scripts/verify_reporter_intelligence.py:834` | `main_async` | 18 | 27 |
 | `frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx:20` | `FundingBiasAnalysisView` | 18 | 27 |
@@ -140,7 +132,6 @@ Warning-only: 176
 | `backend/app/api/routes/sources.py:70` | `_validate_rss_feed` | 18 | 24 |
 | `backend/app/services/atlas_graph_projection.py:257` | `_affiliation_edges` | 15 | 27 |
 | `backend/app/scripts/replay_evidence_corpus.py:491` | `_assert_dossier_projection` | 18 | 23 |
-| `backend/app/services/littlesis_integration.py:377` | `extract_affiliations_from_relationships` | 14 | 27 |
 | `frontend/hooks/useScrollPersonalization.ts:109` | `load` | 18 | 23 |
 | `backend/app/services/auto_ingest.py:337` | `get_ingest_status` | 18 | 22 |
 | `backend/app/services/evidence_ingest.py:724` | `ingest_littlesis_ownership` | 18 | 22 |
@@ -161,7 +152,6 @@ Warning-only: 176
 | `backend/scripts/backfill_article_author_links.py:435` | `backfill_article_author_links` | 16 | 26 |
 | `backend/app/services/blind_spots.py:130` | `identify_topic_blind_spots` | 15 | 26 |
 | `backend/scripts/import_oec_trade.py:44` | `import_csv` | 15 | 26 |
-| `backend/scripts/verify_and_promote_reporters.py:492` | `_try_rss_feed_verification` | 15 | 26 |
 | `backend/app/services/source_research.py:97` | `_resolve_website_from_catalog` | 14 | 26 |
 | `backend/tools/research_lab.py:272` | `_process_event_like_frontend` | 17 | 25 |
 | `backend/app/services/atlas_evidence_projection.py:470` | `_candidate_ownership_edges` | 17 | 23 |
@@ -189,7 +179,6 @@ Warning-only: 176
 | `backend/app/services/mbfc_integration.py:130` | `build_mbfc_lookup` | 16 | 22 |
 | `backend/scripts/wayback_verify_reporters.py:782` | `main_async` | 14 | 24 |
 | `backend/app/services/chroma_topics.py:212` | `_merge_candidate_clusters` | 13 | 24 |
-| `backend/app/services/littlesis_integration.py:454` | `get_littlesis_affiliations_for_reporter` | 16 | 21 |
 | `backend/app/services/chroma_topics.py:367` | `_attach_gdelt_context` | 16 | 20 |
 | `backend/app/services/source_claims.py:318` | `sync_source_claims` | 12 | 24 |
 | `backend/app/scripts/ingest_evidence.py:157` | `main` | 16 | 19 |
@@ -285,7 +274,6 @@ Warning-only: 176
 | `frontend/lib/api.ts:1786` | `<anonymous>` | 14 | 7 |
 | `backend/app/api/routes/news.py:596` | `get_browse_index` | 13 | 20 |
 | `backend/app/services/evidence_ingest.py:1082` | `ingest_edgar_subsidiaries` | 13 | 20 |
-| `backend/scripts/verify_and_promote_reporters.py:232` | `_discover_author_urls_for_reporter` | 13 | 20 |
 | `backend/scripts/wayback_verify_reporters.py:288` | `_extract_visible_names` | 13 | 20 |
 | `backend/app/services/reporter_directory.py:30` | `enumerate_instance_directory` | 12 | 20 |
 | `backend/app/services/reporter_indexer.py:917` | `index_unresolved_reporters` | 12 | 20 |
@@ -320,7 +308,6 @@ Warning-only: 176
 | `frontend/components/cluster-detail-modal.tsx:357` | `GdeltContextStrip` | 13 | 14 |
 | `backend/app/services/entity_wiki_service.py:1299` | `_sellers_json_transparency_items` | 13 | 13 |
 | `backend/app/services/evidence_spine.py:474` | `materialize_claim` | 13 | 13 |
-| `backend/scripts/verify_and_promote_reporters.py:643` | `_try_wikidata_employer_check` | 13 | 13 |
 | `frontend/app/source/[sourceId]/page.tsx:24` | `SourcePage` | 13 | 13 |
 | `frontend/components/cluster-detail-modal.tsx:1211` | `<anonymous>` | 13 | 13 |
 | `backend/app/database.py:1436` | `article_record_to_dict` | 13 | 12 |
@@ -345,6 +332,7 @@ Warning-only: 176
 | `backend/app/services/chroma_sync.py:110` | `chroma_sync_worker` | 11 | 19 |
 | `backend/app/services/verification_agent.py:263` | `_verify_single_claim` | 10 | 19 |
 | `backend/app/services/chroma_topics.py:156` | `_clusters_from_ids_batches` | 9 | 19 |
+| `backend/scripts/verify_and_promote_reporters.py:398` | `_split_creator` | 9 | 19 |
 | `backend/app/services/debug_logger.py:720` | `_generate_recommendations` | 12 | 18 |
 | `backend/app/services/funding_researcher.py:1146` | `detect_conflicts` | 12 | 18 |
 | `backend/app/services/reporter_career_timeline.py:133` | `_shared_owner_findings` | 12 | 18 |
@@ -365,7 +353,6 @@ Warning-only: 176
 | `backend/app/services/reporter_public_records.py:740` | `_fetch_activity_author_signals` | 10 | 18 |
 | `backend/app/services/source_credibility.py:620` | `_store_scores` | 10 | 18 |
 | `backend/app/services/evidence_ingest.py:1027` | `_parse_exhibit_21` | 12 | 15 |
-| `backend/app/services/littlesis_integration.py:319` | `cross_reference_entities_with_reporters` | 9 | 18 |
 | `backend/app/services/reporter_awards.py:104` | `_search_award_data` | 9 | 18 |
 | `backend/news_research_agent.py:702` | `_execute_tool_call_with_fallbacks` | 9 | 18 |
 | `backend/app/services/ad_supply_transparency.py:154` | `parse_sellers_json` | 12 | 14 |
@@ -387,7 +374,6 @@ Warning-only: 176
 | `backend/app/database.py:1715` | `fetch_articles_page` | 12 | 12 |
 | `backend/app/services/atlas_entity.py:913` | `_reporter_entity_details` | 12 | 12 |
 | `backend/app/services/og_image.py:173` | `fetch_og_image` | 12 | 12 |
-| `backend/scripts/verify_and_promote_reporters.py:284` | `_promote_reporter` | 12 | 12 |
 | `frontend/components/blindspot-view.tsx:172` | `LeadStory` | 12 | 12 |
 | `backend/app/api/routes/entity_research.py:226` | `_organization_response_from_record` | 12 | 11 |
 | `backend/app/proof_suite/runner.py:180` | `_record_relationship_shape` | 12 | 11 |
@@ -446,7 +432,6 @@ Warning-only: 176
 | `backend/app/services/reporter_confidence_scorer.py:292` | `_load_confidence_context` | 11 | 11 |
 | `backend/app/vector_store.py:544` | `batch_add_articles` | 11 | 11 |
 | `backend/scripts/reporter_source_verifier.py:576` | `validate_reporter` | 11 | 11 |
-| `backend/scripts/verify_and_promote_reporters.py:71` | `_try_curl_cffi_article_signals` | 11 | 11 |
 | `backend/scripts/verify_reporter_intelligence.py:244` | `_eligible_cohort_audit` | 11 | 11 |
 | `backend/app/services/chroma_topics.py:573` | `_build_clusters_from_anchors` | 11 | 10 |
 | `backend/news_research_agent.py:1279` | `_dedup_block_message` | 11 | 10 |
@@ -499,7 +484,6 @@ Warning-only: 176
 | `backend/app/services/evidence_ingest.py:868` | `ingest_mbfc_ownership` | 9 | 15 |
 | `backend/app/services/media_measurements.py:216` | `_reporter_movement_trace` | 10 | 14 |
 | `backend/app/services/reporter_directory.py:125` | `search_directory_by_name` | 10 | 14 |
-| `backend/scripts/verify_and_promote_reporters.py:908` | `_get_non_verified_reporter_ids` | 10 | 14 |
 | `scripts/scoop.ts:236` | `coerceScalar` | 10 | 14 |
 | `backend/app/services/mbfc_integration.py:322` | `compute_weighted_mbfc_bias` | 10 | 13 |
 | `backend/app/services/reporter_author_page_scraper.py:105` | `_extract_person_jsonld` | 9 | 14 |
@@ -507,6 +491,7 @@ Warning-only: 176
 | `backend/app/services/reporter_outlet_repair.py:152` | `_retract_wrong_claims` | 9 | 14 |
 | `backend/rss_parser_rust/src/country_mentions.rs:188` | `rust_extract_mentioned_countries` | 9 | 14 |
 | `backend/scripts/rss_verify_reporters.py:218` | `main_async` | 9 | 14 |
+| `backend/scripts/verify_and_promote_reporters.py:694` | `_scrape_and_promote` | 10 | 13 |
 | `backend/app/api/routes/entity_research.py:597` | `research_source_batch` | 8 | 14 |
 | `backend/app/database.py:1231` | `_do` | 8 | 14 |
 | `backend/app/services/atlas_entity.py:1060` | `list_atlas_index` | 9 | 13 |
@@ -515,7 +500,7 @@ Warning-only: 176
 | `backend/app/services/reporter_indexer.py:1176` | `_fetch_wikidata_journalist_pairs` | 9 | 13 |
 | `backend/app/services/source_url_guard.py:80` | `normalize_site_url` | 9 | 13 |
 | `backend/app/services/verification_agent.py:386` | `_search_sources` | 8 | 14 |
-| `backend/scripts/verify_and_promote_reporters.py:168` | `_try_curl_cffi_scrape` | 10 | 12 |
+| `backend/scripts/verify_and_promote_reporters.py:607` | `_apply_direct_cffi_match` | 10 | 12 |
 | `frontend/lib/api.ts:2162` | `<anonymous>` | 9 | 13 |
 | `backend/app/api/routes/similarity.py:20` | `get_related_articles` | 10 | 11 |
 | `backend/app/scripts/replay_evidence_corpus.py:85` | `validate_corpus` | 10 | 11 |
@@ -536,7 +521,7 @@ Warning-only: 176
 | `backend/app/vector_store.py:684` | `find_similar_by_id` | 10 | 11 |
 | `backend/scripts/import_mbfc.py:61` | `crosswalk` | 9 | 12 |
 | `backend/scripts/plan_reporter_source_enrichment.py:409` | `summarize_source_backlog` | 10 | 11 |
-| `backend/scripts/verify_and_promote_reporters.py:941` | `main_async` | 9 | 12 |
+| `backend/scripts/verify_and_promote_reporters.py:243` | `_discover_author_urls_for_reporter` | 9 | 12 |
 | `frontend/app/page.tsx:814` | `<anonymous>` | 10 | 11 |
 | `frontend/components/article-detail-modal.tsx:1144` | `<anonymous>` | 8 | 13 |
 | `frontend/lib/globe-live-data.ts:152` | `buildLocalLensFromArticles` | 10 | 11 |
@@ -604,7 +589,7 @@ Warning-only: 176
 | `backend/app/services/funding_researcher.py:595` | `_extract_ownership_from_text` | 9 | 9 |
 | `backend/app/services/reporter_confidence_scorer.py:217` | `is_author_profile_url` | 9 | 9 |
 | `backend/news_research_agent.py:1962` | `_research_stream_impl` | 9 | 9 |
-| `backend/scripts/verify_and_promote_reporters.py:360` | `_record_supporting_evidence` | 10 | 8 |
+| `backend/scripts/verify_and_promote_reporters.py:911` | `_verification_summary` | 9 | 9 |
 | `backend/scripts/verify_reporter_intelligence.py:103` | `_is_combined_byline_name` | 9 | 9 |
 | `backend/app/api/routes/wiki.py:394` | `_build_source_card` | 9 | 8 |
 | `backend/app/proof_suite/runner.py:134` | `assert_snapshot_pinned_truth` | 9 | 8 |
@@ -618,6 +603,8 @@ Warning-only: 176
 | `backend/app/services/reporter_public_records.py:770` | `build_reporter_activity_summary` | 9 | 8 |
 | `backend/app/services/source_credibility.py:346` | `_compute_source_network_diversity` | 9 | 8 |
 | `backend/rss_parser_rust/src/topics.rs:123` | `normalize_keyword` | 9 | 8 |
+| `backend/scripts/verify_and_promote_reporters.py:408` | `_rss_item_record` | 9 | 8 |
+| `backend/scripts/verify_and_promote_reporters.py:549` | `_career_organization_matches` | 9 | 8 |
 | `frontend/app/saved/page.tsx:151` | `CardActionButtons` | 9 | 8 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:532` | `LlmEntryCard` | 9 | 8 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:254` | `QuickFacts` | 9 | 8 |
@@ -636,6 +623,7 @@ Warning-only: 176
 | `frontend/lib/api.ts:3427` | `fetchLiveBrowseIndex` | 9 | 8 |
 | `scripts/scoop.ts:522` | `runSchemaCommand` | 9 | 8 |
 | `backend/news_research_agent.py:408` | `_track_search_result_reference` | 9 | 7 |
+| `backend/scripts/verify_and_promote_reporters.py:331` | `_record_supporting_evidence` | 9 | 7 |
 | `frontend/app/search/page.tsx:1638` | `handleDeleteChats` | 9 | 7 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:357` | `SourcePageBody` | 9 | 7 |
 | `frontend/lib/api.ts:569` | `<anonymous>` | 10 | 6 |
