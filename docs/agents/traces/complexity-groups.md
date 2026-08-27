@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 487
-Files with hard violations: 195
+Hard violations: 486
+Files with hard violations: 194
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -101,7 +101,6 @@ Files with hard violations: 195
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `backend/app/core/profiling.py` | 2 | 12 | 19 |
-| `backend/app/services/reporter_author_page_scraper.py` | 1 | 39 | 80 |
 | `backend/app/api/routes/stream.py` | 1 | 36 | 66 |
 | `backend/scripts/wikidata_verify_strong.py` | 1 | 36 | 75 |
 | `backend/app/services/atlas_export.py` | 1 | 32 | 57 |
@@ -1070,12 +1069,6 @@ Files with hard violations: 195
 |---:|---|---:|---:|
 | 477 | `get_bottleneck_summary` | 11 | 19 |
 | 267 | `get_summary` | 12 | 16 |
-
-### `backend/app/services/reporter_author_page_scraper.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 135 | `scrape_author_profile` | 39 | 80 |
 
 ### `backend/app/api/routes/stream.py`
 
