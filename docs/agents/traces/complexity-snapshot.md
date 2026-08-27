@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `7ce120d583201a92fc581c165a23411cb6b3034e`
+Commit: `36868016d2282ea5f5fdac0c070e3896f3120168`
 
-Files: 602
-Functions: 7664
+Files: 566
+Functions: 7483
 Parse errors: 0
 CC max/p95: 59 / 12
 Cognitive max/p95: 100 / 13
-Hard violations: 490
-Warning-only: 177
+Hard violations: 471
+Warning-only: 173
 
 ## Hard violations
 
@@ -61,7 +61,6 @@ Warning-only: 177
 | `frontend/lib/api.ts:2054` | `pumpStreamEvents` | 16 | 41 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:65` | `IntelligenceAtlasWorkspace` | 27 | 24 |
 | `frontend/features/intelligence-atlas/atlas-entity-list.tsx:49` | `AtlasEntityList` | 27 | 21 |
-| `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts:200` | `knownValueEvidence` | 27 | 19 |
 | `backend/app/services/reporter_name_splitter.py:80` | `split_byline` | 24 | 39 |
 | `backend/app/api/routes/debug.py:135` | `get_source_debug_data` | 26 | 32 |
 | `backend/app/services/evidence_ingest.py:612` | `ingest_wikidata_ownership_claims` | 18 | 39 |
@@ -71,12 +70,9 @@ Warning-only: 177
 | `backend/app/services/atlas_evidence_projection.py:223` | `evidence_refs_for_claims` | 23 | 38 |
 | `backend/app/services/news_research.py:23` | `load_articles_for_research` | 25 | 37 |
 | `backend/app/core/config.py:251` | `check_llamacpp_server` | 25 | 34 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:190` | `unsafeDirectValue` | 25 | 32 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:246` | `dictionaryValueTypes` | 25 | 30 |
 | `backend/app/services/source_ledger.py:63` | `build_source_ledger` | 25 | 29 |
 | `backend/scripts/reporter_source_verifier.py:153` | `validate_source_profile_async` | 25 | 24 |
 | `frontend/features/intelligence-atlas/atlas-graph.tsx:327` | `<anonymous>` | 25 | 24 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:51` | `createTypeEnvironment` | 23 | 37 |
 | `backend/app/data/rss_sources.py:18` | `get_rss_sources` | 15 | 37 |
 | `backend/scripts/curate_wikidata_qids.py:169` | `main` | 24 | 34 |
 | `backend/scripts/promote_byline_verified.py:51` | `main_async` | 24 | 33 |
@@ -91,7 +87,6 @@ Warning-only: 177
 | `backend/app/api/routes/research.py:131` | `generate` | 23 | 34 |
 | `backend/app/services/reporter_profile_store.py:35` | `_derive_political_leaning_from_profile` | 23 | 28 |
 | `backend/app/services/atlas_graph_helpers.py:122` | `_node_matches` | 23 | 26 |
-| `frontend/tools/oxlint/thesis/index.mjs:167` | `CallExpression` | 23 | 14 |
 | `frontend/app/wiki/reporter/[id]/reporter-wiki-view.tsx:383` | `ReporterWikiView` | 23 | 12 |
 | `frontend/components/article-detail-modal.tsx:122` | `LanguageForensicsCard` | 23 | 11 |
 | `backend/app/services/ad_supply_transparency.py:268` | `build_sellers_json_summary` | 22 | 34 |
@@ -99,11 +94,9 @@ Warning-only: 177
 | `backend/app/api/routes/news.py:845` | `get_sources` | 20 | 33 |
 | `backend/scripts/measure_wiki_profile_coverage.py:388` | `main_async` | 22 | 29 |
 | `backend/scripts/backfill_article_author_links.py:327` | `_load_groups` | 16 | 33 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:340` | `classifyWideningTarget` | 22 | 25 |
 | `backend/app/services/evidence_policy.py:249` | `evaluate_acceptance` | 22 | 24 |
 | `frontend/app/search/page.tsx:2165` | `<anonymous>` | 22 | 18 |
 | `frontend/components/cluster-detail-modal.tsx:1148` | `ClusterDetailModalContent` | 22 | 18 |
-| `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts:52` | `isBroadRecordType` | 22 | 14 |
 | `frontend/components/credibility-badge.tsx:20` | `CredibilityBadge` | 22 | 10 |
 | `backend/scripts/measure_wiki_profile_coverage.py:65` | `_select_sources` | 16 | 32 |
 | `backend/app/services/primary_source_adapters.py:286` | `parse_article_html` | 15 | 32 |
@@ -123,7 +116,6 @@ Warning-only: 177
 | `frontend/lib/highlight-store.ts:115` | `mergeHighlights` | 20 | 27 |
 | `backend/tests/test_atlas_phase2_projection.py:155` | `test_ownership_edges_populate_from_accepted_relationships` | 20 | 26 |
 | `frontend/app/saved/page.tsx:411` | `SavedArticlesPage` | 20 | 25 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:411` | `classifyAliasBroadTarget` | 20 | 25 |
 | `backend/scripts/reporter_source_verifier.py:248` | `extract_reporter_from_article` | 20 | 24 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:63` | `SourceIntelligenceOperations` | 20 | 13 |
 | `frontend/components/article-inline-embed.tsx:23` | `buildNewsArticle` | 20 | 8 |
@@ -216,7 +208,6 @@ Warning-only: 177
 | `backend/app/api/routes/entity_research.py:503` | `research_organization` | 16 | 16 |
 | `backend/app/services/entity_wiki_service.py:669` | `_score_reporter_candidate` | 16 | 16 |
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts:95` | `parseAtlasQueryState` | 16 | 15 |
-| `frontend/tools/oxlint/anti-slop/rules/no-unknown-returns.ts:42` | `resolvesToUnknown` | 16 | 15 |
 | `backend/app/services/gdelt_query.py:196` | `_normalize_context_article` | 16 | 14 |
 | `frontend/lib/news-lens.ts:70` | `sourceMatchesLens` | 16 | 14 |
 | `backend/app/proof_suite/runner.py:94` | `assert_snapshot_pinned_truth` | 16 | 13 |
@@ -257,7 +248,6 @@ Warning-only: 177
 | `backend/app/services/primary_source_adapters.py:140` | `_gleif_item_record` | 15 | 11 |
 | `frontend/app/debug/page.tsx:1645` | `PerformanceReportCard` | 15 | 11 |
 | `frontend/app/wiki/reporters/page.tsx:126` | `ReporterDirectoryPage` | 15 | 10 |
-| `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts:263` | `widenedBinding` | 15 | 9 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:332` | `StorageTab` | 15 | 7 |
 | `frontend/lib/api.ts:1684` | `fetchDatabaseDebugArticles` | 15 | 7 |
 | `backend/app/services/hybrid_search.py:182` | `search` | 14 | 22 |
@@ -301,7 +291,6 @@ Warning-only: 177
 | `frontend/lib/api.ts:4885` | `fetchBlindspotViewer` | 14 | 8 |
 | `frontend/components/grid-view.tsx:921` | `<anonymous>` | 14 | 7 |
 | `frontend/lib/api.ts:1786` | `<anonymous>` | 14 | 7 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:480` | `isKnownEvidenceExpression` | 14 | 4 |
 | `backend/app/api/routes/news.py:596` | `get_browse_index` | 13 | 20 |
 | `backend/app/services/evidence_ingest.py:1082` | `ingest_edgar_subsidiaries` | 13 | 20 |
 | `backend/scripts/verify_and_promote_reporters.py:232` | `_discover_author_urls_for_reporter` | 13 | 20 |
@@ -331,7 +320,6 @@ Warning-only: 177
 | `backend/app/services/funding_researcher.py:765` | `_resolve_wikidata_labels` | 13 | 15 |
 | `backend/app/services/image_extraction.py:303` | `fetch_og_image` | 13 | 15 |
 | `backend/scripts/backfill_article_author_links.py:111` | `_clean_author_names` | 13 | 15 |
-| `frontend/tools/oxlint/thesis/index.mjs:57` | `hasDescendantElement` | 13 | 15 |
 | `backend/app/services/atlas_entity.py:822` | `_organization_entity_details` | 13 | 14 |
 | `backend/app/services/funding_researcher.py:644` | `_search_propublica_nonprofit` | 13 | 14 |
 | `backend/app/services/funding_researcher.py:1216` | `_ai_enhance_org_data` | 13 | 14 |
@@ -391,7 +379,6 @@ Warning-only: 177
 | `backend/app/services/littlesis_integration.py:319` | `cross_reference_entities_with_reporters` | 9 | 18 |
 | `backend/app/services/reporter_awards.py:104` | `_search_award_data` | 9 | 18 |
 | `backend/news_research_agent.py:702` | `_execute_tool_call_with_fallbacks` | 9 | 18 |
-| `frontend/tools/oxlint/anti-slop/shared/lexical-type-parameters.ts:35` | `lexicalTypeParameterNames` | 12 | 15 |
 | `backend/app/services/ad_supply_transparency.py:154` | `parse_sellers_json` | 12 | 14 |
 | `backend/app/services/entity_wiki_service.py:424` | `_resolve_labels` | 12 | 14 |
 | `backend/app/services/primary_source_adapters.py:844` | `ingest_usaspending_records` | 12 | 14 |
@@ -425,12 +412,9 @@ Warning-only: 177
 | `backend/scripts/enrich_local_reporter_author_pages.py:310` | `_barrier_from_result` | 12 | 11 |
 | `frontend/app/search/page.tsx:230` | `<anonymous>` | 12 | 11 |
 | `frontend/components/article-detail-modal.tsx:1288` | `ModalFactCheckDialog` | 12 | 11 |
-| `frontend/tools/oxlint/anti-slop/rules/no-module-mocking.ts:51` | `moduleMockCall` | 12 | 11 |
 | `frontend/app/debug/page.tsx:1184` | `RssParserCard` | 12 | 10 |
 | `frontend/lib/performance-logger.ts:285` | `logStreamEvent` | 12 | 10 |
 | `frontend/components/highlight-toolbar.tsx:38` | `<anonymous>` | 12 | 9 |
-| `frontend/tools/oxlint/anti-slop/rules/no-object-parameters.ts:52` | `resolvesToObject` | 12 | 9 |
-| `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts:143` | `isDefinitelyNarrowerRecordType` | 12 | 9 |
 | `frontend/lib/api.ts:63` | `rewriteRemoteBackendUrl` | 12 | 7 |
 | `frontend/lib/api.ts:1778` | `fetchStartupMetrics` | 12 | 6 |
 | `frontend/app/debug/page.tsx:886` | `CacheDeltaCard` | 12 | 5 |
@@ -493,9 +477,6 @@ Warning-only: 177
 | `frontend/app/search/page.tsx:979` | `ResearchSidePanels` | 11 | 5 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:363` | `WikiIndexCard` | 11 | 5 |
 | `frontend/components/reading-queue-sidebar.tsx:621` | `ArticleDetailMain` | 11 | 5 |
-| `frontend/tools/oxlint/thesis/index.mjs:119` | `isFragileMapKeyExpression` | 11 | 4 |
-| `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts:122` | `isDefinitelyObjectType` | 11 | 3 |
-| `frontend/tools/oxlint/thesis/index.mjs:95` | `isMapCallback` | 11 | 2 |
 | `backend/app/database.py:1188` | `init_db` | 10 | 16 |
 | `backend/app/services/reporter_indexer.py:185` | `_create_article_author_links` | 10 | 16 |
 | `backend/app/services/wiki_indexer.py:204` | `_upsert_organization` | 10 | 16 |
@@ -545,7 +526,6 @@ Warning-only: 177
 | `backend/app/services/verification_agent.py:386` | `_search_sources` | 8 | 14 |
 | `backend/scripts/verify_and_promote_reporters.py:168` | `_try_curl_cffi_scrape` | 10 | 12 |
 | `frontend/lib/api.ts:2162` | `<anonymous>` | 9 | 13 |
-| `frontend/tools/oxlint/anti-slop/shared/lexical-type-parameters.ts:14` | `collectInferTypeParameterNames` | 8 | 14 |
 | `backend/app/api/routes/similarity.py:20` | `get_related_articles` | 10 | 11 |
 | `backend/app/scripts/replay_evidence_corpus.py:85` | `validate_corpus` | 10 | 11 |
 | `backend/app/scripts/replay_evidence_corpus.py:289` | `_review_claims` | 7 | 14 |
@@ -624,7 +604,6 @@ Warning-only: 177
 | `frontend/lib/api.ts:3318` | `fetchNewsPaginated` | 10 | 9 |
 | `frontend/lib/api.ts:3359` | `fetchCachedNewsPaginated` | 10 | 9 |
 | `frontend/lib/api.ts:5570` | `fetchWikiSources` | 10 | 9 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:383` | `isBroadMappedKey` | 10 | 9 |
 | `backend/app/models/atlas.py:120` | `fill_exact_relationship_contract` | 9 | 9 |
 | `backend/app/services/atlas_graph.py:225` | `_filter_graph` | 9 | 9 |
 | `backend/app/services/cloudflare_fetcher.py:68` | `classify_access_barrier` | 9 | 9 |
@@ -661,14 +640,12 @@ Warning-only: 177
 | `frontend/hooks/useLiveNewsPreferences.ts:14` | `loadPreferences` | 10 | 7 |
 | `frontend/lib/api.ts:3397` | `fetchBrowseIndex` | 9 | 8 |
 | `frontend/lib/api.ts:3427` | `fetchLiveBrowseIndex` | 9 | 8 |
-| `frontend/tools/oxlint/thesis/index.mjs:216` | `JSXElement` | 9 | 8 |
 | `scripts/scoop.ts:522` | `runSchemaCommand` | 9 | 8 |
 | `backend/news_research_agent.py:408` | `_track_search_result_reference` | 9 | 7 |
 | `frontend/app/search/page.tsx:1638` | `handleDeleteChats` | 9 | 7 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:357` | `SourcePageBody` | 9 | 7 |
 | `frontend/lib/api.ts:569` | `<anonymous>` | 10 | 6 |
 | `frontend/lib/performance-logger.ts:522` | `flush` | 10 | 6 |
-| `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts:174` | `aliasSubstitution` | 9 | 7 |
 | `scripts/scoop.ts:802` | `main` | 9 | 7 |
 | `backend/app/vector_store.py:243` | `_get_query_batches` | 9 | 6 |
 | `backend/rss_parser_rust/src/feed_rank.rs:115` | `has_real_image` | 9 | 6 |
