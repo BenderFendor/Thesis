@@ -1,0 +1,43 @@
+name: RSS ingestion regression
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - "backend/app/services/rss_ingestion.py"
+      - "backend/tests/test_rss_readiness.py"
+      - "backend/tests/test_rss_resource_limits.py"
+      - ".github/workflows/rss-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rss-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+      PYTHONPATH: .
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend test environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest pytest-asyncio aiosqlite
+      - name: Compile RSS ingestion
+        run: python -m py_compile app/services/rss_ingestion.py
+      - name: Run focused RSS regressions
+        run: pytest -q tests/test_rss_readiness.py tests/test_rss_resource_limits.py
