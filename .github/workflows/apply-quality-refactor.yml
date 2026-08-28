@@ -4,7 +4,7 @@ on:
   push:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths:
-      - ".github/quality-refactor-payload.b64"
+      - ".github/quality-refactor-payload.patch.gz"
       - ".github/workflows/apply-quality-refactor.yml"
   workflow_dispatch:
 
@@ -23,12 +23,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload=.github/quality-refactor-payload.b64
+          payload=.github/quality-refactor-payload.patch.gz
           if [[ ! -f "$payload" ]]; then
             echo "No payload; nothing to apply."
             exit 0
           fi
-          base64 --decode "$payload" | gzip --decompress > /tmp/quality-refactor.patch
+          gzip --decompress --stdout "$payload" > /tmp/quality-refactor.patch
           git apply --check /tmp/quality-refactor.patch
           git apply /tmp/quality-refactor.patch
           rm "$payload"
