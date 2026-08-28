@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 from collections import defaultdict
-from datetime import datetime, UTC
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import bindparam, update
@@ -55,6 +56,17 @@ class EmbeddingArticlePayload(BatchArticlePayload):
     """Embedding Article Payload."""
 
     article_id: int
+
+
+@dataclass(slots=True)
+class _EmbeddingPlan:
+    payloads: list[EmbeddingArticlePayload] = field(default_factory=list)
+    chroma_updates: list[dict[str, Any]] = field(default_factory=list)
+    vector_deletes: list[str] = field(default_factory=list)
+
+    @property
+    def has_queue_work(self) -> bool:
+        return bool(self.payloads or self.vector_deletes)
 
 
 def _get_session_factory() -> Any:
@@ -129,133 +141,176 @@ def _build_article_values(article: NewsArticle, source_info: dict[str, Any]) -> 
     }
 
 
+def _unique_articles_by_url(articles: list[NewsArticle]) -> dict[str, NewsArticle]:
+    unique_articles: dict[str, NewsArticle] = {}
+    for article in articles:
+        if article.link:
+            unique_articles.setdefault(article.link, article)
+    return unique_articles
+
+
+def _article_upsert_statement(payloads: list[dict[str, Any]]) -> Any:
+    insert_stmt = insert(ArticleRecord).values(payloads)
+    return insert_stmt.on_conflict_do_update(
+        index_elements=[ArticleRecord.url],
+        set_={
+            "title": insert_stmt.excluded.title,
+            "summary": insert_stmt.excluded.summary,
+            "content": insert_stmt.excluded.content,
+            "image_url": insert_stmt.excluded.image_url,
+            "published_at": insert_stmt.excluded.published_at,
+            "category": insert_stmt.excluded.category,
+            "source": insert_stmt.excluded.source,
+            "source_id": insert_stmt.excluded.source_id,
+            "country": insert_stmt.excluded.country,
+            "credibility": insert_stmt.excluded.credibility,
+            "bias": insert_stmt.excluded.bias,
+            "author": insert_stmt.excluded.author,
+            "authors": insert_stmt.excluded.authors,
+            "author_urls": insert_stmt.excluded.author_urls,
+            "tags": insert_stmt.excluded.tags,
+            "mentioned_countries": insert_stmt.excluded.mentioned_countries,
+            "updated_at": insert_stmt.excluded.updated_at,
+        },
+    ).returning(
+        ArticleRecord.id,
+        ArticleRecord.url,
+        ArticleRecord.chroma_id,
+        ArticleRecord.embedding_generated,
+        ArticleRecord.source,
+        ArticleRecord.category,
+        ArticleRecord.country,
+        ArticleRecord.published_at,
+        ArticleRecord.title,
+        ArticleRecord.summary,
+        ArticleRecord.content,
+    )
+
+
+async def _upsert_articles(
+    session: Any,
+    unique_articles: dict[str, NewsArticle],
+    source_info: dict[str, Any],
+) -> list[Any]:
+    payloads = [
+        _build_article_values(article, source_info) for article in unique_articles.values()
+    ]
+    result = await session.execute(_article_upsert_statement(payloads))
+    return list(result.fetchall())
+
+
+def _assign_persisted_ids(
+    unique_articles: dict[str, NewsArticle],
+    rows: list[Any],
+) -> None:
+    url_to_row = {row.url: row for row in rows}
+    for url, article in unique_articles.items():
+        row = url_to_row.get(url)
+        if row:
+            article.id = row.id
+
+
+def _embedding_payload(row: Any, source_info: dict[str, Any]) -> EmbeddingArticlePayload:
+    return {
+        "article_id": row.id,
+        "chroma_id": f"article_{row.id}",
+        "title": row.title,
+        "summary": row.summary or "",
+        "content": row.content or row.summary or "",
+        "metadata": {
+            "source": row.source,
+            "category": row.category or source_info.get("category", "general"),
+            "published": row.published_at.isoformat() if row.published_at else None,
+            "country": row.country or source_info.get("country", "Unknown"),
+            "url": row.url,
+        },
+    }
+
+
+def _plan_embedding_work(
+    rows: list[Any],
+    unique_articles: dict[str, NewsArticle],
+    source_info: dict[str, Any],
+) -> _EmbeddingPlan:
+    plan = _EmbeddingPlan()
+    for row in rows:
+        desired_chroma_id = f"article_{row.id}"
+        chroma_changed = row.chroma_id != desired_chroma_id
+        if chroma_changed:
+            if row.chroma_id:
+                plan.vector_deletes.append(row.chroma_id)
+            plan.chroma_updates.append({"b_id": row.id, "b_chroma_id": desired_chroma_id})
+        if (not row.embedding_generated or chroma_changed) and row.url in unique_articles:
+            plan.payloads.append(_embedding_payload(row, source_info))
+    return plan
+
+
+async def _apply_chroma_updates(session: Any, updates: list[dict[str, Any]]) -> None:
+    if not updates:
+        return
+    update_stmt = (
+        update(ArticleRecord.__table__)
+        .where(ArticleRecord.__table__.c.id == bindparam("b_id"))
+        .values(chroma_id=bindparam("b_chroma_id"))
+    )
+    await session.execute(update_stmt, updates)
+
+
+def _queue_embedding_work(plan: _EmbeddingPlan) -> None:
+    if not plan.has_queue_work:
+        return
+    try:
+        from app.core.tracing import get_tracer
+
+        tracer = get_tracer("scoop-backend")
+        with tracer.start_as_current_span("vector_store_batch_ops") as vs_span:
+            vs_span.set_attribute("embedding_payload_count", len(plan.payloads))
+            vs_span.set_attribute("vector_delete_count", len(plan.vector_deletes))
+            embedding_generation_queue.put_nowait((plan.payloads, plan.vector_deletes))
+    except asyncio.QueueFull:
+        logger.warning(
+            "Embedding queue full; dropping %s embeddings",
+            len(plan.payloads),
+        )
+
+
+async def _persist_article_batch(
+    session: Any,
+    articles: list[NewsArticle],
+    source_info: dict[str, Any],
+    vector_store_available: bool,
+) -> None:
+    unique_articles = _unique_articles_by_url(articles)
+    if not unique_articles:
+        return
+    rows = await _upsert_articles(session, unique_articles, source_info)
+    _assign_persisted_ids(unique_articles, rows)
+    plan = (
+        _plan_embedding_work(rows, unique_articles, source_info)
+        if vector_store_available
+        else _EmbeddingPlan()
+    )
+    await _apply_chroma_updates(session, plan.chroma_updates)
+    await session.commit()
+    if vector_store_available:
+        _queue_embedding_work(plan)
+
+
 async def _persist_articles_async(articles: list[NewsArticle], source_info: dict[str, Any]) -> None:
     if not articles:
         return
     if not _database_enabled():
         logger.info("Database disabled; skipping persistence for %s", source_info)
         return
-    vector_store = get_vector_store()
+    vector_store_available = get_vector_store() is not None
     async with _get_session_factory()() as session:
         try:
-            unique_articles: dict[str, NewsArticle] = {}
-            for article in articles:
-                if article.link:
-                    unique_articles.setdefault(article.link, article)
-
-            if not unique_articles:
-                return
-
-            payloads = [
-                _build_article_values(article, source_info) for article in unique_articles.values()
-            ]
-
-            insert_stmt = insert(ArticleRecord).values(payloads)
-            upsert_stmt = insert_stmt.on_conflict_do_update(
-                index_elements=[ArticleRecord.url],
-                set_={
-                    "title": insert_stmt.excluded.title,
-                    "summary": insert_stmt.excluded.summary,
-                    "content": insert_stmt.excluded.content,
-                    "image_url": insert_stmt.excluded.image_url,
-                    "published_at": insert_stmt.excluded.published_at,
-                    "category": insert_stmt.excluded.category,
-                    "source": insert_stmt.excluded.source,
-                    "source_id": insert_stmt.excluded.source_id,
-                    "country": insert_stmt.excluded.country,
-                    "credibility": insert_stmt.excluded.credibility,
-                    "bias": insert_stmt.excluded.bias,
-                    "author": insert_stmt.excluded.author,
-                    "authors": insert_stmt.excluded.authors,
-                    "author_urls": insert_stmt.excluded.author_urls,
-                    "tags": insert_stmt.excluded.tags,
-                    "mentioned_countries": insert_stmt.excluded.mentioned_countries,
-                    "updated_at": insert_stmt.excluded.updated_at,
-                },
-            ).returning(
-                ArticleRecord.id,
-                ArticleRecord.url,
-                ArticleRecord.chroma_id,
-                ArticleRecord.embedding_generated,
-                ArticleRecord.source,
-                ArticleRecord.category,
-                ArticleRecord.country,
-                ArticleRecord.published_at,
-                ArticleRecord.title,
-                ArticleRecord.summary,
-                ArticleRecord.content,
+            await _persist_article_batch(
+                session,
+                articles,
+                source_info,
+                vector_store_available,
             )
-
-            result = await session.execute(upsert_stmt)
-            rows = result.fetchall()
-
-            url_to_row = {row.url: row for row in rows}
-            for url, article in unique_articles.items():
-                row = url_to_row.get(url)
-                if row:
-                    article.id = row.id
-
-            embedding_payloads: list[EmbeddingArticlePayload] = []
-            chroma_updates: list[dict[str, Any]] = []
-            vector_deletes: list[str] = []
-
-            if vector_store:
-                for row in rows:
-                    desired_chroma_id = f"article_{row.id}"
-                    chroma_changed = row.chroma_id != desired_chroma_id
-                    needs_embedding = not row.embedding_generated or chroma_changed
-
-                    if chroma_changed:
-                        if row.chroma_id:
-                            vector_deletes.append(row.chroma_id)
-                        chroma_updates.append({"b_id": row.id, "b_chroma_id": desired_chroma_id})
-
-                    if needs_embedding:
-                        source_article = unique_articles.get(row.url)
-                        if source_article is None:
-                            continue
-                        metadata_payload = {
-                            "source": row.source,
-                            "category": row.category or source_info.get("category", "general"),
-                            "published": row.published_at.isoformat() if row.published_at else None,
-                            "country": row.country or source_info.get("country", "Unknown"),
-                            "url": row.url,
-                        }
-                        embedding_payloads.append(
-                            {
-                                "article_id": row.id,
-                                "chroma_id": desired_chroma_id,
-                                "title": row.title,
-                                "summary": row.summary or "",
-                                "content": (row.content or row.summary or ""),
-                                "metadata": metadata_payload,
-                            }
-                        )
-
-                if chroma_updates:
-                    update_stmt = (
-                        update(ArticleRecord.__table__)
-                        .where(ArticleRecord.__table__.c.id == bindparam("b_id"))
-                        .values(chroma_id=bindparam("b_chroma_id"))
-                    )
-                    await session.execute(update_stmt, chroma_updates)
-
-            await session.commit()
-
-            if vector_store and (embedding_payloads or vector_deletes):
-                try:
-                    from app.core.tracing import get_tracer
-
-                    tracer = get_tracer("scoop-backend")
-                    with tracer.start_as_current_span("vector_store_batch_ops") as vs_span:
-                        vs_span.set_attribute("embedding_payload_count", len(embedding_payloads))
-                        vs_span.set_attribute("vector_delete_count", len(vector_deletes))
-                        embedding_generation_queue.put_nowait((embedding_payloads, vector_deletes))
-                except asyncio.QueueFull:
-                    logger.warning(
-                        "Embedding queue full; dropping %s embeddings",
-                        len(embedding_payloads),
-                    )
         except Exception as exc:  # pragma: no cover - critical logging
             await session.rollback()
             logger.error(
@@ -319,6 +374,71 @@ async def article_persistence_worker() -> None:
             article_persistence_queue.task_done()
 
 
+def _drain_embedding_batch(
+    payloads: list[EmbeddingArticlePayload],
+    delete_ids: list[str],
+) -> int:
+    drained = 1
+    while len(payloads) < settings.embedding_batch_size and not embedding_generation_queue.empty():
+        try:
+            extra_payloads, extra_deletes = embedding_generation_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        payloads.extend(extra_payloads)
+        delete_ids.extend(extra_deletes)
+        drained += 1
+    return drained
+
+
+def _delete_vectors(vector_store: Any, delete_ids: list[str]) -> None:
+    for chroma_id in delete_ids:
+        try:
+            vector_store.delete_article(chroma_id)
+        except Exception as chroma_error:
+            logger.error(
+                "Vector store delete failed for %s: %s",
+                chroma_id,
+                chroma_error,
+            )
+
+
+async def _mark_embeddings_generated(payloads: list[EmbeddingArticlePayload]) -> None:
+    article_ids = [item["article_id"] for item in payloads]
+    async with _get_session_factory()() as session:
+        stmt = (
+            update(ArticleRecord)
+            .where(ArticleRecord.id.in_(article_ids))
+            .values(embedding_generated=True)
+        )
+        await session.execute(stmt)
+        await session.commit()
+
+
+async def _apply_embedding_rate_limit(payload_count: int) -> None:
+    if settings.embedding_max_per_minute <= 0:
+        return
+    delay = payload_count * 60 / max(1, settings.embedding_max_per_minute)
+    if delay > 0:
+        await asyncio.sleep(delay)
+
+
+async def _process_embedding_batch(
+    payloads: list[EmbeddingArticlePayload],
+    delete_ids: list[str],
+) -> None:
+    vector_store = get_vector_store()
+    if vector_store is None:
+        logger.warning("Vector store unavailable; skipping embedding batch")
+        return
+    _delete_vectors(vector_store, delete_ids)
+    if not payloads:
+        return
+    added_count = vector_store.batch_add_articles(cast(list[BatchArticlePayload], payloads))
+    if added_count:
+        await _mark_embeddings_generated(payloads)
+    await _apply_embedding_rate_limit(len(payloads))
+
+
 async def embedding_generation_worker() -> None:
     """Embedding Generation Worker."""
     if not _database_enabled():
@@ -328,52 +448,8 @@ async def embedding_generation_worker() -> None:
         payloads, delete_ids = await embedding_generation_queue.get()
         drained = 1
         try:
-            while (
-                len(payloads) < settings.embedding_batch_size
-                and not embedding_generation_queue.empty()
-            ):
-                try:
-                    extra_payloads, extra_deletes = embedding_generation_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-                payloads.extend(extra_payloads)
-                delete_ids.extend(extra_deletes)
-                drained += 1
-
-            vector_store = get_vector_store()
-            if vector_store is None:
-                logger.warning("Vector store unavailable; skipping embedding batch")
-                continue
-
-            for chroma_id in delete_ids:
-                try:
-                    vector_store.delete_article(chroma_id)
-                except Exception as chroma_error:
-                    logger.error(
-                        "Vector store delete failed for %s: %s",
-                        chroma_id,
-                        chroma_error,
-                    )
-
-            if payloads:
-                added_count = vector_store.batch_add_articles(
-                    cast(list[BatchArticlePayload], payloads)
-                )
-                if added_count:
-                    article_ids = [item["article_id"] for item in payloads]
-                    async with _get_session_factory()() as session:
-                        stmt = (
-                            update(ArticleRecord)
-                            .where(ArticleRecord.id.in_(article_ids))
-                            .values(embedding_generated=True)
-                        )
-                        await session.execute(stmt)
-                        await session.commit()
-
-                if settings.embedding_max_per_minute > 0:
-                    delay = len(payloads) * 60 / max(1, settings.embedding_max_per_minute)
-                    if delay > 0:
-                        await asyncio.sleep(delay)
+            drained = _drain_embedding_batch(payloads, delete_ids)
+            await _process_embedding_batch(payloads, delete_ids)
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.error("Embedding worker failed: %s", exc, exc_info=True)
         finally:
