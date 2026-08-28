@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 410
-Files with hard violations: 177
+Hard violations: 407
+Files with hard violations: 176
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -33,7 +33,6 @@ Files with hard violations: 177
 | `backend/app/api/routes/wiki.py` | 4 | 17 | 22 |
 | `backend/app/services/source_research.py` | 4 | 16 | 26 |
 | `backend/app/services/source_credibility.py` | 4 | 14 | 18 |
-| `backend/app/services/evidence_export.py` | 3 | 33 | 39 |
 | `backend/tools/research_tui.py` | 3 | 30 | 50 |
 | `backend/app/services/atlas_evidence_projection.py` | 3 | 26 | 41 |
 | `backend/scripts/enrich_local_reporter_author_pages.py` | 3 | 25 | 48 |
@@ -518,14 +517,6 @@ Files with hard violations: 177
 | 129 | `_metadata_policy_signals` | 12 | 11 |
 | 620 | `_store_scores` | 10 | 18 |
 | 887 | `_calculate_recency` | 12 | 18 |
-
-### `backend/app/services/evidence_export.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 70 | `build_bundle_files` | 33 | 39 |
-| 329 | `build_relationship_proof_bundle` | 28 | 31 |
-| 41 | `validate_bods_shape` | 11 | 15 |
 
 ### `backend/tools/research_tui.py`
 
