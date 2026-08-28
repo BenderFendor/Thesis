@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -105,6 +105,58 @@ def collect_gpu_snapshot(timeout_seconds: float = 1.5) -> list[dict[str, Any]]:
     return _parse_gpu_rows(result.stdout)
 
 
+def _decode_jsonl_record(line: str) -> dict[str, Any] | None:
+    if not line.strip():
+        return None
+    try:
+        value = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _record_timestamp(record: dict[str, Any]) -> datetime | None:
+    timestamp = record.get("timestamp")
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+
+
+def _record_is_recent(record: dict[str, Any], since: datetime | None) -> bool:
+    if since is None:
+        return True
+    parsed = _record_timestamp(record)
+    return parsed is None or parsed >= since
+
+
+def _records_from_path(path: Path, since: datetime | None) -> Iterator[dict[str, Any]]:
+    if not path.exists() or not path.is_file():
+        return
+    try:
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                record = _decode_jsonl_record(line)
+                if record is not None and _record_is_recent(record, since):
+                    yield record
+    except OSError:
+        return
+
+
+def _keep_latest_record(
+    records: list[tuple[str, int, dict[str, Any]]],
+    entry: tuple[str, int, dict[str, Any]],
+    limit: int,
+) -> None:
+    if len(records) < limit:
+        heapq.heappush(records, entry)
+    elif entry > records[0]:
+        heapq.heapreplace(records, entry)
+
+
 def read_jsonl_records(
     paths: Iterable[Path],
     *,
@@ -117,38 +169,10 @@ def read_jsonl_records(
     records: list[tuple[str, int, dict[str, Any]]] = []
     sequence = 0
     for path in paths:
-        if not path.exists() or not path.is_file():
-            continue
-        try:
-            with path.open(encoding="utf-8") as handle:
-                for line in handle:
-                    if not line.strip():
-                        continue
-                    try:
-                        value = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if not isinstance(value, dict):
-                        continue
-                    timestamp = value.get("timestamp")
-                    if since is not None and isinstance(timestamp, str):
-                        try:
-                            parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                        except ValueError:
-                            parsed = None
-                        if parsed is not None:
-                            if parsed.tzinfo is None:
-                                parsed = parsed.replace(tzinfo=UTC)
-                            if parsed < since:
-                                continue
-                    entry = (str(value.get("timestamp", "")), sequence, value)
-                    sequence += 1
-                    if len(records) < limit:
-                        heapq.heappush(records, entry)
-                    elif entry > records[0]:
-                        heapq.heapreplace(records, entry)
-        except OSError:
-            continue
+        for record in _records_from_path(path, since):
+            entry = (str(record.get("timestamp", "")), sequence, record)
+            sequence += 1
+            _keep_latest_record(records, entry, limit)
 
     records.sort()
     return [record for _, _, record in records]
