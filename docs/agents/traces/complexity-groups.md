@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 404
-Files with hard violations: 174
+Hard violations: 403
+Files with hard violations: 173
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -86,7 +86,6 @@ Files with hard violations: 174
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
-| `backend/app/services/contradiction_extractor.py` | 1 | 27 | 44 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
 | `backend/scripts/rss_verify_reporters.py` | 1 | 26 | 44 |
 | `backend/app/services/source_ledger.py` | 1 | 25 | 29 |
@@ -897,12 +896,6 @@ Files with hard violations: 174
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 99 | `infer_ownership_label` | 30 | 47 |
-
-### `backend/app/services/contradiction_extractor.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 81 | `build_contradiction_panel` | 27 | 44 |
 
 ### `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx`
 
