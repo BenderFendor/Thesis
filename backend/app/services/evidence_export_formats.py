@@ -21,6 +21,8 @@ class ProofBundleError(RuntimeError):
 
 
 class BundleBuildOptions(TypedDict):
+    """Keyword options required to construct proof-bundle files."""
+
     relationship: dict[str, Any]
     subject: dict[str, Any]
     object_entity: dict[str, Any]
@@ -37,7 +39,7 @@ class BundleBuildOptions(TypedDict):
 
 
 def _json_bytes(value: Any) -> bytes:
-    return (json.dumps(value, indent=2, sort_keys=True, default=str) + "\n").encode("utf-8")
+    return (json.dumps(value, indent=2, sort_keys=True, default=str) + "\n").encode()
 
 
 def _sha256(data: bytes) -> str:
@@ -343,7 +345,7 @@ def _human_report(
         f"<th>Locator</th><th>Entailment</th></tr></thead><tbody>{rows}</tbody></table>"
         "<h2>Reproduction</h2><pre>"
         f"{html.escape(proof['reproduction']['command'])}</pre></body></html>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _base_files(
