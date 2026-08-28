@@ -192,9 +192,7 @@ async def _upsert_articles(
     unique_articles: dict[str, NewsArticle],
     source_info: dict[str, Any],
 ) -> list[Any]:
-    payloads = [
-        _build_article_values(article, source_info) for article in unique_articles.values()
-    ]
+    payloads = [_build_article_values(article, source_info) for article in unique_articles.values()]
     result = await session.execute(_article_upsert_statement(payloads))
     return list(result.fetchall())
 
