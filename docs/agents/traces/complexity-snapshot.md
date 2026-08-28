@@ -1,6 +1,6 @@
 # Complexity Snapshot
 
-Commit: `c490944336b5f2f468425d46b857ce66c2571217`
+Commit: `2819d9d4af87f28772424e03451d74762407b14d`
 
 Files: 568
 Functions: 7901
@@ -409,7 +409,7 @@ Warning-only: 185
 |---|---|---:|---:|
 | `backend/app/core/llm_client.py:124` | `chat_completions_create` | 10 | 15 |
 | `backend/app/scripts/index_wiki.py:27` | `main` | 10 | 15 |
-| `backend/app/services/evidence_export_formats.py:85` | `_evidence_sources` | 10 | 15 |
+| `backend/app/services/evidence_export_formats.py:87` | `_evidence_sources` | 10 | 15 |
 | `backend/app/services/evidence_ingest.py:484` | `_handle_ownership_property` | 10 | 15 |
 | `backend/app/services/gdelt_integration.py:56` | `fetch_recent_events` | 10 | 15 |
 | `backend/app/services/reporter_indexer.py:644` | `_build_social_items` | 10 | 15 |
