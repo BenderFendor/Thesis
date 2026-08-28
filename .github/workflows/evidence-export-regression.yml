@@ -50,7 +50,7 @@ jobs:
             "asyncpg>=0.29.0" \
             "psycopg2-binary>=2.9.9"
       - name: Check formatting
-        run: ruff format --check app/services/evidence_export.py app/services/evidence_export_formats.py
+        run: ruff format --check --diff app/services/evidence_export.py app/services/evidence_export_formats.py
       - name: Check lint
         run: ruff check app/services/evidence_export.py app/services/evidence_export_formats.py
       - name: Compile evidence export modules
