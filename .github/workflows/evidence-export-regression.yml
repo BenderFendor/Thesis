@@ -1,0 +1,59 @@
+name: Evidence export regression
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - "backend/app/services/evidence_export.py"
+      - "backend/app/services/evidence_export_formats.py"
+      - "backend/tests/test_evidence_export.py"
+      - "backend/tests/test_evidence_spine_integration.py"
+      - ".github/workflows/evidence-export-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-export-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+      PYTHONPATH: .
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --quiet \
+            "ruff==0.15.22" \
+            "sqlalchemy>=2.0.35" \
+            "pydantic>=2.8.0" \
+            "fastapi>=0.110.0" \
+            "httpx>=0.25.2" \
+            "alembic>=1.13.0" \
+            "pytest>=8.0.0" \
+            "pytest-asyncio>=0.23.0" \
+            "aiosqlite>=0.20.0" \
+            "hypothesis>=6.0.0" \
+            "python-dotenv>=1.0.0" \
+            "google-genai>=0.1.0" \
+            "openai>=1.0.0" \
+            "asyncpg>=0.29.0" \
+            "psycopg2-binary>=2.9.9"
+      - name: Check formatting
+        run: ruff format --check app/services/evidence_export.py app/services/evidence_export_formats.py
+      - name: Check lint
+        run: ruff check app/services/evidence_export.py app/services/evidence_export_formats.py
+      - name: Compile evidence export modules
+        run: python -m compileall -q app/services/evidence_export.py app/services/evidence_export_formats.py
+      - name: Run proof bundle regressions
+        run: pytest -q tests/test_evidence_export.py tests/test_evidence_spine_integration.py
