@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `45e10f43a631ecc997abda2bc5718c4a6a6caf99`
+Commit: `aec0b8b30a42d0a70e2f1481deb6c99841342b3e`
 
 Files: 568
-Functions: 7921
+Functions: 7928
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 385
+Hard violations: 384
 Warning-only: 185
 
 ## Hard violations
@@ -27,7 +27,6 @@ Warning-only: 185
 | `frontend/lib/feed-ranking.ts:172` | `buildInterestProfile` | 21 | 46 |
 | `backend/scripts/reporter_source_samples.py:35` | `broad_source_sample` | 25 | 45 |
 | `backend/scripts/verify_reporter_intelligence.py:412` | `_identity_alias_audit` | 30 | 40 |
-| `backend/app/services/contradiction_extractor.py:81` | `build_contradiction_panel` | 27 | 44 |
 | `backend/scripts/rss_verify_reporters.py:122` | `verify_source_rss` | 26 | 44 |
 | `backend/scripts/measure_wiki_profile_coverage.py:201` | `_measure_source` | 29 | 39 |
 | `backend/scripts/reporter_source_verifier.py:410` | `validate_live_byline` | 29 | 39 |
