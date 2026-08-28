@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from typing import Any
+from typing import Any, Literal
 
 NEGATION_TERMS = {"no", "not", "never", "none", "without", "denied", "deny", "false"}
 STOP_WORDS = {
@@ -45,6 +45,8 @@ STOP_WORDS = {
     "would",
 }
 
+_SummaryKind = Literal["claim", "fact", "gap"]
+
 
 def _sentence_candidates(article: dict[str, Any]) -> list[str]:
     text = " ".join(
@@ -78,6 +80,126 @@ def _article_source(article: dict[str, Any]) -> str:
     return str(source) if isinstance(source, str) and source else "Unknown source"
 
 
+def _append_ranked_snippets(
+    article: dict[str, Any],
+    sentences: list[str],
+    keywords: list[str],
+    snippets_by_keyword: dict[str, list[dict[str, str]]],
+) -> None:
+    source = _article_source(article)
+    article_url = str(article.get("url") or "")
+    for sentence in sentences:
+        sentence_tokens = set(_tokens(sentence))
+        for keyword in keywords:
+            if keyword in sentence_tokens:
+                snippets_by_keyword[keyword].append(
+                    {
+                        "source": source,
+                        "article_url": article_url,
+                        "stance": "mentions",
+                        "snippet": sentence[:320],
+                    }
+                )
+
+
+def _collect_keyword_snippets(
+    articles: list[dict[str, Any]],
+) -> dict[str, list[dict[str, str]]]:
+    snippets_by_keyword: dict[str, list[dict[str, str]]] = defaultdict(list)
+    token_counts: Counter[str] = Counter()
+    for article in articles:
+        sentences = _sentence_candidates(article)
+        for sentence in sentences:
+            token_counts.update(_tokens(sentence))
+        keywords = [keyword for keyword, _count in token_counts.most_common(12)]
+        _append_ranked_snippets(article, sentences, keywords, snippets_by_keyword)
+    return snippets_by_keyword
+
+
+def _has_numeric_conflict(snippets: list[dict[str, str]]) -> bool:
+    number_sets = [_numbers(snippet["snippet"]) for snippet in snippets]
+    non_empty_numbers = [numbers for numbers in number_sets if numbers]
+    return len({tuple(sorted(numbers)) for numbers in non_empty_numbers}) > 1
+
+
+def _has_negation_conflict(snippets: list[dict[str, str]]) -> bool:
+    return len({_has_negation(snippet["snippet"]) for snippet in snippets}) > 1
+
+
+def _keyword_summary(
+    keyword: str,
+    snippets: list[dict[str, str]],
+    agreed_count: int,
+    gap_count: int,
+) -> tuple[_SummaryKind, dict[str, Any] | str] | None:
+    unique_sources = {snippet["source"] for snippet in snippets}
+    if len(unique_sources) < 2:
+        return None
+    if _has_numeric_conflict(snippets) or _has_negation_conflict(snippets):
+        return (
+            "claim",
+            {
+                "claim": f"Sources diverge on details involving {keyword}.",
+                "status": "disputed",
+                "evidence": snippets[:6],
+            },
+        )
+    if len(unique_sources) >= 3 and agreed_count < 3:
+        return (
+            "fact",
+            {
+                "claim": f"Multiple sources mention {keyword}.",
+                "evidence": snippets[:4],
+            },
+        )
+    if gap_count < 3:
+        return (
+            "gap",
+            f"Only {len(unique_sources)} sources mention {keyword}; check primary evidence before treating it as settled.",
+        )
+    return None
+
+
+def _summarize_keyword_groups(
+    snippets_by_keyword: dict[str, list[dict[str, str]]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    claims: list[dict[str, Any]] = []
+    agreed_facts: list[dict[str, Any]] = []
+    unconfirmed_gaps: list[str] = []
+    for keyword, snippets in snippets_by_keyword.items():
+        summary = _keyword_summary(keyword, snippets, len(agreed_facts), len(unconfirmed_gaps))
+        if summary is None:
+            continue
+        kind, value = summary
+        if kind == "claim":
+            claims.append(value)  # type: ignore[arg-type]
+        elif kind == "fact":
+            agreed_facts.append(value)  # type: ignore[arg-type]
+        else:
+            unconfirmed_gaps.append(value)  # type: ignore[arg-type]
+        if len(claims) >= 5:
+            break
+    return claims, agreed_facts, unconfirmed_gaps
+
+
+def _panel_result(
+    articles: list[dict[str, Any]],
+    source_names: set[str],
+    claims: list[dict[str, Any]],
+    agreed_facts: list[dict[str, Any]],
+    unconfirmed_gaps: list[str],
+) -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "reason": None,
+        "claims": claims[:5],
+        "agreed_facts": agreed_facts[:3],
+        "unconfirmed_gaps": unconfirmed_gaps[:3],
+        "source_count": len(source_names),
+        "article_count": len(articles),
+    }
+
+
 def build_contradiction_panel(cluster: dict[str, Any]) -> dict[str, Any]:
     """Build a compact contradiction-first panel from cluster articles.
 
@@ -85,7 +207,7 @@ def build_contradiction_panel(cluster: dict[str, Any]) -> dict[str, Any]:
     article snippets around the same keyword have conflicting numbers or
     negation patterns. Everything else is presented as agreement or gaps.
     """
-    articles = [a for a in cluster.get("articles") or [] if isinstance(a, dict)]
+    articles = [article for article in cluster.get("articles") or [] if isinstance(article, dict)]
     source_names = {_article_source(article) for article in articles}
     if len(source_names) < 3 or len(articles) < 3:
         return {
@@ -98,69 +220,12 @@ def build_contradiction_panel(cluster: dict[str, Any]) -> dict[str, Any]:
             "article_count": len(articles),
         }
 
-    snippets_by_keyword: dict[str, list[dict[str, str]]] = defaultdict(list)
-    token_counts: Counter[str] = Counter()
-    for article in articles:
-        candidates = _sentence_candidates(article)
-        for sentence in candidates:
-            token_counts.update(_tokens(sentence))
-        for sentence in candidates:
-            sentence_tokens = set(_tokens(sentence))
-            for keyword, _count in token_counts.most_common(12):
-                if keyword in sentence_tokens:
-                    snippets_by_keyword[keyword].append(
-                        {
-                            "source": _article_source(article),
-                            "article_url": str(article.get("url") or ""),
-                            "stance": "mentions",
-                            "snippet": sentence[:320],
-                        }
-                    )
-
-    claims: list[dict[str, Any]] = []
-    agreed_facts: list[dict[str, Any]] = []
-    unconfirmed_gaps: list[str] = []
-
-    for keyword, snippets in snippets_by_keyword.items():
-        unique_sources = {snippet["source"] for snippet in snippets}
-        if len(unique_sources) < 2:
-            continue
-
-        number_sets = [_numbers(snippet["snippet"]) for snippet in snippets]
-        non_empty_numbers = [nums for nums in number_sets if nums]
-        number_conflict = len({tuple(sorted(nums)) for nums in non_empty_numbers}) > 1
-        negation_values = {_has_negation(snippet["snippet"]) for snippet in snippets}
-        negation_conflict = len(negation_values) > 1
-
-        if number_conflict or negation_conflict:
-            claims.append(
-                {
-                    "claim": f"Sources diverge on details involving {keyword}.",
-                    "status": "disputed",
-                    "evidence": snippets[:6],
-                }
-            )
-        elif len(unique_sources) >= 3 and len(agreed_facts) < 3:
-            agreed_facts.append(
-                {
-                    "claim": f"Multiple sources mention {keyword}.",
-                    "evidence": snippets[:4],
-                }
-            )
-        elif len(unconfirmed_gaps) < 3:
-            unconfirmed_gaps.append(
-                f"Only {len(unique_sources)} sources mention {keyword}; check primary evidence before treating it as settled."
-            )
-
-        if len(claims) >= 5:
-            break
-
-    return {
-        "status": "ok",
-        "reason": None,
-        "claims": claims[:5],
-        "agreed_facts": agreed_facts[:3],
-        "unconfirmed_gaps": unconfirmed_gaps[:3],
-        "source_count": len(source_names),
-        "article_count": len(articles),
-    }
+    snippets_by_keyword = _collect_keyword_snippets(articles)
+    claims, agreed_facts, unconfirmed_gaps = _summarize_keyword_groups(snippets_by_keyword)
+    return _panel_result(
+        articles,
+        source_names,
+        claims,
+        agreed_facts,
+        unconfirmed_gaps,
+    )
