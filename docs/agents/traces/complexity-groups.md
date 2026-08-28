@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 454
-Files with hard violations: 186
+Hard violations: 439
+Files with hard violations: 180
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -31,13 +31,11 @@ Files with hard violations: 186
 | `frontend/components/cluster-detail-modal.tsx` | 5 | 22 | 29 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx` | 5 | 20 | 13 |
 | `backend/app/services/evidence_ingest.py` | 5 | 18 | 39 |
-| `backend/app/api/routes/debug.py` | 4 | 26 | 32 |
 | `frontend/tools/oxlint/thesis/index.mjs` | 4 | 23 | 15 |
 | `frontend/app/page.tsx` | 4 | 21 | 22 |
 | `backend/app/api/routes/wiki.py` | 4 | 17 | 22 |
 | `backend/app/services/source_research.py` | 4 | 16 | 26 |
 | `backend/app/services/source_credibility.py` | 4 | 14 | 18 |
-| `backend/app/database.py` | 4 | 13 | 21 |
 | `backend/app/services/evidence_export.py` | 3 | 33 | 39 |
 | `backend/tools/research_tui.py` | 3 | 30 | 50 |
 | `backend/app/services/atlas_evidence_projection.py` | 3 | 26 | 41 |
@@ -52,7 +50,6 @@ Files with hard violations: 186
 | `backend/app/services/atlas_graph.py` | 3 | 15 | 20 |
 | `backend/app/services/wiki_indexer.py` | 3 | 15 | 21 |
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
-| `backend/app/vector_store.py` | 3 | 12 | 14 |
 | `frontend/app/sources/[source]/debug/page.tsx` | 2 | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx` | 2 | 34 | 24 |
 | `backend/app/services/persistence.py` | 2 | 31 | 46 |
@@ -92,13 +89,11 @@ Files with hard violations: 186
 | `backend/app/services/source_profile_extractor.py` | 2 | 13 | 22 |
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
-| `backend/app/core/profiling.py` | 2 | 12 | 19 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
 | `backend/app/services/contradiction_extractor.py` | 1 | 27 | 44 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
 | `backend/scripts/rss_verify_reporters.py` | 1 | 26 | 44 |
-| `backend/app/core/config.py` | 1 | 25 | 34 |
 | `backend/app/services/source_ledger.py` | 1 | 25 | 29 |
 | `backend/app/services/reporter_name_splitter.py` | 1 | 24 | 39 |
 | `backend/scripts/promote_byline_verified.py` | 1 | 24 | 33 |
@@ -106,7 +101,6 @@ Files with hard violations: 186
 | `frontend/app/wiki/reporter/[id]/reporter-wiki-view.tsx` | 1 | 23 | 12 |
 | `backend/app/services/evidence_policy.py` | 1 | 22 | 24 |
 | `frontend/components/credibility-badge.tsx` | 1 | 22 | 10 |
-| `backend/app/main.py` | 1 | 21 | 23 |
 | `backend/app/services/claim_comparison.py` | 1 | 21 | 19 |
 | `backend/scripts/backfill_atlas_relationships.py` | 1 | 21 | 34 |
 | `frontend/components/reporter-profile.tsx` | 1 | 21 | 17 |
@@ -527,15 +521,6 @@ Files with hard violations: 186
 | 1082 | `ingest_edgar_subsidiaries` | 13 | 20 |
 | 1027 | `_parse_exhibit_21` | 12 | 15 |
 
-### `backend/app/api/routes/debug.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 135 | `get_source_debug_data` | 26 | 32 |
-| 395 | `get_cache_db_delta` | 13 | 17 |
-| 894 | `read_debug_log_file` | 13 | 18 |
-| 447 | `get_storage_drift` | 11 | 13 |
-
 ### `frontend/tools/oxlint/thesis/index.mjs`
 
 | line | function | CC | cognitive |
@@ -580,15 +565,6 @@ Files with hard violations: 186
 | 129 | `_metadata_policy_signals` | 12 | 11 |
 | 620 | `_store_scores` | 10 | 18 |
 | 887 | `_calculate_recency` | 12 | 18 |
-
-### `backend/app/database.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 1342 | `_is_transient_startup_error` | 12 | 21 |
-| 1436 | `article_record_to_dict` | 13 | 12 |
-| 1715 | `fetch_articles_page` | 12 | 12 |
-| 1188 | `init_db` | 10 | 16 |
 
 ### `backend/app/services/evidence_export.py`
 
@@ -701,14 +677,6 @@ Files with hard violations: 186
 | 256 | `QueueCard` | 14 | 11 |
 | 1389 | `ReadingQueueSidebar` | 14 | 15 |
 | 621 | `ArticleDetailMain` | 11 | 5 |
-
-### `backend/app/vector_store.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 755 | `search_hybrid` | 12 | 14 |
-| 544 | `batch_add_articles` | 11 | 11 |
-| 943 | `get_vector_store` | 11 | 12 |
 
 ### `frontend/app/sources/[source]/debug/page.tsx`
 
@@ -983,13 +951,6 @@ Files with hard violations: 186
 | 181 | `logEvent` | 13 | 19 |
 | 285 | `logStreamEvent` | 12 | 10 |
 
-### `backend/app/core/profiling.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 477 | `get_bottleneck_summary` | 11 | 19 |
-| 267 | `get_summary` | 12 | 16 |
-
 ### `frontend/features/intelligence-atlas/atlas-stage-shell.tsx`
 
 | line | function | CC | cognitive |
@@ -1019,12 +980,6 @@ Files with hard violations: 186
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 122 | `verify_source_rss` | 26 | 44 |
-
-### `backend/app/core/config.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 251 | `check_llamacpp_server` | 25 | 34 |
 
 ### `backend/app/services/source_ledger.py`
 
@@ -1067,12 +1022,6 @@ Files with hard violations: 186
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 20 | `CredibilityBadge` | 22 | 10 |
-
-### `backend/app/main.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 393 | `on_startup` | 21 | 23 |
 
 ### `backend/app/services/claim_comparison.py`
 
