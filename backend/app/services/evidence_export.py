@@ -25,12 +25,14 @@ from app.services.evidence_export_formats import (
     BundleBuildOptions,
     ProofBundleError,
     build_bundle_files,
-    validate_bods_shape,
+    validate_bods_shape as validate_bods_shape,
     zip_bundle,
 )
 
 
 class RelationshipProofOptions(TypedDict):
+    """Keyword options for relationship proof-bundle generation."""
+
     as_of: datetime
     known_at: datetime
     commit_sha: str
