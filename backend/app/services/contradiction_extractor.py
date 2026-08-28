@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from typing import Any, Literal
+from typing import Any
 
 NEGATION_TERMS = {"no", "not", "never", "none", "without", "denied", "deny", "false"}
 STOP_WORDS = {
@@ -44,8 +44,6 @@ STOP_WORDS = {
     "with",
     "would",
 }
-
-_SummaryKind = Literal["claim", "fact", "gap"]
 
 
 def _sentence_candidates(article: dict[str, Any]) -> list[str]:
@@ -131,33 +129,36 @@ def _keyword_summary(
     snippets: list[dict[str, str]],
     agreed_count: int,
     gap_count: int,
-) -> tuple[_SummaryKind, dict[str, Any] | str] | None:
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None]:
     unique_sources = {snippet["source"] for snippet in snippets}
     if len(unique_sources) < 2:
-        return None
+        return None, None, None
     if _has_numeric_conflict(snippets) or _has_negation_conflict(snippets):
         return (
-            "claim",
             {
                 "claim": f"Sources diverge on details involving {keyword}.",
                 "status": "disputed",
                 "evidence": snippets[:6],
             },
+            None,
+            None,
         )
     if len(unique_sources) >= 3 and agreed_count < 3:
         return (
-            "fact",
+            None,
             {
                 "claim": f"Multiple sources mention {keyword}.",
                 "evidence": snippets[:4],
             },
+            None,
         )
     if gap_count < 3:
         return (
-            "gap",
+            None,
+            None,
             f"Only {len(unique_sources)} sources mention {keyword}; check primary evidence before treating it as settled.",
         )
-    return None
+    return None, None, None
 
 
 def _summarize_keyword_groups(
@@ -167,16 +168,18 @@ def _summarize_keyword_groups(
     agreed_facts: list[dict[str, Any]] = []
     unconfirmed_gaps: list[str] = []
     for keyword, snippets in snippets_by_keyword.items():
-        summary = _keyword_summary(keyword, snippets, len(agreed_facts), len(unconfirmed_gaps))
-        if summary is None:
-            continue
-        kind, value = summary
-        if kind == "claim":
-            claims.append(value)  # type: ignore[arg-type]
-        elif kind == "fact":
-            agreed_facts.append(value)  # type: ignore[arg-type]
-        else:
-            unconfirmed_gaps.append(value)  # type: ignore[arg-type]
+        claim, fact, gap = _keyword_summary(
+            keyword,
+            snippets,
+            len(agreed_facts),
+            len(unconfirmed_gaps),
+        )
+        if claim is not None:
+            claims.append(claim)
+        if fact is not None:
+            agreed_facts.append(fact)
+        if gap is not None:
+            unconfirmed_gaps.append(gap)
         if len(claims) >= 5:
             break
     return claims, agreed_facts, unconfirmed_gaps
