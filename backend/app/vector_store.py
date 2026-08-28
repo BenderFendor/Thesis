@@ -541,86 +541,60 @@ class VectorStore:
             logger.error("Vector search failed: %s", e)
             return []
 
+    @staticmethod
+    def _batch_document(article: BatchArticlePayload) -> tuple[str, Metadata]:
+        title = article["title"] or ""
+        summary = article["summary"] or ""
+        content = article["content"]
+        text = f"{title}\n\n{summary}"
+        if content and content.strip() and content.strip() != summary.strip():
+            text += f"\n\n{content[:500]}"
+        metadata = _coerce_metadata({**article["metadata"], "title": title, "summary": summary[:200]})
+        return text, metadata
+
+    @classmethod
+    def _prepare_batch(cls, articles: list[BatchArticlePayload]) -> tuple[list[BatchArticlePayload], list[str], list[str], list[Metadata]]:
+        deduped = {article["chroma_id"]: article for article in articles}
+        unique = list(deduped.values())
+        ids: list[str] = []
+        documents: list[str] = []
+        metadatas: list[Metadata] = []
+        for article in unique:
+            document, metadata = cls._batch_document(article)
+            ids.append(article["chroma_id"])
+            documents.append(document)
+            metadatas.append(metadata)
+        return unique, ids, documents, metadatas
+
     def batch_add_articles(self, articles: list[BatchArticlePayload]) -> int:
         """Batch insert articles for better performance."""
         global _vector_store
+        unique, ids, documents, metadatas = self._prepare_batch(articles)
         try:
-            # Chroma's `upsert` still validates uniqueness of the `ids` list
-            # within a single call -- a chroma_id repeated inside one batch
-            # (e.g. the same article surfaced by overlapping RSS feeds in the
-            # same flush) raises DuplicateIDError even though upsert-by-id is
-            # otherwise idempotent across calls. Dedupe here, keeping the
-            # last payload per chroma_id, so every caller is safe.
-            deduped: dict[str, BatchArticlePayload] = {}
-            for article in articles:
-                deduped[article["chroma_id"]] = article
-            articles = list(deduped.values())
-
-            ids: list[str] = []
-            documents: list[str] = []
-            metadatas: list[Metadata] = []
-
-            for article in articles:
-                title = article["title"] or ""
-                summary = article["summary"] or ""
-                content = article["content"]
-                text_parts = [
-                    title,
-                    "\n\n",
-                    summary,
-                ]
-                if content and content.strip() and content.strip() != summary.strip():
-                    text_parts.extend(["\n\n", content[:500]])
-                text = "".join(text_parts)
-
-                ids.append(article["chroma_id"])
-                documents.append(text)
-                metadatas.append(
-                    _coerce_metadata(
-                        {
-                            **article["metadata"],
-                            "title": title,
-                            "summary": summary[:200],
-                        }
-                    )
-                )
-
-            embeddings_array = self.embedding_model.encode(
+            encoded = self.embedding_model.encode(
                 documents,
                 batch_size=min(32, max(1, len(documents))),
                 convert_to_numpy=True,
                 show_progress_bar=False,
             )
-
-            embeddings = _embeddings_to_lists(embeddings_array)
-
+            embeddings = _embeddings_to_lists(encoded)
             self.collection.upsert(
                 ids=ids,
-                embeddings=cast(
-                    "list[Sequence[float] | Sequence[int]]",
-                    embeddings,
-                ),
+                embeddings=cast("list[Sequence[float] | Sequence[int]]", embeddings),
                 documents=documents,
                 metadatas=metadatas,
             )
-
-            logger.info(f"Batch added {len(articles)} articles to vector store")
-            return len(articles)
-
-        except Exception as e:
-            error_text = str(e)
-            logger.error(
-                "Vector batch add failed: %d articles (%s)",
-                len(articles),
-                type(e).__name__,
-            )
+            logger.info("Batch added %d articles to vector store", len(unique))
+            return len(unique)
+        except Exception as exc:
+            error_text = str(exc)
+            logger.error("Vector batch add failed: %d articles (%s)", len(unique), type(exc).__name__)
             logger.info("Vector batch failure detail: %.4000s", error_text)
-            if "Connection refused" in error_text or "connect" in error_text.lower():
+            if "connection refused" in error_text.lower() or "connect" in error_text.lower():
                 _vector_store = None
-                logger.warning(
-                    "Cleared stale vector store after connection error in batch_add_articles"
-                )
+                logger.warning("Cleared stale vector store after connection error in batch_add_articles")
             return 0
+
 
     def list_articles(self, limit: int = 50, offset: int = 0) -> dict[str, object]:
         """Return a window of Chroma documents for debugging purposes."""
@@ -752,6 +726,51 @@ class VectorStore:
         """Generate embedding for a text query (for search suggestions)."""
         return _embedding_to_list(self.embedding_model.encode(query))
 
+    def _hybrid_vector_results(self, query: str, limit: int, filter_metadata: Mapping[str, object] | None) -> list[SimilarArticleResult]:
+        return self.search_similar(query, limit=limit * 2, filter_metadata=filter_metadata)
+
+    @staticmethod
+    def _bm25_fusion_scores(query: str, vector_results: Sequence[SimilarArticleResult]) -> dict[str, float]:
+        vector_ids = [result["chroma_id"] for result in vector_results]
+        docs = [{"chroma_id": result["chroma_id"], "text": result["preview"]} for result in vector_results]
+        try:
+            search = _new_bm25_search()
+            search.build_index(docs)
+            return search.get_scores_for_fusion(query, vector_ids)
+        except Exception as exc:
+            logger.debug("BM25 scoring failed, using vector-only: %s", exc)
+            return {}
+
+    @staticmethod
+    def _fused_hybrid_scores(vector_scores: dict[str, float], bm25_scores: dict[str, float], bm25_weight: float, method: str) -> list[tuple[str, float]]:
+        reciprocal_rank_fusion, combine_scores = _get_hybrid_search_helpers()
+        vector_ranking = sorted(vector_scores.items(), key=lambda item: item[1], reverse=True)
+        bm25_ranking = sorted(bm25_scores.items(), key=lambda item: item[1], reverse=True)
+        if method == "rrf":
+            return reciprocal_rank_fusion([bm25_ranking, vector_ranking])
+        combined = combine_scores(bm25_scores, vector_scores, bm25_weight=bm25_weight)
+        return sorted(combined.items(), key=lambda item: item[1], reverse=True)
+
+    @staticmethod
+    def _format_hybrid_results(fused: Sequence[tuple[str, float]], vector_results: Sequence[SimilarArticleResult], bm25_scores: dict[str, float], limit: int) -> list[HybridSearchResult]:
+        by_id = {result["chroma_id"]: result for result in vector_results}
+        results: list[HybridSearchResult] = []
+        for chroma_id, fused_score in fused[:limit]:
+            vector_result = by_id.get(chroma_id)
+            if vector_result is None:
+                continue
+            results.append({
+                "chroma_id": chroma_id,
+                "article_id": int(chroma_id.replace("article_", "")),
+                "fused_score": round(fused_score, 4),
+                "bm25_score": round(bm25_scores.get(chroma_id, 0.0), 2),
+                "vector_score": round(vector_result["similarity_score"], 4),
+                "distance": vector_result["distance"],
+                "metadata": vector_result["metadata"],
+                "preview": vector_result["preview"][:200],
+            })
+        return results
+
     def search_hybrid(
         self,
         query: str,
@@ -760,91 +779,24 @@ class VectorStore:
         fusion_method: str = "rrf",
         filter_metadata: Mapping[str, object] | None = None,
     ) -> Sequence[HybridSearchResult | SimilarArticleResult]:
-        """Hybrid search combining BM25 (keyword) + Vector (semantic) with RRF fusion.
-
-        Benefits:
-        - BM25 handles exact keyword matches
-        - Vector handles synonyms and semantic similarity
-        - RRF fusion provides robust combination
-
-        Args:
-            query: Search query string
-            limit: Maximum results to return
-            bm25_weight: Weight for BM25 (0.5 = equal, 0.3 = more semantic)
-            fusion_method: 'rrf' (recommended) or 'weighted'
-            filter_metadata: Optional ChromaDB where clause filter
-
-        Returns:
-            List of result dicts with fused scores
-        """
+        """Combine BM25 and semantic rankings, falling back to semantic search."""
         try:
-            reciprocal_rank_fusion, combine_scores = _get_hybrid_search_helpers()
-
-            if filter_metadata:
-                vector_results = self.search_similar(
-                    query, limit=limit * 2, filter_metadata=filter_metadata
-                )
-            else:
-                vector_results = self.search_similar(query, limit=limit * 2)
-
+            vector_results = self._hybrid_vector_results(query, limit, filter_metadata)
             if not vector_results:
                 logger.info("No vector search results for hybrid search")
                 return []
-
-            vector_scores = {r["chroma_id"]: r["similarity_score"] for r in vector_results}
-            vector_ranking = sorted(vector_scores.items(), key=lambda x: x[1], reverse=True)
-
-            bm25_scores: dict[str, float] = {}
-            try:
-                bm25_search = _new_bm25_search()
-                bm25_docs = [
-                    {"chroma_id": r["chroma_id"], "text": r["preview"]} for r in vector_results
-                ]
-                bm25_search.build_index(bm25_docs)
-                bm25_scores = bm25_search.get_scores_for_fusion(query, list(vector_scores.keys()))
-            except Exception as e:
-                logger.debug(f"BM25 scoring failed, using vector-only: {e}")
-                bm25_scores = {}
-
-            bm25_ranking = sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)
-
-            if fusion_method == "rrf":
-                fused = reciprocal_rank_fusion([bm25_ranking, vector_ranking])
-            else:
-                combined = combine_scores(bm25_scores, vector_scores, bm25_weight=bm25_weight)
-                fused = sorted(combined.items(), key=lambda x: x[1], reverse=True)
-
-            chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
-
-            results: list[HybridSearchResult] = []
-            for chroma_id, fused_score in fused[:limit]:
-                if chroma_id not in chroma_id_to_vector:
-                    continue
-                vector_result = chroma_id_to_vector[chroma_id]
-                results.append(
-                    {
-                        "chroma_id": chroma_id,
-                        "article_id": int(chroma_id.replace("article_", "")),
-                        "fused_score": round(fused_score, 4),
-                        "bm25_score": round(bm25_scores.get(chroma_id, 0.0), 2),
-                        "vector_score": round(vector_result["similarity_score"], 4),
-                        "distance": vector_result["distance"],
-                        "metadata": vector_result["metadata"],
-                        "preview": vector_result["preview"][:200],
-                    }
-                )
-
-            logger.info(
-                f"Hybrid search returned {len(results)} results for query: '{query[:50]}...'"
-            )
+            vector_scores = {result["chroma_id"]: result["similarity_score"] for result in vector_results}
+            bm25_scores = self._bm25_fusion_scores(query, vector_results)
+            fused = self._fused_hybrid_scores(vector_scores, bm25_scores, bm25_weight, fusion_method)
+            results = self._format_hybrid_results(fused, vector_results, bm25_scores, limit)
+            logger.info("Hybrid search returned %d results for query: '%s...'", len(results), query[:50])
             return results
+        except ImportError as exc:
+            logger.warning("Hybrid search dependencies not available: %s", exc)
+        except Exception as exc:
+            logger.error("Hybrid search failed: %s", exc)
+        return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
 
-        except ImportError as e:
-            logger.warning(f"Hybrid search dependencies not available: {e}")
-            return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
-        except Exception as e:
-            logger.error(f"Hybrid search failed: {e}")
-            return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
 
     def find_nearest_cluster_labels(
         self,
@@ -940,79 +892,58 @@ class VectorStore:
             return {"error": str(e)}
 
 
-def get_vector_store() -> VectorStore | None:
-    """Return a lazily initialised vector store (or None if disabled/unavailable).
+def _should_log_connection_failure(modulus: int) -> bool:
+    return _failed_attempts == 1 or _failed_attempts % modulus == 0
 
-    Implements connection backoff to prevent log flooding when ChromaDB is down.
-    Uses preflight health check before attempting expensive initialization.
-    """
-    global _vector_store, _connection_backoff_until
+
+def _record_vector_unreachable(startup_metrics: Any) -> None:
+    _record_connection_failure()
+    if _should_log_connection_failure(10):
+        logger.warning(
+            "ChromaDB not reachable at %s:%d (attempt #%d, backoff %ds)",
+            CHROMA_HOST, CHROMA_PORT, _failed_attempts, int(_get_backoff_duration()),
+        )
+    startup_metrics.add_note(
+        "vector_store_status",
+        {"connected": False, "error": "not_reachable", "failed_attempts": _failed_attempts},
+    )
+
+
+def _initialize_vector_store(startup_metrics: Any) -> VectorStore | None:
+    global _vector_store
+    try:
+        _vector_store = VectorStore()
+        _record_connection_success()
+    except Exception as exc:
+        _record_connection_failure()
+        if _should_log_connection_failure(5):
+            logger.warning(
+                "ChromaDB initialization failed (attempt #%d, backoff %ds): %s",
+                _failed_attempts, int(_get_backoff_duration()), exc,
+            )
+        startup_metrics.add_note(
+            "vector_store_status",
+            {"connected": False, "error": str(exc), "failed_attempts": _failed_attempts},
+        )
+        _vector_store = None
+    return _vector_store
+
+def get_vector_store() -> VectorStore | None:
+    """Return the lazily initialized vector store when enabled and reachable."""
+    global _vector_store
     settings = _get_settings()
     startup_metrics = _get_startup_metrics()
-
     if not settings.enable_vector_store:
         logger.info("Vector store disabled via ENABLE_VECTOR_STORE=0")
-        startup_metrics.add_note(
-            "vector_store_status",
-            {"connected": False, "disabled": True},
-        )
+        startup_metrics.add_note("vector_store_status", {"connected": False, "disabled": True})
         return None
-
-    # Fast path: already initialized
     if _vector_store is not None:
         return _vector_store
-
-    # Check if we're in backoff period (prevents log flooding)
-    now = time.time()
-    if now < _connection_backoff_until:
-        # Silently return None during backoff - callers should handle this gracefully
+    if time.time() < _connection_backoff_until:
         return None
-
-    # Preflight check: is Chroma even reachable? (lightweight, no heavy init)
     if not is_chroma_reachable(timeout=2.0):
-        _record_connection_failure()
-        # Only log on first failure or every 5 minutes to reduce noise
-        if _failed_attempts == 1 or (_failed_attempts % 10 == 0):
-            logger.warning(
-                "ChromaDB not reachable at %s:%d (attempt #%d, backoff %ds)",
-                CHROMA_HOST,
-                CHROMA_PORT,
-                _failed_attempts,
-                int(_get_backoff_duration()),
-            )
-        startup_metrics.add_note(
-            "vector_store_status",
-            {
-                "connected": False,
-                "error": "not_reachable",
-                "failed_attempts": _failed_attempts,
-            },
-        )
+        _record_vector_unreachable(startup_metrics)
         return None
-
     with _vector_store_lock:
-        if _vector_store is not None:
-            return _vector_store
-        try:
-            _vector_store = VectorStore()
-            _record_connection_success()
-        except Exception as exc:
-            _record_connection_failure()
-            # Only log every Nth failure to prevent log flooding
-            if _failed_attempts == 1 or (_failed_attempts % 5 == 0):
-                logger.warning(
-                    "ChromaDB initialization failed (attempt #%d, backoff %ds): %s",
-                    _failed_attempts,
-                    int(_get_backoff_duration()),
-                    exc,
-                )
-            startup_metrics.add_note(
-                "vector_store_status",
-                {
-                    "connected": False,
-                    "error": str(exc),
-                    "failed_attempts": _failed_attempts,
-                },
-            )
-            _vector_store = None
-        return _vector_store
+        return _vector_store or _initialize_vector_store(startup_metrics)
+

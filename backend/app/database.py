@@ -1340,31 +1340,27 @@ async def init_db() -> None:
             current = current.__cause__ or current.__context__
 
     def _is_transient_startup_error(exc: BaseException) -> bool:
+        transient_asyncpg = {
+            "CannotConnectNowError",
+            "ConnectionDoesNotExistError",
+            "TooManyConnectionsError",
+            "DuplicateTableError",
+        }
+        message_markers = (
+            "the database system is starting up",
+            "connection refused",
+            "could not connect",
+            "already exists",
+        )
         for err in _iter_exception_chain(exc):
-            # asyncpg can bubble up directly from SQLAlchemy.
-            if err.__class__.__module__.startswith("asyncpg"):
-                if err.__class__.__name__ in {
-                    "CannotConnectNowError",
-                    "ConnectionDoesNotExistError",
-                    "TooManyConnectionsError",
-                }:
-                    return True
-                # Handle "already exists" errors for indexes/tables
-                # These occur when create_all tries to create existing objects
-                if err.__class__.__name__ == "DuplicateTableError":
-                    return True
-
             if isinstance(err, OperationalError):
                 return True
-
-            message = str(err).lower()
-            if "the database system is starting up" in message:
+            if err.__class__.__module__.startswith("asyncpg") and err.__class__.__name__ in transient_asyncpg:
                 return True
-            if "connection refused" in message or "could not connect" in message:
+            message = str(err).lower()
+            if any(marker in message for marker in message_markers):
                 return True
             if "timeout" in message and "connect" in message:
-                return True
-            if "already exists" in message:
                 return True
         return False
 
@@ -1395,58 +1391,60 @@ async def init_db() -> None:
     def _create_all_except_alembic_managed(sync_conn: Connection) -> None:
         Base.metadata.create_all(sync_conn, tables=non_alembic_tables)
 
+    async def _initialize_once() -> None:
+        async with db_engine.begin() as conn:
+            await conn.run_sync(_create_all_except_alembic_managed)
+            await _drop_legacy_analysis_tables(conn)
+            logger.info("Database tables initialized successfully")
+            await _add_missing_columns(conn)
+            await _ensure_search_indexes(conn)
+
+    async def _recover_existing_objects() -> None:
+        logger.info("Database objects already exist, continuing startup")
+        await _create_missing_tables()
+        await _drop_legacy_analysis_tables()
+        await _add_missing_columns()
+        await _ensure_search_indexes()
+
+    def _startup_retry_exhausted(exc: BaseException) -> bool:
+        return not _is_transient_startup_error(exc) or time.monotonic() >= deadline
+
     while True:
         try:
-            async with db_engine.begin() as conn:
-                await conn.run_sync(_create_all_except_alembic_managed)
-                await _drop_legacy_analysis_tables(conn)
-                logger.info("Database tables initialized successfully")
-                await _add_missing_columns(conn)
-                await _ensure_search_indexes(conn)
+            await _initialize_once()
             return
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            # If objects already exist, that's fine - just log and continue
             if _is_already_exists_error(exc):
-                logger.info("Database objects already exist, continuing startup")
-                await _create_missing_tables()
-                await _drop_legacy_analysis_tables()
-                await _add_missing_columns()
-                await _ensure_search_indexes()
+                await _recover_existing_objects()
                 return
-
-            if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
+            if _startup_retry_exhausted(exc):
                 logger.error("Failed to initialize database: %s", exc, exc_info=True)
                 raise
-
             attempt += 1
             remaining = max(0.0, deadline - time.monotonic())
             logger.warning(
                 "Database not ready yet (attempt %d). Retrying in %.2fs (%.1fs left): %s",
-                attempt,
-                delay_seconds,
-                remaining,
-                exc,
+                attempt, delay_seconds, remaining, exc,
             )
             await asyncio.sleep(delay_seconds)
             delay_seconds = min(delay_seconds * 1.5, 5.0)
+
+
+def _isoformat_optional(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def article_record_to_dict(record: Article) -> dict[str, Any]:
     """Convert an Article ORM instance to a serializable dictionary."""
     if record is None:
         return {}
-
-    published_at = record.published_at
-    published = published_at.isoformat() if published_at is not None else None
-    source_country = record.country
-    mentioned_countries = record.mentioned_countries or []
-
+    published = _isoformat_optional(record.published_at)
     return {
         "id": record.id,
-        "title": record.title if record.title is not None else "Untitled article",
-        "source": record.source if record.source is not None else "Unknown",
+        "title": record.title or "Untitled article",
+        "source": record.source or "Unknown",
         "source_id": record.source_id,
         "country": record.country,
         "credibility": record.credibility,
@@ -1458,22 +1456,22 @@ def article_record_to_dict(record: Article) -> dict[str, Any]:
         "image_url": record.image_url,
         "published": published,
         "published_at": published,
-        "category": record.category if record.category is not None else "general",
+        "category": record.category or "general",
         "url": record.url,
         "link": record.url,
         "author": record.author,
-        "authors": record.authors if record.authors is not None else [],
-        "tags": record.tags if record.tags is not None else [],
+        "authors": record.authors or [],
+        "tags": record.tags or [],
         "original_language": record.original_language,
         "translated": record.translated,
         "chroma_id": record.chroma_id,
         "embedding_generated": record.embedding_generated,
-        "created_at": record.created_at.isoformat() if record.created_at is not None else None,
-        "updated_at": record.updated_at.isoformat() if record.updated_at is not None else None,
-        # Phase 5 Fields
-        "source_country": source_country,
-        "mentioned_countries": mentioned_countries or [],
+        "created_at": _isoformat_optional(record.created_at),
+        "updated_at": _isoformat_optional(record.updated_at),
+        "source_country": record.country,
+        "mentioned_countries": record.mentioned_countries or [],
     }
+
 
 
 def _normalize_search_query(query: str) -> str:
@@ -1712,6 +1710,38 @@ async def fetch_articles_by_ids(
     return [articles[article_id] for article_id in article_ids if article_id in articles]
 
 
+def _article_page_filters(
+    source: str | None,
+    missing_embeddings_only: bool,
+    published_before: datetime | None,
+    published_after: datetime | None,
+) -> list[Any]:
+    filters: list[Any] = []
+    if source:
+        filters.append(Article.source == source)
+    if missing_embeddings_only:
+        filters.append(or_(Article.embedding_generated.is_(False), Article.embedding_generated.is_(None)))
+    if published_before:
+        filters.append(Article.published_at <= published_before)
+    if published_after:
+        filters.append(Article.published_at >= published_after)
+    return filters
+
+
+async def _filtered_article_count(session: AsyncSession, filters: list[Any]) -> int:
+    if not filters:
+        return await get_total_article_count(session)
+    stmt = select(func.count()).select_from(Article).where(*filters)
+    return int((await session.execute(stmt)).scalar_one())
+
+
+async def _article_date_range(session: AsyncSession, filters: list[Any]) -> tuple[datetime | None, datetime | None]:
+    stmt = select(func.min(Article.published_at), func.max(Article.published_at))
+    if filters:
+        stmt = stmt.where(*filters)
+    return (await session.execute(stmt)).one()
+
+
 async def fetch_articles_page(
     session: AsyncSession,
     limit: int = 50,
@@ -1723,49 +1753,23 @@ async def fetch_articles_page(
     published_after: datetime | None = None,
 ) -> dict[str, Any]:
     """Paginate through article rows for debugging and inspection."""
-    sort_column = Article.published_at
-    order_clause = sort_column.asc() if sort_direction.lower() == "asc" else sort_column.desc()
-
-    filters = []
-    if source:
-        filters.append(Article.source == source)
-    if missing_embeddings_only:
-        filters.append(
-            or_(
-                Article.embedding_generated.is_(False),
-                Article.embedding_generated.is_(None),
-            )
-        )
-    if published_before:
-        filters.append(Article.published_at <= published_before)
-    if published_after:
-        filters.append(Article.published_at >= published_after)
-
+    order_clause = Article.published_at.asc() if sort_direction.lower() == "asc" else Article.published_at.desc()
+    filters = _article_page_filters(source, missing_embeddings_only, published_before, published_after)
     stmt = select(Article).order_by(order_clause, Article.id.desc()).limit(limit).offset(offset)
     if filters:
         stmt = stmt.where(*filters)
-
     result = await session.execute(stmt)
     rows = [article_record_to_dict(record) for record in result.scalars().all()]
-
-    if filters:
-        count_stmt = select(func.count()).select_from(Article).where(*filters)
-        total = int((await session.execute(count_stmt)).scalar_one())
-    else:
-        total = await get_total_article_count(session)
-
-    range_stmt = select(func.min(Article.published_at), func.max(Article.published_at))
-    if filters:
-        range_stmt = range_stmt.where(*filters)
-    oldest, newest = (await session.execute(range_stmt)).one()
-
+    total = await _filtered_article_count(session, filters)
+    oldest, newest = await _article_date_range(session, filters)
     return {
         "total": total,
         "returned": len(rows),
         "articles": rows,
-        "oldest_published": oldest.isoformat() if oldest else None,
-        "newest_published": newest.isoformat() if newest else None,
+        "oldest_published": _isoformat_optional(oldest),
+        "newest_published": _isoformat_optional(newest),
     }
+
 
 
 async def fetch_article_chroma_mappings(session: AsyncSession) -> list[dict[str, Any]]:

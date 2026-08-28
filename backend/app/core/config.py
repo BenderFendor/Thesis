@@ -248,140 +248,136 @@ def resolve_opencode_model(default: str) -> str:
     return default
 
 
-def check_llamacpp_server(logger: logging.Logger) -> None:
-    """Probe the llama.cpp /health endpoint and raise RuntimeError if unreachable.
+def _llamacpp_base_url() -> str:
+    base = settings.llamacpp_base_url.rstrip("/")
+    return base[:-3] if base.endswith("/v1") else base
 
-    Also auto-discovers the model name to use in API requests and stores it in
-    _llamacpp_resolved_model so every subsequent call uses the correct name.
-    Discovery order: /props model_alias → /v1/models → process cmdline.
 
-    Called at app startup when LLM_BACKEND=llamacpp so failures surface immediately
-    rather than on the first LLM request.
-    """
-    global _llamacpp_resolved_model
-
-    import json
+def _check_llamacpp_health(base: str, logger: logging.Logger) -> None:
     import urllib.error
     import urllib.request
 
-    # Strip /v1 suffix to get the server root, then append /health
-    base = settings.llamacpp_base_url.rstrip("/")
-    if base.endswith("/v1"):
-        base = base[:-3]
     health_url = base + "/health"
-    models_url = base + "/v1/models"
-
     try:
-        with urllib.request.urlopen(health_url, timeout=5) as resp:
-            if resp.status != 200:
+        with urllib.request.urlopen(health_url, timeout=5) as response:
+            if response.status != 200:
                 raise RuntimeError(
-                    f"llama.cpp health check returned unexpected status {resp.status}"
+                    f"llama.cpp health check returned unexpected status {response.status}"
                 )
-            logger.info("llama.cpp server reachable at %s", health_url)
-    except urllib.error.HTTPError as e:
+        logger.info("llama.cpp server reachable at %s", health_url)
+    except urllib.error.HTTPError as exc:
         raise RuntimeError(
-            f"LLM_BACKEND=llamacpp but server returned HTTP {e.code} at {health_url}. "
+            f"LLM_BACKEND=llamacpp but server returned HTTP {exc.code} at {health_url}. "
             "Ensure the server has finished loading the model."
-        ) from e
+        ) from exc
     except RuntimeError:
         raise
-    except Exception as e:
+    except Exception as exc:
         raise RuntimeError(
-            f"LLM_BACKEND=llamacpp but server not reachable at {health_url}: {e}. "
+            f"LLM_BACKEND=llamacpp but server not reachable at {health_url}: {exc}. "
             "Start llama-server first: llama-server -m model.gguf --port 8080"
-        ) from e
+        ) from exc
 
-    # If the user set an explicit model name, trust it and skip discovery.
+
+def _discover_llamacpp_from_models(base: str, logger: logging.Logger) -> str | None:
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(base + "/v1/models", timeout=5) as response:
+            payload = json.loads(response.read().decode())
+    except Exception as exc:
+        logger.debug("Models endpoint discovery failed (%s)", exc)
+        return None
+    data = payload.get("data") or []
+    if data:
+        return data[0].get("id")
+    models = payload.get("models") or []
+    if not models:
+        return None
+    return models[0].get("model") or models[0].get("name")
+
+
+def _discover_llamacpp_from_sentinel(base: str, logger: logging.Logger) -> str | None:
+    import json
+    import urllib.request
+
+    body = json.dumps({"model": "", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}).encode()
+    request = urllib.request.Request(
+        base + "/v1/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode())
+    except Exception as exc:
+        logger.debug("Sentinel completion discovery failed (%s)", exc)
+        return None
+    model = payload.get("model")
+    return str(model) if model else None
+
+
+def _llama_model_from_cmdline(parts: list[str]) -> str | None:
+    from pathlib import Path
+
+    if not any("llama" in part for part in parts):
+        return None
+    for index, part in enumerate(parts[:-1]):
+        if part in ("-m", "--model"):
+            model_name = Path(parts[index + 1]).name
+            if model_name:
+                return model_name
+    return None
+
+
+def _discover_llamacpp_from_processes(logger: logging.Logger) -> str | None:
+    from pathlib import Path
+
+    try:
+        cmdlines = Path("/proc").glob("*/cmdline")
+        for path in cmdlines:
+            try:
+                parts = [part.decode(errors="replace") for part in path.read_bytes().split(b"\x00")]
+            except (PermissionError, FileNotFoundError, ProcessLookupError):
+                continue
+            model = _llama_model_from_cmdline(parts)
+            if model:
+                return model
+    except Exception as exc:
+        logger.debug("Process-arg discovery failed (%s)", exc)
+    return None
+
+def check_llamacpp_server(logger: logging.Logger) -> None:
+    """Validate llama.cpp and resolve the model id used for requests."""
+    global _llamacpp_resolved_model
+
+    base = _llamacpp_base_url()
+    _check_llamacpp_health(base, logger)
     if settings.llamacpp_model != "local":
         _llamacpp_resolved_model = settings.llamacpp_model
         logger.info("llama.cpp model (explicit): %s", _llamacpp_resolved_model)
         return
 
-    # Auto-discover the model name to use in API requests.
-    #
-    # Strategy 1: /v1/models data — populated after the router handles its first
-    #   request; on cold start this array is empty, so fall through.
-    # Strategy 2: Sentinel completion with model="" — the router accepts an empty
-    #   model string and routes to whichever worker is ready, returning the actual
-    #   model id in the response.  Warm-up cost: 1 token.
-    # Strategy 3: Process cmdline (-m flag) — zero-cost fallback for standalone
-    #   (non-router) llama-server instances.
-    try:
-        with urllib.request.urlopen(models_url, timeout=5) as resp:
-            payload = json.loads(resp.read().decode())
-        data = payload.get("data") or []
-        if data:
-            _llamacpp_resolved_model = data[0]["id"]
-            logger.info("llama.cpp model (from /v1/models): %s", _llamacpp_resolved_model)
-            return
-        models = payload.get("models") or []
-        if models:
-            _llamacpp_resolved_model = models[0].get("model") or models[0].get("name")
-            logger.info("llama.cpp model (from /v1/models legacy): %s", _llamacpp_resolved_model)
-            return
-    except Exception as e:
-        logger.debug("Models endpoint discovery failed (%s)", e)
-
-    # Strategy 2: sentinel — model="" is accepted by the router on both warm and
-    # cold starts; the response body contains the actual model id.
-    completions_url = base + "/v1/chat/completions"
-    sentinel_body = json.dumps(
-        {
-            "model": "",
-            "messages": [{"role": "user", "content": "hi"}],
-            "max_tokens": 1,
-        }
-    ).encode()
-    try:
-        req = urllib.request.Request(
-            completions_url,
-            data=sentinel_body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            completion = json.loads(resp.read().decode())
-        discovered = completion.get("model")
-        if discovered:
-            _llamacpp_resolved_model = discovered
-            logger.info(
-                "llama.cpp model (from sentinel completion): %s",
-                _llamacpp_resolved_model,
-            )
-            return
-    except Exception as e:
-        logger.debug("Sentinel completion discovery failed (%s)", e)
-
-    try:
-        from pathlib import Path
-
-        for cmdline_path in Path("/proc").glob("*/cmdline"):
-            try:
-                raw = cmdline_path.read_bytes()
-                parts = raw.split(b"\x00")
-                parts_str = [p.decode(errors="replace") for p in parts]
-                if not any("llama" in p for p in parts_str):
-                    continue
-                for i, part in enumerate(parts_str):
-                    if part in ("-m", "--model") and i + 1 < len(parts_str):
-                        model_name = Path(parts_str[i + 1]).name
-                        if model_name:
-                            _llamacpp_resolved_model = model_name
-                            logger.info(
-                                "llama.cpp model (from process args): %s",
-                                _llamacpp_resolved_model,
-                            )
-                            return
-            except (PermissionError, FileNotFoundError, ProcessLookupError):
-                continue
-    except Exception as e:
-        logger.debug("Process-arg discovery failed (%s)", e)
+    discovery_steps = (
+        ("/v1/models", _discover_llamacpp_from_models),
+        ("sentinel completion", _discover_llamacpp_from_sentinel),
+        ("process args", lambda _base, log: _discover_llamacpp_from_processes(log)),
+    )
+    for source, discover in discovery_steps:
+        model = discover(base, logger)
+        if not model:
+            continue
+        _llamacpp_resolved_model = model
+        logger.info("llama.cpp model (from %s): %s", source, model)
+        return
 
     logger.warning(
-        "Could not discover llama.cpp model id; using '%s'. "
-        "Set LLAMACPP_MODEL explicitly to avoid this.",
+        "Could not discover llama.cpp model id; using '%s'. Set LLAMACPP_MODEL explicitly to avoid this.",
         settings.llamacpp_model,
     )
+
 
 
 _openai_client_instance: OpenAI | None = None
