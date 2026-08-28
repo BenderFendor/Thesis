@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `d14d873dc0347ace37b1c4571b1b0a7a6bfdbaff`
+Commit: `815dc9c332e5c6d3a230fc82a8b0d9563d7d2b82`
 
 Files: 568
-Functions: 7893
+Functions: 7901
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 391
+Hard violations: 388
 Warning-only: 185
 
 ## Hard violations
@@ -18,7 +18,6 @@ Warning-only: 185
 | `frontend/app/sources/[source]/debug/page.tsx:18` | `SourceDebugPage` | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx:155` | `handleSelection` | 34 | 24 |
 | `backend/tools/research_tui.py:592` | `run_cli_query` | 30 | 50 |
-| `backend/app/services/evidence_export.py:70` | `build_bundle_files` | 33 | 39 |
 | `frontend/components/article-detail-modal.tsx:1946` | `ArticleDetailModalContent` | 33 | 13 |
 | `backend/scripts/verify_reporter_intelligence.py:642` | `_compute_source_metrics` | 22 | 49 |
 | `backend/scripts/enrich_local_reporter_author_pages.py:406` | `_confirmed_author_page` | 25 | 48 |
@@ -39,7 +38,6 @@ Warning-only: 185
 | `backend/tools/research_lab.py:144` | `_build_summary` | 26 | 43 |
 | `backend/app/services/reporter_public_records.py:599` | `extract_article_author_candidates` | 19 | 43 |
 | `backend/app/services/chroma_sync.py:189` | `_run_recovery_scan` | 17 | 42 |
-| `backend/app/services/evidence_export.py:329` | `build_relationship_proof_bundle` | 28 | 31 |
 | `backend/app/services/atlas_evidence_projection.py:311` | `_accepted_ownership_edges` | 26 | 41 |
 | `frontend/lib/api.ts:2054` | `pumpStreamEvents` | 16 | 41 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:65` | `IntelligenceAtlasWorkspace` | 27 | 24 |
@@ -359,7 +357,6 @@ Warning-only: 185
 | `backend/app/services/material_interest.py:508` | `analyze_material_context` | 11 | 16 |
 | `backend/scripts/import_littlesis.py:67` | `cross_ref` | 11 | 16 |
 | `backend/app/services/blindspot_viewer.py:601` | `_select_preview_articles` | 11 | 15 |
-| `backend/app/services/evidence_export.py:41` | `validate_bods_shape` | 11 | 15 |
 | `backend/app/core/file_trace_exporter.py:55` | `export` | 11 | 14 |
 | `backend/scripts/plan_reporter_source_enrichment.py:535` | `load_reporter_source_facts` | 11 | 14 |
 | `backend/tests/test_entity_wiki_service.py:107` | `test_source_profile_uses_specific_citation_labels` | 11 | 14 |
