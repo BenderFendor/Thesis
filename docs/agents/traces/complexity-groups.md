@@ -1,13 +1,11 @@
 # Complexity groups
 
-Hard violations: 439
-Files with hard violations: 180
+Hard violations: 410
+Files with hard violations: 177
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
 | `frontend/app/debug/page.tsx` | 12 | 56 | 19 |
-| `backend/app/services/funding_researcher.py` | 12 | 19 | 23 |
-| `backend/news_research_agent.py` | 12 | 18 | 26 |
 | `frontend/lib/api.ts` | 12 | 18 | 41 |
 | `backend/app/services/chroma_topics.py` | 11 | 16 | 24 |
 | `frontend/components/article-detail-modal.tsx` | 10 | 33 | 30 |
@@ -23,7 +21,6 @@ Files with hard violations: 180
 | `backend/app/services/blindspot_viewer.py` | 7 | 18 | 25 |
 | `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts` | 6 | 25 | 37 |
 | `backend/scripts/backfill_article_author_links.py` | 6 | 19 | 33 |
-| `backend/app/services/rss_ingestion.py` | 5 | 33 | 64 |
 | `backend/scripts/measure_wiki_profile_coverage.py` | 5 | 29 | 39 |
 | `frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts` | 5 | 27 | 19 |
 | `backend/tools/research_lab.py` | 5 | 26 | 43 |
@@ -204,40 +201,6 @@ Files with hard violations: 180
 | 1184 | `RssParserCard` | 12 | 10 |
 | 1227 | `<anonymous>` | 12 | 4 |
 | 1257 | `ArticleParserCard` | 11 | 10 |
-
-### `backend/app/services/funding_researcher.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 1607 | `_merge_wikidata_data` | 19 | 21 |
-| 1643 | `_merge_wikidata_sparql_data` | 19 | 23 |
-| 396 | `research_organization` | 15 | 14 |
-| 1566 | `_merge_known_data` | 15 | 14 |
-| 1015 | `_resolve_org_wikidata_sparql` | 11 | 21 |
-| 1701 | `_merge_sec_data` | 14 | 13 |
-| 644 | `_search_propublica_nonprofit` | 13 | 14 |
-| 765 | `_resolve_wikidata_labels` | 13 | 15 |
-| 1216 | `_ai_enhance_org_data` | 13 | 14 |
-| 920 | `_search_sec_edgar` | 12 | 11 |
-| 1146 | `detect_conflicts` | 12 | 18 |
-| 1450 | `_extract_wikidata_items_with_proportion` | 12 | 16 |
-
-### `backend/news_research_agent.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 754 | `search_internal_news` | 18 | 21 |
-| 1462 | `call_model` | 16 | 26 |
-| 649 | `_build_fallback_tool_call` | 14 | 15 |
-| 1778 | `research_news` | 14 | 16 |
-| 1652 | `_build_context_snippet` | 13 | 9 |
-| 337 | `_track_reference` | 12 | 13 |
-| 508 | `_dedupe_search_results` | 12 | 14 |
-| 702 | `_execute_tool_call_with_fallbacks` | 9 | 18 |
-| 945 | `fetch_article_content` | 12 | 11 |
-| 976 | `rag_index_documents` | 12 | 13 |
-| 1358 | `_dedup_tool_node` | 12 | 18 |
-| 1279 | `_dedup_block_message` | 11 | 10 |
 
 ### `frontend/lib/api.ts`
 
@@ -440,16 +403,6 @@ Files with hard violations: 180
 | 111 | `_clean_author_names` | 13 | 15 |
 | 140 | `_article_author_pairs` | 13 | 19 |
 | 502 | `prune_invalid_local_byline_links` | 13 | 16 |
-
-### `backend/app/services/rss_ingestion.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 499 | `_refresh_news_cache_with_rust` | 33 | 64 |
-| 308 | `_merge_partial_cache_update` | 15 | 18 |
-| 251 | `_next_poll_metadata` | 12 | 14 |
-| 698 | `_run_post_publish_work` | 12 | 18 |
-| 365 | `_build_article_from_rust_payload` | 11 | 16 |
 
 ### `backend/scripts/measure_wiki_profile_coverage.py`
 
