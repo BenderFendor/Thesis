@@ -157,7 +157,9 @@ def _relationship_statement(
         "interests": [
             {
                 "type": relationship["predicate"],
-                "directOrIndirect": "direct" if qualifiers.get("direct") is not False else "indirect",
+                "directOrIndirect": "direct"
+                if qualifiers.get("direct") is not False
+                else "indirect",
                 "share": qualifiers.get("pct"),
                 "shareMinimum": share_minimum,
                 "shareMaximum": share_maximum,
@@ -237,9 +239,7 @@ def _claim_prov(claim: dict[str, Any]) -> dict[str, Any]:
             {"@id": f"urn:scoop:observation:{observation_id}"}
             for observation_id in claim.get("observation_ids", [])
         ],
-        "prov:wasAttributedTo": {
-            "@id": f"urn:scoop:agent:{claim.get('asserted_by', 'unknown')}"
-        },
+        "prov:wasAttributedTo": {"@id": f"urn:scoop:agent:{claim.get('asserted_by', 'unknown')}"},
     }
 
 
