@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 407
-Files with hard violations: 176
+Hard violations: 404
+Files with hard violations: 174
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -48,7 +48,6 @@ Files with hard violations: 176
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
 | `frontend/app/sources/[source]/debug/page.tsx` | 2 | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx` | 2 | 34 | 24 |
-| `backend/app/services/persistence.py` | 2 | 31 | 46 |
 | `scripts/collect_debug_bundle.py` | 2 | 29 | 30 |
 | `frontend/features/intelligence-atlas/atlas-entity-list.tsx` | 2 | 27 | 21 |
 | `backend/app/services/news_research.py` | 2 | 25 | 37 |
@@ -105,7 +104,6 @@ Files with hard violations: 176
 | `frontend/components/article-inline-embed.tsx` | 1 | 20 | 8 |
 | `frontend/lib/highlight-store.ts` | 1 | 20 | 27 |
 | `backend/app/services/article_extraction.py` | 1 | 19 | 15 |
-| `backend/app/services/resource_monitor.py` | 1 | 19 | 45 |
 | `frontend/__tests__/globe-live-data.test.ts` | 1 | 19 | 18 |
 | `frontend/components/source-sidebar.tsx` | 1 | 19 | 27 |
 | `frontend/features/intelligence-atlas/atlas-inspector.tsx` | 1 | 19 | 19 |
@@ -636,13 +634,6 @@ Files with hard violations: 176
 | 155 | `handleSelection` | 34 | 24 |
 | 38 | `<anonymous>` | 12 | 9 |
 
-### `backend/app/services/persistence.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 132 | `_persist_articles_async` | 31 | 46 |
-| 322 | `embedding_generation_worker` | 16 | 35 |
-
 ### `scripts/collect_debug_bundle.py`
 
 | line | function | CC | cognitive |
@@ -1014,12 +1005,6 @@ Files with hard violations: 176
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 237 | `_extract_rebelmouse_article` | 19 | 15 |
-
-### `backend/app/services/resource_monitor.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 108 | `read_jsonl_records` | 19 | 45 |
 
 ### `frontend/__tests__/globe-live-data.test.ts`
 
