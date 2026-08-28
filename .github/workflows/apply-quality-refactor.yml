@@ -30,7 +30,7 @@ jobs:
             exit 0
           fi
           cat "${parts[@]}" | base64 --decode > /tmp/quality-refactor.patch.gz
-          echo "32448ab665f692fd55abf04d08d1c665008bb6dad4831f39b6694239734b7d23  /tmp/quality-refactor.patch.gz" | sha256sum --check
+          echo "4b7879b910c158d35484119d48d9f6126a261b0df1ab282ef94c17c8e8205c93  /tmp/quality-refactor.patch.gz" | sha256sum --check
           gzip --decompress --stdout /tmp/quality-refactor.patch.gz > /tmp/quality-refactor.patch
           git apply --check /tmp/quality-refactor.patch
           git apply /tmp/quality-refactor.patch
