@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `2819d9d4af87f28772424e03451d74762407b14d`
+Commit: `1f45dfe8b62a64525630b1222836e0737ac7a558`
 
 Files: 568
-Functions: 7901
+Functions: 7916
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 388
+Hard violations: 386
 Warning-only: 185
 
 ## Hard violations
@@ -24,7 +24,6 @@ Warning-only: 185
 | `backend/scripts/wayback_verify_reporters.py:488` | `_extract_author_from_jsonld` | 17 | 48 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py:99` | `infer_ownership_label` | 30 | 47 |
-| `backend/app/services/persistence.py:132` | `_persist_articles_async` | 31 | 46 |
 | `frontend/lib/feed-ranking.ts:172` | `buildInterestProfile` | 21 | 46 |
 | `backend/scripts/reporter_source_samples.py:35` | `broad_source_sample` | 25 | 45 |
 | `backend/scripts/verify_reporter_intelligence.py:412` | `_identity_alias_audit` | 30 | 40 |
@@ -62,7 +61,6 @@ Warning-only: 185
 | `frontend/components/globe-view.tsx:1784` | `GlobeView` | 24 | 15 |
 | `frontend/app/debug/page.tsx:425` | `SourcesSection` | 24 | 14 |
 | `backend/app/services/reporter_indexer.py:234` | `_index_reporter_articles` | 20 | 35 |
-| `backend/app/services/persistence.py:322` | `embedding_generation_worker` | 16 | 35 |
 | `backend/app/api/routes/research.py:131` | `generate` | 23 | 34 |
 | `backend/app/services/reporter_profile_store.py:35` | `_derive_political_leaning_from_profile` | 23 | 28 |
 | `backend/app/services/atlas_graph_helpers.py:122` | `_node_matches` | 23 | 26 |
