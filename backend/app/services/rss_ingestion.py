@@ -248,6 +248,34 @@ def _get_source_activity_snapshot(
     return recent_count, freshest_age_hours, freshest.isoformat()
 
 
+def _poll_schedule(
+    status: str,
+    article_count: int,
+    activity: tuple[int, float | None],
+    previous_counts: tuple[int, int],
+    base_interval_seconds: int,
+) -> tuple[int, str, int, int]:
+    recent_count, freshest_age_hours = activity
+    previous_failures, previous_idle = previous_counts
+    if status == "error":
+        failures = previous_failures + 1
+        interval = base_interval_seconds * (2 ** min(failures, 2))
+        return _clamp_poll_interval(interval), "error_backoff", failures, previous_idle
+    if status == "not_modified" or article_count <= 0:
+        idle_checks = previous_idle + 1
+        return (
+            _clamp_poll_interval(_idle_poll_interval(idle_checks)),
+            "idle_backoff",
+            0,
+            idle_checks,
+        )
+    if recent_count >= 8 or (freshest_age_hours is not None and freshest_age_hours <= 2):
+        return MIN_POLL_INTERVAL_SECONDS, "high_activity", 0, 0
+    if recent_count >= 3 or (freshest_age_hours is not None and freshest_age_hours <= 6):
+        return _clamp_poll_interval(base_interval_seconds), "steady_activity", 0, 0
+    return _clamp_poll_interval(base_interval_seconds * 2), "low_activity", 0, 0
+
+
 def _next_poll_metadata(
     source_name: str,
     stat: SourceStat,
@@ -256,82 +284,70 @@ def _next_poll_metadata(
     base_interval_seconds: int = DEFAULT_POLL_INTERVAL_SECONDS,
 ) -> SourceStat:
     previous_stat = news_cache.get_source_stat(source_name) or {}
-    previous_failures = _coerce_int(previous_stat.get("consecutive_failures"))
-    previous_idle = _coerce_int(previous_stat.get("consecutive_idle_checks"))
-    status = str(stat.get("status") or "pending")
-    article_count = _coerce_int(stat.get("article_count"))
-    recent_count, freshest_age_hours, freshest_published_at = _get_source_activity_snapshot(
-        source_name,
-        articles,
+    previous_counts = (
+        _coerce_int(previous_stat.get("consecutive_failures")),
+        _coerce_int(previous_stat.get("consecutive_idle_checks")),
     )
-
-    consecutive_failures = 0
-    consecutive_idle_checks = 0
-    reason = "scheduled_default"
-    interval_seconds = _clamp_poll_interval(base_interval_seconds)
-
-    if status == "error":
-        consecutive_failures = previous_failures + 1
-        consecutive_idle_checks = previous_idle
-        interval_seconds = _clamp_poll_interval(
-            base_interval_seconds * (2 ** min(consecutive_failures, 2))
-        )
-        reason = "error_backoff"
-    elif status == "not_modified" or article_count <= 0:
-        consecutive_failures = 0
-        consecutive_idle_checks = previous_idle + 1
-        interval_seconds = _clamp_poll_interval(_idle_poll_interval(consecutive_idle_checks))
-        reason = "idle_backoff"
-    else:
-        if recent_count >= 8 or (freshest_age_hours is not None and freshest_age_hours <= 2):
-            interval_seconds = MIN_POLL_INTERVAL_SECONDS
-            reason = "high_activity"
-        elif recent_count >= 3 or (freshest_age_hours is not None and freshest_age_hours <= 6):
-            interval_seconds = _clamp_poll_interval(base_interval_seconds)
-            reason = "steady_activity"
-        else:
-            interval_seconds = _clamp_poll_interval(base_interval_seconds * 2)
-            reason = "low_activity"
-
-    next_check_at = (_utc_now() + timedelta(seconds=interval_seconds)).isoformat()
-    stat["poll_interval_seconds"] = interval_seconds
-    stat["next_check_at"] = next_check_at
-    stat["adaptive_reason"] = reason
-    stat["consecutive_failures"] = consecutive_failures
-    stat["consecutive_idle_checks"] = consecutive_idle_checks
-    stat["recent_publication_count_24h"] = recent_count
-    stat["freshest_article_age_hours"] = freshest_age_hours
-    stat["latest_article_published_at"] = freshest_published_at
+    recent_count, freshest_age_hours, freshest_published_at = _get_source_activity_snapshot(
+        source_name, articles
+    )
+    interval_seconds, reason, failures, idle_checks = _poll_schedule(
+        str(stat.get("status") or "pending"),
+        _coerce_int(stat.get("article_count")),
+        (recent_count, freshest_age_hours),
+        previous_counts,
+        base_interval_seconds,
+    )
+    stat.update(
+        {
+            "poll_interval_seconds": interval_seconds,
+            "next_check_at": (_utc_now() + timedelta(seconds=interval_seconds)).isoformat(),
+            "adaptive_reason": reason,
+            "consecutive_failures": failures,
+            "consecutive_idle_checks": idle_checks,
+            "recent_publication_count_24h": recent_count,
+            "freshest_article_age_hours": freshest_age_hours,
+            "latest_article_published_at": freshest_published_at,
+        }
+    )
     return stat
+
+
+def _replaceable_source_names(source_stats: list[dict[str, Any]]) -> set[str]:
+    return {
+        name
+        for stat in source_stats
+        if isinstance(name := stat.get("name"), str)
+        and name
+        and _source_stat_can_replace_articles(stat)
+    }
+
+
+def _stats_by_name(source_stats: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        name: stat
+        for stat in source_stats
+        if isinstance(name := stat.get("name"), str) and name
+    }
 
 
 def _merge_partial_cache_update(
     updated_articles: list[NewsArticle],
     updated_source_stats: list[dict[str, Any]],
 ) -> None:
-    replaceable_names: set[str] = set()
-    for stat in updated_source_stats:
-        stat_name = stat.get("name")
-        if isinstance(stat_name, str) and stat_name and _source_stat_can_replace_articles(stat):
-            replaceable_names.add(stat_name)
-    existing_articles = [
-        article for article in news_cache.get_articles() if article.source not in replaceable_names
+    replaceable_names = _replaceable_source_names(updated_source_stats)
+    merged_articles = [
+        article
+        for article in news_cache.get_articles()
+        if article.source not in replaceable_names
     ]
-    merged_articles = existing_articles + [
+    merged_articles.extend(
         article for article in updated_articles if article.source in replaceable_names
-    ]
+    )
     merged_articles.sort(key=lambda article: article.published, reverse=True)
 
-    stats_by_name: dict[str, dict[str, object]] = {}
-    for existing_stat in news_cache.get_source_stats():
-        existing_name = existing_stat.get("name")
-        if isinstance(existing_name, str) and existing_name:
-            stats_by_name[existing_name] = existing_stat
-    for updated_stat in updated_source_stats:
-        updated_name = updated_stat.get("name")
-        if isinstance(updated_name, str) and updated_name:
-            stats_by_name[updated_name] = updated_stat
-
+    stats_by_name = _stats_by_name(news_cache.get_source_stats())
+    stats_by_name.update(_stats_by_name(updated_source_stats))
     news_cache.update_cache(merged_articles, list(stats_by_name.values()))
 
 
@@ -362,6 +378,12 @@ def _normalize_article_image(image_url: str | None, article_url: str) -> str | N
     return image_url if is_valid_image_url(image_url) else None
 
 
+def _clean_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
 def _build_article_from_rust_payload(
     item: dict[str, Any],
     source_name: str,
@@ -372,26 +394,8 @@ def _build_article_from_rust_payload(
     title = item.get("title", "No title")
     description = item.get("description", "No description")
     category = item.get("category") or source_info.get("category", "general")
-    payload_authors = item.get("authors")
-    authors = (
-        [
-            str(author).strip()
-            for author in payload_authors
-            if isinstance(author, str) and str(author).strip()
-        ]
-        if isinstance(payload_authors, list)
-        else []
-    )
-    payload_author_urls = item.get("author_urls")
-    author_urls = (
-        [
-            str(author_url).strip()
-            for author_url in payload_author_urls
-            if isinstance(author_url, str) and str(author_url).strip()
-        ]
-        if isinstance(payload_author_urls, list)
-        else []
-    )
+    authors = _clean_string_list(item.get("authors"))
+    author_urls = _clean_string_list(item.get("author_urls"))
     primary_author = authors[0] if authors else None
     return NewsArticle(
         title=title,
@@ -496,139 +500,189 @@ async def refresh_news_cache_async(
         news_cache.update_in_progress = False
 
 
-async def _refresh_news_cache_with_rust(
+def _rust_sources_payload(
     rss_sources: dict[str, dict[str, Any]],
-    source_progress_callback: SourceProgressCallback | None,
-    *,
-    is_partial_refresh: bool,
-    fetch_timeout_ms: int | None = None,
-    schedule_timeout_retry: bool = True,
-    refresh_phase: str = "primary",
-) -> None:
-    from app.core.tracing import get_tracer
-
-    tracer = get_tracer("scoop-backend")
-    logger.info("Using Rust RSS ingestion pipeline")
-
-    sources_payload = [
-        (name, list(_iter_source_urls(info.get("url")))) for name, info in rss_sources.items()
+) -> list[tuple[str, list[str]]]:
+    return [
+        (name, list(_iter_source_urls(info.get("url"))))
+        for name, info in rss_sources.items()
     ]
 
-    if not sources_payload:
-        logger.warning("No RSS sources configured; skipping refresh")
-        news_cache.update_cache([], [])
-        await _broadcast_cache_update(0, 0)
-        return
 
+def _rss_fetch_timeout_ms(fetch_timeout_ms: int | None) -> int:
+    if fetch_timeout_ms is not None:
+        return fetch_timeout_ms
     prior_source_stats = list(news_cache.get_source_stats())
     if not _successful_fetch_durations_ms(prior_source_stats):
         prior_source_stats = load_polling_state()
-    request_timeout_ms = fetch_timeout_ms or _adaptive_fetch_timeout_ms(prior_source_stats)
+    return _adaptive_fetch_timeout_ms(prior_source_stats)
 
+
+async def _parse_rust_feed_batch(
+    sources_payload: list[tuple[str, list[str]]],
+    request_timeout_ms: int,
+    is_partial_refresh: bool,
+    refresh_phase: str,
+) -> dict[str, Any]:
+    from app.core.tracing import get_tracer
+
+    tracer = get_tracer("scoop-backend")
+    fetch_concurrency = max(1, sum(len(urls) for _, urls in sources_payload))
     with tracer.start_as_current_span("rss_feed_ingestion") as span:
         span.set_attribute("source_count", len(sources_payload))
         span.set_attribute("is_partial_refresh", is_partial_refresh)
-        fetch_concurrency = max(1, sum(len(urls) for _, urls in sources_payload))
         span.set_attribute("fetch_concurrency", fetch_concurrency)
         span.set_attribute("fetch_timeout_ms", request_timeout_ms)
         span.set_attribute("refresh_phase", refresh_phase)
-
-        result = await asyncio.to_thread(
+        return await asyncio.to_thread(
             parse_feeds_parallel,
             sources_payload,
             fetch_concurrency,
             request_timeout_ms,
         )
 
-    publish_started = time.perf_counter()
-    articles_payload: list[dict[str, Any]] = result.get("articles", [])
-    stats_payload: dict[str, dict[str, Any]] = result.get("source_stats", {})
-    metrics_payload: dict[str, Any] = result.get("metrics", {})
 
+def _articles_from_rust_result(
+    articles_payload: list[dict[str, Any]],
+    rss_sources: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[NewsArticle]], list[NewsArticle]]:
     articles_by_source: dict[str, list[NewsArticle]] = {}
     for item in articles_payload:
         source_name = item.get("source") or "Unknown"
-        source_info = rss_sources.get(source_name, {})
-        article = _build_article_from_rust_payload(item, source_name, source_info)
+        article = _build_article_from_rust_payload(
+            item, source_name, rss_sources.get(source_name, {})
+        )
         articles_by_source.setdefault(source_name, []).append(article)
-
-    all_articles = [
-        article for source_articles in articles_by_source.values() for article in source_articles
-    ]
 
     for articles in articles_by_source.values():
         articles.sort(key=lambda article: article.published, reverse=True)
+    all_articles = [
+        article
+        for source_articles in articles_by_source.values()
+        for article in source_articles
+    ]
+    return articles_by_source, all_articles
 
-    source_stats: list[dict[str, Any]] = []
+
+def _rust_source_stat(
+    name: str,
+    source_info: dict[str, Any],
+    rust_stat: dict[str, Any],
+    articles: list[NewsArticle],
+) -> SourceStat:
+    stat: SourceStat = {
+        "name": name,
+        "url": source_info.get("url"),
+        "category": source_info.get("category", "general"),
+        "country": source_info.get("country", "US"),
+        "funding_type": source_info.get("funding_type"),
+        "bias_rating": source_info.get("bias_rating"),
+        "ownership_label": source_info.get("ownership_label"),
+        "article_count": rust_stat.get("article_count", len(articles)),
+        "status": rust_stat.get("status", "success"),
+        "error_message": rust_stat.get("error_message"),
+        "last_checked": datetime.now(UTC).isoformat(),
+        "is_consolidated": source_info.get("consolidate", False),
+        "sub_feeds": rust_stat.get("sub_feeds"),
+    }
+    _next_poll_metadata(name, stat, articles)
+    return stat
+
+
+def _report_source_progress(
+    source_progress_callback: SourceProgressCallback | None,
+    articles: list[NewsArticle],
+    stat: SourceStat,
+) -> None:
+    if source_progress_callback is None:
+        return
+    try:
+        source_progress_callback(articles, stat)
+    except Exception as exc:
+        logger.error("Progress callback error: %s", exc)
+
+
+def _build_rust_source_stats(
+    rss_sources: dict[str, dict[str, Any]],
+    stats_payload: dict[str, dict[str, Any]],
+    articles_by_source: dict[str, list[NewsArticle]],
+    is_partial_refresh: bool,
+    source_progress_callback: SourceProgressCallback | None,
+) -> list[SourceStat]:
+    source_stats: list[SourceStat] = []
     for name, source_info in rss_sources.items():
-        rust_stat = stats_payload.get(name, {})
-        stat = {
-            "name": name,
-            "url": source_info.get("url"),
-            "category": source_info.get("category", "general"),
-            "country": source_info.get("country", "US"),
-            "funding_type": source_info.get("funding_type"),
-            "bias_rating": source_info.get("bias_rating"),
-            "ownership_label": source_info.get("ownership_label"),
-            "article_count": rust_stat.get("article_count", len(articles_by_source.get(name, []))),
-            "status": rust_stat.get("status", "success"),
-            "error_message": rust_stat.get("error_message"),
-            "last_checked": datetime.now(UTC).isoformat(),
-            "is_consolidated": source_info.get("consolidate", False),
-            "sub_feeds": rust_stat.get("sub_feeds"),
-        }
-        _next_poll_metadata(name, stat, articles_by_source.get(name, []))
+        articles = articles_by_source.get(name, [])
+        stat = _rust_source_stat(name, source_info, stats_payload.get(name, {}), articles)
         source_stats.append(stat)
         if is_partial_refresh and settings.enable_incremental_cache:
             news_cache.update_source_cache(
-                articles_by_source.get(name, []),
+                articles,
                 stat,
                 replace_articles=_source_stat_can_replace_articles(stat),
             )
-        if source_progress_callback is not None:
-            try:
-                source_progress_callback(articles_by_source.get(name, []), stat)
-            except Exception as exc:
-                logger.error("Progress callback error: %s", exc)
+        _report_source_progress(source_progress_callback, articles, stat)
+    return source_stats
 
+
+def _preserve_incomplete_source_articles(
+    all_articles: list[NewsArticle],
+    source_stats: list[SourceStat],
+) -> list[NewsArticle]:
+    incomplete_sources = {
+        str(stat["name"])
+        for stat in source_stats
+        if stat.get("name")
+        and (
+            stat.get("status") not in {"success", "warning"}
+            or _source_stat_timed_out(stat)
+        )
+    }
+    if not incomplete_sources:
+        return all_articles
+    retained = [
+        article for article in all_articles if article.source not in incomplete_sources
+    ]
+    retained.extend(
+        article
+        for article in news_cache.get_articles()
+        if article.source in incomplete_sources
+    )
+    return retained
+
+
+def _publish_rust_refresh(
+    all_articles: list[NewsArticle],
+    source_stats: list[SourceStat],
+    is_partial_refresh: bool,
+) -> tuple[list[NewsArticle], int, int]:
     if is_partial_refresh and settings.enable_incremental_cache:
-        total_articles = len(news_cache.get_articles())
-        total_sources = len(news_cache.get_source_stats())
-    else:
-        if is_partial_refresh:
-            _merge_partial_cache_update(all_articles, source_stats)
-            total_articles = len(news_cache.get_articles())
-            total_sources = len(news_cache.get_source_stats())
-        else:
-            incomplete_sources = {
-                str(stat["name"])
-                for stat in source_stats
-                if stat.get("name")
-                and (
-                    stat.get("status") not in {"success", "warning"} or _source_stat_timed_out(stat)
-                )
-            }
-            if incomplete_sources:
-                all_articles = [
-                    article for article in all_articles if article.source not in incomplete_sources
-                ]
-                all_articles.extend(
-                    article
-                    for article in news_cache.get_articles()
-                    if article.source in incomplete_sources
-                )
-            all_articles.sort(key=lambda article: article.published, reverse=True)
+        return (
+            all_articles,
+            len(news_cache.get_articles()),
+            len(news_cache.get_source_stats()),
+        )
+    if is_partial_refresh:
+        _merge_partial_cache_update(all_articles, source_stats)
+        return (
+            all_articles,
+            len(news_cache.get_articles()),
+            len(news_cache.get_source_stats()),
+        )
 
-            news_cache.update_cache(all_articles, source_stats)
-            total_articles = len(all_articles)
-            total_sources = len(source_stats)
+    published_articles = _preserve_incomplete_source_articles(all_articles, source_stats)
+    published_articles.sort(key=lambda article: article.published, reverse=True)
+    news_cache.update_cache(published_articles, source_stats)
+    return published_articles, len(published_articles), len(source_stats)
 
-    await _broadcast_cache_update(total_articles, total_sources)
 
-    save_polling_state(list(news_cache.get_source_stats()))
-
-    publish_duration_ms = round((time.perf_counter() - publish_started) * 1000)
-
+def _log_rust_refresh_ready(
+    all_articles: list[NewsArticle],
+    source_stats: list[SourceStat],
+    metrics_payload: dict[str, Any],
+    publish_duration_ms: int,
+    request_timeout_ms: int,
+    refresh_phase: str,
+) -> None:
     log_progress(
         logger,
         "RSS ready: %s articles from %s sources "
@@ -645,6 +699,55 @@ async def _refresh_news_cache_with_rust(
         metrics_payload.get("fetch_attempts", 0),
         metrics_payload.get("fetch_timed_out", 0),
         metrics_payload.get("total_duration_ms", 0),
+    )
+
+
+async def _refresh_news_cache_with_rust(
+    rss_sources: dict[str, dict[str, Any]],
+    source_progress_callback: SourceProgressCallback | None,
+    *,
+    is_partial_refresh: bool,
+    fetch_timeout_ms: int | None = None,
+    schedule_timeout_retry: bool = True,
+    refresh_phase: str = "primary",
+) -> None:
+    logger.info("Using Rust RSS ingestion pipeline")
+    sources_payload = _rust_sources_payload(rss_sources)
+    if not sources_payload:
+        logger.warning("No RSS sources configured; skipping refresh")
+        news_cache.update_cache([], [])
+        await _broadcast_cache_update(0, 0)
+        return
+
+    request_timeout_ms = _rss_fetch_timeout_ms(fetch_timeout_ms)
+    result = await _parse_rust_feed_batch(
+        sources_payload, request_timeout_ms, is_partial_refresh, refresh_phase
+    )
+    publish_started = time.perf_counter()
+    articles_by_source, all_articles = _articles_from_rust_result(
+        result.get("articles", []), rss_sources
+    )
+    source_stats = _build_rust_source_stats(
+        rss_sources,
+        result.get("source_stats", {}),
+        articles_by_source,
+        is_partial_refresh,
+        source_progress_callback,
+    )
+    published_articles, total_articles, total_sources = _publish_rust_refresh(
+        all_articles, source_stats, is_partial_refresh
+    )
+
+    await _broadcast_cache_update(total_articles, total_sources)
+    save_polling_state(list(news_cache.get_source_stats()))
+    publish_duration_ms = round((time.perf_counter() - publish_started) * 1000)
+    _log_rust_refresh_ready(
+        published_articles,
+        source_stats,
+        result.get("metrics", {}),
+        publish_duration_ms,
+        request_timeout_ms,
+        refresh_phase,
     )
 
     if all_articles:
@@ -695,6 +798,49 @@ def _schedule_post_publish_work(
     _track_post_publish_task(task)
 
 
+async def _enrich_post_publish_images(
+    all_articles: list[NewsArticle],
+    articles_by_source: dict[str, list[NewsArticle]],
+) -> None:
+    image_started = time.perf_counter()
+    try:
+        await enrich_articles_with_og_images(all_articles)
+    except Exception:
+        logger.exception("Post-publish image enrichment failed")
+        return
+
+    with_images = sum(1 for article in all_articles if article.image)
+    logger.info(
+        "Post-publish image enrichment complete: %d/%d with images in %dms",
+        with_images,
+        len(all_articles),
+        round((time.perf_counter() - image_started) * 1000),
+    )
+    for name, articles in articles_by_source.items():
+        missing = sum(1 for article in articles if not article.image)
+        logger.info("Image coverage for %s: %d/%d missing", name, missing, len(articles))
+
+
+def _queue_post_publish_persistence(
+    articles_by_source: dict[str, list[NewsArticle]],
+    rss_sources: dict[str, dict[str, Any]],
+) -> int:
+    persisted_sources = 0
+    for name, articles in articles_by_source.items():
+        if not articles:
+            continue
+        try:
+            persist_articles_dual_write(
+                articles,
+                {**rss_sources.get(name, {}), "name": name, "source": name},
+            )
+        except Exception:
+            logger.exception("Could not queue persistence for %s", name)
+            continue
+        persisted_sources += 1
+    return persisted_sources
+
+
 async def _run_post_publish_work(
     articles_by_source: dict[str, list[NewsArticle]],
     rss_sources: dict[str, dict[str, Any]],
@@ -702,43 +848,8 @@ async def _run_post_publish_work(
     all_articles = [
         article for source_articles in articles_by_source.values() for article in source_articles
     ]
-    image_started = time.perf_counter()
-    try:
-        await enrich_articles_with_og_images(all_articles)
-    except Exception:
-        logger.exception("Post-publish image enrichment failed")
-    else:
-        with_images = sum(1 for article in all_articles if article.image)
-        logger.info(
-            "Post-publish image enrichment complete: %d/%d with images in %dms",
-            with_images,
-            len(all_articles),
-            round((time.perf_counter() - image_started) * 1000),
-        )
-        for name, articles in articles_by_source.items():
-            missing = sum(1 for article in articles if not article.image)
-            logger.info(
-                "Image coverage for %s: %d/%d missing",
-                name,
-                missing,
-                len(articles),
-            )
-
-    persisted_sources = 0
-    for name, articles in articles_by_source.items():
-        if not articles:
-            continue
-        source_info = rss_sources.get(name, {})
-        try:
-            persist_articles_dual_write(
-                articles,
-                {**source_info, "name": name, "source": name},
-            )
-        except Exception:
-            logger.exception("Could not queue persistence for %s", name)
-            continue
-        persisted_sources += 1
-
+    await _enrich_post_publish_images(all_articles, articles_by_source)
+    persisted_sources = _queue_post_publish_persistence(articles_by_source, rss_sources)
     logger.info(
         "Queued post-publish persistence: %d articles from %d sources",
         len(all_articles),
