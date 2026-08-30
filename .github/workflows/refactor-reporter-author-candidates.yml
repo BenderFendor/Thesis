@@ -184,7 +184,14 @@ jobs:
           path.write_text(text[:start] + replacement + text[end:])
           PY
       - name: Install focused validation tools
-        run: python -m pip install --quiet ruff==0.15.22 httpx pytest
+        run: |
+          python -m pip install --quiet \
+            ruff==0.15.22 \
+            httpx \
+            pytest \
+            pytest-asyncio \
+            sqlalchemy \
+            aiosqlite
       - name: Format and lint parser
         run: |
           ruff format backend/app/services/reporter_public_records.py backend/tests/test_reporter_public_records_author_candidates.py
