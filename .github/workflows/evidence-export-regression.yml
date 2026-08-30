@@ -9,6 +9,7 @@ on:
       - "backend/tests/test_evidence_export.py"
       - "backend/tests/test_evidence_spine_integration.py"
       - ".github/workflows/evidence-export-regression.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
