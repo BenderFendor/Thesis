@@ -6,6 +6,7 @@ on:
     paths:
       - "frontend/app/saved/**"
       - "frontend/app/sources/[source]/debug/**"
+      - "frontend/components/credibility-badge.tsx"
       - "frontend/components/highlight-toolbar.tsx"
       - "frontend/hooks/use-scroll-personalization.ts"
       - "frontend/lib/api.ts"
@@ -47,6 +48,7 @@ jobs:
             frontend/app/saved/use-saved-workspace-controller.ts \
             'frontend/app/sources/[source]/debug/page.tsx' \
             'frontend/app/sources/[source]/debug/source-debug-view.tsx' \
+            frontend/components/credibility-badge.tsx \
             frontend/components/highlight-toolbar.tsx \
             frontend/hooks/use-scroll-personalization.ts \
             frontend/lib/feed-ranking.ts
@@ -70,6 +72,7 @@ jobs:
           npx code-multivitals \
             'frontend/app/saved/**/*.{ts,tsx}' \
             'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
+            'frontend/components/credibility-badge.tsx' \
             'frontend/components/highlight-toolbar.tsx' \
             'frontend/hooks/use-scroll-personalization.ts' \
             'frontend/lib/api.ts' \
