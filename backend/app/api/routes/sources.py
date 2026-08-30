@@ -67,6 +67,43 @@ def _domain_for_url(url: str) -> str:
     return (urlparse(url).hostname or "").removeprefix("www.").lower()
 
 
+def _collect_sample_articles(
+    articles_payload: object, source_name: str
+) -> tuple[str, list[dict[str, str]]]:
+    """Collect the sample article summaries, deriving the feed title from sources."""
+    feed_title = source_name
+    sample_articles: list[dict[str, str]] = []
+    if not isinstance(articles_payload, list):
+        return feed_title, sample_articles
+    for article in articles_payload[:5]:
+        if not isinstance(article, dict):
+            continue
+        if article.get("source"):
+            feed_title = str(article["source"])
+        sample_articles.append(
+            {
+                "title": str(article.get("title") or ""),
+                "url": str(article.get("url") or article.get("link") or ""),
+                "source": str(article.get("source") or feed_title),
+            }
+        )
+    return feed_title, sample_articles
+
+
+def _find_duplicate_candidates(url: str, feed_domain: str) -> list[dict[str, str]]:
+    """Find catalog entries matching the URL or its domain (duplicate detection)."""
+    duplicate_candidates: list[dict[str, str]] = []
+    for source_name, source_data in get_rss_sources().items():
+        source_urls = source_data.get("url")
+        urls = source_urls if isinstance(source_urls, list) else [source_urls]
+        for existing_url in urls:
+            if not isinstance(existing_url, str):
+                continue
+            if existing_url == url or _domain_for_url(existing_url) == feed_domain:
+                duplicate_candidates.append({"name": source_name, "url": existing_url})
+    return duplicate_candidates
+
+
 def _validate_rss_feed(url: str) -> dict[str, Any]:
     source_name = _derive_source_name(url)
 
@@ -87,32 +124,9 @@ def _validate_rss_feed(url: str) -> dict[str, Any]:
         detail = error_message or "Could not parse any articles from this feed"
         raise HTTPException(status_code=422, detail=detail)
 
-    feed_title = source_name
-    sample_articles: list[dict[str, str]] = []
-    for article in articles_payload[:5]:
-        if not isinstance(article, dict):
-            continue
-        if article.get("source"):
-            feed_title = str(article["source"])
-        sample_articles.append(
-            {
-                "title": str(article.get("title") or ""),
-                "url": str(article.get("url") or article.get("link") or ""),
-                "source": str(article.get("source") or feed_title),
-            }
-        )
-
-    existing_sources = get_rss_sources()
+    feed_title, sample_articles = _collect_sample_articles(articles_payload, source_name)
     feed_domain = _domain_for_url(url)
-    duplicate_candidates = []
-    for name, source_data in existing_sources.items():
-        source_urls = source_data.get("url")
-        urls = source_urls if isinstance(source_urls, list) else [source_urls]
-        for existing_url in urls:
-            if not isinstance(existing_url, str):
-                continue
-            if existing_url == url or _domain_for_url(existing_url) == feed_domain:
-                duplicate_candidates.append({"name": name, "url": existing_url})
+    duplicate_candidates = _find_duplicate_candidates(url, feed_domain)
 
     return {
         "success": True,

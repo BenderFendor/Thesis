@@ -1,10 +1,10 @@
-import type { NewsArticle, CacheStatus } from "@/lib/api"
+import type { CacheStatus, NewsArticle } from "@/lib/api"
 
 export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
 export function getSharedViewArticles(
   _view: UnifiedNewsView,
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
 ): NewsArticle[] {
   return articles
 }
@@ -16,7 +16,7 @@ export function getSharedViewLoading(isLoading: boolean): boolean {
 export function getSharedArticleCount(
   cacheStatus: CacheStatus | null | undefined,
   totalCount: number,
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
   isLoading: boolean,
 ): number {
   if (totalCount > 0 || (!isLoading && totalCount === 0)) {
@@ -32,7 +32,7 @@ export function getSharedArticleCount(
 
 export function getSharedSourceCount(
   cacheStatus: CacheStatus | null | undefined,
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
   isLoading: boolean,
 ): number {
   const sourceCount = new Set(

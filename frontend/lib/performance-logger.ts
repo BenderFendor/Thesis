@@ -95,7 +95,7 @@ class FrontendPerformanceLogger {
   private sessionId: string;
   private activeStreams: Map<string, StreamMetrics> = new Map();
   private componentTimings: Map<string, number[]> = new Map();
-  private flushInterval: NodeJS.Timeout | null = null;
+  private flushInterval: NodeJS.Timeout | null = undefined;
   private lastFlushedEventIndex = 0;
 
   constructor() {
@@ -109,15 +109,15 @@ class FrontendPerformanceLogger {
       if (document.readyState === "complete") {
         this.logPageLoad();
       } else {
-        window.addEventListener("load", () => this.logPageLoad());
+        globalThis.addEventListener("load", () => this.logPageLoad());
       }
 
       // Capture unhandled errors
-      window.addEventListener("error", (event) => {
+      globalThis.addEventListener("error", (event) => {
         this.logError("window", "unhandled_error", event.error || event.message);
       });
 
-      window.addEventListener("unhandledrejection", (event) => {
+      globalThis.addEventListener("unhandledrejection", (event) => {
         this.logError("promise", "unhandled_rejection", event.reason);
       });
     }
@@ -129,7 +129,7 @@ class FrontendPerformanceLogger {
   }
 
   private logPageLoad(): void {
-    if (typeof window === "undefined" || !window.performance) return;
+    if (typeof window === "undefined" || !globalThis.performance) return;
 
     const navigationEntry = performance
       .getEntriesByType("navigation")
@@ -173,7 +173,7 @@ class FrontendPerformanceLogger {
         ttfb,
         domComplete,
         resourceLoadTime,
-        url: window.location.pathname,
+        url: globalThis.location.pathname,
       },
     });
   }
@@ -182,14 +182,14 @@ class FrontendPerformanceLogger {
     eventType: EventType,
     component: string,
     operation: string,
-    options: {
+    options:Readonly< {
       message?: string;
       durationMs?: number;
       details?: Record<string, unknown>;
       error?: Error | string;
       streamId?: string;
       requestId?: string;
-    } = {}
+    }> = {}
   ): PerformanceEvent {
     const event: PerformanceEvent = {
       eventId: this.generateEventId(),
@@ -285,12 +285,12 @@ class FrontendPerformanceLogger {
   logStreamEvent(
     streamId: string,
     eventName: string,
-    options: {
+    options:Readonly< {
       articleCount?: number;
       source?: string;
       isError?: boolean;
       details?: Record<string, unknown>;
-    } = {}
+    }> = {}
   ): void {
     const metrics = this.activeStreams.get(streamId);
     if (!metrics) return;
@@ -562,12 +562,12 @@ class FrontendPerformanceLogger {
         node_count: document.querySelectorAll("*").length,
         body_text_length: document.body?.innerText?.length ?? 0,
         viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight,
+          width: globalThis.innerWidth,
+          height: globalThis.innerHeight,
         },
         title: document.title,
       },
-      location: window.location?.pathname,
+      location: globalThis.location?.pathname,
       user_agent: navigator.userAgent,
       generated_at: new Date().toISOString(),
     };
@@ -606,6 +606,6 @@ declare global {
 
 // Make available globally for debugging in console
 if (typeof window !== "undefined") {
-  window.perfLogger = perfLogger;
-  window.exportDebugData = exportDebugData;
+  globalThis.perfLogger = perfLogger;
+  globalThis.exportDebugData = exportDebugData;
 }

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, type RefObject } from "react"
+import { useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 import { createPortal } from "react-dom"
 import { AlertTriangle, Bell, CheckCircle2, Info, X, XCircle } from "lucide-react"
 
@@ -33,14 +34,18 @@ interface NotificationsPopupProps {
 
 function getTypeIcon(type: Notification["type"]) {
   switch (type) {
-    case "error":
+    case "error": {
       return <XCircle className="h-4 w-4 text-primary" />
-    case "warning":
+    }
+    case "warning": {
       return <AlertTriangle className="h-4 w-4 text-primary/80" />
-    case "success":
+    }
+    case "success": {
       return <CheckCircle2 className="h-4 w-4 text-foreground/70" />
-    default:
+    }
+    default: {
       return <Info className="h-4 w-4 text-muted-foreground" />
+    }
   }
 }
 
@@ -52,13 +57,13 @@ export function NotificationsPopup({
   onClose,
   anchorRef,
 }: NotificationsPopupProps) {
-  const popupRef = useRef<HTMLDivElement>(null)
-  const unreadCount = notifications.filter(
+  const popupRef = useRef<HTMLDivElement>(undefined),
+   unreadCount = notifications.filter(
     (item) => item.type === "error" || item.type === "warning",
-  ).length
+  ).length,
 
-  const handleNotificationAction = (notification: Notification) => {
-    const action = notification.action
+   handleNotificationAction = (notification: Notification) => {
+    const {action} = notification
     if (action) {
       onAction?.(action.type, notification)
     }
@@ -78,9 +83,9 @@ export function NotificationsPopup({
       ) {
         onClose()
       }
-    }
+    },
 
-    const handleEscape = (event: KeyboardEvent) => {
+     handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose()
       }
@@ -95,7 +100,7 @@ export function NotificationsPopup({
     }
   }, [anchorRef, onClose])
 
-  if (typeof document === "undefined") return null
+  if (typeof document === "undefined") {return undefined}
 
   return createPortal(
     <div
@@ -152,7 +157,7 @@ export function NotificationsPopup({
                         {notification.action && (
                           <button
                             type="button"
-                            onClick={() => handleNotificationAction(notification)}
+                            onClick={() =>{  handleNotificationAction(notification); }}
                             className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-primary hover:underline"
                           >
                             {notification.action.label}

@@ -27,7 +27,7 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 function isLanHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase()
+  const normalized = hostname.trim().toLowerCase();
 
   if (isLocalHostname(normalized)) {
     return true
@@ -41,7 +41,7 @@ function isLanHostname(hostname: string): boolean {
 }
 
 function isPublicFrontendHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase()
+  const normalized = hostname.trim().toLowerCase();
 
   if (!PUBLIC_FRONTEND_DOMAIN) {
     return false
@@ -54,14 +54,14 @@ function isPublicFrontendHostname(hostname: string): boolean {
 }
 
 function isCloudflaredTunnelHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase()
+  const normalized = hostname.trim().toLowerCase();
   return CLOUDFLARED_TUNNEL_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
 // Rewrites a localhost-style backend URL to the current browser hostname so
 // remote browsers on the LAN or a Cloudflare tunnel can reach this machine.
 const rewriteRemoteBackendUrl = (url: URL): string | null => {
-  const browserHostname = window.location.hostname
+  const browserHostname = globalThis.location.hostname;
 
   if (
     PUBLIC_FRONTEND_DOMAIN &&
@@ -75,16 +75,16 @@ const rewriteRemoteBackendUrl = (url: URL): string | null => {
 
   const shouldRewriteLocalHost =
     isLanHostname(browserHostname) ||
-    isCloudflaredTunnelHostname(browserHostname)
+    isCloudflaredTunnelHostname(browserHostname);
 
   if (!browserHostname || !isLocalHostname(url.hostname) || !shouldRewriteLocalHost) {
-    return null
+    return undefined
   }
 
   url.hostname = browserHostname
-  url.protocol = window.location.protocol
+  url.protocol = globalThis.location.protocol
 
-  if (window.location.protocol === 'https:') {
+  if (globalThis.location.protocol === 'https:') {
     url.port = ''
   } else if (!url.port) {
     url.port = DEFAULT_BACKEND_PORT
@@ -97,26 +97,29 @@ const rewriteRemoteBackendUrl = (url: URL): string | null => {
 // another device on the LAN or Cloudflare tunnel, rewrite localhost-style backend
 // URLs to the current browser hostname so remote browsers can reach this machine.
 const resolveBaseUrl = (value?: string) => {
-  const raw = value && value.trim().length > 0 ? value : LOCAL_BACKEND_FALLBACK
-  const normalized = raw.replace(/\/+$/, "")
+  const raw = value && value.trim().length > 0 ? value : LOCAL_BACKEND_FALLBACK,
+normalized = raw.replace(/\/+$/, "");
 
   if (typeof window === "undefined") {
     return normalized
   }
 
   try {
-    const url = new URL(normalized)
+    const url = new URL(normalized);
     return rewriteRemoteBackendUrl(url) ?? normalized
   } catch {
     return normalized
   }
 }
 
-export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+
+// --- Feature Gates ---
+
 
 // --- Feature Gates ---
 export const ENABLE_DIGEST = process.env.NEXT_PUBLIC_ENABLE_DIGEST === "true";
-export const ENABLE_HIGHLIGHTS = true;
+const ENABLE_HIGHLIGHTS = true;
 
 const OG_IMAGE_SUCCESS_TTL_MS = 10 * 60 * 1000;
 const OG_IMAGE_MISS_TTL_MS = 2 * 60 * 1000;
@@ -140,7 +143,7 @@ function isLikelyNetworkError(error: unknown): boolean {
     return false
   }
 
-  const message = error.message.toLowerCase()
+  const message = error.message.toLowerCase();
   return (
     error.name === "TypeError" ||
     error.name === "NetworkError" ||
@@ -163,12 +166,18 @@ const pruneOgImageCache = () => {
     return;
   }
 
-  const keys = Array.from(ogImageCache.keys());
-  const overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
+  const keys = Array.from(ogImageCache.keys()),
+overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
   for (let i = 0; i < overflow; i += 1) {
     ogImageCache.delete(keys[i]!);
   }
 };
+
+// --- Data Types ---
+
+// Data types
+
+
 
 // --- Data Types ---
 
@@ -190,7 +199,7 @@ export interface NewsSource extends Pick<SourceCore, "id" | "name"> {
   factualRating?: string;
 }
 
-export interface NewsArticle
+interface NewsArticle
   extends Pick<ArticleCore, "title" | "source" | "sourceId" | "url" | "publishedAt"> {
   id: number;
   country: string;
@@ -224,7 +233,7 @@ export interface NewsArticle
   isPersisted?: boolean;
 }
 
-export interface BrowseIndexResponse {
+interface BrowseIndexResponse {
   articles: NewsArticle[];
   total: number;
 }
@@ -290,10 +299,10 @@ function normalizeCountryCode(value?: string | null): string {
 
   const normalizedName = trimmed
     .toLowerCase()
-    .replace(/[.]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  const noSpace = normalizedName.replace(/\s+/g, "");
+    .replace(/[.]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim(),
+noSpace = normalizedName.replace(/\s+/gu, "");
   return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
 }
 
@@ -348,38 +357,41 @@ const BackendSourceSchema = z
   })
   .passthrough();
 
-export type BackendArticle = z.infer<typeof BackendArticleSchema>;
+type BackendArticle = z.infer<typeof BackendArticleSchema>;
 
-export interface BookmarkEntry {
+interface BookmarkEntry {
   bookmarkId: number;
   articleId: number;
   article: NewsArticle;
   createdAt?: string;
 }
 
-export interface SemanticSearchResult {
+interface SemanticSearchResult {
   article: NewsArticle;
   similarityScore?: number | null;
   distance?: number | null;
 }
 
-export interface SemanticSearchResponse {
+interface SemanticSearchResponse {
   query: string;
   results: SemanticSearchResult[];
   total: number;
 }
 
 // Add streaming interfaces
+
+
+// Add streaming interfaces
 export interface StreamOptions {
   useCache?: boolean;
   category?: string;
   onProgress?: (progress: StreamProgress) => void;
-  onSourceComplete?: (source: string, articles: NewsArticle[]) => void;
+  onSourceComplete?: (source: string, articles:readonly  NewsArticle[]) => void;
   onError?: (error: string) => void;
   signal?: AbortSignal;
 }
 
-export interface StreamProgress {
+interface StreamProgress {
   completed: number;
   total: number;
   percentage: number;
@@ -387,7 +399,7 @@ export interface StreamProgress {
   message?: string;
 }
 
-export interface StreamEvent {
+interface StreamEvent {
   status:
     | "starting"
     | "initial"
@@ -411,11 +423,14 @@ export interface StreamEvent {
 }
 
 // API functions
-export async function fetchNews(params?: {
+
+
+// API functions
+export async function fetchNews(params?:Readonly< {
   limit?: number;
   category?: string;
   search?: string;
-}): Promise<NewsArticle[]> {
+}>): Promise<NewsArticle[]> {
   try {
     const searchParams = new URLSearchParams();
     searchParams.append("use_cache", "true"); // Use cache by default
@@ -437,8 +452,8 @@ export async function fetchNews(params?: {
     // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
     const parsedArticles = BackendArticleSchema.array().safeParse(
       data.articles ?? [],
-    );
-    const backendArticles: BackendArticle[] = parsedArticles.success
+    ),
+backendArticles: BackendArticle[] = parsedArticles.success
       ? parsedArticles.data
       : [];
     if (!parsedArticles.success) {
@@ -463,8 +478,8 @@ export async function fetchNews(params?: {
 
     // Client-side search filtering if needed
     if (params?.search) {
-      const searchTerm = params.search.toLowerCase();
-      const beforeFilterCount = articles.length;
+      const searchTerm = params.search.toLowerCase(),
+beforeFilterCount = articles.length;
       articles = articles.filter(
         (article: NewsArticle) =>
           article.title.toLowerCase().includes(searchTerm) ||
@@ -535,7 +550,7 @@ function getBiasFromSource(source: string): "left" | "center" | "right" {
   return biasMap[source] || "center";
 }
 
-export async function fetchNewsFromSource(
+async function fetchNewsFromSource(
   sourceId: string,
 ): Promise<NewsArticle[]> {
   // Refactored to use the main fetchNews function for consistency
@@ -543,13 +558,13 @@ export async function fetchNewsFromSource(
   return allArticles.filter((article) => article.sourceId === sourceId);
 }
 
-export async function fetchNewsByCategory(
+async function fetchNewsByCategory(
   category: string,
 ): Promise<NewsArticle[]> {
   return fetchNews({ category });
 }
 
-export async function fetchSources(): Promise<NewsSource[]> {
+async function fetchSources(): Promise<NewsSource[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/news/sources`);
 
@@ -557,8 +572,8 @@ export async function fetchSources(): Promise<NewsSource[]> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const payload = await response.json();
-    const parsedSources = z.array(BackendSourceSchema).safeParse(payload);
+    const payload = await response.json(),
+parsedSources = z.array(BackendSourceSchema).safeParse(payload);
     if (!parsedSources.success) {
       logger.warn("fetchSources received malformed payload");
       return [];
@@ -568,11 +583,11 @@ export async function fetchSources(): Promise<NewsSource[]> {
     // Convert backend source format to frontend format
     return sources.map((source) => ({
       id:
-        source.id || source.slug || source.name.toLowerCase().replace(/\s+/g, "-"),
+        source.id || source.slug || source.name.toLowerCase().replace(/\s+/gu, "-"),
       slug:
         source.slug ||
         source.id ||
-        source.name.toLowerCase().replace(/\s+/g, "-"),
+        source.name.toLowerCase().replace(/\s+/gu, "-"),
       name: source.name,
       country: source.country,
       url: source.url,
@@ -616,7 +631,7 @@ function mapCredibilityScoreToLevel(
     return "medium"
   }
 
-  const normalizedFactual = factualRating?.toLowerCase()
+  const normalizedFactual = factualRating?.toLowerCase();
   if (normalizedFactual?.includes("high")) return "high"
   if (normalizedFactual?.includes("low") || normalizedFactual?.includes("mixed")) {
     return "low"
@@ -633,7 +648,7 @@ function mapBias(biasRating?: string): "left" | "center" | "right" {
   return "center";
 }
 
-export async function fetchCategories(): Promise<string[]> {
+async function fetchCategories(): Promise<string[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/categories`);
 
@@ -649,6 +664,13 @@ export async function fetchCategories(): Promise<string[]> {
     return [];
   }
 }
+
+// Inline definition API: request a short, one-paragraph definition for a highlighted term
+/**
+ * Requests a short, one-paragraph AI-generated definition for a highlighted term using the /api/inline/define endpoint.
+ * Returns a success flag, the term, and the definition or error.
+ */
+
 
 // Inline definition API: request a short, one-paragraph definition for a highlighted term
 /**
@@ -695,7 +717,7 @@ export async function requestInlineDefinition(
   }
 }
 
-export interface SourceStats {
+interface SourceStats {
   name: string;
   url: string;
   category: string;
@@ -708,7 +730,7 @@ export interface SourceStats {
   last_checked: string;
 }
 
-export async function fetchSourceStats(): Promise<SourceStats[]> {
+async function fetchSourceStats(): Promise<SourceStats[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/news/sources/stats`);
 
@@ -724,7 +746,7 @@ export async function fetchSourceStats(): Promise<SourceStats[]> {
   }
 }
 
-export interface CacheStatus {
+interface CacheStatus {
   last_updated: string;
   update_in_progress: boolean;
   total_articles: number;
@@ -736,7 +758,7 @@ export interface CacheStatus {
   cache_age_seconds: number;
 }
 
-export interface LlmLogEntry {
+interface LlmLogEntry {
   timestamp?: string;
   request_id?: string;
   service?: string;
@@ -749,7 +771,7 @@ export interface LlmLogEntry {
   error_message?: string;
 }
 
-export interface LlmLogResponse {
+interface LlmLogResponse {
   available: boolean;
   path: string;
   returned: number;
@@ -759,7 +781,7 @@ export interface LlmLogResponse {
   success_filter?: boolean | null;
 }
 
-export interface DebugErrorEntry {
+interface DebugErrorEntry {
   timestamp?: string;
   request_id?: string;
   service?: string;
@@ -772,14 +794,14 @@ export interface DebugErrorEntry {
   operation?: string;
 }
 
-export interface DebugErrorsResponse {
+interface DebugErrorsResponse {
   log_file: LlmLogResponse;
   recent_request_stream_errors: DebugErrorEntry[];
   returned_recent_errors: number;
   include_request_stream_events: boolean;
 }
 
-export async function fetchCacheStatus(): Promise<CacheStatus | null> {
+async function fetchCacheStatus(): Promise<CacheStatus | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/status`);
 
@@ -790,17 +812,17 @@ export async function fetchCacheStatus(): Promise<CacheStatus | null> {
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch cache status:", error);
-    return null;
+    return undefined;
   }
 }
 
-export async function fetchLlmLogs(
-  options: {
+async function fetchLlmLogs(
+  options:Readonly< {
     limit?: number;
     offset?: number;
     service?: string;
     success?: boolean;
-  } = {},
+  }> = {},
 ): Promise<LlmLogResponse> {
   const params = new URLSearchParams();
   if (typeof options.limit === "number") params.set("limit", String(options.limit));
@@ -817,12 +839,12 @@ export async function fetchLlmLogs(
   return response.json();
 }
 
-export async function fetchDebugErrors(
-  options: {
+async function fetchDebugErrors(
+  options:Readonly< {
     limit?: number;
     offset?: number;
     includeRequestStreamEvents?: boolean;
-  } = {},
+  }> = {},
 ): Promise<DebugErrorsResponse> {
   const params = new URLSearchParams();
   if (typeof options.limit === "number") params.set("limit", String(options.limit));
@@ -840,8 +862,8 @@ export async function fetchDebugErrors(
   return response.json();
 }
 
-export async function refreshCache(
-  onProgress?: (event: {
+async function refreshCache(
+  onProgress?: (event:Readonly< {
     source?: string;
     articlesFromSource?: number;
     totalSourcesProcessed?: number;
@@ -849,7 +871,7 @@ export async function refreshCache(
     totalArticles?: number;
     successfulSources?: number;
     message?: string;
-  }) => void,
+  }>) => void,
 ): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/refresh/stream`, {
@@ -864,15 +886,15 @@ export async function refreshCache(
       throw new Error("No response body for streaming");
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    const reader = response.body.getReader(),
+decoder = new TextDecoder();
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n");
+      const chunk = decoder.decode(value, { stream: true }),
+lines = chunk.split("\n");
 
       for (const line of lines) {
         if (line.startsWith("data: ")) {
@@ -919,17 +941,16 @@ export async function refreshCache(
   }
 }
 
-export async function semanticSearch(
+async function semanticSearch(
   query: string,
-  options?: { limit?: number; category?: string },
+  options?:Readonly< { limit?: number; category?: string }>,
 ): Promise<SemanticSearchResponse> {
   const params = new URLSearchParams({ query });
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.category) params.append("category", options.category);
 
-  const url = `${API_BASE_URL}/api/search/semantic?${params.toString()}`;
-
-  const response = await fetch(url);
+  const url = `${API_BASE_URL}/api/search/semantic?${params.toString()}`,
+response = await fetch(url);
   if (response.status === 503) {
     throw new Error("Semantic search is currently unavailable.");
   }
@@ -956,16 +977,16 @@ export async function semanticSearch(
   };
 }
 
-export async function fetchBookmarks(): Promise<BookmarkEntry[]> {
+async function fetchBookmarks(): Promise<BookmarkEntry[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    const bookmarks = Array.isArray(data?.bookmarks) ? data.bookmarks : [];
-    const mappedArticles = mapBackendArticles(bookmarks);
+    const data = await response.json(),
+bookmarks = Array.isArray(data?.bookmarks) ? data.bookmarks : [],
+mappedArticles = mapBackendArticles(bookmarks);
 
     return mappedArticles.map((article, index) => ({
       bookmarkId: bookmarks[index].bookmark_id,
@@ -983,20 +1004,20 @@ export async function fetchBookmarks(): Promise<BookmarkEntry[]> {
   }
 }
 
-export async function fetchBookmark(
+async function fetchBookmark(
   articleId: number,
 ): Promise<BookmarkEntry | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`);
     if (response.status === 404) {
-      return null;
+      return undefined;
     }
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    const [article] = mapBackendArticles([data]);
+    const data = await response.json(),
+[article] = mapBackendArticles([data]);
     return {
       bookmarkId: data.bookmark_id,
       articleId: data.article_id,
@@ -1005,11 +1026,11 @@ export async function fetchBookmark(
     };
   } catch (error) {
     console.error("Failed to fetch bookmark:", error);
-    return null;
+    return undefined;
   }
 }
 
-export async function createBookmark(
+async function createBookmark(
   articleId: number,
 ): Promise<BookmarkEntry | null> {
   try {
@@ -1033,7 +1054,7 @@ export async function createBookmark(
   }
 }
 
-export async function updateBookmark(
+async function updateBookmark(
   articleId: number,
 ): Promise<BookmarkEntry | null> {
   try {
@@ -1042,7 +1063,7 @@ export async function updateBookmark(
     });
 
     if (response.status === 404) {
-      return null;
+      return undefined;
     }
     if (!response.ok) {
       throw new Error(`Failed to update bookmark. Status: ${response.status}`);
@@ -1051,11 +1072,11 @@ export async function updateBookmark(
     return await fetchBookmark(articleId);
   } catch (error) {
     console.error("Failed to update bookmark:", error);
-    return null;
+    return undefined;
   }
 }
 
-export async function deleteBookmark(articleId: number): Promise<boolean> {
+async function deleteBookmark(articleId: number): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bookmarks/${articleId}`, {
       method: "DELETE",
@@ -1075,22 +1096,22 @@ export async function deleteBookmark(articleId: number): Promise<boolean> {
   }
 }
 
-export interface LikedEntry {
+interface LikedEntry {
   likedId: number;
   articleId: number;
   article: NewsArticle;
   createdAt?: string;
 }
 
-export async function fetchLikedArticles(): Promise<LikedEntry[]> {
+async function fetchLikedArticles(): Promise<LikedEntry[]> {
   const response = await fetch(`${API_BASE_URL}/api/liked`);
   if (!response.ok) {
     throw new Error(`Failed to load liked articles (${response.status})`);
   }
 
-  const data = await response.json();
-  const liked = Array.isArray(data?.liked) ? data.liked : [];
-  const mappedArticles = mapBackendArticles(liked);
+  const data = await response.json(),
+liked = Array.isArray(data?.liked) ? data.liked : [],
+mappedArticles = mapBackendArticles(liked);
 
   return mappedArticles.map((article, index) => ({
     likedId: liked[index].liked_id,
@@ -1100,7 +1121,7 @@ export async function fetchLikedArticles(): Promise<LikedEntry[]> {
   }));
 }
 
-export async function createLikedArticle(
+async function createLikedArticle(
   articleId: number,
 ): Promise<LikedEntry | null> {
   try {
@@ -1125,7 +1146,7 @@ export async function createLikedArticle(
   }
 }
 
-export async function deleteLikedArticle(articleId: number): Promise<boolean> {
+async function deleteLikedArticle(articleId: number): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/liked/${articleId}`, {
       method: "DELETE",
@@ -1149,7 +1170,7 @@ export async function deleteLikedArticle(articleId: number): Promise<boolean> {
 let cachedSources: NewsSource[] = [];
 let cachedArticles: NewsArticle[] = [];
 
-export interface AddRssResponse {
+interface AddRssResponse {
   success: boolean;
   name: string;
   url: string;
@@ -1174,7 +1195,7 @@ export interface AddRssResponse {
   };
 }
 
-export async function validateRssUrl(
+async function validateRssUrl(
   url: string,
 ): Promise<AddRssResponse> {
   const response = await fetch(`${API_BASE_URL}/sources/rss/validate`, {
@@ -1184,8 +1205,8 @@ export async function validateRssUrl(
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
+    const body = await response.json().catch(() => null),
+detail =
       body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
     throw new Error(detail);
   }
@@ -1193,7 +1214,7 @@ export async function validateRssUrl(
   return response.json();
 }
 
-export async function promoteRssSource(request: {
+async function promoteRssSource(request:Readonly< {
   url: string;
   name?: string;
   category?: string;
@@ -1204,7 +1225,7 @@ export async function promoteRssSource(request: {
   ownership_label?: string;
   factual_reporting?: string;
   is_paywalled?: boolean;
-}): Promise<AddRssResponse> {
+}>): Promise<AddRssResponse> {
   const response = await fetch(`${API_BASE_URL}/sources/rss/promote`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1212,8 +1233,8 @@ export async function promoteRssSource(request: {
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
+    const body = await response.json().catch(() => null),
+detail =
       body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
     throw new Error(detail);
   }
@@ -1221,7 +1242,7 @@ export async function promoteRssSource(request: {
   return response.json();
 }
 
-export async function getSourceById(
+async function getSourceById(
   id: string,
 ): Promise<NewsSource | undefined> {
   if (cachedSources.length === 0) {
@@ -1238,7 +1259,7 @@ export async function getSourceById(
   );
 }
 
-export async function getArticlesByCountry(
+async function getArticlesByCountry(
   country: string,
 ): Promise<NewsArticle[]> {
   if (cachedArticles.length === 0) {
@@ -1250,7 +1271,7 @@ export async function getArticlesByCountry(
   );
 }
 
-export async function fetchArticlesBySource(
+async function fetchArticlesBySource(
   sourceId: string,
 ): Promise<NewsArticle[]> {
   if (cachedArticles.length === 0) {
@@ -1258,6 +1279,9 @@ export async function fetchArticlesBySource(
   }
   return cachedArticles.filter((article) => article.sourceId === sourceId);
 }
+
+// Initialize data on module load
+
 
 // Initialize data on module load
 export async function initializeData() {
@@ -1273,6 +1297,12 @@ export async function initializeData() {
  * Requests a definition for a term using the /api/inline/definition endpoint.
  * Returns the definition and any error encountered.
  */
+
+
+/**
+ * Requests a definition for a term using the /api/inline/definition endpoint.
+ * Returns the definition and any error encountered.
+ */
 export async function fetchInlineDefinition(
   term: string,
   context?: string,
@@ -1282,7 +1312,7 @@ export async function fetchInlineDefinition(
   return { definition: res.definition ?? null, error: res.error ?? null };
 }
 
-export interface SourceDebugData {
+interface SourceDebugData {
   source_name: string;
   source_config: Record<string, unknown> | null;
   rss_url: string;
@@ -1344,7 +1374,7 @@ export interface SourceDebugData {
   error?: string;
 }
 
-export async function fetchSourceDebugData(
+async function fetchSourceDebugData(
   sourceName: string,
 ): Promise<SourceDebugData> {
   // Safely decode the source name in case it's already URL encoded, then encode it properly
@@ -1355,10 +1385,8 @@ export async function fetchSourceDebugData(
     // If decoding fails, assume it's not encoded
     decodedSourceName = sourceName;
   }
-  const encodedSourceName = encodeURIComponent(decodedSourceName);
-
-  // FIXED: Use correct endpoint path
-  const url = `${API_BASE_URL}/debug/sources/${encodedSourceName}`;
+  const encodedSourceName = encodeURIComponent(decodedSourceName),
+url = `${API_BASE_URL}/debug/sources/${encodedSourceName}`;
   logger.debug(`Fetching debug data for source: ${url}`);
   try {
     const response = await fetch(url);
@@ -1441,13 +1469,13 @@ export async function fetchSourceDebugData(
   }
 }
 
-export interface ChromaDebugArticle {
+interface ChromaDebugArticle {
   id: string;
   metadata: Record<string, unknown>;
   preview: string;
 }
 
-export interface ChromaDebugResponse {
+interface ChromaDebugResponse {
   limit: number;
   offset: number;
   returned: number;
@@ -1459,9 +1487,8 @@ const ChromaDebugArticleSchema = z.object({
   id: z.string(),
   metadata: z.record(z.unknown()),
   preview: z.string(),
-});
-
-const ChromaDebugResponseSchema = z.object({
+}),
+ChromaDebugResponseSchema = z.object({
   limit: z.number(),
   offset: z.number(),
   returned: z.number(),
@@ -1469,7 +1496,7 @@ const ChromaDebugResponseSchema = z.object({
   articles: z.array(ChromaDebugArticleSchema),
 });
 
-export interface DatabaseDebugResponse {
+interface DatabaseDebugResponse {
   limit: number;
   offset: number;
   source?: string | null;
@@ -1509,9 +1536,8 @@ const DatabaseDebugArticleSchema = z
     content: z.string().nullable().optional(),
     image_url: z.string().nullable().optional(),
   })
-  .catchall(z.unknown());
-
-const DatabaseDebugResponseSchema = z.object({
+  .catchall(z.unknown()),
+DatabaseDebugResponseSchema = z.object({
   limit: z.number(),
   offset: z.number(),
   source: z.string().nullable().optional(),
@@ -1526,7 +1552,7 @@ const DatabaseDebugResponseSchema = z.object({
   articles: z.array(DatabaseDebugArticleSchema),
 });
 
-export interface StorageDriftReport {
+interface StorageDriftReport {
   database_total_articles: number;
   database_with_embeddings: number;
   database_missing_embeddings: number;
@@ -1545,9 +1571,8 @@ const MissingInChromaItemSchema = z.object({
   id: z.number(),
   chroma_id: z.string().nullable().optional(),
   embedding_generated: z.boolean().nullable().optional(),
-});
-
-const StorageDriftReportSchema = z.object({
+}),
+StorageDriftReportSchema = z.object({
   database_total_articles: z.number(),
   database_with_embeddings: z.number(),
   database_missing_embeddings: z.number(),
@@ -1558,7 +1583,7 @@ const StorageDriftReportSchema = z.object({
   dangling_in_chroma: z.array(z.string()),
 });
 
-export interface CacheDebugArticle {
+interface CacheDebugArticle {
   id?: number | null;
   title: string;
   link: string;
@@ -1570,7 +1595,7 @@ export interface CacheDebugArticle {
   image?: string | null;
 }
 
-export interface CacheDebugResponse {
+interface CacheDebugResponse {
   limit: number;
   offset: number;
   source?: string | null;
@@ -1589,9 +1614,8 @@ const CacheDebugArticleSchema = z.object({
   category: z.string(),
   country: z.string().nullable().optional(),
   image: z.string().nullable().optional(),
-});
-
-const CacheDebugResponseSchema = z.object({
+}),
+CacheDebugResponseSchema = z.object({
   limit: z.number(),
   offset: z.number(),
   source: z.string().nullable().optional(),
@@ -1600,7 +1624,7 @@ const CacheDebugResponseSchema = z.object({
   articles: z.array(CacheDebugArticleSchema),
 });
 
-export interface CacheDeltaResponse {
+interface CacheDeltaResponse {
   cache_total: number;
   cache_sampled: number;
   db_total: number;
@@ -1622,7 +1646,7 @@ const CacheDeltaResponseSchema = z.object({
   sample_limit: z.number(),
 });
 
-export interface StartupEventMetric {
+interface StartupEventMetric {
   name: string;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -1631,7 +1655,7 @@ export interface StartupEventMetric {
   metadata?: Record<string, unknown>;
 }
 
-export interface StartupMetricsResponse {
+interface StartupMetricsResponse {
   startedAt?: string | null;
   completedAt?: string | null;
   durationSeconds?: number | null;
@@ -1640,7 +1664,7 @@ export interface StartupMetricsResponse {
 }
 
 function withDebugQuery(path: string, searchParams?: URLSearchParams): string {
-  const query = searchParams?.toString()
+  const query = searchParams?.toString();
   return `${API_BASE_URL}${path}${query ? `?${query}` : ""}`
 }
 
@@ -1649,7 +1673,7 @@ async function fetchDebugJson(
   errorMessage: string,
   searchParams?: URLSearchParams,
 ): Promise<unknown> {
-  const response = await fetch(withDebugQuery(path, searchParams))
+  const response = await fetch(withDebugQuery(path, searchParams));
   if (!response.ok) {
     throw new Error(`${errorMessage} (${response.status})`)
   }
@@ -1662,14 +1686,14 @@ async function fetchDebugParsed<T>(
   errorMessage: string,
   searchParams?: URLSearchParams,
 ): Promise<T> {
-  const payload = await fetchDebugJson(path, errorMessage, searchParams)
+  const payload = await fetchDebugJson(path, errorMessage, searchParams);
   return schema.parse(payload)
 }
 
-export async function fetchChromaDebugArticles(params?: {
+async function fetchChromaDebugArticles(params?:Readonly< {
   limit?: number;
   offset?: number;
-}): Promise<ChromaDebugResponse> {
+}>): Promise<ChromaDebugResponse> {
   const searchParams = new URLSearchParams();
   if (params?.limit) searchParams.append("limit", String(params.limit));
   if (params?.offset) searchParams.append("offset", String(params.offset));
@@ -1681,7 +1705,7 @@ export async function fetchChromaDebugArticles(params?: {
   )
 }
 
-export async function fetchDatabaseDebugArticles(params?: {
+async function fetchDatabaseDebugArticles(params?:Readonly< {
   limit?: number;
   offset?: number;
   source?: string;
@@ -1689,7 +1713,7 @@ export async function fetchDatabaseDebugArticles(params?: {
   sort_direction?: "asc" | "desc";
   published_before?: string;
   published_after?: string;
-}): Promise<DatabaseDebugResponse> {
+}>): Promise<DatabaseDebugResponse> {
   const searchParams = new URLSearchParams();
   if (params?.limit) searchParams.append("limit", String(params.limit));
   if (params?.offset) searchParams.append("offset", String(params.offset));
@@ -1714,12 +1738,12 @@ export async function fetchDatabaseDebugArticles(params?: {
   )
 }
 
-export async function fetchStorageDrift(
+async function fetchStorageDrift(
   sampleLimit: number = 50,
 ): Promise<StorageDriftReport> {
   const searchParams = new URLSearchParams({
     sample_limit: String(sampleLimit),
-  })
+  });
   return fetchDebugParsed(
     "/debug/storage/drift",
     StorageDriftReportSchema,
@@ -1728,11 +1752,11 @@ export async function fetchStorageDrift(
   )
 }
 
-export async function fetchCacheDebugArticles(params?: {
+async function fetchCacheDebugArticles(params?:Readonly< {
   limit?: number;
   offset?: number;
   source?: string;
-}): Promise<CacheDebugResponse> {
+}>): Promise<CacheDebugResponse> {
   const searchParams = new URLSearchParams();
   if (params?.limit) searchParams.append("limit", String(params.limit));
   if (params?.offset) searchParams.append("offset", String(params.offset));
@@ -1745,12 +1769,12 @@ export async function fetchCacheDebugArticles(params?: {
   )
 }
 
-export async function fetchCacheDelta(params?: {
+async function fetchCacheDelta(params?:Readonly< {
   sample_limit?: number;
   sample_offset?: number;
   source?: string;
   sample_preview_limit?: number;
-}): Promise<CacheDeltaResponse> {
+}>): Promise<CacheDeltaResponse> {
   const searchParams = new URLSearchParams();
   if (params?.sample_limit) {
     searchParams.append("sample_limit", String(params.sample_limit));
@@ -1775,14 +1799,14 @@ export async function fetchCacheDelta(params?: {
   )
 }
 
-export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
+async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
   const response = await fetch(`${API_BASE_URL}/debug/startup`);
   if (!response.ok) {
     throw new Error(`Failed to fetch startup metrics (${response.status})`);
   }
 
-  const data = await response.json();
-  const events: StartupEventMetric[] = Array.isArray(data?.events)
+  const data = await response.json(),
+events: StartupEventMetric[] = Array.isArray(data?.events)
     ? data.events.map((event: Record<string, unknown>) => ({
         name: typeof event?.name === "string" ? event.name : "event",
         startedAt:
@@ -1812,6 +1836,10 @@ export async function fetchStartupMetrics(): Promise<StartupMetricsResponse> {
 
 // --- Credibility Engine Types (Plan 35) ---
 
+
+
+// --- Credibility Engine Types (Plan 35) ---
+
 export interface CredibilityDimension {
   score: number | null
   confidence: number
@@ -1823,22 +1851,22 @@ export interface CredibilityDimension {
   dimension: string
 }
 
-export interface CredibilityDataQuality {
+interface CredibilityDataQuality {
   dimensions_available: number
   dimensions_total: number
   completeness_pct: number
   last_updated: string | null
 }
 
-export interface SourceCredibilityProfile {
+interface SourceCredibilityProfile {
   domain: string
   dimensions: Record<string, CredibilityDimension>
   data_quality: CredibilityDataQuality
   status: string
 }
 
-export async function fetchSourceCredibility(domain: string): Promise<SourceCredibilityProfile> {
-  const response = await fetch(`${API_BASE_URL}/sources/${encodeURIComponent(domain)}/credibility`)
+async function fetchSourceCredibility(domain: string): Promise<SourceCredibilityProfile> {
+  const response = await fetch(`${API_BASE_URL}/sources/${encodeURIComponent(domain)}/credibility`);
   if (!response.ok) {
     throw new Error(`Failed to fetch source credibility (${response.status})`)
   }
@@ -1854,7 +1882,7 @@ interface StreamRuntime {
   settled: boolean;
   lastMessageTime: number;
   onProgress?: (progress: StreamProgress) => void;
-  onSourceComplete?: (source: string, articles: NewsArticle[]) => void;
+  onSourceComplete?: (source: string, articles:readonly  NewsArticle[]) => void;
   onError?: (error: string) => void;
   clearTimers: () => void;
   abort: () => void;
@@ -1869,7 +1897,7 @@ type StreamResult = {
   errors: string[];
 };
 
-function streamResolve(rt: StreamRuntime, extraErrors?: string[]): void {
+function streamResolve(rt: StreamRuntime, extraErrors?:readonly  string[]): void {
   if (rt.settled) return;
   rt.settled = true;
   rt.clearTimers();
@@ -1889,7 +1917,7 @@ function streamReject(rt: StreamRuntime, error: unknown): void {
 }
 
 function queueStreamBatches(
-  articlesToQueue: NewsArticle[],
+  articlesToQueue:readonly  NewsArticle[],
   rt: StreamRuntime,
   batchLabel: string,
   finalProgress: () => StreamProgress,
@@ -1914,8 +1942,8 @@ function queueStreamBatches(
 function handleInitialEvent(data: StreamEvent, rt: StreamRuntime): void {
   rt.hasReceivedData = true;
   if (data.articles && Array.isArray(data.articles)) {
-    const mappedArticles = mapBackendArticles(data.articles);
-    const cacheAge = data.cache_age_seconds || 999;
+    const mappedArticles = mapBackendArticles(data.articles),
+cacheAge = data.cache_age_seconds || 999;
     logger.debug(
       `Stream ${rt.streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
     );
@@ -1936,8 +1964,8 @@ function handleInitialEvent(data: StreamEvent, rt: StreamRuntime): void {
 function handleCacheDataEvent(data: StreamEvent, rt: StreamRuntime): void {
   rt.hasReceivedData = true;
   if (data.articles && Array.isArray(data.articles)) {
-    const mappedArticles = mapBackendArticles(data.articles);
-    const cacheAge = data.cache_age_seconds || 999;
+    const mappedArticles = mapBackendArticles(data.articles),
+cacheAge = data.cache_age_seconds || 999;
     logger.debug(
       `Stream ${rt.streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
     );
@@ -2055,8 +2083,8 @@ async function pumpStreamEvents(
   rt: StreamRuntime,
   reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Promise<void> {
-  const decoder = new TextDecoder();
-  let buffer = "";
+  let decoder = new TextDecoder(),
+buffer = "";
   while (true) {
     try {
       const { done, value } = await reader.read();
@@ -2125,6 +2153,9 @@ async function pumpStreamEvents(
 }
 
 // Enhanced news streaming function
+
+
+// Enhanced news streaming function
 export function streamNews(options: StreamOptions = {}): {
   promise: Promise<{
     articles: NewsArticle[];
@@ -2148,19 +2179,18 @@ export function streamNews(options: StreamOptions = {}): {
   );
 
   // Build SSE URL with parameters
-  const baseUrl = API_BASE_URL;
-  const params = new URLSearchParams({
+  const baseUrl = API_BASE_URL,
+params = new URLSearchParams({
     use_cache: String(useCache),
   });
   if (category) {
     params.append("category", category);
   }
-  const sseUrl = `${baseUrl}/news/stream?${params.toString()}`;
-
-  const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
+  const sseUrl = `${baseUrl}/news/stream?${params.toString()}`,
+{ promise, resolve, reject } = Promise.withResolvers<StreamResult>();
 
   (async () => {
-    const rt: StreamRuntime = {
+    let rt: StreamRuntime = {
       articles: [],
       sources: new Set<string>(),
       errors: [],
@@ -2175,10 +2205,10 @@ export function streamNews(options: StreamOptions = {}): {
       abort: () => {},
       resolve,
       reject,
-    };
-    let abortController: AbortController | null = null;
-    let timeoutInterval: ReturnType<typeof setInterval> | undefined;
-    let stallInterval: ReturnType<typeof setInterval> | undefined;
+    },
+abortController: AbortController | null = undefined,
+timeoutInterval: ReturnType<typeof setInterval> | undefined,
+stallInterval: ReturnType<typeof setInterval> | undefined;
 
     rt.clearTimers = () => {
       clearInterval(timeoutInterval);
@@ -2229,9 +2259,9 @@ export function streamNews(options: StreamOptions = {}): {
 
       logger.debug("Stream connection opened, reading body...");
 
-      const reader = response.body.getReader();
-      const messageTimeout = 120000; // 2 minutes
-      const cacheLoadTimeout = 15000; // 15 seconds - if cache loads but no complete event, auto-resolve
+      const reader = response.body.getReader(),
+messageTimeout = 120000,
+cacheLoadTimeout = 15000; // 15 seconds - if cache loads but no complete event, auto-resolve
 
       timeoutInterval = setInterval(() => {
         const timeSinceLastMessage = Date.now() - rt.lastMessageTime;
@@ -2312,8 +2342,8 @@ function resolveArticleUrlKey(
     article.link ||
     article.article_url ||
     article.original_url ||
-    "";
-  const stableKey = url || `${sourceName}|${article.title || ""}|${published}`;
+    "",
+stableKey = url || `${sourceName}|${article.title || ""}|${published}`;
   return { url, stableKey };
 }
 
@@ -2393,7 +2423,7 @@ function resolveArticleSourceId(
   return typeof article.source_id === "string" &&
     article.source_id.trim().length > 0
     ? article.source_id.trim().toLowerCase()
-    : sourceName.toLowerCase().replace(/\s+/g, "-");
+    : sourceName.toLowerCase().replace(/\s+/gu, "-");
 }
 
 function resolveGeoSignal(
@@ -2472,8 +2502,11 @@ function mapBackendArticle(article: BackendArticle): NewsArticle {
 }
 
 // Helper function to map backend articles to frontend format
+
+
+// Helper function to map backend articles to frontend format
 export function mapBackendArticles(
-  backendArticles: BackendArticle[],
+  backendArticles:readonly  BackendArticle[],
 ): NewsArticle[] {
   logger.debug(
     `[mapBackendArticles] Mapping ${backendArticles.length} articles from backend format to frontend format.`,
@@ -2482,9 +2515,12 @@ export function mapBackendArticles(
 }
 
 // Helper function to remove duplicate articles
-export function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] {
-  const seen = new Set<string>();
-  const seenIds = new Set<number>();
+
+
+// Helper function to remove duplicate articles
+export function removeDuplicateArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
+  const seen = new Set<string>(),
+seenIds = new Set<number>();
   return articles.filter((article) => {
     // Check for duplicate IDs first (most reliable)
     if (seenIds.has(article.id)) {
@@ -2503,6 +2539,9 @@ export function removeDuplicateArticles(articles: NewsArticle[]): NewsArticle[] 
 }
 
 // Add debug endpoint for stream status
+
+
+// Add debug endpoint for stream status
 export async function fetchStreamStatus(): Promise<Record<string, unknown> | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/debug/streams`);
@@ -2516,11 +2555,11 @@ export async function fetchStreamStatus(): Promise<Record<string, unknown> | nul
     return data;
   } catch (error) {
     console.error("Failed to fetch stream status:", error);
-    return null;
+    return undefined;
   }
 }
 
-export interface FrontendDebugReportPayload {
+interface FrontendDebugReportPayload {
   session_id: string;
   summary: {
     sessionId: string;
@@ -2602,7 +2641,7 @@ export interface FrontendDebugReportPayload {
   generated_at?: string;
 }
 
-export async function sendFrontendDebugReport(
+async function sendFrontendDebugReport(
   payload: FrontendDebugReportPayload,
 ): Promise<void> {
   try {
@@ -2623,6 +2662,9 @@ export async function sendFrontendDebugReport(
 }
 
 // Article Analysis Types
+
+
+// Article Analysis Types
 export interface FactCheckResult {
   claim: string;
   verification_status:
@@ -2636,27 +2678,27 @@ export interface FactCheckResult {
   notes?: string;
 }
 
-export interface LanguageDiagnosticExample {
+interface LanguageDiagnosticExample {
   sentence: string;
   term?: string | null;
   pattern?: string | null;
   category?: string | null;
 }
 
-export interface LanguageDiagnosticMetric {
+interface LanguageDiagnosticMetric {
   count: number;
   rate: number;
   status: "low" | "medium" | "high";
   examples: LanguageDiagnosticExample[];
 }
 
-export interface LanguageDiagnosticOverall {
+interface LanguageDiagnosticOverall {
   score: number;
   status: "low" | "medium" | "high";
   summary: string;
 }
 
-export interface LanguageDiagnostics {
+interface LanguageDiagnostics {
   success: boolean;
   article_url: string;
   title?: string | null;
@@ -2669,6 +2711,12 @@ export interface LanguageDiagnostics {
   overall?: LanguageDiagnosticOverall | null;
   error?: string | null;
 }
+
+// --- Trending & Breaking News ---
+// The interfaces and functions for fetching trending and breaking news
+// are now consolidated at the bottom of this file (Phase 6 section) to avoid duplication.
+
+
 
 // --- Trending & Breaking News ---
 // The interfaces and functions for fetching trending and breaking news
@@ -2714,6 +2762,9 @@ export interface ArticleAnalysis {
 }
 
 // Analyze article with AI
+
+
+// Analyze article with AI
 export async function analyzeArticle(
   url: string,
   sourceName?: string,
@@ -2744,17 +2795,17 @@ export async function analyzeArticle(
   }
 }
 
-export async function fetchLanguageDiagnostics({
+async function fetchLanguageDiagnostics({
   url,
   text,
   title,
   sourceName,
-}: {
+}:Readonly< {
   url: string;
   text?: string;
   title?: string;
   sourceName?: string;
-}): Promise<LanguageDiagnostics> {
+}>): Promise<LanguageDiagnostics> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/article/language-diagnostics`, {
       method: "POST",
@@ -2781,13 +2832,16 @@ export async function fetchLanguageDiagnostics({
 }
 
 // News Research Agent Types
+
+
+// News Research Agent Types
 export interface ThinkingStep {
   type: "thought" | "action" | "tool_start" | "observation" | "answer";
   content: string;
   timestamp: string;
 }
 
-export interface NewsResearchResponse {
+interface NewsResearchResponse {
   success: boolean;
   query: string;
   answer: string;
@@ -2796,6 +2850,9 @@ export interface NewsResearchResponse {
   referenced_articles?: BackendArticle[]; // Full article objects from backend
   error?: string;
 }
+
+// Perform news research using the AI agent
+
 
 // Perform news research using the AI agent
 export async function performNewsResearch(
@@ -2829,19 +2886,22 @@ export async function performNewsResearch(
 }
 
 // Agentic search (LangChain backend agent)
+
+
+// Agentic search (LangChain backend agent)
 export interface AgenticSearchRequest {
   query: string;
   max_steps?: number;
 }
 
-export interface AgenticSearchResponse {
+interface AgenticSearchResponse {
   success: boolean;
   answer: string;
   reasoning?: unknown[];
   citations?: unknown[];
 }
 
-export async function performAgenticSearch(
+async function performAgenticSearch(
   query: string,
   maxSteps: number = 8,
 ): Promise<AgenticSearchResponse> {
@@ -2860,8 +2920,8 @@ export async function performAgenticSearch(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    const researchResponse = data as NewsResearchResponse;
+    const data = await response.json(),
+researchResponse = data as NewsResearchResponse;
 
     return {
       success: researchResponse.success,
@@ -2874,6 +2934,9 @@ export async function performAgenticSearch(
     throw error;
   }
 }
+
+// Reading Queue API functions
+
 
 // Reading Queue API functions
 export interface ReadingQueueItem {
@@ -2896,14 +2959,14 @@ export interface ReadingQueueItem {
   shelf_id?: number | null;
 }
 
-export interface QueueResponse {
+interface QueueResponse {
   items: ReadingQueueItem[];
   daily_count: number;
   permanent_count: number;
   total_count: number;
 }
 
-export async function addToReadingQueue(
+async function addToReadingQueue(
   article: NewsArticle,
   queueType: "daily" | "permanent" = "daily",
 ): Promise<ReadingQueueItem> {
@@ -2934,7 +2997,7 @@ export async function addToReadingQueue(
   }
 }
 
-export async function removeFromReadingQueue(
+async function removeFromReadingQueue(
   queueItemId: number,
 ): Promise<void> {
   try {
@@ -2953,12 +3016,12 @@ export async function removeFromReadingQueue(
   }
 }
 
-export async function removeFromReadingQueueByUrl(
+async function removeFromReadingQueueByUrl(
   articleUrl: string,
 ): Promise<void> {
   try {
-    const encodedUrl = encodeURIComponent(articleUrl);
-    const response = await fetch(
+    const encodedUrl = encodeURIComponent(articleUrl),
+response = await fetch(
       `${API_BASE_URL}/api/queue/url/${encodedUrl}`,
       { method: "DELETE" },
     );
@@ -2974,7 +3037,7 @@ export async function removeFromReadingQueueByUrl(
   }
 }
 
-export async function getReadingQueue(): Promise<QueueResponse> {
+async function getReadingQueue(): Promise<QueueResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue`, {
       method: "GET",
@@ -2994,7 +3057,7 @@ export async function getReadingQueue(): Promise<QueueResponse> {
   }
 }
 
-export interface UpdateQueueItemRequest {
+interface UpdateQueueItemRequest {
   read_status?: "unread" | "reading" | "completed";
   queue_type?: "daily" | "permanent";
   position?: number;
@@ -3004,7 +3067,7 @@ export interface UpdateQueueItemRequest {
   shelf_id?: number | null;
 }
 
-export async function updateReadingQueueItem(
+async function updateReadingQueueItem(
   queueItemId: number,
   updates: UpdateQueueItemRequest,
 ): Promise<ReadingQueueItem> {
@@ -3028,7 +3091,7 @@ export async function updateReadingQueueItem(
   }
 }
 
-export interface QueueOverview {
+interface QueueOverview {
   total_items: number;
   daily_items: number;
   permanent_items: number;
@@ -3038,7 +3101,7 @@ export interface QueueOverview {
   estimated_total_read_time_minutes: number;
 }
 
-export async function getQueueOverview(): Promise<QueueOverview> {
+async function getQueueOverview(): Promise<QueueOverview> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/overview`, {
       method: "GET",
@@ -3058,7 +3121,7 @@ export async function getQueueOverview(): Promise<QueueOverview> {
   }
 }
 
-export interface ReadingShelf {
+interface ReadingShelf {
   id?: number;
   user_id?: number | null;
   name: string;
@@ -3067,7 +3130,7 @@ export interface ReadingShelf {
   updated_at?: string | null;
 }
 
-export async function getReadingShelves(): Promise<ReadingShelf[]> {
+async function getReadingShelves(): Promise<ReadingShelf[]> {
   const response = await fetch(`${API_BASE_URL}/api/queue/shelves`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -3075,23 +3138,26 @@ export async function getReadingShelves(): Promise<ReadingShelf[]> {
   return response.json();
 }
 
-export async function createReadingShelf(request: {
+async function createReadingShelf(request:Readonly< {
   name: string;
   description?: string | null;
-}): Promise<ReadingShelf> {
+}>): Promise<ReadingShelf> {
   const response = await fetch(`${API_BASE_URL}/api/queue/shelves`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
+    const body = await response.json().catch(() => null),
+detail =
       body && typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`;
     throw new Error(detail);
   }
   return response.json();
 }
+
+// Highlights API
+
 
 // Highlights API
 export interface Highlight {
@@ -3108,7 +3174,7 @@ export interface Highlight {
   updated_at?: string;
 }
 
-export async function createHighlight(
+async function createHighlight(
   highlight: Highlight,
 ): Promise<Highlight> {
   try {
@@ -3131,12 +3197,12 @@ export async function createHighlight(
   }
 }
 
-export async function getHighlightsForArticle(
+async function getHighlightsForArticle(
   articleUrl: string,
 ): Promise<Highlight[]> {
   try {
-    const encodedUrl = encodeURIComponent(articleUrl);
-    const url = `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`;
+    const encodedUrl = encodeURIComponent(articleUrl),
+url = `${API_BASE_URL}/api/queue/highlights/article/${encodedUrl}`;
 
     if (process.env.NODE_ENV !== "production") {
       logger.debug(`[Highlights] GET ${url}`);
@@ -3160,7 +3226,7 @@ export async function getHighlightsForArticle(
   }
 }
 
-export async function getAllHighlights(): Promise<Highlight[]> {
+async function getAllHighlights(): Promise<Highlight[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/highlights`, {
       method: "GET",
@@ -3180,7 +3246,7 @@ export async function getAllHighlights(): Promise<Highlight[]> {
   }
 }
 
-export async function updateHighlight(
+async function updateHighlight(
   highlightId: number,
   updates: Partial<Highlight>,
 ): Promise<Highlight> {
@@ -3207,7 +3273,7 @@ export async function updateHighlight(
   }
 }
 
-export async function deleteHighlight(highlightId: number): Promise<void> {
+async function deleteHighlight(highlightId: number): Promise<void> {
   try {
     const response = await fetch(
       `${API_BASE_URL}/api/queue/highlights/${highlightId}`,
@@ -3229,6 +3295,10 @@ export async function deleteHighlight(highlightId: number): Promise<void> {
 
 // --- Reading Queue Content & Digest ---
 
+
+
+// --- Reading Queue Content & Digest ---
+
 export interface QueueItemContent {
   id: number;
   article_url: string;
@@ -3240,14 +3310,14 @@ export interface QueueItemContent {
   read_status: string;
 }
 
-export interface QueueDigest {
+interface QueueDigest {
   digest_items: ReadingQueueItem[];
   total_items: number;
   estimated_read_time_minutes: number;
   generated_at: string;
 }
 
-export async function getQueueItemContent(
+async function getQueueItemContent(
   queueId: number,
 ): Promise<QueueItemContent> {
   try {
@@ -3272,7 +3342,7 @@ export async function getQueueItemContent(
   }
 }
 
-export async function getDailyDigest(): Promise<QueueDigest> {
+async function getDailyDigest(): Promise<QueueDigest> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/queue/digest/daily`, {
       method: "GET",
@@ -3294,6 +3364,10 @@ export async function getDailyDigest(): Promise<QueueDigest> {
 
 // --- Pagination Types ---
 
+
+
+// --- Pagination Types ---
+
 export interface PaginatedResponse {
   articles: NewsArticle[];
   total: OpenApiPaginatedResponse["total"];
@@ -3303,7 +3377,7 @@ export interface PaginatedResponse {
   has_more: OpenApiPaginatedResponse["has_more"];
 }
 
-export type PaginationParams = Pick<
+type PaginationParams = Pick<
   NewsPageQueryParams,
   "limit" | "cursor" | "category" | "source" | "sources" | "search"
 >;
@@ -3312,6 +3386,10 @@ type CachedPaginationParams = Pick<
   CachedNewsPageQueryParams,
   "limit" | "offset" | "category" | "source" | "sources" | "search"
 >;
+
+// --- Paginated Fetch Functions ---
+
+
 
 // --- Paginated Fetch Functions ---
 
@@ -3341,10 +3419,8 @@ export async function fetchNewsPaginated(
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const data = await response.json();
-
-  // Map backend format to frontend format
-  const articles = mapBackendArticles(data.articles || []);
+  const data = await response.json(),
+articles = mapBackendArticles(data.articles || []);
 
   return {
     articles,
@@ -3356,7 +3432,7 @@ export async function fetchNewsPaginated(
   };
 }
 
-export async function fetchCachedNewsPaginated(
+async function fetchCachedNewsPaginated(
   params: CachedPaginationParams = {},
 ): Promise<PaginatedResponse> {
   const searchParams = new URLSearchParams();
@@ -3373,16 +3449,15 @@ export async function fetchCachedNewsPaginated(
   }
   if (params.search) searchParams.append("search", params.search);
 
-  const url = `${API_BASE_URL}/news/page/cached${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
-
-  const response = await fetch(url);
+  const url = `${API_BASE_URL}/news/page/cached${searchParams.toString() ? "?" + searchParams.toString() : ""}`,
+response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const data = await response.json();
-  const articles = mapBackendArticles(data.articles || []);
+  const data = await response.json(),
+articles = mapBackendArticles(data.articles || []);
 
   return {
     articles,
@@ -3394,7 +3469,7 @@ export async function fetchCachedNewsPaginated(
   };
 }
 
-export async function fetchBrowseIndex(
+async function fetchBrowseIndex(
   params: Pick<PaginationParams, "category" | "source" | "sources" | "search"> = {},
 ): Promise<BrowseIndexResponse> {
   const searchParams = new URLSearchParams();
@@ -3424,7 +3499,7 @@ export async function fetchBrowseIndex(
   };
 }
 
-export async function fetchLiveBrowseIndex(
+async function fetchLiveBrowseIndex(
   params: Pick<PaginationParams, "category" | "source" | "sources" | "search"> = {},
 ): Promise<BrowseIndexResponse> {
   const searchParams = new URLSearchParams();
@@ -3456,6 +3531,10 @@ export async function fetchLiveBrowseIndex(
 
 // --- Country/Globe API Functions ---
 
+
+
+// --- Country/Globe API Functions ---
+
 export interface CountryArticleCounts {
   counts: Record<string, number>;
   source_counts?: Record<string, number>;
@@ -3474,23 +3553,23 @@ export interface CountryArticleCounts {
   window_hours?: number;
 }
 
-export interface CountryGeoData {
+interface CountryGeoData {
   countries: Record<string, { name: string; lat: number; lng: number }>;
   total: number;
 }
 
-export interface CountryListItem {
+interface CountryListItem {
   code: string;
   article_count: number;
   latest_article: string | null;
 }
 
-export interface CountryListResponse {
+interface CountryListResponse {
   countries: CountryListItem[];
   total_countries: number;
 }
 
-export interface CountryPickerItem {
+interface CountryPickerItem {
   code: string;
   name: string;
   article_count: number;
@@ -3499,7 +3578,7 @@ export interface CountryPickerItem {
   source_count: number;
 }
 
-export interface LocalLensResponse {
+interface LocalLensResponse {
   country_code: string;
   country_name?: string;
   view: "internal" | "external";
@@ -3522,6 +3601,11 @@ export interface LocalLensResponse {
 /**
  * Get article counts grouped by country for globe heatmap
  */
+
+
+/**
+ * Get article counts grouped by country for globe heatmap
+ */
 export async function fetchArticleCountsByCountry(): Promise<CountryArticleCounts> {
   const response = await fetch(`${API_BASE_URL}/news/by-country?hours=24`);
   if (!response.ok) {
@@ -3529,6 +3613,11 @@ export async function fetchArticleCountsByCountry(): Promise<CountryArticleCount
   }
   return response.json();
 }
+
+/**
+ * Get static country geographic data for globe markers
+ */
+
 
 /**
  * Get static country geographic data for globe markers
@@ -3544,6 +3633,11 @@ export async function fetchCountryGeoData(): Promise<CountryGeoData> {
 /**
  * Get list of countries with article counts
  */
+
+
+/**
+ * Get list of countries with article counts
+ */
 export async function fetchCountryList(): Promise<CountryListResponse> {
   const response = await fetch(`${API_BASE_URL}/news/countries/list`);
   if (!response.ok) {
@@ -3552,7 +3646,7 @@ export async function fetchCountryList(): Promise<CountryListResponse> {
   return response.json();
 }
 
-export async function fetchCountryPickerItems(): Promise<CountryPickerItem[]> {
+async function fetchCountryPickerItems(): Promise<CountryPickerItem[]> {
   const [countryList, geoData] = await Promise.all([
     fetchCountryList(),
     fetchCountryGeoData(),
@@ -3567,6 +3661,13 @@ export async function fetchCountryPickerItems(): Promise<CountryPickerItem[]> {
     source_count: country.article_count,
   }));
 }
+
+/**
+ * Local Lens: Get news for a specific country
+ * @backend/tests/test_llm_client_params.py code ISO country code
+ * @backend/tests/test_llm_client_params.py view "internal" (from country) or "external" (about country)
+ */
+
 
 /**
  * Local Lens: Get news for a specific country
@@ -3603,6 +3704,12 @@ export async function fetchNewsForCountry(
     articles: mapBackendArticles(data.articles || []),
   };
 }
+
+// ============================================
+// Phase 5B: Reporter and Organization Research
+// ============================================
+
+
 
 // ============================================
 // Phase 5B: Reporter and Organization Research
@@ -3653,7 +3760,7 @@ export interface ReporterProfile {
   cached: boolean;
 }
 
-export interface OrganizationProfile {
+interface OrganizationProfile {
   id?: number;
   name: string;
   normalized_name?: string;
@@ -3671,24 +3778,24 @@ export interface OrganizationProfile {
   cached: boolean;
 }
 
-export interface OwnershipChain {
+interface OwnershipChain {
   organization: string;
   chain: OrganizationProfile[];
   depth: number;
 }
 
-export interface SourceResearchValue {
+interface SourceResearchValue {
   value: string;
   sources?: string[];
   notes?: string;
 }
 
-export interface SourceReporterSummary {
+interface SourceReporterSummary {
   name: string;
   article_count: number;
 }
 
-export interface AdsTxtSummary {
+interface AdsTxtSummary {
   url: string;
   authorized_sellers: number;
   direct_sellers: number;
@@ -3700,7 +3807,7 @@ export interface AdsTxtSummary {
   contact: string[];
 }
 
-export interface SellersJsonSystemSummary {
+interface SellersJsonSystemSummary {
   ad_system_domain: string;
   status: "available" | "missing";
   ads_txt_records: number;
@@ -3713,7 +3820,7 @@ export interface SellersJsonSystemSummary {
   sellers_json_url?: string;
 }
 
-export interface SellersJsonSummary {
+interface SellersJsonSummary {
   checked_ad_systems: number;
   available_sellers_json: number;
   checked_records: number;
@@ -3724,7 +3831,7 @@ export interface SellersJsonSummary {
   systems: SellersJsonSystemSummary[];
 }
 
-export interface PolicyTransparencySignal {
+interface PolicyTransparencySignal {
   id: string;
   label: string;
   status: "available";
@@ -3732,13 +3839,13 @@ export interface PolicyTransparencySignal {
   matched_terms: string[];
 }
 
-export interface PolicyTransparencySummary {
+interface PolicyTransparencySummary {
   checked_pages: number;
   available_signals: number;
   signals: PolicyTransparencySignal[];
 }
 
-export interface SourceResearchProfile {
+interface SourceResearchProfile {
   name: string;
   canonical_name?: string;
   website?: string;
@@ -3777,14 +3884,19 @@ export interface SourceResearchProfile {
 /**
  * Profile a reporter/journalist
  */
+
+
+/**
+ * Profile a reporter/journalist
+ */
 export async function profileReporter(
   name: string,
   organization?: string,
   articleContext?: string,
   forceRefresh: boolean = false,
 ): Promise<ReporterProfile> {
-  const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(
+  const params = forceRefresh ? "?force_refresh=true" : "",
+response = await fetch(
     `${API_BASE_URL}/research/entity/reporter/profile${params}`,
     {
       method: "POST",
@@ -3807,6 +3919,11 @@ export async function profileReporter(
 /**
  * Get a cached reporter by ID
  */
+
+
+/**
+ * Get a cached reporter by ID
+ */
 export async function getReporter(
   reporterId: number,
 ): Promise<ReporterProfile> {
@@ -3822,6 +3939,11 @@ export async function getReporter(
 /**
  * List all cached reporters
  */
+
+
+/**
+ * List all cached reporters
+ */
 export async function listReporters(
   limit: number = 50,
   offset: number = 0,
@@ -3829,8 +3951,8 @@ export async function listReporters(
   const params = new URLSearchParams({
     limit: limit.toString(),
     offset: offset.toString(),
-  });
-  const response = await fetch(
+  }),
+response = await fetch(
     `${API_BASE_URL}/research/entity/reporters?${params}`,
   );
   if (!response.ok) {
@@ -3842,13 +3964,18 @@ export async function listReporters(
 /**
  * Research a news organization's funding and ownership
  */
+
+
+/**
+ * Research a news organization's funding and ownership
+ */
 export async function researchOrganization(
   name: string,
   website?: string,
   forceRefresh: boolean = false,
 ): Promise<OrganizationProfile> {
-  const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(
+  const params = forceRefresh ? "?force_refresh=true" : "",
+response = await fetch(
     `${API_BASE_URL}/research/entity/organization/research${params}`,
     {
       method: "POST",
@@ -3867,13 +3994,18 @@ export async function researchOrganization(
 /**
  * Build or fetch a cached source research profile
  */
+
+
+/**
+ * Build or fetch a cached source research profile
+ */
 export async function researchSourceProfile(
   name: string,
   website?: string,
   forceRefresh: boolean = false,
 ): Promise<SourceResearchProfile> {
-  const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(
+  const params = forceRefresh ? "?force_refresh=true" : "",
+response = await fetch(
     `${API_BASE_URL}/research/entity/source/profile${params}`,
     {
       method: "POST",
@@ -3891,7 +4023,13 @@ export async function researchSourceProfile(
 
 /**
  * Check if a cached source research profile exists (no research triggered)
- * Returns the cached profile or null if not cached
+ * Returns the cached profile or undefined if not cached
+ */
+
+
+/**
+ * Check if a cached source research profile exists (no research triggered)
+ * Returns the cached profile or undefined if not cached
  */
 export async function checkSourceProfileCache(
   name: string,
@@ -3907,7 +4045,7 @@ export async function checkSourceProfileCache(
   );
 
   if (response.status === 404) {
-    return null;
+    return undefined;
   }
 
   if (!response.ok) {
@@ -3917,12 +4055,12 @@ export async function checkSourceProfileCache(
   return response.json();
 }
 
-export interface SourceResearchRequest {
+interface SourceResearchRequest {
   name: string;
   website?: string;
 }
 
-export interface SourceBatchResponse {
+interface SourceBatchResponse {
   results: Record<string, SourceResearchProfile | null>;
   cached_count: number;
   newly_researched_count: number;
@@ -3932,12 +4070,18 @@ export interface SourceBatchResponse {
  * Research multiple sources in a single batch request
  * Uses caching and parallelizes research under the hood
  */
+
+
+/**
+ * Research multiple sources in a single batch request
+ * Uses caching and parallelizes research under the hood
+ */
 export async function researchSourceProfilesBatch(
-  sources: SourceResearchRequest[],
+  sources:readonly  SourceResearchRequest[],
   forceRefresh: boolean = false,
 ): Promise<SourceBatchResponse> {
-  const params = forceRefresh ? "?force_refresh=true" : "";
-  const response = await fetch(
+  const params = forceRefresh ? "?force_refresh=true" : "",
+response = await fetch(
     `${API_BASE_URL}/research/entity/source/batch${params}`,
     {
       method: "POST",
@@ -3952,6 +4096,11 @@ export async function researchSourceProfilesBatch(
 
   return response.json();
 }
+
+/**
+ * Get a cached organization by ID
+ */
+
 
 /**
  * Get a cached organization by ID
@@ -3971,12 +4120,17 @@ export async function getOrganization(
 /**
  * Get ownership chain for an organization
  */
+
+
+/**
+ * Get ownership chain for an organization
+ */
 export async function getOwnershipChain(
   orgName: string,
   maxDepth: number = 5,
 ): Promise<OwnershipChain> {
-  const params = new URLSearchParams({ max_depth: maxDepth.toString() });
-  const response = await fetch(
+  const params = new URLSearchParams({ max_depth: maxDepth.toString() }),
+response = await fetch(
     `${API_BASE_URL}/research/entity/organization/${encodeURIComponent(orgName)}/ownership-chain?${params}`,
   );
   if (!response.ok) {
@@ -3988,6 +4142,11 @@ export async function getOwnershipChain(
 /**
  * List all cached organizations
  */
+
+
+/**
+ * List all cached organizations
+ */
 export async function listOrganizations(
   limit: number = 50,
   offset: number = 0,
@@ -3995,8 +4154,8 @@ export async function listOrganizations(
   const params = new URLSearchParams({
     limit: limit.toString(),
     offset: offset.toString(),
-  });
-  const response = await fetch(
+  }),
+response = await fetch(
     `${API_BASE_URL}/research/entity/organizations?${params}`,
   );
   if (!response.ok) {
@@ -4004,6 +4163,12 @@ export async function listOrganizations(
   }
   return response.json();
 }
+
+// ============================================
+// Phase 5C: Material Interest Analysis
+// ============================================
+
+
 
 // ============================================
 // Phase 5C: Material Interest Analysis
@@ -4025,7 +4190,7 @@ const TradeRelationshipSchema = z.object({
   trade_volume: z.string().optional(),
 });
 
-export interface KnownInterests {
+interface KnownInterests {
   parent_company?: string;
   owner?: string;
   owner_interests?: string[];
@@ -4040,7 +4205,7 @@ const KnownInterestsSchema = z
   })
   .catchall(z.unknown());
 
-export interface MaterialContext {
+interface MaterialContext {
   source: string;
   source_country: string;
   mentioned_countries: string[];
@@ -4084,7 +4249,7 @@ const MaterialContextSchema = z.object({
   analyzed_at: z.string().nullable().optional(),
 });
 
-export interface CountryEconomicProfile {
+interface CountryEconomicProfile {
   country_code: string;
   profile: {
     gdp?: string;
@@ -4099,11 +4264,16 @@ export interface CountryEconomicProfile {
 /**
  * Analyze material interests affecting news coverage
  */
+
+
+/**
+ * Analyze material interests affecting news coverage
+ */
 export async function analyzeMaterialContext(
   source: string,
   sourceCountry: string,
-  mentionedCountries: string[],
-  topics?: string[],
+  mentionedCountries:readonly  string[],
+  topics?:readonly  string[],
   articleText?: string,
 ): Promise<MaterialContext> {
   const response = await fetch(
@@ -4125,11 +4295,16 @@ export async function analyzeMaterialContext(
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const payload: unknown = await response.json();
-  const parsed = MaterialContextSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = MaterialContextSchema.parse(payload);
   parsed satisfies OpenApiMaterialContextResponse;
   return parsed;
 }
+
+/**
+ * Get economic profile for a country
+ */
+
 
 /**
  * Get economic profile for a country
@@ -4150,13 +4325,19 @@ export async function getCountryEconomicProfile(
 // Phase 6: Trending & Breaking News Detection
 // ============================================
 
+
+
+// ============================================
+// Phase 6: Trending & Breaking News Detection
+// ============================================
+
 export interface GdeltTopCameo {
   code?: string | null;
   label?: string | null;
   count: number;
 }
 
-export interface GdeltContext {
+interface GdeltContext {
   total_events: number;
   top_cameo: GdeltTopCameo[];
   goldstein_avg?: number | null;
@@ -4168,7 +4349,7 @@ export interface GdeltContext {
   tone_delta_vs_cluster?: number | null;
 }
 
-export interface TrendingArticle {
+interface TrendingArticle {
   id: number;
   title: string;
   source: string;
@@ -4182,7 +4363,7 @@ export interface TrendingArticle {
   gdelt_context?: GdeltContext | null;
 }
 
-export interface TrendingCluster {
+interface TrendingCluster {
   cluster_id: number;
   label?: string | null;
   keywords: string[];
@@ -4196,7 +4377,7 @@ export interface TrendingCluster {
   gdelt_context?: GdeltContext | null;
 }
 
-export interface BreakingCluster {
+interface BreakingCluster {
   cluster_id: number;
   label?: string | null;
   keywords: string[];
@@ -4209,19 +4390,19 @@ export interface BreakingCluster {
   gdelt_context?: GdeltContext | null;
 }
 
-export interface TrendingResponse {
+interface TrendingResponse {
   window: string;
   clusters: TrendingCluster[];
   total: number;
 }
 
-export interface BreakingResponse {
+interface BreakingResponse {
   window_hours: number;
   clusters: BreakingCluster[];
   total: number;
 }
 
-export interface ClusterDetail {
+interface ClusterDetail {
   id: number;
   label?: string | null;
   keywords: string[];
@@ -4246,25 +4427,25 @@ export interface ClusterDetail {
   }>;
 }
 
-export interface ContradictionEvidence {
+interface ContradictionEvidence {
   source: string;
   article_url: string;
   stance: string;
   snippet: string;
 }
 
-export interface ContradictionClaim {
+interface ContradictionClaim {
   claim: string;
   status: string;
   evidence: ContradictionEvidence[];
 }
 
-export interface AgreedFact {
+interface AgreedFact {
   claim: string;
   evidence: ContradictionEvidence[];
 }
 
-export interface ContradictionPanelResponse {
+interface ContradictionPanelResponse {
   status: string;
   reason?: string | null;
   claims: ContradictionClaim[];
@@ -4274,7 +4455,7 @@ export interface ContradictionPanelResponse {
   article_count: number;
 }
 
-export interface LineageStory {
+interface LineageStory {
   id: number;
   external_cluster_id: number;
   label?: string | null;
@@ -4286,7 +4467,7 @@ export interface LineageStory {
   confidence?: number | null;
 }
 
-export interface LineageArticleEdge {
+interface LineageArticleEdge {
   id?: number | null;
   from_article_id: number;
   to_article_id: number;
@@ -4297,7 +4478,7 @@ export interface LineageArticleEdge {
   confidence?: number | null;
 }
 
-export interface LineageClaim {
+interface LineageClaim {
   id?: number | null;
   article_id: number;
   claim_text: string;
@@ -4307,7 +4488,7 @@ export interface LineageClaim {
   numbers: string[];
 }
 
-export interface LineageClaimEdge {
+interface LineageClaimEdge {
   id?: number | null;
   from_claim_id: number;
   to_claim_id: number;
@@ -4316,7 +4497,7 @@ export interface LineageClaimEdge {
   confidence?: number | null;
 }
 
-export interface LineageCorrection {
+interface LineageCorrection {
   id: number;
   source: string;
   article_id?: number | null;
@@ -4327,7 +4508,7 @@ export interface LineageCorrection {
   published_at?: string | null;
 }
 
-export interface StoryLineageResponse {
+interface StoryLineageResponse {
   status: string;
   reason?: string | null;
   story?: LineageStory | null;
@@ -4337,7 +4518,7 @@ export interface StoryLineageResponse {
   corrections: LineageCorrection[];
 }
 
-export interface BlindspotLens {
+interface BlindspotLens {
   id: "bias" | "credibility" | "geography" | "institutional_populist";
   label: string;
   description: string;
@@ -4345,14 +4526,14 @@ export interface BlindspotLens {
   unavailable_reason?: string | null;
 }
 
-export interface BlindspotLane {
+interface BlindspotLane {
   id: "pole_a" | "shared" | "pole_b";
   label: string;
   description: string;
   cluster_count: number;
 }
 
-export interface BlindspotPreviewArticle {
+interface BlindspotPreviewArticle {
   id: number;
   title: string;
   source: string;
@@ -4371,7 +4552,7 @@ export interface BlindspotPreviewArticle {
   authors?: string[];
 }
 
-export interface BlindspotCard {
+interface BlindspotCard {
   cluster_id: number;
   cluster_label: string;
   keywords: string[];
@@ -4410,7 +4591,7 @@ export interface BlindspotCard {
   articles: BlindspotPreviewArticle[];
 }
 
-export interface BlindspotViewerResponse {
+interface BlindspotViewerResponse {
   available_lenses: BlindspotLens[];
   selected_lens: BlindspotLens;
   summary: {
@@ -4426,7 +4607,7 @@ export interface BlindspotViewerResponse {
   status: string;
 }
 
-export interface TrendingStats {
+interface TrendingStats {
   active_clusters: number;
   total_article_assignments: number;
   recent_spikes: number;
@@ -4435,7 +4616,7 @@ export interface TrendingStats {
   breaking_window_hours: number;
 }
 
-export interface AllCluster {
+interface AllCluster {
   cluster_id: number;
   label?: string | null;
   keywords: string[];
@@ -4447,7 +4628,7 @@ export interface AllCluster {
   gdelt_context?: GdeltContext | null;
 }
 
-export interface AllClustersResponse {
+interface AllClustersResponse {
   window: string;
   clusters: AllCluster[];
   total: number;
@@ -4496,7 +4677,7 @@ const TrendingClusterSchema = z.object({
   source_diversity: z.number(),
   trending_score: z.number(),
   velocity: z.number(),
-  representative_article: TrendingArticleSchema.nullable().default(null),
+  representative_article: TrendingArticleSchema.nullable().default(undefined),
   articles: z.array(TrendingArticleSchema).default([]),
   gdelt_context: GdeltContextSchema.nullable().default(null),
 });
@@ -4509,7 +4690,7 @@ const BreakingClusterSchema = z.object({
   source_count_3h: z.number(),
   spike_magnitude: z.number(),
   is_new_story: z.boolean(),
-  representative_article: TrendingArticleSchema.nullable().default(null),
+  representative_article: TrendingArticleSchema.nullable().default(undefined),
   articles: z.array(TrendingArticleSchema).default([]),
   gdelt_context: GdeltContextSchema.nullable().default(null),
 });
@@ -4533,7 +4714,7 @@ const AllClusterSchema = z.object({
   article_count: z.number(),
   window_count: z.number(),
   source_diversity: z.number(),
-  representative_article: TrendingArticleSchema.nullable().default(null),
+  representative_article: TrendingArticleSchema.nullable().default(undefined),
   articles: z.array(TrendingArticleSchema).default([]),
   gdelt_context: GdeltContextSchema.nullable().default(null),
 });
@@ -4771,6 +4952,13 @@ const TrendingStatsSchema = z.object({
  * @backend/tests/test_llm_client_params.py window Time window: "1d", "1w", or "1m"
  * @backend/tests/test_llm_client_params.py limit Max clusters to return
  */
+
+
+/**
+ * Get trending topic clusters
+ * @backend/tests/test_llm_client_params.py window Time window: "1d", "1w", or "1m"
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
+ */
 export async function fetchTrending(
   window: "1d" | "1w" | "1m" = "1d",
   limit: number = 10,
@@ -4778,17 +4966,22 @@ export async function fetchTrending(
   const params = new URLSearchParams({
     window,
     limit: limit.toString(),
-  });
-
-  const response = await fetch(`${API_BASE_URL}/trending?${params}`);
+  }),
+response = await fetch(`${API_BASE_URL}/trending?${params}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  const parsed = TrendingResponseSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = TrendingResponseSchema.parse(payload);
   parsed satisfies OpenApiTrendingResponse;
   return parsed;
 }
+
+/**
+ * Get breaking news clusters (3-hour spike detection)
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
+ */
+
 
 /**
  * Get breaking news clusters (3-hour spike detection)
@@ -4799,17 +4992,24 @@ export async function fetchBreaking(
 ): Promise<BreakingResponse> {
   const params = new URLSearchParams({
     limit: limit.toString(),
-  });
-
-  const response = await fetch(`${API_BASE_URL}/trending/breaking?${params}`);
+  }),
+response = await fetch(`${API_BASE_URL}/trending/breaking?${params}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  const parsed = BreakingResponseSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = BreakingResponseSchema.parse(payload);
   parsed satisfies OpenApiBreakingResponse;
   return parsed;
 }
+
+/**
+ * Get all clusters for topic-based view
+ * @backend/tests/test_llm_client_params.py window Time window: "1d", "1w", or "1m"
+ * @backend/tests/test_llm_client_params.py minArticles Minimum articles per cluster
+ * @backend/tests/test_llm_client_params.py limit Max clusters to return
+ */
+
 
 /**
  * Get all clusters for topic-based view
@@ -4826,17 +5026,21 @@ export async function fetchAllClusters(
     window,
     min_articles: minArticles.toString(),
     limit: limit.toString(),
-  });
-
-  const response = await fetch(`${API_BASE_URL}/trending/clusters?${params}`);
+  }),
+response = await fetch(`${API_BASE_URL}/trending/clusters?${params}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  const parsed = AllClustersResponseSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = AllClustersResponseSchema.parse(payload);
   parsed satisfies OpenApiAllClustersResponse;
   return parsed;
 }
+
+/**
+ * Get detailed info about a specific topic cluster
+ */
+
 
 /**
  * Get detailed info about a specific topic cluster
@@ -4850,13 +5054,13 @@ export async function fetchClusterDetail(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  const parsed = ClusterDetailSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = ClusterDetailSchema.parse(payload);
   parsed satisfies OpenApiClusterDetailResponse;
   return parsed;
 }
 
-export async function fetchClusterContradictions(
+async function fetchClusterContradictions(
   clusterId: number,
 ): Promise<ContradictionPanelResponse> {
   const response = await fetch(
@@ -4869,7 +5073,7 @@ export async function fetchClusterContradictions(
   return ContradictionPanelResponseSchema.parse(payload);
 }
 
-export async function fetchClusterLineage(
+async function fetchClusterLineage(
   clusterId: number,
 ): Promise<StoryLineageResponse> {
   const response = await fetch(
@@ -4882,13 +5086,13 @@ export async function fetchClusterLineage(
   return StoryLineageResponseSchema.parse(payload);
 }
 
-export async function fetchBlindspotViewer(params?: {
+async function fetchBlindspotViewer(params?:Readonly< {
   lens?: BlindspotLens["id"];
   window?: "1d" | "1w" | "1m";
   category?: string;
   sources?: string | null;
   perLane?: number;
-}): Promise<BlindspotViewerResponse> {
+}>): Promise<BlindspotViewerResponse> {
   const searchParams = new URLSearchParams();
 
   if (params?.lens) searchParams.set("lens", params.lens);
@@ -4916,6 +5120,12 @@ export async function fetchBlindspotViewer(params?: {
  * Fetch all articles for a cluster and transform to NewsArticle format
  * Used by topic view expansion
  */
+
+
+/**
+ * Fetch all articles for a cluster and transform to NewsArticle format
+ * Used by topic view expansion
+ */
 export async function fetchClusterArticles(
   clusterId: number,
 ): Promise<NewsArticle[]> {
@@ -4927,7 +5137,7 @@ export async function fetchClusterArticles(
     source: article.source,
     sourceId:
       article.source_id?.trim().toLowerCase() ||
-      article.source.toLowerCase().replace(/\s+/g, "-"),
+      article.source.toLowerCase().replace(/\s+/gu, "-"),
     country: getCountryFromSource(article.source),
     credibility: getCredibilityFromSource(article.source),
     bias: getBiasFromSource(article.source),
@@ -4948,16 +5158,27 @@ export async function fetchClusterArticles(
 /**
  * Get trending system statistics
  */
+
+
+/**
+ * Get trending system statistics
+ */
 export async function fetchTrendingStats(): Promise<TrendingStats> {
   const response = await fetch(`${API_BASE_URL}/trending/stats`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  const parsed = TrendingStatsSchema.parse(payload);
+  const payload: unknown = await response.json(),
+parsed = TrendingStatsSchema.parse(payload);
   parsed satisfies OpenApiTrendingStats;
   return parsed;
 }
+
+// ==========================================================================
+// GDELT API
+// ==========================================================================
+
+
 
 // ==========================================================================
 // GDELT API
@@ -4981,13 +5202,13 @@ export interface GdeltEvent {
   matched_at?: string | null;
 }
 
-export interface GdeltArticleEventsResponse {
+interface GdeltArticleEventsResponse {
   article_id: number;
   total_external_events: number;
   events: GdeltEvent[];
 }
 
-export interface GdeltStatsResponse {
+interface GdeltStatsResponse {
   window_hours: number;
   total_events: number;
   matched_events: number;
@@ -5002,12 +5223,12 @@ export interface GdeltStatsResponse {
   }>;
 }
 
-export async function fetchGdeltArticleEvents(
+async function fetchGdeltArticleEvents(
   articleId: number,
   limit: number = 50,
 ): Promise<GdeltArticleEventsResponse> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  const response = await fetch(
+  const params = new URLSearchParams({ limit: String(limit) }),
+response = await fetch(
     `${API_BASE_URL}/gdelt/article/${articleId}?${params}`,
   );
   if (!response.ok) {
@@ -5016,16 +5237,22 @@ export async function fetchGdeltArticleEvents(
   return response.json();
 }
 
-export async function fetchGdeltStats(
+async function fetchGdeltStats(
   hours: number = 24,
 ): Promise<GdeltStatsResponse> {
-  const params = new URLSearchParams({ hours: String(hours) });
-  const response = await fetch(`${API_BASE_URL}/gdelt/stats?${params}`);
+  const params = new URLSearchParams({ hours: String(hours) }),
+response = await fetch(`${API_BASE_URL}/gdelt/stats?${params}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
   return response.json();
 }
+
+// ============================================================================
+// Similarity / Related Articles API
+// ============================================================================
+
+
 
 // ============================================================================
 // Similarity / Related Articles API
@@ -5044,37 +5271,37 @@ export interface RelatedArticle {
   similarity_score: number;
 }
 
-export interface RelatedArticlesResponse {
+interface RelatedArticlesResponse {
   article_id: number;
   related: RelatedArticle[];
   total: number;
 }
 
-export interface SearchSuggestion {
+interface SearchSuggestion {
   cluster_id: number;
   label: string;
   relevance: number;
 }
 
-export interface SearchSuggestionsResponse {
+interface SearchSuggestionsResponse {
   query: string;
   suggestions: SearchSuggestion[];
 }
 
-export interface SourceCoverageStats {
+interface SourceCoverageStats {
   article_count: number;
   centroid_distance?: number;
   spread?: number;
   diversity_score?: number;
 }
 
-export interface SourceCoverageResponse {
+interface SourceCoverageResponse {
   sources: Record<string, SourceCoverageStats>;
   global_article_count: number;
   error?: string;
 }
 
-export interface NoveltyScoreResponse {
+interface NoveltyScoreResponse {
   article_id: number;
   novelty_score: number;
   max_similarity_to_history: number;
@@ -5082,6 +5309,14 @@ export interface NoveltyScoreResponse {
   history_size: number;
   reason?: string;
 }
+
+/**
+ * Get articles similar to a given article
+ * @backend/tests/test_llm_client_params.py articleId The article to find similar articles for
+ * @backend/tests/test_llm_client_params.py limit Max number of related articles to return
+ * @backend/tests/test_llm_client_params.py excludeSameSource Whether to exclude articles from the same source
+ */
+
 
 /**
  * Get articles similar to a given article
@@ -5097,9 +5332,8 @@ export async function fetchRelatedArticles(
   const params = new URLSearchParams({
     limit: limit.toString(),
     exclude_same_source: excludeSameSource.toString(),
-  });
-
-  const response = await fetch(
+  }),
+response = await fetch(
     `${API_BASE_URL}/api/similarity/related/${articleId}?${params}`,
   );
   if (response.status === 503) {
@@ -5116,6 +5350,13 @@ export async function fetchRelatedArticles(
  * @backend/tests/test_llm_client_params.py query The search query to get suggestions for
  * @backend/tests/test_llm_client_params.py limit Max number of suggestions
  */
+
+
+/**
+ * Get search suggestions based on topic clusters
+ * @backend/tests/test_llm_client_params.py query The search query to get suggestions for
+ * @backend/tests/test_llm_client_params.py limit Max number of suggestions
+ */
 export async function fetchSearchSuggestions(
   query: string,
   limit: number = 5,
@@ -5123,9 +5364,8 @@ export async function fetchSearchSuggestions(
   const params = new URLSearchParams({
     query,
     limit: limit.toString(),
-  });
-
-  const response = await fetch(
+  }),
+response = await fetch(
     `${API_BASE_URL}/api/similarity/search-suggestions?${params}`,
   );
   if (response.status === 503) {
@@ -5142,16 +5382,22 @@ export async function fetchSearchSuggestions(
  * @backend/tests/test_llm_client_params.py sourceIds Array of source IDs to compare
  * @backend/tests/test_llm_client_params.py sampleSize Number of articles to sample per source
  */
+
+
+/**
+ * Compare embedding coverage between sources
+ * @backend/tests/test_llm_client_params.py sourceIds Array of source IDs to compare
+ * @backend/tests/test_llm_client_params.py sampleSize Number of articles to sample per source
+ */
 export async function fetchSourceCoverage(
-  sourceIds: string[],
+  sourceIds:readonly  string[],
   sampleSize: number = 100,
 ): Promise<SourceCoverageResponse> {
   const params = new URLSearchParams({
     source_ids: sourceIds.join(","),
     sample_size: sampleSize.toString(),
-  });
-
-  const response = await fetch(
+  }),
+response = await fetch(
     `${API_BASE_URL}/api/similarity/source-coverage?${params}`,
   );
   if (response.status === 503) {
@@ -5168,9 +5414,16 @@ export async function fetchSourceCoverage(
  * @backend/tests/test_llm_client_params.py articleId The article to score
  * @backend/tests/test_llm_client_params.py readingHistory Array of article IDs the user has read
  */
+
+
+/**
+ * Compute novelty score for an article compared to reading history
+ * @backend/tests/test_llm_client_params.py articleId The article to score
+ * @backend/tests/test_llm_client_params.py readingHistory Array of article IDs the user has read
+ */
 export async function fetchNoveltyScore(
   articleId: number,
-  readingHistory: number[],
+  readingHistory:readonly  number[],
 ): Promise<NoveltyScoreResponse> {
   const response = await fetch(`${API_BASE_URL}/api/similarity/novelty-score`, {
     method: "POST",
@@ -5193,6 +5446,12 @@ export async function fetchNoveltyScore(
 // Article Topics / Semantic Tags API
 // ============================================================================
 
+
+
+// ============================================================================
+// Article Topics / Semantic Tags API
+// ============================================================================
+
 export interface ArticleTopic {
   cluster_id: number;
   label: string;
@@ -5200,12 +5459,12 @@ export interface ArticleTopic {
   keywords?: string[];
 }
 
-export interface ArticleTopicsResponse {
+interface ArticleTopicsResponse {
   article_id: number;
   topics: ArticleTopic[];
 }
 
-export interface BulkArticleTopicsResponse {
+interface BulkArticleTopicsResponse {
   articles: Record<
     number,
     Array<{
@@ -5216,6 +5475,12 @@ export interface BulkArticleTopicsResponse {
     }>
   >;
 }
+
+/**
+ * Get topic/cluster assignments for an article
+ * @backend/tests/test_llm_client_params.py articleId The article to get topics for
+ */
+
 
 /**
  * Get topic/cluster assignments for an article
@@ -5240,8 +5505,14 @@ export async function fetchArticleTopics(
  * Get topic/cluster assignments for multiple articles
  * @backend/tests/test_llm_client_params.py articleIds Array of article IDs
  */
+
+
+/**
+ * Get topic/cluster assignments for multiple articles
+ * @backend/tests/test_llm_client_params.py articleIds Array of article IDs
+ */
 export async function fetchBulkArticleTopics(
-  articleIds: number[],
+  articleIds:readonly  number[],
 ): Promise<BulkArticleTopicsResponse> {
   const response = await fetch(
     `${API_BASE_URL}/api/similarity/bulk-article-topics`,
@@ -5267,6 +5538,15 @@ export async function fetchBulkArticleTopics(
 // Media Accountability Wiki API
 // ============================================================================
 
+
+/**
+ * Fetch the OpenGraph image for a given article URL
+ * @backend/tests/test_llm_client_params.py url The URL of the article
+ */
+// ============================================================================
+// Media Accountability Wiki API
+// ============================================================================
+
 export interface WikiAnalysisAxis {
   axis_name: string;
   score: number;
@@ -5278,7 +5558,7 @@ export interface WikiAnalysisAxis {
   last_scored_at?: string;
 }
 
-export interface WikiSourceCard {
+interface WikiSourceCard {
   name: string;
   country?: string;
   funding_type?: string;
@@ -5291,7 +5571,7 @@ export interface WikiSourceCard {
   last_indexed_at?: string;
 }
 
-export interface SourceLedgerMetric {
+interface SourceLedgerMetric {
   id: string;
   label: string;
   value: number;
@@ -5300,7 +5580,7 @@ export interface SourceLedgerMetric {
   status: string;
 }
 
-export interface SourceLedger {
+interface SourceLedger {
   source_name: string;
   article_count: number;
   paywall: {
@@ -5336,7 +5616,7 @@ export interface SourceLedger {
   metrics: SourceLedgerMetric[];
 }
 
-export interface WikiSourceProfile {
+interface WikiSourceProfile {
   name: string;
   website?: string;
   country?: string;
@@ -5413,7 +5693,7 @@ export interface WikiSourceProfile {
   last_indexed_at?: string;
 }
 
-export interface WikiReporterCard {
+interface WikiReporterCard {
   id: number;
   name: string;
   normalized_name?: string;
@@ -5429,7 +5709,7 @@ export interface WikiReporterCard {
   research_confidence?: string;
 }
 
-export interface WikiReporterDossier extends WikiReporterCard {
+interface WikiReporterDossier extends WikiReporterCard {
   career_history?: Array<{
     organization?: string;
     role?: string;
@@ -5502,7 +5782,14 @@ export interface WikiReporterDossier extends WikiReporterCard {
  * Atlas feature parses its loosely-typed `details` bag rather than widening
  * the base contract (see `features/intelligence-atlas/lib/atlas-schema.ts`).
  */
-const ReporterTimelineEntrySchema = z.object({
+const 
+
+/**
+ * Career timeline (Atlas Phase 4): defensive Zod parsing for
+ * `WikiReporterDossier.career_timeline`, mirroring how the Intelligence
+ * Atlas feature parses its loosely-typed `details` bag rather than widening
+ * the base contract (see `features/intelligence-atlas/lib/atlas-schema.ts`).
+ReporterTimelineEntrySchema = z.object({
   source: z.enum(["byline", "affiliation"]),
   outlet: z.string(),
   start_date: z.string().nullable().optional(),
@@ -5512,7 +5799,7 @@ const ReporterTimelineEntrySchema = z.object({
   evidence_url: z.string().nullable().optional(),
 });
 
-export type ReporterTimelineEntry = z.infer<typeof ReporterTimelineEntrySchema>;
+type ReporterTimelineEntry = z.infer<typeof ReporterTimelineEntrySchema>;
 
 const ReporterOwnershipRefSchema = z.object({
   entity_id: z.string(),
@@ -5521,7 +5808,7 @@ const ReporterOwnershipRefSchema = z.object({
   profile_path: z.string().nullable().optional(),
 });
 
-export type ReporterOwnershipRef = z.infer<typeof ReporterOwnershipRefSchema>;
+type ReporterOwnershipRef = z.infer<typeof ReporterOwnershipRefSchema>;
 
 const ReporterSharedOwnerFindingSchema = z.object({
   owner: ReporterOwnershipRefSchema,
@@ -5530,31 +5817,34 @@ const ReporterSharedOwnerFindingSchema = z.object({
   claim_ids: z.array(z.string()),
 });
 
-export type ReporterSharedOwnerFinding = z.infer<typeof ReporterSharedOwnerFindingSchema>;
+type ReporterSharedOwnerFinding = z.infer<typeof ReporterSharedOwnerFindingSchema>;
 
 const ReporterCareerTimelineSchema = z.object({
   timeline: z.array(ReporterTimelineEntrySchema),
   shared_owner_findings: z.array(ReporterSharedOwnerFindingSchema),
 });
 
-export type ReporterCareerTimeline = z.infer<typeof ReporterCareerTimelineSchema>;
+type ReporterCareerTimeline = z.infer<typeof ReporterCareerTimelineSchema>;
 
-/** Defensively parses `career_timeline`; returns null on any shape mismatch. */
+/** Defensively parses `career_timeline`; returns undefined on any shape mismatch. */
+
+
+/** Defensively parses `career_timeline`; returns undefined on any shape mismatch. */
 export function parseReporterCareerTimeline(
   value: Record<string, unknown> | null | undefined,
 ): ReporterCareerTimeline | null {
-  if (!value) return null;
+  if (!value) return undefined;
   const result = ReporterCareerTimelineSchema.safeParse(value);
   return result.success ? result.data : null;
 }
 
-export interface WikiIndexStatus {
+interface WikiIndexStatus {
   total_entries: number;
   by_status: Record<string, number>;
   by_type: Record<string, number>;
 }
 
-export interface WikiSourcesParams {
+interface WikiSourcesParams {
   country?: string;
   bias?: string;
   funding?: string;
@@ -5563,6 +5853,11 @@ export interface WikiSourcesParams {
   limit?: number;
   offset?: number;
 }
+
+/**
+ * Fetch the wiki source directory with optional filters
+ */
+
 
 /**
  * Fetch the wiki source directory with optional filters
@@ -5579,13 +5874,18 @@ export async function fetchWikiSources(
   if (params.limit) query.set("limit", params.limit.toString());
   if (params.offset) query.set("offset", params.offset.toString());
 
-  const qs = query.toString();
-  const response = await fetch(
+  const qs = query.toString(),
+response = await fetch(
     `${API_BASE_URL}/api/wiki/sources${qs ? `?${qs}` : ""}`,
   );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
+
+/**
+ * Fetch the full wiki profile for a single source
+ */
+
 
 /**
  * Fetch the full wiki profile for a single source
@@ -5603,6 +5903,11 @@ export async function fetchWikiSource(
 /**
  * Fetch reporters associated with a source
  */
+
+
+/**
+ * Fetch reporters associated with a source
+ */
 export async function fetchWikiSourceReporters(
   sourceName: string,
 ): Promise<WikiReporterCard[]> {
@@ -5616,13 +5921,18 @@ export async function fetchWikiSourceReporters(
 /**
  * Fetch the wiki reporter directory
  */
+
+
+/**
+ * Fetch the wiki reporter directory
+ */
 export async function fetchWikiReporters(
-  params: {
+  params:Readonly< {
     search?: string;
     outlet?: string;
     limit?: number;
     offset?: number;
-  } = {},
+  }> = {},
 ): Promise<WikiReporterCard[]> {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
@@ -5630,13 +5940,18 @@ export async function fetchWikiReporters(
   if (params.limit) query.set("limit", params.limit.toString());
   if (params.offset) query.set("offset", params.offset.toString());
 
-  const qs = query.toString();
-  const response = await fetch(
+  const qs = query.toString(),
+response = await fetch(
     `${API_BASE_URL}/api/wiki/reporters${qs ? `?${qs}` : ""}`,
   );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
+
+/**
+ * Fetch a full reporter dossier
+ */
+
 
 /**
  * Fetch a full reporter dossier
@@ -5650,6 +5965,11 @@ export async function fetchWikiReporter(
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
+
+/**
+ * Fetch articles by a reporter (returns simplified article objects)
+ */
+
 
 /**
  * Fetch articles by a reporter (returns simplified article objects)
@@ -5675,11 +5995,21 @@ export async function fetchWikiReporterArticles(reporterId: number): Promise<
 /**
  * Fetch wiki indexing status summary
  */
+
+
+/**
+ * Fetch wiki indexing status summary
+ */
 export async function fetchWikiIndexStatus(): Promise<WikiIndexStatus> {
   const response = await fetch(`${API_BASE_URL}/api/wiki/index/status`);
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
+
+/**
+ * Trigger wiki indexing for a specific source
+ */
+
 
 /**
  * Trigger wiki indexing for a specific source
@@ -5697,7 +6027,7 @@ export async function triggerWikiIndex(
   return response.json();
 }
 
-export async function fetchOGImage(url: string): Promise<string | null> {
+async function fetchOGImage(url: string): Promise<string | null> {
   const now = Date.now();
   ogImageMetrics.total += 1;
   const cached = ogImageCache.get(url);
@@ -5743,7 +6073,7 @@ export async function fetchOGImage(url: string): Promise<string | null> {
       );
       if (!response.ok) {
         if (response.status === 404) {
-          return cacheResult(null, OG_IMAGE_MISS_TTL_MS);
+          return cacheResult(undefined, OG_IMAGE_MISS_TTL_MS);
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -5751,7 +6081,7 @@ export async function fetchOGImage(url: string): Promise<string | null> {
       return cacheResult(data.image_url || null, OG_IMAGE_SUCCESS_TTL_MS);
     } catch (error) {
       console.error("Failed to fetch OG image:", error);
-      return cacheResult(null, OG_IMAGE_ERROR_TTL_MS);
+      return cacheResult(undefined, OG_IMAGE_ERROR_TTL_MS);
     } finally {
       ogImageInFlight.delete(url);
     }
@@ -5768,3 +6098,6 @@ export async function fetchOGImage(url: string): Promise<string | null> {
 
 // Re-export shared types for backward compatibility
 export type { ArticleCore, SourceCore, ClusterCore, QueuedItem, HighlightCore } from "./types/core";
+
+
+export { API_BASE_URL, ENABLE_DIGEST, ENABLE_HIGHLIGHTS, NewsSource, NewsArticle, BrowseIndexResponse, BackendArticle, BookmarkEntry, SemanticSearchResult, SemanticSearchResponse, StreamOptions, StreamProgress, StreamEvent, fetchNews, fetchNewsFromSource, fetchNewsByCategory, fetchSources, fetchCategories, requestInlineDefinition, SourceStats, fetchSourceStats, CacheStatus, LlmLogEntry, LlmLogResponse, DebugErrorEntry, DebugErrorsResponse, fetchCacheStatus, fetchLlmLogs, fetchDebugErrors, refreshCache, semanticSearch, fetchBookmarks, fetchBookmark, createBookmark, updateBookmark, deleteBookmark, LikedEntry, fetchLikedArticles, createLikedArticle, deleteLikedArticle, AddRssResponse, validateRssUrl, promoteRssSource, getSourceById, getArticlesByCountry, fetchArticlesBySource, initializeData, fetchInlineDefinition, SourceDebugData, fetchSourceDebugData, ChromaDebugArticle, ChromaDebugResponse, DatabaseDebugResponse, StorageDriftReport, CacheDebugArticle, CacheDebugResponse, CacheDeltaResponse, StartupEventMetric, StartupMetricsResponse, fetchChromaDebugArticles, fetchDatabaseDebugArticles, fetchStorageDrift, fetchCacheDebugArticles, fetchCacheDelta, fetchStartupMetrics, CredibilityDimension, CredibilityDataQuality, SourceCredibilityProfile, fetchSourceCredibility, streamNews, mapBackendArticles, removeDuplicateArticles, fetchStreamStatus, FrontendDebugReportPayload, sendFrontendDebugReport, FactCheckResult, LanguageDiagnosticExample, LanguageDiagnosticMetric, LanguageDiagnosticOverall, LanguageDiagnostics, ArticleAnalysis, analyzeArticle, fetchLanguageDiagnostics, ThinkingStep, NewsResearchResponse, performNewsResearch, AgenticSearchRequest, AgenticSearchResponse, performAgenticSearch, ReadingQueueItem, QueueResponse, addToReadingQueue, removeFromReadingQueue, removeFromReadingQueueByUrl, getReadingQueue, UpdateQueueItemRequest, updateReadingQueueItem, QueueOverview, getQueueOverview, ReadingShelf, getReadingShelves, createReadingShelf, Highlight, createHighlight, getHighlightsForArticle, getAllHighlights, updateHighlight, deleteHighlight, QueueItemContent, QueueDigest, getQueueItemContent, getDailyDigest, PaginatedResponse, PaginationParams, fetchNewsPaginated, fetchCachedNewsPaginated, fetchBrowseIndex, fetchLiveBrowseIndex, CountryArticleCounts, CountryGeoData, CountryListItem, CountryListResponse, CountryPickerItem, LocalLensResponse, fetchArticleCountsByCountry, fetchCountryGeoData, fetchCountryList, fetchCountryPickerItems, fetchNewsForCountry, ReporterProfile, OrganizationProfile, OwnershipChain, SourceResearchValue, SourceReporterSummary, AdsTxtSummary, SellersJsonSystemSummary, SellersJsonSummary, PolicyTransparencySignal, PolicyTransparencySummary, SourceResearchProfile, profileReporter, getReporter, listReporters, researchOrganization, researchSourceProfile, checkSourceProfileCache, SourceResearchRequest, SourceBatchResponse, researchSourceProfilesBatch, getOrganization, getOwnershipChain, listOrganizations, TradeRelationship, KnownInterests, MaterialContext, CountryEconomicProfile, analyzeMaterialContext, getCountryEconomicProfile, GdeltTopCameo, GdeltContext, TrendingArticle, TrendingCluster, BreakingCluster, TrendingResponse, BreakingResponse, ClusterDetail, ContradictionEvidence, ContradictionClaim, AgreedFact, ContradictionPanelResponse, LineageStory, LineageArticleEdge, LineageClaim, LineageClaimEdge, LineageCorrection, StoryLineageResponse, BlindspotLens, BlindspotLane, BlindspotPreviewArticle, BlindspotCard, BlindspotViewerResponse, TrendingStats, AllCluster, AllClustersResponse, fetchTrending, fetchBreaking, fetchAllClusters, fetchClusterDetail, fetchClusterContradictions, fetchClusterLineage, fetchBlindspotViewer, fetchClusterArticles, fetchTrendingStats, GdeltEvent, GdeltArticleEventsResponse, GdeltStatsResponse, fetchGdeltArticleEvents, fetchGdeltStats, RelatedArticle, RelatedArticlesResponse, SearchSuggestion, SearchSuggestionsResponse, SourceCoverageStats, SourceCoverageResponse, NoveltyScoreResponse, fetchRelatedArticles, fetchSearchSuggestions, fetchSourceCoverage, fetchNoveltyScore, ArticleTopic, ArticleTopicsResponse, BulkArticleTopicsResponse, fetchArticleTopics, fetchBulkArticleTopics, WikiAnalysisAxis, WikiSourceCard, SourceLedgerMetric, SourceLedger, WikiSourceProfile, WikiReporterCard, WikiReporterDossier, ReporterTimelineEntry, ReporterOwnershipRef, ReporterSharedOwnerFinding, ReporterCareerTimeline, parseReporterCareerTimeline, WikiIndexStatus, WikiSourcesParams, fetchWikiSources, fetchWikiSource, fetchWikiSourceReporters, fetchWikiReporters, fetchWikiReporter, fetchWikiReporterArticles, fetchWikiIndexStatus, triggerWikiIndex, fetchOGImage };

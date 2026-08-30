@@ -7,11 +7,11 @@ import type { AtlasOwnershipChainHop } from "./lib/atlas-schema";
 function formatPercentage(hop: AtlasOwnershipChainHop): string | null {
   if (hop.percentage_range) {
     const { lower, upper } = hop.percentage_range;
-    if (Math.abs(upper - lower) < 0.05) return `${lower.toFixed(1)}%`;
+    if (Math.abs(upper - lower) < 0.05) {return `${lower.toFixed(1)}%`;}
     return `${lower.toFixed(1)}–${upper.toFixed(1)}%`;
   }
-  if (hop.percentage != null) return `${hop.percentage.toFixed(1)}%`;
-  return null;
+  if (hop.percentage != null) {return `${hop.percentage.toFixed(1)}%`;}
+  return undefined;
 }
 
 /**
@@ -24,11 +24,11 @@ function formatPercentage(hop: AtlasOwnershipChainHop): string | null {
 export function OwnershipChain({
   chain,
   currentEntityId,
-}: {
+}:Readonly< {
   chain: AtlasOwnershipChainHop[];
   currentEntityId: string;
-}) {
-  if (chain.length <= 1) return null;
+}>) {
+  if (chain.length <= 1) {return undefined;}
 
   const topDown = [...chain].reverse();
 
@@ -38,10 +38,10 @@ export function OwnershipChain({
       className="space-y-2"
     >
       {topDown.map((hop, index) => {
-        const isSelf = hop.entity_id === currentEntityId;
-        const isRoot = index === 0;
-        const pct = formatPercentage(hop);
-        const body = (
+        const isSelf = hop.entity_id === currentEntityId,
+         isRoot = index === 0,
+         pct = formatPercentage(hop),
+         body = (
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate font-serif text-sm">{hop.label}</div>

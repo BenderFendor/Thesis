@@ -1,12 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  fetchSourceCredibility,
-  type SourceCredibilityProfile,
-} from "@/lib/api"
+import { fetchSourceCredibility } from '@/lib/api';
+import type { SourceCredibilityProfile } from '@/lib/api';
 
 interface SourceCredibilityPanelProps {
   domain: string
@@ -14,38 +12,38 @@ interface SourceCredibilityPanelProps {
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
-  funding_transparency: "Funding Transparency",
-  source_network_diversity: "Source Network Diversity",
-  political_orientation_disclosure: "Political Orientation",
   correction_record: "Correction Record",
-  methodology_transparency: "Methodology Transparency",
   cross_verification_alignment: "Cross-Verification Alignment",
+  funding_transparency: "Funding Transparency",
+  methodology_transparency: "Methodology Transparency",
+  political_orientation_disclosure: "Political Orientation",
+  source_network_diversity: "Source Network Diversity",
 }
 
 function scoreToColor(score: number | null | undefined): string {
-  if (score == null) return "bg-muted/30"
-  if (score >= 70) return "bg-emerald-500"
-  if (score >= 40) return "bg-amber-500"
+  if (score == null) {return "bg-muted/30"}
+  if (score >= 70) {return "bg-emerald-500"}
+  if (score >= 40) {return "bg-amber-500"}
   return "bg-red-500"
 }
 
 function scoreToTextColor(score: number | null | undefined): string {
-  if (score == null) return "text-muted-foreground"
-  if (score >= 70) return "text-emerald-400"
-  if (score >= 40) return "text-amber-400"
+  if (score == null) {return "text-muted-foreground"}
+  if (score >= 70) {return "text-emerald-400"}
+  if (score >= 40) {return "text-amber-400"}
   return "text-red-400"
 }
 
 export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredibilityPanelProps) {
-  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [expandedDim, setExpandedDim] = useState<string | null>(null)
+  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(undefined),
+   [loading, setLoading] = useState(false),
+   [error, setError] = useState<string | null>(undefined),
+   [expandedDim, setExpandedDim] = useState<string | null>(undefined),
 
-  const loadProfile = useCallback(async () => {
-    if (!domain) return
+   loadProfile = useCallback(async () => {
+    if (!domain) {return}
     setLoading(true)
-    setError(null)
+    setError(undefined)
     try {
       const data = await fetchSourceCredibility(domain)
       setProfile(data)
@@ -62,8 +60,8 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
     }
   }, [autoRun, loadProfile])
 
-  const dims = profile?.dimensions ?? {}
-  const dimEntries = Object.entries(dims)
+  const dims = profile?.dimensions ?? {},
+   dimEntries = Object.entries(dims)
 
   if (!autoRun && !profile) {
     return (
@@ -149,26 +147,26 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
 
       <div className="space-y-2.5">
         {dimEntries.map(([key, dim]) => {
-          const score = dim.score
-          const isNil = score == null
-          const isExpanded = expandedDim === key
+          const {score} = dim,
+           isNil = score == null,
+           isExpanded = expandedDim === key
           return (
             <div key={key}>
               <div
                 className="flex items-center gap-2 group cursor-pointer"
-                onClick={() => setExpandedDim(isExpanded ? null : key)}
+                onClick={() =>{  setExpandedDim(isExpanded ? null : key); }}
               >
                 <span className="flex-1 text-[11px] font-mono text-foreground/70 capitalize truncate">
-                  {DIMENSION_LABELS[key] ?? key.replace(/_/g, " ")}
+                  {DIMENSION_LABELS[key] ?? key.replaceAll('_', " ")}
                 </span>
                 <span className={`text-[10px] font-mono ${scoreToTextColor(score)}`}>
-                  {isNil ? "-" : `${Math.round(score as number)}`}
+                  {isNil ? "-" : `${Math.round(score)}`}
                 </span>
               </div>
               <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden mt-1">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${scoreToColor(score)}`}
-                  style={{ width: isNil ? "0%" : `${Math.min(100, score as number)}%` }}
+                  style={{ width: isNil ? "0%" : `${Math.min(100, score)}%` }}
                 />
               </div>
               {isExpanded && !isNil && (

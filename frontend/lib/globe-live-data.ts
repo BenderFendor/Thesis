@@ -13,7 +13,7 @@ const DEFAULT_GEO_SIGNAL = {
 function getSourceCountry(article: NewsArticle): string | null {
   const country = article.source_country || article.country
   if (!country || country === "International") {
-    return null
+    return undefined
   }
   return country
 }
@@ -23,11 +23,11 @@ function getArticleTimestamp(article: NewsArticle): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function sortByNewest(articles: NewsArticle[]): NewsArticle[] {
+function sortByNewest(articles:readonly  NewsArticle[]): NewsArticle[] {
   return [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
 }
 
-function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
+function dedupeArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
   const seenIds = new Set<number>()
   const seenFallbackKeys = new Set<string>()
 
@@ -46,7 +46,7 @@ function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
   })
 }
 
-function countDistinctSources(articles: NewsArticle[]): number {
+function countDistinctSources(articles:readonly  NewsArticle[]): number {
   return new Set(
     articles
       .map((article) => article.sourceId || article.source)
@@ -55,7 +55,7 @@ function countDistinctSources(articles: NewsArticle[]): number {
 }
 
 export function buildCountryMetricsFromArticles(
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
 ): CountryArticleCounts {
   const sourceCounts: Record<string, number> = {}
   const mentionCounts: Record<string, number> = {}
@@ -106,7 +106,7 @@ export function buildCountryMetricsFromArticles(
 }
 
 export function buildCountryListFromArticles(
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
 ): CountryListResponse {
   const countryStats = new Map<string, { articleCount: number; latestTimestamp: number; latestArticle: string | null }>()
 
@@ -155,13 +155,13 @@ export function buildLocalLensFromArticles({
   countryName,
   view,
   limit,
-}: {
+}:Readonly< {
   articles: NewsArticle[]
   code: string
   countryName: string
   view: "internal" | "external"
   limit: number
-}): LocalLensResponse {
+}>): LocalLensResponse {
   const codeUpper = code.toUpperCase()
   const sortedArticles = sortByNewest(articles)
 

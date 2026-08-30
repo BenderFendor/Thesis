@@ -289,6 +289,24 @@ def has_supporting_byline_evidence(reporter: Reporter) -> bool:
     )
 
 
+def _identity_flags(reporter: Reporter) -> dict[str, bool]:
+    """Compute the person-identity boolean flags for a reporter."""
+    has_person_name = has_person_like_reporter_name(reporter)
+    has_journalism_evidence = has_journalism_profile_evidence(reporter)
+    return {
+        "has_person_name": has_person_name,
+        "has_canonical": has_person_name and is_author_profile_url(reporter.canonical_author_url),
+        "has_author_page": has_person_name and is_author_profile_url(reporter.author_page_url),
+        "has_author_page_evidence": has_person_name
+        and has_verified_author_page_citation(reporter),
+        "has_byline_evidence": has_person_name and has_supporting_byline_evidence(reporter),
+        "has_journalism_evidence": has_journalism_evidence,
+        "has_wikidata": has_person_name
+        and has_journalism_evidence
+        and bool(reporter.wikidata_qid),
+    }
+
+
 async def _load_confidence_context(session: AsyncSession, reporter: Reporter) -> _ConfidenceContext:
     edges_result = await session.execute(select(IdentityEdge).where(IdentityEdge.reporter_id == reporter.id))
     edges = list(edges_result.scalars().all())
@@ -303,20 +321,19 @@ async def _load_confidence_context(session: AsyncSession, reporter: Reporter) ->
     )
     article_observation_count = len(list(article_result.scalars().all()))
 
-    has_person_name = has_person_like_reporter_name(reporter)
-    has_journalism_evidence = has_journalism_profile_evidence(reporter)
+    flags = _identity_flags(reporter)
     return _ConfidenceContext(
         reporter=reporter,
         edges=edges,
         claims=claims,
         article_observation_count=article_observation_count,
-        has_person_name=has_person_name,
-        has_canonical=has_person_name and is_author_profile_url(reporter.canonical_author_url),
-        has_author_page=has_person_name and is_author_profile_url(reporter.author_page_url),
-        has_author_page_evidence=has_person_name and has_verified_author_page_citation(reporter),
-        has_byline_evidence=has_person_name and has_supporting_byline_evidence(reporter),
-        has_journalism_evidence=has_journalism_evidence,
-        has_wikidata=has_person_name and has_journalism_evidence and bool(reporter.wikidata_qid),
+        has_person_name=flags["has_person_name"],
+        has_canonical=flags["has_canonical"],
+        has_author_page=flags["has_author_page"],
+        has_author_page_evidence=flags["has_author_page_evidence"],
+        has_byline_evidence=flags["has_byline_evidence"],
+        has_journalism_evidence=flags["has_journalism_evidence"],
+        has_wikidata=flags["has_wikidata"],
         source_types={str(claim.source_type) for claim in claims if claim.source_type},
         edge_types={str(edge.edge_type) for edge in edges if edge.edge_type},
     )

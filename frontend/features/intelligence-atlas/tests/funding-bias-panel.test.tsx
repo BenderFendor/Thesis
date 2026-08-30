@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { render, screen } from "@testing-library/react";
 
 import { FundingBiasPanel } from "../funding-bias-panel";
@@ -5,59 +6,61 @@ import type { AtlasFundingAndBias, AtlasFundingBiasField } from "../lib/atlas-sc
 
 function field(overrides: Partial<AtlasFundingBiasField>): AtlasFundingBiasField {
   return {
-    value: null,
-    origin: null,
     asserted_by: null,
-    source: null,
     claim_ids: [],
-    evidence_count: 0,
     evidence: [],
+    evidence_count: 0,
+    origin: null,
+    source: null,
+    value: null,
     ...overrides,
   };
 }
 
 function block(overrides: Partial<AtlasFundingAndBias>): AtlasFundingAndBias {
   return {
-    funding_type: field({}),
     bias_rating: field({}),
     factual_reporting: field({}),
+    funding_type: field({}),
     ...overrides,
   };
 }
 
-describe("FundingBiasPanel", () => {
-  it("always renders the correlation-not-causation caption, even with no data", () => {
+describe("fundingBiasPanel", () => {
+  it("always renders the correlation-not-causation caption, even with no data", () => {  expect.hasAssertions();
+  
     render(<FundingBiasPanel block={block({})} />);
     expect(
-      screen.getByText(/Correlation shown, not proven causation/i),
+      screen.getByText(/Correlation shown, not proven causation/iu),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Not recorded")).toHaveLength(3);
   });
 
-  it("attributes an accepted MBFC claim by name and links to its evidence", () => {
+  it("attributes an accepted MBFC claim by name and links to its evidence", () => {  expect.hasAssertions();
+  
     render(
       <FundingBiasPanel
         block={block({
           bias_rating: field({
-            value: "Left-Center",
-            origin: "claim",
             asserted_by: "mbfc",
-            source: "mbfc",
             claim_ids: ["claim-1"],
-            evidence_count: 1,
             evidence: [
               {
-                id: "evidence-observation:obs-1",
-                source_type: "third_party_assessment",
-                source_name: "MBFC outlet record",
-                source_url: "https://mediabiasfactcheck.com/example",
+                entailment: "reviewed_yes",
                 excerpt: null,
+                id: "evidence-observation:obs-1",
+                locator: {},
                 retrieved_at: null,
                 snapshot_sha256: null,
-                locator: {},
-                entailment: "reviewed_yes",
+                source_name: "MBFC outlet record",
+                source_type: "third_party_assessment",
+                source_url: "https://mediabiasfactcheck.com/example",
               },
             ],
+            evidence_count: 1,
+            origin: "claim",
+            source: "mbfc",
+            value: "Left-Center",
           }),
         })}
       />,
@@ -66,15 +69,16 @@ describe("FundingBiasPanel", () => {
     expect(screen.getByText("Left-Center")).toBeInTheDocument();
     expect(screen.getByText("MBFC")).toBeInTheDocument();
     expect(screen.getByText(/Rated by Media Bias\/Fact Check/)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Bias rating evidence/i });
+    const link = screen.getByRole("link", { name: /Bias rating evidence/iu });
     expect(link).toHaveAttribute("href", "https://mediabiasfactcheck.com/example");
   });
 
-  it("marks a legacy fallback value as uncited, with no evidence link", () => {
+  it("marks a legacy fallback value as uncited, with no evidence link", () => {  expect.hasAssertions();
+  
     render(
       <FundingBiasPanel
         block={block({
-          funding_type: field({ value: "commercial", origin: "legacy" }),
+          funding_type: field({ origin: "legacy", value: "commercial" }),
         })}
       />,
     );

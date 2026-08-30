@@ -9,8 +9,9 @@
     "cli:typecheck": "frontend/node_modules/.bin/tsc -p scripts/tsconfig.json",
     "cli:schema:check": "./scripts/scoop schema check",
     "deps:cycles": "bash ./scripts/check-cycles",
-    "quality:duplicates": "jscpd --config .jscpd.json",
-    "quality:maintainability": "node scripts/check-maintainability.mjs"
+    "quality:duplicates": "jscpd --config .jscpd.json -p '**/*.{ts,tsx,js,mjs,py,rs}' frontend backend scripts",
+    "quality:maintainability": "node scripts/check-maintainability.mjs",
+    "quality:all": "bash ./scripts/check-cycles && npm run quality:duplicates && npm run quality:maintainability -- --strict && bash ./scripts/check-complexity && npm --prefix frontend run deadcode && npm --prefix frontend run crap"
   },
   "devDependencies": {
     "@types/d3-geo": "^3.1.0",

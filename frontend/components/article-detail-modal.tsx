@@ -1,33 +1,96 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
-import { logUserAction } from "@/lib/performance-logger"
-import Link from "next/link"
-import { X, ExternalLink, Heart, Bookmark, AlertTriangle, DollarSign, Bug, Link as LinkIcon, Sparkles, Maximize2, Minimize2, Loader2, Search, RefreshCw, CheckCircle2, XCircle, Copy, PlusCircle, MinusCircle, Star, Edit2, Trash2, Eye, EyeOff, Download, BookOpen, ScanText } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+"use client"
+
+import type {
+  ArticleAnalysis,
+  FactCheckResult,
+  Highlight,
+  LanguageDiagnosticMetric,
+  LanguageDiagnostics,
+  NewsArticle,
+  NewsSource,
+  SourceDebugData,
+} from "../lib/api"
+import type { HighlightSyncStatus, LocalHighlight } from "../lib/highlight-store"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { type NewsArticle, getSourceById, type NewsSource, fetchSourceDebugData, type SourceDebugData, analyzeArticle, type ArticleAnalysis, API_BASE_URL, performAgenticSearch, type FactCheckResult, type Highlight, getHighlightsForArticle, createHighlight, updateHighlight, deleteHighlight, fetchLanguageDiagnostics, type LanguageDiagnosticMetric, type LanguageDiagnostics } from "@/lib/api"
-import { useDebugMode } from "@/hooks/useDebugMode"
-import { useLikedArticles } from "@/hooks/useLikedArticles"
-import { loadHighlightStore, mergeHighlights, saveHighlightStore, toRemoteHighlights, type LocalHighlight, type HighlightSyncStatus, generateClientId, markFailed, markPending, markSynced, createHighlightFingerprint, dedupeLocalHighlights } from "@/lib/highlight-store"
-import { useReadingQueue } from "@/hooks/useReadingQueue"
-import { useFavorites } from "@/hooks/useFavorites"
-import { useReadingHistory } from "@/hooks/useReadingHistory"
-import { useInlineDefinition } from "@/hooks/useInlineDefinition"
-import { useBookmarks } from "@/hooks/useBookmarks"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  API_BASE_URL,
+  analyzeArticle,
+  createHighlight,
+  deleteHighlight,
+  fetchLanguageDiagnostics,
+  fetchSourceDebugData,
+  getHighlightsForArticle,
+  getSourceById,
+  performAgenticSearch,
+  updateHighlight,
+} from "@/lib/api"
+import {
+  createHighlightFingerprint,
+  dedupeLocalHighlights,
+  generateClientId,
+  loadHighlightStore,
+  markFailed,
+  markPending,
+  markSynced,
+  mergeHighlights,
+  saveHighlightStore,
+  toRemoteHighlights,
+} from "@/lib/highlight-store"
+import { buildObsidianMarkdown, highlightStableId } from "@/lib/highlight-utils"
+import {
+  AlertTriangle,
+  BookOpen,
+  Bookmark,
+  Bug,
+  CheckCircle2,
+  Copy,
+  DollarSign,
+  Download,
+  Edit2,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Heart,
+  Link as LinkIcon,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  MinusCircle,
+  PlusCircle,
+  RefreshCw,
+  ScanText,
+  Search,
+  Sparkles,
+  Star,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ArticleContent } from "@/components/article-content"
+import { HighlightNotePopover } from "@/components/highlight-note-popover"
+import { HighlightToolbar } from "@/components/highlight-toolbar"
 import InlineDefinition from "@/components/inline-definition"
+import { RelatedArticles } from "@/components/related-articles"
 import { ReporterProfilePanel } from "@/components/reporter-profile"
 import { SourceResearchPanel } from "@/components/source-research-panel"
-import { RelatedArticles } from "@/components/related-articles"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useBookmarks } from "@/hooks/useBookmarks"
+import { useDebugMode } from "@/hooks/use-debug-mode"
+import { useFavorites } from "@/hooks/useFavorites"
+import { useInlineDefinition } from "@/hooks/use-inline-definition"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
+import { useReadingHistory } from "@/hooks/useReadingHistory"
+import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { logUserAction } from "@/lib/performance-logger"
+import { useQuery } from "@tanstack/react-query"
+import { motion } from "framer-motion"
+import Link from "next/link"
 import { toast } from "sonner"
-import { ArticleContent } from "@/components/article-content"
-import { HighlightToolbar } from "@/components/highlight-toolbar"
-import { HighlightNotePopover } from "@/components/highlight-note-popover"
-import { buildObsidianMarkdown, highlightStableId } from "@/lib/highlight-utils"
 
 type FactCheckStatus = FactCheckResult["verification_status"]
 type FactCheckStatusFilter = FactCheckStatus | "all"
@@ -1921,6 +1984,31 @@ function ModalCompactAiSection({
   )
 }
 
+
+export interface ArticleDetailServices {
+  analyzeArticle: typeof analyzeArticle
+  createHighlight: typeof createHighlight
+  deleteHighlight: typeof deleteHighlight
+  fetchLanguageDiagnostics: typeof fetchLanguageDiagnostics
+  fetchSourceDebugData: typeof fetchSourceDebugData
+  getHighlightsForArticle: typeof getHighlightsForArticle
+  getSourceById: typeof getSourceById
+  performAgenticSearch: typeof performAgenticSearch
+  updateHighlight: typeof updateHighlight
+}
+
+const DEFAULT_ARTICLE_DETAIL_SERVICES: ArticleDetailServices = {
+  analyzeArticle,
+  createHighlight,
+  deleteHighlight,
+  fetchLanguageDiagnostics,
+  fetchSourceDebugData,
+  getHighlightsForArticle,
+  getSourceById,
+  performAgenticSearch,
+  updateHighlight,
+}
+
 interface ArticleDetailModalProps {
   article: NewsArticle | null
   isOpen: boolean
@@ -1928,6 +2016,7 @@ interface ArticleDetailModalProps {
   onBookmarkChange?: (articleId: number, isBookmarked: boolean) => void
   onNavigate?: (direction: "prev" | "next") => void
   layoutIdPrefix?: string
+  services?: ArticleDetailServices
 }
 
 export function ArticleDetailModal(props: ArticleDetailModalProps) {
@@ -1943,7 +2032,7 @@ export function ArticleDetailModal(props: ArticleDetailModalProps) {
   )
 }
 
-function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix }: ArticleDetailModalProps & { article: NewsArticle }) {
+function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange, onNavigate, layoutIdPrefix, services = DEFAULT_ARTICLE_DETAIL_SERVICES }: ArticleDetailModalProps & { article: NewsArticle }) {
   const { isLiked, toggleLike } = useLikedArticles()
   const { isBookmarked, toggleBookmark } = useBookmarks()
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
@@ -1998,7 +2087,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     isLoading: sourceLoading,
   } = useQuery<NewsSource | null>({
     queryKey: ["source", article.sourceId],
-    queryFn: async () => (await getSourceById(article.sourceId)) || null,
+    queryFn: async () => (await services.getSourceById(article.sourceId)) || null,
     retry: 1,
   })
   const {
@@ -2095,7 +2184,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
       })
     }
 
-    getHighlightsForArticle(article.url)
+    services.getHighlightsForArticle(article.url)
       .then((serverHighlights) => {
         if (HIGHLIGHT_DEBUG) {
           console.debug("[Highlights] fetched server highlights", {
@@ -2150,7 +2239,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
 
       try {
         if (item.pending_op === "create") {
-          const created = await createHighlight({
+          const created = await services.createHighlight({
             article_url: item.article_url,
             highlighted_text: item.highlighted_text,
             color: item.color,
@@ -2164,7 +2253,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
           if (!id) {
             next = next.map((h) => (h.client_id === item.client_id ? markFailed({ highlight: h, error: "missing server id" }) : h))
           } else {
-            const updated = await updateHighlight(id, {
+            const updated = await services.updateHighlight(id, {
               note: item.note,
               color: item.color,
               character_start: item.character_start,
@@ -2176,7 +2265,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
         } else if (item.pending_op === "delete") {
           const id = item.server_id ?? item.id
           if (id) {
-            await deleteHighlight(id)
+            await services.deleteHighlight(id)
           }
           next = next.filter((h) => h.client_id !== item.client_id)
         }
@@ -2322,7 +2411,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     if (!article) return
     try {
       setDebugLoading(true)
-      const data = await fetchSourceDebugData(article.source)
+      const data = await services.fetchSourceDebugData(article.source)
       setDebugData(data)
       // Try to match entry by link, else by title
       let idx: number | null = null
@@ -2350,7 +2439,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
     try {
       setAiAnalysisRequested(true)
       setAiAnalysisLoading(true)
-      const analysis = await analyzeArticle(article.url, article.source)
+      const analysis = await services.analyzeArticle(article.url, article.source)
       setAiAnalysis(analysis)
     } catch (e) {
       console.error('Failed to analyze article:', e)
@@ -2382,7 +2471,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
         .filter(Boolean)
         .join(" \n")
 
-      const response = await performAgenticSearch(enrichedQuery, 10)
+      const response = await services.performAgenticSearch(enrichedQuery, 10)
 
       if (response.success && response.answer) {
         setAgenticAnswer(response.answer)
@@ -2506,7 +2595,7 @@ function ArticleDetailModalContent({ article, isOpen, onClose, onBookmarkChange,
   } = useQuery<LanguageDiagnostics, Error>({
     queryKey: ["article-language-diagnostics", currentArticle.url, articleTextForMetrics.slice(0, 120)],
     queryFn: () =>
-      fetchLanguageDiagnostics({
+      services.fetchLanguageDiagnostics({
         url: currentArticle.url,
         text: articleTextForMetrics,
         title: currentArticle.title,

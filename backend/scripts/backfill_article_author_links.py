@@ -14,6 +14,7 @@ import asyncio
 import re
 import sys
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -108,24 +109,18 @@ def _is_source_label_byline(author: str, source: str | None) -> bool:
     return bool(author_label and source_label and author_label == source_label)
 
 
-def _clean_author_names(value: str | None) -> list[str]:
-    """Return one or more reporter-like names from a persisted byline."""
-    cleaned = clean_author_name(str(value or ""))
-    if not cleaned:
-        return []
-
+def _split_author_parts(cleaned: str) -> list[str]:
+    """Split a byline string into cleaned name parts honoring separators."""
     has_separator = bool(_MULTI_AUTHOR_SPLIT_PATTERN.search(cleaned) or re.search(r"[,;]", cleaned))
     if not has_separator:
         return [cleaned]
-
     split_ready = _MULTI_AUTHOR_SPLIT_PATTERN.sub(", ", cleaned)
     parts = [part.strip() for part in re.split(r"\s*[,;]\s*", split_ready) if part.strip()]
-    names = [name for part in parts if (name := clean_author_name(part))]
-    if not names:
-        return []
-    if len(names) < 2:
-        return names
+    return [name for part in parts if (name := clean_author_name(part))]
 
+
+def _deduplicate_author_names(names: list[str]) -> list[str]:
+    """Drop duplicate names after resolver normalization, preserving order."""
     unique: list[str] = []
     seen: set[str] = set()
     for name in names:
@@ -137,36 +132,51 @@ def _clean_author_names(value: str | None) -> list[str]:
     return unique
 
 
+def _clean_author_names(value: str | None) -> list[str]:
+    """Return one or more reporter-like names from a persisted byline."""
+    cleaned = clean_author_name(str(value or ""))
+    if not cleaned:
+        return []
+    names = _split_author_parts(cleaned)
+    if len(names) < 2:
+        return names
+    return _deduplicate_author_names(names)
+
 def _article_author_pairs(
     raw_author: str | None,
     raw_authors: Any,
     raw_author_urls: Any,
 ) -> list[tuple[str, str | None]]:
     """Return raw byline strings paired with same-index author URLs when present."""
-    author_values = (
-        [
+    author_values = _article_author_values(raw_author, raw_authors)
+    author_urls = _article_author_urls(raw_author_urls)
+    return [
+        (author, author_urls[index] if index < len(author_urls) else None)
+        for index, author in enumerate(author_values)
+    ]
+
+
+def _article_author_values(raw_author: str | None, raw_authors: Any) -> list[str]:
+    """Extract the byline strings from either the list or single-value column."""
+    if isinstance(raw_authors, list):
+        values = [
             str(author).strip()
             for author in raw_authors
             if isinstance(author, str) and author.strip()
         ]
-        if isinstance(raw_authors, list)
-        else []
-    )
-    if not author_values and raw_author:
-        author_values = [str(raw_author)]
+        if values:
+            return values
+    return [str(raw_author)] if raw_author else []
 
-    author_urls = (
-        [
-            str(author_url).strip()
-            for author_url in raw_author_urls
-            if isinstance(author_url, str) and author_url.strip()
-        ]
-        if isinstance(raw_author_urls, list)
-        else []
-    )
+
+def _article_author_urls(raw_author_urls: Any) -> list[str]:
+    """Extract the same-index author URL strings when the column is a list."""
+    if not isinstance(raw_author_urls, list):
+        return []
     return [
-        (author, author_urls[index] if index < len(author_urls) else None)
-        for index, author in enumerate(author_values)
+        str(author_url).strip()
+        for author_url in raw_author_urls
+        if isinstance(author_url, str) and author_url.strip()
     ]
 
 
@@ -232,30 +242,98 @@ def _has_valid_local_byline_name(reporter: Reporter) -> bool:
     )
 
 
+def _latest_publish_date(articles: list[BylinedArticle]) -> Any | None:
+    """Return the most recent published_at across the byline group."""
+    latest = None
+    for article in articles:
+        if article.published_at and (latest is None or article.published_at > latest):
+            latest = article.published_at
+    return latest
+
+
+def _evidence_urls(articles: list[BylinedArticle]) -> list[str]:
+    """Return the cited article URLs for the profile."""
+    return [article.url for article in articles if article.url]
+
+
+def _article_evidence_items(articles: list[BylinedArticle]) -> list[dict[str, Any]]:
+    """Build the article evidence dossier items for a byline group."""
+    items: list[dict[str, Any]] = []
+    for article in articles:
+        label = article.title or article.url or f"Article {article.article_id}"
+        items.append(
+            {
+                "label": "Article",
+                "value": label,
+                "sources": [article.url] if article.url else [],
+            }
+        )
+    return items
+
+
+def _identity_section(author: str, urls: list[str]) -> dict[str, Any]:
+    """Build the identity dossier section."""
+    return {
+        "id": "identity",
+        "title": "Identity",
+        "status": "available",
+        "items": [
+            {"label": "Name", "value": author, "sources": urls[:5]},
+            {
+                "label": "Match",
+                "value": "Local byline profile grounded in persisted RSS article records.",
+                "sources": urls[:5],
+            },
+        ],
+    }
+
+
+def _source_context_section(source: str | None) -> dict[str, Any]:
+    """Build the source-context dossier section."""
+    if not source:
+        return {"id": "source_context", "title": "Source Context", "status": "missing", "items": []}
+    return {
+        "id": "source_context",
+        "title": "Source Context",
+        "status": "available",
+        "items": [{"label": "Observed outlet", "value": source, "sources": []}],
+    }
+
+
+def _evidence_section(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the article-evidence dossier section."""
+    return {
+        "id": "article_evidence",
+        "title": "Article Evidence",
+        "status": "available" if items else "missing",
+        "items": items[:10],
+    }
+
+
+def _confidence_fields(articles: list[BylinedArticle]) -> dict[str, Any]:
+    """Return the confidence fields derived from the group size."""
+    if len(articles) >= 2:
+        return {
+            "research_confidence": "medium",
+            "confidence_tier": "likely",
+            "confidence_score": 0.55,
+        }
+    return {
+        "research_confidence": "low",
+        "confidence_tier": "unmatched",
+        "confidence_score": 0.35,
+    }
+
+
 def _local_reporter_profile(
     author: str,
     source: str | None,
     articles: list[BylinedArticle],
 ) -> dict[str, Any]:
-    latest = None
-    categories: list[str] = []
-    urls: list[str] = []
-    article_items: list[dict[str, Any]] = []
-    for article in articles:
-        if article.published_at and (latest is None or article.published_at > latest):
-            latest = article.published_at
-        if article.category:
-            categories.append(article.category)
-        if article.url:
-            urls.append(article.url)
-        article_items.append(
-            {
-                "label": "Article",
-                "value": article.title or article.url or f"Article {article.article_id}",
-                "sources": [article.url] if article.url else [],
-            }
-        )
-
+    latest = _latest_publish_date(articles)
+    categories = sorted({article.category for article in articles if article.category})
+    urls = _evidence_urls(articles)
+    article_items = _article_evidence_items(articles)
     career_history = (
         [{"organization": source, "role": "byline outlet", "source": "rss_catalog"}]
         if source
@@ -272,56 +350,65 @@ def _local_reporter_profile(
             + (f" for {source}." if source else ".")
         ),
         "career_history": career_history,
-        "topics": sorted(set(categories)),
+        "topics": categories,
         "education": [],
         "dossier_sections": [
-            {
-                "id": "identity",
-                "title": "Identity",
-                "status": "available",
-                "items": [
-                    {"label": "Name", "value": author, "sources": urls[:5]},
-                    {
-                        "label": "Match",
-                        "value": "Local byline profile grounded in persisted RSS article records.",
-                        "sources": urls[:5],
-                    },
-                ],
-            },
-            {
-                "id": "source_context",
-                "title": "Source Context",
-                "status": "available" if source else "missing",
-                "items": (
-                    [
-                        {
-                            "label": "Observed outlet",
-                            "value": source,
-                            "sources": [],
-                        }
-                    ]
-                    if source
-                    else []
-                ),
-            },
-            {
-                "id": "article_evidence",
-                "title": "Article Evidence",
-                "status": "available" if article_items else "missing",
-                "items": article_items[:10],
-            },
+            _identity_section(author, urls),
+            _source_context_section(source),
+            _evidence_section(article_items),
         ],
         "citations": [{"label": "Local article evidence", "url": url} for url in urls[:5]],
         "search_links": {},
         "match_explanation": "Created by deterministic local RSS-byline backfill.",
         "research_sources": ["rss_byline", "local_article_corpus", "rss_catalog"],
-        "research_confidence": "medium" if len(articles) >= 2 else "low",
         "article_count": len(articles),
         "last_article_at": latest,
-        "confidence_tier": "likely" if len(articles) >= 2 else "unmatched",
-        "confidence_score": 0.55 if len(articles) >= 2 else 0.35,
         "claims_count": 0,
+        **dict(_confidence_fields(articles)),
     }
+
+
+def _clean_author_pairs(
+    raw_author: str | None,
+    raw_authors: Any,
+    raw_author_urls: Any,
+    source_name: str | None,
+) -> list[tuple[str, str | None]]:
+    """Expand persisted byline columns into reporter-like (author, url) pairs."""
+    author_pairs: list[tuple[str, str | None]] = []
+    for raw_author_value, author_url_raw in _article_author_pairs(
+        str(raw_author or ""),
+        raw_authors,
+        raw_author_urls,
+    ):
+        author_pairs.extend(
+            (author, author_url_raw)
+            for author in _clean_author_names(raw_author_value)
+            if not _is_source_label_byline(author, source_name)
+        )
+    return author_pairs
+
+
+def _bylined_article_from_row(
+    row: tuple[Any, ...],
+    source_name: str | None,
+    author_pairs: list[tuple[str, str | None]],
+) -> list[BylinedArticle]:
+    """Build the BylinedArticle records for one scanned database row."""
+    article_id, _, _, _, _, title, url, published_at, category = row
+    return [
+        BylinedArticle(
+            article_id=int(article_id),
+            source=source_name,
+            author=author,
+            author_url_raw=author_url_raw,
+            title=str(title) if title else None,
+            url=str(url) if url else None,
+            published_at=published_at,
+            category=str(category) if category else None,
+        )
+        for author, author_url_raw in author_pairs
+    ]
 
 
 async def _load_groups(
@@ -353,52 +440,26 @@ async def _load_groups(
     skipped_generic = 0
     skipped_disallowed = 0
     sample_skipped_sources: list[str] = []
-    for (
-        article_id,
-        source,
-        raw_author,
-        raw_authors,
-        raw_author_urls,
-        title,
-        url,
-        published_at,
-        category,
-    ) in (await session.execute(stmt)).all():
+    for row in (await session.execute(stmt)).all():
         scanned += 1
-        source_name = str(source) if source else None
+        source_name = str(row[1]) if row[1] else None
         if not _source_allows_local_byline(source_name, source_configs):
             skipped_disallowed += 1
             if source_name and source_name not in sample_skipped_sources:
                 sample_skipped_sources.append(source_name)
             continue
-        author_pairs: list[tuple[str, str | None]] = []
-        for raw_author_value, author_url_raw in _article_author_pairs(
-            str(raw_author or ""),
-            raw_authors,
-            raw_author_urls,
-        ):
-            author_pairs.extend(
-                (author, author_url_raw)
-                for author in _clean_author_names(raw_author_value)
-                if not _is_source_label_byline(author, source_name)
-            )
+        author_pairs = _clean_author_pairs(
+            str(row[2] or ""),
+            row[3],
+            row[4],
+            source_name,
+        )
         if not author_pairs:
             skipped_generic += 1
             continue
-        for author, author_url_raw in author_pairs:
-            group_key = _group_key(author, source_name)
-            groups[group_key].append(
-                BylinedArticle(
-                    article_id=int(article_id),
-                    source=source_name,
-                    author=author,
-                    author_url_raw=author_url_raw,
-                    title=str(title) if title else None,
-                    url=str(url) if url else None,
-                    published_at=published_at,
-                    category=str(category) if category else None,
-                )
-            )
+        for article in _bylined_article_from_row(tuple(row), source_name, author_pairs):
+            group_key = _group_key(article.author, source_name)
+            groups[group_key].append(article)
     return groups, scanned, skipped_generic, skipped_disallowed, sample_skipped_sources[:10]
 
 
@@ -432,6 +493,75 @@ async def _get_or_create_reporter(
     return reporter
 
 
+async def _existing_author_link(
+    session: AsyncSession, article: BylinedArticle, reporter: Reporter
+) -> ArticleAuthor | None:
+    """Return the persisted ArticleAuthor row linking the article and reporter."""
+    if reporter.id is None:
+        return None
+    result = await session.execute(
+        select(ArticleAuthor).where(
+            ArticleAuthor.article_id == article.article_id,
+            ArticleAuthor.reporter_id == reporter.id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+def _record_new_link(
+    session: AsyncSession,
+    article: BylinedArticle,
+    reporter: Reporter | None,
+    metrics: BackfillMetrics,
+    first: BylinedArticle,
+    apply: bool,
+) -> None:
+    """Create or stage one ArticleAuthor link row and update metrics."""
+    metrics.links_created += 1
+    if len(metrics.sample_linked_bylines) < 10:
+        metrics.sample_linked_bylines.append(f"{first.source or 'unknown'}::{first.author}")
+    if apply and reporter is not None and reporter.id is not None:
+        session.add(
+            ArticleAuthor(
+                article_id=article.article_id,
+                reporter_id=reporter.id,
+                author_role="author",
+                author_confidence=0.55,
+                observation_source="rss_byline",
+                author_url_raw=article.author_url_raw,
+            )
+        )
+
+
+async def _link_group_articles(
+    session: AsyncSession,
+    articles: list[BylinedArticle],
+    reporter: Reporter | None,
+    metrics: BackfillMetrics,
+    apply: bool,
+) -> None:
+    """Link every article of one byline group to its reporter row."""
+    first = articles[0]
+    for article in articles:
+        existing = await _existing_author_link(session, article, reporter) if reporter else None
+        if existing is not None:
+            await _record_existing_link(article, existing, metrics, apply)
+            continue
+        _record_new_link(session, article, reporter, metrics, first, apply)
+
+
+async def _record_existing_link(
+    article: BylinedArticle,
+    existing: ArticleAuthor,
+    metrics: BackfillMetrics,
+    apply: bool,
+) -> None:
+    """Tally an existing link and backfill its missing author URL when applying."""
+    metrics.existing_links += 1
+    if apply and article.author_url_raw and not existing.author_url_raw:
+        existing.author_url_raw = article.author_url_raw
+
+
 async def backfill_article_author_links(
     session: AsyncSession,
     *,
@@ -459,44 +589,43 @@ async def backfill_article_author_links(
         first = articles[0]
         profile = _local_reporter_profile(first.author, first.source, articles)
         reporter = await _get_or_create_reporter(session, profile, apply, metrics)
-
-        for article in articles:
-            existing = None
-            if reporter and reporter.id is not None:
-                existing = (
-                    await session.execute(
-                        select(ArticleAuthor).where(
-                            ArticleAuthor.article_id == article.article_id,
-                            ArticleAuthor.reporter_id == reporter.id,
-                        )
-                    )
-                ).scalar_one_or_none()
-            if existing:
-                metrics.existing_links += 1
-                if apply and article.author_url_raw and not existing.author_url_raw:
-                    existing.author_url_raw = article.author_url_raw
-                continue
-
-            metrics.links_created += 1
-            if len(metrics.sample_linked_bylines) < 10:
-                metrics.sample_linked_bylines.append(f"{first.source or 'unknown'}::{first.author}")
-            if apply and reporter and reporter.id is not None:
-                session.add(
-                    ArticleAuthor(
-                        article_id=article.article_id,
-                        reporter_id=reporter.id,
-                        author_role="author",
-                        author_confidence=0.55,
-                        observation_source="rss_byline",
-                        author_url_raw=article.author_url_raw,
-                    )
-                )
+        await _link_group_articles(session, articles, reporter, metrics, apply)
 
     if apply:
         await session.commit()
     else:
         await session.rollback()
     return metrics
+
+
+def _invalid_local_byline_reporters(
+    reporters: Sequence[Reporter],
+    source_configs: dict[str, dict[str, Any]],
+) -> list[Reporter]:
+    """Return local_byline reporters that no longer qualify for a byline."""
+    invalid: list[Reporter] = []
+    for reporter in reporters:
+        source_name = _source_from_reporter_career(reporter)
+        if _source_allows_local_byline(
+            source_name, source_configs
+        ) and _has_valid_local_byline_name(reporter):
+            continue
+        invalid.append(reporter)
+    return invalid
+
+
+async def _pruned_link_count(
+    session: AsyncSession, reporter_ids: list[int]
+) -> int:
+    """Count the ArticleAuthor rows attached to the pruned reporters."""
+    if not reporter_ids:
+        return 0
+    link_count_result = await session.execute(
+        select(func.count())
+        .select_from(ArticleAuthor)
+        .where(ArticleAuthor.reporter_id.in_(reporter_ids))
+    )
+    return int(link_count_result.scalar_one() or 0)
 
 
 async def prune_invalid_local_byline_links(
@@ -510,26 +639,13 @@ async def prune_invalid_local_byline_links(
     result = await session.execute(
         select(Reporter).where(Reporter.match_status == "local_byline").order_by(Reporter.id)
     )
-    invalid_reporters: list[Reporter] = []
-    for reporter in result.scalars().all():
-        source_name = _source_from_reporter_career(reporter)
-        if _source_allows_local_byline(
-            source_name, source_configs
-        ) and _has_valid_local_byline_name(reporter):
-            continue
-        invalid_reporters.append(reporter)
-        if len(metrics.sample_pruned_reporters) < 10:
-            metrics.sample_pruned_reporters.append(str(reporter.resolver_key or reporter.name))
-
+    invalid_reporters = _invalid_local_byline_reporters(result.scalars().all(), source_configs)
+    metrics.sample_pruned_reporters = [
+        str(reporter.resolver_key or reporter.name) for reporter in invalid_reporters[:10]
+    ]
     reporter_ids = [int(r.id) for r in invalid_reporters if r.id is not None]
     metrics.invalid_reporters_pruned = len(reporter_ids)
-    if reporter_ids:
-        link_count_result = await session.execute(
-            select(func.count())
-            .select_from(ArticleAuthor)
-            .where(ArticleAuthor.reporter_id.in_(reporter_ids))
-        )
-        metrics.invalid_links_pruned = int(link_count_result.scalar_one() or 0)
+    metrics.invalid_links_pruned = await _pruned_link_count(session, reporter_ids)
 
     if apply and reporter_ids:
         await session.execute(

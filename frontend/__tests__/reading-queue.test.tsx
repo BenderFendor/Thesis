@@ -1,3 +1,4 @@
+import { describe, expect, it, jest } from '@jest/globals';
 /**
  * Tests for reader page and queue components.
  *
@@ -8,7 +9,7 @@
  * - Highlight toolbar functionality
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReadTimeBadge } from "@/components/read-time-badge";
 import { QueueOverviewCard } from "@/components/queue-overview-card";
@@ -17,67 +18,70 @@ import { HighlightToolbar } from "@/components/highlight-toolbar";
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 
 // Mock next/navigation
-jest.mock("next/navigation", () => ({
+jest.mock<typeof import('next/navigation')>("next/navigation", () => ({
+  useParams: () => ({
+    id: "1",
+  }),
   useRouter: () => ({
     back: jest.fn(),
     push: jest.fn(),
   }),
-  useParams: () => ({
-    id: "1",
-  }),
 }));
 
 // Mock API calls
-jest.mock("@/lib/api", () => ({
+jest.mock<typeof import('@/lib/api')>("@/lib/api", () => ({
+  ENABLE_DIGEST: true,
+  ENABLE_HIGHLIGHTS: true,
+  createHighlight: jest.fn((highlight) => Promise.resolve(highlight)),
+  getDailyDigest: jest.fn(() =>
+    Promise.resolve({
+      digest_items: [],
+      estimated_read_time_minutes: 15,
+      generated_at: new Date().toISOString(),
+      total_items: 5,
+    })
+  ),
+  getHighlightsForArticle: jest.fn(() => Promise.resolve([])),
   getQueueItemContent: jest.fn(() =>
     Promise.resolve({
-      id: 1,
-      article_url: "https://example.com/article",
-      article_title: "Test Article",
       article_source: "Example News",
-      full_text: "This is test content.",
-      word_count: 100,
+      article_title: "Test Article",
+      article_url: "https://example.com/article",
       estimated_read_time_minutes: 1,
+      full_text: "This is test content.",
+      id: 1,
       read_status: "unread",
+      word_count: 100,
     })
   ),
   getQueueOverview: jest.fn(() =>
     Promise.resolve({
-      total_items: 5,
-      daily_items: 3,
-      permanent_items: 2,
-      unread_count: 3,
-      reading_count: 1,
       completed_count: 1,
+      daily_items: 3,
       estimated_total_read_time_minutes: 15,
-    })
-  ),
-  getDailyDigest: jest.fn(() =>
-    Promise.resolve({
-      digest_items: [],
+      permanent_items: 2,
+      reading_count: 1,
       total_items: 5,
-      estimated_read_time_minutes: 15,
-      generated_at: new Date().toISOString(),
+      unread_count: 3,
     })
   ),
-  getHighlightsForArticle: jest.fn(() => Promise.resolve([])),
-  createHighlight: jest.fn((highlight) => Promise.resolve(highlight)),
-  ENABLE_DIGEST: true,
-  ENABLE_HIGHLIGHTS: true,
 }));
 
-describe("ReadTimeBadge", () => {
-  it("renders read time correctly", () => {
+describe("readTimeBadge", () => {
+  it("renders read time correctly", () => {  expect.hasAssertions();
+  
     render(<ReadTimeBadge estimatedMinutes={5} wordCount={1000} compact />);
     expect(screen.getByText(/5 min/)).toBeInTheDocument();
   });
 
-  it("renders nothing when no data provided", () => {
+  it("renders nothing when no data provided", () => {  expect.hasAssertions();
+  
     const { container } = render(<ReadTimeBadge />);
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders full view with word count", () => {
+  it("renders full view with word count", () => {  expect.hasAssertions();
+  
     render(
       <ReadTimeBadge estimatedMinutes={3} wordCount={500} compact={false} />
     );
@@ -86,19 +90,21 @@ describe("ReadTimeBadge", () => {
   });
 });
 
-describe("QueueOverviewCard", () => {
-  it("renders queue statistics", async () => {
+describe("queueOverviewCard", () => {
+  it("renders queue statistics", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
       expect(screen.getByText("Queue Overview")).toBeInTheDocument();
       // Component displays unread and completed counts
-      expect(screen.getByText("3")).toBeInTheDocument(); // unread_count
-      expect(screen.getByText("1")).toBeInTheDocument(); // completed_count
+      expect(screen.getByText("3")).toBeInTheDocument(); // Unread_count
+      expect(screen.getByText("1")).toBeInTheDocument(); // Completed_count
     });
   });
 
-  it("shows daily and permanent item counts", async () => {
+  it("shows daily and permanent item counts", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
@@ -108,7 +114,8 @@ describe("QueueOverviewCard", () => {
     });
   });
 
-  it("displays estimated read time", async () => {
+  it("displays estimated read time", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(<QueueOverviewCard />);
 
     await waitFor(() => {
@@ -118,8 +125,9 @@ describe("QueueOverviewCard", () => {
   });
 });
 
-describe("DigestCard", () => {
-  it("renders digest card when enabled", async () => {
+describe("digestCard", () => {
+  it("renders digest card when enabled", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(<DigestCard />);
 
     await waitFor(() => {
@@ -127,7 +135,8 @@ describe("DigestCard", () => {
     });
   });
 
-  it("shows scheduling button", async () => {
+  it("shows scheduling button", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(<DigestCard />);
 
     await waitFor(() => {
@@ -135,7 +144,8 @@ describe("DigestCard", () => {
     });
   });
 
-  it("opens schedule form when clicked", async () => {
+  it("opens schedule form when clicked", async () => {  expect.hasAssertions();
+  
     const user = userEvent.setup();
     renderWithQueryClient(<DigestCard />);
 
@@ -147,7 +157,8 @@ describe("DigestCard", () => {
     });
   });
 
-  it("saves digest schedule time", async () => {
+  it("saves digest schedule time", async () => {  expect.hasAssertions();
+  
     const user = userEvent.setup();
     renderWithQueryClient(<DigestCard />);
 
@@ -165,8 +176,9 @@ describe("DigestCard", () => {
   });
 });
 
-describe("HighlightToolbar", () => {
-  it("renders when enabled", () => {
+describe("highlightToolbar", () => {
+  it("renders when enabled", () => {  expect.hasAssertions();
+  
     const containerRef = { current: document.createElement("div") };
 
     render(
@@ -186,8 +198,9 @@ describe("HighlightToolbar", () => {
   });
 });
 
-describe("Keyboard Navigation", () => {
-  it("handles arrow key navigation", () => {
+describe("keyboard Navigation", () => {
+  it("handles arrow key navigation", () => {  expect.hasAssertions();
+  
     // Test that keyboard events can be simulated
     const event = new KeyboardEvent("keydown", { key: "ArrowRight" });
     fireEvent(window, event);

@@ -6,8 +6,8 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const mounted = useSyncExternalStore(
+  const { resolvedTheme, setTheme } = useTheme(),
+   mounted = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
@@ -24,7 +24,7 @@ export function ThemeToggle() {
       type="button"
       variant="outline"
       size="icon"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() =>{  setTheme(isDark ? "light" : "dark"); }}
       className="h-9 w-9 rounded-sm border-border/70 bg-background/70 text-foreground transition-all duration-300 ease-out hover:bg-card active:scale-95"
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}

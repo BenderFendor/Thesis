@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from typing import Any
 
 from app.core.config import get_openai_client, resolve_opencode_model, settings
 from app.core.logging import get_logger
@@ -66,29 +67,37 @@ async def generate_search_queries(
         return _fallback_queries(source_name, website)
 
 
+def _extract_queries(data: Any) -> list[str] | None:
+    """Extract a cleaned query list from parsed JSON data."""
+    if isinstance(data, dict) and "queries" in data:
+        return [q.strip() for q in data["queries"] if q.strip()]
+    if isinstance(data, list):
+        return [q.strip() for q in data if isinstance(q, str) and q.strip()]
+    return None
+
+
+def _parse_queries_from_content(content: str) -> list[str] | None:
+    """Parse queries from full JSON content, then a JSON array fallback."""
+    try:
+        parsed = _extract_queries(json.loads(content))
+    except json.JSONDecodeError:
+        parsed = None
+    if parsed is not None:
+        return parsed
+    match = re.search(r"\[[\s\S]*\]", content)
+    if match is None:
+        return None
+    try:
+        return _extract_queries(json.loads(match.group(0)))
+    except json.JSONDecodeError:
+        return None
+
+
 def _parse_queries(content: str) -> list[str]:
     """Parse queries from LLM response."""
     if not content:
         return []
-
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and "queries" in data:
-            return [q.strip() for q in data["queries"] if q.strip()]
-        if isinstance(data, list):
-            return [q.strip() for q in data if isinstance(q, str) and q.strip()]
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\[[\s\S]*\]", content)
-    if match:
-        try:
-            queries = json.loads(match.group(0))
-            return [q.strip() for q in queries if isinstance(q, str) and q.strip()]
-        except json.JSONDecodeError:
-            pass
-
-    return []
+    return _parse_queries_from_content(content) or []
 
 
 def _fallback_queries(source_name: str, website: str | None) -> list[str]:

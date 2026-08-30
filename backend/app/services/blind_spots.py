@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 from collections.abc import Sequence
 
@@ -24,6 +24,28 @@ from app.database import (
 from app.services.chroma_topics import ChromaTopicService
 
 logger = logging.getLogger(__name__)
+
+
+async def _active_source_names(session: AsyncSession, since: datetime) -> set[str]:
+    """Return analyzed source names, falling back to sources seen in recent articles."""
+    sources_result = await session.execute(
+        select(SourceMetadata.source_name).where(SourceMetadata.last_analyzed_at.isnot(None))
+    )
+    all_sources = {row[0] for row in sources_result.all()}
+    if all_sources:
+        return all_sources
+    sources_result = await session.execute(
+        select(func.distinct(Article.source)).where(Article.published_at >= since)
+    )
+    return {row[0] for row in sources_result.all() if row[0]}
+
+
+async def _covering_sources(session: AsyncSession, member_ids: list[int]) -> set[str]:
+    """Return the distinct sources covering the given cluster members."""
+    covering_result = await session.execute(
+        select(func.distinct(Article.source)).where(Article.id.in_(member_ids))
+    )
+    return {row[0] for row in covering_result.all() if row[0]}
 
 
 class BlindSpotsAnalyzer:
@@ -127,6 +149,46 @@ class BlindSpotsAnalyzer:
             "coverage_gaps": self._identify_coverage_gaps(list(articles)),
         }
 
+    async def _cluster_blind_spot(
+        self,
+        session: AsyncSession,
+        service: ChromaTopicService,
+        cluster: dict[str, Any],
+        all_sources: set[str],
+        min_sources: int,
+    ) -> dict[str, Any] | None:
+        """Return the blind-spot record for one cluster, or None when it is well covered."""
+        cluster_id = cluster["cluster_id"]
+        detail = await service.get_cluster_detail(session, cluster_id)
+        if not detail:
+            return None
+        member_ids = [article["id"] for article in detail.get("articles", [])]
+        if not member_ids:
+            return None
+        covering_sources = await _covering_sources(session, member_ids)
+        if len(covering_sources) < min_sources:
+            return None
+        blind_sources = all_sources - covering_sources
+        if not blind_sources:
+            return None
+        severity = self._calculate_topic_blind_spot_severity(
+            len(covering_sources),
+            len(blind_sources),
+            cluster["article_count"],
+        )
+        return {
+            "cluster_id": cluster_id,
+            "cluster_label": cluster.get("label") or "Topic",
+            "keywords": cluster.get("keywords", []),
+            "article_count": cluster.get("article_count", 0),
+            "covering_sources": list(covering_sources),
+            "covering_count": len(covering_sources),
+            "blind_spot_sources": list(blind_sources),
+            "blind_spot_count": len(blind_sources),
+            "severity": severity,
+            "date_identified": get_utc_now().isoformat(),
+        }
+
     async def identify_topic_blind_spots(
         self, session: AsyncSession, min_sources: int = 4
     ) -> list[dict[str, Any]]:
@@ -152,59 +214,15 @@ class BlindSpotsAnalyzer:
             limit=200,
         )
 
-        # Get all active sources
-        sources_result = await session.execute(
-            select(SourceMetadata.source_name).where(SourceMetadata.last_analyzed_at.isnot(None))
-        )
-        all_sources = {row[0] for row in sources_result.all()}
+        all_sources = await _active_source_names(session, since)
 
-        if not all_sources:
-            # Fallback: get sources from articles
-            sources_result = await session.execute(
-                select(func.distinct(Article.source)).where(Article.published_at >= since)
-            )
-            all_sources = {row[0] for row in sources_result.all() if row[0]}
-
-        blind_spots = []
-
+        blind_spots: list[dict[str, Any]] = []
         for cluster in clusters:
-            cluster_id = cluster["cluster_id"]
-            detail = await service.get_cluster_detail(session, cluster_id)
-            if not detail:
-                continue
-            member_ids = [article["id"] for article in detail.get("articles", [])]
-            if not member_ids:
-                continue
-            covering_result = await session.execute(
-                select(func.distinct(Article.source)).where(Article.id.in_(member_ids))
+            blind_spot = await self._cluster_blind_spot(
+                session, service, cluster, all_sources, min_sources
             )
-            covering_sources = {row[0] for row in covering_result.all() if row[0]}
-
-            if len(covering_sources) >= min_sources:
-                # Find sources NOT covering (blind spots)
-                blind_sources = all_sources - covering_sources
-
-                if blind_sources:
-                    severity = self._calculate_topic_blind_spot_severity(
-                        len(covering_sources),
-                        len(blind_sources),
-                        cluster["article_count"],
-                    )
-
-                    blind_spots.append(
-                        {
-                            "cluster_id": cluster_id,
-                            "cluster_label": cluster.get("label") or "Topic",
-                            "keywords": cluster.get("keywords", []),
-                            "article_count": cluster.get("article_count", 0),
-                            "covering_sources": list(covering_sources),
-                            "covering_count": len(covering_sources),
-                            "blind_spot_sources": list(blind_sources),
-                            "blind_spot_count": len(blind_sources),
-                            "severity": severity,
-                            "date_identified": get_utc_now().isoformat(),
-                        }
-                    )
+            if blind_spot:
+                blind_spots.append(blind_spot)
 
         # Sort by severity
         severity_order = {"high": 0, "medium": 1, "low": 2}

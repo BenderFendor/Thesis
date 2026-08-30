@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { profileReporter, type ReporterProfile } from "@/lib/api"
+import { profileReporter } from '@/lib/api';
+import type { ReporterProfile } from '@/lib/api';
 
 interface ReporterProfilePanelProps {
   reporterName: string
@@ -19,25 +20,25 @@ interface ReporterProfilePanelProps {
 }
 
 const statusBadgeClass: Record<string, string> = {
-  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   none: "border-white/10 bg-muted/20 text-muted-foreground",
-}
+},
 
-const normalizeStatusLabel = (status?: string) => {
-  if (status === "matched") return "verified"
-  if (status === "ambiguous") return "ambiguous"
+ normalizeStatusLabel = (status?: string) => {
+  if (status === "matched") {return "verified"}
+  if (status === "ambiguous") {return "ambiguous"}
   return "no match"
-}
+},
 
-const hasUsefulData = (profile: ReporterProfile) => {
-  if (profile.match_status === "matched") return true
+ hasUsefulData = (profile: ReporterProfile) => {
+  if (profile.match_status === "matched") {return true}
   return Boolean(profile.overview || profile.dossier_sections?.some((section) => section.items.length > 0))
-}
+},
 
-const renderSection = (profile: ReporterProfile, sectionId: string) => {
+ renderSection = (profile: ReporterProfile, sectionId: string) => {
   const section = profile.dossier_sections?.find((entry) => entry.id === sectionId)
-  if (!section) return null
+  if (!section) {return undefined}
   if (section.items.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-muted/20 px-3 py-3 opacity-70 grayscale">
@@ -69,16 +70,16 @@ export function ReporterProfilePanel({
   onClose,
   compact = false,
 }: ReporterProfilePanelProps) {
-  const [forceRefresh, setForceRefresh] = useState(false)
+  const [forceRefresh, setForceRefresh] = useState(false),
 
-  const { data: profile, isLoading, error, refetch } = useQuery({
-    queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
+   { data: profile, isLoading, error, refetch } = useQuery({
     queryFn: () => profileReporter(reporterName, organization, articleContext, forceRefresh),
-    staleTime: 1000 * 60 * 60,
+    queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
     retry: 1,
-  })
+    staleTime: 1000 * 60 * 60,
+  }),
 
-  const handleRefresh = () => {
+   handleRefresh = () => {
     setForceRefresh(true)
     refetch()
   }
@@ -102,7 +103,7 @@ export function ReporterProfilePanel({
   }
 
   if (error) {
-    if (compact) return null
+    if (compact) {return undefined}
     return (
       <Card className="w-full max-w-md border-red-500/30">
         <CardContent className="pt-6">
@@ -118,7 +119,7 @@ export function ReporterProfilePanel({
     )
   }
 
-  if (!profile) return null
+  if (!profile) {return undefined}
 
   const searchUrl =
     profile.search_links?.wikipedia ||

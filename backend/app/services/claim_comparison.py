@@ -71,33 +71,30 @@ def _ranges_overlap(left: tuple[Decimal, Decimal], right: tuple[Decimal, Decimal
     return max(left[0], right[0]) <= min(left[1], right[1])
 
 
-def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimComparison:
-    """Classify claims only after normalizing time, class, interest, and status."""
-    normalized = {
-        "left": {
-            "predicate": left.predicate,
-            "object": left.object_entity_id or left.object_value,
-            "share_class": left.qualifiers.get("security_class"),
-            "interest": left.qualifiers.get("interest"),
-            "direct": left.qualifiers.get("direct"),
-            "txn_status": left.qualifiers.get("txn_status"),
-            "jurisdiction": left.qualifiers.get("jurisdiction"),
-            "scope": left.qualifiers.get("legal_entity_scope"),
-            "band": _band(left.qualifiers),
-        },
-        "right": {
-            "predicate": right.predicate,
-            "object": right.object_entity_id or right.object_value,
-            "share_class": right.qualifiers.get("security_class"),
-            "interest": right.qualifiers.get("interest"),
-            "direct": right.qualifiers.get("direct"),
-            "txn_status": right.qualifiers.get("txn_status"),
-            "jurisdiction": right.qualifiers.get("jurisdiction"),
-            "scope": right.qualifiers.get("legal_entity_scope"),
-            "band": _band(right.qualifiers),
-        },
+def _normalized_dimensions(
+    left: ComparableClaim, right: ComparableClaim
+) -> dict[str, Any]:
+    """Build the normalized dimension view for both claims."""
+    return {"left": _dimension_view(left), "right": _dimension_view(right)}
+
+
+def _dimension_view(claim: ComparableClaim) -> dict[str, Any]:
+    return {
+        "predicate": claim.predicate,
+        "object": claim.object_entity_id or claim.object_value,
+        "share_class": claim.qualifiers.get("security_class"),
+        "interest": claim.qualifiers.get("interest"),
+        "direct": claim.qualifiers.get("direct"),
+        "txn_status": claim.qualifiers.get("txn_status"),
+        "jurisdiction": claim.qualifiers.get("jurisdiction"),
+        "scope": claim.qualifiers.get("legal_entity_scope"),
+        "band": _band(claim.qualifiers),
     }
 
+
+def _relation_mismatch(
+    left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
+) -> ClaimComparison | None:
     if left.subject_entity_id != right.subject_entity_id:
         return ClaimComparison(
             "different_relation", normalized, "claims concern different subjects"
@@ -106,14 +103,24 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
         return ClaimComparison(
             "different_relation", normalized, "predicates are not the same relation"
         )
+    return None
 
+
+def _share_class_mismatch(
+    left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
+) -> ClaimComparison | None:
     left_class = left.qualifiers.get("security_class")
     right_class = right.qualifiers.get("security_class")
     if left_class and right_class and left_class != right_class:
         return ClaimComparison(
             "different_share_class", normalized, "claims concern different security classes"
         )
+    return None
 
+
+def _dimension_mismatch(
+    left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
+) -> ClaimComparison | None:
     for key in ("interest", "direct", "jurisdiction", "legal_entity_scope"):
         left_value = left.qualifiers.get(key)
         right_value = right.qualifiers.get(key)
@@ -121,12 +128,12 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
             return ClaimComparison(
                 "different_relation", normalized, f"claims differ on normalized dimension {key}"
             )
+    return None
 
-    if not _temporal_overlap(left, right):
-        return ClaimComparison(
-            "temporal_successor", normalized, "valid-time intervals do not overlap"
-        )
 
+def _status_mismatch(
+    left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
+) -> ClaimComparison | None:
     left_status = left.qualifiers.get("txn_status")
     right_status = right.qualifiers.get("txn_status")
     if left_status != right_status and {left_status, right_status} <= {
@@ -141,24 +148,58 @@ def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimCompar
             normalized,
             "transaction-status statements are preserved as separate dated claims",
         )
+    return None
 
-    left_object = left.object_entity_id if left.object_entity_id is not None else left.object_value
+
+def _same_object_comparison(
+    left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
+) -> ClaimComparison:
+    left_object = (
+        left.object_entity_id if left.object_entity_id is not None else left.object_value
+    )
     right_object = (
         right.object_entity_id if right.object_entity_id is not None else right.object_value
     )
-    if left_object == right_object:
-        left_band = _band(left.qualifiers)
-        right_band = _band(right.qualifiers)
-        if left_band and right_band and not _ranges_overlap(left_band, right_band):
-            return ClaimComparison(
-                "apparently_conflicting",
-                normalized,
-                "percentage ranges conflict for the same normalized relation",
-            )
-        return ClaimComparison("compatible", normalized, "claims can be simultaneously true")
+    if left_object != right_object:
+        return ClaimComparison(
+            "apparently_conflicting",
+            normalized,
+            "different objects compete for the same subject, predicate, and overlapping valid time",
+        )
+    left_band = _band(left.qualifiers)
+    right_band = _band(right.qualifiers)
+    if left_band and right_band and not _ranges_overlap(left_band, right_band):
+        return ClaimComparison(
+            "apparently_conflicting",
+            normalized,
+            "percentage ranges conflict for the same normalized relation",
+        )
+    return ClaimComparison("compatible", normalized, "claims can be simultaneously true")
 
-    return ClaimComparison(
-        "apparently_conflicting",
-        normalized,
-        "different objects compete for the same subject, predicate, and overlapping valid time",
-    )
+
+def compare_claims(left: ComparableClaim, right: ComparableClaim) -> ClaimComparison:
+    """Classify claims only after normalizing time, class, interest, and status."""
+    normalized = _normalized_dimensions(left, right)
+
+    mismatch = _relation_mismatch(left, right, normalized)
+    if mismatch is not None:
+        return mismatch
+
+    class_mismatch = _share_class_mismatch(left, right, normalized)
+    if class_mismatch is not None:
+        return class_mismatch
+
+    dimension_mismatch = _dimension_mismatch(left, right, normalized)
+    if dimension_mismatch is not None:
+        return dimension_mismatch
+
+    if not _temporal_overlap(left, right):
+        return ClaimComparison(
+            "temporal_successor", normalized, "valid-time intervals do not overlap"
+        )
+
+    status_mismatch = _status_mismatch(left, right, normalized)
+    if status_mismatch is not None:
+        return status_mismatch
+
+    return _same_object_comparison(left, right, normalized)

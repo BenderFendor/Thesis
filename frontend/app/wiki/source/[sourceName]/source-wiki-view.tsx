@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,14 +14,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GlobalNavigation } from "@/components/global-navigation";
-import {
-  fetchWikiSource,
-  triggerWikiIndex,
-  type SourceLedger,
-  type SourceLedgerMetric,
-  type WikiAnalysisAxis,
-  type WikiSourceProfile,
-} from "@/lib/api";
+import { fetchWikiSource, triggerWikiIndex } from '@/lib/api';
+import type { SourceLedger, SourceLedgerMetric, WikiAnalysisAxis, WikiSourceProfile } from '@/lib/api';
 import { fetchAtlasEntity, searchAtlas } from "@/features/intelligence-atlas/lib/atlas-api";
 import { parseFundingAndBias, parseOwnershipChain } from "@/features/intelligence-atlas/lib/atlas-schema";
 import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
@@ -28,14 +23,14 @@ import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-pan
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 
 const ANALYSIS_META: Record<string, { label: string; description: string }> = {
-  funding: { label: "Funding", description: "Funding and structural dependency." },
-  source_network: { label: "Source Network", description: "Who the outlet relies on." },
-  political_bias: { label: "Political Bias", description: "Observed ideological tilt." },
-  credibility: { label: "Credibility", description: "Correction and reliability track record." },
-  framing_omission: { label: "Framing / Omission", description: "Loaded framing and omissions." },
-};
+  credibility: { description: "Correction and reliability track record.", label: "Credibility" },
+  framing_omission: { description: "Loaded framing and omissions.", label: "Framing / Omission" },
+  funding: { description: "Funding and structural dependency.", label: "Funding" },
+  political_bias: { description: "Observed ideological tilt.", label: "Political Bias" },
+  source_network: { description: "Who the outlet relies on.", label: "Source Network" },
+},
 
-const ANALYSIS_ORDER = [
+ ANALYSIS_ORDER = [
   "funding",
   "source_network",
   "political_bias",
@@ -43,46 +38,46 @@ const ANALYSIS_ORDER = [
   "framing_omission",
 ] as const;
 
-export function SourceWikiView({ sourceName }: { sourceName: string }) {
-  const [embedded, setEmbedded] = useState(false);
-  const [indexing, setIndexing] = useState(false);
-  const {
+export function SourceWikiView({ sourceName }:Readonly< { sourceName: string }>) {
+  const [embedded, setEmbedded] = useState(false),
+   [indexing, setIndexing] = useState(false),
+   {
     data,
     isLoading,
     error,
     refetch,
   } = useQuery<WikiSourceProfile>({
-    queryKey: ["wiki-source", sourceName],
     queryFn: () => fetchWikiSource(sourceName),
+    queryKey: ["wiki-source", sourceName],
     retry: 1,
-  });
+  }),
 
-  const { data: atlasSearch } = useQuery({
-    queryKey: ["wiki-source-atlas-search", sourceName],
-    queryFn: () => searchAtlas(sourceName),
+   { data: atlasSearch } = useQuery({
     enabled: Boolean(sourceName),
+    queryFn: () => searchAtlas(sourceName),
+    queryKey: ["wiki-source-atlas-search", sourceName],
     retry: 1,
-  });
-  const outletEntityId = atlasSearch?.outlets.find(
+  }),
+   outletEntityId = atlasSearch?.outlets.find(
     (item) => item.label.toLowerCase() === sourceName.toLowerCase(),
-  )?.id ?? atlasSearch?.outlets[0]?.id;
-  const { data: outletAtlasEntity } = useQuery({
-    queryKey: ["wiki-source-atlas-entity", outletEntityId],
-    queryFn: () => fetchAtlasEntity(outletEntityId as string),
+  )?.id ?? atlasSearch?.outlets[0]?.id,
+   { data: outletAtlasEntity } = useQuery({
     enabled: Boolean(outletEntityId),
+    queryFn: () => fetchAtlasEntity(outletEntityId as string),
+    queryKey: ["wiki-source-atlas-entity", outletEntityId],
     retry: 1,
-  });
-  const ownershipChain = useMemo(
+  }),
+   ownershipChain = useMemo(
     () => (outletAtlasEntity ? parseOwnershipChain(outletAtlasEntity.details) : []),
     [outletAtlasEntity],
-  );
-  const fundingAndBias = useMemo(
+  ),
+   fundingAndBias = useMemo(
     () => (outletAtlasEntity ? parseFundingAndBias(outletAtlasEntity.details) : null),
     [outletAtlasEntity],
-  );
+  ),
 
-  const avgScore = useMemo(() => {
-    if (!data?.analysis_axes?.length) return null;
+   avgScore = useMemo(() => {
+    if (!data?.analysis_axes?.length) {return undefined;}
     return (
       data.analysis_axes.reduce((sum, axis) => sum + axis.score, 0) /
       data.analysis_axes.length
@@ -91,7 +86,7 @@ export function SourceWikiView({ sourceName }: { sourceName: string }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(globalThis.location.search);
       setEmbedded(params.get("embedded") === "1");
     }
   }, []);
@@ -175,14 +170,14 @@ function SourceSidebar({
   avgScore,
   indexing,
   onIndex,
-}: {
+}:Readonly< {
   data: WikiSourceProfile;
   embedded: boolean;
   outletEntityId?: string;
   avgScore: number | null;
   indexing: boolean;
   onIndex: () => void;
-}) {
+}>) {
   return (
     <>
       {!embedded && (
@@ -251,7 +246,7 @@ function SourceSidebar({
   );
 }
 
-function QuickFacts({ data, avgScore }: { data: WikiSourceProfile; avgScore: number | null }) {
+function QuickFacts({ data, avgScore }:Readonly< { data: WikiSourceProfile; avgScore: number | null }>) {
   return (
     <>
       <SidebarFact label="Articles" value={String(data.article_count)} />
@@ -276,7 +271,7 @@ function QuickFacts({ data, avgScore }: { data: WikiSourceProfile; avgScore: num
   );
 }
 
-function OfficialPages({ pages }: { pages: WikiSourceProfile["official_pages"] }) {
+function OfficialPages({ pages }:Readonly< { pages: WikiSourceProfile["official_pages"] }>) {
   if (!pages?.length) {
     return (
       <p className="text-sm text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
@@ -293,7 +288,7 @@ function OfficialPages({ pages }: { pages: WikiSourceProfile["official_pages"] }
   );
 }
 
-function OfficialPageLink({ page }: { page: NonNullable<WikiSourceProfile["official_pages"]>[number] }) {
+function OfficialPageLink({ page }:Readonly< { page: NonNullable<WikiSourceProfile["official_pages"]>[number] }>) {
   return (
     <a
       href={page.url}
@@ -308,7 +303,7 @@ function OfficialPageLink({ page }: { page: NonNullable<WikiSourceProfile["offic
   );
 }
 
-function PeopleAndOwnership({ data }: { data: WikiSourceProfile }) {
+function PeopleAndOwnership({ data }:Readonly< { data: WikiSourceProfile }>) {
   return (
     <div className="space-y-3">
       {data.ownership_chain.length > 0 && (
@@ -341,7 +336,7 @@ function PeopleAndOwnership({ data }: { data: WikiSourceProfile }) {
   );
 }
 
-function ReporterListLink({ reporter }: { reporter: WikiSourceProfile["reporters"][number] }) {
+function ReporterListLink({ reporter }:Readonly< { reporter: WikiSourceProfile["reporters"][number] }>) {
   return (
     <Link
       href={`/wiki/reporter/${reporter.id}`}
@@ -359,12 +354,12 @@ function SourcePageBody({
   outletEntityId,
   ownershipChain,
   fundingAndBias,
-}: {
+}:Readonly< {
   data: WikiSourceProfile;
   outletEntityId?: string;
   ownershipChain: ReturnType<typeof parseOwnershipChain>;
   fundingAndBias: ReturnType<typeof parseFundingAndBias>;
-}) {
+}>) {
   return (
     <>
       <OverviewPanel data={data} />
@@ -394,7 +389,7 @@ function SourcePageBody({
   );
 }
 
-function OverviewPanel({ data }: { data: WikiSourceProfile }) {
+function OverviewPanel({ data }:Readonly< { data: WikiSourceProfile }>) {
   return (
     <Panel title="Overview" eyebrow="Deterministic profile">
       <div className="grid gap-4 md:grid-cols-2">
@@ -416,7 +411,7 @@ function OverviewPanel({ data }: { data: WikiSourceProfile }) {
   );
 }
 
-function SourceLedgerPanel({ ledger }: { ledger: SourceLedger }) {
+function SourceLedgerPanel({ ledger }:Readonly< { ledger: SourceLedger }>) {
   return (
     <Panel title="Source Ledger" eyebrow="Observed database signals">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -442,7 +437,7 @@ function SourceLedgerPanel({ ledger }: { ledger: SourceLedger }) {
   );
 }
 
-function LedgerMetricCard({ metric }: { metric: SourceLedgerMetric }) {
+function LedgerMetricCard({ metric }:Readonly< { metric: SourceLedgerMetric }>) {
   return (
     <div
       className="rounded-2xl bg-black/20 border border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-4"
@@ -467,7 +462,7 @@ function LedgerMetricCard({ metric }: { metric: SourceLedgerMetric }) {
   );
 }
 
-function PublicEvidencePanel({ data }: { data: WikiSourceProfile }) {
+function PublicEvidencePanel({ data }:Readonly< { data: WikiSourceProfile }>) {
   return (
     <Panel title="Public Evidence" eyebrow="Official pages and public records">
       <div className="space-y-3">
@@ -479,7 +474,7 @@ function PublicEvidencePanel({ data }: { data: WikiSourceProfile }) {
   );
 }
 
-function EvidenceSectionCard({ section }: { section: WikiSourceProfile["dossier_sections"][number] }) {
+function EvidenceSectionCard({ section }:Readonly< { section: WikiSourceProfile["dossier_sections"][number] }>) {
   return (
     <div className="rounded-2xl bg-black/20 border border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-4">
       <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -504,10 +499,10 @@ function EvidenceSectionCard({ section }: { section: WikiSourceProfile["dossier_
 function OrganizationPanel({
   organization,
   ownershipChain,
-}: {
+}:Readonly< {
   organization: NonNullable<WikiSourceProfile["organization"]>;
   ownershipChain: WikiSourceProfile["ownership_chain"];
-}) {
+}>) {
   return (
     <Panel title="Organization" eyebrow="Ownership and funding record">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -561,7 +556,7 @@ function OrganizationPanel({
   );
 }
 
-function ReportersPanel({ data }: { data: WikiSourceProfile }) {
+function ReportersPanel({ data }:Readonly< { data: WikiSourceProfile }>) {
   return (
     <Panel title="Reporters" eyebrow="People attached to this source in the local corpus">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -573,7 +568,7 @@ function ReportersPanel({ data }: { data: WikiSourceProfile }) {
   );
 }
 
-function ReporterCard({ reporter }: { reporter: WikiSourceProfile["reporters"][number] }) {
+function ReporterCard({ reporter }:Readonly< { reporter: WikiSourceProfile["reporters"][number] }>) {
   return (
     <Link
       href={`/wiki/reporter/${reporter.id}`}
@@ -599,7 +594,7 @@ function ReporterCard({ reporter }: { reporter: WikiSourceProfile["reporters"][n
   );
 }
 
-function StoredAnalysisPanel({ axes }: { axes: WikiAnalysisAxis[] }) {
+function StoredAnalysisPanel({ axes }:Readonly< { axes: WikiAnalysisAxis[] }>) {
   return (
     <Panel title="Stored Analysis" eyebrow="Existing score records already attached to this source">
       <div className="space-y-3">
@@ -612,7 +607,7 @@ function StoredAnalysisPanel({ axes }: { axes: WikiAnalysisAxis[] }) {
   );
 }
 
-function CitationsPanel({ citations }: { citations: WikiSourceProfile["citations"] }) {
+function CitationsPanel({ citations }:Readonly< { citations: WikiSourceProfile["citations"] }>) {
   return (
     <Panel title="Citations" eyebrow="Public references used for this page">
       <div className="space-y-2 rounded-2xl bg-black/20 border border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-5 text-sm">
@@ -624,7 +619,7 @@ function CitationsPanel({ citations }: { citations: WikiSourceProfile["citations
   );
 }
 
-function CitationRow({ citation }: { citation: WikiSourceProfile["citations"][number] }) {
+function CitationRow({ citation }:Readonly< { citation: WikiSourceProfile["citations"][number] }>) {
   return (
     <div>
       {citation.url ? (
@@ -643,11 +638,11 @@ function Panel({
   title,
   eyebrow,
   children,
-}: {
+}:Readonly< {
   title: string;
   eyebrow: string;
   children: ReactNode;
-}) {
+}>) {
   return (
     <section>
       <div className="mb-3">
@@ -662,10 +657,10 @@ function Panel({
 function SidebarCard({
   title,
   children,
-}: {
+}:Readonly< {
   title: string;
   children: ReactNode;
-}) {
+}>) {
   return (
     <div className="mt-4 rounded-2xl bg-black/20 border border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-4">
       <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{title}</div>
@@ -674,7 +669,7 @@ function SidebarCard({
   );
 }
 
-function SidebarFact({ label, value }: { label: string; value: string }) {
+function SidebarFact({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="flex items-start justify-between gap-3 text-sm">
       <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">{label}</span>
@@ -683,7 +678,7 @@ function SidebarFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SidebarLink({ href, label }: { href: string; label: string }) {
+function SidebarLink({ href, label }:Readonly< { href: string; label: string }>) {
   return (
     <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#b8d7ff] hover:text-white transition-colors group">
       <ExternalLink className="h-3.5 w-3.5 group-hover:opacity-100" />
@@ -699,7 +694,7 @@ function formatLedgerValue(value: number, unit: string): string {
   return `${value} ${unit}`;
 }
 
-function LedgerFact({ label, value }: { label: string; value: string }) {
+function LedgerFact({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="rounded-2xl bg-black/20 border border-white/5 p-4">
       <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -714,10 +709,10 @@ function scoreColor(score: number): string {
   return `hsl(${(5 - score) * 24}, 70%, 55%)`;
 }
 
-function AnalysisAxisCard({ score }: { score: WikiAnalysisAxis }) {
+function AnalysisAxisCard({ score }:Readonly< { score: WikiAnalysisAxis }>) {
   const meta = ANALYSIS_META[score.axis_name] || {
-    label: score.axis_name,
     description: "Stored score data.",
+    label: score.axis_name,
   };
 
   return (

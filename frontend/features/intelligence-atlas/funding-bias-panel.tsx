@@ -5,9 +5,9 @@ import { ExternalLink } from "lucide-react";
 import type { AtlasFundingAndBias, AtlasFundingBiasField } from "./lib/atlas-schema";
 
 const FIELD_LABELS: Record<"funding_type" | "bias_rating" | "factual_reporting", string> = {
-  funding_type: "Funding type",
   bias_rating: "Bias rating",
   factual_reporting: "Factual reporting",
+  funding_type: "Funding type",
 };
 
 function isMbfc(field: AtlasFundingBiasField): boolean {
@@ -17,13 +17,13 @@ function isMbfc(field: AtlasFundingBiasField): boolean {
 function FundingBiasField({
   fieldKey,
   field,
-}: {
+}:Readonly< {
   fieldKey: "funding_type" | "bias_rating" | "factual_reporting";
   field: AtlasFundingBiasField;
-}) {
-  const label = FIELD_LABELS[fieldKey];
-  const hasValue = Boolean(field.value);
-  const evidenceLink = field.evidence.find((item) => item.source_url)?.source_url;
+}>) {
+  const label = FIELD_LABELS[fieldKey],
+   hasValue = Boolean(field.value),
+   evidenceLink = field.evidence.find((item) => item.source_url)?.source_url;
 
   return (
     <div className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5">
@@ -33,11 +33,11 @@ function FundingBiasField({
           <span className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[#b8d7ff]">
             {isMbfc(field) ? "MBFC" : "cited"}
           </span>
-        ) : field.origin === "legacy" ? (
+        ) : (field.origin === "legacy" ? (
           <span className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
             uncited
           </span>
-        ) : null}
+        ) : null)}
       </div>
       <div className="mt-1.5 flex items-center gap-2">
         <span className="font-serif text-base">{hasValue ? field.value : "Not recorded"}</span>
@@ -73,7 +73,7 @@ function FundingBiasField({
  * evidence, with a persistent, non-dismissible correlation-not-causation
  * caption. Used on both the outlet (source) and organization detail pages.
  */
-export function FundingBiasPanel({ block }: { block: AtlasFundingAndBias }) {
+export function FundingBiasPanel({ block }:Readonly< { block: AtlasFundingAndBias }>) {
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-3">

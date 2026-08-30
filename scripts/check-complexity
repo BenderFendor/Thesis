@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Cross-language complexity gate using cccc 1.6.0 (pinned, checksum-verified).
+# Enforces the policy in cccc.toml: hard violation = cyclomatic > 10 OR cognitive > 15.
+# Usage: scripts/check-complexity [--json] [--report <path>]
+# The binary is fetched once into $XDG_CACHE_HOME/cccc or ~/.cache/cccc.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION=1.6.0
+SHA256=8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cccc"
+BIN="$CACHE_DIR/cccc-v$VERSION"
+REPORT="$(mktemp)"
+CCCC_JSON="$(mktemp)"
+
+if [ ! -x "$BIN" ]; then
+  mkdir -p "$CACHE_DIR"
+  TARBALL="$CACHE_DIR/cccc.tar.gz"
+  curl -fsSL -o "$TARBALL" "https://github.com/moznion/cccc/releases/download/v$VERSION/cccc-v$VERSION-x86_64-unknown-linux-musl.tar.gz"
+  echo "$SHA256  $TARBALL" | sha256sum -c -
+  tar -xzf "$TARBALL" -C "$CACHE_DIR"
+  chmod +x "$CACHE_DIR/cccc"
+fi
+
+cd "$ROOT"
+"$CACHE_DIR/cccc" backend frontend scripts --config cccc.toml --pretty > "$CCCC_JSON"
+
+node - "$CCCC_JSON" "$REPORT" <<'NODE'
+const fs = require("fs");
+const [jsonPath, reportPath] = process.argv.slice(2);
+const d = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+const rows = [];
+function walk(path, files) {
+  for (const f of files) {
+    if (f.cyclomatic > 10 || f.cognitive > 15) {
+      rows.push({ path, line: f.line, name: f.name, cc: f.cyclomatic, cog: f.cognitive });
+    }
+    walk(path, f.children || []);
+  }
+}
+for (const file of d.files) walk(file.path, file.functions || []);
+rows.sort((a, b) => (b.cc + b.cog) - (a.cc + a.cog));
+console.log(`cccc: ${rows.length} hard violations (CC>10 || cognitive>15) out of ${d.summary.function_count} functions`);
+for (const r of rows.slice(0, 40)) console.log(`  ${r.path}:${r.line} ${r.name} CC=${r.cc} cog=${r.cog}`);
+if (rows.length > 40) console.log(`  ... ${rows.length - 40} more`);
+fs.writeFileSync(reportPath, JSON.stringify(rows, null, 1));
+process.exit(rows.length > 0 ? 1 : 0);
+NODE
+status=$?
+rm -f "$CCCC_JSON"
+exit $status

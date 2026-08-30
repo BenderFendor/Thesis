@@ -1381,4 +1381,25 @@ First end-to-end pipeline run on real data: RSS ingestion → DB persist → rep
 **Verification:**
 - Backend strict mypy: 0 errors in 180 files (was 7). Pinned ruff check + format --check: clean.
 - Scoped pytest: 63 passed across reporter/atlas/evidence/stream/pagination/shutdown suites, including 4 new regression tests (`test_reporter_merge.py::test_pick_winner_tolerates_null_created_at`, `tests/test_research_stream.py`, `tests/test_shutdown_gdelt_close.py`, `tests/test_entity_research_pagination.py`). The stream test was confirmed failing before its fix.
-- Frontend tsc clean, eslint 0 errors (1 pre-existing TanStack Virtual warning), scoped jest green except 2 pre-existing failures in `blindspot-view.test.tsx` (reproduced on an unmodified tree via stash roundtrip).
+-
+## 2026-08-30: Quality Hardening — oxlint/types/complexity gates (branch quality/crap-mi-oxlint-hardening)
+
+**What Changed:**
+- Oxlint config rule decisions (documented justifications in docs/agents/traces/quality-hardening-2026-08-30.md): `import/no-named-export` and `import/prefer-default-export` off (Next.js app-router requires named exports; type exports cannot be default-exported); `react/function-component-definition` set to arrow-function (resolves conflict with `func-style`); `react/preserve-manual-memoization` off (unsatisfiable with repo-wide `one-var` merged-statement style; repo has no React Compiler, memoization is genuine perf).
+- Test infrastructure: `jest.setup.js` and `tsconfig.json` now use `@testing-library/jest-dom/jest-globals` entry (matchers typed under `@jest/globals`); `frontend/package.json` declares `@jest/globals@30.2.0` (was transitively installed but unlisted; knip-flagged).
+- Verified by probe: `anti-slop/no-module-mocking` is active — `jest.mock` cannot be lint-clean in any form; tests convert to dependency injection via typed seams (see `ArticleDetailServices` in `article-detail-modal.tsx`).
+- New quality gates: `scripts/check-complexity` (cccc 1.6.0 pinned + sha256, hard = CC > 10 or cognitive > 15), `scripts/check-maintainability.mjs` (per-function MI via code-multivitals), `frontend/knip.json` + `frontend/crap.config.json` (knip deadcode, crap-typescript threshold 30), `.jscpd.json` (jscpd 5.0.16 `-p` pattern mode; its `ignore` config field is broken — scans zero files), root `quality:all` script wiring cycles + duplicates + maintainability + complexity + deadcode + CRAP in one command.
+- `frontend/package.json` `crap` script fixed (CLI has no `--config` flag; uses `--threshold 30 --agent`).
+- `frontend/lib/performance-logger.ts`: navigation-timing feature guard so partial jsdom/browser environments don't throw (`performance.getEntriesByType` optional, structural type guard, `timing` fallback guarded).
+
+**Gate Baselines (pre-wave, 2026-08-30):**
+- oxlint: 18,069 errors + 1,104 warnings; `--fix` cleared 270; remaining split: ~7,941 mechanical-rule instances, ~10,873 judgment.
+- tsc: 48 errors across 15 files.
+- cccc: 379 hard violations of 7,907 functions (CC max 38, cognitive max 50); 257 in backend (108 files) plus frontend/scripts.
+- jscpd: 114 clones (1.49%, 590 files).
+- knip: 72 unused exports (atlas feature schemas most prominent).
+
+**Verification (in progress — waves):**
+- 18 subagents with disjoint file ownership: 11 frontend (lint/tsc per file set), 6 backend (cccc hard violations per file set + mypy/ruff/pytest gates), 1 duplicates (114 backend clones -> 0).
+
+**Documentation:** Agent trace at `docs/agents/traces/quality-hardening-2026-08-30.md`; papercuts logged for jscpd pattern-mode discovery and oxlint PATH/tsgolint requirement.

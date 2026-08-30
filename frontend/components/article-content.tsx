@@ -12,8 +12,8 @@ interface ArticleContentProps {
 }
 
 export const ArticleContent = forwardRef<HTMLDivElement, ArticleContentProps>(
-  ({ content, highlights, onHighlightClick, activeHighlightId, className }, ref) => {
-    return (
+  ({ content, highlights, onHighlightClick, activeHighlightId, className }, ref) => 
+    (
       <div
         ref={ref}
         className={`article-content selection:bg-primary/20 selection:text-foreground ${className}`}
@@ -22,7 +22,7 @@ export const ArticleContent = forwardRef<HTMLDivElement, ArticleContentProps>(
         {renderHighlightedContent(content, highlights, onHighlightClick, activeHighlightId)}
       </div>
     )
-  }
+  
 )
 
 

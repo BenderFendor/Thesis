@@ -5,16 +5,16 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "lint": "oxlint -c ../.oxlintrc.json . ../scripts",
+    "lint": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json frontend scripts",
     "start": "next start",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:property": "jest --testPathPatterns=property",
     "openapi:types": "openapi-typescript ../backend/openapi.json -o lib/generated/openapi.ts",
     "openapi:refresh": "curl -sS http://localhost:8000/openapi.json -o ../backend/openapi.json && npm run openapi:types",
-    "lint:fix": "oxlint -c ../.oxlintrc.json --fix . ../scripts",
+    "lint:fix": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend scripts",
     "deadcode": "knip --config knip.json",
-    "crap": "crap-typescript --config crap.config.json"
+    "crap": "crap-typescript --threshold 30 --agent"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "1.1.2",
@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@barney-media/crap-typescript": "0.5.0",
+    "@jest/globals": "30.2.0",
     "@oxlint/plugins": "1.80.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@testing-library/dom": "^10.4.1",

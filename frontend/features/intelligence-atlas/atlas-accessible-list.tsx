@@ -26,7 +26,7 @@ export function AtlasAccessibleList({ nodes, edges, selectedId, onSelect }: Atla
             <button
               type="button"
               aria-pressed={selectedId === node.id}
-              onClick={() => onSelect(node.id)}
+              onClick={() =>{  onSelect(node.id); }}
             >
               {node.label}, {node.entity_type}, {relationCounts.get(node.id) ?? 0} visible connections
             </button>

@@ -78,6 +78,43 @@ async def _get_or_create_child(
     return child
 
 
+async def _link_child_articles(
+    db: AsyncSession,
+    child: Reporter,
+    article_ids: Sequence[int | None],
+    report: SplitBackfillReport,
+) -> None:
+    """Link a child reporter to the composite's articles it does not already link."""
+    existing_ids = set(
+        (
+            await db.execute(
+                select(ArticleAuthor.article_id).where(ArticleAuthor.reporter_id == child.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for article_id in article_ids:
+        if article_id in existing_ids:
+            continue
+        db.add(
+            ArticleAuthor(
+                article_id=article_id,
+                reporter_id=child.id,
+                author_role="author",
+                observation_source="reporter_split_backfill",
+            )
+        )
+        existing_ids.add(article_id)
+        report.article_links_created += 1
+    child_count = (
+        await db.execute(
+            select(func.count(ArticleAuthor.id)).where(ArticleAuthor.reporter_id == child.id)
+        )
+    ).scalar_one()
+    child.article_count = int(child_count)
+
+
 async def split_composite_reporters(db: AsyncSession) -> SplitBackfillReport:
     """Split every active composite-byline reporter row; idempotent, no network."""
     report = SplitBackfillReport()
@@ -116,40 +153,7 @@ async def split_composite_reporters(db: AsyncSession) -> SplitBackfillReport:
         for individual_name in split_result.authors:
             child = await _get_or_create_child(db, individual_name, report)
             child_ids.append(cast(int, child.id))
-
-            existing_child_article_ids = set(
-                (
-                    await db.execute(
-                        select(ArticleAuthor.article_id).where(
-                            ArticleAuthor.reporter_id == child.id
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            for article_id in article_ids:
-                if article_id in existing_child_article_ids:
-                    continue
-                db.add(
-                    ArticleAuthor(
-                        article_id=article_id,
-                        reporter_id=child.id,
-                        author_role="author",
-                        observation_source="reporter_split_backfill",
-                    )
-                )
-                existing_child_article_ids.add(article_id)
-                report.article_links_created += 1
-
-            child_count = (
-                await db.execute(
-                    select(func.count(ArticleAuthor.id)).where(
-                        ArticleAuthor.reporter_id == child.id
-                    )
-                )
-            ).scalar_one()
-            child.article_count = int(child_count)
+            await _link_child_articles(db, child, article_ids, report)
 
         composite.retirement_reason = "split"
         composite.split_into = child_ids

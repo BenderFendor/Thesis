@@ -16,8 +16,8 @@ interface SourceResearchPanelProps {
 }
 
 const statusBadgeClass: Record<string, string> = {
-  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   none: "border-white/10 bg-muted/20 text-muted-foreground",
 }
 
@@ -29,33 +29,33 @@ export function selectSourceResearchData<T>(
 }
 
 export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
-  const [runFullResearch, setRunFullResearch] = useState(autoRun)
-  const [refreshCounter, setRefreshCounter] = useState(0)
-  const sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`
-  const sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`
+  const [runFullResearch, setRunFullResearch] = useState(autoRun),
+   [refreshCounter, setRefreshCounter] = useState(0),
+   sourceWikiHref = `/wiki/suource/${encodeURIComponent(sourceName)}`,
+   sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`,
 
-  const { data: cachedData, isFetching: isCheckingCache } = useQuery({
-    queryKey: ["source-research-cache-check", sourceName],
-    queryFn: () => checkSourceProfileCache(sourceName, website),
+   { data: cachedData, isFetching: isCheckingCache } = useQuery({
     enabled: sourceName.length > 0 && !runFullResearch,
+    queryFn: () => checkSourceProfileCache(sourceName, website),
+    queryKey: ["source-research-cache-check", sourceName],
     retry: false,
     staleTime: 1000 * 60 * 60,
-  })
+  }),
 
-  const { data: researchData, error, isFetching: isResearching } = useQuery({
-    queryKey: ["source-research", sourceName, refreshCounter],
-    queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
+   { data: researchData, error, isFetching: isResearching } = useQuery({
     enabled: runFullResearch && sourceName.length > 0,
+    queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
+    queryKey: ["source-research", sourceName, refreshCounter],
     retry: 1,
     staleTime: 1000 * 60 * 60,
-  })
+  }),
 
-  const data = selectSourceResearchData(cachedData, researchData)
-  const isFetching = isCheckingCache || isResearching
-  const hasData = !!data
+   data = selectSourceResearchData(cachedData, researchData),
+   isFetching = isCheckingCache || isResearching,
+   hasData = Boolean(data),
 
-  const handleRun = () => setRunFullResearch(true)
-  const handleRefresh = () => {
+   handleRun = () =>{  setRunFullResearch(true); },
+   handleRefresh = () => {
     setRunFullResearch(true)
     setRefreshCounter((count) => count + 1)
   }
@@ -114,7 +114,7 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
 
 type ResearchSection = NonNullable<SourceResearchProfile["dossier_sections"]>[number]
 
-function ResearchProfileContent({ data, sourceSearchUrl }: { data: SourceResearchProfile; sourceSearchUrl: string }) {
+function ResearchProfileContent({ data, sourceSearchUrl }:Readonly< { data: SourceResearchProfile; sourceSearchUrl: string }>) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -142,15 +142,15 @@ function ResearchProfileContent({ data, sourceSearchUrl }: { data: SourceResearc
   )
 }
 
-function ResearchStatusBadge({ status }: { status?: SourceResearchProfile["match_status"] }) {
+function ResearchStatusBadge({ status }:Readonly< { status?: SourceResearchProfile["match_status"] }>) {
   return (
     <Badge variant="outline" className={statusBadgeClass[status || "none"]}>
-      {status === "matched" ? "verified" : status === "ambiguous" ? "ambiguous" : "no match"}
+      {status === "matched" ? "verified" : (status === "ambiguous" ? "ambiguous" : "no match")}
     </Badge>
   )
 }
 
-function ResearchOverviewBlock({ overview }: { overview: string }) {
+function ResearchOverviewBlock({ overview }:Readonly< { overview: string }>) {
   return (
     <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Overview</p>
@@ -159,7 +159,7 @@ function ResearchOverviewBlock({ overview }: { overview: string }) {
   )
 }
 
-function ResearchMethodBlock({ matchExplanation }: { matchExplanation: string }) {
+function ResearchMethodBlock({ matchExplanation }:Readonly< { matchExplanation: string }>) {
   return (
     <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Method</p>
@@ -168,7 +168,7 @@ function ResearchMethodBlock({ matchExplanation }: { matchExplanation: string })
   )
 }
 
-function DossierSectionCard({ section }: { section: ResearchSection }) {
+function DossierSectionCard({ section }:Readonly< { section: ResearchSection }>) {
   return (
     <div className={`rounded-lg border p-3 ${section.items.length > 0 ? "border-white/10 bg-[var(--news-bg-primary)]" : "border-white/10 bg-muted/20 opacity-70 grayscale"}`}>
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p>
@@ -188,7 +188,7 @@ function DossierSectionCard({ section }: { section: ResearchSection }) {
   )
 }
 
-function ResearchCitationsBlock({ citations }: { citations: NonNullable<SourceResearchProfile["citations"]> }) {
+function ResearchCitationsBlock({ citations }:Readonly< { citations: NonNullable<SourceResearchProfile["citations"]> }>) {
   return (
     <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Sources</p>
@@ -219,7 +219,7 @@ function NoVerifiedOverviewBlock() {
   )
 }
 
-function ResearchLinksRow({ data, sourceSearchUrl }: { data: SourceResearchProfile; sourceSearchUrl: string }) {
+function ResearchLinksRow({ data, sourceSearchUrl }:Readonly< { data: SourceResearchProfile; sourceSearchUrl: string }>) {
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
       {data.wikipedia_url && (

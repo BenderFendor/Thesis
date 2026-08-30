@@ -14,15 +14,15 @@ export interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
 
 function normalizeSourceKey<T extends ComparisonCandidateArticle>(article: T): string {
   const explicit = article.source_id?.trim().toLowerCase();
-  if (explicit) return explicit;
-  return article.source.trim().toLowerCase().replace(/\s+/g, "-");
+  if (explicit) {return explicit;}
+  return article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
 }
 
 function recencyValue<T extends ComparisonCandidateArticle>(article: T): number {
   if (typeof article._parsedTimestamp === "number") {
     return article._parsedTimestamp;
   }
-  if (!article.published_at) return 0;
+  if (!article.published_at) {return 0;}
   const timestamp = new Date(article.published_at).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
@@ -36,15 +36,15 @@ export function buildComparisonSourceOptions<
     const sourceId = normalizeSourceKey(article);
     if (!groups.has(sourceId)) {
       groups.set(sourceId, {
+        articles: [],
         sourceId,
         sourceName: article.source,
-        articles: [],
       });
     }
     groups.get(sourceId)!.articles.push(article);
   });
 
-  return Array.from(groups.values())
+  return [...groups.values()]
     .map((group) => ({
       ...group,
       articles: group.articles

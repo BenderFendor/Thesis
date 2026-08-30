@@ -1,33 +1,34 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { type NewsArticle, fetchOGImage } from "@/lib/api"
+import { fetchOGImage } from '@/lib/api';
+import type { NewsArticle } from '@/lib/api';
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  Heart,
   Bookmark,
-  ExternalLink,
-  Star,
+  Brain,
   ChevronDown,
   ChevronUp,
-  Brain,
-  Sparkles,
+  ExternalLink,
+  Heart,
   Loader2,
+  Sparkles,
+  Star,
 } from "lucide-react"
 import { useFavorites } from "@/hooks/useFavorites"
-import { useLikedArticles } from "@/hooks/useLikedArticles"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useBookmarks } from "@/hooks/useBookmarks"
-import { useScrollPersonalization } from "@/hooks/useScrollPersonalization"
+import { useScrollPersonalization } from "@/hooks/use-scroll-personalization"
 import type {
   FeedScoreBreakdown} from "@/lib/feed-ranking";
 import {
-  hasRealFeedImage,
   RANKING_WEIGHTS,
   SCROLL_INITIAL_RENDER_COUNT,
   SCROLL_RENDER_CHUNK_SIZE,
   SCROLL_REVEAL_THRESHOLD,
+  hasRealFeedImage,
 } from "@/lib/feed-ranking"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
@@ -40,13 +41,13 @@ import {
 const ArticleDetailModal = dynamic(
   () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
   {
-    ssr: false,
     loading: () => null,
+    ssr: false,
   },
-)
+),
 
-const OG_FETCH_CONCURRENCY = 4
-const OG_LOOKAHEAD = 6
+ OG_FETCH_CONCURRENCY = 4,
+ OG_LOOKAHEAD = 6
 
 interface FeedViewProps {
   articles: NewsArticle[]
@@ -57,15 +58,19 @@ interface FeedViewProps {
 
 function formatRankingStatus(status: "basic" | "loading" | "ready" | "fallback"): string {
   switch (status) {
-    case "ready":
+    case "ready": {
       return "Personalized"
-    case "loading":
+    }
+    case "loading": {
       return "Personalizing"
-    case "fallback":
+    }
+    case "fallback": {
       return "Basic fallback"
+    }
     case "basic":
-    default:
+    default: {
       return "Basic"
+    }
   }
 }
 
@@ -84,7 +89,7 @@ function RankingPanel({
   topKeywords,
   topClusters,
   debugMode,
-}: {
+}:Readonly< {
   status: "basic" | "loading" | "ready" | "fallback"
   totalLoaded: number
   renderedCount: number
@@ -93,11 +98,11 @@ function RankingPanel({
   topicsLoaded: number
   seedCount: number
   topKeywords: string[]
-  topClusters: Array<{ label: string; weight: number }>
+  topClusters: { label: string; weight: number }[]
   debugMode: boolean
-}) {
-  const [isOpen, setIsOpen] = useState(false)
-  const triggerLabel = formatRankingStatus(status)
+}>) {
+  const [isOpen, setIsOpen] = useState(false),
+   triggerLabel = formatRankingStatus(status)
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -197,10 +202,10 @@ export function FeedView({
   totalCount,
   debugMode = false,
 }: FeedViewProps) {
-  const { likedIds, toggleLike } = useLikedArticles()
-  const { bookmarkIds, toggleBookmark } = useBookmarks()
-  const { isFavorite, toggleFavorite } = useFavorites()
-  const {
+  const { likedIds, toggleLike } = useLikedArticles(),
+   { bookmarkIds, toggleBookmark } = useBookmarks(),
+   { isFavorite, toggleFavorite } = useFavorites(),
+   {
     rankedArticles,
     breakdowns,
     status,
@@ -209,26 +214,26 @@ export function FeedView({
     seedCount,
   } = useScrollPersonalization({
     articles: propArticles,
-    isFavorite,
     enabled: propArticles.length > 0,
-  })
+    isFavorite,
+  }),
 
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
-  const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null)
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [activeArticleId, setActiveArticleId] = useState<number | null>(null)
-  const [renderCount, setRenderCount] = useState(SCROLL_INITIAL_RENDER_COUNT)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const requestedOgImagesRef = useRef<Set<number>>(new Set())
-  const [ogImages, setOgImages] = useState<Record<number, string>>({})
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(undefined),
+   [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(undefined),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [activeIndex, setActiveIndex] = useState(0),
+   [activeArticleId, setActiveArticleId] = useState<number | null>(undefined),
+   [renderCount, setRenderCount] = useState(SCROLL_INITIAL_RENDER_COUNT),
+   containerRef = useRef<HTMLDivElement | null>(undefined),
+   requestedOgImagesRef = useRef<Set<number>>(new Set()),
+   [ogImages, setOgImages] = useState<Record<number, string>>({}),
 
-  const visibleArticles = useMemo(
+   visibleArticles = useMemo(
     () => rankedArticles.slice(0, Math.min(renderCount, rankedArticles.length)),
     [rankedArticles, renderCount],
-  )
+  ),
 
-  const targetActiveIndex = useMemo(() => {
+   targetActiveIndex = useMemo(() => {
     const trackedArticleId = activeArticleId ?? visibleArticles[activeIndex]?.id ?? rankedArticles[0]?.id ?? null
     if (trackedArticleId == null) {
       return 0
@@ -240,13 +245,13 @@ export function FeedView({
     }
 
     return nextIndex
-  }, [activeArticleId, activeIndex, rankedArticles, visibleArticles])
+  }, [activeArticleId, activeIndex, rankedArticles, visibleArticles]),
 
-  const effectiveActiveIndex = rankedArticles.length === 0
+   effectiveActiveIndex = rankedArticles.length === 0
     ? 0
-    : Math.min(targetActiveIndex, Math.max(0, rankedArticles.length - 1))
+    : Math.min(targetActiveIndex, Math.max(0, rankedArticles.length - 1)),
 
-  const effectiveRenderCount = useMemo(() => {
+   effectiveRenderCount = useMemo(() => {
     if (rankedArticles.length === 0) {
       return 0
     }
@@ -256,15 +261,15 @@ export function FeedView({
       Math.max(renderCount, SCROLL_INITIAL_RENDER_COUNT, minimumForActive),
       rankedArticles.length,
     )
-  }, [effectiveActiveIndex, rankedArticles.length, renderCount])
+  }, [effectiveActiveIndex, rankedArticles.length, renderCount]),
 
-  const effectiveVisibleArticles = useMemo(
+   effectiveVisibleArticles = useMemo(
     () => rankedArticles.slice(0, effectiveRenderCount),
     [effectiveRenderCount, rankedArticles],
-  )
+  ),
 
-  const displaySource = useCallback((article: NewsArticle) => {
-    if (!article.source) return ""
+   displaySource = useCallback((article: NewsArticle) => {
+    if (!article.source) {return ""}
     return article.source.length > 24 ? `${article.source.slice(0, 24)}...` : article.source
   }, [])
 
@@ -272,9 +277,9 @@ export function FeedView({
     let cancelled = false
 
     const fetchImages = async () => {
-      const start = Math.max(0, effectiveActiveIndex - OG_LOOKAHEAD)
-      const end = Math.min(effectiveVisibleArticles.length, effectiveActiveIndex + OG_LOOKAHEAD + 1)
-      const candidates = effectiveVisibleArticles
+      const start = Math.max(0, effectiveActiveIndex - OG_LOOKAHEAD),
+       end = Math.min(effectiveVisibleArticles.length, effectiveActiveIndex + OG_LOOKAHEAD + 1),
+       candidates = effectiveVisibleArticles
         .slice(start, end)
         .filter(
           (article) =>
@@ -291,10 +296,10 @@ export function FeedView({
         requestedOgImagesRef.current.add(article.id)
       })
 
-      const pending = [...candidates]
-      const newImages: Record<number, string> = {}
+      const pending = [...candidates],
+       newImages: Record<number, string> = {},
 
-      const worker = async () => {
+       worker = async () => {
         while (pending.length > 0 && !cancelled) {
           const article = pending.shift()
           if (!article) {
@@ -306,9 +311,9 @@ export function FeedView({
             newImages[article.id] = imageUrl
           }
         }
-      }
+      },
 
-      const workers = Array.from({ length: Math.min(OG_FETCH_CONCURRENCY, pending.length) }, () => worker())
+       workers = Array.from({ length: Math.min(OG_FETCH_CONCURRENCY, pending.length) }, () => worker())
       await Promise.all(workers)
 
       if (!cancelled && Object.keys(newImages).length > 0) {
@@ -325,13 +330,13 @@ export function FeedView({
 
   useEffect(() => {
     const container = containerRef.current
-    if (!container) return
+    if (!container) {return}
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const index = Number(entry.target.getAttribute("data-index"))
+            const index = Number(entry.target.dataset.index)
             if (index >= effectiveVisibleArticles.length - SCROLL_REVEAL_THRESHOLD && renderCount < rankedArticles.length) {
               setRenderCount((prev) => Math.min(prev + SCROLL_RENDER_CHUNK_SIZE, rankedArticles.length))
             }
@@ -344,36 +349,36 @@ export function FeedView({
         root: container,
         threshold: 0.6,
       },
-    )
+    ),
 
-    const children = container.querySelectorAll("[data-index]")
-    children.forEach((child) => observer.observe(child))
+     children = container.querySelectorAll("[data-index]")
+    children.forEach((child) =>{  observer.observe(child); })
 
     return () => {
-      children.forEach((child) => observer.unobserve(child))
+      children.forEach((child) =>{  observer.unobserve(child); })
       observer.disconnect()
     }
   }, [effectiveVisibleArticles.length, rankedArticles, renderCount, rankedArticles.length])
 
   const scrollToNext = useCallback(() => {
     const container = containerRef.current
-    if (!container) return
+    if (!container) {return}
 
-    if (effectiveActiveIndex >= effectiveVisibleArticles.length - 1) return
+    if (effectiveActiveIndex >= effectiveVisibleArticles.length - 1) {return}
     const nextElement = container.querySelector(`[data-index="${effectiveActiveIndex + 1}"]`)
     nextElement?.scrollIntoView({ behavior: "smooth" })
-  }, [effectiveActiveIndex, effectiveVisibleArticles.length])
+  }, [effectiveActiveIndex, effectiveVisibleArticles.length]),
 
-  const scrollToPrev = useCallback(() => {
+   scrollToPrev = useCallback(() => {
     const container = containerRef.current
-    if (!container || effectiveActiveIndex <= 0) return
+    if (!container || effectiveActiveIndex <= 0) {return}
     const prevElement = container.querySelector(`[data-index="${effectiveActiveIndex - 1}"]`)
     prevElement?.scrollIntoView({ behavior: "smooth" })
   }, [effectiveActiveIndex])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isArticleModalOpen) return
+      if (isArticleModalOpen) {return}
       if (event.key === "ArrowDown") {
         event.preventDefault()
         scrollToNext()
@@ -383,8 +388,8 @@ export function FeedView({
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    globalThis.addEventListener("keydown", handleKeyDown)
+    return () =>{  globalThis.removeEventListener("keydown", handleKeyDown); }
   }, [isArticleModalOpen, scrollToNext, scrollToPrev])
 
   const handleLike = useCallback(
@@ -392,46 +397,46 @@ export function FeedView({
       void toggleLike(articleId)
     },
     [toggleLike],
-  )
+  ),
 
-  const handleBookmark = useCallback(
+   handleBookmark = useCallback(
     async (articleId: number) => {
-      if (!articleId) return
+      if (!articleId) {return}
       await toggleBookmark(articleId)
     },
     [toggleBookmark],
-  )
+  ),
 
-  const handleModalBookmarkChange = useCallback(
+   handleModalBookmarkChange = useCallback(
     (articleId: number, isBookmarked: boolean) => {
       if (isBookmarked !== bookmarkIds.has(articleId)) {
         void toggleBookmark(articleId)
       }
     },
     [bookmarkIds, toggleBookmark],
-  )
+  ),
 
-  const handleArticlePreview = useCallback((article: NewsArticle, index: number) => {
+   handleArticlePreview = useCallback((article: NewsArticle, index: number) => {
     setSelectedArticle(article)
     setSelectedArticleIndex(index)
     setIsArticleModalOpen(true)
-  }, [])
+  }, []),
 
-  const handleModalNavigate = useCallback((direction: "prev" | "next") => {
-    if (selectedArticleIndex === null) return
+   handleModalNavigate = useCallback((direction: "prev" | "next") => {
+    if (selectedArticleIndex === null) {return}
 
     const nextIndex =
       direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
-    if (nextIndex < 0 || nextIndex >= rankedArticles.length) return
+    if (nextIndex < 0 || nextIndex >= rankedArticles.length) {return}
 
     setSelectedArticleIndex(nextIndex)
     setSelectedArticle(rankedArticles[nextIndex] ?? null)
-  }, [rankedArticles, selectedArticleIndex])
+  }, [rankedArticles, selectedArticleIndex]),
 
-  const handleModalClose = useCallback(() => {
+   handleModalClose = useCallback(() => {
     setIsArticleModalOpen(false)
-    setSelectedArticle(null)
-    setSelectedArticleIndex(null)
+    setSelectedArticle(undefined)
+    setSelectedArticleIndex(undefined)
   }, [])
 
   if (loading) {
@@ -477,7 +482,7 @@ export function FeedView({
             data-index={index}
             className="snap-start w-full relative cursor-pointer group"
             style={{ height: "calc(100vh - 64px)" }}
-            onClick={() => handleArticlePreview(article, index)}
+            onClick={() =>{  handleArticlePreview(article, index); }}
           >
             <div className="absolute inset-0 w-full h-full overflow-hidden">
               <motion.img
@@ -530,13 +535,13 @@ export function FeedView({
                   <div className="flex flex-wrap items-center gap-4 pt-2">
                     <span className="font-sans text-xs text-white/70 tracking-widest uppercase">
                       {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                        month: "short",
                         day: "numeric",
+                        month: "short",
                         year: "numeric",
                       })}
                     </span>
 
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={(event) =>{  event.stopPropagation(); }}>
                       <Button
                         size="sm"
                         variant="outline"

@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { error, hasError: true };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h2 className="font-bold">Something went wrong</h2>
           <p>{this.state.error?.message || 'An unexpected error occurred'}</p>
           <button 
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() =>{  this.setState({ hasError: false }); }}
             className="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-md"
           >
             Try again

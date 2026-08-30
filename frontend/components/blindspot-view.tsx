@@ -12,70 +12,75 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClusterDetailModal } from "@/components/cluster-detail-modal"
 import { SafeImage } from "@/components/safe-image"
-import {
-  type BlindspotCard,
-  type BlindspotLane,
-  type BlindspotLens,
-  type TrendingCluster,
-  fetchBlindspotViewer,
-} from "@/lib/api"
+import { fetchBlindspotViewer } from '@/lib/api';
+import type { BlindspotCard, BlindspotLane, BlindspotLens, TrendingCluster } from '@/lib/api';
 import { cn, serializeSources } from "@/lib/utils"
 
 interface BlindspotViewProps {
   category?: string
   sources?: string[]
 }
+export interface BlindspotViewServices {
+  fetchBlindspotViewer: typeof fetchBlindspotViewer
+}
+
+const DEFAULT_BLINDSPOT_VIEW_SERVICES: BlindspotViewServices = {
+  fetchBlindspotViewer,
+}
 
 type SortMode = "asymmetry" | "largest" | "recent"
 
-const DEFAULT_LENS: BlindspotLens["id"] = "bias"
-const DEFAULT_WINDOW = "1w"
-const CARDS_PER_LANE = 18
-const DEFAULT_VISIBLE_PER_LANE = 10
+const CARDS_PER_LANE = 18,
+ DEFAULT_LENS: BlindspotLens["id"] = "bias",
+ DEFAULT_VISIBLE_PER_LANE = 10,
+ DEFAULT_WINDOW = "1w",
 
-const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
-  { value: "asymmetry", label: "Most asymmetric" },
-  { value: "largest", label: "Largest story" },
-  { value: "recent", label: "Most recent" },
+ SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { label: "Most asymmetric", value: "asymmetry" },
+  { label: "Largest story", value: "largest" },
+  { label: "Most recent", value: "recent" },
 ]
 
 function formatDate(value?: string | null): string {
-  if (!value) return "No timestamp"
+  if (!value) {return "No timestamp"}
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (Number.isNaN(date.getTime())) {return value}
   return date.toLocaleDateString("en-US", {
-    month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    month: "short",
   })
 }
 
-function sortCards(cards: BlindspotCard[], sortMode: SortMode): BlindspotCard[] {
+function sortCards(cards:readonly  BlindspotCard[], sortMode: SortMode): BlindspotCard[] {
   const sorted = [...cards]
   switch (sortMode) {
-    case "largest":
+    case "largest": {
       return sorted.sort((left, right) => right.article_count - left.article_count)
-    case "recent":
+    }
+    case "recent": {
       return sorted.sort((left, right) => {
-        const leftTime = left.published_at ? new Date(left.published_at).getTime() : 0
-        const rightTime = right.published_at ? new Date(right.published_at).getTime() : 0
+        const leftTime = left.published_at ? new Date(left.published_at).getTime() : 0,
+         rightTime = right.published_at ? new Date(right.published_at).getTime() : 0
         return rightTime - leftTime
       })
+    }
     case "asymmetry":
-    default:
+    default: {
       return sorted.sort((left, right) => right.blindspot_score - left.blindspot_score)
+    }
   }
 }
 
 function coverageBar(card: BlindspotCard) {
-  const entries: Array<{
+  const entries: {
     key: keyof BlindspotCard["coverage_shares"]
     color: string
-  }> = [
-    { key: "pole_a", color: "bg-cyan-400/80" },
-    { key: "shared", color: "bg-zinc-300/70" },
-    { key: "pole_b", color: "bg-red-500/80" },
+  }[] = [
+    { color: "bg-cyan-400/80", key: "pole_a" },
+    { color: "bg-zinc-300/70", key: "shared" },
+    { color: "bg-red-500/80", key: "pole_b" },
   ]
 
   return (
@@ -95,40 +100,40 @@ function coverageBar(card: BlindspotCard) {
 
 function cardToCluster(card: BlindspotCard): TrendingCluster {
   return {
-    cluster_id: card.cluster_id,
-    label: card.cluster_label,
-    keywords: card.keywords,
     article_count: card.article_count,
-    window_count: card.article_count,
-    source_diversity: card.source_count,
-    trending_score: card.blindspot_score,
-    velocity: card.balance_score,
+    articles: card.articles.map((article) => ({
+      id: article.id,
+      image_url: article.image_url ?? null,
+      published_at: article.published_at ?? undefined,
+      source: article.source,
+      summary: article.summary ?? undefined,
+      title: article.title,
+      url: article.url,
+    })),
+    cluster_id: card.cluster_id,
+    keywords: card.keywords,
+    label: card.cluster_label,
     representative_article: card.representative_article
       ? {
           id: card.representative_article.id,
-          title: card.representative_article.title,
-          source: card.representative_article.source,
-          url: card.representative_article.url,
           image_url: card.representative_article.image_url ?? null,
           published_at: card.representative_article.published_at ?? undefined,
+          source: card.representative_article.source,
           summary: card.representative_article.summary ?? undefined,
+          title: card.representative_article.title,
+          url: card.representative_article.url,
         }
       : null,
-    articles: card.articles.map((article) => ({
-      id: article.id,
-      title: article.title,
-      source: article.source,
-      url: article.url,
-      image_url: article.image_url ?? null,
-      published_at: article.published_at ?? undefined,
-      summary: article.summary ?? undefined,
-    })),
+    source_diversity: card.source_count,
+    trending_score: card.blindspot_score,
+    velocity: card.balance_score,
+    window_count: card.article_count,
   }
 }
 
 function geographySignalBadges(card: BlindspotCard) {
   if (!card.geography_signals || card.geography_signals.length === 0) {
-    return null
+    return undefined
   }
 
   return (
@@ -147,26 +152,26 @@ function geographySignalBadges(card: BlindspotCard) {
 }
 
 function articleSourceSummary(card: BlindspotCard): string | null {
-  const uniqueSources = Array.from(new Set(card.articles.map((article) => article.source)))
+  const uniqueSources = [...new Set(card.articles.map((article) => article.source))]
   if (uniqueSources.length === 0) {
-    return null
+    return undefined
   }
 
-  const visibleSources = uniqueSources.slice(0, 3).join(" · ")
-  const remaining = uniqueSources.length - Math.min(uniqueSources.length, 3)
+  const visibleSources = uniqueSources.slice(0, 3).join(" · "),
+   remaining = uniqueSources.length - Math.min(uniqueSources.length, 3)
   return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
 }
 
 function paywallLabel(card: BlindspotCard): string | null {
   const paywall = card.paywall_concentration
   if (!paywall || paywall.total_articles === 0 || paywall.status === "low") {
-    return null
+    return undefined
   }
   return `${Math.round(paywall.paywall_share * 100)}% paywalled`
 }
 
 function displayPoleLabel(label: string): string {
-  return label.replace(/^For the\s+/i, "the ").replace(/^For\s+/i, "")
+  return label.replace(/^For the\s+/iu, "the ").replace(/^For\s+/iu, "")
 }
 
 function LeadStory({
@@ -174,27 +179,27 @@ function LeadStory({
   laneId,
   poleLabels,
   onOpen,
-}: {
+}:Readonly< {
   card: BlindspotCard
   laneId: BlindspotLane["id"]
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}) {
-  const imageUrl = card.representative_article?.image_url
-  const isLackingPoleA = laneId === "pole_b"
-  const isLackingPoleB = laneId === "pole_a"
+}>) {
+  const imageUrl = card.representative_article?.image_url,
+   isLackingPoleA = laneId === "pole_b",
+   isLackingPoleB = laneId === "pole_a",
   
-  const blindspotLabel = isLackingPoleA ? `Missed by ${poleLabels.pole_a}` : isLackingPoleB ? `Missed by ${poleLabels.pole_b}` : "Asymmetric"
-  const blindspotValue = isLackingPoleA 
+   blindspotLabel = isLackingPoleA ? `Missed by ${poleLabels.pole_a}` : (isLackingPoleB ? `Missed by ${poleLabels.pole_b}` : "Asymmetric"),
+   blindspotValue = isLackingPoleA 
     ? Math.round(card.coverage_shares.pole_a * 100) 
-    : Math.round(card.coverage_shares.pole_b * 100)
-  const sourceSummary = articleSourceSummary(card)
-  const paywallText = paywallLabel(card)
+    : Math.round(card.coverage_shares.pole_b * 100),
+   sourceSummary = articleSourceSummary(card),
+   paywallText = paywallLabel(card)
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(card)}
+      onClick={() =>{  onOpen(card); }}
       className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition-all duration-500 ease-out hover:bg-white/[0.05] lg:rounded-2xl lg:border-0 lg:bg-black/20 lg:shadow-2xl lg:hover:bg-white/[0.03]"
     >
       <div className="relative aspect-square w-full overflow-hidden bg-white/5 lg:aspect-video">
@@ -213,7 +218,7 @@ function LeadStory({
         <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-2 lg:left-4 lg:top-4 lg:max-w-[calc(100%-2rem)]">
           <span className={cn(
             "truncate px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-white shadow-lg lg:px-2.5 lg:font-mono lg:text-[10px] lg:tracking-widest",
-            isLackingPoleA ? "bg-red-500/80" : isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80"
+            isLackingPoleA ? "bg-red-500/80" : (isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80")
           )}>
             {blindspotLabel}: {blindspotValue}%
           </span>
@@ -280,18 +285,18 @@ function StoryRow({
   card,
   poleLabels,
   onOpen,
-}: {
+}:Readonly< {
   card: BlindspotCard
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}) {
-  const sourceSummary = articleSourceSummary(card)
-  const paywallText = paywallLabel(card)
+}>) {
+  const sourceSummary = articleSourceSummary(card),
+   paywallText = paywallLabel(card)
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(card)}
+      onClick={() =>{  onOpen(card); }}
       className="group flex w-full flex-col gap-2 rounded-lg border border-white/10 bg-white/[0.025] p-2.5 text-left transition-all duration-300 hover:bg-white/[0.05] lg:gap-3 lg:rounded-xl lg:border-0 lg:bg-white/[0.02] lg:p-4"
     >
       <div className="flex items-start justify-between gap-2 lg:gap-4">
@@ -312,7 +317,7 @@ function StoryRow({
           </h4>
         </div>
         <div className="mt-1 hidden shrink-0 flex-col items-end gap-1 lg:flex">
-          <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</span>
+          <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</supan>
           <span className="font-mono text-lg font-bold text-foreground/70">{Math.round(card.blindspot_score * 10) / 10}</span>
         </div>
       </div>
@@ -340,25 +345,25 @@ function MobileBlindspotTile({
   laneId,
   poleLabels,
   onOpen,
-}: {
+}:Readonly< {
   card: BlindspotCard
   laneId: BlindspotLane["id"]
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}) {
-  const imageUrl = card.representative_article?.image_url
-  const isLackingPoleA = laneId === "pole_b"
-  const isLackingPoleB = laneId === "pole_a"
-  const blindspotLabel = isLackingPoleA ? `Missed by ${displayPoleLabel(poleLabels.pole_a)}` : isLackingPoleB ? `Missed by ${displayPoleLabel(poleLabels.pole_b)}` : "Asymmetric"
-  const blindspotValue = isLackingPoleA
+}>) {
+  const imageUrl = card.representative_article?.image_url,
+   isLackingPoleA = laneId === "pole_b",
+   isLackingPoleB = laneId === "pole_a",
+   blindspotLabel = isLackingPoleA ? `Missed by ${displayPoleLabel(poleLabels.pole_a)}` : (isLackingPoleB ? `Missed by ${displayPoleLabel(poleLabels.pole_b)}` : "Asymmetric"),
+   blindspotValue = isLackingPoleA
     ? Math.round(card.coverage_shares.pole_a * 100)
-    : Math.round(card.coverage_shares.pole_b * 100)
-  const paywallText = paywallLabel(card)
+    : Math.round(card.coverage_shares.pole_b * 100),
+   paywallText = paywallLabel(card)
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(card)}
+      onClick={() =>{  onOpen(card); }}
       className="group overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] text-left transition duration-300 active:scale-[0.98]"
     >
       <div className="relative aspect-square overflow-hidden bg-white/[0.04]">
@@ -403,52 +408,56 @@ function MobileBlindspotTile({
   )
 }
 
-export function BlindspotView({ category, sources }: BlindspotViewProps) {
-  const [selectedLens, setSelectedLens] = useState<BlindspotLens["id"]>(DEFAULT_LENS)
-  const [sortMode, setSortMode] = useState<SortMode>("asymmetry")
-  const [selectedCard, setSelectedCard] = useState<BlindspotCard | null>(null)
-  const [expandedLanes, setExpandedLanes] = useState<Record<BlindspotLane["id"], boolean>>({
+export function BlindspotView({
+  category,
+  sources,
+  services = DEFAULT_BLINDSPOT_VIEW_SERVICES,
+}: BlindspotViewProps & { services?: BlindspotViewServices }) {
+  const [selectedLens, setSelectedLens] = useState<BlindspotLens["id"]>(DEFAULT_LENS),
+   [sortMode, setSortMode] = useState<SortMode>("asymmetry"),
+   [selectedCard, setSelectedCard] = useState<BlindspotCard | null>(undefined),
+   [expandedLanes, setExpandedLanes] = useState<Record<BlindspotLane["id"], boolean>>({
     pole_a: false,
-    shared: false,
     pole_b: false,
-  })
+    shared: false,
+  }),
 
-  const serializedSources = useMemo(() => serializeSources(sources), [sources])
+   serializedSources = useMemo(() => serializeSources(sources), [sources]),
 
-  const {
+   {
     data,
     isLoading,
     error,
     refetch,
   } = useQuery({
+    gcTime: 5 * 60 * 1000,
+    queryFn: () =>
+      services.fetchBlindspotViewer({
+        category,
+        lens: selectedLens,
+        perLane: CARDS_PER_LANE,
+        sources: serializedSources,
+        window: DEFAULT_WINDOW,
+      }),
     queryKey: [
       "blindspots",
       "viewer",
       {
-        lens: selectedLens,
         category: category || "all",
+        lens: selectedLens,
         sources: serializedSources,
       },
     ],
-    queryFn: () =>
-      fetchBlindspotViewer({
-        lens: selectedLens,
-        window: DEFAULT_WINDOW,
-        category,
-        sources: serializedSources,
-        perLane: CARDS_PER_LANE,
-      }),
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-  })
+    staleTime: 30 * 1000,
+  }),
 
-  const sortedCards = useMemo(
+   sortedCards = useMemo(
     () => (data ? sortCards(data.cards, sortMode) : []),
     [data, sortMode],
-  )
+  ),
 
-  const laneMap = useMemo(() => {
+   laneMap = useMemo(() => {
     const grouped = new Map<BlindspotLane["id"], BlindspotCard[]>()
     if (!data) {
       return grouped
@@ -458,21 +467,21 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
     }
     for (const card of sortedCards) {
       const cards = grouped.get(card.lane)
-      if (!cards) continue
+      if (!cards) {continue}
       cards.push(card)
     }
     return grouped
-  }, [data, sortedCards])
+  }, [data, sortedCards]),
 
-  const selectedCluster = useMemo(
+   selectedCluster = useMemo(
     () => (selectedCard ? cardToCluster(selectedCard) : null),
     [selectedCard],
-  )
+  ),
 
-  const poleLabels = useMemo(() => {
-    if (!data) return { pole_a: "Pole A", pole_b: "Pole B" }
-    const laneA = data.lanes.find(l => l.id === "pole_a")
-    const laneB = data.lanes.find(l => l.id === "pole_b")
+   poleLabels = useMemo(() => {
+    if (!data) {return { pole_a: "Pole A", pole_b: "Pole B" }}
+    const laneA = data.lanes.find(l => l.id === "pole_a"),
+     laneB = data.lanes.find(l => l.id === "pole_b")
     return {
       pole_a: laneA?.label || "Pole A",
       pole_b: laneB?.label || "Pole B"
@@ -483,12 +492,12 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
     laneId: BlindspotLane["id"],
     emptyLabel: string,
   ) {
-    const cards = laneMap.get(laneId) ?? []
-    const leadCard = cards[0]
-    const isExpanded = expandedLanes[laneId]
-    const visibleCount = isExpanded ? cards.length : DEFAULT_VISIBLE_PER_LANE
-    const listCards = cards.slice(1, visibleCount)
-    const hiddenCount = Math.max(cards.length - visibleCount, 0)
+    const cards = laneMap.get(laneId) ?? [],
+     leadCard = cards[0],
+     isExpanded = expandedLanes[laneId],
+     visibleCount = isExpanded ? cards.length : DEFAULT_VISIBLE_PER_LANE,
+     listCards = cards.slice(1, visibleCount),
+     hiddenCount = Math.max(cards.length - visibleCount, 0)
 
     if (!leadCard) {
       return (
@@ -523,8 +532,8 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
           <Button
             type="button"
             variant="outline"
-            onClick={() =>
-              setExpandedLanes((current) => ({ ...current, [laneId]: true }))
+            onClick={() =>{ 
+              setExpandedLanes((current) => ({ ...current, [laneId]: true })); }
             }
             className="w-full rounded-xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
           >
@@ -580,7 +589,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
   }
 
   if (!data) {
-    return null
+    return undefined
   }
 
   return (
@@ -603,10 +612,10 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
 
           <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
             <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</supan>
               <select
                 value={selectedLens}
-                onChange={(e) => setSelectedLens(e.target.value as BlindspotLens["id"])}
+                onChange={(e) =>{  setSelectedLens(e.target.value as BlindspotLens["id"]); }}
                 className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {data.available_lenses.map((lens) => (
@@ -618,10 +627,10 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
             </div>
 
             <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</span>
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</supan>
               <select
                 value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                onChange={(e) =>{  setSortMode(e.target.value as SortMode); }}
                 className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
               >
                 {SORT_OPTIONS.map((option) => (
@@ -634,16 +643,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
           </div>
         </motion.div>
 
-        {!data.selected_lens.available ? (
-          <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
-            <h3 className="font-serif text-2xl text-foreground/60">
-              {data.selected_lens.label} analyzer is offline
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground/40">
-              {data.selected_lens.unavailable_reason || "Check back shortly for updated intelligence."}
-            </p>
-          </div>
-        ) : (
+        {data.selected_lens.available ? (
           <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
             {/* Missed by Pole A (Covered by Pole B) */}
             <motion.section
@@ -672,7 +672,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+              transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
               className="flex flex-col space-y-3 lg:space-y-8"
             >
               <div className="space-y-1 border-l-2 border-zinc-500/40 pl-3 lg:space-y-2 lg:pl-6">
@@ -691,7 +691,7 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+              transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
               className="flex flex-col space-y-3 lg:space-y-8"
             >
               <div className="space-y-1 border-l-2 border-cyan-500/40 pl-3 lg:space-y-2 lg:pl-6">
@@ -710,13 +710,22 @@ export function BlindspotView({ category, sources }: BlindspotViewProps) {
               </div>
             </motion.section>
           </div>
+        ) : (
+          <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
+            <h3 className="font-serif text-2xl text-foreground/60">
+              {data.selected_lens.label} analyzer is offline
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground/40">
+              {data.selected_lens.unavailable_reason || "Check back shortly for updated intelligence."}
+            </p>
+          </div>
         )}
       </div>
       <ClusterDetailModal
         cluster={selectedCluster}
         isBreaking={false}
         isOpen={selectedCluster !== null}
-        onClose={() => setSelectedCard(null)}
+        onClose={() =>{  setSelectedCard(undefined); }}
       />
     </>
   )

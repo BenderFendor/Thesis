@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { render, screen } from "@testing-library/react";
 
 import { CareerTimeline } from "./career-timeline";
@@ -5,48 +6,50 @@ import type { ReporterCareerTimeline } from "@/lib/api";
 
 function timeline(overrides: Partial<ReporterCareerTimeline> = {}): ReporterCareerTimeline {
   return {
-    timeline: [],
     shared_owner_findings: [],
+    timeline: [],
     ...overrides,
   };
 }
 
-describe("CareerTimeline", () => {
-  it("renders nothing when there is no timeline data", () => {
+describe("careerTimeline", () => {
+  it("renders nothing when there is no timeline data", () => {  expect.hasAssertions();
+  
     const { container } = render(<CareerTimeline data={timeline()} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders byline and affiliation entries with badges, date ranges, and evidence links", () => {
+  it("renders byline and affiliation entries with badges, date ranges, and evidence links", () => {  expect.hasAssertions();
+  
     const data = timeline({
+      shared_owner_findings: [],
       timeline: [
         {
-          source: "affiliation",
-          outlet: "Press Freedom Institute",
-          start_date: "2015-01-01",
-          end_date: "2018-01-01",
           article_count: null,
-          role: "board member",
+          end_date: "2018-01-01",
           evidence_url: "https://littlesis.org/entities/999",
+          outlet: "Press Freedom Institute",
+          role: "board member",
+          source: "affiliation",
+          start_date: "2015-01-01",
         },
         {
-          source: "byline",
-          outlet: "Daily Beacon",
-          start_date: "2020-01-01",
-          end_date: "2021-06-01",
           article_count: 12,
-          role: null,
+          end_date: "2021-06-01",
           evidence_url: null,
+          outlet: "Daily Beacon",
+          role: null,
+          source: "byline",
+          start_date: "2020-01-01",
         },
       ],
-      shared_owner_findings: [],
     });
 
     render(<CareerTimeline data={data} />);
 
     expect(screen.getByRole("link", { name: "Press Freedom Institute" })).toHaveAttribute(
       "href",
-      "/wiki/source/Press%20Freedom%20Institute",
+      "/wiki/suource/Press%20Freedom%20Institute",
     );
     expect(screen.getByText("Affiliation")).toBeInTheDocument();
     expect(screen.getByText("Byline")).toBeInTheDocument();
@@ -57,52 +60,53 @@ describe("CareerTimeline", () => {
     );
   });
 
-  it("renders a neutral shared-owner annotation with links to outlets and the owner", () => {
+  it("renders a neutral shared-owner annotation with links to outlets and the owner", () => {  expect.hasAssertions();
+  
     const data = timeline({
-      timeline: [
-        {
-          source: "byline",
-          outlet: "Daily Beacon",
-          start_date: "2020-01-01",
-          end_date: "2021-01-01",
-          article_count: 5,
-          role: null,
-          evidence_url: null,
-        },
-        {
-          source: "byline",
-          outlet: "Nightly Ledger",
-          start_date: "2021-02-01",
-          end_date: "2022-01-01",
-          article_count: 3,
-          role: null,
-          evidence_url: null,
-        },
-      ],
       shared_owner_findings: [
         {
-          owner: {
-            entity_id: "organization:ent_org",
-            label: "Mega Corp",
-            entity_type: "organization",
-            profile_path: "/wiki/organization/ent_org",
-          },
+          claim_ids: ["claim-1", "claim-2"],
+          evidence_count: 3,
           outlets: [
             {
               entity_id: "outlet:beacon",
-              label: "Daily Beacon",
               entity_type: "outlet",
-              profile_path: "/wiki/source/Daily%20Beacon",
+              label: "Daily Beacon",
+              profile_path: "/wiki/suource/Daily%20Beacon",
             },
             {
               entity_id: "outlet:ledger",
-              label: "Nightly Ledger",
               entity_type: "outlet",
-              profile_path: "/wiki/source/Nightly%20Ledger",
+              label: "Nightly Ledger",
+              profile_path: "/wiki/suource/Nightly%20Ledger",
             },
           ],
-          evidence_count: 3,
-          claim_ids: ["claim-1", "claim-2"],
+          owner: {
+            entity_id: "organization:ent_org",
+            entity_type: "organization",
+            label: "Mega Corp",
+            profile_path: "/wiki/organization/ent_org",
+          },
+        },
+      ],
+      timeline: [
+        {
+          article_count: 5,
+          end_date: "2021-01-01",
+          evidence_url: null,
+          outlet: "Daily Beacon",
+          role: null,
+          source: "byline",
+          start_date: "2020-01-01",
+        },
+        {
+          article_count: 3,
+          end_date: "2022-01-01",
+          evidence_url: null,
+          outlet: "Nightly Ledger",
+          role: null,
+          source: "byline",
+          start_date: "2021-02-01",
         },
       ],
     });
@@ -113,7 +117,7 @@ describe("CareerTimeline", () => {
     expect(screen.getByText(/both ultimately owned by/)).toBeInTheDocument();
 
     const outletLinks = screen.getAllByRole("link", { name: "Daily Beacon" });
-    expect(outletLinks.some((link) => link.getAttribute("href") === "/wiki/source/Daily%20Beacon")).toBe(true);
+    expect(outletLinks.some((link) => link.getAttribute("href") === "/wiki/suource/Daily%20Beacon")).toBe(true);
 
     const ownerLinks = screen.getAllByRole("link", { name: "Mega Corp" });
     expect(ownerLinks.some((link) => link.getAttribute("href") === "/wiki/organization/ent_org")).toBe(true);

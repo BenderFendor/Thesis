@@ -62,105 +62,146 @@ def _base_sources() -> dict[str, dict[str, Any]]:
     return deduped
 
 
+def _strip_leading_the(normalized: str) -> str:
+    return normalized[3:] if normalized.startswith("the") else normalized
+
+
+def _match_priority_source(
+    source_name: str,
+    all_sources: dict[str, dict[str, Any]],
+    by_key: dict[str, str],
+) -> str | None:
+    if all_sources.get(source_name) is not None:
+        return source_name
+
+    normalized_target = _strip_leading_the(_normalize_source_key(source_name))
+    match_name = by_key.get(normalized_target)
+    if match_name:
+        return match_name
+
+    for candidate_name in all_sources.keys():
+        normalized_candidate = _normalize_source_key(candidate_name)
+        if normalized_target in {
+            normalized_candidate,
+            _strip_leading_the(normalized_candidate),
+        }:
+            return candidate_name
+    return None
+
+
+def _fill_remaining_sources(
+    selected: list[str],
+    all_sources: dict[str, dict[str, Any]],
+    limit: int,
+) -> list[str]:
+    for source_name in sorted(all_sources.keys()):
+        if source_name in selected:
+            continue
+        selected.append(source_name)
+        if len(selected) >= limit:
+            break
+    return selected[:limit]
+
+
 def _select_sources(limit: int) -> list[str]:
     all_sources = _base_sources()
     by_key = {_normalize_source_key(name): name for name in all_sources.keys()}
     selected: list[str] = []
     for source_name in PRIORITY_SOURCES:
-        exact = all_sources.get(source_name)
-        if exact is not None and source_name not in selected:
-            selected.append(source_name)
-            continue
-
-        normalized_target = _normalize_source_key(source_name)
-        if normalized_target.startswith("the"):
-            normalized_target = normalized_target[3:]
-
-        match_name = by_key.get(normalized_target)
-        if not match_name:
-            for candidate_name in all_sources.keys():
-                normalized_candidate = _normalize_source_key(candidate_name)
-                normalized_candidate_no_the = (
-                    normalized_candidate[3:]
-                    if normalized_candidate.startswith("the")
-                    else normalized_candidate
-                )
-                if normalized_target in {
-                    normalized_candidate,
-                    normalized_candidate_no_the,
-                }:
-                    match_name = candidate_name
-                    break
-
+        match_name = _match_priority_source(source_name, all_sources, by_key)
         if match_name and match_name not in selected:
             selected.append(match_name)
 
     if len(selected) < limit:
-        for source_name in sorted(all_sources.keys()):
-            if source_name in selected:
-                continue
-            selected.append(source_name)
-            if len(selected) >= limit:
-                break
+        selected = _fill_remaining_sources(selected, all_sources, limit)
     return selected[:limit]
+
+
+def _field_key_score(fields: dict[str, Any]) -> float:
+    return float(
+        sum(
+            1
+            for key in FIELD_KEYS
+            if isinstance(fields.get(key), list) and fields.get(key)
+        )
+    )
+
+
+def _overview_score(profile: dict[str, Any]) -> float:
+    overview = profile.get("overview")
+    if isinstance(overview, str) and overview.strip():
+        return 1.0
+    return 0.0
+
+
+def _official_pages_score(profile: dict[str, Any]) -> float:
+    official_pages = profile.get("official_pages") or []
+    if isinstance(official_pages, list) and official_pages:
+        return min(len(official_pages), 4) / 4.0
+    return 0.0
+
+
+def _citations_score(profile: dict[str, Any]) -> float:
+    citations = profile.get("citations") or []
+    if isinstance(citations, list) and citations:
+        return min(len(citations), 5) / 5.0
+    return 0.0
+
+
+def _match_status_score(profile: dict[str, Any]) -> float:
+    match_status = str(profile.get("match_status") or "none").lower()
+    if match_status == "matched":
+        return 1.0
+    if match_status == "ambiguous":
+        return 0.5
+    return 0.0
+
+
+def _transparency_score(profile: dict[str, Any]) -> float:
+    transparency_items = _transparency_item_count(profile)
+    if transparency_items:
+        return min(transparency_items, TRANSPARENCY_ITEM_TARGET) / TRANSPARENCY_ITEM_TARGET
+    return 0.0
+
+
+def _policy_signals_score(profile: dict[str, Any]) -> float:
+    policy_signals = _policy_signal_count(profile)
+    if policy_signals:
+        return min(policy_signals, TRANSPARENCY_SIGNAL_TARGET) / TRANSPARENCY_SIGNAL_TARGET
+    return 0.0
+
+
+def _ads_txt_score(profile: dict[str, Any]) -> float:
+    return 1.0 if profile.get("ads_txt") else 0.0
+
+
+def _sellers_json_score(profile: dict[str, Any]) -> float:
+    sellers_json = profile.get("sellers_json")
+    if not isinstance(sellers_json, dict):
+        return 0.0
+    checked_records = int(sellers_json.get("checked_records") or 0)
+    matched_records = int(sellers_json.get("matched_records") or 0)
+    if checked_records > 0:
+        return min(matched_records / checked_records, 1.0)
+    if int(sellers_json.get("available_sellers_json") or 0) > 0:
+        return 0.5
+    return 0.0
 
 
 def _coverage(profile: dict[str, Any]) -> float:
     fields = profile.get("fields") or {}
-
-    points = 0.0
-    possible = 0.0
-
-    for key in FIELD_KEYS:
-        possible += 1.0
-        if isinstance(fields.get(key), list) and fields.get(key):
-            points += 1.0
-
-    possible += 1.0
-    if isinstance(profile.get("overview"), str) and profile.get("overview", "").strip():
-        points += 1.0
-
-    possible += 1.0
-    official_pages = profile.get("official_pages") or []
-    if isinstance(official_pages, list) and official_pages:
-        points += min(len(official_pages), 4) / 4.0
-
-    possible += 1.0
-    citations = profile.get("citations") or []
-    if isinstance(citations, list) and citations:
-        points += min(len(citations), 5) / 5.0
-
-    possible += 1.0
-    match_status = str(profile.get("match_status") or "none").lower()
-    if match_status == "matched":
-        points += 1.0
-    elif match_status == "ambiguous":
-        points += 0.5
-
-    transparency_items = _transparency_item_count(profile)
-    possible += 1.0
-    if transparency_items:
-        points += min(transparency_items, TRANSPARENCY_ITEM_TARGET) / TRANSPARENCY_ITEM_TARGET
-
-    policy_signals = _policy_signal_count(profile)
-    possible += 1.0
-    if policy_signals:
-        points += min(policy_signals, TRANSPARENCY_SIGNAL_TARGET) / TRANSPARENCY_SIGNAL_TARGET
-
-    possible += 1.0
-    if profile.get("ads_txt"):
-        points += 1.0
-
-    sellers_json = profile.get("sellers_json")
-    possible += 1.0
-    if isinstance(sellers_json, dict):
-        checked_records = int(sellers_json.get("checked_records") or 0)
-        matched_records = int(sellers_json.get("matched_records") or 0)
-        if checked_records > 0:
-            points += min(matched_records / checked_records, 1.0)
-        elif int(sellers_json.get("available_sellers_json") or 0) > 0:
-            points += 0.5
-
+    points = (
+        _field_key_score(fields)
+        + _overview_score(profile)
+        + _official_pages_score(profile)
+        + _citations_score(profile)
+        + _match_status_score(profile)
+        + _transparency_score(profile)
+        + _policy_signals_score(profile)
+        + _ads_txt_score(profile)
+        + _sellers_json_score(profile)
+    )
+    possible = float(len(FIELD_KEYS) + 8)
     if possible == 0:
         return 0.0
     return (points / possible) * 100.0
@@ -198,37 +239,25 @@ def _sellers_json_metrics(profile: dict[str, Any]) -> tuple[int, int, int]:
     )
 
 
-async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, Any]:
-    _, get_source_profile, build_source_url_guard = _load_dependencies()
-    profile = await get_source_profile(
-        source_name=source_name,
-        website=None,
-        force_refresh=force_refresh,
-        cache_only=False,
-    )
-    if not profile:
-        return {
-            "source": source_name,
-            "coverage_percent": 0.0,
-            "official_pages": 0,
-            "citations": 0,
-            "field_hits": 0,
-            "transparency_items": 0,
-            "policy_signals": 0,
-            "ads_txt": False,
-            "sellers_json_systems": 0,
-            "sellers_json_checked": 0,
-            "sellers_json_matched": 0,
-            "match_status": "none",
-        }
+def _empty_source_result(source_name: str) -> dict[str, Any]:
+    return {
+        "source": source_name,
+        "coverage_percent": 0.0,
+        "official_pages": 0,
+        "citations": 0,
+        "field_hits": 0,
+        "transparency_items": 0,
+        "policy_signals": 0,
+        "ads_txt": False,
+        "sellers_json_systems": 0,
+        "sellers_json_checked": 0,
+        "sellers_json_matched": 0,
+        "match_status": "none",
+    }
 
-    fields = profile.get("fields") or {}
-    field_hits = sum(
-        1
-        for key in FIELD_KEYS
-        if isinstance(fields.get(key), list) and len(fields.get(key) or []) > 0
-    )
-    url_guard_status = "unknown"
+
+def _profile_url_guard_status(profile: dict[str, Any]) -> str:
+    status = "unknown"
     for section in profile.get("dossier_sections") or []:
         if not isinstance(section, dict):
             continue
@@ -242,22 +271,47 @@ async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, An
                 continue
             value = str(item.get("value") or "")
             if "status=ok" in value:
-                url_guard_status = "ok"
+                status = "ok"
             elif "status=mismatch" in value:
-                url_guard_status = "mismatch"
+                status = "mismatch"
             break
+    return status
 
-    if url_guard_status == "unknown":
-        catalog_sources = _base_sources()
-        source_config = catalog_sources.get(source_name)
-        guard_value = build_source_url_guard(
-            (source_config or {}).get("url"),
-            str(profile.get("website") or "") or None,
-        )
-        status_value = str(guard_value.get("status") or "unknown").lower()
-        if status_value in {"ok", "mismatch"}:
-            url_guard_status = status_value
 
+def _url_guard_status(
+    profile: dict[str, Any],
+    source_name: str,
+    build_source_url_guard: Any,
+) -> str:
+    status = _profile_url_guard_status(profile)
+    if status != "unknown":
+        return status
+
+    catalog_sources = _base_sources()
+    source_config = catalog_sources.get(source_name)
+    guard_value = build_source_url_guard(
+        (source_config or {}).get("url"),
+        str(profile.get("website") or "") or None,
+    )
+    status_value = str(guard_value.get("status") or "unknown").lower()
+    if status_value in {"ok", "mismatch"}:
+        return status_value
+    return "unknown"
+
+
+async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, Any]:
+    _, get_source_profile, build_source_url_guard = _load_dependencies()
+    profile = await get_source_profile(
+        source_name=source_name,
+        website=None,
+        force_refresh=force_refresh,
+        cache_only=False,
+    )
+    if not profile:
+        return _empty_source_result(source_name)
+
+    fields = profile.get("fields") or {}
+    field_hits = int(_field_key_score(fields))
     official_pages = profile.get("official_pages") or []
     citations = profile.get("citations") or []
     sellers_json_systems, sellers_json_checked, sellers_json_matched = _sellers_json_metrics(
@@ -276,7 +330,7 @@ async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, An
         "sellers_json_checked": sellers_json_checked,
         "sellers_json_matched": sellers_json_matched,
         "match_status": str(profile.get("match_status") or "none"),
-        "url_guard": url_guard_status,
+        "url_guard": _url_guard_status(profile, source_name, build_source_url_guard),
     }
 
 
@@ -346,25 +400,16 @@ async def _measure_reporter_coverage() -> dict[str, Any]:
 
         reporter_result = await session.execute(select(ReporterModel))
         reporters = list(reporter_result.scalars().all())
-        with_author_profile_page = 0
-        verified_author_profile_page = 0
-        verified_author_page_citations = 0
-        non_profile_author_page = 0
-        for reporter_model in reporters:
-            author_page_url = str(reporter_model.author_page_url or "")
-            if not author_page_url:
-                continue
-            if not (
-                is_author_profile_url(author_page_url)
-                or is_author_profile_url(str(reporter_model.canonical_author_url or ""))
-            ):
-                non_profile_author_page += 1
-                continue
-            with_author_profile_page += 1
-            if reporter_model.confidence_tier == "verified":
-                verified_author_profile_page += 1
-                if has_verified_author_page_citation(reporter_model):
-                    verified_author_page_citations += 1
+        (
+            with_author_profile_page,
+            verified_author_profile_page,
+            verified_author_page_citations,
+            non_profile_author_page,
+        ) = _author_page_classification_counts(
+            reporters,
+            is_author_profile_url,
+            has_verified_author_page_citation,
+        )
 
         return {
             "total_reporters": total_reporters,
@@ -385,36 +430,58 @@ async def _measure_reporter_coverage() -> dict[str, Any]:
         await session.close()
 
 
-async def main_async(limit: int, force_refresh: bool, reporter: bool = False) -> int:
-    sources = _select_sources(limit)
-    if not sources:
-        print("avg_coverage_percent=0.00")
-        print("sources_measured=0")
-        return 0
+def _author_page_classification_counts(
+    reporters: list[Any],
+    is_author_profile_url: Any,
+    has_verified_author_page_citation: Any,
+) -> tuple[int, int, int, int]:
+    with_author_profile_page = 0
+    verified_author_profile_page = 0
+    verified_author_page_citations = 0
+    non_profile_author_page = 0
+    for reporter_model in reporters:
+        author_page_url = str(reporter_model.author_page_url or "")
+        if not author_page_url:
+            continue
+        if not (
+            is_author_profile_url(author_page_url)
+            or is_author_profile_url(str(reporter_model.canonical_author_url or ""))
+        ):
+            non_profile_author_page += 1
+            continue
+        with_author_profile_page += 1
+        if reporter_model.confidence_tier == "verified":
+            verified_author_profile_page += 1
+            if has_verified_author_page_citation(reporter_model):
+                verified_author_page_citations += 1
+    return (
+        with_author_profile_page,
+        verified_author_profile_page,
+        verified_author_page_citations,
+        non_profile_author_page,
+    )
 
-    results: list[dict[str, Any]] = []
-    for source_name in sources:
-        try:
-            result = await _measure_source(source_name, force_refresh)
-        except Exception as exc:
-            result = {
-                "source": source_name,
-                "coverage_percent": 0.0,
-                "official_pages": 0,
-                "citations": 0,
-                "field_hits": 0,
-                "transparency_items": 0,
-                "policy_signals": 0,
-                "ads_txt": False,
-                "sellers_json_systems": 0,
-                "sellers_json_checked": 0,
-                "sellers_json_matched": 0,
-                "match_status": "error",
-                "url_guard": "unknown",
-                "error": str(exc),
-            }
-        results.append(result)
 
+def _error_source_result(source_name: str, exc: Exception) -> dict[str, Any]:
+    return {
+        "source": source_name,
+        "coverage_percent": 0.0,
+        "official_pages": 0,
+        "citations": 0,
+        "field_hits": 0,
+        "transparency_items": 0,
+        "policy_signals": 0,
+        "ads_txt": False,
+        "sellers_json_systems": 0,
+        "sellers_json_checked": 0,
+        "sellers_json_matched": 0,
+        "match_status": "error",
+        "url_guard": "unknown",
+        "error": str(exc),
+    }
+
+
+def _print_source_results(results: list[dict[str, Any]]) -> None:
     average = statistics.mean(item["coverage_percent"] for item in results)
     median = statistics.median(item["coverage_percent"] for item in results)
 
@@ -432,40 +499,70 @@ async def main_async(limit: int, force_refresh: bool, reporter: bool = False) ->
             f"{row['sellers_json_matched']}/{row['sellers_json_checked']}\t"
             f"{row['match_status']}\t{row['url_guard']}"
         )
-    url_guard_ok = sum(1 for row in results if row.get("url_guard") == "ok")
-    url_guard_mismatch = sum(1 for row in results if row.get("url_guard") == "mismatch")
-    ads_txt_count = sum(1 for row in results if row.get("ads_txt"))
-    sellers_json_count = sum(1 for row in results if int(row.get("sellers_json_systems") or 0) > 0)
-    policy_signal_sources = sum(1 for row in results if int(row.get("policy_signals") or 0) > 0)
     print(f"avg_coverage_percent={average:.2f}")
     print(f"median_coverage_percent={median:.2f}")
     print(f"sources_measured={len(results)}")
+
+
+def _print_aggregate_counts(results: list[dict[str, Any]]) -> None:
+    url_guard_ok = sum(1 for row in results if row.get("url_guard") == "ok")
+    url_guard_mismatch = sum(1 for row in results if row.get("url_guard") == "mismatch")
+    ads_txt_count = sum(1 for row in results if row.get("ads_txt"))
+    sellers_json_count = sum(
+        1 for row in results if int(row.get("sellers_json_systems") or 0) > 0
+    )
+    policy_signal_sources = sum(
+        1 for row in results if int(row.get("policy_signals") or 0) > 0
+    )
     print(f"url_guard_ok_count={url_guard_ok}")
     print(f"url_guard_mismatch_count={url_guard_mismatch}")
     print(f"ads_txt_count={ads_txt_count}")
     print(f"sellers_json_count={sellers_json_count}")
     print(f"policy_signal_source_count={policy_signal_sources}")
 
+
+def _print_reporter_summary(rc: dict[str, Any]) -> None:
+    print()
+    print("--- Reporter Coverage ---")
+    print(f"total_reporters={rc['total_reporters']}")
+    for tier in ("verified", "strong", "likely", "unmatched"):
+        count = rc.get("tier_counts", {}).get(tier, 0)
+        print(f"confidence_{tier}={count}")
+    print(f"with_wikidata_qid={rc['with_wikidata_qid']}")
+    print(f"with_author_page_url={rc['with_author_page_url']}")
+    print(f"with_public_author_page_url={rc['with_public_author_page_url']}")
+    print(f"with_author_profile_url={rc['with_author_profile_url']}")
+    print(f"verified_public_author_page_url={rc['verified_public_author_page_url']}")
+    print(f"verified_author_profile_url={rc['verified_author_profile_url']}")
+    print(f"verified_author_page_citations={rc['verified_author_page_citations']}")
+    print(f"non_public_author_page_url={rc['non_public_author_page_url']}")
+    print(f"non_profile_author_page_url={rc['non_profile_author_page_url']}")
+    print(f"with_claims={rc['with_claims']}")
+    print(f"with_article_links={rc['with_article_links']}")
+
+
+async def main_async(limit: int, force_refresh: bool, reporter: bool = False) -> int:
+    sources = _select_sources(limit)
+    if not sources:
+        print("avg_coverage_percent=0.00")
+        print("sources_measured=0")
+        return 0
+
+    results: list[dict[str, Any]] = []
+    for source_name in sources:
+        try:
+            result = await _measure_source(source_name, force_refresh)
+        except Exception as exc:
+            result = _error_source_result(source_name, exc)
+        results.append(result)
+
+    _print_source_results(results)
+    _print_aggregate_counts(results)
+
     if reporter:
         try:
             rc = await _measure_reporter_coverage()
-            print()
-            print("--- Reporter Coverage ---")
-            print(f"total_reporters={rc['total_reporters']}")
-            for tier in ("verified", "strong", "likely", "unmatched"):
-                count = rc.get("tier_counts", {}).get(tier, 0)
-                print(f"confidence_{tier}={count}")
-            print(f"with_wikidata_qid={rc['with_wikidata_qid']}")
-            print(f"with_author_page_url={rc['with_author_page_url']}")
-            print(f"with_public_author_page_url={rc['with_public_author_page_url']}")
-            print(f"with_author_profile_url={rc['with_author_profile_url']}")
-            print(f"verified_public_author_page_url={rc['verified_public_author_page_url']}")
-            print(f"verified_author_profile_url={rc['verified_author_profile_url']}")
-            print(f"verified_author_page_citations={rc['verified_author_page_citations']}")
-            print(f"non_public_author_page_url={rc['non_public_author_page_url']}")
-            print(f"non_profile_author_page_url={rc['non_profile_author_page_url']}")
-            print(f"with_claims={rc['with_claims']}")
-            print(f"with_article_links={rc['with_article_links']}")
+            _print_reporter_summary(rc)
         except Exception as exc:
             print(f"reporter_coverage_error={exc}")
 

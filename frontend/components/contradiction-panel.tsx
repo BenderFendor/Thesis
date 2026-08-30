@@ -11,8 +11,8 @@ interface ContradictionPanelProps {
 
 export function ContradictionPanel({ clusterId }: ContradictionPanelProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cluster-contradictions", clusterId],
     queryFn: () => fetchClusterContradictions(clusterId),
+    queryKey: ["cluster-contradictions", clusterId],
     staleTime: 60 * 1000,
   });
 

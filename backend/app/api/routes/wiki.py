@@ -59,56 +59,66 @@ def _string_list(value: Any) -> list[str]:
     return cast(list[str], value or [])
 
 
+def _overview_part(label: str, value: str) -> str | None:
+    if not value:
+        return None
+    return f"{label}: {value}."
+
+
+def _source_overview_parts(
+    source_config: dict[str, Any], meta: SourceMetadata | None
+) -> list[str]:
+    """Build the catalog-based overview sentences for a source."""
+    return [
+        part
+        for part in (
+            _overview_part("Type", str((meta.source_type if meta else "") or "").strip()),
+            _overview_part("Country", str(source_config.get("country") or "").strip()),
+            _overview_part("Funding model", str(source_config.get("funding_type") or "").strip()),
+            _overview_part(
+                "Parent organization", str((meta.parent_company if meta else "") or "").strip()
+            ),
+            _overview_part("Catalog bias label", str(source_config.get("bias_rating") or "").strip()),
+        )
+        if part
+    ]
+
+
+def _org_factual_label(org_data: dict[str, Any] | None) -> str | None:
+    if not org_data:
+        return None
+    factual = str(org_data.get("factual_reporting") or "").strip()
+    if not factual:
+        return None
+    return f"Catalog factual reporting label: {factual}."
+
+
 def _source_overview_fallback(
     source_name: str,
     source_config: dict[str, Any],
     meta: SourceMetadata | None,
     org_data: dict[str, Any] | None,
 ) -> str | None:
-    parts: list[str] = []
-    funding = str(source_config.get("funding_type") or "").strip()
-    bias = str(source_config.get("bias_rating") or "").strip()
-    country = str(source_config.get("country") or "").strip()
-    source_type = str((meta.source_type if meta else "") or "").strip()
-    parent_company = str((meta.parent_company if meta else "") or "").strip()
-
-    if source_type:
-        parts.append(f"Type: {source_type}.")
-    if country:
-        parts.append(f"Country: {country}.")
-    if funding:
-        parts.append(f"Funding model: {funding}.")
-    if parent_company:
-        parts.append(f"Parent organization: {parent_company}.")
-    if bias:
-        parts.append(f"Catalog bias label: {bias}.")
-
-    if org_data:
-        factual = str(org_data.get("factual_reporting") or "").strip()
-        if factual:
-            parts.append(f"Catalog factual reporting label: {factual}.")
-
+    parts = _source_overview_parts(source_config, meta)
+    factual_label = _org_factual_label(org_data)
+    if factual_label:
+        parts.append(factual_label)
     if not parts:
         return None
     return f"{source_name} source profile. {' '.join(parts)}"
 
 
-def _build_employer_rss_context(reporter: Reporter) -> dict[str, Any] | None:
-    """Cross-reference a reporter's employers against the RSS catalog.
-
-    Returns employer context with funding, bias, country from RSS config.
-    """
-    career_history = reporter.career_history or []
-    employer_names: list[str] = []
-    for entry in career_history:
+def _employer_names(career_history: Any) -> list[str]:
+    employers: list[str] = []
+    for entry in career_history or []:
         if isinstance(entry, dict):
             org = entry.get("organization", "")
             if org:
-                employer_names.append(str(org))
+                employers.append(str(org))
+    return employers
 
-    if not employer_names:
-        return None
 
+def _rss_catalog_by_name() -> dict[str, dict[str, Any]]:
     sources = get_rss_sources()
     rss_by_name: dict[str, dict[str, Any]] = {}
     for name, cfg in sources.items():
@@ -121,17 +131,37 @@ def _build_employer_rss_context(reporter: Reporter) -> dict[str, Any] | None:
             "category": cfg.get("category", "general"),
             "factual_reporting": cfg.get("factual_reporting", ""),
         }
+    return rss_by_name
 
+
+def _match_employer_rss(
+    employer: str, rss_by_name: dict[str, dict[str, Any]]
+) -> dict[str, Any] | None:
+    employer_lower = employer.lower()
+    rss_data = rss_by_name.get(employer_lower)
+    if rss_data is not None:
+        return rss_data
+    for rss_key, rss_data in rss_by_name.items():
+        if rss_key in employer_lower or employer_lower in rss_key:
+            return rss_data
+    return None
+
+
+def _build_employer_rss_context(reporter: Reporter) -> dict[str, Any] | None:
+    """Cross-reference a reporter's employers against the RSS catalog.
+
+    Returns employer context with funding, bias, country from RSS config.
+    """
+    employer_names = _employer_names(reporter.career_history)
+    if not employer_names:
+        return None
+
+    rss_by_name = _rss_catalog_by_name()
     matches: list[dict[str, Any]] = []
     for employer in employer_names:
-        employer_lower = employer.lower()
-        if employer_lower in rss_by_name:
-            matches.append(rss_by_name[employer_lower])
-        else:
-            for rss_key, rss_data in rss_by_name.items():
-                if rss_key in employer_lower or employer_lower in rss_key:
-                    matches.append(rss_data)
-                    break
+        match = _match_employer_rss(employer, rss_by_name)
+        if match is not None:
+            matches.append(match)
 
     if not matches:
         return None
@@ -724,6 +754,28 @@ async def _load_source_ledger(
         return None
 
 
+def _meta_view(meta: SourceMetadata | None) -> dict[str, Any]:
+    if meta is None:
+        return {}
+    return {
+        "parent_company": meta.parent_company,
+        "credibility_score": meta.credibility_score,
+        "is_state_media": meta.is_state_media,
+        "source_type": meta.source_type,
+        "geographic_focus": meta.geographic_focus,
+        "topic_focus": meta.topic_focus,
+    }
+
+
+def _index_status_view(status: WikiIndexStatus | None) -> dict[str, Any]:
+    return {
+        "status": status.status if status else "unindexed",
+        "last_indexed_at": (
+            status.last_indexed_at.isoformat() if status and status.last_indexed_at else None
+        ),
+    }
+
+
 def _build_wiki_response(
     source_name: str,
     source_config: dict[str, Any],
@@ -738,6 +790,8 @@ def _build_wiki_response(
     source_ledger: dict[str, Any] | None,
     status: WikiIndexStatus | None,
 ) -> SourceWikiResponse:
+    meta_view = _meta_view(meta)
+    status_view = _index_status_view(status)
     return SourceWikiResponse(
         name=source_name,
         website=cast(str | None, _profile_value(source_profile, "website")),
@@ -745,10 +799,10 @@ def _build_wiki_response(
         funding_type=source_config.get("funding_type") or None,
         bias_rating=source_config.get("bias_rating") or None,
         category=source_config.get("category", "general"),
-        parent_company=meta.parent_company if meta else None,
-        credibility_score=_optional_float(meta.credibility_score) if meta else None,
-        is_state_media=meta.is_state_media if meta else None,
-        source_type=meta.source_type if meta else None,
+        parent_company=meta_view.get("parent_company"),
+        credibility_score=_optional_float(meta_view.get("credibility_score")),
+        is_state_media=meta_view.get("is_state_media"),
+        source_type=meta_view.get("source_type"),
         overview=resolved_overview,
         match_status=cast(str | None, _profile_value(source_profile, "match_status")),
         wikipedia_url=cast(str | None, _profile_value(source_profile, "wikipedia_url")),
@@ -776,12 +830,10 @@ def _build_wiki_response(
         reporters=reporters,
         organization=org_data,
         article_count=article_count,
-        geographic_focus=_string_list(meta.geographic_focus) if meta else [],
-        topic_focus=_string_list(meta.topic_focus) if meta else [],
-        index_status=status.status if status else "unindexed",
-        last_indexed_at=(
-            status.last_indexed_at.isoformat() if status and status.last_indexed_at else None
-        ),
+        geographic_focus=_string_list(meta_view.get("geographic_focus")) if meta else [],
+        topic_focus=_string_list(meta_view.get("topic_focus")) if meta else [],
+        index_status=status_view["status"],
+        last_indexed_at=status_view["last_indexed_at"],
     )
 
 
@@ -958,6 +1010,18 @@ async def list_wiki_reporters(
     ]
 
 
+async def _resolve_merged_reporter(db: AsyncSession, reporter: Reporter) -> Reporter:
+    """Follow soft-retirement merge links to the winner reporter row."""
+    seen_ids = {reporter.id}
+    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
+        next_reporter = await db.get(Reporter, reporter.merged_into)
+        if next_reporter is None or next_reporter.id in seen_ids:
+            break
+        reporter = next_reporter
+        seen_ids.add(reporter.id)
+    return reporter
+
+
 @router.get("/reporters/{reporter_id}", response_model=ReporterDossierResponse)
 async def get_reporter_dossier(
     reporter_id: int,
@@ -972,13 +1036,7 @@ async def get_reporter_dossier(
 
     # A soft-retired (merged) id serves its winner's dossier so old links
     # keep working; same semantics as entity_research.get_reporter.
-    seen_ids = {reporter.id}
-    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
-        next_reporter = await db.get(Reporter, reporter.merged_into)
-        if next_reporter is None or next_reporter.id in seen_ids:
-            break
-        reporter = next_reporter
-        seen_ids.add(reporter.id)
+    reporter = await _resolve_merged_reporter(db, reporter)
 
     # Get recent articles by this reporter
     article_result = await db.execute(
@@ -1058,13 +1116,7 @@ async def get_reporter_articles(
     reporter = await db.get(Reporter, reporter_id)
     if reporter is None:
         raise HTTPException(status_code=404, detail="Reporter not found")
-    seen_ids = {reporter.id}
-    while reporter.retirement_reason == "merged" and reporter.merged_into is not None:
-        next_reporter = await db.get(Reporter, reporter.merged_into)
-        if next_reporter is None or next_reporter.id in seen_ids:
-            break
-        reporter = next_reporter
-        seen_ids.add(reporter.id)
+    reporter = await _resolve_merged_reporter(db, reporter)
 
     result = await db.execute(
         select(Article)

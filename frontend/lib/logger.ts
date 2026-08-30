@@ -43,38 +43,6 @@ export function setDebugMode(enabled: boolean): void {
  */
 export const logger = {
     /**
-     * Debug-level logging. Only outputs when debug mode is enabled.
-     */
-    debug: (msg: string, ...args: unknown[]): void => {
-        if (isDebugMode()) {
-            console.debug(`[DEBUG] ${msg}`, ...args);
-        }
-    },
-
-    /**
-     * Info-level logging. Only outputs when debug mode is enabled.
-     */
-    info: (msg: string, ...args: unknown[]): void => {
-        if (isDebugMode()) {
-            console.info(`[INFO] ${msg}`, ...args);
-        }
-    },
-
-    /**
-     * Warning-level logging. Always outputs (important for user awareness).
-     */
-    warn: (msg: string, ...args: unknown[]): void => {
-        console.warn(`[WARN] ${msg}`, ...args);
-    },
-
-    /**
-     * Error-level logging. Always outputs.
-     */
-    error: (msg: string, ...args: unknown[]): void => {
-        console.error(`[ERROR] ${msg}`, ...args);
-    },
-
-    /**
      * Log raw data (objects/arrays) in debug mode only.
      * Useful for API response inspection.
      */
@@ -83,6 +51,31 @@ export const logger = {
             console.groupCollapsed(`[DATA] ${label}`);
             console.dir(data);
             console.groupEnd();
+        }
+    },
+
+    /**
+     * Debug-level logging. Only outputs when debug mode is enabled.
+     */
+    debug: (msg: string, ...args:readonly  unknown[]): void => {
+        if (isDebugMode()) {
+            console.debug(`[DEBUG] ${msg}`, ...args);
+        }
+    },
+
+    /**
+     * Error-level logging. Always outputs.
+     */
+    error: (msg: string, ...args:readonly  unknown[]): void => {
+        console.error(`[ERROR] ${msg}`, ...args);
+    },
+
+    /**
+     * Info-level logging. Only outputs when debug mode is enabled.
+     */
+    info: (msg: string, ...args:readonly  unknown[]): void => {
+        if (isDebugMode()) {
+            console.info(`[INFO] ${msg}`, ...args);
         }
     },
 
@@ -102,6 +95,13 @@ export const logger = {
         if (isDebugMode()) {
             console.timeEnd(`[PERF] ${label}`);
         }
+    },
+
+    /**
+     * Warning-level logging. Always outputs (important for user awareness).
+     */
+    warn: (msg: string, ...args:readonly  unknown[]): void => {
+        console.warn(`[WARN] ${msg}`, ...args);
     },
 };
 

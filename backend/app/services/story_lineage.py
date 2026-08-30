@@ -273,17 +273,24 @@ async def _ensure_claims(
     return claims
 
 
+def _conflicting_numbers(left: Any, right: Any) -> bool:
+    """Return True when both claims quote conflicting numeric evidence."""
+    left_set = set(left or [])
+    right_set = set(right or [])
+    if not left_set:
+        return False
+    if not right_set:
+        return False
+    return left_set != right_set
+
+
 def _claim_relation(left: ExtractedClaim, right: ExtractedClaim) -> tuple[str, float] | None:
     if left.article_id == right.article_id:
         return None
-    left_normalized = left.normalized_claim or ""
-    right_normalized = right.normalized_claim or ""
-    similarity = _text_similarity(left_normalized, right_normalized)
+    similarity = _text_similarity(left.normalized_claim or "", right.normalized_claim or "")
     if similarity < 0.35:
         return None
-    left_numbers = set(left.numbers or [])
-    right_numbers = set(right.numbers or [])
-    if left_numbers and right_numbers and left_numbers != right_numbers:
+    if _conflicting_numbers(left.numbers, right.numbers):
         return ("contradicts", max(0.65, similarity))
     if similarity >= 0.72:
         return ("equivalent", similarity)
@@ -350,6 +357,109 @@ async def _corrections_for_story(
     return list(article_result.scalars().all())
 
 
+def _cluster_article_ids(articles: list[dict[str, Any]]) -> list[int]:
+    """Return the numeric ids present in the cluster articles."""
+    return [int(article["id"]) for article in articles if article.get("id") is not None]
+
+
+def _usable_articles(
+    articles: list[dict[str, Any]], existing_ids: set[int | None]
+) -> list[dict[str, Any]]:
+    """Keep only articles present in the database, falling back to all when none do."""
+    usable = [article for article in articles if int(article["id"]) in existing_ids]
+    if usable:
+        return usable
+    return articles
+
+
+def _story_payload(story: StoryCluster) -> dict[str, Any]:
+    """Serialize a story cluster for the lineage response."""
+    return {
+        "id": story.id,
+        "external_cluster_id": story.external_cluster_id,
+        "label": story.label,
+        "keywords": story.keywords or [],
+        "first_seen_at": story.first_seen_at.isoformat() if story.first_seen_at else None,
+        "last_seen_at": story.last_seen_at.isoformat() if story.last_seen_at else None,
+        "earliest_article_id": story.earliest_article_id,
+        "current_summary": story.current_summary,
+        "confidence": story.confidence,
+    }
+
+
+def _article_edge_title(article_id: int | None, article_lookup: dict[int, dict[str, Any]]) -> str:
+    return str(article_lookup.get(article_id or 0, {}).get("title") or "")
+
+
+def _article_edge_payloads(
+    edges: list[ArticleEdge], article_lookup: dict[int, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Serialize article edges, resolving endpoint titles from the cluster."""
+    return [
+        {
+            "id": edge.id,
+            "from_article_id": edge.from_article_id,
+            "to_article_id": edge.to_article_id,
+            "from_title": _article_edge_title(edge.from_article_id, article_lookup),
+            "to_title": _article_edge_title(edge.to_article_id, article_lookup),
+            "relation": edge.relation,
+            "evidence": edge.evidence or {},
+            "confidence": edge.confidence,
+        }
+        for edge in edges
+    ]
+
+
+def _claim_payloads(claims: list[ExtractedClaim]) -> list[dict[str, Any]]:
+    """Serialize extracted claims for the lineage response."""
+    return [
+        {
+            "id": claim.id,
+            "article_id": claim.article_id,
+            "claim_text": claim.claim_text,
+            "claim_type": claim.claim_type,
+            "checkability": claim.checkability,
+            "evidence_span": claim.evidence_span,
+            "numbers": claim.numbers or [],
+        }
+        for claim in claims
+    ]
+
+
+def _claim_edge_payloads(edges: list[ClaimEdge]) -> list[dict[str, Any]]:
+    """Serialize claim edges for the lineage response."""
+    return [
+        {
+            "id": edge.id,
+            "from_claim_id": edge.from_claim_id,
+            "to_claim_id": edge.to_claim_id,
+            "relation": edge.relation,
+            "evidence": edge.evidence or {},
+            "confidence": edge.confidence,
+        }
+        for edge in edges
+    ]
+
+
+def _correction_payloads(corrections: list[Correction]) -> list[dict[str, Any]]:
+    """Serialize corrections for the lineage response."""
+    return [
+        {
+            "id": correction.id,
+            "source": correction.source,
+            "article_id": correction.article_id,
+            "correction_url": correction.correction_url,
+            "correction_text": correction.correction_text,
+            "corrected_claim_id": correction.corrected_claim_id,
+            "downstream_article_ids": correction.downstream_article_ids or [],
+            "published_at": correction.published_at.isoformat()
+            if correction.published_at
+            else None,
+        }
+        for correction in corrections
+    ]
+
+
 async def build_story_lineage(
     session: AsyncSession,
     detail: dict[str, Any],
@@ -367,12 +477,11 @@ async def build_story_lineage(
             "corrections": [],
         }
 
-    article_ids = [int(article["id"]) for article in articles if article.get("id") is not None]
-    existing_result = await session.execute(select(Article.id).where(Article.id.in_(article_ids)))
+    existing_result = await session.execute(
+        select(Article.id).where(Article.id.in_(_cluster_article_ids(articles)))
+    )
     existing_ids = set(existing_result.scalars().all())
-    usable_articles = [article for article in articles if int(article["id"]) in existing_ids]
-    if not usable_articles:
-        usable_articles = articles
+    usable_articles = _usable_articles(articles, existing_ids)
 
     story = await _upsert_story_cluster(session, detail, usable_articles)
     article_edges = await _ensure_article_edges(session, story, usable_articles)
@@ -384,70 +493,9 @@ async def build_story_lineage(
     return {
         "status": "ok",
         "reason": None,
-        "story": {
-            "id": story.id,
-            "external_cluster_id": story.external_cluster_id,
-            "label": story.label,
-            "keywords": story.keywords or [],
-            "first_seen_at": story.first_seen_at.isoformat() if story.first_seen_at else None,
-            "last_seen_at": story.last_seen_at.isoformat() if story.last_seen_at else None,
-            "earliest_article_id": story.earliest_article_id,
-            "current_summary": story.current_summary,
-            "confidence": story.confidence,
-        },
-        "article_edges": [
-            {
-                "id": edge.id,
-                "from_article_id": edge.from_article_id,
-                "to_article_id": edge.to_article_id,
-                "from_title": str(
-                    article_lookup.get(int(edge.from_article_id or 0), {}).get("title") or ""
-                ),
-                "to_title": str(
-                    article_lookup.get(int(edge.to_article_id or 0), {}).get("title") or ""
-                ),
-                "relation": edge.relation,
-                "evidence": edge.evidence or {},
-                "confidence": edge.confidence,
-            }
-            for edge in article_edges
-        ],
-        "claims": [
-            {
-                "id": claim.id,
-                "article_id": claim.article_id,
-                "claim_text": claim.claim_text,
-                "claim_type": claim.claim_type,
-                "checkability": claim.checkability,
-                "evidence_span": claim.evidence_span,
-                "numbers": claim.numbers or [],
-            }
-            for claim in claims
-        ],
-        "claim_edges": [
-            {
-                "id": edge.id,
-                "from_claim_id": edge.from_claim_id,
-                "to_claim_id": edge.to_claim_id,
-                "relation": edge.relation,
-                "evidence": edge.evidence or {},
-                "confidence": edge.confidence,
-            }
-            for edge in claim_edges
-        ],
-        "corrections": [
-            {
-                "id": correction.id,
-                "source": correction.source,
-                "article_id": correction.article_id,
-                "correction_url": correction.correction_url,
-                "correction_text": correction.correction_text,
-                "corrected_claim_id": correction.corrected_claim_id,
-                "downstream_article_ids": correction.downstream_article_ids or [],
-                "published_at": correction.published_at.isoformat()
-                if correction.published_at
-                else None,
-            }
-            for correction in corrections
-        ],
+        "story": _story_payload(story),
+        "article_edges": _article_edge_payloads(article_edges, article_lookup),
+        "claims": _claim_payloads(claims),
+        "claim_edges": _claim_edge_payloads(claim_edges),
+        "corrections": _correction_payloads(corrections),
     }

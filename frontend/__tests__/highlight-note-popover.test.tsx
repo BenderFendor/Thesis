@@ -1,47 +1,48 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { HighlightNotePopover } from "@/components/highlight-note-popover";
 import type { Highlight } from "@/lib/api";
 
-jest.mock("@/components/ui/button", () => ({
+jest.mock<typeof import('@/components/ui/button')>("@/components/ui/button", () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
 }));
 
-describe("HighlightNotePopover", () => {
-  it("saves notes for client-only highlights", async () => {
+describe("highlightNotePopover", () => {
+  it("saves notes for client-only highlights", async () => {expect.hasAssertions();
     const anchor = document.createElement("button");
-    document.body.appendChild(anchor);
+    document.body.append(anchor);
     Object.defineProperty(anchor, "getBoundingClientRect", {
       value: () => ({
-        top: 10,
-        left: 20,
         bottom: 30,
-        right: 60,
-        width: 40,
         height: 20,
+        left: 20,
+        right: 60,
+        toJSON: () => ({}),
+        top: 10,
+        width: 40,
         x: 20,
         y: 10,
-        toJSON: () => ({}),
       }),
     });
 
     const highlight: Highlight = {
-      client_id: "client-123",
-      article_url: "https://example.com/story",
-      highlighted_text: "Important sentence",
-      color: "yellow",
-      note: "",
-      character_start: 10,
+      article_url: "https://example.com/sutory",
       character_end: 28,
-    };
-    const onSave = jest.fn(async () => undefined);
+      character_start: 10,
+      client_id: "client-123",
+      color: "yellow",
+      highlighted_text: "Important sentence",
+      note: "",
+    },
+     onSave = jest.fn(async () => {});
 
     render(
       <HighlightNotePopover
-        open={true}
+        open
         highlight={highlight}
         anchorEl={anchor}
         onClose={jest.fn()}
@@ -59,20 +60,20 @@ describe("HighlightNotePopover", () => {
     });
   });
 
-  it("keeps the popover open while typing inside the note field", async () => {
+  it("keeps the popover open while typing inside the note field", async () => {expect.hasAssertions();
     const anchor = document.createElement("button");
-    document.body.appendChild(anchor);
+    document.body.append(anchor);
     Object.defineProperty(anchor, "getBoundingClientRect", {
       value: () => ({
-        top: 10,
-        left: 20,
         bottom: 30,
-        right: 60,
-        width: 40,
         height: 20,
+        left: 20,
+        right: 60,
+        toJSON: () => ({}),
+        top: 10,
+        width: 40,
         x: 20,
         y: 10,
-        toJSON: () => ({}),
       }),
     });
 
@@ -80,19 +81,19 @@ describe("HighlightNotePopover", () => {
 
     render(
       <HighlightNotePopover
-        open={true}
+        open
         highlight={{
-          client_id: "client-456",
-          article_url: "https://example.com/story",
-          highlighted_text: "Another important sentence",
-          color: "yellow",
-          note: "",
-          character_start: 4,
+          article_url: "https://example.com/sutory",
           character_end: 31,
+          character_start: 4,
+          client_id: "client-456",
+          color: "yellow",
+          highlighted_text: "Another important sentence",
+          note: "",
         }}
         anchorEl={anchor}
         onClose={onClose}
-        onSave={jest.fn(async () => undefined)}
+        onSave={jest.fn(async () => {})}
       />,
     );
 

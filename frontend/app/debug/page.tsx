@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { GlobalNavigation } from "@/components/global-navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { SafeImage } from "@/components/safe-image"
 import {
@@ -27,39 +28,39 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  API_BASE_URL,
   fetchCacheDebugArticles,
   fetchCacheDelta,
-  fetchChromaDebugArticles,
-  fetchDebugErrors,
-  fetchDatabaseDebugArticles,
   fetchCacheStatus,
+  fetchChromaDebugArticles,
+  fetchDatabaseDebugArticles,
+  fetchDebugErrors,
   fetchLlmLogs,
   fetchSourceStats,
-  fetchStorageDrift,
   fetchStartupMetrics,
+  fetchStorageDrift,
   refreshCache,
-  API_BASE_URL,
 } from "@/lib/api"
-import { useDebugMode } from "@/hooks/useDebugMode"
+import { useDebugMode } from "@/hooks/use-debug-mode"
 import { logger, setDebugMode } from "@/lib/logger"
 import { exportDebugData } from "@/lib/performance-logger"
 import type {
+  CacheDebugResponse,
+  CacheDeltaResponse,
   CacheStatus,
+  ChromaDebugResponse,
+
+  DatabaseDebugResponse,
   DebugErrorsResponse,
   LlmLogResponse,
   SourceStats,
-
-  ChromaDebugResponse,
-  DatabaseDebugResponse,
-  StorageDriftReport,
-  StartupMetricsResponse,
   StartupEventMetric,
-  CacheDebugResponse,
-  CacheDeltaResponse} from "@/lib/api"
+  StartupMetricsResponse,
+  StorageDriftReport} from "@/lib/api"
 
 function usePersistentNumber(initial: number, min: number, max: number): [number, (value: number) => void] {
-  const [value, setValue] = useState(initial)
-  const clampAndSet = (next: number) => {
+  const [value, setValue] = useState(initial),
+   clampAndSet = (next: number) => {
     const clamped = Math.min(Math.max(next, min), max)
     setValue(clamped)
   }
@@ -67,36 +68,36 @@ function usePersistentNumber(initial: number, min: number, max: number): [number
 }
 
 const IMAGE_ERROR_LABELS: Record<string, string> = {
-  NO_IMAGE_IN_FEED: "No image in RSS",
-  IMAGE_URL_INVALID: "Invalid image URL",
+  ARTICLE_FETCH_FAILED: "Article fetch failed",
+  FRONTEND_RENDER_FAILED: "Frontend render failed",
   IMAGE_FETCH_FAILED: "Image fetch failed",
   IMAGE_FETCH_TIMEOUT: "Image fetch timeout",
   IMAGE_UNSUPPORTED_TYPE: "Unsupported image type",
+  IMAGE_URL_INVALID: "Invalid image URL",
   MIXED_CONTENT_BLOCKED: "Mixed content blocked",
-  FRONTEND_RENDER_FAILED: "Frontend render failed",
+  NO_IMAGE_IN_FEED: "No image in RSS",
   OG_IMAGE_NOT_FOUND: "No og:image found",
-  ARTICLE_FETCH_FAILED: "Article fetch failed",
-}
+},
 
-const IMAGE_ERROR_DETAILS: Record<string, string> = {
-  NO_IMAGE_IN_FEED: "No image candidates found in the RSS entry.",
-  IMAGE_URL_INVALID: "The article URL is malformed or missing.",
+ IMAGE_ERROR_DETAILS: Record<string, string> = {
+  ARTICLE_FETCH_FAILED: "Failed to download the article HTML.",
+  FRONTEND_RENDER_FAILED: "Browser could not render the image asset.",
   IMAGE_FETCH_FAILED: "Remote server rejected the image request.",
   IMAGE_FETCH_TIMEOUT: "Fetching the image timed out.",
   IMAGE_UNSUPPORTED_TYPE: "Image type is not supported by the extractor.",
+  IMAGE_URL_INVALID: "The article URL is malformed or missing.",
   MIXED_CONTENT_BLOCKED: "HTTPS page blocked an HTTP image URL.",
-  FRONTEND_RENDER_FAILED: "Browser could not render the image asset.",
+  NO_IMAGE_IN_FEED: "No image candidates found in the RSS entry.",
   OG_IMAGE_NOT_FOUND: "No og:image or twitter:image metadata found.",
-  ARTICLE_FETCH_FAILED: "Failed to download the article HTML.",
-}
+},
 
-const getImageErrorLabel = (value?: string | null) => {
-  if (!value) return "None"
+ getImageErrorLabel = (value?: string | null) => {
+  if (!value) {return "None"}
   return IMAGE_ERROR_LABELS[value] || value
-}
+},
 
-const getImageErrorDetails = (value?: string | null) => {
-  if (!value) return ""
+ getImageErrorDetails = (value?: string | null) => {
+  if (!value) {return ""}
   return IMAGE_ERROR_DETAILS[value] || ""
 }
 
@@ -227,67 +228,70 @@ const DEBUG_TABS = [
 
 type DebugTab = (typeof DEBUG_TABS)[number]
 
-const DEFAULT_DEBUG_TAB: DebugTab = "storage"
+const DEFAULT_DEBUG_TAB: DebugTab = "storage",
 
-const isDebugTab = (value: string | null): value is DebugTab =>
-  Boolean(value) && DEBUG_TABS.includes(value as DebugTab)
+ isDebugTab = (value: string | null): value is DebugTab =>
+  Boolean(value) && DEBUG_TABS.includes(value as DebugTab),
 
 
-const pickData = <T, K extends keyof T>(data: T | null | undefined, key: K): T[K] | null =>
-  data?.[key] ?? null
+ pickData = <T, K extends keyof T>(data: T | null | undefined, key: K): T[K] | null =>
+  data?.[key] ?? null,
 
-const pickDataOr = <T, K extends keyof T>(data: T | null | undefined, key: K, fallback: T[K]): T[K] =>
-  data?.[key] ?? fallback
+ pickDataOr = <T, K extends keyof T>(data: T | null | undefined, key: K, fallback: T[K]): T[K] =>
+  data?.[key] ?? fallback,
 
-  const formatTimestamp = (value?: string | null) => {
-    if (!value) return "—"
+   formatTimestamp = (value?: string | null) => {
+    if (!value) {return "—"}
     const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
+    if (Number.isNaN(date.getTime())) {return value}
     return date.toLocaleString()
-  }
+  },
 
-  const formatDuration = (value?: number | null, fallback = "—") => {
-    if (value == null) return fallback
+   formatDuration = (value?: number | null, fallback = "—") => {
+    if (value == null) {return fallback}
     if (value > 1000) {
       return `${Math.round(value).toLocaleString()}s`
     }
     return `${value.toFixed(2)}s`
-  }
+  },
 
-  const sourceStatusTone = (status: SourceStats["status"]) => {
+   sourceStatusTone = (status: SourceStats["status"]) => {
     switch (status) {
-      case "success":
+      case "success": {
         return "text-emerald-600 dark:text-emerald-400"
-      case "warning":
+      }
+      case "warning": {
         return "text-amber-600 dark:text-amber-400"
-      default:
+      }
+      default: {
         return "text-red-600 dark:text-red-400"
+      }
     }
-  }
+  },
 
-  const formatMetadataValue = (value: unknown): string | null => {
-    if (value == null) return null
-    if (typeof value === "number") return value.toString()
-    if (typeof value === "string") return value
-    if (typeof value === "boolean") return value ? "true" : "false"
+   formatMetadataValue = (value: unknown): string | null => {
+    if (value == null) {return undefined}
+    if (typeof value === "number") {return value.toString()}
+    if (typeof value === "string") {return value}
+    if (typeof value === "boolean") {return value ? "true" : "false"}
     try {
       return JSON.stringify(value)
     } catch {
       return String(value)
     }
-  }
+  },
 
-  const renderMetadataBadges = (metadata?: Record<string, unknown>) => {
-    if (!metadata) return null
+   renderMetadataBadges = (metadata?: Record<string, unknown>) => {
+    if (!metadata) {return undefined}
     const descriptors = [
-      { label: "cache", key: "cache_size" },
-      { label: "migrated", key: "article_count" },
-      { label: "vectors", key: "documents" },
+      { key: "cache_size", label: "cache" },
+      { key: "article_count", label: "migrated" },
+      { key: "documents", label: "vectors" },
     ]
 
     return descriptors.map(({ label, key }) => {
       const value = formatMetadataValue(metadata[key])
-      if (!value) return null
+      if (!value) {return undefined}
       return (
         <span key={`${label}-${value}`} className="ml-1 text-muted-foreground">
           • {label}: {value}
@@ -296,123 +300,147 @@ const pickDataOr = <T, K extends keyof T>(data: T | null | undefined, key: K, fa
     })
   }
 
-type SystemStatusSectionProps = {
+interface SystemStatusSectionProps {
   systemStatus: SystemStatusResponse | null;
   startupMetrics: StartupMetricsResponse | null;
   startupEvents: StartupEventMetric[];
   onRefreshStatus: () => void;
 }
 
+interface StatusLine {
+  label: string;
+  value: ReactNode;
+}
+
+interface PipelineSignal {
+  detail: ReactNode;
+  label: string;
+  value: ReactNode;
+}
+
+function healthLabel(healthy: boolean | undefined, healthyLabel: string, unhealthyLabel: string) {
+  return healthy === true ? healthyLabel : unhealthyLabel;
+}
+
+function StatusLines({ items, muted = false }:Readonly< { items: readonly StatusLine[]; muted?: boolean }>) {
+  const className = muted ? "space-y-2 text-sm text-muted-foreground" : "space-y-2 text-sm";
+  return (
+    <div className={className}>
+      {items.map((item) => (
+        <p key={item.label}>
+          {item.label}: {item.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function SystemStatusDetails({ systemStatus }:Readonly< { systemStatus: SystemStatusResponse | null }>) {
+  if (systemStatus === null) {
+    return <p className="text-sm text-muted-foreground">Loading system status...</p>;
+  }
+
+  const { components = {}, runtime = {} } = systemStatus,
+   { cache = {}, database = {}, vector_store: vectorStore = {}, embedding_queue: embeddingQueue = {} } = components,
+   componentItems: readonly StatusLine[] = [
+    { label: "Cache", value: `${healthLabel(cache.healthy, "Healthy", "Unhealthy")} (${cache.article_count ?? ""} articles)` },
+    { label: "Cache updated", value: formatTimestamp(cache.last_updated) },
+    { label: "Cache age", value: formatDuration(cache.age_seconds) },
+    { label: "Cache refresh", value: healthLabel(cache.update_in_progress, "Running", "Idle") },
+    { label: "Cache updates", value: cache.update_count ?? "—" },
+    { label: "Incremental cache", value: healthLabel(cache.incremental_enabled, "Enabled", "Disabled") },
+    { label: "Sources tracked", value: cache.sources_tracked ?? "—" },
+    { label: "Database", value: healthLabel(database.healthy, "Healthy", "Unavailable") },
+    { label: "Vector Store", value: healthLabel(vectorStore.healthy, "Healthy", "Unavailable") },
+    { label: "Embedding queue", value: embeddingQueue.depth ?? "—" },
+  ],
+   runtimeItems: readonly StatusLine[] = [
+    { label: "Python", value: runtime.python_version?.split(" ")[0] },
+    { label: "Platform", value: runtime.platform },
+    { label: "PID", value: runtime.pid },
+  ];
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div>
+        <h3 className="font-medium mb-2">Components</h3>
+        <StatusLines items={componentItems} />
+      </div>
+      <div>
+        <h3 className="font-medium mb-2">Runtime</h3>
+        <StatusLines items={runtimeItems} muted />
+      </div>
+    </div>
+  );
+}
+
+function PipelineSignalsCard({ systemStatus }:Readonly< { systemStatus: SystemStatusResponse | null }>) {
+  const { components = {}, pipeline = {} } = systemStatus ?? {},
+   { embedding_queue: embeddingQueue = {} } = components,
+   { fetch = {} } = pipeline,
+   signals: readonly PipelineSignal[] = [
+    {
+      detail: "Not-modified responses in current run",
+      label: "ETag hits",
+      value: fetch.not_modified ?? "—",
+    },
+    { detail: "Failures during feed fetch", label: "Fetch errors", value: fetch.errors ?? "—" },
+    {
+      detail: `Batch size ${embeddingQueue.batch_size ?? "—"} · max/min ${embeddingQueue.max_per_minute ?? "—"}`,
+      label: "Embedding queue depth",
+      value: embeddingQueue.depth ?? "—",
+    },
+  ];
+
+  return (
+    <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+      <CardHeader>
+        <CardTitle className="font-serif">Pipeline Signals</CardTitle>
+        <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
+          RSS fetch cadence, cache behavior, and embeddings
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
+        {signals.map((signal) => (
+          <div key={signal.label}>
+            <p className="text-muted-foreground">{signal.label}</p>
+            <p className="text-lg font-semibold">{signal.value}</p>
+            <p className="text-xs text-muted-foreground">{signal.detail}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 function SystemStatusSection({ systemStatus, startupMetrics, startupEvents, onRefreshStatus }: SystemStatusSectionProps) {
   return (
     <TabsContent value="system" className="space-y-4">
-<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-serif">System Status</CardTitle>
-              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">Component health and runtime information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {systemStatus ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <h3 className="font-medium mb-2">Components</h3>
-                    <div className="space-y-2 text-sm">
-                      <p>
-                        Cache: {systemStatus.components?.cache?.healthy ? "Healthy" : "Unhealthy"}
-                        ({systemStatus.components?.cache?.article_count} articles)
-                      </p>
-                      <p>
-                        Cache updated: {formatTimestamp(systemStatus.components?.cache?.last_updated)}
-                      </p>
-                      <p>
-                        Cache age: {formatDuration(systemStatus.components?.cache?.age_seconds)}
-                      </p>
-                      <p>
-                        Cache refresh: {systemStatus.components?.cache?.update_in_progress ? "Running" : "Idle"}
-                      </p>
-                      <p>
-                        Cache updates: {systemStatus.components?.cache?.update_count ?? "—"}
-                      </p>
-                      <p>
-                        Incremental cache: {systemStatus.components?.cache?.incremental_enabled ? "Enabled" : "Disabled"}
-                      </p>
-                      <p>
-                        Sources tracked: {systemStatus.components?.cache?.sources_tracked ?? "—"}
-                      </p>
-                      <p>
-                        Database: {systemStatus.components?.database?.healthy ? "Healthy" : "Unavailable"}
-                      </p>
-                      <p>
-                        Vector Store: {systemStatus.components?.vector_store?.healthy ? "Healthy" : "Unavailable"}
-                      </p>
-                      <p>
-                        Embedding queue: {systemStatus.components?.embedding_queue?.depth ?? "—"}
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-medium mb-2">Runtime</h3>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <p>Python: {systemStatus.runtime?.python_version?.split(" ")[0]}</p>
-                      <p>Platform: {systemStatus.runtime?.platform}</p>
-                      <p>PID: {systemStatus.runtime?.pid}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Loading system status...</p>
-              )}
-              <Button variant="outline" size="sm" onClick={onRefreshStatus}>
-                Refresh Status
-              </Button>
-            </CardContent>
-          </Card>
-<Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="font-serif">Pipeline Signals</CardTitle>
-              <CardDescription className="font-mono text-[10px] tracking-widest uppercase">RSS fetch cadence, cache behavior, and embeddings</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
-              <div>
-                <p className="text-muted-foreground">ETag hits</p>
-                <p className="text-lg font-semibold">
-                  {systemStatus?.pipeline?.fetch?.not_modified ?? "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Not-modified responses in current run
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Fetch errors</p>
-                <p className="text-lg font-semibold">
-                  {systemStatus?.pipeline?.fetch?.errors ?? "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Failures during feed fetch
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Embedding queue depth</p>
-                <p className="text-lg font-semibold">
-                  {systemStatus?.components?.embedding_queue?.depth ?? "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Batch size {systemStatus?.components?.embedding_queue?.batch_size ?? "—"} ·
-                  max/min {systemStatus?.components?.embedding_queue?.max_per_minute ?? "—"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <StartupTimelineCard
-            startupMetrics={startupMetrics}
-            startupEvents={startupEvents}
-            detailFallback="-"
-          />
+      <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
+        <CardHeader>
+          <CardTitle className="font-serif">System Status</CardTitle>
+          <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
+            Component health and runtime information
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SystemStatusDetails systemStatus={systemStatus} />
+          <Button variant="outline" size="sm" onClick={onRefreshStatus}>
+            Refresh Status
+          </Button>
+        </CardContent>
+      </Card>
+      <PipelineSignalsCard systemStatus={systemStatus} />
+      <StartupTimelineCard
+        startupMetrics={startupMetrics}
+        startupEvents={startupEvents}
+        detailFallback="-"
+      />
     </TabsContent>
   )
 }
 
-type SourcesSectionProps = {
+interface SourcesSectionProps {
   sourceStats: SourceStats[];
   cacheStatus: CacheStatus | null;
   cacheRefreshMessage: string | null;
@@ -423,9 +451,9 @@ type SourcesSectionProps = {
 }
 
 function SourcesSection({ sourceStats, cacheStatus, cacheRefreshMessage, cacheRefreshError, cacheRefreshRunning, onRefresh, onRefreshCache }: SourcesSectionProps) {
-  const healthySources = sourceStats.filter((source) => source.status === "success").length
-  const warningSources = sourceStats.filter((source) => source.status === "warning").length
-  const failedSources = sourceStats.filter((source) => source.status === "error").length
+  const healthySources = sourceStats.filter((source) => source.status === "success").length,
+   warningSources = sourceStats.filter((source) => source.status === "warning").length,
+   failedSources = sourceStats.filter((source) => source.status === "error").length
   return (
 <TabsContent value="sources" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -582,7 +610,7 @@ function SourcesSection({ sourceStats, cacheStatus, cacheRefreshMessage, cacheRe
   )
 }
 
-type StartupTimelineCardProps = {
+interface StartupTimelineCardProps {
   startupMetrics: StartupMetricsResponse | null;
   startupEvents: StartupEventMetric[];
   detailFallback?: string;
@@ -624,7 +652,7 @@ function StartupTimelineCard({ startupMetrics, startupEvents, detailFallback = "
                 <TableBody>
                   {startupEvents.map((event) => (
                     <TableRow key={`${event.name}-${event.startedAt}`}>
-                      <TableCell className="font-medium capitalize">{event.name.replace(/_/g, " ")}</TableCell>
+                      <TableCell className="font-medium capitalize">{event.name.replaceAll('_', " ")}</TableCell>
                       <TableCell>{formatDuration(event.durationSeconds)}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {event.detail || detailFallback}
@@ -646,7 +674,7 @@ function StartupTimelineCard({ startupMetrics, startupEvents, detailFallback = "
   )
 }
 
-type StorageSectionProps = {
+interface StorageSectionProps {
   chromaData: ChromaDebugResponse | null;
   dbData: DatabaseDebugResponse | null;
   driftData: StorageDriftReport | null;
@@ -682,15 +710,15 @@ type StorageSectionProps = {
   onApplyDbFilters: () => void;
 }
 
-function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chromaLimit, setChromaLimit, chromaOffset, setChromaOffset, dbLimit, setDbLimit, dbOffset, setDbOffset, dbSortDirection, setDbSortDirection, dbMissingOnly, setDbMissingOnly, cacheLimit, setCacheLimit, cacheOffset, setCacheOffset }: { chromaData: ChromaDebugResponse | null; dbData: DatabaseDebugResponse | null; cacheData: CacheDebugResponse | null; chromaLimit: number; setChromaLimit: (value: number) => void; chromaOffset: number; setChromaOffset: (value: number) => void; dbLimit: number; setDbLimit: (value: number) => void; dbOffset: number; setDbOffset: (value: number) => void; dbSortDirection: "asc" | "desc"; setDbSortDirection: (value: "asc" | "desc") => void; dbMissingOnly: boolean; setDbMissingOnly: (value: boolean) => void; cacheLimit: number; setCacheLimit: (value: number) => void; cacheOffset: number; setCacheOffset: (value: number) => void; driftStats: StorageDriftReport | null; }) {
+function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chromaLimit, setChromaLimit, chromaOffset, setChromaOffset, dbLimit, setDbLimit, dbOffset, setDbOffset, dbSortDirection, setDbSortDirection, dbMissingOnly, setDbMissingOnly, cacheLimit, setCacheLimit, cacheOffset, setCacheOffset }:Readonly< { chromaData: ChromaDebugResponse | null; dbData: DatabaseDebugResponse | null; cacheData: CacheDebugResponse | null; chromaLimit: number; setChromaLimit: (value: number) => void; chromaOffset: number; setChromaOffset: (value: number) => void; dbLimit: number; setDbLimit: (value: number) => void; dbOffset: number; setDbOffset: (value: number) => void; dbSortDirection: "asc" | "desc"; setDbSortDirection: (value: "asc" | "desc") => void; dbMissingOnly: boolean; setDbMissingOnly: (value: boolean) => void; cacheLimit: number; setCacheLimit: (value: number) => void; cacheOffset: number; setCacheOffset: (value: number) => void; driftStats: StorageDriftReport | null; }>) {
   const chromaStats = chromaData
-    ? { total: chromaData.total ?? chromaData.returned, showing: chromaData.returned }
-    : null
-  const dbStats = dbData
-    ? { total: dbData.total, showing: dbData.returned, oldest: dbData.oldest_published, newest: dbData.newest_published }
-    : null
-  const cacheStats = cacheData
-    ? { total: cacheData.total, showing: cacheData.returned }
+    ? { showing: chromaData.returned, total: chromaData.total ?? chromaData.returned }
+    : null,
+   dbStats = dbData
+    ? { newest: dbData.newest_published, oldest: dbData.oldest_published, showing: dbData.returned, total: dbData.total }
+    : null,
+   cacheStats = cacheData
+    ? { showing: cacheData.returned, total: cacheData.total }
     : null
   return (
   <div className="grid gap-4 md:grid-cols-4">
@@ -705,7 +733,7 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                   <span>Limit</span>
                   <Select
                     value={String(cacheLimit)}
-                    onValueChange={(value) => setCacheLimit(Number(value))}
+                    onValueChange={(value) =>{  setCacheLimit(Number(value)); }}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue />
@@ -723,7 +751,7 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                     type="number"
                     className="w-24"
                     value={cacheOffset}
-                    onChange={(event) => setCacheOffset(Number(event.target.value))}
+                    onChange={(event) =>{  setCacheOffset(Number(event.target.value)); }}
                   />
                 </div>
               </CardContent>
@@ -739,7 +767,7 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                   <span>Limit</span>
                   <Select
                     value={String(chromaLimit)}
-                    onValueChange={(value) => setChromaLimit(Number(value))}
+                    onValueChange={(value) =>{  setChromaLimit(Number(value)); }}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue />
@@ -757,7 +785,7 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                     type="number"
                     className="w-24"
                     value={chromaOffset}
-                    onChange={(event) => setChromaOffset(Number(event.target.value))}
+                    onChange={(event) =>{  setChromaOffset(Number(event.target.value)); }}
                   />
                 </div>
               </CardContent>
@@ -778,13 +806,13 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                     <input
                       type="checkbox"
                       checked={dbMissingOnly}
-                      onChange={(event) => setDbMissingOnly(event.target.checked)}
+                      onChange={(event) =>{  setDbMissingOnly(event.target.checked); }}
                     />
                     Missing embeddings only
                   </label>
                   <Select
                     value={dbSortDirection}
-                    onValueChange={(value: "asc" | "desc") => setDbSortDirection(value)}
+                    onValueChange={(value: "asc" | "desc") =>{  setDbSortDirection(value); }}
                   >
                     <SelectTrigger className="w-[110px]">
                       <SelectValue />
@@ -798,14 +826,14 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
                     type="number"
                     className="w-24"
                     value={dbOffset}
-                    onChange={(event) => setDbOffset(Number(event.target.value))}
+                    onChange={(event) =>{  setDbOffset(Number(event.target.value)); }}
                     placeholder="Offset"
                   />
                   <Input
                     type="number"
                     className="w-24"
                     value={dbLimit}
-                    onChange={(event) => setDbLimit(Number(event.target.value))}
+                    onChange={(event) =>{  setDbLimit(Number(event.target.value)); }}
                     placeholder="Limit"
                   />
                 </div>
@@ -827,7 +855,7 @@ function StorageSnapshotSection({ chromaData, dbData, driftStats, cacheData, chr
   )
 }
 
-function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilters, dbSourceDraft, setDbSourceDraft, dbBeforeDraft, setDbBeforeDraft, dbAfterDraft, setDbAfterDraft, onApplyDbFilters }: { cacheSourceDraft: string; setCacheSourceDraft: (value: string) => void; onApplyCacheFilters: () => void; dbSourceDraft: string; setDbSourceDraft: (value: string) => void; dbBeforeDraft: string; setDbBeforeDraft: (value: string) => void; dbAfterDraft: string; setDbAfterDraft: (value: string) => void; onApplyDbFilters: () => void; }) {
+function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilters, dbSourceDraft, setDbSourceDraft, dbBeforeDraft, setDbBeforeDraft, dbAfterDraft, setDbAfterDraft, onApplyDbFilters }:Readonly< { cacheSourceDraft: string; setCacheSourceDraft: (value: string) => void; onApplyCacheFilters: () => void; dbSourceDraft: string; setDbSourceDraft: (value: string) => void; dbBeforeDraft: string; setDbBeforeDraft: (value: string) => void; dbAfterDraft: string; setDbAfterDraft: (value: string) => void; onApplyDbFilters: () => void; }>) {
   return (
     <>
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
@@ -838,7 +866,7 @@ function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCach
                   placeholder="Source (e.g. bbc)"
                   className="w-40"
                   value={cacheSourceDraft}
-                  onChange={(event) => setCacheSourceDraft(event.target.value)}
+                  onChange={(event) =>{  setCacheSourceDraft(event.target.value); }}
                 />
                 <Button variant="secondary" onClick={onApplyCacheFilters}>
                   Apply filters
@@ -854,20 +882,20 @@ function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCach
                   placeholder="Source (e.g. bbc)"
                   className="w-40"
                   value={dbSourceDraft}
-                  onChange={(event) => setDbSourceDraft(event.target.value)}
+                  onChange={(event) =>{  setDbSourceDraft(event.target.value); }}
                 />
                 <Input
                   type="datetime-local"
                   className="w-56"
                   value={dbAfterDraft}
-                  onChange={(event) => setDbAfterDraft(event.target.value)}
+                  onChange={(event) =>{  setDbAfterDraft(event.target.value); }}
                   placeholder="Published after"
                 />
                 <Input
                   type="datetime-local"
                   className="w-56"
                   value={dbBeforeDraft}
-                  onChange={(event) => setDbBeforeDraft(event.target.value)}
+                  onChange={(event) =>{  setDbBeforeDraft(event.target.value); }}
                   placeholder="Published before"
                 />
                 <Button variant="secondary" onClick={onApplyDbFilters}>
@@ -881,7 +909,7 @@ function StorageFilterCards({ cacheSourceDraft, setCacheSourceDraft, onApplyCach
   )
 }
 
-type CacheDeltaCardProps = { cacheDelta: CacheDeltaResponse | null }
+interface CacheDeltaCardProps { cacheDelta: CacheDeltaResponse | null }
 
 function CacheDeltaCard({ cacheDelta }: CacheDeltaCardProps) {
   return (
@@ -930,7 +958,7 @@ function CacheDeltaCard({ cacheDelta }: CacheDeltaCardProps) {
   )
 }
 
-function ChromaDocumentsCard({ chromaData }: { chromaData: ChromaDebugResponse | null }) {
+function ChromaDocumentsCard({ chromaData }:Readonly< { chromaData: ChromaDebugResponse | null }>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -971,7 +999,7 @@ function ChromaDocumentsCard({ chromaData }: { chromaData: ChromaDebugResponse |
   )
 }
 
-function CachedArticlesCard({ cacheData }: { cacheData: CacheDebugResponse | null }) {
+function CachedArticlesCard({ cacheData }:Readonly< { cacheData: CacheDebugResponse | null }>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1016,7 +1044,7 @@ function CachedArticlesCard({ cacheData }: { cacheData: CacheDebugResponse | nul
   )
 }
 
-function PostgresArticlesCard({ dbData }: { dbData: DatabaseDebugResponse | null }) {
+function PostgresArticlesCard({ dbData }:Readonly< { dbData: DatabaseDebugResponse | null }>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1075,9 +1103,9 @@ function PostgresArticlesCard({ dbData }: { dbData: DatabaseDebugResponse | null
   )
 }
 
-function DriftSamplesCard({ driftData }: { driftData: StorageDriftReport | null }) {
-  const missingSamples = driftData?.missing_in_chroma?.slice(0, 20) ?? []
-  const danglingSamples = driftData?.dangling_in_chroma?.slice(0, 20) ?? []
+function DriftSamplesCard({ driftData }:Readonly< { driftData: StorageDriftReport | null }>) {
+  const missingSamples = driftData?.missing_in_chroma?.slice(0, 20) ?? [],
+   danglingSamples = driftData?.dangling_in_chroma?.slice(0, 20) ?? []
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1168,7 +1196,7 @@ function StorageSection(props: StorageSectionProps) {
   )
 }
 
-type ParserSectionProps = {
+interface ParserSectionProps {
   rssTestUrl: string;
   setRssTestUrl: (value: string) => void;
   rssTestResult: RssParserTestResult | null;
@@ -1181,9 +1209,9 @@ type ParserSectionProps = {
   testArticleParser: () => void;
 }
 
-function RssParserCard({ rssTestUrl, setRssTestUrl, rssTestResult, rssTestLoading, testRssParser }: {
+function RssParserCard({ rssTestUrl, setRssTestUrl, rssTestResult, rssTestLoading, testRssParser }:Readonly< {
   rssTestUrl: string; setRssTestUrl: (value: string) => void; rssTestResult: RssParserTestResult | null; rssTestLoading: boolean; testRssParser: () => void;
-}) {
+}>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1195,7 +1223,7 @@ function RssParserCard({ rssTestUrl, setRssTestUrl, rssTestResult, rssTestLoadin
                 <Input
                   placeholder="Enter RSS feed URL..."
                   value={rssTestUrl}
-                  onChange={(e) => setRssTestUrl(e.target.value)}
+                  onChange={(e) =>{  setRssTestUrl(e.target.value); }}
                   className="flex-1"
                 />
                 <Button onClick={testRssParser} disabled={rssTestLoading}>
@@ -1254,9 +1282,9 @@ function RssParserCard({ rssTestUrl, setRssTestUrl, rssTestResult, rssTestLoadin
   )
 }
 
-function ArticleParserCard({ articleTestUrl, setArticleTestUrl, articleTestResult, articleTestLoading, testArticleParser }: {
+function ArticleParserCard({ articleTestUrl, setArticleTestUrl, articleTestResult, articleTestLoading, testArticleParser }:Readonly< {
   articleTestUrl: string; setArticleTestUrl: (value: string) => void; articleTestResult: ArticleParserTestResult | null; articleTestLoading: boolean; testArticleParser: () => void;
-}) {
+}>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1268,7 +1296,7 @@ function ArticleParserCard({ articleTestUrl, setArticleTestUrl, articleTestResul
                 <Input
                   placeholder="Enter article URL..."
                   value={articleTestUrl}
-                  onChange={(e) => setArticleTestUrl(e.target.value)}
+                  onChange={(e) =>{  setArticleTestUrl(e.target.value); }}
                   className="flex-1"
                 />
                 <Button onClick={testArticleParser} disabled={articleTestLoading}>
@@ -1352,7 +1380,7 @@ function ParserSection(props: ParserSectionProps) {
   )
 }
 
-type ControlsSectionProps = {
+interface ControlsSectionProps {
   logLevel: string;
   onSetLogLevel: (level: string) => void;
   frontendDebugMode: boolean;
@@ -1416,7 +1444,7 @@ function ControlsSection({ logLevel, onSetLogLevel, frontendDebugMode, onToggleF
   )
 }
 
-type LlmSectionProps = {
+interface LlmSectionProps {
   llmLogs: LlmLogResponse | null;
   onRefresh: () => void;
 }
@@ -1500,7 +1528,7 @@ function LlmSection({ llmLogs, onRefresh }: LlmSectionProps) {
                           <span className={entry.success ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
                             {entry.success ? "success" : "failed"}
                           </span>
-                          <span>{entry.duration_ms != null ? `${Math.round(entry.duration_ms)}ms` : "—"}</span>
+                          <span>{entry.duration_ms == null ? "—" : `${Math.round(entry.duration_ms)}ms`}</span>
                           <span>{entry.messages?.length ?? 0} messages</span>
                         </div>
                       </div>
@@ -1524,7 +1552,7 @@ function LlmSection({ llmLogs, onRefresh }: LlmSectionProps) {
   )
 }
 
-type ErrorsSectionProps = {
+interface ErrorsSectionProps {
   debugErrors: DebugErrorsResponse | null;
   onRefresh: () => void;
 }
@@ -1633,7 +1661,7 @@ function ErrorsSection({ debugErrors, onRefresh }: ErrorsSectionProps) {
   )
 }
 
-type PerformanceSectionProps = {
+interface PerformanceSectionProps {
   backendDebugReport: BackendDebugReport | null;
   backendLogEvents: UnknownRecord[];
   backendSlowOps: UnknownRecord[];
@@ -1642,8 +1670,8 @@ type PerformanceSectionProps = {
   onRefresh: () => void;
 }
 
-function PerformanceReportCard({ backendDebugReport }: { backendDebugReport: BackendDebugReport | null }) {
-  if (!backendDebugReport) return null
+function PerformanceReportCard({ backendDebugReport }:Readonly< { backendDebugReport: BackendDebugReport | null }>) {
+  if (!backendDebugReport) {return undefined}
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
@@ -1679,7 +1707,7 @@ function PerformanceReportCard({ backendDebugReport }: { backendDebugReport: Bac
                     <div className="space-y-2">
                       {(backendDebugReport.active_streams ?? []).map((stream: Record<string, unknown>, idx: number) => (
                         <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                          <span className="font-mono">{String(stream.stream_id).substring(0, 8)}...</span>
+                          <span className="font-mono">{String(stream.stream_id).slice(0, 8)}...</span>
                           <span>{stream.request_path as string}</span>
                           <span className="text-muted-foreground">
                             {((stream.duration_so_far as number) || 0).toFixed(1)}s
@@ -1710,8 +1738,8 @@ function PerformanceReportCard({ backendDebugReport }: { backendDebugReport: Bac
   )
 }
 
-function SlowOperationsCard({ backendSlowOps }: { backendSlowOps: UnknownRecord[] }) {
-  if (backendSlowOps.length === 0) return null
+function SlowOperationsCard({ backendSlowOps }:Readonly< { backendSlowOps: UnknownRecord[] }>) {
+  if (backendSlowOps.length === 0) {return undefined}
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
@@ -1733,7 +1761,7 @@ function SlowOperationsCard({ backendSlowOps }: { backendSlowOps: UnknownRecord[
                           {String(op.event_type)}
                         </span>
                         <span className="font-mono text-muted-foreground">
-                          {op.stream_id ? String(op.stream_id).substring(0, 8) : op.request_id ? String(op.request_id).substring(0, 8) : ""}
+                          {op.stream_id ? String(op.stream_id).slice(0, 8) : (op.request_id ? String(op.request_id).slice(0, 8) : "")}
                         </span>
                       </div>
                       <span className="text-red-600 font-medium">
@@ -1748,7 +1776,7 @@ function SlowOperationsCard({ backendSlowOps }: { backendSlowOps: UnknownRecord[
   )
 }
 
-function BackendEventsCard({ backendLogEvents }: { backendLogEvents: UnknownRecord[] }) {
+function BackendEventsCard({ backendLogEvents }:Readonly< { backendLogEvents: UnknownRecord[] }>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1784,8 +1812,8 @@ function BackendEventsCard({ backendLogEvents }: { backendLogEvents: UnknownReco
   )
 }
 
-function FrontendPerfCard({ frontendPerfData }: { frontendPerfData: ReturnType<typeof exportDebugData> | null }) {
-  if (!frontendPerfData) return null
+function FrontendPerfCard({ frontendPerfData }:Readonly< { frontendPerfData: ReturnType<typeof exportDebugData> | null }>) {
+  if (!frontendPerfData) {return undefined}
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
               <CardHeader>
@@ -1819,7 +1847,7 @@ function FrontendPerfCard({ frontendPerfData }: { frontendPerfData: ReturnType<t
                     <div className="space-y-1">
                       {frontendPerfData.activeStreams.map((stream, idx) => (
                         <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                          <span className="font-mono text-xs">{stream.streamId.substring(0, 12)}...</span>
+                          <span className="font-mono text-xs">{stream.streamId.slice(0, 12)}...</span>
                           <span>{stream.eventCount} events</span>
                           <span className="text-muted-foreground">
                             {((Date.now() - stream.startTime) / 1000).toFixed(1)}s
@@ -1841,8 +1869,8 @@ function FrontendPerfCard({ frontendPerfData }: { frontendPerfData: ReturnType<t
                         </span>
                         <span className={`px-1 rounded ${
                           event.eventType === "error" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                          event.eventType === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                          "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                          (event.eventType === "stream_event" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                          "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300")
                         }`}>
                           {event.eventType}
                         </span>
@@ -1857,7 +1885,7 @@ function FrontendPerfCard({ frontendPerfData }: { frontendPerfData: ReturnType<t
   )
 }
 
-function LogFilesCard({ backendLogFiles }: { backendLogFiles: UnknownRecord[] }) {
+function LogFilesCard({ backendLogFiles }:Readonly< { backendLogFiles: UnknownRecord[] }>) {
   return (
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader>
@@ -1908,44 +1936,87 @@ function PerformanceSection(props: PerformanceSectionProps) {
 }
 
 export default function DebugDashboardPage() {
-  const router = useRouter()
-  const [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500)
-  const [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000)
+  const router = useRouter(),
+   [chromaLimit, setChromaLimit] = usePersistentNumber(25, 5, 500),
+   [chromaOffset, setChromaOffset] = usePersistentNumber(0, 0, 5000),
 
-  const [dbLimit, setDbLimit] = usePersistentNumber(25, 5, 200)
-  const [dbOffset, setDbOffset] = usePersistentNumber(0, 0, 5000)
-  const [dbSortDirection, setDbSortDirection] = useState<"asc" | "desc">("desc")
-  const [dbMissingOnly, setDbMissingOnly] = useState(false)
-  const [dbSourceDraft, setDbSourceDraft] = useState("")
-  const [dbSourceFilter, setDbSourceFilter] = useState<string | undefined>(undefined)
-  const [dbBeforeDraft, setDbBeforeDraft] = useState("")
-  const [dbBeforeFilter, setDbBeforeFilter] = useState<string | undefined>(undefined)
-  const [dbAfterDraft, setDbAfterDraft] = useState("")
-  const [dbAfterFilter, setDbAfterFilter] = useState<string | undefined>(undefined)
+   [dbLimit, setDbLimit] = usePersistentNumber(25, 5, 200),
+   [dbOffset, setDbOffset] = usePersistentNumber(0, 0, 5000),
+   [dbSortDirection, setDbSortDirection] = useState<"asc" | "desc">("desc"),
+   [dbMissingOnly, setDbMissingOnly] = useState(false),
+   [dbSourceDraft, setDbSourceDraft] = useState(""),
+   [dbSourceFilter, setDbSourceFilter] = useState<string | undefined>(),
+   [dbBeforeDraft, setDbBeforeDraft] = useState(""),
+   [dbBeforeFilter, setDbBeforeFilter] = useState<string | undefined>(),
+   [dbAfterDraft, setDbAfterDraft] = useState(""),
+   [dbAfterFilter, setDbAfterFilter] = useState<string | undefined>(),
 
-  const [cacheLimit, setCacheLimit] = usePersistentNumber(25, 5, 500)
-  const [cacheOffset, setCacheOffset] = usePersistentNumber(0, 0, 5000)
-  const [cacheSourceDraft, setCacheSourceDraft] = useState("")
-  const [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(undefined)
+   [cacheLimit, setCacheLimit] = usePersistentNumber(25, 5, 500),
+   [cacheOffset, setCacheOffset] = usePersistentNumber(0, 0, 5000),
+   [cacheSourceDraft, setCacheSourceDraft] = useState(""),
+   [cacheSourceFilter, setCacheSourceFilter] = useState<string | undefined>(),
 
   // Phase 3: New state for system status, log level, parser tester
-  const [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB)
-  const [embedded, setEmbedded] = useState(false)
-  const frontendDebugMode = useDebugMode()
-  const [cacheRefreshRunning, setCacheRefreshRunning] = useState(false)
-  const [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(null)
-  const [cacheRefreshError, setCacheRefreshError] = useState<string | null>(null)
+   [activeTab, setActiveTab] = useState<DebugTab>(DEFAULT_DEBUG_TAB),
+   [embedded, setEmbedded] = useState(false),
+   frontendDebugMode = useDebugMode(),
+   [cacheRefreshRunning, setCacheRefreshRunning] = useState(false),
+   [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | null>(undefined),
+   [cacheRefreshError, setCacheRefreshError] = useState<string | null>(undefined),
 
   // Parser tester state
-  const [rssTestUrl, setRssTestUrl] = useState("")
-  const [rssTestResult, setRssTestResult] = useState<RssParserTestResult | null>(null)
-  const [rssTestLoading, setRssTestLoading] = useState(false)
-  const [articleTestUrl, setArticleTestUrl] = useState("")
-  const [articleTestResult, setArticleTestResult] = useState<ArticleParserTestResult | null>(null)
-  const [articleTestLoading, setArticleTestLoading] = useState(false)
+   [rssTestUrl, setRssTestUrl] = useState(""),
+   [rssTestResult, setRssTestResult] = useState<RssParserTestResult | null>(undefined),
+   [rssTestLoading, setRssTestLoading] = useState(false),
+   [articleTestUrl, setArticleTestUrl] = useState(""),
+   [articleTestResult, setArticleTestResult] = useState<ArticleParserTestResult | null>(undefined),
+   [articleTestLoading, setArticleTestLoading] = useState(false),
 
   // Performance logging state
-  const dashboardDataQuery = useQuery<DashboardData>({
+   dashboardDataQuery = useQuery<DashboardData>({
+    queryFn: async () => {
+      const [
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+        cacheData,
+        cacheDelta,
+      ] = await Promise.all([
+        fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
+        fetchDatabaseDebugArticles({
+          limit: dbLimit,
+          missing_embeddings_only: dbMissingOnly,
+          offset: dbOffset,
+          published_after: dbAfterFilter,
+          published_before: dbBeforeFilter,
+          sort_direction: dbSortDirection,
+          source: dbSourceFilter,
+        }),
+        fetchStorageDrift(100),
+        fetchStartupMetrics(),
+        fetchCacheDebugArticles({
+          limit: cacheLimit,
+          offset: cacheOffset,
+          source: cacheSourceFilter,
+        }),
+        fetchCacheDelta({
+          sample_limit: cacheLimit,
+          sample_offset: cacheOffset,
+          sample_preview_limit: 50,
+          source: cacheSourceFilter,
+        }),
+      ])
+
+      return {
+        cacheData,
+        cacheDelta,
+        chromaData,
+        dbData,
+        driftData,
+        startupMetrics,
+      }
+    },
     queryKey: [
       "debug-dashboard",
       chromaLimit,
@@ -1961,68 +2032,24 @@ export default function DebugDashboardPage() {
       cacheOffset,
       cacheSourceFilter,
     ],
-    queryFn: async () => {
-      const [
-        chromaData,
-        dbData,
-        driftData,
-        startupMetrics,
-        cacheData,
-        cacheDelta,
-      ] = await Promise.all([
-        fetchChromaDebugArticles({ limit: chromaLimit, offset: chromaOffset }),
-        fetchDatabaseDebugArticles({
-          limit: dbLimit,
-          offset: dbOffset,
-          source: dbSourceFilter,
-          missing_embeddings_only: dbMissingOnly,
-          sort_direction: dbSortDirection,
-          published_before: dbBeforeFilter,
-          published_after: dbAfterFilter,
-        }),
-        fetchStorageDrift(100),
-        fetchStartupMetrics(),
-        fetchCacheDebugArticles({
-          limit: cacheLimit,
-          offset: cacheOffset,
-          source: cacheSourceFilter,
-        }),
-        fetchCacheDelta({
-          sample_limit: cacheLimit,
-          sample_offset: cacheOffset,
-          source: cacheSourceFilter,
-          sample_preview_limit: 50,
-        }),
-      ])
-
-      return {
-        chromaData,
-        dbData,
-        driftData,
-        startupMetrics,
-        cacheData,
-        cacheDelta,
-      }
-    },
     retry: 1,
-  })
-  const loadData = () => {
+  }),
+   loadData = () => {
     void dashboardDataQuery.refetch()
-  }
-  const chromaData = pickData(dashboardDataQuery.data, 'chromaData')
-  const dbData = pickData(dashboardDataQuery.data, 'dbData')
-  const driftData = pickData(dashboardDataQuery.data, 'driftData')
-  const startupMetrics = pickData(dashboardDataQuery.data, 'startupMetrics')
-  const cacheData = pickData(dashboardDataQuery.data, 'cacheData')
-  const cacheDelta = pickData(dashboardDataQuery.data, 'cacheDelta')
-  const loading = dashboardDataQuery.isLoading
-  const error =
+  },
+   chromaData = pickData(dashboardDataQuery.data, 'chromaData'),
+   dbData = pickData(dashboardDataQuery.data, 'dbData'),
+   driftData = pickData(dashboardDataQuery.data, 'driftData'),
+   startupMetrics = pickData(dashboardDataQuery.data, 'startupMetrics'),
+   cacheData = pickData(dashboardDataQuery.data, 'cacheData'),
+   cacheDelta = pickData(dashboardDataQuery.data, 'cacheDelta'),
+   loading = dashboardDataQuery.isLoading,
+   error =
     dashboardDataQuery.error instanceof Error
       ? dashboardDataQuery.error.message
-      : null
+      : null,
 
-  const systemStatusQuery = useQuery<SystemStatusResponse>({
-    queryKey: ["debug-system-status"],
+   systemStatusQuery = useQuery<SystemStatusResponse>({
     queryFn: async () => {
       const response = await fetch(`${API_BASE_URL}/debug/system/status`)
       if (!response.ok) {
@@ -2030,12 +2057,12 @@ export default function DebugDashboardPage() {
       }
       return (await response.json()) as SystemStatusResponse
     },
+    queryKey: ["debug-system-status"],
     retry: 1,
-  })
-  const systemStatus = systemStatusQuery.data ?? null
+  }),
+   systemStatus = systemStatusQuery.data ?? null,
 
-  const logLevelQuery = useQuery<LogLevelResponse>({
-    queryKey: ["debug-log-level"],
+   logLevelQuery = useQuery<LogLevelResponse>({
     queryFn: async () => {
       const response = await fetch(`${API_BASE_URL}/debug/loglevel`)
       if (!response.ok) {
@@ -2043,37 +2070,38 @@ export default function DebugDashboardPage() {
       }
       return (await response.json()) as LogLevelResponse
     },
+    queryKey: ["debug-log-level"],
     retry: 1,
-  })
-  const logLevel = logLevelQuery.data?.level ?? "INFO"
+  }),
+   logLevel = logLevelQuery.data?.level ?? "INFO",
 
-  const sourceStatsQuery = useQuery<SourceStats[]>({
-    queryKey: ["debug-source-stats"],
+   sourceStatsQuery = useQuery<SourceStats[]>({
+    enabled: activeTab === "sources",
     queryFn: fetchSourceStats,
-    enabled: activeTab === "sources",
+    queryKey: ["debug-source-stats"],
     retry: 1,
-  })
-  const cacheStatusQuery = useQuery<CacheStatus | null>({
-    queryKey: ["debug-cache-status"],
+  }),
+   cacheStatusQuery = useQuery<CacheStatus | null>({
+    enabled: activeTab === "sources",
     queryFn: fetchCacheStatus,
-    enabled: activeTab === "sources",
+    queryKey: ["debug-cache-status"],
     retry: 1,
-  })
-  const llmLogsQuery = useQuery<LlmLogResponse>({
-    queryKey: ["debug-llm-logs"],
-    queryFn: () => fetchLlmLogs({ limit: 50 }),
+  }),
+   llmLogsQuery = useQuery<LlmLogResponse>({
     enabled: activeTab === "llm",
+    queryFn: () => fetchLlmLogs({ limit: 50 }),
+    queryKey: ["debug-llm-logs"],
     retry: 1,
-  })
-  const debugErrorsQuery = useQuery<DebugErrorsResponse>({
-    queryKey: ["debug-errors"],
-    queryFn: () => fetchDebugErrors({ limit: 50, includeRequestStreamEvents: true }),
+  }),
+   debugErrorsQuery = useQuery<DebugErrorsResponse>({
     enabled: activeTab === "errors",
+    queryFn: () => fetchDebugErrors({ includeRequestStreamEvents: true, limit: 50 }),
+    queryKey: ["debug-errors"],
     retry: 1,
-  })
+  }),
 
-  const performanceDataQuery = useQuery<PerformanceDebugData>({
-    queryKey: ["debug-performance", activeTab],
+   performanceDataQuery = useQuery<PerformanceDebugData>({
+    enabled: activeTab === "performance",
     queryFn: async () => {
       const [reportResponse, eventsResponse, slowResponse, filesResponse] =
         await Promise.all([
@@ -2081,61 +2109,61 @@ export default function DebugDashboardPage() {
           fetch(`${API_BASE_URL}/debug/logs/events?limit=100`),
           fetch(`${API_BASE_URL}/debug/logs/slow`),
           fetch(`${API_BASE_URL}/debug/logs/files`),
-        ])
+        ]),
 
-      const report = reportResponse.ok
+       report = reportResponse.ok
         ? ((await reportResponse.json()) as BackendDebugReport)
-        : null
-      const eventsData = eventsResponse.ok ? await eventsResponse.json() : {}
-      const slowData = slowResponse.ok ? await slowResponse.json() : {}
-      const filesData = filesResponse.ok ? await filesResponse.json() : {}
+        : null,
+       eventsData = eventsResponse.ok ? await eventsResponse.json() : {},
+       slowData = slowResponse.ok ? await slowResponse.json() : {},
+       filesData = filesResponse.ok ? await filesResponse.json() : {}
 
       return {
         backendDebugReport: report,
         backendLogEvents: Array.isArray(eventsData.events)
           ? (eventsData.events as UnknownRecord[])
           : [],
-        backendSlowOps: Array.isArray(slowData.operations)
-          ? (slowData.operations as UnknownRecord[])
-          : [],
         backendLogFiles: Array.isArray(filesData.files)
           ? (filesData.files as UnknownRecord[])
+          : [],
+        backendSlowOps: Array.isArray(slowData.operations)
+          ? (slowData.operations as UnknownRecord[])
           : [],
         frontendPerfData: exportDebugData(),
       }
     },
-    enabled: activeTab === "performance",
-    retry: 1,
+    queryKey: ["debug-performance", activeTab],
     refetchInterval: activeTab === "performance" ? 5000 : false,
-  })
-  const backendDebugReport = pickData(performanceDataQuery.data, 'backendDebugReport')
-  const frontendPerfData = pickData(performanceDataQuery.data, 'frontendPerfData')
-  const backendLogEvents = pickDataOr(performanceDataQuery.data, 'backendLogEvents', [])
-  const backendSlowOps = pickDataOr(performanceDataQuery.data, 'backendSlowOps', [])
-  const backendLogFiles = pickDataOr(performanceDataQuery.data, 'backendLogFiles', [])
-  const loadPerformanceData = () => {
+    retry: 1,
+  }),
+   backendDebugReport = pickData(performanceDataQuery.data, 'backendDebugReport'),
+   frontendPerfData = pickData(performanceDataQuery.data, 'frontendPerfData'),
+   backendLogEvents = pickDataOr(performanceDataQuery.data, 'backendLogEvents', []),
+   backendSlowOps = pickDataOr(performanceDataQuery.data, 'backendSlowOps', []),
+   backendLogFiles = pickDataOr(performanceDataQuery.data, 'backendLogFiles', []),
+   loadPerformanceData = () => {
     void performanceDataQuery.refetch()
-  }
+  },
 
-  const loadSystemStatus = () => {
+   loadSystemStatus = () => {
     void systemStatusQuery.refetch()
-  }
+  },
 
-  const loadLogLevel = () => {
+   loadLogLevel = () => {
     void logLevelQuery.refetch()
-  }
-  const loadSourceData = () => {
+  },
+   loadSourceData = () => {
     void sourceStatsQuery.refetch()
     void cacheStatusQuery.refetch()
-  }
-  const loadLlmLogs = () => {
+  },
+   loadLlmLogs = () => {
     void llmLogsQuery.refetch()
-  }
-  const loadDebugErrors = () => {
+  },
+   loadDebugErrors = () => {
     void debugErrorsQuery.refetch()
-  }
+  },
 
-  const handleSetLogLevel = async (level: string) => {
+   handleSetLogLevel = async (level: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/debug/loglevel?level=${level}`, {
         method: "POST",
@@ -2143,29 +2171,29 @@ export default function DebugDashboardPage() {
       if (response.ok) {
         await loadLogLevel()
       }
-    } catch (err) {
-      logger.error("Failed to set log level", err)
+    } catch (error) {
+      logger.error("Failed to set log level", error)
     }
-  }
+  },
 
-  const handleToggleFrontendDebug = () => {
+   handleToggleFrontendDebug = () => {
     setDebugMode(!frontendDebugMode)
-  }
+  },
 
-  const handleRefreshCache = async () => {
+   handleRefreshCache = async () => {
     setCacheRefreshRunning(true)
-    setCacheRefreshError(null)
+    setCacheRefreshError(undefined)
     setCacheRefreshMessage("Starting cache refresh...")
     try {
       const success = await refreshCache((event) => {
         const message =
           event.message ||
           (event.source
-            ? `Processed ${event.source}${event.articlesFromSource != null ? ` · ${event.articlesFromSource} articles` : ""}`
+            ? `Processed ${event.source}${event.articlesFromSource == null ? "" : ` · ${event.articlesFromSource} articles`}`
             : null) ||
-          (event.totalSourcesProcessed != null
-            ? `Processed ${event.totalSourcesProcessed} sources`
-            : "Refreshing cache...")
+          (event.totalSourcesProcessed == null
+            ? "Refreshing cache..."
+            : `Processed ${event.totalSourcesProcessed} sources`)
         setCacheRefreshMessage(message)
       })
       if (!success) {
@@ -2174,14 +2202,14 @@ export default function DebugDashboardPage() {
       setCacheRefreshMessage("Cache refresh completed.")
       loadSourceData()
       loadSystemStatus()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Cache refresh failed."
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Cache refresh failed."
       setCacheRefreshError(message)
-      setCacheRefreshMessage(null)
+      setCacheRefreshMessage(undefined)
     } finally {
       setCacheRefreshRunning(false)
     }
-  }
+  },
 
 
 
@@ -2194,13 +2222,13 @@ export default function DebugDashboardPage() {
 
 
 
-  const startupEvents = useMemo(() => {
+   startupEvents = useMemo(() => {
     if (!startupMetrics?.events?.length) {
       return []
     }
     return [...startupMetrics.events].sort((a, b) => {
-      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0
-      const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
+      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0,
+       bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
       return aTime - bTime
     })
   }, [startupMetrics?.events])
@@ -2210,26 +2238,26 @@ export default function DebugDashboardPage() {
 
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const params = new URLSearchParams(window.location.search)
-    const tab = params.get("tab")
+    if (typeof window === "undefined") {return}
+    const params = new URLSearchParams(globalThis.location.search),
+     tab = params.get("tab")
     setEmbedded(params.get("embedded") === "1")
     if (isDebugTab(tab)) {
       setActiveTab(tab)
     }
   }, [])
 
-  const sourceStats = sourceStatsQuery.data ?? []
-  const cacheStatus = cacheStatusQuery.data ?? null
-  const llmLogs = llmLogsQuery.data ?? null
-  const debugErrors = debugErrorsQuery.data ?? null
+  const sourceStats = sourceStatsQuery.data ?? [],
+   cacheStatus = cacheStatusQuery.data ?? null,
+   llmLogs = llmLogsQuery.data ?? null,
+   debugErrors = debugErrorsQuery.data ?? null,
 
 
-  const handleTabChange = (value: string) => {
-    if (!isDebugTab(value)) return
+   handleTabChange = (value: string) => {
+    if (!isDebugTab(value)) {return}
     setActiveTab(value)
     const nextParams = new URLSearchParams(
-      typeof window === "undefined" ? "" : window.location.search,
+      typeof window === "undefined" ? "" : globalThis.location.search,
     )
     nextParams.set("tab", value)
     router.replace(`/debug?${nextParams.toString()}`)
@@ -2242,55 +2270,55 @@ export default function DebugDashboardPage() {
     } else if (value === "errors") {
       loadDebugErrors()
     }
-  }
+  },
 
 
 
 
 
-  const applyDbFilters = () => {
+   applyDbFilters = () => {
     setDbSourceFilter(dbSourceDraft.trim() || undefined)
     setDbBeforeFilter(dbBeforeDraft || undefined)
     setDbAfterFilter(dbAfterDraft || undefined)
-  }
+  },
 
-  const applyCacheFilters = () => {
+   applyCacheFilters = () => {
     setCacheSourceFilter(cacheSourceDraft.trim() || undefined)
-  }
+  },
 
   // Phase 3: Test RSS parser
-  const testRssParser = async () => {
-    if (!rssTestUrl.trim()) return
+   testRssParser = async () => {
+    if (!rssTestUrl.trim()) {return}
     setRssTestLoading(true)
-    setRssTestResult(null)
+    setRssTestResult(undefined)
     try {
       const response = await fetch(
         `${API_BASE_URL}/debug/parser/test/rss?url=${encodeURIComponent(rssTestUrl)}&max_entries=5`,
         { method: "POST" }
-      )
-      const data = await response.json()
+      ),
+       data = await response.json()
       setRssTestResult(data)
-    } catch (err) {
-      setRssTestResult({ error: err instanceof Error ? err.message : "Test failed" })
+    } catch (error) {
+      setRssTestResult({ error: error instanceof Error ? error.message : "Test failed" })
     } finally {
       setRssTestLoading(false)
     }
-  }
+  },
 
   // Phase 3: Test article parser
-  const testArticleParser = async () => {
-    if (!articleTestUrl.trim()) return
+   testArticleParser = async () => {
+    if (!articleTestUrl.trim()) {return}
     setArticleTestLoading(true)
-    setArticleTestResult(null)
+    setArticleTestResult(undefined)
     try {
       const response = await fetch(
         `${API_BASE_URL}/debug/parser/test/article?url=${encodeURIComponent(articleTestUrl)}`,
         { method: "POST" }
-      )
-      const data = await response.json()
+      ),
+       data = await response.json()
       setArticleTestResult(data)
-    } catch (err) {
-      setArticleTestResult({ error: err instanceof Error ? err.message : "Test failed" })
+    } catch (error) {
+      setArticleTestResult({ error: error instanceof Error ? error.message : "Test failed" })
     } finally {
       setArticleTestLoading(false)
     }

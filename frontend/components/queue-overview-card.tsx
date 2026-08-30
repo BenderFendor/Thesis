@@ -12,9 +12,9 @@ export function QueueOverviewCard() {
     isLoading: loading,
     error,
   } = useQuery<QueueOverview>({
-    queryKey: ["queue-overview"],
     queryFn: getQueueOverview,
-    refetchInterval: 30000,
+    queryKey: ["queue-overview"],
+    refetchInterval: 30_000,
     retry: 1,
   });
 
@@ -30,7 +30,7 @@ export function QueueOverviewCard() {
   }
 
   if (error || !overview) {
-    return null;
+    return undefined;
   }
 
   return (

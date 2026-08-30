@@ -101,7 +101,7 @@ function sourceMatchesLens(source: NewsSource, lensId: NewsLensId): boolean {
   return true;
 }
 
-export function getLensSourceIds(sources: NewsSource[], lensId: NewsLensId): Set<string> {
+export function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> {
   return new Set(
     sources
       .filter((source) => sourceMatchesLens(source, lensId))
@@ -109,7 +109,7 @@ export function getLensSourceIds(sources: NewsSource[], lensId: NewsLensId): Set
   );
 }
 
-export function getLensStats(sources: NewsSource[], lensId: NewsLensId) {
+export function getLensStats(sources:readonly  NewsSource[], lensId: NewsLensId) {
   const includedIds = getLensSourceIds(sources, lensId);
   const included = sources.filter(
     (source) => includedIds.has(source.id) || includedIds.has(source.slug),
@@ -121,8 +121,8 @@ export function getLensStats(sources: NewsSource[], lensId: NewsLensId) {
 }
 
 export function filterArticlesByLens(
-  articles: NewsArticle[],
-  sources: NewsSource[],
+  articles:readonly  NewsArticle[],
+  sources:readonly  NewsSource[],
   lensId: NewsLensId,
 ): NewsArticle[] {
   if (lensId === "all") return articles;

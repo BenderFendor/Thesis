@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen, GitBranch, Users } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useNewsLens } from "@/hooks/useNewsLens";
-import { useSourceFilter } from "@/hooks/useSourceFilter";
+import { useSourceFilter } from "@/hooks/use-source-filter";
 import type { NewsSource } from "@/lib/api";
 import { fetchSources } from "@/lib/api";
 import { getLensStats, NEWS_LENSES, type NewsLensId } from "@/lib/news-lens";

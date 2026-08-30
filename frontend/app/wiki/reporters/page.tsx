@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   ChevronLeft,
+  ExternalLink,
   Loader2,
   Search,
   Users,
-  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,36 +19,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchWikiReporters, type WikiReporterCard } from "@/lib/api";
+import { fetchWikiReporters } from '@/lib/api';
+import type { WikiReporterCard } from '@/lib/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function leaningBadgeClass(leaning?: string): string {
   switch (leaning?.toLowerCase()) {
-    case "left": return "bg-blue-900/40 text-blue-300 border-blue-700/30";
+    case "left": { return "bg-blue-900/40 text-blue-300 border-blue-700/30";
+    }
     case "left-leaning":
-    case "center-left": return "bg-blue-900/20 text-blue-200 border-blue-700/20";
+    case "center-left": { return "bg-blue-900/20 text-blue-200 border-blue-700/20";
+    }
     case "center":
-    case "centrist": return "bg-zinc-800/60 text-zinc-300 border-zinc-600/30";
+    case "centrist": { return "bg-zinc-800/60 text-zinc-300 border-zinc-600/30";
+    }
     case "center-right":
-    case "right-leaning": return "bg-red-900/20 text-red-200 border-red-700/20";
-    case "right": return "bg-red-900/40 text-red-300 border-red-700/30";
-    default: return "bg-zinc-800/40 text-zinc-400 border-zinc-700/20";
+    case "right-leaning": { return "bg-red-900/20 text-red-200 border-red-700/20";
+    }
+    case "right": { return "bg-red-900/40 text-red-300 border-red-700/30";
+    }
+    default: { return "bg-zinc-800/40 text-zinc-400 border-zinc-700/20";
+    }
   }
 }
 
 function confidenceLabel(conf?: string): string {
   switch (conf?.toLowerCase()) {
-    case "high": return "verified";
-    case "medium": return "likely";
-    case "low": return "inferred";
-    default: return "";
+    case "high": { return "verified";
+    }
+    case "medium": { return "likely";
+    }
+    case "low": { return "inferred";
+    }
+    default: { return "";
+    }
   }
 }
 
 // ── Reporter Card ────────────────────────────────────────────────────
 
-function ReporterCard({ reporter }: { reporter: WikiReporterCard }) {
+function ReporterCard({ reporter }:Readonly< { reporter: WikiReporterCard }>) {
   return (
     <Link
       href={`/wiki/reporter/${reporter.id}`}
@@ -124,26 +135,26 @@ function ReporterCard({ reporter }: { reporter: WikiReporterCard }) {
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function ReporterDirectoryPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [leaningFilter, setLeaningFilter] = useState("all");
-  const {
+  const [searchQuery, setSearchQuery] = useState(""),
+   [leaningFilter, setLeaningFilter] = useState("all"),
+   {
     data: reporters = [],
     isLoading: loading,
     error,
   } = useQuery<WikiReporterCard[]>({
-    queryKey: ["wiki-reporters", 500],
     queryFn: () => fetchWikiReporters({ limit: 500 }),
+    queryKey: ["wiki-reporters", 500],
     retry: 1,
-  });
-  const errorMessage = error instanceof Error ? error.message : "Failed to load reporters";
+  }),
+   errorMessage = error instanceof Error ? error.message : "Failed to load reporters",
 
-  const leaningOptions = useMemo(() => {
+   leaningOptions = useMemo(() => {
     const set = new Set<string>();
     reporters.forEach((r) => r.political_leaning && set.add(r.political_leaning));
-    return Array.from(set).sort();
-  }, [reporters]);
+    return [...set].sort();
+  }, [reporters]),
 
-  const filtered = useMemo(() => {
+   filtered = useMemo(() => {
     let result = reporters;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -192,7 +203,7 @@ export default function ReporterDirectoryPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) =>{  setSearchQuery(e.target.value); }}
               placeholder="Search reporters, topics..."
               className="pl-9 h-9 bg-zinc-900/50 border-white/10 text-sm"
             />
@@ -215,12 +226,12 @@ export default function ReporterDirectoryPage() {
           <div className="flex items-center gap-2 mb-4">
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Filters:</span>
             {searchQuery && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setSearchQuery("")}>
+              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() =>{  setSearchQuery(""); }}>
                 &quot;{searchQuery}&quot; x
               </Badge>
             )}
             {leaningFilter !== "all" && (
-              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() => setLeaningFilter("all")}>
+              <Badge variant="secondary" className="text-xs cursor-pointer" onClick={() =>{  setLeaningFilter("all"); }}>
                 {leaningFilter} x
               </Badge>
             )}
@@ -228,7 +239,7 @@ export default function ReporterDirectoryPage() {
         )}
 
         <div className="mb-4 text-xs font-mono text-muted-foreground uppercase tracking-wider">
-          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+          {filtered.length} result{filtered.length === 1 ? "" : "s"}
         </div>
 
         {loading && (

@@ -1,41 +1,77 @@
 "use client"
 
-import { useState, use } from "react"
+import { use, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { SourceDebugData } from "@/lib/api";
 import { fetchSourceDebugData } from "@/lib/api"
 import { setDebugMode } from "@/lib/logger"
-import { useDebugMode } from "@/hooks/useDebugMode"
-import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, ImageIcon, FileText, Globe, Search, Settings } from "lucide-react"
+import { useDebugMode } from "@/hooks/use-debug-mode"
+import { AlertTriangle, ArrowLeft, Code, ExternalLink, FileText, Globe, ImageIcon, RefreshCw, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import JsonView from 'react18-json-view'
-import 'react18-json-view/src/style.css'
+import 'react18-json-view/src/sutyle.css'
 
-export default function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
-  const params = use(props.params)
-  const sourceName = decodeURIComponent(params.source)
-  const [searchQuery, setSearchQuery] = useState("")
-  const debugMode = useDebugMode()
-  const {
+function hasFilteredContent(value: unknown): boolean {
+  if (value === null) {return false}
+  if (typeof value !== "object") {return true}
+  return Object.keys(value).length > 0
+}
+
+function filterDebugRecord(record: Record<string, unknown>, query: string): Record<string, unknown> | null {
+  const filtered: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key.toLowerCase().includes(query)) {
+      filtered[key] = value
+      continue
+    }
+    if (typeof value === "string" && value.toLowerCase().includes(query)) {
+      filtered[key] = value
+      continue
+    }
+    const nested = filterDebugValue(value, query)
+    if (hasFilteredContent(nested)) {filtered[key] = nested}
+  }
+  return Object.keys(filtered).length > 0 ? filtered : null
+}
+
+function filterDebugValue(value: unknown, query: string): unknown {
+  if (Array.isArray(value)) {
+    return value.filter((item) => filterDebugValue(item, query) !== null)
+  }
+  if (typeof value !== "object" || value === null) {return undefined}
+  return filterDebugRecord(value as Record<string, unknown>, query)
+}
+
+function filterSourceDebugData(debugData: SourceDebugData, searchQuery: string): unknown {
+  if (searchQuery.length === 0) {return debugData}
+  return filterDebugValue(structuredClone(debugData), searchQuery.toLowerCase())
+}
+
+export default function SourceDebugPage(props:Readonly< { params: Promise<{ source: string }> }>) {
+  const params = use(props.params),
+   sourceName = decodeURIComponent(params.source),
+   [searchQuery, setSearchQuery] = useState(""),
+   debugMode = useDebugMode(),
+   {
     data: debugData,
     isLoading: loading,
     error,
     refetch,
   } = useQuery<SourceDebugData>({
-    queryKey: ["source-debug", sourceName],
     queryFn: () => fetchSourceDebugData(sourceName),
+    queryKey: ["source-debug", sourceName],
     retry: 1,
-  })
-  const errorMessage =
+  }),
+   errorMessage =
     error instanceof Error
       ? error.message
-      : "Failed to load debug data. The source might be unavailable or the backend service is down."
+      : "Failed to load debug data. The source might be unavailable or the backend service is down.",
 
-  const toggleDebugMode = () => {
+   toggleDebugMode = () => {
     const next = !debugMode
     setDebugMode(next)
   }
@@ -73,47 +109,6 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
     )
   }
 
-  const filteredDebugData = () => {
-    if (!searchQuery) {
-      return debugData
-    }
-    const lowercasedQuery = searchQuery.toLowerCase()
-    const filtered = JSON.parse(JSON.stringify(debugData))
-
-  const filterObject = (obj: unknown): unknown => {
-      if (Array.isArray(obj)) {
-        return obj.filter(item => filterObject(item) !== null)
-      }
-      if (typeof obj === 'object' && obj !== null) {
-        let hasMatch = false
-        const newObj: Record<string, unknown> = {}
-        const record = obj as Record<string, unknown>
-        for (const key in record) {
-          if (key.toLowerCase().includes(lowercasedQuery)) {
-            hasMatch = true
-            newObj[key] = record[key]
-          } else if (typeof record[key] === 'string' && record[key].toLowerCase().includes(lowercasedQuery)) {
-            hasMatch = true
-            newObj[key] = record[key]
-          } else {
-            const result = filterObject(record[key])
-            if (
-              result !== null &&
-              (typeof result !== 'object' || Object.keys(result as Record<string, unknown>).length > 0)
-            ) {
-              hasMatch = true
-              newObj[key] = result
-            }
-          }
-        }
-        return hasMatch ? newObj : null
-      }
-      return null
-    }
-
-    return filterObject(filtered)
-  }
-
   return (
     <div className="min-h-screen bg-background dark text-foreground p-4 sm:p-6 lg:p-8">
       <header className="mb-6">
@@ -137,7 +132,7 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(debugData.rss_url, "_blank")}
+              onClick={() => globalThis.open(debugData.rss_url, "_blank")}
             >
               <ExternalLink className="w-4 h-4 mr-2" />
               Open RSS Feed
@@ -344,14 +339,14 @@ export default function SourceDebugPage(props: { params: Promise<{ source: strin
               <Input
                 placeholder="Search JSON..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) =>{  setSearchQuery(e.target.value); }}
                 className="pl-10"
               />
             </div>
             <JsonView 
-              src={filteredDebugData() || {}} 
+              src={filterSourceDebugData(debugData, searchQuery) || {}} 
               collapsed={2}
-              enableClipboard={true}
+              enableClipboard
               theme="vscode"
             />
           </CardContent>

@@ -1,29 +1,23 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ExternalLink, Loader2, Network } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GlobalNavigation } from "@/components/global-navigation";
 import { fetchAtlasEntity } from "@/features/intelligence-atlas/lib/atlas-api";
-import {
-  parseControls,
-  parseExternalIds,
-  parseFundingAndBias,
-  parseOwnershipChain,
-  parseRoleBreakdown,
-  type AtlasEntityRecord,
-} from "@/features/intelligence-atlas/lib/atlas-schema";
+import { parseControls, parseExternalIds, parseFundingAndBias, parseOwnershipChain, parseRoleBreakdown } from '@/features/intelligence-atlas/lib/atlas-schema';
+import type { AtlasEntityRecord } from '@/features/intelligence-atlas/lib/atlas-schema';
 import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-panel";
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 
-export function OrganizationWikiView({ entityId }: { entityId: string }) {
+export function OrganizationWikiView({ entityId }:Readonly< { entityId: string }>) {
   const { data, isLoading, error } = useQuery<AtlasEntityRecord>({
-    queryKey: ["atlas-entity", entityId],
-    queryFn: () => fetchAtlasEntity(entityId),
     enabled: Boolean(entityId),
+    queryFn: () => fetchAtlasEntity(entityId),
+    queryKey: ["atlas-entity", entityId],
     retry: 1,
   });
 
@@ -56,11 +50,11 @@ export function OrganizationWikiView({ entityId }: { entityId: string }) {
     );
   }
 
-  const chain = parseOwnershipChain(data.details);
-  const controls = parseControls(data.details);
-  const externalIds = parseExternalIds(data.details);
-  const roleBreakdown = parseRoleBreakdown(data.details);
-  const fundingAndBias = parseFundingAndBias(data.details);
+  const chain = parseOwnershipChain(data.details),
+   controls = parseControls(data.details),
+   externalIds = parseExternalIds(data.details),
+   roleBreakdown = parseRoleBreakdown(data.details),
+   fundingAndBias = parseFundingAndBias(data.details);
 
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
@@ -171,9 +165,9 @@ export function OrganizationWikiView({ entityId }: { entityId: string }) {
                         <div className="font-serif text-base relative z-10">{entry.label}</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 relative z-10">
                           <Badge variant="outline" className="text-[10px] font-mono tracking-widest uppercase">{entry.entity_type}</Badge>
-                          {entry.percentage != null ? (
+                          {entry.percentage == null ? null : (
                             <span className="font-mono text-[10px] tracking-widest text-muted-foreground">{entry.percentage.toFixed(1)}%</span>
-                          ) : null}
+                          )}
                         </div>
                         <div className="mt-2 font-mono text-[10px] tracking-widest text-muted-foreground relative z-10">
                           {entry.evidence_count} evidence
@@ -258,7 +252,7 @@ export function OrganizationWikiView({ entityId }: { entityId: string }) {
   );
 }
 
-function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+function Panel({ title, eyebrow, children }:Readonly< { title: string; eyebrow: string; children: ReactNode }>) {
   return (
     <section>
       <div className="mb-3">
@@ -270,7 +264,7 @@ function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; c
   );
 }
 
-function SidebarCard({ title, children }: { title: string; children: ReactNode }) {
+function SidebarCard({ title, children }:Readonly< { title: string; children: ReactNode }>) {
   return (
     <div className="mt-4 rounded-2xl border border-white/5 bg-black/20 p-4 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
       <div className="mb-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{title}</div>
@@ -279,7 +273,7 @@ function SidebarCard({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-function SidebarFact({ label, value }: { label: string; value: string }) {
+function SidebarFact({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="flex items-start justify-between gap-3 text-[10px] font-mono tracking-widest uppercase mt-2">
       <span className="text-muted-foreground">{label}</span>

@@ -181,19 +181,15 @@ def _evidence_coverage_statement(
     )
 
 
-def _build_dossier_sections(
-    entity_id: str,
-    details: dict[str, Any],
+def _pending_relationship_statements(
     connections: list[AtlasConnectionRecord],
-) -> list[AtlasDossierSection]:
-    """Turn graph facts into direct answers without treating missing rows as negatives."""
-    ownership_answer = _ownership_answer(connections, entity_id, details)
+) -> list[AtlasDossierStatement]:
     pending = [
         item
         for item in connections
         if item.edge.lifecycle_state in {"proposed", "pending", "disputed"}
     ]
-    pending_statements = [
+    return [
         AtlasDossierStatement(
             label=f"{item.edge.lifecycle_state.title()} relationship",
             answer=item.entity.label,
@@ -205,23 +201,41 @@ def _build_dossier_sections(
         )
         for item in pending
     ]
-    publishing = [
-        item for item in connections if item.edge.display_group == "publishing_distribution"
-    ]
-    advertising = [
-        item for item in connections if item.edge.display_group == "advertising_sponsorship"
-    ]
-    funding = [
-        item for item in connections if item.edge.display_group == "funding_government_awards"
-    ]
-    funding_statements = _relationship_statements(
+
+
+def _connections_in_group(
+    connections: list[AtlasConnectionRecord],
+    display_group: str,
+) -> list[AtlasConnectionRecord]:
+    return [item for item in connections if item.edge.display_group == display_group]
+
+
+def _funding_statements(
+    funding: list[AtlasConnectionRecord],
+    funding_value: Any,
+) -> list[AtlasDossierStatement]:
+    statements = _relationship_statements(
         funding, "Funding relationship", include_qualifiers=True
     )
-    funding_value = details.get("funding_type")
-    if funding_value and not funding_statements:
-        funding_statements = [
+    if funding_value and not statements:
+        statements = [
             AtlasDossierStatement(label="Funding model", answer=str(funding_value), state="known")
         ]
+    return statements
+
+
+def _build_dossier_sections(
+    entity_id: str,
+    details: dict[str, Any],
+    connections: list[AtlasConnectionRecord],
+) -> list[AtlasDossierSection]:
+    """Turn graph facts into direct answers without treating missing rows as negatives."""
+    ownership_answer = _ownership_answer(connections, entity_id, details)
+    pending_statements = _pending_relationship_statements(connections)
+    publishing = _connections_in_group(connections, "publishing_distribution")
+    advertising = _connections_in_group(connections, "advertising_sponsorship")
+    funding = _connections_in_group(connections, "funding_government_awards")
+    funding_statements = _funding_statements(funding, details.get("funding_type"))
     newsroom_value = details.get("institutional_affiliations") or details.get("career_history")
 
     return [
@@ -418,6 +432,73 @@ def _node_summary(node: AtlasNode) -> dict[str, Any]:
     }
 
 
+def _ownership_chain_entry(
+    node: AtlasNode,
+    *,
+    percentage: float | None,
+    percentage_range: Any,
+    evidence_count: int,
+    claim_ids: list[str],
+) -> dict[str, Any]:
+    return {
+        **_node_summary(node),
+        "percentage": percentage,
+        "percentage_range": percentage_range,
+        "evidence_count": evidence_count,
+        "claim_ids": claim_ids,
+    }
+
+
+def _controls_walk(
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+    controls_index: dict[str, list[AtlasEdge]],
+) -> list[dict[str, Any]]:
+    controls: list[dict[str, Any]] = []
+    for edge in walk_controls_downward(entity_id, controls_index):
+        owned_node = node_by_id.get(edge.target_id)
+        if owned_node is None:
+            continue
+        controls.append(
+            {
+                **_node_summary(owned_node),
+                "relation_type": edge.raw_relation_type,
+                "percentage": edge.ownership_percentage,
+                "evidence_count": edge.evidence_count,
+                "claim_ids": edge.claim_ids,
+            }
+        )
+    return controls
+
+
+def _siblings_via_owner(
+    ownership_graph: AtlasGraphResponse,
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+) -> list[dict[str, Any]]:
+    siblings: list[dict[str, Any]] = []
+    for edge in ownership_graph.edges:
+        if edge.relation_type != "sibling_via_owner":
+            continue
+        if edge.source_id == entity_id:
+            sibling_id = edge.target_id
+        elif edge.target_id == entity_id:
+            sibling_id = edge.source_id
+        else:
+            continue
+        sibling_node = node_by_id.get(sibling_id)
+        if sibling_node is None:
+            continue
+        siblings.append(
+            {
+                **_node_summary(sibling_node),
+                "evidence_count": edge.evidence_count,
+                "claim_ids": edge.claim_ids,
+            }
+        )
+    return siblings
+
+
 async def _ownership_context(
     db: AsyncSession, entity_id: str, fallback_node_by_id: dict[str, AtlasNode]
 ) -> dict[str, Any]:
@@ -451,65 +532,30 @@ async def _ownership_context(
     self_node = node_by_id.get(entity_id) or fallback_node_by_id.get(entity_id)
     if self_node is not None:
         chain.append(
-            {
-                **_node_summary(self_node),
-                "percentage": None,
-                "percentage_range": None,
-                "evidence_count": 0,
-                "claim_ids": [],
-            }
+            _ownership_chain_entry(
+                self_node,
+                percentage=None,
+                percentage_range=None,
+                evidence_count=0,
+                claim_ids=[],
+            )
         )
     for edge in chain_edges:
         owner_node = node_by_id.get(edge.source_id)
         if owner_node is None:
             continue
         chain.append(
-            {
-                **_node_summary(owner_node),
-                "percentage": edge.ownership_percentage,
-                "percentage_range": edge.qualifiers.get("pct_range"),
-                "evidence_count": edge.evidence_count,
-                "claim_ids": edge.claim_ids,
-            }
-        )
-
-    controls: list[dict[str, Any]] = []
-    for edge in walk_controls_downward(entity_id, controls_index):
-        owned_node = node_by_id.get(edge.target_id)
-        if owned_node is None:
-            continue
-        controls.append(
-            {
-                **_node_summary(owned_node),
-                "relation_type": edge.raw_relation_type,
-                "percentage": edge.ownership_percentage,
-                "evidence_count": edge.evidence_count,
-                "claim_ids": edge.claim_ids,
-            }
-        )
-
-    siblings: list[dict[str, Any]] = []
-    if entity_id.startswith("outlet:"):
-        for edge in ownership_graph.edges:
-            if edge.relation_type != "sibling_via_owner":
-                continue
-            if edge.source_id == entity_id:
-                sibling_id = edge.target_id
-            elif edge.target_id == entity_id:
-                sibling_id = edge.source_id
-            else:
-                continue
-            sibling_node = node_by_id.get(sibling_id)
-            if sibling_node is None:
-                continue
-            siblings.append(
-                {
-                    **_node_summary(sibling_node),
-                    "evidence_count": edge.evidence_count,
-                    "claim_ids": edge.claim_ids,
-                }
+            _ownership_chain_entry(
+                owner_node,
+                percentage=edge.ownership_percentage,
+                percentage_range=edge.qualifiers.get("pct_range"),
+                evidence_count=edge.evidence_count,
+                claim_ids=edge.claim_ids,
             )
+        )
 
+    controls = _controls_walk(entity_id, node_by_id, controls_index)
+    siblings = _siblings_via_owner(ownership_graph, entity_id, node_by_id)
     return {"ownership_chain": chain, "controls": controls, "siblings_via_owner": siblings}
 
 
@@ -638,12 +684,11 @@ async def search_atlas(db: AsyncSession, query: str, limit: int = 8) -> AtlasSea
     )
 
 
-def _collect_connections(
+def _direct_connections(
     graph: AtlasGraphResponse,
     entity_id: str,
     node_by_id: dict[str, AtlasNode],
 ) -> tuple[list[AtlasConnectionRecord], list[Any]]:
-    """Build the entity's connection records plus deduplicated evidence preview."""
     connections: list[AtlasConnectionRecord] = []
     evidence: list[Any] = []
     for edge in graph.edges:
@@ -657,7 +702,15 @@ def _collect_connections(
             continue
         connections.append(AtlasConnectionRecord(edge=edge, entity=related))
         evidence.extend(edge.evidence_preview)
+    return connections, evidence
 
+
+def _owner_edge_connections(
+    graph: AtlasGraphResponse,
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+    connections: list[AtlasConnectionRecord],
+) -> tuple[list[AtlasConnectionRecord], list[Any]]:
     owner_ids = {
         item.entity.id
         for item in connections
@@ -668,6 +721,8 @@ def _collect_connections(
         in {"directly_owns", "owns_equity_in", "controls", "brand_of", "operated_by"}
     }
     connected_edge_ids = {item.edge.id for item in connections}
+    records: list[AtlasConnectionRecord] = []
+    evidence: list[Any] = []
     for edge in graph.edges:
         if (
             edge.id in connected_edge_ids
@@ -679,9 +734,72 @@ def _collect_connections(
         related = node_by_id.get(related_id)
         if related is None:
             continue
-        connections.append(AtlasConnectionRecord(edge=edge, entity=related))
+        records.append(AtlasConnectionRecord(edge=edge, entity=related))
         evidence.extend(edge.evidence_preview)
+    return records, evidence
+
+
+def _collect_connections(
+    graph: AtlasGraphResponse,
+    entity_id: str,
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[list[AtlasConnectionRecord], list[Any]]:
+    """Build the entity's connection records plus deduplicated evidence preview."""
+    connections, evidence = _direct_connections(graph, entity_id, node_by_id)
+    owner_records, owner_evidence = _owner_edge_connections(
+        graph, entity_id, node_by_id, connections
+    )
+    connections.extend(owner_records)
+    evidence.extend(owner_evidence)
     return connections, evidence
+
+
+def _claim_payload(claim: SourceClaim) -> dict[str, Any]:
+    return {
+        "id": claim.id,
+        "type": claim.claim_type,
+        "value": claim.claim_value,
+        "kind": claim.claim_kind,
+        "confidence": claim.confidence,
+        "valid_from": claim.valid_from,
+        "valid_to": claim.valid_to,
+    }
+
+
+def _metadata_fields(
+    metadata: SourceMetadata | None,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    if metadata is None:
+        return {
+            "source_type": None,
+            "funding_type": config.get("funding_type"),
+            "bias_rating": config.get("bias_rating"),
+            "factual_reporting": config.get("factual_reporting"),
+            "credibility_score": None,
+            "parent_company": None,
+            "geographic_focus": [],
+            "topic_focus": [],
+        }
+    return {
+        "source_type": metadata.source_type,
+        "funding_type": cast(
+            str | None,
+            metadata.funding_type or config.get("funding_type"),
+        ),
+        "bias_rating": cast(
+            str | None,
+            metadata.political_bias or config.get("bias_rating"),
+        ),
+        "factual_reporting": cast(
+            str | None,
+            metadata.factual_rating or config.get("factual_reporting"),
+        ),
+        "credibility_score": cast(float | None, metadata.credibility_score),
+        "parent_company": metadata.parent_company,
+        "geographic_focus": cast(list[str], metadata.geographic_focus),
+        "topic_focus": cast(list[str], metadata.topic_focus),
+    }
 
 
 def _outlet_detail_payload(
@@ -691,39 +809,20 @@ def _outlet_detail_payload(
     claims: Sequence[SourceClaim],
     analysis_scores: dict[str, int],
 ) -> dict[str, Any]:
+    metadata_fields = _metadata_fields(metadata, config)
     return {
         "source_name": source_name,
         "website": config.get("site_url") or config.get("url"),
-        "source_type": metadata.source_type if metadata else None,
+        "source_type": metadata_fields["source_type"],
         "category": config.get("category"),
-        "funding_type": cast(
-            str | None,
-            (metadata.funding_type if metadata else None) or config.get("funding_type"),
-        ),
-        "bias_rating": cast(
-            str | None,
-            (metadata.political_bias if metadata else None) or config.get("bias_rating"),
-        ),
-        "factual_reporting": cast(
-            str | None,
-            (metadata.factual_rating if metadata else None) or config.get("factual_reporting"),
-        ),
-        "credibility_score": cast(float | None, metadata.credibility_score if metadata else None),
-        "parent_company": metadata.parent_company if metadata else None,
-        "geographic_focus": cast(list[str], metadata.geographic_focus if metadata else []),
-        "topic_focus": cast(list[str], metadata.topic_focus if metadata else []),
-        "claims": [
-            {
-                "id": claim.id,
-                "type": claim.claim_type,
-                "value": claim.claim_value,
-                "kind": claim.claim_kind,
-                "confidence": claim.confidence,
-                "valid_from": claim.valid_from,
-                "valid_to": claim.valid_to,
-            }
-            for claim in claims
-        ],
+        "funding_type": metadata_fields["funding_type"],
+        "bias_rating": metadata_fields["bias_rating"],
+        "factual_reporting": metadata_fields["factual_reporting"],
+        "credibility_score": metadata_fields["credibility_score"],
+        "parent_company": metadata_fields["parent_company"],
+        "geographic_focus": metadata_fields["geographic_focus"],
+        "topic_focus": metadata_fields["topic_focus"],
+        "claims": [_claim_payload(claim) for claim in claims],
         "analysis_scores": analysis_scores,
     }
 
@@ -819,6 +918,47 @@ async def _outlet_entity_details(
     return details, entity_kind, last_verified_at
 
 
+def _legacy_org_details(org: Organization) -> dict[str, Any]:
+    return {
+        "funding_type": org.funding_type,
+        "funding_sources": org.funding_sources or [],
+        "major_advertisers": org.major_advertisers or [],
+        "annual_revenue": org.annual_revenue,
+        "website": org.website or org.official_website,
+        "wikipedia_url": org.wikipedia_url,
+        "research_sources": org.research_sources or [],
+        "conflict_flags": org.conflict_flags or [],
+        "media_bias_rating": org.media_bias_rating,
+        "factual_reporting": org.factual_reporting,
+    }
+
+
+async def _resolve_legacy_organization(
+    db: AsyncSession,
+    evidence_entity_id: str,
+) -> tuple[dict[str, Any] | None, datetime | None]:
+    # Enrich from the legacy `Organization` row when Phase 0's backfill
+    # linked one via `legacy_organization_id` -- read-path only, not a
+    # node/edge source (see atlas_graph_projection.py module docstring).
+    legacy_id_row = (
+        await db.execute(
+            select(EntityExternalId).where(
+                EntityExternalId.scheme == "legacy_organization_id",
+                EntityExternalId.entity_id == evidence_entity_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if legacy_id_row is None:
+        return None, None
+    try:
+        org = await db.get(Organization, int(cast(str, legacy_id_row.value)))
+    except ValueError:
+        return None, None
+    if org is None:
+        return None, None
+    return _legacy_org_details(org), org.last_researched_at
+
+
 async def _organization_entity_details(
     db: AsyncSession,
     entity_id: str,
@@ -840,41 +980,12 @@ async def _organization_entity_details(
             Counter(item.edge.raw_relation_type or item.edge.relation_type for item in connections)
         ),
     }
-    # Enrich from the legacy `Organization` row when Phase 0's backfill
-    # linked one via `legacy_organization_id` -- read-path only, not a
-    # node/edge source (see atlas_graph_projection.py module docstring).
-    legacy_id_row = (
-        await db.execute(
-            select(EntityExternalId).where(
-                EntityExternalId.scheme == "legacy_organization_id",
-                EntityExternalId.entity_id == evidence_entity_id,
-            )
-        )
-    ).scalar_one_or_none()
-    last_verified_at = None
-    if legacy_id_row is not None:
-        try:
-            org = await db.get(Organization, int(cast(str, legacy_id_row.value)))
-        except ValueError:
-            org = None
-        if org is not None:
-            details.update(
-                {
-                    "funding_type": org.funding_type,
-                    "funding_sources": org.funding_sources or [],
-                    "major_advertisers": org.major_advertisers or [],
-                    "annual_revenue": org.annual_revenue,
-                    "website": org.website or org.official_website,
-                    "wikipedia_url": org.wikipedia_url,
-                    "research_sources": org.research_sources or [],
-                    "conflict_flags": org.conflict_flags or [],
-                    "media_bias_rating": org.media_bias_rating,
-                    "factual_reporting": org.factual_reporting,
-                }
-            )
-            last_verified_at = org.last_researched_at
-    if last_verified_at is None:
-        last_verified_at = entity.updated_at
+    legacy_details, legacy_verified_at = await _resolve_legacy_organization(
+        db, evidence_entity_id
+    )
+    if legacy_details is not None:
+        details.update(legacy_details)
+    last_verified_at = legacy_verified_at if legacy_verified_at is not None else entity.updated_at
     details["funding_and_bias"] = await _funding_and_bias_block(
         db,
         evidence_entity_id,
@@ -910,6 +1021,36 @@ async def _person_entity_details(
     return details, entity_kind, entity.updated_at
 
 
+def _person_level_evidence(reporter: Reporter) -> list[str]:
+    return [
+        value
+        for value in (
+            reporter.author_page_url,
+            reporter.canonical_author_url,
+            reporter.wikipedia_url,
+            reporter.wikidata_url,
+        )
+        if value
+    ]
+
+
+def _reporter_details_fields(reporter: Reporter) -> dict[str, Any]:
+    return {
+        "canonical_name": reporter.canonical_name or reporter.name,
+        "match_status": reporter.match_status,
+        "person_level_evidence": _person_level_evidence(reporter),
+        "career_history": reporter.career_history or [],
+        "institutional_affiliations": reporter.institutional_affiliations or [],
+        "topics": reporter.topics or [],
+        "education": reporter.education or [],
+        "article_count": reporter.article_count or 0,
+        "political_leaning": reporter.political_leaning,
+        "leaning_confidence": reporter.leaning_confidence,
+        "research_sources": reporter.research_sources or [],
+        "match_explanation": reporter.match_explanation,
+    }
+
+
 async def _reporter_entity_details(
     db: AsyncSession, entity_id: str
 ) -> tuple[dict[str, Any], str | None, datetime | None] | None:
@@ -921,31 +1062,24 @@ async def _reporter_entity_details(
     reporter = await db.get(Reporter, reporter_id)
     if reporter is None:
         return None
-    person_evidence = [
-        value
-        for value in (
-            reporter.author_page_url,
-            reporter.canonical_author_url,
-            reporter.wikipedia_url,
-            reporter.wikidata_url,
-        )
-        if value
-    ]
-    details = {
-        "canonical_name": reporter.canonical_name or reporter.name,
-        "match_status": reporter.match_status,
-        "person_level_evidence": person_evidence,
-        "career_history": reporter.career_history or [],
-        "institutional_affiliations": reporter.institutional_affiliations or [],
-        "topics": reporter.topics or [],
-        "education": reporter.education or [],
-        "article_count": reporter.article_count or 0,
-        "political_leaning": reporter.political_leaning,
-        "leaning_confidence": reporter.leaning_confidence,
-        "research_sources": reporter.research_sources or [],
-        "match_explanation": reporter.match_explanation,
-    }
-    return details, "reporter", reporter.last_researched_at
+    return _reporter_details_fields(reporter), "reporter", reporter.last_researched_at
+
+
+async def _entity_detail_block(
+    db: AsyncSession,
+    entity_id: str,
+    connections: list[AtlasConnectionRecord],
+    node_by_id: dict[str, AtlasNode],
+) -> tuple[dict[str, Any], str | None, datetime | None] | None:
+    if entity_id.startswith("outlet:"):
+        return await _outlet_entity_details(db, entity_id, node_by_id)
+    if entity_id.startswith("organization:"):
+        return await _organization_entity_details(db, entity_id, connections, node_by_id)
+    if entity_id.startswith("person:"):
+        return await _person_entity_details(db, entity_id, connections, node_by_id)
+    if entity_id.startswith("reporter:"):
+        return await _reporter_entity_details(db, entity_id)
+    return {}, None, None
 
 
 async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecord | None:
@@ -969,19 +1103,7 @@ async def get_atlas_entity(db: AsyncSession, entity_id: str) -> AtlasEntityRecor
     node_by_id = {item.id: item for item in graph.nodes}
     connections, evidence = _collect_connections(graph, entity_id, node_by_id)
 
-    details: dict[str, Any] = {}
-    entity_kind: str | None = None
-    last_verified_at: datetime | None = None
-    if entity_id.startswith("outlet:"):
-        built = await _outlet_entity_details(db, entity_id, node_by_id)
-    elif entity_id.startswith("organization:"):
-        built = await _organization_entity_details(db, entity_id, connections, node_by_id)
-    elif entity_id.startswith("person:"):
-        built = await _person_entity_details(db, entity_id, connections, node_by_id)
-    elif entity_id.startswith("reporter:"):
-        built = await _reporter_entity_details(db, entity_id)
-    else:
-        built = (details, entity_kind, last_verified_at)
+    built = await _entity_detail_block(db, entity_id, connections, node_by_id)
     if built is None:
         return None
     details, entity_kind, last_verified_at = built
@@ -1043,16 +1165,20 @@ def _sort_index_items(items: list[AtlasNode], sort: str) -> None:
         items.sort(key=lambda node: node.label.casefold())
 
 
+def _facet_counter(items: list[AtlasNode], attr: str) -> dict[str, int]:
+    return dict(Counter(getattr(item, attr) for item in items if getattr(item, attr)))
+
+
 def _build_index_facets(
     items: list[AtlasNode], kind_facet: dict[str, int]
 ) -> dict[str, dict[str, int]]:
     return {
-        "entity_type": dict(Counter(node.entity_type for node in items)),
-        "country": dict(Counter(node.country_code for node in items if node.country_code)),
-        "funding": dict(Counter(node.funding_type for node in items if node.funding_type)),
-        "bias": dict(Counter(node.bias_rating for node in items if node.bias_rating)),
-        "status": dict(Counter(node.status for node in items if node.status)),
-        "confidence": dict(Counter(node.confidence_tier for node in items if node.confidence_tier)),
+        "entity_type": _facet_counter(items, "entity_type"),
+        "country": _facet_counter(items, "country_code"),
+        "funding": _facet_counter(items, "funding_type"),
+        "bias": _facet_counter(items, "bias_rating"),
+        "status": _facet_counter(items, "status"),
+        "confidence": _facet_counter(items, "confidence_tier"),
         "kind": kind_facet,
     }
 

@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   ExternalLink,
   Loader2,
   RefreshCw,
   Shield,
-  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +19,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceBadge, ConfidenceBar } from "./confidence-badge";
 import type {
+  SourceInfo,
   VerificationResult,
-  VerifiedClaim,
-  SourceInfo} from "@/lib/verification";
+  VerifiedClaim} from "@/lib/verification";
 import {
-  verifyResearch,
-  getConfidenceColor,
   formatConfidence,
+  getConfidenceColor,
+  verifyResearch,
 } from "@/lib/verification";
 import { logger } from "@/lib/logger";
 
@@ -42,24 +42,24 @@ export function VerificationPanel({
   onVerificationComplete,
   className = "",
 }: VerificationPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<VerificationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedClaims, setExpandedClaims] = useState<Set<string>>(new Set());
+  const [isOpen, setIsOpen] = useState(false),
+   [isLoading, setIsLoading] = useState(false),
+   [result, setResult] = useState<VerificationResult | null>(undefined),
+   [error, setError] = useState<string | null>(undefined),
+   [expandedClaims, setExpandedClaims] = useState<Set<string>>(new Set()),
 
-  const runVerification = useCallback(async () => {
+   runVerification = useCallback(async () => {
     if (!mainAnswer || mainAnswer.length < 50) {
       return;
     }
 
     setIsLoading(true);
-    setError(null);
+    setError(undefined);
 
     try {
       const verificationResult = await verifyResearch({
-        query,
         main_answer: mainAnswer,
+        query,
       });
 
       setResult(verificationResult);
@@ -68,16 +68,16 @@ export function VerificationPanel({
       if (verificationResult.error) {
         setError(verificationResult.error);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Verification failed";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Verification failed";
       setError(message);
-      logger.error("Verification failed", { error: err });
+      logger.error("Verification failed", { error });
     } finally {
       setIsLoading(false);
     }
-  }, [query, mainAnswer, onVerificationComplete]);
+  }, [query, mainAnswer, onVerificationComplete]),
 
-  const toggleClaim = (claimId: string) => {
+   toggleClaim = (claimId: string) => {
     setExpandedClaims((prev) => {
       const next = new Set(prev);
       if (next.has(claimId)) {
@@ -87,9 +87,9 @@ export function VerificationPanel({
       }
       return next;
     });
-  };
+  },
 
-  const hasContent = result && result.verified_claims.length > 0;
+   hasContent = result && result.verified_claims.length > 0;
 
   return (
     <div className={`border rounded-lg bg-card ${className}`}>
@@ -178,9 +178,9 @@ export function VerificationPanel({
                   />
                   <p className="text-xs text-muted-foreground">
                     {result.verified_claims.length} claim
-                    {result.verified_claims.length !== 1 ? "s" : ""} verified from{" "}
+                    {result.verified_claims.length === 1 ? "" : "s"} verified from{" "}
                     {Object.keys(result.sources).length} source
-                    {Object.keys(result.sources).length !== 1 ? "s" : ""} in{" "}
+                    {Object.keys(result.sources).length === 1 ? "" : "s"} in{" "}
                     {result.duration_ms}ms
                   </p>
                 </div>
@@ -193,7 +193,7 @@ export function VerificationPanel({
                         claim={claim}
                         sources={result.sources}
                         isExpanded={expandedClaims.has(claim.id)}
-                        onToggle={() => toggleClaim(claim.id)}
+                        onToggle={() =>{  toggleClaim(claim.id); }}
                       />
                     ))}
                   </div>
@@ -215,9 +215,9 @@ interface ClaimCardProps {
 }
 
 function ClaimCard({ claim, sources, isExpanded, onToggle }: ClaimCardProps) {
-  const colorClass = getConfidenceColor(claim.confidence_level);
-  const allSourceIds = [...claim.supporting_sources, ...claim.conflicting_sources];
-  const claimSources = allSourceIds
+  const colorClass = getConfidenceColor(claim.confidence_level),
+   allSourceIds = [...claim.supporting_sources, ...claim.conflicting_sources],
+   claimSources = allSourceIds
     .map((id) => sources[id]!)
     .filter(Boolean);
 
@@ -268,8 +268,8 @@ interface SourceCardProps {
 }
 
 function SourceCard({ source }: SourceCardProps) {
-  const supportText = source.supports_claim ? "Supports" : "Contradicts";
-  const supportColor = source.supports_claim
+  const supportText = source.supports_claim ? "Supports" : "Contradicts",
+   supportColor = source.supports_claim
     ? "text-green-600 dark:text-green-400"
     : "text-red-600 dark:text-red-400";
 
@@ -333,7 +333,7 @@ export function VerificationToggle({
           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
           Verifying...
         </>
-      ) : hasResult && confidence !== undefined ? (
+      ) : (hasResult && confidence !== undefined ? (
         <>
           <Shield className="w-3 h-3 mr-1" />
           {formatConfidence(confidence)}
@@ -343,7 +343,7 @@ export function VerificationToggle({
           <Shield className="w-3 h-3 mr-1" />
           Verify
         </>
-      )}
+      ))}
     </Button>
   );
 }

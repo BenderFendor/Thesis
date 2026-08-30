@@ -11,32 +11,33 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Loader2, CheckCircle, AlertCircle, Rss } from "lucide-react";
-import { promoteRssSource, validateRssUrl, type AddRssResponse } from "@/lib/api";
+import { AlertCircle, CheckCircle, Loader2, Plus, Rss } from "lucide-react";
+import { promoteRssSource, validateRssUrl } from '@/lib/api';
+import type { AddRssResponse } from '@/lib/api';
 
 interface AddRssDialogProps {
   onSourceAdded?: () => void;
 }
 
 export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState("");
-  const [validating, setValidating] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [validationResult, setValidationResult] = useState<AddRssResponse | null>(null);
-  const [reviewName, setReviewName] = useState("");
-  const [reviewCountry, setReviewCountry] = useState("");
-  const [reviewSourceType, setReviewSourceType] = useState("");
-  const [reviewPaywalled, setReviewPaywalled] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false),
+   [url, setUrl] = useState(""),
+   [validating, setValidating] = useState(false),
+   [adding, setAdding] = useState(false),
+   [validationResult, setValidationResult] = useState<AddRssResponse | null>(undefined),
+   [reviewName, setReviewName] = useState(""),
+   [reviewCountry, setReviewCountry] = useState(""),
+   [reviewSourceType, setReviewSourceType] = useState(""),
+   [reviewPaywalled, setReviewPaywalled] = useState(false),
+   [error, setError] = useState<string | null>(undefined),
 
-  const handleValidate = async () => {
+   handleValidate = async () => {
     const trimmed = url.trim();
-    if (!trimmed) return;
+    if (!trimmed) {return;}
 
     setValidating(true);
-    setError(null);
-    setValidationResult(null);
+    setError(undefined);
+    setValidationResult(undefined);
 
     try {
       const result = await validateRssUrl(trimmed);
@@ -45,47 +46,47 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
       setReviewCountry(result.inferred?.country || "");
       setReviewSourceType(result.inferred?.source_type || "");
       setReviewPaywalled(result.inferred?.is_paywalled || false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Validation failed");
     } finally {
       setValidating(false);
     }
-  };
+  },
 
-  const handleAdd = async () => {
-    if (!validationResult) return;
+   handleAdd = async () => {
+    if (!validationResult) {return;}
 
     setAdding(true);
     try {
       await promoteRssSource({
-        url: url.trim(),
-        name: reviewName.trim() || validationResult.name,
         country: reviewCountry.trim(),
-        source_type: reviewSourceType.trim(),
         is_paywalled: reviewPaywalled,
+        name: reviewName.trim() || validationResult.name,
+        source_type: reviewSourceType.trim(),
+        url: url.trim(),
       });
       setOpen(false);
       setUrl("");
-      setValidationResult(null);
-      setError(null);
+      setValidationResult(undefined);
+      setError(undefined);
       onSourceAdded?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add source");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to add source");
     } finally {
       setAdding(false);
     }
-  };
+  },
 
-  const handleOpenChange = (next: boolean) => {
+   handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next) {
       setUrl("");
-      setValidationResult(null);
+      setValidationResult(undefined);
       setReviewName("");
       setReviewCountry("");
       setReviewSourceType("");
       setReviewPaywalled(false);
-      setError(null);
+      setError(undefined);
     }
   };
 
@@ -118,11 +119,11 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
               value={url}
               onChange={(e) => {
                 setUrl(e.target.value);
-                setValidationResult(null);
-                setError(null);
+                setValidationResult(undefined);
+                setError(undefined);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleValidate();
+                if (e.key === "Enter") {handleValidate();}
               }}
               className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
             />
@@ -171,20 +172,20 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
               <Input
                 placeholder="Source name"
                 value={reviewName}
-                onChange={(event) => setReviewName(event.target.value)}
+                onChange={(event) =>{  setReviewName(event.target.value); }}
                 className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
               />
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   placeholder="Country code"
                   value={reviewCountry}
-                  onChange={(event) => setReviewCountry(event.target.value)}
+                  onChange={(event) =>{  setReviewCountry(event.target.value); }}
                   className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
                 />
                 <Input
                   placeholder="Source type"
                   value={reviewSourceType}
-                  onChange={(event) => setReviewSourceType(event.target.value)}
+                  onChange={(event) =>{  setReviewSourceType(event.target.value); }}
                   className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
                 />
               </div>
@@ -192,7 +193,7 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
                 <input
                   type="checkbox"
                   checked={reviewPaywalled}
-                  onChange={(event) => setReviewPaywalled(event.target.checked)}
+                  onChange={(event) =>{  setReviewPaywalled(event.target.checked); }}
                 />
                 Paywalled source
               </label>

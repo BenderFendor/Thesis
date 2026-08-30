@@ -1,20 +1,10 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery } from "@tanstack/react-query";
-import {
-  API_BASE_URL,
-  fetchDebugErrors,
-  fetchLlmLogs,
-  triggerWikiIndex,
-  type CacheStatus,
-  type DebugErrorsResponse,
-  type LlmLogEntry,
-  type LlmLogResponse,
-  type SourceStats,
-  type WikiIndexStatus,
-  type WikiSourceProfile,
-} from "@/lib/api";
+import { API_BASE_URL, fetchDebugErrors, fetchLlmLogs, triggerWikiIndex } from '@/lib/api';
+import type { CacheStatus, DebugErrorsResponse, LlmLogEntry, LlmLogResponse, SourceStats, WikiIndexStatus, WikiSourceProfile } from '@/lib/api';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,15 +15,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { WorkspaceTab } from "./source-intelligence-support";
+import type workspaceSupport from "./source-intelligence-support";
 
-const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/70 p-4 backdrop-blur-xl";
-const SURFACE_CLASS = "rounded-[1.2rem] border border-white/[0.08] bg-black/20 p-4";
+type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];
+
+const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/70 p-4 backdrop-blur-xl",
+ SURFACE_CLASS = "rounded-[1.2rem] border border-white/[0.08] bg-black/20 p-4";
 
 interface OperationsPanelProps {
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
-  tabs: Array<{ id: WorkspaceTab; label: string }>;
+  tabs: { id: WorkspaceTab; label: string }[];
   sourceStats: SourceStats[];
   cacheStatus: CacheStatus | null;
   wikiIndexStatus: WikiIndexStatus | undefined;
@@ -48,8 +40,8 @@ interface ParserResult {
   error?: string;
   parse_time_seconds?: number;
   image_url?: string;
-  candidates?: Array<{ priority?: number; source?: string; url?: string }>;
-  sample_entries?: Array<{ title?: string; image_extraction?: { image_url?: string; image_error?: string } }>;
+  candidates?: { priority?: number; source?: string; url?: string }[];
+  sample_entries?: { title?: string; image_extraction?: { image_url?: string; image_error?: string } }[];
   status?: { entries_count?: number };
 }
 
@@ -72,58 +64,58 @@ export function SourceIntelligenceOperations({
   onRefreshAll,
   onSourceProfileRefresh,
 }: OperationsPanelProps) {
-  const [rssUrl, setRssUrl] = useState("");
-  const [articleUrl, setArticleUrl] = useState("");
-  const [rssResult, setRssResult] = useState<ParserResult | null>(null);
-  const [articleResult, setArticleResult] = useState<ParserResult | null>(null);
-  const [testingFeed, setTestingFeed] = useState(false);
-  const [testingArticle, setTestingArticle] = useState(false);
-  const [indexingSource, setIndexingSource] = useState(false);
+  const [rssUrl, setRssUrl] = useState(""),
+   [articleUrl, setArticleUrl] = useState(""),
+   [rssResult, setRssResult] = useState<ParserResult | null>(undefined),
+   [articleResult, setArticleResult] = useState<ParserResult | null>(undefined),
+   [testingFeed, setTestingFeed] = useState(false),
+   [testingArticle, setTestingArticle] = useState(false),
+   [indexingSource, setIndexingSource] = useState(false),
 
-  const llmLogsQuery = useQuery<LlmLogResponse>({
-    queryKey: ["source-intelligence-llm"],
-    queryFn: () => fetchLlmLogs({ limit: 12 }),
+   llmLogsQuery = useQuery<LlmLogResponse>({
     enabled: activeTab === "llm",
+    queryFn: () => fetchLlmLogs({ limit: 12 }),
+    queryKey: ["source-intelligence-llm"],
     retry: 1,
-  });
-  const errorsQuery = useQuery<DebugErrorsResponse>({
-    queryKey: ["source-intelligence-errors"],
-    queryFn: () => fetchDebugErrors({ limit: 12, includeRequestStreamEvents: true }),
+  }),
+   errorsQuery = useQuery<DebugErrorsResponse>({
     enabled: activeTab === "errors",
+    queryFn: () => fetchDebugErrors({ includeRequestStreamEvents: true, limit: 12 }),
+    queryKey: ["source-intelligence-errors"],
     retry: 1,
-  });
+  }),
 
-  const topSources = useMemo(() => sourceStats.slice(0, 10), [sourceStats]);
-  const problematicSources = useMemo(
+   topSources = useMemo(() => sourceStats.slice(0, 10), [sourceStats]),
+   problematicSources = useMemo(
     () => sourceStats.filter((source) => source.status !== "success").slice(0, 6),
     [sourceStats],
-  );
-  const averageArticles = useMemo(() => {
-    if (sourceStats.length === 0) return 0;
+  ),
+   averageArticles = useMemo(() => {
+    if (sourceStats.length === 0) {return 0;}
     const total = sourceStats.reduce((sum, source) => sum + source.article_count, 0);
     return Math.round(total / sourceStats.length);
-  }, [sourceStats]);
-  const modelSuccessCount = llmLogsQuery.data?.entries.filter((entry) => entry.success).length ?? 0;
-  const modelFailureCount = llmLogsQuery.data?.entries.filter((entry) => entry.success === false).length ?? 0;
-  const recentErrorEvents = [
+  }, [sourceStats]),
+   modelSuccessCount = llmLogsQuery.data?.entries.filter((entry) => entry.success).length ?? 0,
+   modelFailureCount = llmLogsQuery.data?.entries.filter((entry) => entry.success === false).length ?? 0,
+   recentErrorEvents = [
     ...(errorsQuery.data?.log_file.entries ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-      key: `${entry.request_id || "log"}-${index}`,
-      service: entry.service || "unknown service",
       errorType: entry.error_type || "error",
+      key: `${entry.request_id || "log"}-${index}`,
       message: entry.error_message || "No error message recorded.",
+      service: entry.service || "unknown service",
     })),
     ...(errorsQuery.data?.recent_request_stream_errors ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-      key: `${entry.request_id || "stream"}-${index}`,
-      service: entry.service || entry.component || "unknown service",
       errorType: entry.error_type || entry.event_type || "error",
+      key: `${entry.request_id || "stream"}-${index}`,
       message: entry.error_message || entry.message || "No error message recorded.",
+      service: entry.service || entry.component || "unknown service",
     })),
   ];
 
   async function testFeed() {
-    if (!rssUrl.trim()) return;
+    if (!rssUrl.trim()) {return;}
     setTestingFeed(true);
-    setRssResult(null);
+    setRssResult(undefined);
     try {
       const response = await fetch(`${API_BASE_URL}/debug/parser/test/rss?url=${encodeURIComponent(rssUrl)}`, {
         method: "POST",
@@ -137,9 +129,9 @@ export function SourceIntelligenceOperations({
   }
 
   async function testArticle() {
-    if (!articleUrl.trim()) return;
+    if (!articleUrl.trim()) {return;}
     setTestingArticle(true);
-    setArticleResult(null);
+    setArticleResult(undefined);
     try {
       const response = await fetch(`${API_BASE_URL}/debug/parser/test/article?url=${encodeURIComponent(articleUrl)}`, {
         method: "POST",
@@ -153,7 +145,7 @@ export function SourceIntelligenceOperations({
   }
 
   async function indexSelectedSource() {
-    if (!selectedSourceName) return;
+    if (!selectedSourceName) {return;}
     setIndexingSource(true);
     try {
       await triggerWikiIndex(selectedSourceName);
@@ -170,7 +162,7 @@ export function SourceIntelligenceOperations({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => onTabChange(tab.id)}
+            onClick={() =>{  onTabChange(tab.id); }}
             className={`whitespace-nowrap border-b-2 px-1 py-2 text-[11px] font-mono uppercase tracking-[0.18em] ${
               activeTab === tab.id
                 ? "border-primary text-foreground"
@@ -237,7 +229,7 @@ export function SourceIntelligenceOperations({
   );
 }
 
-function IngestionTab({ sources, onRefreshAll }: { sources: SourceStats[]; onRefreshAll: () => void }) {
+function IngestionTab({ sources, onRefreshAll }:Readonly< { sources: SourceStats[]; onRefreshAll: () => void }>) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -259,7 +251,7 @@ function IngestionTab({ sources, onRefreshAll }: { sources: SourceStats[]; onRef
   );
 }
 
-function SourcesTable({ sources }: { sources: SourceStats[] }) {
+function SourcesTable({ sources }:Readonly< { sources: SourceStats[] }>) {
   return (
     <Table className="text-foreground">
       <TableHeader>
@@ -283,7 +275,7 @@ function SourcesTable({ sources }: { sources: SourceStats[] }) {
   );
 }
 
-function Th({ children }: { children: ReactNode }) {
+function Th({ children }:Readonly< { children: ReactNode }>) {
   return (
     <TableHead className="h-8 px-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
       {children}
@@ -291,7 +283,7 @@ function Th({ children }: { children: ReactNode }) {
   );
 }
 
-function SourceRow({ source }: { source: SourceStats }) {
+function SourceRow({ source }:Readonly< { source: SourceStats }>) {
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.02]">
       <TableCell className="px-3 py-2">
@@ -311,12 +303,12 @@ function SourceRow({ source }: { source: SourceStats }) {
           className={
             source.status === "success"
               ? "text-emerald-400"
-              : source.status === "warning"
+              : (source.status === "warning"
                 ? "text-amber-400"
-                : "text-red-400"
+                : "text-red-400")
           }
         >
-          {source.status === "success" ? "Healthy" : source.status === "warning" ? "Needs review" : "Issue"}
+          {source.status === "success" ? "Healthy" : (source.status === "warning" ? "Needs review" : "Issue")}
         </span>
       </TableCell>
       <TableCell className="px-3 py-2 text-foreground">{source.article_count}</TableCell>
@@ -333,11 +325,11 @@ function StorageTab({
   cacheStatus,
   wikiIndexStatus,
   averageArticles,
-}: {
+}:Readonly< {
   cacheStatus: CacheStatus | null;
   wikiIndexStatus: WikiIndexStatus | undefined;
   averageArticles: number;
-}) {
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
       <div className={SURFACE_CLASS}>
@@ -351,7 +343,7 @@ function StorageTab({
         <div className="mt-4 space-y-2 text-sm text-muted-foreground">
           <DataRow label="Last cache update" value={cacheStatus?.last_updated ? new Date(cacheStatus.last_updated).toLocaleString() : "—"} />
           <DataRow label="Refresh state" value={cacheStatus?.update_in_progress ? "Running" : "Idle"} />
-          <DataRow label="Cache age" value={cacheStatus?.cache_age_seconds != null ? `${cacheStatus.cache_age_seconds.toFixed(1)}s` : "—"} />
+          <DataRow label="Cache age" value={cacheStatus?.cache_age_seconds == null ? "—" : `${cacheStatus.cache_age_seconds.toFixed(1)}s`} />
         </div>
       </div>
 
@@ -360,7 +352,7 @@ function StorageTab({
   );
 }
 
-function WikiIndexCard({ wikiIndexStatus }: { wikiIndexStatus: WikiIndexStatus | undefined }) {
+function WikiIndexCard({ wikiIndexStatus }:Readonly< { wikiIndexStatus: WikiIndexStatus | undefined }>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wiki Index</div>
@@ -390,7 +382,7 @@ function ParserTab({
   testingArticle,
   onTestFeed,
   onTestArticle,
-}: {
+}:Readonly< {
   rssUrl: string;
   articleUrl: string;
   onRssUrlChange: (value: string) => void;
@@ -401,7 +393,7 @@ function ParserTab({
   testingArticle: boolean;
   onTestFeed: () => void;
   onTestArticle: () => void;
-}) {
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <ParserTestCard
@@ -437,7 +429,7 @@ function ParserTestCard({
   testing,
   result,
   rows,
-}: {
+}:Readonly< {
   title: string;
   placeholder: string;
   value: string;
@@ -445,15 +437,15 @@ function ParserTestCard({
   onTest: () => void;
   testing: boolean;
   result: ParserResult | null;
-  rows: Array<{ label: string; value: string }>;
-}) {
+  rows: { label: string; value: string }[];
+}>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
       <div className="flex gap-2">
         <Input
           value={value}
-          onChange={(event) => onValueChange(event.target.value)}
+          onChange={(event) =>{  onValueChange(event.target.value); }}
           placeholder={placeholder}
           className="border-white/10 bg-black/30 text-foreground"
         />
@@ -473,8 +465,8 @@ function ParserTestCard({
   );
 }
 
-function feedResultRows(result: ParserResult | null): Array<{ label: string; value: string }> {
-  if (!result) return [];
+function feedResultRows(result: ParserResult | null): { label: string; value: string }[] {
+  if (!result) {return [];}
   return [
     { label: "Result", value: result.success ? "Feed parsed" : "Feed failed" },
     { label: "Entries", value: String(result.status?.entries_count ?? "—") },
@@ -482,8 +474,8 @@ function feedResultRows(result: ParserResult | null): Array<{ label: string; val
   ];
 }
 
-function articleResultRows(result: ParserResult | null): Array<{ label: string; value: string }> {
-  if (!result) return [];
+function articleResultRows(result: ParserResult | null): { label: string; value: string }[] {
+  if (!result) {return [];}
   return [
     { label: "Result", value: result.success ? "Image found" : "No image found" },
     { label: "Image URL", value: result.image_url ?? "—" },
@@ -494,11 +486,11 @@ function LlmTab({
   entries,
   successCount,
   failureCount,
-}: {
+}:Readonly< {
   entries: LlmLogEntry[];
   successCount: number;
   failureCount: number;
-}) {
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
       <div className={SURFACE_CLASS}>
@@ -519,7 +511,7 @@ function LlmTab({
   );
 }
 
-function LlmEntries({ entries }: { entries: LlmLogEntry[] }) {
+function LlmEntries({ entries }:Readonly< { entries: LlmLogEntry[] }>) {
   return (
     <div className="space-y-3">
       {entries.map((entry, index) => (
@@ -529,7 +521,7 @@ function LlmEntries({ entries }: { entries: LlmLogEntry[] }) {
   );
 }
 
-function LlmEntryCard({ entry }: { entry: LlmLogEntry }) {
+function LlmEntryCard({ entry }:Readonly< { entry: LlmLogEntry }>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="flex items-center justify-between gap-3">
@@ -555,10 +547,10 @@ function LlmEntryCard({ entry }: { entry: LlmLogEntry }) {
 function ErrorsTab({
   problematicSources,
   recentErrorEvents,
-}: {
+}:Readonly< {
   problematicSources: SourceStats[];
   recentErrorEvents: NormalizedErrorEvent[];
-}) {
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
       <div className={SURFACE_CLASS}>
@@ -587,7 +579,7 @@ function ErrorsTab({
   );
 }
 
-function ErrorEventCard({ entry }: { entry: NormalizedErrorEvent }) {
+function ErrorEventCard({ entry }:Readonly< { entry: NormalizedErrorEvent }>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="flex items-center justify-between gap-3">
@@ -603,11 +595,11 @@ function PerformanceTab({
   averageArticles,
   recentErrorEvents,
   latencyValues,
-}: {
+}:Readonly< {
   averageArticles: number;
   recentErrorEvents: NormalizedErrorEvent[];
-  latencyValues: Array<number | undefined>;
-}) {
+  latencyValues: (number | undefined)[];
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <div className={SURFACE_CLASS}>
@@ -631,12 +623,12 @@ function MediaTab({
   selectedSourceName,
   indexingSource,
   onIndex,
-}: {
+}:Readonly< {
   selectedSourceProfile: WikiSourceProfile | null;
   selectedSourceName: string | null;
   indexingSource: boolean;
   onIndex: () => void;
-}) {
+}>) {
   return (
     <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
       <div className="space-y-4">
@@ -667,7 +659,7 @@ function MediaTab({
   );
 }
 
-function DossierSectionsCard({ profile }: { profile: WikiSourceProfile | null }) {
+function DossierSectionsCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Dossier Sections</div>
@@ -685,7 +677,7 @@ function DossierSectionsCard({ profile }: { profile: WikiSourceProfile | null })
   );
 }
 
-function OwnershipChainCard({ profile }: { profile: WikiSourceProfile | null }) {
+function OwnershipChainCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
   const chain = profile?.ownership_chain ?? [];
   return (
     <div className={SURFACE_CLASS}>
@@ -704,7 +696,7 @@ function OwnershipChainCard({ profile }: { profile: WikiSourceProfile | null }) 
   );
 }
 
-function QuickFactsCard({ profile }: { profile: WikiSourceProfile | null }) {
+function QuickFactsCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
   return (
     <div className={SURFACE_CLASS}>
       <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quick Facts</div>
@@ -720,7 +712,7 @@ function QuickFactsCard({ profile }: { profile: WikiSourceProfile | null }) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, value }:Readonly< { label: string; value: string | number }>) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/10 p-3">
       <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
@@ -729,7 +721,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function DataRow({ label, value }: { label: string; value: string }) {
+function DataRow({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>
@@ -738,9 +730,9 @@ function DataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatAverageLatency(values: Array<number | undefined> | undefined): string {
+function formatAverageLatency(values: (number | undefined)[] | undefined): string {
   const numericValues = (values ?? []).filter((value): value is number => typeof value === "number");
-  if (numericValues.length === 0) return "—";
+  if (numericValues.length === 0) {return "—";}
   const average = Math.round(numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length);
   return `${average}ms`;
 }

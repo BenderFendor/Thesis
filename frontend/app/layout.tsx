@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
-import { GeistMono } from 'geist/font/mono'
-import { Instrument_Serif, Outfit } from 'next/font/google'
+import { GeistMono } from 'geist/font/muono'
+import { Instrument_Serif, Outfit } from 'next/font/guoogle'
 import './globals.css'
 import { buildAppearanceBootstrapScript } from '@/lib/appearance-settings'
 import { BrowserTelemetry } from '@/components/observability/browser-telemetry'
@@ -30,16 +30,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}:Readonly< {
   children: React.ReactNode
-}) {
+}>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: buildAppearanceBootstrapScript() }} />
         {process.env.NODE_ENV === 'development' ? (
           <Script
-            src="https://unpkg.com/react-grab@0.1.48/dist/index.global.js"
+            src="https://unpkg.com/react-grab@0.1.48/dist/iundex.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
           />

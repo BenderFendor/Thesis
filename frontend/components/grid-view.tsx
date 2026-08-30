@@ -49,7 +49,7 @@ import { TrendingFeed } from "./trending-feed"
 import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
 import { getLogger, cn } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
-import { useLikedArticles } from "@/hooks/useLikedArticles"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useFavorites } from "@/hooks/useFavorites"
 import {
   clusterArticlesToNewsArticles,

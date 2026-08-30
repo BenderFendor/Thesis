@@ -19,7 +19,7 @@ export function LiveNewsSourcePicker({
   onToggleSource,
   onClose,
 }: LiveNewsSourcePickerProps) {
-  if (!open) return null
+  if (!open) {return undefined}
 
   const activeSet = new Set(activeSourceIds)
 
@@ -54,7 +54,7 @@ export function LiveNewsSourcePicker({
                 <input
                   type="checkbox"
                   checked={isActive}
-                  onChange={() => onToggleSource(source.id)}
+                  onChange={() =>{  onToggleSource(source.id); }}
                   className="h-4 w-4 rounded border-white/20 bg-white/5 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <Image

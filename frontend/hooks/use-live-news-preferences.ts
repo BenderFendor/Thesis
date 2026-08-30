@@ -12,10 +12,10 @@ export interface LiveNewsPreferences {
 const STORAGE_KEY = "scoop_live_news_prefs"
 
 function loadPreferences(): LiveNewsPreferences | null {
-  if (typeof window === "undefined") return null
+  if (typeof window === "undefined") {return undefined}
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
+    if (!raw) {return undefined}
     const parsed = JSON.parse(raw)
     if (
       Array.isArray(parsed.activeSourceIds) &&
@@ -27,18 +27,18 @@ function loadPreferences(): LiveNewsPreferences | null {
     ) {
       return parsed as LiveNewsPreferences
     }
-    return null
+    return undefined
   } catch {
-    return null
+    return undefined
   }
 }
 
 function savePreferences(prefs: LiveNewsPreferences): void {
-  if (typeof window === "undefined") return
+  if (typeof window === "undefined") {return}
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
   } catch {
-    // localStorage unavailable
+    // LocalStorage unavailable
   }
 }
 
@@ -53,11 +53,11 @@ export function useLiveNewsPreferences(): [
   (patch: Partial<LiveNewsPreferences>) => void,
   () => void,
 ] {
-  const [prefs, setPrefs] = useState<LiveNewsPreferences>(() => {
-    return loadPreferences() ?? { ...DEFAULT_PREFERENCES }
-  })
+  const [prefs, setPrefs] = useState<LiveNewsPreferences>(() => 
+    loadPreferences() ?? { ...DEFAULT_PREFERENCES }
+  ),
 
-  const updatePreferences = useCallback(
+   updatePreferences = useCallback(
     (patch: Partial<LiveNewsPreferences>) => {
       setPrefs((prev) => {
         const next = { ...prev, ...patch }
@@ -66,9 +66,9 @@ export function useLiveNewsPreferences(): [
       })
     },
     [],
-  )
+  ),
 
-  const resetToDefaults = useCallback(() => {
+   resetToDefaults = useCallback(() => {
     const defaults = { ...DEFAULT_PREFERENCES }
     savePreferences(defaults)
     setPrefs(defaults)

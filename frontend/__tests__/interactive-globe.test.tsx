@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from "react"
 import { waitFor } from "@testing-library/react"
 
@@ -7,27 +8,27 @@ import { renderWithQueryClient } from "@/test-utils/render-with-query-client"
 const mockControls = {
   autoRotate: false,
   autoRotateSpeed: 0,
-  enableZoom: true,
   enablePan: true,
-}
-const mockPointOfView = jest.fn()
-const mockGlobeInstance = {
+  enableZoom: true,
+},
+ mockPointOfView = jest.fn(),
+ mockGlobeInstance = {
   controls: () => mockControls,
-  pointOfView: (...args: unknown[]) => mockPointOfView(...args),
+  pointOfView: (...args:readonly  unknown[]) => mockPointOfView(...args),
   renderer: () => null,
   scene: () => null,
-} as const
-const mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_props, ref) => {
+} as const,
+ mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_props, ref) => {
   React.useEffect(() => {
     if (typeof ref === "function") {
       ref(mockGlobeInstance)
-      return () => ref(null)
+      return () =>{  ref(undefined); }
     }
 
     if (ref && typeof ref === "object" && "current" in ref) {
       ;(ref as { current: unknown }).current = mockGlobeInstance
       return () => {
-        ;(ref as { current: unknown }).current = null
+        ;(ref as { current: unknown }).current = undefined
       }
     }
     return
@@ -38,22 +39,22 @@ const mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_prop
 
 mockReactGlobe.displayName = "MockGlobe"
 
-jest.mock("next/dynamic", () => {
+jest.mock<typeof import('next/dynamic')>("next/dynamic", () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const React = jest.requireActual<typeof import("react")>("react")
 
   return (
     _loader: unknown,
-    options?: { loading?: () => React.ReactNode },
+    options?:Readonly< { loading?: () => React.ReactNode }>,
   ) => {
     const DynamicGlobe = React.forwardRef<unknown, Record<string, unknown>>((props, ref) => {
       const [ready, setReady] = React.useState(false)
 
       React.useEffect(() => {
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
           setReady(true)
         }, 0)
-        return () => window.clearTimeout(timer)
+        return () =>{  globalThis.clearTimeout(timer); }
       }, [])
 
       if (!ready) {
@@ -69,18 +70,18 @@ jest.mock("next/dynamic", () => {
   }
 })
 
-jest.mock("react-globe.gl", () => {
-  return {
+jest.mock<typeof import('react-globe.gl')>("react-globe.gl", () => (
+  {
     __esModule: true,
     default: mockReactGlobe,
   }
-})
+))
 
-jest.mock("d3-geo", () => ({
+jest.mock<typeof import('d3-geo')>("d3-geo", () => ({
   geoCentroid: () => [0, 0],
 }))
 
-describe("InteractiveGlobe", () => {
+describe("interactiveGlobe", () => {
   const fetchMock = jest.fn()
 
   beforeEach(() => {
@@ -98,22 +99,23 @@ describe("InteractiveGlobe", () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-    } as unknown as typeof ResizeObserver
+    }
   })
 
-  it("initializes globe controls after the delayed dynamic mount resolves", async () => {
+  it("initializes globe controls after the delayed dynamic mount resolves", async () => {  expect.hasAssertions();
+  
     renderWithQueryClient(
       <InteractiveGlobe
         articles={[]}
         countryMetrics={{
-          counts: {},
-          total_articles: 0,
           articles_with_country: 0,
           articles_without_country: 0,
           country_count: 0,
+          counts: {},
+          total_articles: 0,
         }}
         onCountrySelect={jest.fn()}
-        selectedCountry={null}
+        selectedCountry={undefined}
         lightingMode="all-lit"
       />,
     )
@@ -127,6 +129,6 @@ describe("InteractiveGlobe", () => {
     expect(mockControls.autoRotateSpeed).toBe(0.5)
     expect(mockControls.enableZoom).toBe(false)
     expect(mockControls.enablePan).toBe(false)
-    expect(mockPointOfView).toHaveBeenCalled()
+    expect(mockPointOfView).toHaveBeenCalledWith()
   })
 })

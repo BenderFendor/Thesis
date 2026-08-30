@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Loader2 } from "lucide-react";
@@ -19,8 +19,8 @@ import type { FundingBiasAnalysisResponse } from "@/features/intelligence-atlas/
  */
 export function FundingBiasAnalysisView() {
   const { data, isLoading, error } = useQuery<FundingBiasAnalysisResponse>({
-    queryKey: ["atlas-funding-bias-analysis"],
     queryFn: () => fetchFundingBiasAnalysis(),
+    queryKey: ["atlas-funding-bias-analysis"],
     retry: 1,
   });
 
@@ -54,15 +54,7 @@ export function FundingBiasAnalysisView() {
             <div className="rounded-2xl border border-white/5 bg-black/20 p-8 text-center text-sm text-red-400 font-mono">
               {error instanceof Error ? error.message : "Analysis unavailable"}
             </div>
-          ) : !data.available ? (
-            <div className="rounded-2xl border border-white/5 bg-black/20 p-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                This analysis hasn&apos;t been run yet. It ships as a CLI job
-                (<code className="font-mono text-xs">python -m app.scripts.run_funding_bias_analysis</code>),
-                not a live computation, because it locks a methodology before touching the data.
-              </p>
-            </div>
-          ) : (
+          ) : data.available ? (
             <>
               {data.methodology && (
                 <Panel title="Methodology" eyebrow="Locked before computation">
@@ -134,11 +126,11 @@ export function FundingBiasAnalysisView() {
                     <StatTile label="n" value={String(data.statistic.n)} />
                     <StatTile
                       label="Chi-square"
-                      value={data.statistic.chi_square != null ? data.statistic.chi_square.toFixed(3) : "—"}
+                      value={data.statistic.chi_square == null ? "—" : data.statistic.chi_square.toFixed(3)}
                     />
                     <StatTile
                       label="Cramer's V"
-                      value={data.statistic.cramers_v != null ? data.statistic.cramers_v.toFixed(3) : "undefined"}
+                      value={data.statistic.cramers_v == null ? "undefined" : data.statistic.cramers_v.toFixed(3)}
                     />
                     <StatTile label="Interpretation" value={data.statistic.interpretation ?? "not computable"} />
                   </div>
@@ -165,6 +157,14 @@ export function FundingBiasAnalysisView() {
                 Correlation shown, not proven causation — values are attributed to their sources.
               </p>
             </>
+          ) : (
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                This analysis hasn&apos;t been run yet. It ships as a CLI job
+                (<code className="font-mono text-xs">python -m app.scripts.run_funding_bias_analysis</code>),
+                not a live computation, because it locks a methodology before touching the data.
+              </p>
+            </div>
           )}
         </main>
       </div>
@@ -172,7 +172,7 @@ export function FundingBiasAnalysisView() {
   );
 }
 
-function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+function Panel({ title, eyebrow, children }:Readonly< { title: string; eyebrow: string; children: ReactNode }>) {
   return (
     <section>
       <div className="mb-3">
@@ -184,7 +184,7 @@ function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; c
   );
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatTile({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
       <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>

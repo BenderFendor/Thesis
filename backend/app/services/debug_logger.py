@@ -717,44 +717,52 @@ class DebugLoggerService:
         """Return recent frontend debug payloads."""
         return list(self._frontend_reports)
 
-    def _generate_recommendations(self) -> list[str]:
-        """Generate debugging recommendations based on current state."""
+    def _hung_stream_recommendations(self) -> list[str]:
+        """Recommendations for active streams whose events have stalled."""
         recommendations = []
-
-        # Check for active streams with gaps
         for stream_id, info in self.get_active_streams().items():
             if info.get("is_potentially_hung"):
                 recommendations.append(
                     f"Stream {stream_id} may be hung - gap of {info['event_gap_s']:.1f}s since last event. "
                     "Check ThreadPoolExecutor shutdown and RSS fetch timeouts."
                 )
+        return recommendations
 
-        # Check for slow operations
+    def _slow_operation_recommendations(self) -> list[str]:
+        """Recommendations for components with many slow operations."""
         slow_ops = self.get_slow_operations()
-        if len(slow_ops) > 5:
-            by_component: dict[str, int] = {}
-            for op in slow_ops:
-                comp = op.get("component", "unknown")
-                by_component[comp] = by_component.get(comp, 0) + 1
+        if len(slow_ops) <= 5:
+            return []
+        by_component: dict[str, int] = {}
+        for op in slow_ops:
+            comp = op.get("component", "unknown")
+            by_component[comp] = by_component.get(comp, 0) + 1
+        return [
+            f"Multiple slow {comp} operations detected ({count}). "
+            f"Consider optimizing {comp} layer."
+            for comp, count in by_component.items()
+        ]
 
-            for comp, count in by_component.items():
-                recommendations.append(
-                    f"Multiple slow {comp} operations detected ({count}). "
-                    f"Consider optimizing {comp} layer."
-                )
-
-        # Check for errors
+    def _error_recommendations(self) -> list[str]:
+        """Recommendations summarizing recent error types."""
         recent_errors = [e for e in self._events if e.error is not None][-10:]
-        if recent_errors:
-            error_types = set(e.error_type for e in recent_errors if e.error_type)
-            recommendations.append(
-                f"Recent errors detected: {', '.join(error_types)}. "
-                "Check stack traces in debug log."
-            )
+        if not recent_errors:
+            return []
+        error_types = set(e.error_type for e in recent_errors if e.error_type)
+        return [
+            f"Recent errors detected: {', '.join(error_types)}. "
+            "Check stack traces in debug log."
+        ]
 
+    def _generate_recommendations(self) -> list[str]:
+        """Generate debugging recommendations based on current state."""
+        recommendations = [
+            *self._hung_stream_recommendations(),
+            *self._slow_operation_recommendations(),
+            *self._error_recommendations(),
+        ]
         if not recommendations:
             recommendations.append("No critical issues detected. System appears healthy.")
-
         return recommendations
 
 

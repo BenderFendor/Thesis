@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-  type WheelEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react';
 import { Minus, Plus, Scan } from "lucide-react";
 
 import { useAtlasLayout } from "./hooks/use-atlas-layout";
@@ -40,26 +32,26 @@ const ENTITY_FILL: Record<AtlasNode["entity_type"], string> = {
   outlet: "#f0ede4",
   person: "#e08a5f",
   reporter: "#88a9ff",
-};
+},
 
-const EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
-  ownership: "#d7b35f",
+ EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
+  coauthor: "#88a9ff",
+  current_outlet: "#88a9ff",
+  employed_by: "#8ca0c8",
+  founded_by: "#e08a5f",
   owned_by: "#b79348",
+  ownership: "#d7b35f",
   parent_org: "#b79348",
   part_of: "#a88645",
   publishes: "#b8b2a7",
-  employed_by: "#8ca0c8",
-  current_outlet: "#88a9ff",
-  coauthor: "#88a9ff",
   shared_outlet: "#6f86bd",
-  founded_by: "#e08a5f",
   sibling_via_owner: "#7d6f5a",
 };
 
 function nodeRadius(node: AtlasNode): number {
-  const base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8;
-  const degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8);
-  const articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3);
+  const base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8,
+   degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8),
+   articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3);
   return base + degree + articles;
 }
 
@@ -86,89 +78,89 @@ export function AtlasGraph({
   loading,
   onSelect,
 }: AtlasGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 1280, height: 760 });
-  const [manualTransform, setManualTransform] = useState<{ key: string; value: Transform } | null>(null);
-  const [keyboardActiveNodeId, setKeyboardActiveNodeId] = useState<string | null>(selectedId);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [panning, setPanning] = useState(false);
-  const panRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(undefined),
+   svgRef = useRef<SVGSVGElement>(undefined),
+   [dimensions, setDimensions] = useState({ height: 760, width: 1280 }),
+   [manualTransform, setManualTransform] = useState<{ key: string; value: Transform } | null>(null),
+   [keyboardActiveNodeId, setKeyboardActiveNodeId] = useState<string | null>(selectedId),
+   [hoveredNodeId, setHoveredNodeId] = useState<string | null>(undefined),
+   [panning, setPanning] = useState(false),
+   panRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {return;}
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
+      if (!entry) {return;}
       setDimensions({
-        width: Math.max(320, Math.round(entry.contentRect.width)),
         height: Math.max(360, Math.round(entry.contentRect.height)),
+        width: Math.max(320, Math.round(entry.contentRect.width)),
       });
     });
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () =>{  observer.disconnect(); };
   }, []);
 
   const layoutOptions = useMemo(
     () => ({
-      nodes,
       edges,
-      width: dimensions.width,
+      graphVersion,
       height: dimensions.height,
       layout,
+      nodes,
       selectedId,
-      graphVersion,
+      width: dimensions.width,
     }),
     [dimensions.height, dimensions.width, edges, graphVersion, layout, nodes, selectedId],
-  );
-  const { key: layoutKey, positions, stable } = useAtlasLayout(layoutOptions);
-  const selectedNeighbors = useMemo(() => {
+  ),
+   { key: layoutKey, positions, stable } = useAtlasLayout(layoutOptions),
+   selectedNeighbors = useMemo(() => {
     const ids = new Set<string>();
-    if (!selectedId) return ids;
+    if (!selectedId) {return ids;}
     ids.add(selectedId);
     edges.forEach((edge) => {
-      if (edge.source_id === selectedId) ids.add(edge.target_id);
-      if (edge.target_id === selectedId) ids.add(edge.source_id);
+      if (edge.source_id === selectedId) {ids.add(edge.target_id);}
+      if (edge.target_id === selectedId) {ids.add(edge.source_id);}
     });
     return ids;
-  }, [edges, selectedId]);
-  const interactionNodeId = hoveredNodeId ?? selectedId;
-  const interactionNeighbors = useMemo(() => {
+  }, [edges, selectedId]),
+   interactionNodeId = hoveredNodeId ?? selectedId,
+   interactionNeighbors = useMemo(() => {
     const ids = new Set<string>();
-    if (!interactionNodeId) return ids;
+    if (!interactionNodeId) {return ids;}
     ids.add(interactionNodeId);
     edges.forEach((edge) => {
-      if (edge.source_id === interactionNodeId) ids.add(edge.target_id);
-      if (edge.target_id === interactionNodeId) ids.add(edge.source_id);
+      if (edge.source_id === interactionNodeId) {ids.add(edge.target_id);}
+      if (edge.target_id === interactionNodeId) {ids.add(edge.source_id);}
     });
     return ids;
-  }, [edges, interactionNodeId]);
-  const orderedNodes = useMemo(
+  }, [edges, interactionNodeId]),
+   orderedNodes = useMemo(
     () => [...nodes].sort((left, right) => right.connection_count - left.connection_count || left.label.localeCompare(right.label)),
     [nodes],
-  );
-  const priorityLabelIds = useMemo(
+  ),
+   priorityLabelIds = useMemo(
     () => new Set(orderedNodes.slice(0, 28).map((node) => node.id)),
     [orderedNodes],
-  );
-  const hoveredNode = hoveredNodeId ? nodes.find((node) => node.id === hoveredNodeId) ?? null : null;
-  const activeNodeId = selectedId
+  ),
+   hoveredNode = hoveredNodeId ? nodes.find((node) => node.id === hoveredNodeId) ?? null : null,
+   activeNodeId = selectedId
     ?? (keyboardActiveNodeId && nodes.some((node) => node.id === keyboardActiveNodeId)
       ? keyboardActiveNodeId
       : orderedNodes[0]?.id)
-    ?? null;
-  const fittedTransform = useMemo<Transform>(() => {
+    ?? null,
+   fittedTransform = useMemo<Transform>(() => {
     const values = Object.values(positions);
-    if (values.length === 0) return { x: 0, y: 0, scale: 1 };
-    const xs = values.map((position) => position.x);
-    const ys = values.map((position) => position.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const padding = 90;
-    const width = Math.max(1, maxX - minX);
-    const height = Math.max(1, maxY - minY);
-    const scale = Math.min(
+    if (values.length === 0) {return { scale: 1, x: 0, y: 0 };}
+    const xs = values.map((position) => position.x),
+     ys = values.map((position) => position.y),
+     minX = Math.min(...xs),
+     maxX = Math.max(...xs),
+     minY = Math.min(...ys),
+     maxY = Math.max(...ys),
+     padding = 90,
+     width = Math.max(1, maxX - minX),
+     height = Math.max(1, maxY - minY),
+     scale = Math.min(
       1.45,
       Math.max(0.35, Math.min((dimensions.width - padding * 2) / width, (dimensions.height - padding * 2) / height)),
     );
@@ -177,29 +169,29 @@ export function AtlasGraph({
       x: dimensions.width / 2 - ((minX + maxX) / 2) * scale,
       y: dimensions.height / 2 - ((minY + maxY) / 2) * scale,
     };
-  }, [dimensions.height, dimensions.width, positions]);
-  const transform = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform;
-  const setTransform = useCallback(
+  }, [dimensions.height, dimensions.width, positions]),
+   transform = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform,
+   setTransform = useCallback(
     (update: Transform | ((current: Transform) => Transform)) => {
-      const current = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform;
-      const value = typeof update === "function" ? update(current) : update;
+      const current = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform,
+       value = typeof update === "function" ? update(current) : update;
       setManualTransform({ key: layoutKey, value });
     },
     [fittedTransform, layoutKey, manualTransform],
-  );
-  const fitGraph = useCallback(() => {
+  ),
+   fitGraph = useCallback(() => {
     setManualTransform({ key: layoutKey, value: fittedTransform });
-  }, [fittedTransform, layoutKey]);
+  }, [fittedTransform, layoutKey]),
 
-  const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
+   zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
-    if (!bounds) return;
-    const pointerX = clientX - bounds.left;
-    const pointerY = clientY - bounds.top;
+    if (!bounds) {return;}
+    const pointerX = clientX - bounds.left,
+     pointerY = clientY - bounds.top;
     setTransform((current) => {
-      const nextScale = Math.min(3.5, Math.max(0.3, current.scale * factor));
-      const worldX = (pointerX - current.x) / current.scale;
-      const worldY = (pointerY - current.y) / current.scale;
+      const nextScale = Math.min(3.5, Math.max(0.3, current.scale * factor)),
+       worldX = (pointerX - current.x) / current.scale,
+       worldY = (pointerY - current.y) / current.scale;
       return {
         scale: nextScale,
         x: pointerX - worldX * nextScale,
@@ -214,21 +206,21 @@ export function AtlasGraph({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (event.button !== 0 || (event.target as Element).closest("[data-node-id]")) return;
+    if (event.button !== 0 || (event.target as Element).closest("[data-node-id]")) {return;}
     event.currentTarget.setPointerCapture(event.pointerId);
     panRef.current = {
+      originX: transform.x,
+      originY: transform.y,
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      originX: transform.x,
-      originY: transform.y,
     };
     setPanning(true);
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
     const pan = panRef.current;
-    if (!pan || pan.pointerId !== event.pointerId) return;
+    if (!pan || pan.pointerId !== event.pointerId) {return;}
     setTransform((current) => ({
       ...current,
       x: pan.originX + event.clientX - pan.x,
@@ -237,8 +229,8 @@ export function AtlasGraph({
   }
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
-    if (panRef.current?.pointerId !== event.pointerId) return;
-    panRef.current = null;
+    if (panRef.current?.pointerId !== event.pointerId) {return;}
+    panRef.current = undefined;
     setPanning(false);
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
@@ -249,13 +241,13 @@ export function AtlasGraph({
       onSelect(nodeId);
       return;
     }
-    if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) return;
+    if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {return;}
     event.preventDefault();
-    const currentIndex = orderedNodes.findIndex((node) => node.id === nodeId);
-    const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    const nextIndex = (currentIndex + direction + orderedNodes.length) % orderedNodes.length;
-    const nextNode = orderedNodes[nextIndex];
-    if (!nextNode) return;
+    const currentIndex = orderedNodes.findIndex((node) => node.id === nodeId),
+     direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1,
+     nextIndex = (currentIndex + direction + orderedNodes.length) % orderedNodes.length,
+     nextNode = orderedNodes[nextIndex];
+    if (!nextNode) {return;}
     setKeyboardActiveNodeId(nextNode.id);
     requestAnimationFrame(() => {
       svgRef.current?.querySelector<SVGGElement>(`[data-node-id="${CSS.escape(nextNode.id)}"]`)?.focus();
@@ -297,17 +289,17 @@ export function AtlasGraph({
         </defs>
         <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.scale})`}>
           {edges.map((edge) => {
-            const source = positions[edge.source_id];
-            const target = positions[edge.target_id];
-            if (!source || !target) return null;
-            const focusDimmed = focus && selectedId && !selectedNeighbors.has(edge.source_id) && !selectedNeighbors.has(edge.target_id);
-            const touchesInteraction = Boolean(
+            const source = positions[edge.source_id],
+             target = positions[edge.target_id];
+            if (!source || !target) {return undefined;}
+            const focusDimmed = focus && selectedId && !selectedNeighbors.has(edge.source_id) && !selectedNeighbors.has(edge.target_id),
+             touchesInteraction = Boolean(
               interactionNodeId &&
               (edge.source_id === interactionNodeId || edge.target_id === interactionNodeId),
-            );
-            const dimmed = focusDimmed || Boolean(interactionNodeId && !touchesInteraction);
-            const dashed = edge.is_inferred || edge.confidence_tier === "likely" || edge.confidence_tier === "unresolved";
-            const baseOpacity = Math.min(0.2, 0.06 + Math.log2(edge.weight + 1) * 0.025);
+            ),
+             dimmed = focusDimmed || Boolean(interactionNodeId && !touchesInteraction),
+             dashed = edge.is_inferred || edge.confidence_tier === "likely" || edge.confidence_tier === "unresolved",
+             baseOpacity = Math.min(0.2, 0.06 + Math.log2(edge.weight + 1) * 0.025);
             return (
               <line
                 key={edge.id}
@@ -317,7 +309,7 @@ export function AtlasGraph({
                 x2={target.x}
                 y2={target.y}
                 stroke={EDGE_STROKE[edge.relation_type]}
-                strokeOpacity={dimmed ? 0.025 : touchesInteraction ? 0.78 : baseOpacity}
+                strokeOpacity={dimmed ? 0.025 : (touchesInteraction ? 0.78 : baseOpacity)}
                 strokeWidth={touchesInteraction ? 1.8 : Math.min(1.25, 0.55 + Math.log2(edge.weight + 1) * 0.14)}
                 strokeDasharray={dashed ? "5 5" : undefined}
                 markerEnd={edge.direction === "directed" ? `url(#${edge.relation_type === "ownership" ? "atlas-arrow-gold" : "atlas-arrow-neutral"})` : undefined}
@@ -326,19 +318,19 @@ export function AtlasGraph({
           })}
           {nodes.map((node) => {
             const position = positions[node.id];
-            if (!position) return null;
-            const radius = nodeRadius(node);
-            const selected = selectedId === node.id;
-            const active = activeNodeId === node.id;
-            const interacting = hoveredNodeId === node.id;
-            const dimmed = (focus && selectedId && !selectedNeighbors.has(node.id))
-              || Boolean(interactionNodeId && !interactionNeighbors.has(node.id));
-            const confidence = node.confidence_tier ?? "unresolved";
-            const showLabel = transform.scale >= 1.15
+            if (!position) {return undefined;}
+            const radius = nodeRadius(node),
+             selected = selectedId === node.id,
+             active = activeNodeId === node.id,
+             interacting = hoveredNodeId === node.id,
+             dimmed = (focus && selectedId && !selectedNeighbors.has(node.id))
+              || Boolean(interactionNodeId && !interactionNeighbors.has(node.id)),
+             confidence = node.confidence_tier ?? "unresolved",
+             showLabel = transform.scale >= 1.15
               || priorityLabelIds.has(node.id)
               || selected
-              || interacting;
-            const priorityLabel = selected || interacting || priorityLabelIds.has(node.id);
+              || interacting,
+             priorityLabel = selected || interacting || priorityLabelIds.has(node.id);
             return (
               <g
                 key={node.id}
@@ -350,14 +342,14 @@ export function AtlasGraph({
                 aria-label={`${node.label}, ${node.entity_type}, ${node.connection_count} connections, ${confidence} confidence`}
                 aria-pressed={selected}
                 opacity={dimmed ? 0.14 : 1}
-                onMouseEnter={() => setHoveredNodeId(node.id)}
-                onMouseLeave={() => setHoveredNodeId((current) => current === node.id ? null : current)}
+                onMouseEnter={() =>{  setHoveredNodeId(node.id); }}
+                onMouseLeave={() =>{  setHoveredNodeId((current) => current === node.id ? null : current); }}
                 onClick={(event) => {
                   event.stopPropagation();
                   setKeyboardActiveNodeId(node.id);
                   onSelect(node.id);
                 }}
-                onKeyDown={(event) => handleNodeKeyboard(event, node.id)}
+                onKeyDown={(event) =>{  handleNodeKeyboard(event, node.id); }}
               >
                 <title>{`${node.label} — ${node.entity_type}, ${node.connection_count} connections, ${node.article_count} articles`}</title>
                 <circle
@@ -404,7 +396,7 @@ export function AtlasGraph({
           aria-label="Zoom in"
           onClick={() => {
             const bounds = svgRef.current?.getBoundingClientRect();
-            if (bounds) zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1.18);
+            if (bounds) {zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1.18);}
           }}
         >
           <Plus className="h-4 w-4" />
@@ -415,7 +407,7 @@ export function AtlasGraph({
           aria-label="Zoom out"
           onClick={() => {
             const bounds = svgRef.current?.getBoundingClientRect();
-            if (bounds) zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1 / 1.18);
+            if (bounds) {zoomAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, 1 / 1.18);}
           }}
         >
           <Minus className="h-4 w-4" />
@@ -425,10 +417,10 @@ export function AtlasGraph({
         </button>
       </div>
       <div className={styles.graphLegend} aria-hidden="true">
-        <span><span className="text-[#f0ede4]">■</span> outlet</span>
-        <span><span className="text-[#d7b35f]">●</span> organization</span>
-        <span><span className="text-[#e08a5f]">◆</span> person</span>
-        <span><span className="text-[#88a9ff]">◆</span> reporter</span>
+        <span><span className="text-[#f0ede4]">■</span> outlet</supan>
+        <span><span className="text-[#d7b35f]">●</span> organization</supan>
+        <span><span className="text-[#e08a5f]">◆</span> person</supan>
+        <span><span className="text-[#88a9ff]">◆</span> reporter</supan>
         <span>Zoom for all labels</span>
       </div>
       {hoveredNode ? (

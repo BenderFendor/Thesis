@@ -101,6 +101,33 @@ async def search_wikidata(name: str, http_client: httpx.AsyncClient) -> list[dic
     return response.json().get("search") or []
 
 
+def _candidate_entry(
+    candidate: dict[str, Any], embed_source: Any | None
+) -> dict[str, Any]:
+    label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get(
+        "value", ""
+    )
+    description = candidate.get("description") or ""
+    qid = candidate.get("id") or ""
+    url = candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}" if qid else ""
+    sim = cosine_similarity(embed_source, _get_embedding(f"{label} {description}"))
+    return {
+        "qid": qid,
+        "label": label,
+        "description": description,
+        "url": url,
+        "similarity": round(sim, 4),
+    }
+
+
+def _best_candidate_action(similarity: float) -> str:
+    if similarity > 0.85:
+        return "auto_candidate"
+    if similarity > 0.5:
+        return "review"
+    return "needs_manual"
+
+
 async def curate_source(
     source_name: str,
     config: dict[str, Any],
@@ -129,44 +156,19 @@ async def curate_source(
         result["action"] = "no_candidates"
         return result
 
-    for candidate in candidates:
-        label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get(
-            "value", ""
-        )
-        description = candidate.get("description") or ""
-        qid = candidate.get("id") or ""
-        url = candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}" if qid else ""
-
-        candidate_embed = _get_embedding(f"{label} {description}")
-        sim = cosine_similarity(embed_source, candidate_embed)
-
-        result["candidates"].append(
-            {
-                "qid": qid,
-                "label": label,
-                "description": description,
-                "url": url,
-                "similarity": round(sim, 4),
-            }
-        )
+    result["candidates"] = [_candidate_entry(candidate, embed_source) for candidate in candidates]
 
     if result["candidates"]:
         best = max(result["candidates"], key=lambda c: c["similarity"])
         result["best_candidate_qid"] = best["qid"]
         result["best_candidate_label"] = best["label"]
         result["best_candidate_score"] = best["similarity"]
-
-        if best["similarity"] > 0.85:
-            result["action"] = "auto_candidate"
-        elif best["similarity"] > 0.5:
-            result["action"] = "review"
-        else:
-            result["action"] = "needs_manual"
+        result["action"] = _best_candidate_action(best["similarity"])
 
     return result
 
 
-async def main() -> None:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Curate Wikidata QIDs for RSS sources using embedding disambiguation"
     )
@@ -188,31 +190,27 @@ async def main() -> None:
         default=50,
         help="Limit to top N sources (default: 50, 0 = all)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    sources = _load_rss_sources()
-    if args.source:
-        if args.source not in sources:
-            print(f"Source '{args.source}' not found in rss_sources.json")
-            return
-        sources = {args.source: sources[args.source]}
 
+def _select_unique_sources(
+    sources: dict[str, Any], *, missing_only: bool
+) -> dict[str, dict[str, Any]]:
     unique_sources: dict[str, dict[str, Any]] = {}
     for name, config in sources.items():
         base_name = name.split(" - ")[0].strip()
         existing_qid = config.get("wikidata_qid")
-        if args.missing_only and existing_qid:
+        if missing_only and existing_qid:
             continue
         if base_name not in unique_sources:
             unique_sources[base_name] = {
                 "config": config,
                 "existing_qid": existing_qid,
             }
+    return unique_sources
 
-    items = sorted(unique_sources.items())
-    if args.top > 0:
-        items = items[: args.top]
 
+def _embedding_map(items: list[tuple[str, dict[str, Any]]]) -> dict[str, Any | None]:
     embed_map: dict[str, Any | None] = {}
     for source_name, entry in items:
         config = entry["config"]
@@ -220,22 +218,42 @@ async def main() -> None:
             f"{source_name} {config.get('country', '')} {config.get('ownership_label', '')}"
         )
         embed_map[source_name] = _get_embedding(description)
+    return embed_map
 
+
+def _actions_summary(results: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        action: sum(1 for r in results if r["action"] == action)
+        for action in (
+            "already_tagged",
+            "no_candidates",
+            "auto_candidate",
+            "review",
+            "needs_manual",
+            "error",
+        )
+    }
+
+
+async def _curate_all(
+    items: list[tuple[str, dict[str, Any]]],
+    embed_map: dict[str, Any | None],
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     async with httpx.AsyncClient(timeout=20.0) as client:
         for source_name, entry in items:
             config = entry["config"]
             existing_qid = entry["existing_qid"]
-            embed = embed_map.get(source_name)
             try:
-                cur_result = await curate_source(
-                    source_name=source_name,
-                    config=config,
-                    http_client=client,
-                    existing_qid=existing_qid,
-                    embed_source=embed,
+                results.append(
+                    await curate_source(
+                        source_name=source_name,
+                        config=config,
+                        http_client=client,
+                        existing_qid=existing_qid,
+                        embed_source=embed_map.get(source_name),
+                    )
                 )
-                results.append(cur_result)
             except Exception as exc:
                 results.append(
                     {
@@ -245,17 +263,30 @@ async def main() -> None:
                         "error": str(exc),
                     }
                 )
+    return results
+
+
+async def main() -> None:
+    args = _parse_args()
+
+    sources = _load_rss_sources()
+    if args.source:
+        if args.source not in sources:
+            print(f"Source '{args.source}' not found in rss_sources.json")
+            return
+        sources = {args.source: sources[args.source]}
+
+    unique_sources = _select_unique_sources(sources, missing_only=args.missing_only)
+    items = sorted(unique_sources.items())
+    if args.top > 0:
+        items = items[: args.top]
+
+    embed_map = _embedding_map(items)
+    results = await _curate_all(items, embed_map)
 
     output = {
         "total_sources": len(results),
-        "actions_summary": {
-            "already_tagged": sum(1 for r in results if r["action"] == "already_tagged"),
-            "no_candidates": sum(1 for r in results if r["action"] == "no_candidates"),
-            "auto_candidate": sum(1 for r in results if r["action"] == "auto_candidate"),
-            "review": sum(1 for r in results if r["action"] == "review"),
-            "needs_manual": sum(1 for r in results if r["action"] == "needs_manual"),
-            "error": sum(1 for r in results if r["action"] == "error"),
-        },
+        "actions_summary": _actions_summary(results),
         "results": results,
     }
 

@@ -2,13 +2,21 @@
 
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { analyzeArticle, type ArticleAnalysis, type NewsArticle } from "@/lib/api"
+import { analyzeArticle } from '@/lib/api';
+import type { ArticleAnalysis, NewsArticle } from '@/lib/api';
 import { SafeImage } from "@/components/safe-image"
 import { ExternalLink, ImageOff } from "lucide-react"
 
 interface ArticleInlineEmbedProps {
   url: string
   onOpen: (article: NewsArticle) => void
+}
+export interface ArticleInlineEmbedServices {
+  analyzeArticle: typeof analyzeArticle
+}
+
+const DEFAULT_ARTICLE_INLINE_EMBED_SERVICES: ArticleInlineEmbedServices = {
+  analyzeArticle,
 }
 
 function toSourceName(url: string): string {
@@ -21,43 +29,47 @@ function toSourceName(url: string): string {
 }
 
 function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle {
-  const title = analysis?.title || analysis?.summary?.slice(0, 120) || toSourceName(url)
-  const summary = analysis?.summary || (analysis?.full_text ? analysis.full_text.slice(0, 220) + "…" : "")
-  const source = analysis?.source_analysis?.ownership || toSourceName(url)
+  const title = analysis?.title || analysis?.summary?.slice(0, 120) || toSourceName(url),
+   summary = analysis?.summary || (analysis?.full_text ? `${analysis.full_text.slice(0, 220)  }…` : ""),
+   source = analysis?.source_analysis?.ownership || toSourceName(url)
   return {
-    id: Date.now() + Math.random(),
-    title: title || "Untitled",
-    source,
-    sourceId: source.toLowerCase().replace(/\s+/g, "-"),
+    bias: "center",
+    category: "general",
+    content: analysis?.full_text || analysis?.summary,
     country: "United States",
     credibility: "medium",
-    bias: "center",
-    summary: summary || "",
-    content: analysis?.full_text || analysis?.summary,
+    id: Date.now() + Math.random(),
     image: "/placeholder.svg",
-    publishedAt: analysis?.publish_date || new Date().toISOString(),
-    category: "general",
-    url,
-    tags: [],
     originalLanguage: "en",
+    publishedAt: analysis?.publish_date || new Date().toISOString(),
+    source,
+    sourceId: source.toLowerCase().replaceAll(/\s+/gu, "-"),
+    summary: summary || "",
+    tags: [],
+    title: title || "Untitled",
     translated: false,
+    url,
   }
 }
 
-export const ArticleInlineEmbed = ({ url, onOpen }: ArticleInlineEmbedProps) => {
+export const ArticleInlineEmbed = ({
+  url,
+  onOpen,
+  services = DEFAULT_ARTICLE_INLINE_EMBED_SERVICES,
+}: ArticleInlineEmbedProps & { services?: ArticleInlineEmbedServices }) => {
   const { data: analysis, isLoading: loading } = useQuery<ArticleAnalysis | null>({
-    queryKey: ["article-inline-embed", url],
     queryFn: async () => {
       try {
-        return await analyzeArticle(url)
+        return await services.analyzeArticle(url)
       } catch {
-        return null
+        return undefined
       }
     },
+    queryKey: ["article-inline-embed", url],
     retry: 1,
-  })
+  }),
 
-  const article = useMemo(() => buildNewsArticle(url, analysis || undefined), [url, analysis])
+   article = useMemo(() => buildNewsArticle(url, analysis || undefined), [url, analysis])
 
   if (loading) {
     return (
@@ -73,7 +85,7 @@ export const ArticleInlineEmbed = ({ url, onOpen }: ArticleInlineEmbedProps) => 
 
   return (
     <button
-      onClick={() => onOpen(article)}
+      onClick={() =>{  onOpen(article); }}
       className="rounded-xl p-4 flex gap-4 items-center text-left hover:border-primary transition-all w-full shadow-lg border border-zinc-800 bg-gradient-to-br from-black via-zinc-900 to-zinc-950"
       style={{ borderColor: '#18181b' }}
     >
@@ -88,12 +100,12 @@ export const ArticleInlineEmbed = ({ url, onOpen }: ArticleInlineEmbedProps) => 
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-slate-50 line-clamp-2">
-          {article.title.length > 100 ? article.title.slice(0, 100) + '...' : article.title}
+          {article.title.length > 100 ? `${article.title.slice(0, 100)  }...` : article.title}
         </div>
         <div className="text-xs mt-1 truncate text-slate-400">{article.source}</div>
         {article.summary && (
           <div className="text-xs mt-1 line-clamp-2 text-slate-400">
-            {article.summary.length > 120 ? article.summary.slice(0, 120) + '...' : article.summary}
+            {article.summary.length > 120 ? `${article.summary.slice(0, 120)  }...` : article.summary}
           </div>
         )}
       </div>

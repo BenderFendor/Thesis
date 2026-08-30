@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { type Highlight } from "@/lib/api";
+import type { Highlight } from '@/lib/api';
 import { highlightStableId } from "@/lib/highlight-utils";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -26,74 +26,74 @@ export function HighlightNotePopover({
   articleTitle,
   articleSource,
 }: HighlightNotePopoverProps) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: 0,
+  const popoverRef = useRef<HTMLDivElement>(undefined),
+   textareaRef = useRef<HTMLTextAreaElement>(undefined),
+   [position, setPosition] = useState<{ top: number; left: number }>({
     left: 0,
-  });
-  const [noteDraft, setNoteDraft] = useState("");
-  const [saving, setSaving] = useState(false);
+    top: 0,
+  }),
+   [noteDraft, setNoteDraft] = useState(""),
+   [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    if (!highlight) return;
-    setNoteDraft(highlight.note || "");
+    if (!open) {return;}
+    if (!highlight) {return;}
+    setNoteDraft(highlight.note ?? "");
   }, [open, highlight]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {return;}
 
-    const focusTimer = window.setTimeout(() => {
+    const focusTimer = globalThis.setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
 
-    return () => window.clearTimeout(focusTimer);
+    return () =>{  globalThis.clearTimeout(focusTimer); };
   }, [open, highlight]);
 
   useEffect(() => {
-    if (!open) return;
-    if (!anchorEl) return;
+    if (!open) {return;}
+    if (!anchorEl) {return;}
 
     const updatePosition = () => {
-      if (!anchorEl) return;
-      const rect = anchorEl.getBoundingClientRect();
-      const viewportMargin = 12;
-      const desiredLeft = rect.left + rect.width / 2;
-      const desiredTop = rect.bottom + 10;
+      if (!anchorEl) {return;}
+      const rect = anchorEl.getBoundingClientRect(),
+       viewportMargin = 12,
+       desiredLeft = rect.left + rect.width / 2,
+       desiredTop = rect.bottom + 10,
 
-      const maxLeft = window.innerWidth - viewportMargin;
-      const clampedLeft = Math.max(viewportMargin, Math.min(desiredLeft, maxLeft));
-      const maxTop = window.innerHeight - viewportMargin;
-      const clampedTop = Math.max(viewportMargin, Math.min(desiredTop, maxTop));
+       maxLeft = globalThis.innerWidth - viewportMargin,
+       clampedLeft = Math.max(viewportMargin, Math.min(desiredLeft, maxLeft)),
+       maxTop = globalThis.innerHeight - viewportMargin,
+       clampedTop = Math.max(viewportMargin, Math.min(desiredTop, maxTop));
 
-      setPosition({ top: clampedTop, left: clampedLeft });
+      setPosition({ left: clampedLeft, top: clampedTop });
     };
 
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    globalThis.addEventListener("resize", updatePosition);
+    globalThis.addEventListener("scroll", updatePosition, true);
 
     return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      globalThis.removeEventListener("resize", updatePosition);
+      globalThis.removeEventListener("scroll", updatePosition, true);
     };
   }, [open, anchorEl]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {return;}
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (!popoverRef.current) return;
+      if (!popoverRef.current) {return;}
       const target = event.target as Node;
 
-      if (popoverRef.current.contains(target)) return;
-      if (anchorEl?.contains(target)) return;
+      if (popoverRef.current.contains(target)) {return;}
+      if (anchorEl?.contains(target)) {return;}
 
       onClose();
-    };
+    },
 
-    const handleEscape = (event: KeyboardEvent) => {
+     handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
@@ -108,10 +108,10 @@ export function HighlightNotePopover({
     };
   }, [open, onClose, anchorEl]);
 
-  if (!open || !highlight || !anchorEl) return null;
+  if (!open || !highlight || !anchorEl) {return ;}
 
   const researchQuery = (() => {
-    if (!highlight || !articleTitle) return null
+    if (!highlight || !articleTitle) {return }
 
     const parts = [`Context: ${articleTitle}`]
     if (articleSource) {
@@ -120,9 +120,9 @@ export function HighlightNotePopover({
     parts.push("", "Explain this highlighted passage:", "", `> ${highlight.highlighted_text}`)
 
     return encodeURIComponent(parts.join("\n"))
-  })()
+  })(),
 
-  const handleSave = async () => {
+   handleSave = async () => {
     try {
       setSaving(true);
       await onSave(highlightStableId(highlight), noteDraft);
@@ -136,11 +136,11 @@ export function HighlightNotePopover({
     <div
       ref={popoverRef}
       className="fixed z-[110] w-[min(420px,calc(100vw-24px))]"
-      style={{ top: position.top, left: position.left, transform: "translateX(-50%)" }}
+      style={{ left: position.left, top: position.top, transform: "translateX(-50%)" }}
       role="dialog"
       aria-label="Highlight note"
-      onMouseDown={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) =>{  event.stopPropagation(); }}
+      onPointerDown={(event) =>{  event.stopPropagation(); }}
     >
       <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/95 backdrop-blur p-3 shadow-2xl">
         <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
@@ -154,11 +154,11 @@ export function HighlightNotePopover({
         <textarea
           ref={textareaRef}
           value={noteDraft}
-          onChange={(e) => setNoteDraft(e.target.value)}
+          onChange={(e) =>{  setNoteDraft(e.target.value); }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
-              handleSave()
+              void handleSave()
             }
           }}
           className="mt-3 w-full min-h-[96px] rounded-md border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"

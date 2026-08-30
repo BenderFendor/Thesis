@@ -59,26 +59,47 @@ async def search_reporter_web(
             await client.aclose()
 
 
+def _advance_result(
+    results: list[dict[str, str]],
+    current: dict[str, str],
+    in_results: bool,
+    line: str,
+    max_results: int,
+) -> tuple[dict[str, str], bool, bool]:
+    """Flush a completed result on a separator line; returns (current, in_results, done)."""
+    if 'class="result-snippet"' in line or 'class="result__snippet"' in line:
+        if current:
+            results.append(current)
+            current = {}
+            if len(results) >= max_results:
+                return current, True, True
+        in_results = True
+    return current, in_results, False
+
+
+def _capture_title(line: str, current: dict[str, str]) -> None:
+    """Capture the title href/text of a result title line."""
+    if 'class="result__title"' in line or 'class="result-title"' in line:
+        m = re.search(r'href="([^"]+)"[^>]*>([^<]+)<', line)
+        if m:
+            current["url"] = m.group(1)
+            current["title"] = _strip_html(m.group(2)).strip()
+
+
 def _parse_lite_html(html: str, max_results: int = 5) -> list[dict[str, str]]:
     results: list[dict[str, str]] = []
     in_results = False
     current: dict[str, str] = {}
 
     for line in html.split("\n"):
-        if 'class="result-snippet"' in line or 'class="result__snippet"' in line:
-            if current:
-                results.append(current)
-                current = {}
-                if len(results) >= max_results:
-                    break
-            in_results = True
+        current, in_results, done = _advance_result(
+            results, current, in_results, line, max_results
+        )
+        if done:
+            break
         if not in_results:
             continue
-        if 'class="result__title"' in line or 'class="result-title"' in line:
-            m = re.search(r'href="([^"]+)"[^>]*>([^<]+)<', line)
-            if m:
-                current["url"] = m.group(1)
-                current["title"] = _strip_html(m.group(2)).strip()
+        _capture_title(line, current)
         if 'class="result__snippet"' in line or 'class="result-snippet"' in line:
             current["snippet"] = _strip_html(line).strip()[:200]
 

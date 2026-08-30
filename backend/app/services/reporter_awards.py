@@ -101,18 +101,30 @@ async def _try_api_award_source(
     return None
 
 
+def _search_award_dict(data: dict[Any, Any], name_lower: str, outlet: str | None) -> bool:
+    """Recursively search a dict's values for the reporter name."""
+    for value in data.values():
+        if isinstance(value, str) and name_lower in value.lower():
+            return True
+        if _search_award_data(value, name_lower, outlet):
+            return True
+    return False
+
+
+def _search_award_list(data: list[Any], name_lower: str, outlet: str | None) -> bool:
+    """Recursively search a list's items for the reporter name."""
+    for item in data:
+        if _search_award_data(item, name_lower, outlet):
+            return True
+    return False
+
+
 def _search_award_data(data: Any, name_lower: str, outlet: str | None) -> bool:
     """Recursively search award data for name match."""
     if isinstance(data, dict):
-        for value in data.values():
-            if isinstance(value, str) and name_lower in value.lower():
-                return True
-            if _search_award_data(value, name_lower, outlet):
-                return True
-    elif isinstance(data, list):
-        for item in data:
-            if _search_award_data(item, name_lower, outlet):
-                return True
+        return _search_award_dict(data, name_lower, outlet)
+    if isinstance(data, list):
+        return _search_award_list(data, name_lower, outlet)
     return False
 
 

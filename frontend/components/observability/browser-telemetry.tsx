@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api"
+import { useEffect } from "react"
 
 interface BrowserEvidence {
   timestamp: string
@@ -14,187 +14,217 @@ interface BrowserEvidence {
   stack?: string
 }
 
-const FLUSH_INTERVAL_MS = 5_000
-const MAX_BUFFERED_EVENTS = 50
-const SLOW_TASK_MS = 200
+interface TelemetryPayload {
+  dom_stats: { body_child_count: number; element_count: number }
+  errors: BrowserEvidence[]
+  generated_at: string
+  location: string
+  recent_events: readonly BrowserEvidence[]
+  session_id: string
+  slow_operations: BrowserEvidence[]
+  summary: { error_count: number; event_count: number; slow_operation_count: number }
+  user_agent: string
+}const 
 
-function getSessionId(): string {
-  const key = "thesis_observability_session"
-  const existing = window.sessionStorage.getItem(key)
-  if (existing) return existing
-
-  const value = `browser_${crypto.randomUUID()}`
-  window.sessionStorage.setItem(key, value)
-  return value
-}
-
-function errorDetails(value: unknown): Pick<BrowserEvidence, "message" | "stack"> {
-  if (value instanceof Error) {
-    return { message: value.message, stack: value.stack }
+const DECIMAL_TENTHS = 10,
+  ERROR_EVENT_TYPES = ["resource_error", "unhandled_rejection", "window_error"],
+  FLUSH_INTERVAL_MS = 5000,
+  MAX_BUFFERED_EVENTS = 50,
+  SESSION_STORAGE_KEY = "thesis_observability_session",
+  SLOW_TASK_MS = 200,
+  ZERO = 0,
+getSessionId = (): string => {
+  const sessionStorageKey = SESSION_STORAGE_KEY,
+    sessionValue = globalThis.sessionStorage.getItem(sessionStorageKey) ?? ""
+  if (sessionValue.length > 0) {
+    return sessionValue
   }
-  if (typeof value === "string") {
-    return { message: value }
+
+  const sessionToken = `browser_${crypto.randomUUID()}`
+  globalThis.sessionStorage.setItem(sessionStorageKey, sessionToken)
+  return sessionToken
+},
+buildPayload = (
+  batch: readonly Readonly<BrowserEvidence>[],
+  sessionId: string,
+): TelemetryPayload => {
+  const errors = batch.filter((event) => ERROR_EVENT_TYPES.includes(event.type)),
+    slowOperations = batch.filter((event) => event.type === "long_task")
+  return {
+    dom_stats: {
+      body_child_count: document.body.children.length,
+      element_count: document.querySelectorAll("*").length,
+    },
+    errors,
+    generated_at: new Date().toISOString(),
+    location: globalThis.location.pathname,
+    recent_events: batch,
+    session_id: sessionId,
+    slow_operations: slowOperations,
+    summary: {
+      error_count: errors.length,
+      event_count: batch.length,
+      slow_operation_count: slowOperations.length,
+    },
+    user_agent: navigator.userAgent,
   }
+},
+sendBatch = async (
+  batch: readonly Readonly<BrowserEvidence>[],
+  sessionId: string,
+  preferBeacon: boolean,
+): Promise<void> => {
+  const payload = buildPayload(batch, sessionId),
+    body = JSON.stringify(payload),
+    endpoint = `${API_BASE_URL}/debug/logs/frontend`
   try {
-    return { message: JSON.stringify(value) }
+    if (preferBeacon && navigator.sendBeacon(endpoint, new Blob([body], { type: "application/json" }))) {
+      return
+    }
+    await fetch(endpoint, {
+      body,
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      method: "POST",
+    })
   } catch {
-    return { message: String(value) }
+    // Debug telemetry must never create a user-visible failure loop.
   }
-}
-
-export function BrowserTelemetry() {
-  useEffect(() => {
-    const sessionId = getSessionId()
-    let events: BrowserEvidence[] = []
-    let flushing = false
-
-    const enqueue = (event: BrowserEvidence) => {
-      events.push(event)
-      if (events.length > MAX_BUFFERED_EVENTS) {
-        events = events.slice(-MAX_BUFFERED_EVENTS)
-      }
-    }
-
-    const flush = async (preferBeacon = false) => {
-      if (flushing || events.length === 0) return
-      flushing = true
-      const batch = events
-      events = []
-
-      const errors = batch.filter((event) =>
-        ["window_error", "unhandled_rejection", "resource_error"].includes(event.type),
-      )
-      const slowOperations = batch.filter((event) => event.type === "long_task")
-      const payload = {
-        session_id: sessionId,
-        summary: {
-          event_count: batch.length,
-          error_count: errors.length,
-          slow_operation_count: slowOperations.length,
-        },
-        recent_events: batch,
-        slow_operations: slowOperations,
-        errors,
-        dom_stats: {
-          element_count: document.getElementsByTagName("*").length,
-          body_child_count: document.body?.children.length ?? 0,
-        },
-        location: window.location.pathname,
-        user_agent: navigator.userAgent,
-        generated_at: new Date().toISOString(),
-      }
-      const body = JSON.stringify(payload)
-      const endpoint = `${API_BASE_URL}/debug/logs/frontend`
-
-      try {
-        if (
-          preferBeacon &&
-          navigator.sendBeacon(
-            endpoint,
-            new Blob([body], { type: "application/json" }),
-          )
-        ) {
-          return
-        }
-        await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-          keepalive: true,
-        })
-      } catch {
-        // Debug telemetry must never create a user-visible failure loop.
-      } finally {
-        flushing = false
-      }
-    }
-
-    const onError = (event: ErrorEvent) => {
-      const details = errorDetails(event.error ?? event.message)
-      enqueue({
-        timestamp: new Date().toISOString(),
-        type: "window_error",
-        message: details.message,
-        stack: details.stack,
-        source: event.filename || undefined,
-        line: event.lineno || undefined,
-        column: event.colno || undefined,
-      })
-    }
-
-    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const details = errorDetails(event.reason)
-      enqueue({
-        timestamp: new Date().toISOString(),
-        type: "unhandled_rejection",
-        message: details.message,
-        stack: details.stack,
-      })
-    }
-
-    const onResourceError = (event: Event) => {
-      const target = event.target
-      if (!(target instanceof HTMLElement)) return
-      const source =
-        target.getAttribute("src") ??
-        target.getAttribute("href") ??
-        target.tagName.toLowerCase()
-      enqueue({
-        timestamp: new Date().toISOString(),
-        type: "resource_error",
-        message: `Failed to load ${target.tagName.toLowerCase()}`,
-        source: source.split("?")[0],
-      })
-    }
-
-    window.addEventListener("error", onError)
-    window.addEventListener("unhandledrejection", onUnhandledRejection)
-    window.addEventListener("error", onResourceError, true)
-
-    let observer: PerformanceObserver | null = null
-    if ("PerformanceObserver" in window) {
-      try {
-        observer = new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
-            if (entry.duration < SLOW_TASK_MS) continue
+},
+collectBrowserTimings = (enqueue: (event: Readonly<BrowserEvidence>) => void): (() => void) => {
+  let observer: PerformanceObserver | undefined = undefined
+  if ("PerformanceObserver" in globalThis) {
+    try {
+      observer = new PerformanceObserver((list: Readonly<PerformanceObserverEntryList>) => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration >= SLOW_TASK_MS) {
             enqueue({
+              durationMs: Math.round(entry.duration * DECIMAL_TENTHS) / DECIMAL_TENTHS,
+              message: entry.name || "Browser main-thread long task",
               timestamp: new Date().toISOString(),
               type: "long_task",
-              message: entry.name || "Browser main-thread long task",
-              durationMs: Math.round(entry.duration * 10) / 10,
             })
           }
-        })
-        observer.observe({ type: "longtask", buffered: true })
-      } catch {
-        observer = null
-      }
-    }
-
-    const navigation = performance.getEntriesByType("navigation")[0]
-    if (navigation instanceof PerformanceNavigationTiming) {
-      enqueue({
-        timestamp: new Date().toISOString(),
-        type: "navigation_timing",
-        message: window.location.pathname,
-        durationMs: Math.round(navigation.duration * 10) / 10,
+        }
       })
+      observer.observe({ buffered: true, type: "longtask" })
+    } catch {
+      observer = undefined
     }
+  }
 
-    const interval = window.setInterval(() => void flush(), FLUSH_INTERVAL_MS)
-    const onPageHide = () => void flush(true)
-    window.addEventListener("pagehide", onPageHide)
+  const [navigationEntry] = performance.getEntriesByType("navigation")
+  if (navigationEntry instanceof PerformanceNavigationTiming) {
+    enqueue({
+      durationMs: Math.round(navigationEntry.duration * DECIMAL_TENTHS) / DECIMAL_TENTHS,
+      message: globalThis.location.pathname,
+      timestamp: new Date().toISOString(),
+      type: "navigation_timing",
+    })
+  }
+
+  return () => {
+    observer?.disconnect()
+  }
+},
+export const BrowserTelemetry = (): undefined => {
+  useEffect(() => {
+    const sessionId = getSessionId()
+    let bufferedEvents: BrowserEvidence[] = [],
+      flushing = false,
+      enqueue = (event: Readonly<BrowserEvidence>): void => {
+        bufferedEvents.push(event)
+        if (bufferedEvents.length > MAX_BUFFERED_EVENTS) {
+          bufferedEvents.splice(0, bufferedEvents.length - MAX_BUFFERED_EVENTS)
+        }
+      },
+      flush = async (preferBeacon = false): Promise<void> => {
+        if (flushing || bufferedEvents.length === ZERO) {
+          return
+        }
+        flushing = true
+        const batch = bufferedEvents.slice(ZERO, MAX_BUFFERED_EVENTS)
+        bufferedEvents.splice(ZERO, batch.length)
+        await sendBatch(batch, sessionId, preferBeacon)
+        flushing = false
+      },
+      onError = (event: Readonly<ErrorEvent>): void => {
+        let errorMessage = event.message,
+          errorStack: string | undefined = undefined
+        if (event.error instanceof Error) {
+          errorMessage = event.error.message
+          errorStack = event.error.stack
+        }
+        enqueue({
+          column: event.colno || undefined,
+          line: event.lineno || undefined,
+          message: errorMessage,
+          source: event.filename || undefined,
+          stack: errorStack,
+          timestamp: new Date().toISOString(),
+          type: "window_error",
+        })
+      },
+      onUnhandledRejection = (event: Readonly<PromiseRejectionEvent>): void => {
+        let rejectionMessage = String(event.reason),
+          rejectionStack: string | undefined = undefined
+        if (event.reason instanceof Error) {
+          rejectionMessage = event.reason.message
+          rejectionStack = event.reason.stack
+        }
+        enqueue({
+          message: rejectionMessage,
+          stack: rejectionStack,
+          timestamp: new Date().toISOString(),
+          type: "unhandled_rejection",
+        })
+      },
+      onResourceError = (event: Readonly<Event>): void => {
+        const { target } = event
+        if (!(target instanceof HTMLElement)) {
+          return
+        }
+        const tagName = target.tagName.toLowerCase(),
+          [sourcePath] = (
+            target.getAttribute("src") ??
+            target.getAttribute("href") ??
+            tagName
+          ).split("?")
+        let source = tagName
+        if (sourcePath !== undefined && sourcePath.length > 0) {
+          source = sourcePath
+        }
+        enqueue({
+          message: `Failed to load ${tagName}`,
+          source,
+          timestamp: new Date().toISOString(),
+          type: "resource_error",
+        })
+      }
+
+    globalThis.addEventListener("error", onError)
+    globalThis.addEventListener("unhandledrejection", onUnhandledRejection)
+    globalThis.addEventListener("error", onResourceError, true)
+
+    const disconnectTimings = collectBrowserTimings(enqueue),
+      interval = globalThis.setInterval(() => {
+        void flush()
+      }, FLUSH_INTERVAL_MS),
+      onPageHide = (): void => {
+        void flush(true)
+      }
+    globalThis.addEventListener("pagehide", onPageHide)
 
     return () => {
-      window.clearInterval(interval)
-      window.removeEventListener("error", onError)
-      window.removeEventListener("unhandledrejection", onUnhandledRejection)
-      window.removeEventListener("error", onResourceError, true)
-      window.removeEventListener("pagehide", onPageHide)
-      observer?.disconnect()
+      globalThis.clearInterval(interval)
+      disconnectTimings()
+      globalThis.removeEventListener("error", onError)
+      globalThis.removeEventListener("unhandledrejection", onUnhandledRejection)
+      globalThis.removeEventListener("error", onResourceError, true)
+      globalThis.removeEventListener("pagehide", onPageHide)
       void flush(true)
     }
   }, [])
 
-  return null
-}
+  return undefined
+};

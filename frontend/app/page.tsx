@@ -1,76 +1,78 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo, type TouchEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TouchEvent } from 'react';
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
-  Grid3X3,
-  Search,
+  Bell,
   Bookmark,
   Building2,
   Gamepad2,
-  Shirt,
-  Palette,
+  Grid3X3,
   Laptop,
-  Trophy,
-  Newspaper,
   Loader2,
-  Bell,
+  Newspaper,
+  Palette,
+  Search,
+  Shirt,
+  Trophy,
 } from "lucide-react"
-import { GlobalNavigation, type ViewMode } from "@/components/global-navigation"
+import { GlobalNavigation } from '@/components/global-navigation';
+import type { ViewMode } from '@/components/global-navigation';
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { GridView } from "@/components/grid-view"
 import { ThemeToggle } from "@/components/theme-toggle"
 
-const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView)
-const loadFeedView = () => import("@/components/feed-view").then((mod) => mod.FeedView)
-const loadBlindspotView = () => import("@/components/blindspot-view").then((mod) => mod.BlindspotView)
-const loadLiveNewsView = () => import("@/components/live-news-view").then((mod) => mod.LiveNewsView)
-const loadArticleDetailModal = () =>
-  import("@/components/article-detail-modal").then((mod) => mod.ArticleDetailModal)
+const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView),
+ loadFeedView = () => import("@/components/feed-view").then((mod) => mod.FeedView),
+ loadBlindspotView = () => import("@/components/blindspot-view").then((mod) => mod.BlindspotView),
+ loadLiveNewsView = () => import("@/components/live-news-view").then((mod) => mod.LiveNewsView),
+ loadArticleDetailModal = () =>
+  import("@/components/article-detail-modal").then((mod) => mod.ArticleDetailModal),
 
-const GlobeView = dynamic(loadGlobeView, {
-  ssr: false,
+ GlobeView = dynamic(loadGlobeView, {
   loading: () => <Skeleton className="h-[400px] w-full" />,
-})
-
-const FeedView = dynamic(loadFeedView, {
   ssr: false,
-  loading: () => <Skeleton className="h-[400px] w-full" />,
-})
+}),
 
-const BlindspotView = dynamic(loadBlindspotView, {
+ FeedView = dynamic(loadFeedView, {
+  loading: () => <Skeleton className="h-[400px] w-full" />,
   ssr: false,
-  loading: () => <Skeleton className="h-[400px] w-full" />,
-})
+}),
 
-const LiveNewsView = dynamic(loadLiveNewsView, {
+ BlindspotView = dynamic(loadBlindspotView, {
+  loading: () => <Skeleton className="h-[400px] w-full" />,
   ssr: false,
-  loading: () => <Skeleton className="h-[400px] w-full" />,
-})
+}),
 
-const ArticleDetailModal = dynamic(
+ LiveNewsView = dynamic(loadLiveNewsView, {
+  loading: () => <Skeleton className="h-[400px] w-full" />,
+  ssr: false,
+}),
+
+ ArticleDetailModal = dynamic(
   loadArticleDetailModal,
   {
-    ssr: false,
     loading: () => null,
+    ssr: false,
   }
 )
 
-import { useDebugMode } from "@/hooks/useDebugMode"
+import { useDebugMode } from "@/hooks/use-debug-mode"
 import { useFavorites } from "@/hooks/useFavorites"
 import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
 import { useNewsLens } from "@/hooks/useNewsLens"
-import { useSourceFilter } from "@/hooks/useSourceFilter"
+import { useSourceFilter } from "@/hooks/use-source-filter"
 import type { NewsArticle, NewsSource } from "@/lib/api";
 import { fetchCacheStatus, fetchCategories, fetchSources } from "@/lib/api"
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import type { Notification} from '@/components/notification-popup';
-import { NotificationsPopup, type NotificationActionType } from '@/components/notification-popup';
+import { NotificationsPopup } from '@/components/notification-popup';
+import type { Notification, NotificationActionType } from '@/components/notification-popup';
 import { SourceSidebar } from "@/components/source-sidebar";
 import { CredibilityBadge } from "@/components/credibility-badge";
 import { cn } from "@/lib/utils";
@@ -90,29 +92,29 @@ import {
 } from "@/lib/notification-state";
 import { filterArticlesByLens, getLensSourceIds, NEWS_LENSES } from "@/lib/news-lens";
 
-const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
-  { value: "globe", label: "Globe" },
-  { value: "grid", label: "Grid" },
-  { value: "scroll", label: "Scroll" },
-  { value: "blindspot", label: "Blindspot" },
-  { value: "live-news", label: "Live" },
-]
+const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
+  { label: "Globe", value: "globe" },
+  { label: "Grid", value: "grid" },
+  { label: "Scroll", value: "scroll" },
+  { label: "Blindspot", value: "blindspot" },
+  { label: "Live", value: "live-news" },
+],
 
-const MOBILE_VIEW_OPTIONS = VIEW_OPTIONS
-const EMPTY_SOURCES: NewsSource[] = []
+ MOBILE_VIEW_OPTIONS = VIEW_OPTIONS,
+ EMPTY_SOURCES: NewsSource[] = [],
 
-const categoryIcons: { [key: string]: React.ElementType } = {
-  politics: Building2,
-  games: Gamepad2,
-  fashion: Shirt,
-  hobbies: Palette,
-  technology: Laptop,
-  sports: Trophy,
-  general: Newspaper,
+ categoryIcons: Record<string, React.ElementType> = {
   all: Grid3X3,
-};
+  fashion: Shirt,
+  games: Gamepad2,
+  general: Newspaper,
+  hobbies: Palette,
+  politics: Building2,
+  sports: Trophy,
+  technology: Laptop,
+},
 
-const HalftoneOverlay = () => (
+ HalftoneOverlay = () => (
   <svg className="hidden" aria-hidden="true">
     <filter id="halftone-pattern">
       <feTurbulence type="fractalNoise" baseFrequency="3.0" numOctaves="2" result="noise" />
@@ -129,22 +131,22 @@ const HalftoneOverlay = () => (
 
 function formatLeadDate(date: string): string {
   return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
     day: "numeric",
+    month: "short",
     year: "numeric",
   })
 }
 
 function combineSourceIds(
   lens: string,
-  selectedSourceIds: string[],
+  selectedSourceIds:readonly  string[],
   lensSourceIds: Set<string>,
 ): string[] {
-  if (lens === "all") return selectedSourceIds
+  if (lens === "all") {return selectedSourceIds}
   if (selectedSourceIds.length > 0) {
     return selectedSourceIds.filter((sourceId) => lensSourceIds.has(sourceId))
   }
-  return Array.from(lensSourceIds)
+  return [...lensSourceIds]
 }
 
 function buildNotifications({
@@ -155,7 +157,7 @@ function buildNotifications({
   loading,
   activeViewArticleCount,
   selectedSourceCount,
-}: {
+}:Readonly< {
   activeCategory: string
   browseIndexLoading: boolean
   filterActive: boolean
@@ -163,57 +165,57 @@ function buildNotifications({
   loading: boolean
   activeViewArticleCount: number
   selectedSourceCount: number
-}): Notification[] {
-  const next: Notification[] = []
-  const notificationTimestamp = new Date().toISOString()
-  const notificationCategoryLabel = activeCategory === "all" ? "All" : activeCategory
+}>): Notification[] {
+  const next: Notification[] = [],
+   notificationTimestamp = new Date().toISOString(),
+   notificationCategoryLabel = activeCategory === "all" ? "All" : activeCategory
 
   if (browseIndexLoading) {
     next.push({
-      id: "live-index-loading",
-      title: "Live index loading",
       description: "Loading current live articles.",
-      type: "info",
-      timestamp: notificationTimestamp,
+      id: "live-index-loading",
       meta: {
         category: notificationCategoryLabel,
       },
+      timestamp: notificationTimestamp,
+      title: "Live index loading",
+      type: "info",
     })
   }
 
   if (filterActive) {
     next.push({
-      id: "filter-active",
-      title: "Source filter active",
+      action: { label: "Debug", type: "open-debug" },
       description: "Only selected sources are visible.",
-      type: "info",
-      timestamp: notificationTimestamp,
+      id: "filter-active",
       meta: {
         sources: selectedSourceCount,
       },
-      action: { label: "Debug", type: "open-debug" },
+      timestamp: notificationTimestamp,
+      title: "Source filter active",
+      type: "info",
     })
   }
 
   if (browseIndexError) {
     next.push({
-      id: "browse-index-error",
-      title: "Browse path unavailable",
-      description: browseIndexError.message,
-      type: "error",
-      timestamp: notificationTimestamp,
       action: { label: "Retry", type: "retry" },
+      description: browseIndexError.message,
+      id: "browse-index-error",
+      timestamp: notificationTimestamp,
+      title: "Browse path unavailable",
+      type: "error",
     })
   }
 
   if (!loading && activeViewArticleCount === 0) {
     next.push({
-      id: "empty-feed",
-      title: "No articles found",
-      description: "Try changing filters or refreshing the live feed.",
-      type: "warning",
-      timestamp: notificationTimestamp,
       action: { label: "Retry", type: "retry" },
+      description: "Try changing filters or refreshing the live feed.",
+      id: "empty-feed",
+      timestamp: notificationTimestamp,
+      title: "No articles found",
+      type: "warning",
     })
   }
 
@@ -245,11 +247,11 @@ function MobileViewTabs({
   currentView,
   onViewChange,
   onViewPreload,
-}: {
+}:Readonly< {
   currentView: ViewMode
   onViewChange: (view: ViewMode) => void
   onViewPreload: (view: ViewMode) => void
-}) {
+}>) {
   return (
     <nav
       aria-label="Mobile view tabs"
@@ -262,9 +264,9 @@ function MobileViewTabs({
         <button
           key={option.value}
           type="button"
-          onFocus={() => onViewPreload(option.value)}
-          onPointerEnter={() => onViewPreload(option.value)}
-          onClick={() => onViewChange(option.value)}
+          onFocus={() =>{  onViewPreload(option.value); }}
+          onPointerEnter={() =>{  onViewPreload(option.value); }}
+          onClick={() =>{  onViewChange(option.value); }}
           className={cn(
             "shrink-0 border-b px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.18em] transition-colors",
             currentView === option.value
@@ -284,12 +286,12 @@ function CategorySelect({
   activeCategory,
   onCategoryChange,
   isGlobeView,
-}: {
-  categories: Array<{ id: string; label: string; icon: React.ElementType }>
+}:Readonly< {
+  categories: { id: string; label: string; icon: React.ElementType }[]
   activeCategory: string
   onCategoryChange: (category: string) => void
   isGlobeView: boolean
-}) {
+}>) {
   return (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
@@ -301,7 +303,7 @@ function CategorySelect({
       )}>Category</span>
       <select
         value={activeCategory}
-        onChange={(event) => onCategoryChange(event.target.value)}
+        onChange={(event) =>{  onCategoryChange(event.target.value); }}
         className={cn(
           "min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0 sm:px-2",
           isGlobeView ? "py-0.5" : "py-1",
@@ -322,12 +324,12 @@ function SortSelect({
   isTopicMode,
   sortValue,
   onSortModeChange,
-}: {
+}:Readonly< {
   isGlobeView: boolean
   isTopicMode: boolean
   sortValue: string
   onSortModeChange: (value: string) => void
-}) {
+}>) {
   return (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
@@ -339,7 +341,7 @@ function SortSelect({
       )}>Sort</span>
       <select
         value={sortValue}
-        onChange={(event) => onSortModeChange(event.target.value)}
+        onChange={(event) =>{  onSortModeChange(event.target.value); }}
         className={cn(
           "min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0 sm:px-2",
           isGlobeView ? "py-0.5" : "py-1",
@@ -381,13 +383,13 @@ function HeaderBar({
   onOpenSidebar,
   onViewChange,
   onViewPreload,
-}: {
+}:Readonly< {
   isGlobeView: boolean
   currentView: ViewMode
   gridMode: "source" | "topic"
   topicSortMode: "sources" | "articles" | "recent"
   sortMode: "favorites" | "newest" | "oldest" | "source-freshness"
-  categories: Array<{ id: string; label: string; icon: React.ElementType }>
+  categories: { id: string; label: string; icon: React.ElementType }[]
   activeCategory: string
   onCategoryChange: (category: string) => void
   onSortModeChange: (value: string) => void
@@ -400,7 +402,7 @@ function HeaderBar({
   onOpenSidebar: () => void
   onViewChange: (view: ViewMode) => void
   onViewPreload: (view: ViewMode) => void
-}) {
+}>) {
   const isTopicMode = currentView === "grid" && gridMode === "topic"
   return (
     <header
@@ -530,7 +532,7 @@ function HeaderBar({
   )
 }
 
-function StatCell({ label, value, valueClassName }: { label: string; value: string; valueClassName: string }) {
+function StatCell({ label, value, valueClassName }:Readonly< { label: string; value: string; valueClassName: string }>) {
   return (
     <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
       <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">{label}</span>
@@ -546,19 +548,19 @@ function LeadSection({
   isBlindspotView,
   isGlobeView,
   currentView,
-}: {
+}:Readonly< {
   leadArticle: NewsArticle | null
   articleCount: number
   sourceCount: number
   isBlindspotView: boolean
   isGlobeView: boolean
   currentView: ViewMode
-}) {
-  if (isGlobeView || currentView === "scroll") return null
-  const leadDateLabel = leadArticle ? formatLeadDate(leadArticle.publishedAt) : "Updating feed"
-  const leadSummary = leadArticle?.summary?.trim() || "Story summary unavailable."
-  const leadCredibility = leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN"
-  const leadBias = leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN"
+}>) {
+  if (isGlobeView || currentView === "scroll") {return undefined}
+  const leadDateLabel = leadArticle ? formatLeadDate(leadArticle.publishedAt) : "Updating feed",
+   leadSummary = leadArticle?.summary?.trim() || "Story summary unavailable.",
+   leadCredibility = leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN",
+   leadBias = leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN"
   return (
     <div className={cn("relative p-3 sm:p-6", isBlindspotView && "hidden lg:block")}>
       <div
@@ -623,7 +625,7 @@ function ActiveView({
   onGridModeChange,
   debugMode,
   selectedSourceIds,
-}: {
+}:Readonly< {
   currentView: ViewMode
   categoryId: string
   activeCategory: string
@@ -635,7 +637,7 @@ function ActiveView({
   onGridModeChange: (mode: "source" | "topic") => void
   debugMode: boolean
   selectedSourceIds: string[]
-}) {
+}>) {
   return (
     <>
       {currentView === "globe" && (
@@ -645,7 +647,7 @@ function ActiveView({
         <GridView
           articles={articles}
           loading={loading}
-          showTrending={true}
+          showTrending
           topicSortMode={topicSortMode}
           viewMode={gridMode}
           onViewModeChange={onGridModeChange}
@@ -681,39 +683,39 @@ function ActiveView({
 }
 
 function NewsPage() {
-  const [currentView, setCurrentView] = useState<ViewMode>("grid")
-  const [activeCategory, setActiveCategory] = useState<string>("all")
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const alertsButtonRef = useRef<HTMLButtonElement>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
-  const [leadModalOpen, setLeadModalOpen] = useState(false);
-  const debugMode = useDebugMode();
-  const [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites");
-  const [topicSortMode, setTopicSortMode] = useState<"sources" | "articles" | "recent">("sources");
-  const [gridMode, setGridMode] = useState<"source" | "topic">(getStoredGridViewMode);
+  const [currentView, setCurrentView] = useState<ViewMode>("grid"),
+   [activeCategory, setActiveCategory] = useState<string>("all"),
+   [showNotifications, setShowNotifications] = useState(false),
+   [sidebarOpen, setSidebarOpen] = useState(false),
+   alertsButtonRef = useRef<HTMLButtonElement>(undefined),
+   touchStartRef = useRef<{ x: number; y: number } | null>(null),
+   [leadModalOpen, setLeadModalOpen] = useState(false),
+   debugMode = useDebugMode(),
+   [sortMode, setSortMode] = useState<"favorites" | "newest" | "oldest" | "source-freshness">("favorites"),
+   [topicSortMode, setTopicSortMode] = useState<"sources" | "articles" | "recent">("sources"),
+   [gridMode, setGridMode] = useState<"source" | "topic">(getStoredGridViewMode),
 
-  const router = useRouter()
+   router = useRouter(),
 
   // Source filtering and favorites
-  const { isFavorite } = useFavorites()
-  const { selectedSources, isFilterActive } = useSourceFilter()
-  const { lens } = useNewsLens()
-  const selectedSourceIds = useMemo(() => Array.from(selectedSources), [selectedSources])
-  const sourcesQuery = useQuery({
-    queryKey: ["all-sources"],
+   { isFavorite } = useFavorites(),
+   { selectedSources, isFilterActive } = useSourceFilter(),
+   { lens } = useNewsLens(),
+   selectedSourceIds = useMemo(() => [...selectedSources], [selectedSources]),
+   sourcesQuery = useQuery({
     queryFn: fetchSources,
-    staleTime: 60 * 1000,
+    queryKey: ["all-sources"],
     retry: 1,
-  })
-  const sources = sourcesQuery.data ?? EMPTY_SOURCES
-  const lensSourceIds = useMemo(() => getLensSourceIds(sources, lens), [lens, sources])
-  const combinedSourceIds = useMemo(
+    staleTime: 60 * 1000,
+  }),
+   sources = sourcesQuery.data ?? EMPTY_SOURCES,
+   lensSourceIds = useMemo(() => getLensSourceIds(sources, lens), [lens, sources]),
+   combinedSourceIds = useMemo(
     () => combineSourceIds(lens, selectedSourceIds, lensSourceIds),
     [lens, lensSourceIds, selectedSourceIds],
-  )
+  ),
 
-  const {
+   {
     articles: browseIndexArticles,
     totalCount: browseIndexTotalCount,
     isLoading: browseIndexLoading,
@@ -721,29 +723,29 @@ function NewsPage() {
     refetch: refetchBrowseIndex,
   } = useLiveBrowseIndex({
     category: activeCategory === "all" ? undefined : activeCategory,
-    sources: combinedSourceIds.length > 0 ? combinedSourceIds : undefined,
     enabled: true,
-  })
-  const { data: cacheStatus } = useQuery({
-    queryKey: ["news", "cache-status"],
-    queryFn: fetchCacheStatus,
-    staleTime: 5 * 1000,
+    sources: combinedSourceIds.length > 0 ? combinedSourceIds : undefined,
+  }),
+   { data: cacheStatus } = useQuery({
     gcTime: 5 * 60 * 1000,
+    queryFn: fetchCacheStatus,
+    queryKey: ["news", "cache-status"],
     refetchInterval: 15 * 1000,
     refetchOnWindowFocus: false,
-  })
-  const categoriesQuery = useQuery<string[]>({
-    queryKey: ["categories"],
+    staleTime: 5 * 1000,
+  }),
+   categoriesQuery = useQuery<string[]>({
     queryFn: fetchCategories,
+    queryKey: ["categories"],
     retry: 1,
-  })
-  const categories = useMemo(() => {
-    const backendCategories = categoriesQuery.data ?? []
-    const uniqueCategories = Array.from(new Set(["all", ...backendCategories]))
+  }),
+   categories = useMemo(() => {
+    const backendCategories = categoriesQuery.data ?? [],
+     uniqueCategories = [...new Set(['all', ...backendCategories])]
     return uniqueCategories.map((cat) => ({
+      icon: categoryIcons[cat] || Newspaper,
       id: cat,
       label: cat.charAt(0).toUpperCase() + cat.slice(1),
-      icon: categoryIcons[cat] || Newspaper,
     }))
   }, [categoriesQuery.data])
 
@@ -753,43 +755,43 @@ function NewsPage() {
         setGridMode(event.newValue)
       }
     };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    globalThis.addEventListener("storage", handleStorage);
+    return () =>{  globalThis.removeEventListener("storage", handleStorage); };
   }, []);
 
   const sortArticles = useCallback(
-    (articles: NewsArticle[]): NewsArticle[] => {
-      const items = [...articles];
-      const sourceFreshness = sortMode === "source-freshness";
-      const localRecency: Record<string, number> | null = sourceFreshness
-        ? items.reduce((acc, article) => {
+    (articles:readonly  NewsArticle[]): NewsArticle[] => {
+      const items = [...articles],
+       sourceFreshness = sortMode === "source-freshness",
+       localRecency: Record<string, number> | null = sourceFreshness
+        ? items.reduce< Record<string, number>>((acc, article) => {
             const key = article.sourceId || article.source;
-            if (!key) return acc;
+            if (!key) {return acc;}
             const ts = article._parsedTimestamp ?? 0;
             if (ts > 0 && (!acc[key] || ts > acc[key])) {
               acc[key] = ts;
             }
             return acc;
-          }, {} as Record<string, number>)
+          }, {})
         : null;
 
       items.sort((a, b) => {
         if (sortMode === "favorites") {
-          const aIsFav = isFavorite(a.sourceId) ? 0 : 1;
-          const bIsFav = isFavorite(b.sourceId) ? 0 : 1;
-          if (aIsFav !== bIsFav) return aIsFav - bIsFav;
+          const aIsFav = isFavorite(a.sourceId) ? 0 : 1,
+           bIsFav = isFavorite(b.sourceId) ? 0 : 1;
+          if (aIsFav !== bIsFav) {return aIsFav - bIsFav;}
         }
 
         if (sourceFreshness && localRecency) {
-          const aKey = a.sourceId || a.source;
-          const bKey = b.sourceId || b.source;
-          const aFresh = aKey ? localRecency[aKey] ?? 0 : 0;
-          const bFresh = bKey ? localRecency[bKey] ?? 0 : 0;
-          if (aFresh !== bFresh) return bFresh - aFresh;
+          const aKey = a.sourceId || a.source,
+           bKey = b.sourceId || b.source,
+           aFresh = aKey ? localRecency[aKey] ?? 0 : 0,
+           bFresh = bKey ? localRecency[bKey] ?? 0 : 0;
+          if (aFresh !== bFresh) {return bFresh - aFresh;}
         }
 
-        const aTime = a._parsedTimestamp ?? 0;
-        const bTime = b._parsedTimestamp ?? 0;
+        const aTime = a._parsedTimestamp ?? 0,
+         bTime = b._parsedTimestamp ?? 0;
 
         if (sortMode === "oldest") {
           return aTime - bTime;
@@ -801,47 +803,47 @@ function NewsPage() {
       return items;
     },
     [isFavorite, sortMode]
-  )
+  ),
 
-  const lensFilteredArticles = useMemo(
+   lensFilteredArticles = useMemo(
     () => filterArticlesByLens(browseIndexArticles, sources, lens),
     [browseIndexArticles, lens, sources],
-  )
-  const browseArticles = useMemo(() => sortArticles(lensFilteredArticles), [lensFilteredArticles, sortArticles])
-  const activeViewArticles = getSharedViewArticles(currentView, browseArticles)
-  const activeLensLabel = NEWS_LENSES.find((item) => item.id === lens)?.label ?? "All Sources"
+  ),
+   browseArticles = useMemo(() => sortArticles(lensFilteredArticles), [lensFilteredArticles, sortArticles]),
+   activeViewArticles = getSharedViewArticles(currentView, browseArticles),
+   activeLensLabel = NEWS_LENSES.find((item) => item.id === lens)?.label ?? "All Sources",
 
-  const sourceRecency = useMemo(() => {
+   sourceRecency = useMemo(() => {
     const articles = activeViewArticles
-    if (!articles || articles.length === 0) return {}
+    if (!articles || articles.length === 0) {return {}}
 
     const recency: Record<string, number> = {}
     for (const article of articles) {
       const sourceKey = article.sourceId || article.source
-      if (!sourceKey) continue
+      if (!sourceKey) {continue}
       const ts = article._parsedTimestamp ?? 0
       if (ts > 0 && (!recency[sourceKey] || ts > recency[sourceKey])) {
         recency[sourceKey] = ts
       }
     }
     return recency
-  }, [activeViewArticles])
+  }, [activeViewArticles]),
 
-  const handleCategoryChange = useCallback(
+   handleCategoryChange = useCallback(
     (category: string) => {
       setActiveCategory(category);
     },
     [],
-  );
+  ),
 
-  const handleViewChange = useCallback(
+   handleViewChange = useCallback(
     (view: ViewMode) => {
       setCurrentView(view);
     },
     [],
-  );
+  ),
 
-  const preloadView = useCallback((view: ViewMode) => {
+   preloadView = useCallback((view: ViewMode) => {
     if (view === "globe") {
       void loadGlobeView()
       return
@@ -857,47 +859,47 @@ function NewsPage() {
     if (view === "live-news") {
       void loadLiveNewsView()
     }
-  }, [])
+  }, []),
 
-  const moveView = useCallback((direction: 1 | -1) => {
+   moveView = useCallback((direction: 1 | -1) => {
     setCurrentView((view) => {
-      const currentIndex = VIEW_OPTIONS.findIndex((option) => option.value === view)
-      const nextIndex = Math.min(
+      const currentIndex = VIEW_OPTIONS.findIndex((option) => option.value === view),
+       nextIndex = Math.min(
         VIEW_OPTIONS.length - 1,
         Math.max(0, currentIndex + direction),
       )
       return VIEW_OPTIONS[nextIndex]?.value ?? view
     })
-  }, [])
+  }, []),
 
-  const handleTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
+   handleTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
     const touch = event.touches[0]
-    if (!touch) return
+    if (!touch) {return}
     touchStartRef.current = { x: touch.clientX, y: touch.clientY }
-  }, [])
+  }, []),
 
-  const handleTouchEnd = useCallback((event: TouchEvent<HTMLElement>) => {
+   handleTouchEnd = useCallback((event: TouchEvent<HTMLElement>) => {
     const start = touchStartRef.current
-    touchStartRef.current = null
+    touchStartRef.current = undefined
     const touch = event.changedTouches[0]
-    if (!start || !touch) return
+    if (!start || !touch) {return}
 
-    const deltaX = touch.clientX - start.x
-    const deltaY = touch.clientY - start.y
-    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return
+    const deltaX = touch.clientX - start.x,
+     deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) {return}
 
     moveView(deltaX < 0 ? 1 : -1)
-  }, [moveView])
-  const loading = getSharedViewLoading(browseIndexLoading)
-  const filterActive = isFilterActive()
-  const notifications = useMemo(
+  }, [moveView]),
+   loading = getSharedViewLoading(browseIndexLoading),
+   filterActive = isFilterActive(),
+   notifications = useMemo(
     () => buildNotifications({
       activeCategory,
+      activeViewArticleCount: activeViewArticles.length,
+      browseIndexError,
       browseIndexLoading,
       filterActive,
-      browseIndexError,
       loading,
-      activeViewArticleCount: activeViewArticles.length,
       selectedSourceCount: selectedSources.size,
     }),
     [
@@ -909,30 +911,30 @@ function NewsPage() {
       loading,
       selectedSources.size,
     ]
-  )
-  const {
+  ),
+   {
     visibleNotifications,
     dismissOne: handleClearNotification,
     dismissAll: handleClearAllNotifications,
-  } = useDismissedNotifications(notifications)
-  const actionableNotificationCount = visibleNotifications.filter(
+  } = useDismissedNotifications(notifications),
+   actionableNotificationCount = visibleNotifications.filter(
     (item) => item.type === "error" || item.type === "warning"
-  ).length;
+  ).length,
 
-  const leadArticle = activeViewArticles[0] ?? null
-  const articleCount = getSharedArticleCount(
+   leadArticle = activeViewArticles[0] ?? null,
+   articleCount = getSharedArticleCount(
     cacheStatus,
     browseIndexTotalCount,
     browseArticles,
     loading,
-  )
-  const sourceCount = getSharedSourceCount(cacheStatus, browseArticles, loading)
+  ),
+   sourceCount = getSharedSourceCount(cacheStatus, browseArticles, loading),
 
-  const handleRetry = () => {
-    void refetchBrowseIndex();
-  };
+   handleRetry = () => {
+     refetchBrowseIndex();
+  },
 
-  const handleNotificationAction = (
+   handleNotificationAction = (
     actionType: NotificationActionType,
     notification?: Notification
   ) => {
@@ -947,18 +949,18 @@ function NewsPage() {
       handleRetry();
       setShowNotifications(false);
     }
-  };
+  },
 
-  const handleSortModeChange = (value: string) => {
+   handleSortModeChange = (value: string) => {
     if (currentView === "grid" && gridMode === "topic") {
       setTopicSortMode(value as typeof topicSortMode)
     } else {
       setSortMode(value as typeof sortMode)
     }
-  }
+  },
 
-  const isGlobeView = currentView === "globe"
-  const isBlindspotView = currentView === "blindspot"
+   isGlobeView = currentView === "globe",
+   isBlindspotView = currentView === "blindspot"
 
   return (
     <div className="min-h-screen overflow-x-hidden flex bg-[var(--news-bg-primary)] text-foreground">
@@ -971,7 +973,7 @@ function NewsPage() {
         currentView={currentView}
         onViewChange={handleViewChange}
         onViewPreload={preloadView}
-        onAlertsClick={() => setShowNotifications(!showNotifications)}
+        onAlertsClick={() =>{  setShowNotifications(!showNotifications); }}
         alertCount={actionableNotificationCount}
       />
 
@@ -981,7 +983,7 @@ function NewsPage() {
           onClear={handleClearNotification}
           onClearAll={handleClearAllNotifications}
           onAction={handleNotificationAction}
-          onClose={() => setShowNotifications(false)}
+          onClose={() =>{  setShowNotifications(false); }}
           anchorRef={alertsButtonRef}
         />
       )}
@@ -1000,12 +1002,12 @@ function NewsPage() {
           articleCount={articleCount}
           alertsButtonRef={alertsButtonRef}
           actionableNotificationCount={actionableNotificationCount}
-          onAlertsClick={() => setShowNotifications(!showNotifications)}
+          onAlertsClick={() =>{  setShowNotifications(!showNotifications); }}
           onViewChange={handleViewChange}
           onViewPreload={preloadView}
           lens={lens}
           activeLensLabel={activeLensLabel}
-          onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenSidebar={() =>{  setSidebarOpen(true); }}
         />
 
       <main className={cn("flex-1 min-w-0 bg-[var(--news-bg-primary)]", (currentView === "scroll" || currentView === "globe") ? "overflow-hidden" : "")}>
@@ -1059,7 +1061,7 @@ function NewsPage() {
       {/* Source Sidebar */}
           <SourceSidebar
             isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
+            onClose={() =>{  setSidebarOpen(false); }}
             sourceRecency={sourceRecency}
           />
 
@@ -1067,7 +1069,7 @@ function NewsPage() {
         <ArticleDetailModal
           article={leadArticle}
           isOpen={leadModalOpen}
-          onClose={() => setLeadModalOpen(false)}
+          onClose={() =>{  setLeadModalOpen(false); }}
         />
       )}
     </div>

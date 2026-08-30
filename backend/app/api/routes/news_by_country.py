@@ -56,6 +56,86 @@ def _serialize_articles(
     return serialized
 
 
+async def _postgresql_country_fetch(
+    db: AsyncSession,
+    *,
+    base_filters: list[Any],
+    code_upper: str,
+    view: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[Article], int, int]:
+    filters = [
+        *base_filters,
+        literal(code_upper) == any_(Article.mentioned_countries),
+    ]
+    if view == "internal":
+        filters.insert(len(base_filters), Article.country == code_upper)
+    else:
+        filters.extend(
+            [
+                Article.country.isnot(None),
+                Article.country != "",
+                Article.country != code_upper,
+            ]
+        )
+
+    count_stmt = select(func.count(Article.id)).where(*filters)
+    total = int((await db.execute(count_stmt)).scalar_one())
+    stmt = (
+        select(Article)
+        .where(*filters)
+        .order_by(Article.published_at.desc(), Article.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    records = list((await db.execute(stmt)).scalars().all())
+    source_count_stmt = select(func.count(func.distinct(Article.source))).where(*filters)
+    source_count = int((await db.execute(source_count_stmt)).scalar_one())
+    return records, total, source_count
+
+
+def _country_matching_records(
+    candidate_records: list[Article],
+    code_upper: str,
+    view: str,
+) -> list[Article]:
+    if view == "internal":
+        return [
+            record
+            for record in candidate_records
+            if record.country == code_upper and code_upper in (record.mentioned_countries or [])
+        ]
+    return [
+        record
+        for record in candidate_records
+        if record.country not in {None, "", code_upper}
+        and code_upper in (record.mentioned_countries or [])
+    ]
+
+
+async def _fallback_country_fetch(
+    db: AsyncSession,
+    *,
+    base_filters: list[Any],
+    code_upper: str,
+    view: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[Article], int, int]:
+    stmt = (
+        select(Article)
+        .where(*base_filters)
+        .order_by(Article.published_at.desc(), Article.id.desc())
+    )
+    candidate_records = list((await db.execute(stmt)).scalars().all())
+
+    filtered = _country_matching_records(candidate_records, code_upper, view)
+    paginated = filtered[offset : offset + limit]
+    source_count = len({record.source for record in filtered if record.source})
+    return paginated, len(filtered), source_count
+
+
 async def _fetch_country_filtered_articles(
     db: AsyncSession,
     *,
@@ -65,62 +145,23 @@ async def _fetch_country_filtered_articles(
     limit: int,
     offset: int,
 ) -> tuple[list[Article], int, int]:
-    dialect_name = get_session_dialect_name(db)
-
-    if dialect_name == "postgresql":
-        filters = [
-            *base_filters,
-            literal(code_upper) == any_(Article.mentioned_countries),
-        ]
-        if view == "internal":
-            filters.insert(len(base_filters), Article.country == code_upper)
-        else:
-            filters.extend(
-                [
-                    Article.country.isnot(None),
-                    Article.country != "",
-                    Article.country != code_upper,
-                ]
-            )
-
-        count_stmt = select(func.count(Article.id)).where(*filters)
-        total = int((await db.execute(count_stmt)).scalar_one())
-        stmt = (
-            select(Article)
-            .where(*filters)
-            .order_by(Article.published_at.desc(), Article.id.desc())
-            .limit(limit)
-            .offset(offset)
+    if get_session_dialect_name(db) == "postgresql":
+        return await _postgresql_country_fetch(
+            db,
+            base_filters=base_filters,
+            code_upper=code_upper,
+            view=view,
+            limit=limit,
+            offset=offset,
         )
-        records = list((await db.execute(stmt)).scalars().all())
-        source_count_stmt = select(func.count(func.distinct(Article.source))).where(*filters)
-        source_count = int((await db.execute(source_count_stmt)).scalar_one())
-        return records, total, source_count
-
-    stmt = (
-        select(Article)
-        .where(*base_filters)
-        .order_by(Article.published_at.desc(), Article.id.desc())
+    return await _fallback_country_fetch(
+        db,
+        base_filters=base_filters,
+        code_upper=code_upper,
+        view=view,
+        limit=limit,
+        offset=offset,
     )
-    candidate_records = list((await db.execute(stmt)).scalars().all())
-
-    if view == "internal":
-        filtered = [
-            record
-            for record in candidate_records
-            if record.country == code_upper and code_upper in (record.mentioned_countries or [])
-        ]
-    else:
-        filtered = [
-            record
-            for record in candidate_records
-            if record.country not in {None, "", code_upper}
-            and code_upper in (record.mentioned_countries or [])
-        ]
-
-    paginated = filtered[offset : offset + limit]
-    source_count = len({record.source for record in filtered if record.source})
-    return paginated, len(filtered), source_count
 
 
 @router.get("/countries/geo")
@@ -158,45 +199,67 @@ async def get_article_counts_by_country(
         if isinstance(country, str) and isinstance(count, int):
             source_counts[country] = count
 
+async def _mentioned_country_counts(
+    db: AsyncSession, since: datetime
+) -> tuple[dict[str, int], int]:
     counts: dict[str, int] = {}
     covered_article_count = 0
 
-    dialect_name = get_session_dialect_name(db)
-    if dialect_name == "postgresql":
-        unnest_stmt = sql_text(
-            """
-            SELECT unnest(mentioned_countries) AS country, count(*) AS cnt
-            FROM articles
-            WHERE published_at >= :since
-              AND mentioned_countries IS NOT NULL
-              AND cardinality(mentioned_countries) > 0
-            GROUP BY 1
-            ORDER BY 2 DESC
-            """
-        )
-        result = await db.execute(unnest_stmt, {"since": since})
-        for row in result.all():
-            country = row[0]
-            cnt = row[1]
-            if isinstance(country, str) and isinstance(cnt, int):
-                counts[country] = cnt
+    if get_session_dialect_name(db) == "postgresql":
+        return await _postgresql_mentioned_country_counts(db, since, counts, covered_article_count)
+    return await _fallback_mentioned_country_counts(db, since, counts, covered_article_count)
 
-        covered_stmt = select(func.count(Article.id)).where(
-            Article.published_at >= since,
-            Article.mentioned_countries.isnot(None),
-            func.cardinality(Article.mentioned_countries) > 0,
-        )
-        covered_article_count = int((await db.execute(covered_stmt)).scalar_one())
-    else:
-        mention_stmt = select(Article.mentioned_countries).where(Article.published_at >= since)
-        mention_rows = list((await db.execute(mention_stmt)).scalars().all())
-        for mentions in mention_rows:
-            mentions = mentions or []
-            if not mentions:
-                continue
-            covered_article_count += 1
-            for mention in mentions:
-                counts[mention] = counts.get(mention, 0) + 1
+
+async def _fallback_mentioned_country_counts(
+    db: AsyncSession,
+    since: datetime,
+    counts: dict[str, int],
+    covered_article_count: int,
+) -> tuple[dict[str, int], int]:
+    mention_stmt = select(Article.mentioned_countries).where(Article.published_at >= since)
+    mention_rows = list((await db.execute(mention_stmt)).scalars().all())
+    for mentions in mention_rows:
+        mentions = mentions or []
+        if not mentions:
+            continue
+        covered_article_count += 1
+        for mention in mentions:
+            counts[mention] = counts.get(mention, 0) + 1
+    return counts, covered_article_count
+
+
+async def _postgresql_mentioned_country_counts(
+    db: AsyncSession,
+    since: datetime,
+    counts: dict[str, int],
+    covered_article_count: int,
+) -> tuple[dict[str, int], int]:
+    unnest_stmt = sql_text(
+        """
+        SELECT unnest(mentioned_countries) AS country, count(*) AS cnt
+        FROM articles
+        WHERE published_at >= :since
+          AND mentioned_countries IS NOT NULL
+          AND cardinality(mentioned_countries) > 0
+        GROUP BY 1
+        ORDER BY 2 DESC
+        """
+    )
+    result = await db.execute(unnest_stmt, {"since": since})
+    for row in result.all():
+        country = row[0]
+        cnt = row[1]
+        if isinstance(country, str) and isinstance(cnt, int):
+            counts[country] = cnt
+
+    covered_stmt = select(func.count(Article.id)).where(
+        Article.published_at >= since,
+        Article.mentioned_countries.isnot(None),
+        func.cardinality(Article.mentioned_countries) > 0,
+    )
+    covered_article_count = int((await db.execute(covered_stmt)).scalar_one())
+    return counts, covered_article_count
+
 
     total_stmt = select(func.count(Article.id)).where(Article.published_at >= since)
     total = int((await db.execute(total_stmt)).scalar_one())

@@ -1,0 +1,4630 @@
+{
+ "frontend/app/search/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 1450,
+   "name": "NewsResearchPageContent",
+   "mi": 0
+  },
+  {
+   "kind": "MIF",
+   "line": 1785,
+   "name": "<anonymous>",
+   "mi": 13.3
+  },
+  {
+   "kind": "MIF",
+   "line": 668,
+   "name": "ConversationMessageItem",
+   "mi": 28.4
+  },
+  {
+   "kind": "MIF",
+   "line": 977,
+   "name": "ResearchSidePanels",
+   "mi": 31.3
+  },
+  {
+   "kind": "MIF",
+   "line": 2161,
+   "name": "<anonymous>",
+   "mi": 32.7
+  },
+  {
+   "kind": "MIF",
+   "line": 271,
+   "name": "EmbeddedContent",
+   "mi": 33.1
+  },
+  {
+   "kind": "MIF",
+   "line": 486,
+   "name": "MessageActionBar",
+   "mi": 35.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1343,
+   "name": "EmptyResearchView",
+   "mi": 36.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1237,
+   "name": "WorkspaceHeader",
+   "mi": 37
+  },
+  {
+   "kind": "MIF",
+   "line": 1688,
+   "name": "<anonymous>",
+   "mi": 40.7
+  },
+  {
+   "kind": "MIF",
+   "line": 362,
+   "name": "a",
+   "mi": 42.2
+  },
+  {
+   "kind": "MIF",
+   "line": 1170,
+   "name": "ResearchChatView",
+   "mi": 42.6
+  },
+  {
+   "kind": "MIF",
+   "line": 1064,
+   "name": "<anonymous>",
+   "mi": 43.1
+  },
+  {
+   "kind": "MIF",
+   "line": 903,
+   "name": "ChatComposerForm",
+   "mi": 44.1
+  },
+  {
+   "kind": "MIF",
+   "line": 228,
+   "name": "<anonymous>",
+   "mi": 45
+  },
+  {
+   "kind": "MIF",
+   "line": 612,
+   "name": "MessageStepsToggle",
+   "mi": 45.4
+  },
+  {
+   "kind": "MIF",
+   "line": 223,
+   "name": "buildArticleEmbeds",
+   "mi": 46.2
+  },
+  {
+   "kind": "MIF",
+   "line": 1848,
+   "name": "<anonymous>",
+   "mi": 47.5
+  },
+  {
+   "kind": "MIF",
+   "line": 854,
+   "name": "ChatScrollArea",
+   "mi": 48.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1994,
+   "name": "processComplete",
+   "mi": 48.1
+  },
+  {
+   "kind": "MIF",
+   "line": 2029,
+   "name": "processError",
+   "mi": 48.3
+  },
+  {
+   "kind": "MIF",
+   "line": 174,
+   "name": "mapReferencedArticleToNewsArticle",
+   "mi": 48.9
+  },
+  {
+   "kind": "MIm",
+   "line": 1944,
+   "name": "processArticles",
+   "mi": 50
+  },
+  {
+   "kind": "MIm",
+   "line": 1741,
+   "name": "<anonymous>",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 2291,
+   "name": "handleResetMessage",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1636,
+   "name": "handleDeleteChats",
+   "mi": 51.1
+  },
+  {
+   "kind": "MIm",
+   "line": 1492,
+   "name": "<anonymous>",
+   "mi": 51.6
+  },
+  {
+   "kind": "MIm",
+   "line": 2062,
+   "name": "processEvent",
+   "mi": 53.1
+  },
+  {
+   "kind": "MIm",
+   "line": 2407,
+   "name": "<anonymous>",
+   "mi": 54
+  },
+  {
+   "kind": "MIm",
+   "line": 1565,
+   "name": "handleNewChat",
+   "mi": 55.3
+  },
+  {
+   "kind": "MIm",
+   "line": 2414,
+   "name": "<anonymous>",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 1584,
+   "name": "handleStop",
+   "mi": 56.5
+  },
+  {
+   "kind": "MIm",
+   "line": 1620,
+   "name": "handleDeleteChat",
+   "mi": 57.7
+  },
+  {
+   "kind": "MIm",
+   "line": 1975,
+   "name": "processReferenced",
+   "mi": 57.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1874,
+   "name": "<anonymous>",
+   "mi": 58.7
+  },
+  {
+   "kind": "MIm",
+   "line": 2271,
+   "name": "<anonymous>",
+   "mi": 58.7
+  }
+ ],
+ "frontend/components/grid-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 845,
+   "name": "GridView",
+   "mi": 6.5
+  },
+  {
+   "kind": "MIF",
+   "line": 105,
+   "name": "SourceArticleCard",
+   "mi": 32.2
+  },
+  {
+   "kind": "MIF",
+   "line": 343,
+   "name": "SourceGroupSection",
+   "mi": 37
+  },
+  {
+   "kind": "MIF",
+   "line": 455,
+   "name": "TopicClusterCard",
+   "mi": 37.9
+  },
+  {
+   "kind": "MIF",
+   "line": 561,
+   "name": "ExpandedTopicPanel",
+   "mi": 39.9
+  },
+  {
+   "kind": "MIF",
+   "line": 270,
+   "name": "ModeSwitcher",
+   "mi": 44.2
+  },
+  {
+   "kind": "MIF",
+   "line": 675,
+   "name": "TopicFeed",
+   "mi": 48.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1119,
+   "name": "<anonymous>",
+   "mi": 49.5
+  },
+  {
+   "kind": "MIm",
+   "line": 793,
+   "name": "VirtualizedModeView",
+   "mi": 50.2
+  },
+  {
+   "kind": "MIm",
+   "line": 1053,
+   "name": "loadClusters",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1048,
+   "name": "<anonymous>",
+   "mi": 51.1
+  },
+  {
+   "kind": "MIm",
+   "line": 707,
+   "name": "<anonymous>",
+   "mi": 52
+  },
+  {
+   "kind": "MIm",
+   "line": 903,
+   "name": "<anonymous>",
+   "mi": 54.2
+  },
+  {
+   "kind": "MIm",
+   "line": 237,
+   "name": "GridViewSearchBar",
+   "mi": 54.9
+  }
+ ],
+ "frontend/app/saved/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 411,
+   "name": "SavedArticlesPage",
+   "mi": 7
+  },
+  {
+   "kind": "MIF",
+   "line": 244,
+   "name": "ArticleCard",
+   "mi": 30.2
+  },
+  {
+   "kind": "MIF",
+   "line": 151,
+   "name": "CardActionButtons",
+   "mi": 40.9
+  },
+  {
+   "kind": "MIF",
+   "line": 515,
+   "name": "generateQueueDigest",
+   "mi": 43.8
+  },
+  {
+   "kind": "MIF",
+   "line": 448,
+   "name": "<anonymous>",
+   "mi": 45.1
+  },
+  {
+   "kind": "MIF",
+   "line": 84,
+   "name": "ResearchShelvesCard",
+   "mi": 45.2
+  },
+  {
+   "kind": "MIm",
+   "line": 564,
+   "name": "<anonymous>",
+   "mi": 55.2
+  },
+  {
+   "kind": "MIm",
+   "line": 37,
+   "name": "cardFrameStyle",
+   "mi": 59.5
+  }
+ ],
+ "frontend/app/debug/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 1938,
+   "name": "DebugDashboardPage",
+   "mi": 8.2
+  },
+  {
+   "kind": "MIF",
+   "line": 453,
+   "name": "SourcesSection",
+   "mi": 28.7
+  },
+  {
+   "kind": "MIF",
+   "line": 713,
+   "name": "StorageSnapshotSection",
+   "mi": 29.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1452,
+   "name": "LlmSection",
+   "mi": 34.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1560,
+   "name": "ErrorsSection",
+   "mi": 34.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1212,
+   "name": "RssParserCard",
+   "mi": 39.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1673,
+   "name": "PerformanceReportCard",
+   "mi": 39.6
+  },
+  {
+   "kind": "MIF",
+   "line": 1815,
+   "name": "FrontendPerfCard",
+   "mi": 40.7
+  },
+  {
+   "kind": "MIF",
+   "line": 1285,
+   "name": "ArticleParserCard",
+   "mi": 40.8
+  },
+  {
+   "kind": "MIF",
+   "line": 338,
+   "name": "SystemStatusDetails",
+   "mi": 44.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1152,
+   "name": "StorageSection",
+   "mi": 44.2
+  },
+  {
+   "kind": "MIF",
+   "line": 619,
+   "name": "StartupTimelineCard",
+   "mi": 45.9
+  },
+  {
+   "kind": "MIF",
+   "line": 1977,
+   "name": "queryFn",
+   "mi": 46.2
+  },
+  {
+   "kind": "MIF",
+   "line": 914,
+   "name": "CacheDeltaCard",
+   "mi": 46.4
+  },
+  {
+   "kind": "MIF",
+   "line": 1106,
+   "name": "DriftSamplesCard",
+   "mi": 46.6
+  },
+  {
+   "kind": "MIF",
+   "line": 1390,
+   "name": "ControlsSection",
+   "mi": 47
+  },
+  {
+   "kind": "MIF",
+   "line": 377,
+   "name": "PipelineSignalsCard",
+   "mi": 47.2
+  },
+  {
+   "kind": "MIF",
+   "line": 2105,
+   "name": "queryFn",
+   "mi": 47.5
+  },
+  {
+   "kind": "MIF",
+   "line": 858,
+   "name": "StorageFilterCards",
+   "mi": 47.9
+  },
+  {
+   "kind": "MIF",
+   "line": 1047,
+   "name": "PostgresArticlesCard",
+   "mi": 47.9
+  },
+  {
+   "kind": "MIm",
+   "line": 2183,
+   "name": "handleRefreshCache",
+   "mi": 50.1
+  },
+  {
+   "kind": "MIm",
+   "line": 961,
+   "name": "ChromaDocumentsCard",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 1002,
+   "name": "CachedArticlesCard",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1779,
+   "name": "BackendEventsCard",
+   "mi": 52
+  },
+  {
+   "kind": "MIm",
+   "line": 1741,
+   "name": "SlowOperationsCard",
+   "mi": 52.3
+  },
+  {
+   "kind": "MIm",
+   "line": 1888,
+   "name": "LogFilesCard",
+   "mi": 52.9
+  },
+  {
+   "kind": "MIm",
+   "line": 2256,
+   "name": "handleTabChange",
+   "mi": 54.3
+  },
+  {
+   "kind": "MIm",
+   "line": 2290,
+   "name": "testRssParser",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 2309,
+   "name": "testArticleParser",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 416,
+   "name": "SystemStatusSection",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 284,
+   "name": "renderMetadataBadges",
+   "mi": 58.4
+  },
+  {
+   "kind": "MIm",
+   "line": 1350,
+   "name": "ImageErrorTaxonomyCard",
+   "mi": 59
+  }
+ ],
+ "frontend/components/interactive-globe.tsx": [
+  {
+   "kind": "MIF",
+   "line": 550,
+   "name": "InteractiveGlobe",
+   "mi": 8.7
+  },
+  {
+   "kind": "MIF",
+   "line": 746,
+   "name": "<anonymous>",
+   "mi": 24
+  },
+  {
+   "kind": "MIF",
+   "line": 795,
+   "name": "initEarth",
+   "mi": 33.3
+  },
+  {
+   "kind": "MIF",
+   "line": 507,
+   "name": "getQualityTier",
+   "mi": 44.8
+  },
+  {
+   "kind": "MIF",
+   "line": 1059,
+   "name": "<anonymous>",
+   "mi": 46.2
+  },
+  {
+   "kind": "MIF",
+   "line": 422,
+   "name": "createStarField",
+   "mi": 46.3
+  },
+  {
+   "kind": "MIF",
+   "line": 389,
+   "name": "loadManagedTexture",
+   "mi": 47.8
+  },
+  {
+   "kind": "MIF",
+   "line": 604,
+   "name": "<anonymous>",
+   "mi": 48.2
+  },
+  {
+   "kind": "MIF",
+   "line": 34,
+   "name": "getFeatureCenter",
+   "mi": 48.6
+  },
+  {
+   "kind": "MIm",
+   "line": 1031,
+   "name": "<anonymous>",
+   "mi": 50.9
+  },
+  {
+   "kind": "MIm",
+   "line": 934,
+   "name": "<anonymous>",
+   "mi": 51.5
+  },
+  {
+   "kind": "MIm",
+   "line": 703,
+   "name": "<anonymous>",
+   "mi": 54.2
+  },
+  {
+   "kind": "MIm",
+   "line": 124,
+   "name": "remapCountryCounts",
+   "mi": 54.3
+  },
+  {
+   "kind": "MIm",
+   "line": 686,
+   "name": "<anonymous>",
+   "mi": 57.1
+  },
+  {
+   "kind": "MIm",
+   "line": 991,
+   "name": "<anonymous>",
+   "mi": 57.1
+  },
+  {
+   "kind": "MIm",
+   "line": 1005,
+   "name": "<anonymous>",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 1018,
+   "name": "<anonymous>",
+   "mi": 57.4
+  }
+ ],
+ "frontend/app/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 685,
+   "name": "NewsPage",
+   "mi": 8.8
+  },
+  {
+   "kind": "MIF",
+   "line": 367,
+   "name": "HeaderBar",
+   "mi": 31.7
+  },
+  {
+   "kind": "MIF",
+   "line": 544,
+   "name": "LeadSection",
+   "mi": 40.2
+  },
+  {
+   "kind": "MIF",
+   "line": 152,
+   "name": "buildNotifications",
+   "mi": 41.3
+  },
+  {
+   "kind": "MIF",
+   "line": 616,
+   "name": "ActiveView",
+   "mi": 47.5
+  },
+  {
+   "kind": "MIF",
+   "line": 763,
+   "name": "<anonymous>",
+   "mi": 47.6
+  },
+  {
+   "kind": "MIF",
+   "line": 778,
+   "name": "<anonymous>",
+   "mi": 48.7
+  },
+  {
+   "kind": "MIm",
+   "line": 322,
+   "name": "SortSelect",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 284,
+   "name": "CategorySelect",
+   "mi": 54.2
+  },
+  {
+   "kind": "MIm",
+   "line": 816,
+   "name": "<anonymous>",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 246,
+   "name": "MobileViewTabs",
+   "mi": 57.3
+  },
+  {
+   "kind": "MIm",
+   "line": 881,
+   "name": "<anonymous>",
+   "mi": 57.8
+  },
+  {
+   "kind": "MIm",
+   "line": 846,
+   "name": "<anonymous>",
+   "mi": 58
+  }
+ ],
+ "frontend/components/feed-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 199,
+   "name": "FeedView",
+   "mi": 11.2
+  },
+  {
+   "kind": "MIF",
+   "line": 81,
+   "name": "RankingPanel",
+   "mi": 33.9
+  },
+  {
+   "kind": "MIF",
+   "line": 279,
+   "name": "fetchImages",
+   "mi": 44.2
+  },
+  {
+   "kind": "MIm",
+   "line": 276,
+   "name": "<anonymous>",
+   "mi": 52.1
+  },
+  {
+   "kind": "MIm",
+   "line": 331,
+   "name": "<anonymous>",
+   "mi": 52.4
+  },
+  {
+   "kind": "MIm",
+   "line": 236,
+   "name": "<anonymous>",
+   "mi": 58.4
+  },
+  {
+   "kind": "MIm",
+   "line": 302,
+   "name": "worker",
+   "mi": 59.8
+  }
+ ],
+ "frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx": [
+  {
+   "kind": "MIF",
+   "line": 50,
+   "name": "IntelligenceAtlasWorkspace",
+   "mi": 11.3
+  },
+  {
+   "kind": "MIm",
+   "line": 209,
+   "name": "handleSearchKeyboard",
+   "mi": 56.7
+  },
+  {
+   "kind": "MIm",
+   "line": 180,
+   "name": "<anonymous>",
+   "mi": 57.5
+  },
+  {
+   "kind": "MIm",
+   "line": 157,
+   "name": "handleGlobalKeyboard",
+   "mi": 58.8
+  },
+  {
+   "kind": "MIm",
+   "line": 309,
+   "name": "<anonymous>",
+   "mi": 59.2
+  }
+ ],
+ "frontend/components/reading-queue-sidebar.tsx": [
+  {
+   "kind": "MIF",
+   "line": 1380,
+   "name": "ReadingQueueSidebar",
+   "mi": 11.4
+  },
+  {
+   "kind": "MIF",
+   "line": 248,
+   "name": "QueueCard",
+   "mi": 32.2
+  },
+  {
+   "kind": "MIF",
+   "line": 905,
+   "name": "SourceCard",
+   "mi": 34.8
+  },
+  {
+   "kind": "MIF",
+   "line": 1220,
+   "name": "QueueDigestView",
+   "mi": 35.2
+  },
+  {
+   "kind": "MIF",
+   "line": 613,
+   "name": "ArticleDetailMain",
+   "mi": 36.6
+  },
+  {
+   "kind": "MIF",
+   "line": 1413,
+   "name": "generateQueueDigest",
+   "mi": 41.3
+  },
+  {
+   "kind": "MIF",
+   "line": 519,
+   "name": "ArticleDetailActionButtons",
+   "mi": 42.1
+  },
+  {
+   "kind": "MIF",
+   "line": 391,
+   "name": "ArticleDetailHeader",
+   "mi": 42.5
+  },
+  {
+   "kind": "MIF",
+   "line": 64,
+   "name": "DigestCodeRenderer",
+   "mi": 43.4
+  },
+  {
+   "kind": "MIF",
+   "line": 1116,
+   "name": "ArticleDetailView",
+   "mi": 44.3
+  },
+  {
+   "kind": "MIF",
+   "line": 808,
+   "name": "BiasAnalysisCard",
+   "mi": 45.7
+  },
+  {
+   "kind": "MIF",
+   "line": 177,
+   "name": "QueueCardExpandable",
+   "mi": 46.3
+  },
+  {
+   "kind": "MIF",
+   "line": 123,
+   "name": "QueueCardMeta",
+   "mi": 47.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1550,
+   "name": "<anonymous>",
+   "mi": 47.4
+  },
+  {
+   "kind": "MIF",
+   "line": 757,
+   "name": "AiSummaryCard",
+   "mi": 48.3
+  },
+  {
+   "kind": "MIF",
+   "line": 1035,
+   "name": "ArticleDetailFooter",
+   "mi": 49.2
+  },
+  {
+   "kind": "MIm",
+   "line": 474,
+   "name": "FullArticleSection",
+   "mi": 53.7
+  },
+  {
+   "kind": "MIm",
+   "line": 860,
+   "name": "SourceDebugPanel",
+   "mi": 53.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1595,
+   "name": "<anonymous>",
+   "mi": 53.8
+  },
+  {
+   "kind": "MIm",
+   "line": 718,
+   "name": "KeyboardShortcutsCard",
+   "mi": 54.9
+  },
+  {
+   "kind": "MIm",
+   "line": 1488,
+   "name": "<anonymous>",
+   "mi": 55.2
+  },
+  {
+   "kind": "MIm",
+   "line": 1623,
+   "name": "handleKeyDown",
+   "mi": 55.5
+  },
+  {
+   "kind": "MIm",
+   "line": 1507,
+   "name": "<anonymous>",
+   "mi": 57.2
+  }
+ ],
+ "frontend/components/cluster-detail-modal.tsx": [
+  {
+   "kind": "MIF",
+   "line": 1145,
+   "name": "ClusterDetailModalContent",
+   "mi": 14.3
+  },
+  {
+   "kind": "MIF",
+   "line": 482,
+   "name": "ArticleTab",
+   "mi": 29.2
+  },
+  {
+   "kind": "MIF",
+   "line": 990,
+   "name": "ComparisonTab",
+   "mi": 30.2
+  },
+  {
+   "kind": "MIF",
+   "line": 354,
+   "name": "GdeltContextStrip",
+   "mi": 32.7
+  },
+  {
+   "kind": "MIF",
+   "line": 1208,
+   "name": "<anonymous>",
+   "mi": 32.9
+  },
+  {
+   "kind": "MIF",
+   "line": 653,
+   "name": "ComparisonArticleColumn",
+   "mi": 36.7
+  },
+  {
+   "kind": "MIF",
+   "line": 760,
+   "name": "EntitiesBlock",
+   "mi": 39.7
+  },
+  {
+   "kind": "MIF",
+   "line": 841,
+   "name": "KeywordsBlock",
+   "mi": 42.2
+  },
+  {
+   "kind": "MIF",
+   "line": 279,
+   "name": "ClusterHeader",
+   "mi": 44.3
+  },
+  {
+   "kind": "MIm",
+   "line": 1014,
+   "name": "<anonymous>",
+   "mi": 50.2
+  },
+  {
+   "kind": "MIm",
+   "line": 1330,
+   "name": "<anonymous>",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 915,
+   "name": "ComparisonSummary",
+   "mi": 51.3
+  },
+  {
+   "kind": "MIm",
+   "line": 223,
+   "name": "fetchArticleContentText",
+   "mi": 54
+  },
+  {
+   "kind": "MIm",
+   "line": 1308,
+   "name": "<anonymous>",
+   "mi": 55
+  },
+  {
+   "kind": "MIm",
+   "line": 957,
+   "name": "KeywordsFooter",
+   "mi": 58.4
+  }
+ ],
+ "frontend/components/source-sidebar.tsx": [
+  {
+   "kind": "MIF",
+   "line": 26,
+   "name": "SourceSidebar",
+   "mi": 17
+  },
+  {
+   "kind": "MIF",
+   "line": 399,
+   "name": "SourceItem",
+   "mi": 44.8
+  }
+ ],
+ "frontend/app/sources/[source]/debug/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 54,
+   "name": "SourceDebugPage",
+   "mi": 17.2
+  },
+  {
+   "kind": "MIm",
+   "line": 24,
+   "name": "filterDebugRecord",
+   "mi": 54.9
+  }
+ ],
+ "frontend/components/chat-sidebar.tsx": [
+  {
+   "kind": "MIF",
+   "line": 34,
+   "name": "ChatSidebar",
+   "mi": 17.2
+  },
+  {
+   "kind": "MIF",
+   "line": 300,
+   "name": "<anonymous>",
+   "mi": 30.5
+  },
+  {
+   "kind": "MIm",
+   "line": 120,
+   "name": "handleDeleteAll",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 102,
+   "name": "handleDeleteSelected",
+   "mi": 57.7
+  },
+  {
+   "kind": "MIm",
+   "line": 161,
+   "name": "<anonymous>",
+   "mi": 57.7
+  }
+ ],
+ "frontend/hooks/useNewsStream.ts": [
+  {
+   "kind": "MIF",
+   "line": 25,
+   "name": "useNewsStream",
+   "mi": 17.3
+  },
+  {
+   "kind": "MIF",
+   "line": 86,
+   "name": "<anonymous>",
+   "mi": 23.5
+  },
+  {
+   "kind": "MIF",
+   "line": 153,
+   "name": "onSourceComplete",
+   "mi": 49.8
+  },
+  {
+   "kind": "MIm",
+   "line": 274,
+   "name": "<anonymous>",
+   "mi": 52.7
+  },
+  {
+   "kind": "MIm",
+   "line": 134,
+   "name": "onProgress",
+   "mi": 55.6
+  },
+  {
+   "kind": "MIm",
+   "line": 163,
+   "name": "<anonymous>",
+   "mi": 55.9
+  },
+  {
+   "kind": "MIm",
+   "line": 57,
+   "name": "<anonymous>",
+   "mi": 56.6
+  },
+  {
+   "kind": "MIm",
+   "line": 300,
+   "name": "<anonymous>",
+   "mi": 58.1
+  }
+ ],
+ "frontend/features/intelligence-atlas/atlas-entity-list.tsx": [
+  {
+   "kind": "MIF",
+   "line": 49,
+   "name": "AtlasEntityList",
+   "mi": 17.8
+  },
+  {
+   "kind": "MIF",
+   "line": 255,
+   "name": "<anonymous>",
+   "mi": 39.7
+  },
+  {
+   "kind": "MIm",
+   "line": 319,
+   "name": "FacetSelect",
+   "mi": 59.6
+  }
+ ],
+ "frontend/app/source/[sourceId]/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 25,
+   "name": "SourcePage",
+   "mi": 18.2
+  }
+ ],
+ "frontend/features/intelligence-atlas/atlas-inspector.tsx": [
+  {
+   "kind": "MIF",
+   "line": 41,
+   "name": "AtlasInspector",
+   "mi": 18.5
+  },
+  {
+   "kind": "MIm",
+   "line": 210,
+   "name": "<anonymous>",
+   "mi": 53.5
+  },
+  {
+   "kind": "MIm",
+   "line": 22,
+   "name": "displayValue",
+   "mi": 57.8
+  }
+ ],
+ "frontend/app/settings/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 150,
+   "name": "AppearanceSettingsPage",
+   "mi": 20.9
+  },
+  {
+   "kind": "MIm",
+   "line": 65,
+   "name": "SliderControl",
+   "mi": 55.1
+  },
+  {
+   "kind": "MIm",
+   "line": 99,
+   "name": "ColorControl",
+   "mi": 58.7
+  },
+  {
+   "kind": "MIm",
+   "line": 128,
+   "name": "SegmentedControl",
+   "mi": 59.9
+  }
+ ],
+ "frontend/app/wiki/organization/[id]/organization-wiki-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 16,
+   "name": "OrganizationWikiView",
+   "mi": 21.8
+  },
+  {
+   "kind": "MIm",
+   "line": 161,
+   "name": "<anonymous>",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 192,
+   "name": "<anonymous>",
+   "mi": 54.7
+  }
+ ],
+ "frontend/components/credibility-badge.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "CredibilityBadge",
+   "mi": 22.9
+  },
+  {
+   "kind": "MIF",
+   "line": 181,
+   "name": "<anonymous>",
+   "mi": 42.6
+  },
+  {
+   "kind": "MIm",
+   "line": 35,
+   "name": "handleClick",
+   "mi": 53.4
+  }
+ ],
+ "frontend/app/wiki/person/[id]/person-wiki-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "PersonWikiView",
+   "mi": 23.3
+  },
+  {
+   "kind": "MIm",
+   "line": 147,
+   "name": "<anonymous>",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 178,
+   "name": "<anonymous>",
+   "mi": 54.7
+  }
+ ],
+ "frontend/components/add-rss-dialog.tsx": [
+  {
+   "kind": "MIF",
+   "line": 22,
+   "name": "AddRssDialog",
+   "mi": 25.1
+  },
+  {
+   "kind": "MIm",
+   "line": 56,
+   "name": "handleAdd",
+   "mi": 51.9
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "handleValidate",
+   "mi": 52.2
+  }
+ ],
+ "frontend/components/highlight-toolbar.tsx": [
+  {
+   "kind": "MIF",
+   "line": 29,
+   "name": "HighlightToolbar",
+   "mi": 25.3
+  },
+  {
+   "kind": "MIF",
+   "line": 123,
+   "name": "<anonymous>",
+   "mi": 32.3
+  },
+  {
+   "kind": "MIF",
+   "line": 156,
+   "name": "handleSelection",
+   "mi": 33.4
+  },
+  {
+   "kind": "MIF",
+   "line": 39,
+   "name": "<anonymous>",
+   "mi": 35
+  },
+  {
+   "kind": "MIm",
+   "line": 141,
+   "name": "selectionInsideContainer",
+   "mi": 57.6
+  }
+ ],
+ "frontend/app/wiki/ownership/source-intelligence-operations.tsx": [
+  {
+   "kind": "MIF",
+   "line": 55,
+   "name": "SourceIntelligenceOperations",
+   "mi": 25.4
+  },
+  {
+   "kind": "MIF",
+   "line": 286,
+   "name": "SourceRow",
+   "mi": 45.2
+  },
+  {
+   "kind": "MIm",
+   "line": 324,
+   "name": "StorageTab",
+   "mi": 51.8
+  },
+  {
+   "kind": "MIm",
+   "line": 524,
+   "name": "LlmEntryCard",
+   "mi": 52.6
+  },
+  {
+   "kind": "MIm",
+   "line": 621,
+   "name": "MediaTab",
+   "mi": 52.9
+  },
+  {
+   "kind": "MIm",
+   "line": 547,
+   "name": "ErrorsTab",
+   "mi": 53.3
+  },
+  {
+   "kind": "MIm",
+   "line": 423,
+   "name": "ParserTestCard",
+   "mi": 53.6
+  },
+  {
+   "kind": "MIm",
+   "line": 374,
+   "name": "ParserTab",
+   "mi": 55.2
+  },
+  {
+   "kind": "MIm",
+   "line": 355,
+   "name": "WikiIndexCard",
+   "mi": 55.5
+  },
+  {
+   "kind": "MIm",
+   "line": 115,
+   "name": "testFeed",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 131,
+   "name": "testArticle",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 699,
+   "name": "QuickFactsCard",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 485,
+   "name": "LlmTab",
+   "mi": 57.9
+  },
+  {
+   "kind": "MIm",
+   "line": 680,
+   "name": "OwnershipChainCard",
+   "mi": 57.9
+  },
+  {
+   "kind": "MIm",
+   "line": 594,
+   "name": "PerformanceTab",
+   "mi": 59
+  }
+ ],
+ "frontend/components/reporter-profile.tsx": [
+  {
+   "kind": "MIF",
+   "line": 66,
+   "name": "ReporterProfilePanel",
+   "mi": 25.5
+  },
+  {
+   "kind": "MIm",
+   "line": 39,
+   "name": "renderSection",
+   "mi": 52.4
+  }
+ ],
+ "frontend/components/live-news-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 19,
+   "name": "LiveNewsView",
+   "mi": 26.6
+  }
+ ],
+ "frontend/components/verification-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 39,
+   "name": "VerificationPanel",
+   "mi": 27.4
+  },
+  {
+   "kind": "MIF",
+   "line": 217,
+   "name": "ClaimCard",
+   "mi": 44.4
+  },
+  {
+   "kind": "MIF",
+   "line": 270,
+   "name": "SourceCard",
+   "mi": 48.6
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "<anonymous>",
+   "mi": 50.2
+  },
+  {
+   "kind": "MIm",
+   "line": 316,
+   "name": "VerificationToggle",
+   "mi": 54.6
+  }
+ ],
+ "frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "FundingBiasAnalysisView",
+   "mi": 27.5
+  }
+ ],
+ "frontend/components/source-credibility-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 37,
+   "name": "SourceCredibilityPanel",
+   "mi": 27.7
+  },
+  {
+   "kind": "MIF",
+   "line": 149,
+   "name": "<anonymous>",
+   "mi": 42.2
+  }
+ ],
+ "frontend/components/stream-card.tsx": [
+  {
+   "kind": "MIF",
+   "line": 28,
+   "name": "StreamCard",
+   "mi": 27.7
+  },
+  {
+   "kind": "MIF",
+   "line": 73,
+   "name": "<anonymous>",
+   "mi": 48.2
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "<anonymous>",
+   "mi": 56.9
+  },
+  {
+   "kind": "MIm",
+   "line": 94,
+   "name": "<anonymous>",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 77,
+   "name": "handleMessage",
+   "mi": 58.7
+  }
+ ],
+ "frontend/hooks/useReadingQueue.ts": [
+  {
+   "kind": "MIF",
+   "line": 87,
+   "name": "useReadingQueue",
+   "mi": 27.8
+  },
+  {
+   "kind": "MIF",
+   "line": 25,
+   "name": "preloadArticleData",
+   "mi": 39.2
+  },
+  {
+   "kind": "MIF",
+   "line": 91,
+   "name": "<anonymous>",
+   "mi": 46.4
+  },
+  {
+   "kind": "MIm",
+   "line": 258,
+   "name": "<anonymous>",
+   "mi": 51.2
+  },
+  {
+   "kind": "MIm",
+   "line": 153,
+   "name": "<anonymous>",
+   "mi": 51.9
+  },
+  {
+   "kind": "MIm",
+   "line": 136,
+   "name": "<anonymous>",
+   "mi": 59.3
+  }
+ ],
+ "frontend/components/highlight-note-popover.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "HighlightNotePopover",
+   "mi": 28.1
+  },
+  {
+   "kind": "MIm",
+   "line": 54,
+   "name": "<anonymous>",
+   "mi": 54.1
+  },
+  {
+   "kind": "MIm",
+   "line": 83,
+   "name": "<anonymous>",
+   "mi": 55.1
+  },
+  {
+   "kind": "MIm",
+   "line": 58,
+   "name": "updatePosition",
+   "mi": 57
+  }
+ ],
+ "frontend/components/story-lineage-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 19,
+   "name": "StoryLineagePanel",
+   "mi": 28.4
+  }
+ ],
+ "frontend/features/intelligence-atlas/lib/atlas-force-layout.ts": [
+  {
+   "kind": "MIF",
+   "line": 114,
+   "name": "step",
+   "mi": 29.9
+  },
+  {
+   "kind": "MIF",
+   "line": 57,
+   "name": "initialPosition",
+   "mi": 48.2
+  },
+  {
+   "kind": "MIm",
+   "line": 93,
+   "name": "constructor",
+   "mi": 56.7
+  }
+ ],
+ "frontend/components/virtualized-grid.tsx": [
+  {
+   "kind": "MIF",
+   "line": 37,
+   "name": "<anonymous>",
+   "mi": 30
+  },
+  {
+   "kind": "MIF",
+   "line": 200,
+   "name": "VirtualizedGrid",
+   "mi": 31.3
+  },
+  {
+   "kind": "MIF",
+   "line": 300,
+   "name": "<anonymous>",
+   "mi": 41.9
+  },
+  {
+   "kind": "MIm",
+   "line": 73,
+   "name": "<anonymous>",
+   "mi": 59.9
+  }
+ ],
+ "frontend/app/wiki/reporters/page.tsx": [
+  {
+   "kind": "MIF",
+   "line": 137,
+   "name": "ReporterDirectoryPage",
+   "mi": 30.1
+  },
+  {
+   "kind": "MIF",
+   "line": 62,
+   "name": "ReporterCard",
+   "mi": 38.6
+  },
+  {
+   "kind": "MIm",
+   "line": 27,
+   "name": "leaningBadgeClass",
+   "mi": 56.7
+  },
+  {
+   "kind": "MIm",
+   "line": 157,
+   "name": "<anonymous>",
+   "mi": 59
+  }
+ ],
+ "frontend/components/trending-feed.tsx": [
+  {
+   "kind": "MIF",
+   "line": 143,
+   "name": "TrendingFeed",
+   "mi": 30.2
+  },
+  {
+   "kind": "MIF",
+   "line": 288,
+   "name": "BreakingCard",
+   "mi": 35.9
+  },
+  {
+   "kind": "MIF",
+   "line": 398,
+   "name": "TrendingCard",
+   "mi": 36.5
+  },
+  {
+   "kind": "MIm",
+   "line": 64,
+   "name": "extractKeyTerms",
+   "mi": 50.9
+  },
+  {
+   "kind": "MIm",
+   "line": 91,
+   "name": "<anonymous>",
+   "mi": 51.2
+  },
+  {
+   "kind": "MIm",
+   "line": 123,
+   "name": "trendingArticleToNewsArticle",
+   "mi": 53.6
+  },
+  {
+   "kind": "MIm",
+   "line": 506,
+   "name": "TrendingSkeleton",
+   "mi": 57
+  },
+  {
+   "kind": "MIm",
+   "line": 86,
+   "name": "deduplicateClusters",
+   "mi": 57.9
+  }
+ ],
+ "frontend/lib/api.ts": [
+  {
+   "kind": "MIF",
+   "line": 2162,
+   "name": "<anonymous>",
+   "mi": 31.1
+  },
+  {
+   "kind": "MIF",
+   "line": 2128,
+   "name": "streamNews",
+   "mi": 33.4
+  },
+  {
+   "kind": "MIF",
+   "line": 414,
+   "name": "fetchNews",
+   "mi": 34.5
+  },
+  {
+   "kind": "MIF",
+   "line": 1347,
+   "name": "fetchSourceDebugData",
+   "mi": 34.9
+  },
+  {
+   "kind": "MIF",
+   "line": 2054,
+   "name": "pumpStreamEvents",
+   "mi": 36
+  },
+  {
+   "kind": "MIF",
+   "line": 843,
+   "name": "refreshCache",
+   "mi": 36.7
+  },
+  {
+   "kind": "MIF",
+   "line": 2416,
+   "name": "mapBackendArticle",
+   "mi": 37.2
+  },
+  {
+   "kind": "MIF",
+   "line": 5700,
+   "name": "fetchOGImage",
+   "mi": 40.5
+  },
+  {
+   "kind": "MIF",
+   "line": 2010,
+   "name": "dispatchStreamEvent",
+   "mi": 43.4
+  },
+  {
+   "kind": "MIF",
+   "line": 3318,
+   "name": "fetchNewsPaginated",
+   "mi": 43.8
+  },
+  {
+   "kind": "MIF",
+   "line": 552,
+   "name": "fetchSources",
+   "mi": 44.4
+  },
+  {
+   "kind": "MIF",
+   "line": 3359,
+   "name": "fetchCachedNewsPaginated",
+   "mi": 44.6
+  },
+  {
+   "kind": "MIF",
+   "line": 5720,
+   "name": "<anonymous>",
+   "mi": 45.2
+  },
+  {
+   "kind": "MIF",
+   "line": 922,
+   "name": "semanticSearch",
+   "mi": 45.9
+  },
+  {
+   "kind": "MIF",
+   "line": 63,
+   "name": "rewriteRemoteBackendUrl",
+   "mi": 46.7
+  },
+  {
+   "kind": "MIF",
+   "line": 1778,
+   "name": "fetchStartupMetrics",
+   "mi": 47.2
+  },
+  {
+   "kind": "MIF",
+   "line": 658,
+   "name": "requestInlineDefinition",
+   "mi": 47.7
+  },
+  {
+   "kind": "MIF",
+   "line": 3397,
+   "name": "fetchBrowseIndex",
+   "mi": 48.1
+  },
+  {
+   "kind": "MIF",
+   "line": 3427,
+   "name": "fetchLiveBrowseIndex",
+   "mi": 48.1
+  },
+  {
+   "kind": "MIF",
+   "line": 1936,
+   "name": "handleCacheDataEvent",
+   "mi": 48.6
+  },
+  {
+   "kind": "MIF",
+   "line": 2844,
+   "name": "performAgenticSearch",
+   "mi": 49.4
+  },
+  {
+   "kind": "MIF",
+   "line": 4885,
+   "name": "fetchBlindspotViewer",
+   "mi": 49.7
+  },
+  {
+   "kind": "MIm",
+   "line": 1684,
+   "name": "fetchDatabaseDebugArticles",
+   "mi": 50.1
+  },
+  {
+   "kind": "MIm",
+   "line": 2906,
+   "name": "addToReadingQueue",
+   "mi": 50.2
+  },
+  {
+   "kind": "MIm",
+   "line": 3134,
+   "name": "getHighlightsForArticle",
+   "mi": 50.9
+  },
+  {
+   "kind": "MIm",
+   "line": 959,
+   "name": "fetchBookmarks",
+   "mi": 51.1
+  },
+  {
+   "kind": "MIm",
+   "line": 2717,
+   "name": "analyzeArticle",
+   "mi": 51.4
+  },
+  {
+   "kind": "MIm",
+   "line": 2801,
+   "name": "performNewsResearch",
+   "mi": 51.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3576,
+   "name": "fetchNewsForCountry",
+   "mi": 51.7
+  },
+  {
+   "kind": "MIm",
+   "line": 1748,
+   "name": "fetchCacheDelta",
+   "mi": 51.8
+  },
+  {
+   "kind": "MIm",
+   "line": 4102,
+   "name": "analyzeMaterialContext",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 5570,
+   "name": "fetchWikiSources",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 2747,
+   "name": "fetchLanguageDiagnostics",
+   "mi": 52.3
+  },
+  {
+   "kind": "MIm",
+   "line": 986,
+   "name": "fetchBookmark",
+   "mi": 52.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3183,
+   "name": "updateHighlight",
+   "mi": 53
+  },
+  {
+   "kind": "MIm",
+   "line": 280,
+   "name": "normalizeCountryCode",
+   "mi": 53.5
+  },
+  {
+   "kind": "MIm",
+   "line": 1103,
+   "name": "createLikedArticle",
+   "mi": 53.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1914,
+   "name": "handleInitialEvent",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 3250,
+   "name": "getQueueItemContent",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 3007,
+   "name": "updateReadingQueueItem",
+   "mi": 54.3
+  },
+  {
+   "kind": "MIm",
+   "line": 3111,
+   "name": "createHighlight",
+   "mi": 54.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3780,
+   "name": "profileReporter",
+   "mi": 54.4
+  },
+  {
+   "kind": "MIm",
+   "line": 797,
+   "name": "fetchLlmLogs",
+   "mi": 54.5
+  },
+  {
+   "kind": "MIm",
+   "line": 820,
+   "name": "fetchDebugErrors",
+   "mi": 54.5
+  },
+  {
+   "kind": "MIm",
+   "line": 1012,
+   "name": "createBookmark",
+   "mi": 54.5
+  },
+  {
+   "kind": "MIm",
+   "line": 154,
+   "name": "pruneOgImageCache",
+   "mi": 54.7
+  },
+  {
+   "kind": "MIm",
+   "line": 3896,
+   "name": "checkSourceProfileCache",
+   "mi": 55
+  },
+  {
+   "kind": "MIm",
+   "line": 2339,
+   "name": "resolveArticleCountries",
+   "mi": 55.4
+  },
+  {
+   "kind": "MIm",
+   "line": 2977,
+   "name": "getReadingQueue",
+   "mi": 55.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3041,
+   "name": "getQueueOverview",
+   "mi": 55.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3163,
+   "name": "getAllHighlights",
+   "mi": 55.4
+  },
+  {
+   "kind": "MIm",
+   "line": 3275,
+   "name": "getDailyDigest",
+   "mi": 55.4
+  },
+  {
+   "kind": "MIm",
+   "line": 1036,
+   "name": "updateBookmark",
+   "mi": 55.5
+  },
+  {
+   "kind": "MIm",
+   "line": 5619,
+   "name": "fetchWikiReporters",
+   "mi": 55.6
+  },
+  {
+   "kind": "MIm",
+   "line": 1058,
+   "name": "deleteBookmark",
+   "mi": 55.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1128,
+   "name": "deleteLikedArticle",
+   "mi": 55.8
+  },
+  {
+   "kind": "MIm",
+   "line": 1177,
+   "name": "validateRssUrl",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 1196,
+   "name": "promoteRssSource",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 1897,
+   "name": "<anonymous>",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 5171,
+   "name": "fetchNoveltyScore",
+   "mi": 56.3
+  },
+  {
+   "kind": "MIm",
+   "line": 3210,
+   "name": "deleteHighlight",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 5092,
+   "name": "fetchRelatedArticles",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 5145,
+   "name": "fetchSourceCoverage",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 2956,
+   "name": "removeFromReadingQueueByUrl",
+   "mi": 56.5
+  },
+  {
+   "kind": "MIm",
+   "line": 3845,
+   "name": "researchOrganization",
+   "mi": 56.6
+  },
+  {
+   "kind": "MIm",
+   "line": 3870,
+   "name": "researchSourceProfile",
+   "mi": 56.6
+  },
+  {
+   "kind": "MIm",
+   "line": 5243,
+   "name": "fetchBulkArticleTopics",
+   "mi": 56.6
+  },
+  {
+   "kind": "MIm",
+   "line": 1085,
+   "name": "fetchLikedArticles",
+   "mi": 56.7
+  },
+  {
+   "kind": "MIm",
+   "line": 2605,
+   "name": "sendFrontendDebugReport",
+   "mi": 56.7
+  },
+  {
+   "kind": "MIm",
+   "line": 3935,
+   "name": "researchSourceProfilesBatch",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 5119,
+   "name": "fetchSearchSuggestions",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 608,
+   "name": "mapCredibilityScoreToLevel",
+   "mi": 56.9
+  },
+  {
+   "kind": "MIm",
+   "line": 138,
+   "name": "isLikelyNetworkError",
+   "mi": 57
+  },
+  {
+   "kind": "MIm",
+   "line": 636,
+   "name": "fetchCategories",
+   "mi": 57
+  },
+  {
+   "kind": "MIm",
+   "line": 4820,
+   "name": "fetchAllClusters",
+   "mi": 57
+  },
+  {
+   "kind": "MIm",
+   "line": 4919,
+   "name": "fetchClusterArticles",
+   "mi": 57.1
+  },
+  {
+   "kind": "MIm",
+   "line": 3078,
+   "name": "createReadingShelf",
+   "mi": 57.4
+  },
+  {
+   "kind": "MIm",
+   "line": 99,
+   "name": "resolveBaseUrl",
+   "mi": 57.5
+  },
+  {
+   "kind": "MIm",
+   "line": 2506,
+   "name": "fetchStreamStatus",
+   "mi": 57.5
+  },
+  {
+   "kind": "MIm",
+   "line": 1969,
+   "name": "handleSourceCompleteEvent",
+   "mi": 57.7
+  },
+  {
+   "kind": "MIm",
+   "line": 2937,
+   "name": "removeFromReadingQueue",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 4774,
+   "name": "fetchTrending",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 711,
+   "name": "fetchSourceStats",
+   "mi": 58.4
+  },
+  {
+   "kind": "MIm",
+   "line": 2399,
+   "name": "resolveGeoSignal",
+   "mi": 58.4
+  },
+  {
+   "kind": "MIm",
+   "line": 2488,
+   "name": "<anonymous>",
+   "mi": 58.7
+  },
+  {
+   "kind": "MIm",
+   "line": 4797,
+   "name": "fetchBreaking",
+   "mi": 58.8
+  },
+  {
+   "kind": "MIm",
+   "line": 782,
+   "name": "fetchCacheStatus",
+   "mi": 59.6
+  },
+  {
+   "kind": "MIm",
+   "line": 1731,
+   "name": "fetchCacheDebugArticles",
+   "mi": 59.6
+  },
+  {
+   "kind": "MIm",
+   "line": 2244,
+   "name": "<anonymous>",
+   "mi": 59.6
+  }
+ ],
+ "frontend/lib/highlight-store.ts": [
+  {
+   "kind": "MIF",
+   "line": 115,
+   "name": "mergeHighlights",
+   "mi": 31.1
+  },
+  {
+   "kind": "MIF",
+   "line": 53,
+   "name": "dedupeLocalHighlights",
+   "mi": 49.1
+  },
+  {
+   "kind": "MIm",
+   "line": 281,
+   "name": "markFailed",
+   "mi": 59.8
+  }
+ ],
+ "frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 41,
+   "name": "SourceWikiView",
+   "mi": 31.2
+  },
+  {
+   "kind": "MIF",
+   "line": 166,
+   "name": "SourceSidebar",
+   "mi": 38.3
+  },
+  {
+   "kind": "MIF",
+   "line": 499,
+   "name": "OrganizationPanel",
+   "mi": 43.2
+  },
+  {
+   "kind": "MIF",
+   "line": 712,
+   "name": "AnalysisAxisCard",
+   "mi": 45.3
+  },
+  {
+   "kind": "MIF",
+   "line": 352,
+   "name": "SourcePageBody",
+   "mi": 49.4
+  },
+  {
+   "kind": "MIm",
+   "line": 249,
+   "name": "QuickFacts",
+   "mi": 50.1
+  },
+  {
+   "kind": "MIm",
+   "line": 306,
+   "name": "PeopleAndOwnership",
+   "mi": 51.4
+  },
+  {
+   "kind": "MIm",
+   "line": 571,
+   "name": "ReporterCard",
+   "mi": 53.3
+  },
+  {
+   "kind": "MIm",
+   "line": 414,
+   "name": "SourceLedgerPanel",
+   "mi": 54
+  },
+  {
+   "kind": "MIm",
+   "line": 440,
+   "name": "LedgerMetricCard",
+   "mi": 55.7
+  },
+  {
+   "kind": "MIm",
+   "line": 477,
+   "name": "EvidenceSectionCard",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 392,
+   "name": "OverviewPanel",
+   "mi": 57.7
+  }
+ ],
+ "frontend/components/notification-popup.tsx": [
+  {
+   "kind": "MIF",
+   "line": 52,
+   "name": "NotificationsPopup",
+   "mi": 31.4
+  },
+  {
+   "kind": "MIm",
+   "line": 76,
+   "name": "<anonymous>",
+   "mi": 56.6
+  }
+ ],
+ "frontend/__tests__/trending-cluster-nullables.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 9,
+   "name": "<anonymous>",
+   "mi": 32.4
+  },
+  {
+   "kind": "MIF",
+   "line": 131,
+   "name": "<anonymous>",
+   "mi": 45.1
+  },
+  {
+   "kind": "MIF",
+   "line": 38,
+   "name": "<anonymous>",
+   "mi": 45.2
+  },
+  {
+   "kind": "MIF",
+   "line": 85,
+   "name": "<anonymous>",
+   "mi": 45.5
+  },
+  {
+   "kind": "MIF",
+   "line": 178,
+   "name": "<anonymous>",
+   "mi": 49.1
+  }
+ ],
+ "frontend/components/highlights-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 11,
+   "name": "HighlightsView",
+   "mi": 32.6
+  }
+ ],
+ "frontend/hooks/usePaginatedNews.ts": [
+  {
+   "kind": "MIF",
+   "line": 37,
+   "name": "usePaginatedNews",
+   "mi": 32.7
+  },
+  {
+   "kind": "MIm",
+   "line": 89,
+   "name": "queryFn",
+   "mi": 52.8
+  }
+ ],
+ "frontend/__tests__/pagination.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 74,
+   "name": "<anonymous>",
+   "mi": 33.1
+  },
+  {
+   "kind": "MIF",
+   "line": 235,
+   "name": "<anonymous>",
+   "mi": 36.5
+  },
+  {
+   "kind": "MIF",
+   "line": 164,
+   "name": "<anonymous>",
+   "mi": 49.3
+  },
+  {
+   "kind": "MIm",
+   "line": 79,
+   "name": "<anonymous>",
+   "mi": 50.5
+  },
+  {
+   "kind": "MIm",
+   "line": 132,
+   "name": "<anonymous>",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 107,
+   "name": "<anonymous>",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 318,
+   "name": "<anonymous>",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 216,
+   "name": "<anonymous>",
+   "mi": 56.3
+  },
+  {
+   "kind": "MIm",
+   "line": 199,
+   "name": "<anonymous>",
+   "mi": 59.1
+  }
+ ],
+ "frontend/components/source-coverage-comparison.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "SourceCoverageComparison",
+   "mi": 33.5
+  },
+  {
+   "kind": "MIm",
+   "line": 102,
+   "name": "<anonymous>",
+   "mi": 51.8
+  }
+ ],
+ "frontend/components/digest-card.tsx": [
+  {
+   "kind": "MIF",
+   "line": 24,
+   "name": "DigestCard",
+   "mi": 34.6
+  }
+ ],
+ "frontend/components/contradiction-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 12,
+   "name": "ContradictionPanel",
+   "mi": 34.8
+  }
+ ],
+ "frontend/lib/feed-ranking.ts": [
+  {
+   "kind": "MIF",
+   "line": 172,
+   "name": "buildInterestProfile",
+   "mi": 35.3
+  },
+  {
+   "kind": "MIF",
+   "line": 266,
+   "name": "scoreArticle",
+   "mi": 39.3
+  },
+  {
+   "kind": "MIm",
+   "line": 127,
+   "name": "tokenizeArticle",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 325,
+   "name": "rankFeedArticles",
+   "mi": 57.7
+  },
+  {
+   "kind": "MIm",
+   "line": 246,
+   "name": "getBucket",
+   "mi": 57.9
+  }
+ ],
+ "frontend/hooks/useScrollPersonalization.ts": [
+  {
+   "kind": "MIF",
+   "line": 85,
+   "name": "useScrollPersonalization",
+   "mi": 35.7
+  },
+  {
+   "kind": "MIF",
+   "line": 109,
+   "name": "load",
+   "mi": 37.6
+  },
+  {
+   "kind": "MIF",
+   "line": 99,
+   "name": "<anonymous>",
+   "mi": 43.4
+  },
+  {
+   "kind": "MIF",
+   "line": 43,
+   "name": "dedupeSeeds",
+   "mi": 47.9
+  }
+ ],
+ "frontend/components/source-research-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 31,
+   "name": "SourceResearchPanel",
+   "mi": 35.8
+  },
+  {
+   "kind": "MIm",
+   "line": 117,
+   "name": "ResearchProfileContent",
+   "mi": 50.6
+  },
+  {
+   "kind": "MIm",
+   "line": 222,
+   "name": "ResearchLinksRow",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 171,
+   "name": "DossierSectionCard",
+   "mi": 56.3
+  }
+ ],
+ "frontend/__tests__/article-detail-modal.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 50,
+   "name": "<anonymous>",
+   "mi": 35.9
+  },
+  {
+   "kind": "MIF",
+   "line": 224,
+   "name": "<anonymous>",
+   "mi": 41.5
+  },
+  {
+   "kind": "MIF",
+   "line": 164,
+   "name": "<anonymous>",
+   "mi": 41.6
+  },
+  {
+   "kind": "MIF",
+   "line": 126,
+   "name": "<anonymous>",
+   "mi": 46.1
+  },
+  {
+   "kind": "MIF",
+   "line": 90,
+   "name": "<anonymous>",
+   "mi": 48
+  },
+  {
+   "kind": "MIm",
+   "line": 59,
+   "name": "<anonymous>",
+   "mi": 57.9
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-widen-then-assert.ts": [
+  {
+   "kind": "MIF",
+   "line": 200,
+   "name": "knownValueEvidence",
+   "mi": 36.6
+  },
+  {
+   "kind": "MIF",
+   "line": 52,
+   "name": "isBroadRecordType",
+   "mi": 45
+  },
+  {
+   "kind": "MIF",
+   "line": 263,
+   "name": "widenedBinding",
+   "mi": 46
+  },
+  {
+   "kind": "MIF",
+   "line": 330,
+   "name": "checkAssertion",
+   "mi": 49.6
+  },
+  {
+   "kind": "MIm",
+   "line": 143,
+   "name": "isDefinitelyNarrowerRecordType",
+   "mi": 53.1
+  },
+  {
+   "kind": "MIm",
+   "line": 122,
+   "name": "isDefinitelyObjectType",
+   "mi": 53.5
+  },
+  {
+   "kind": "MIm",
+   "line": 327,
+   "name": "createOnce",
+   "mi": 53.6
+  },
+  {
+   "kind": "MIm",
+   "line": 39,
+   "name": "isBroadRecordKeyType",
+   "mi": 59.3
+  }
+ ],
+ "frontend/features/intelligence-atlas/hooks/use-atlas-layout.ts": [
+  {
+   "kind": "MIF",
+   "line": 33,
+   "name": "useAtlasLayout",
+   "mi": 36.7
+  },
+  {
+   "kind": "MIF",
+   "line": 44,
+   "name": "<anonymous>",
+   "mi": 40.8
+  },
+  {
+   "kind": "MIF",
+   "line": 71,
+   "name": "frame",
+   "mi": 45
+  },
+  {
+   "kind": "MIm",
+   "line": 81,
+   "name": "<anonymous>",
+   "mi": 59.8
+  }
+ ],
+ "frontend/hooks/useInlineDefinition.ts": [
+  {
+   "kind": "MIF",
+   "line": 26,
+   "name": "onMouseUp",
+   "mi": 36.8
+  },
+  {
+   "kind": "MIF",
+   "line": 12,
+   "name": "useInlineDefinition",
+   "mi": 38.4
+  },
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "<anonymous>",
+   "mi": 40.9
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts": [
+  {
+   "kind": "MIF",
+   "line": 246,
+   "name": "dictionaryValueTypes",
+   "mi": 37.2
+  },
+  {
+   "kind": "MIF",
+   "line": 190,
+   "name": "unsafeDirectValue",
+   "mi": 37.7
+  },
+  {
+   "kind": "MIF",
+   "line": 411,
+   "name": "classifyAliasBroadTarget",
+   "mi": 39.1
+  },
+  {
+   "kind": "MIF",
+   "line": 51,
+   "name": "createTypeEnvironment",
+   "mi": 39.6
+  },
+  {
+   "kind": "MIF",
+   "line": 340,
+   "name": "classifyWideningTarget",
+   "mi": 41.2
+  },
+  {
+   "kind": "MIm",
+   "line": 480,
+   "name": "isKnownEvidenceExpression",
+   "mi": 50
+  },
+  {
+   "kind": "MIm",
+   "line": 383,
+   "name": "isBroadMappedKey",
+   "mi": 50.5
+  },
+  {
+   "kind": "MIm",
+   "line": 174,
+   "name": "aliasSubstitution",
+   "mi": 59.2
+  },
+  {
+   "kind": "MIm",
+   "line": 467,
+   "name": "isPopulatedObjectExpression",
+   "mi": 59.7
+  },
+  {
+   "kind": "MIm",
+   "line": 158,
+   "name": "resolvedSubstitutionArgument",
+   "mi": 59.8
+  }
+ ],
+ "frontend/app/wiki/reporter/[id]/reporter-wiki-view.tsx": [
+  {
+   "kind": "MIF",
+   "line": 380,
+   "name": "ReporterWikiView",
+   "mi": 37.9
+  },
+  {
+   "kind": "MIF",
+   "line": 258,
+   "name": "BackgroundPanel",
+   "mi": 46.6
+  },
+  {
+   "kind": "MIm",
+   "line": 50,
+   "name": "ReporterDossierHeader",
+   "mi": 51
+  },
+  {
+   "kind": "MIm",
+   "line": 84,
+   "name": "QuickFactsCard",
+   "mi": 54.9
+  },
+  {
+   "kind": "MIm",
+   "line": 159,
+   "name": "ExternalProfilesCard",
+   "mi": 54.9
+  },
+  {
+   "kind": "MIm",
+   "line": 308,
+   "name": "CorpusActivityPanel",
+   "mi": 57.6
+  },
+  {
+   "kind": "MIm",
+   "line": 329,
+   "name": "RecentArticlesPanel",
+   "mi": 57.6
+  },
+  {
+   "kind": "MIm",
+   "line": 208,
+   "name": "OverviewPanel",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 228,
+   "name": "PublicRecordPanel",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 134,
+   "name": "AuthorPagesCard",
+   "mi": 58.3
+  },
+  {
+   "kind": "MIm",
+   "line": 111,
+   "name": "OutletsCard",
+   "mi": 59.2
+  },
+  {
+   "kind": "MIm",
+   "line": 491,
+   "name": "ActivityList",
+   "mi": 59.9
+  }
+ ],
+ "frontend/components/related-articles.tsx": [
+  {
+   "kind": "MIF",
+   "line": 17,
+   "name": "RelatedArticles",
+   "mi": 38.4
+  }
+ ],
+ "frontend/lib/performance-logger.ts": [
+  {
+   "kind": "MIF",
+   "line": 181,
+   "name": "logEvent",
+   "mi": 39
+  },
+  {
+   "kind": "MIF",
+   "line": 285,
+   "name": "logStreamEvent",
+   "mi": 39.9
+  },
+  {
+   "kind": "MIF",
+   "line": 522,
+   "name": "flush",
+   "mi": 39.9
+  },
+  {
+   "kind": "MIF",
+   "line": 131,
+   "name": "logPageLoad",
+   "mi": 41.7
+  },
+  {
+   "kind": "MIF",
+   "line": 458,
+   "name": "getSummary",
+   "mi": 47.9
+  },
+  {
+   "kind": "MIF",
+   "line": 348,
+   "name": "endStream",
+   "mi": 48.8
+  },
+  {
+   "kind": "MIm",
+   "line": 383,
+   "name": "trackApiRequest",
+   "mi": 51.6
+  },
+  {
+   "kind": "MIm",
+   "line": 101,
+   "name": "constructor",
+   "mi": 52.3
+  },
+  {
+   "kind": "MIm",
+   "line": 420,
+   "name": "trackRender",
+   "mi": 53
+  },
+  {
+   "kind": "MIm",
+   "line": 265,
+   "name": "startStream",
+   "mi": 56.2
+  }
+ ],
+ "frontend/app/wiki/reporter/[id]/career-timeline.tsx": [
+  {
+   "kind": "MIF",
+   "line": 21,
+   "name": "CareerTimeline",
+   "mi": 39.3
+  },
+  {
+   "kind": "MIF",
+   "line": 76,
+   "name": "<anonymous>",
+   "mi": 42
+  }
+ ],
+ "frontend/features/intelligence-atlas/atlas-operations-sheet.tsx": [
+  {
+   "kind": "MIF",
+   "line": 29,
+   "name": "AtlasOperationsSheet",
+   "mi": 39.6
+  }
+ ],
+ "frontend/__tests__/globe-live-data.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 66,
+   "name": "<anonymous>",
+   "mi": 39.9
+  },
+  {
+   "kind": "MIF",
+   "line": 33,
+   "name": "<anonymous>",
+   "mi": 45
+  },
+  {
+   "kind": "MIF",
+   "line": 10,
+   "name": "makeArticle",
+   "mi": 48.7
+  },
+  {
+   "kind": "MIF",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 49
+  },
+  {
+   "kind": "MIm",
+   "line": 129,
+   "name": "<anonymous>",
+   "mi": 50.1
+  },
+  {
+   "kind": "MIm",
+   "line": 46,
+   "name": "<anonymous>",
+   "mi": 58.1
+  }
+ ],
+ "frontend/components/navigation/sidebar-navigation-item.tsx": [
+  {
+   "kind": "MIF",
+   "line": 34,
+   "name": "SidebarNavigationItem",
+   "mi": 39.9
+  }
+ ],
+ "frontend/lib/appearance-settings.ts": [
+  {
+   "kind": "MIF",
+   "line": 158,
+   "name": "normalizeAppearanceSettings",
+   "mi": 39.9
+  },
+  {
+   "kind": "MIF",
+   "line": 308,
+   "name": "numericProperties",
+   "mi": 44.4
+  },
+  {
+   "kind": "MIm",
+   "line": 383,
+   "name": "buildAppearanceBootstrapScript",
+   "mi": 50.2
+  },
+  {
+   "kind": "MIm",
+   "line": 357,
+   "name": "applyAppearanceSettings",
+   "mi": 53.3
+  },
+  {
+   "kind": "MIm",
+   "line": 287,
+   "name": "colorProperties",
+   "mi": 55.6
+  },
+  {
+   "kind": "MIm",
+   "line": 247,
+   "name": "loadAppearanceSettings",
+   "mi": 56
+  }
+ ],
+ "frontend/lib/globe-live-data.ts": [
+  {
+   "kind": "MIF",
+   "line": 152,
+   "name": "buildLocalLensFromArticles",
+   "mi": 40
+  },
+  {
+   "kind": "MIF",
+   "line": 57,
+   "name": "buildCountryMetricsFromArticles",
+   "mi": 43.8
+  },
+  {
+   "kind": "MIF",
+   "line": 108,
+   "name": "buildCountryListFromArticles",
+   "mi": 49.3
+  },
+  {
+   "kind": "MIm",
+   "line": 113,
+   "name": "<anonymous>",
+   "mi": 51.9
+  },
+  {
+   "kind": "MIm",
+   "line": 64,
+   "name": "<anonymous>",
+   "mi": 57.5
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 59.7
+  }
+ ],
+ "frontend/app/wiki/reporter/[id]/career-timeline.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 63,
+   "name": "<anonymous>",
+   "mi": 40.1
+  },
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "<anonymous>",
+   "mi": 45.8
+  },
+  {
+   "kind": "MIF",
+   "line": 22,
+   "name": "<anonymous>",
+   "mi": 45.9
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-known-value-widening.ts": [
+  {
+   "kind": "MIF",
+   "line": 146,
+   "name": "createOnce",
+   "mi": 41.1
+  },
+  {
+   "kind": "MIm",
+   "line": 58,
+   "name": "hasKnownEvidence",
+   "mi": 54.4
+  },
+  {
+   "kind": "MIm",
+   "line": 149,
+   "name": "reportFlow",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 89,
+   "name": "enclosingFunction",
+   "mi": 58.3
+  },
+  {
+   "kind": "MIm",
+   "line": 200,
+   "name": "AssignmentExpression",
+   "mi": 58.3
+  },
+  {
+   "kind": "MIm",
+   "line": 15,
+   "name": "unwrapExpression",
+   "mi": 59.7
+  }
+ ],
+ "frontend/__tests__/cluster-display-logic.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 11,
+   "name": "<anonymous>",
+   "mi": 41.2
+  },
+  {
+   "kind": "MIF",
+   "line": 12,
+   "name": "<anonymous>",
+   "mi": 47.5
+  },
+  {
+   "kind": "MIm",
+   "line": 96,
+   "name": "<anonymous>",
+   "mi": 51.2
+  },
+  {
+   "kind": "MIm",
+   "line": 24,
+   "name": "<anonymous>",
+   "mi": 51.4
+  },
+  {
+   "kind": "MIm",
+   "line": 60,
+   "name": "<anonymous>",
+   "mi": 52
+  },
+  {
+   "kind": "MIm",
+   "line": 93,
+   "name": "<anonymous>",
+   "mi": 52.9
+  },
+  {
+   "kind": "MIm",
+   "line": 130,
+   "name": "<anonymous>",
+   "mi": 53.6
+  },
+  {
+   "kind": "MIm",
+   "line": 138,
+   "name": "<anonymous>",
+   "mi": 56.5
+  },
+  {
+   "kind": "MIm",
+   "line": 68,
+   "name": "<anonymous>",
+   "mi": 56.9
+  }
+ ],
+ "frontend/components/article-inline-embed.tsx": [
+  {
+   "kind": "MIF",
+   "line": 55,
+   "name": "ArticleInlineEmbed",
+   "mi": 41.2
+  },
+  {
+   "kind": "MIF",
+   "line": 31,
+   "name": "buildNewsArticle",
+   "mi": 49.4
+  }
+ ],
+ "frontend/components/queue-overview-card.tsx": [
+  {
+   "kind": "MIF",
+   "line": 9,
+   "name": "QueueOverviewCard",
+   "mi": 41.3
+  }
+ ],
+ "frontend/hooks/useLikedArticles.ts": [
+  {
+   "kind": "MIF",
+   "line": 46,
+   "name": "useLikedArticles",
+   "mi": 41.4
+  },
+  {
+   "kind": "MIm",
+   "line": 85,
+   "name": "<anonymous>",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 26,
+   "name": "loadLikedFromApi",
+   "mi": 54.9
+  },
+  {
+   "kind": "MIm",
+   "line": 53,
+   "name": "<anonymous>",
+   "mi": 58.9
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-object-parameters.ts": [
+  {
+   "kind": "MIF",
+   "line": 49,
+   "name": "createOnce",
+   "mi": 41.4
+  },
+  {
+   "kind": "MIF",
+   "line": 52,
+   "name": "resolvesToObject",
+   "mi": 47.7
+  },
+  {
+   "kind": "MIm",
+   "line": 83,
+   "name": "checkParameters",
+   "mi": 56.2
+  },
+  {
+   "kind": "MIm",
+   "line": 101,
+   "name": "Program",
+   "mi": 58.4
+  },
+  {
+   "kind": "MIm",
+   "line": 17,
+   "name": "parameterAnnotation",
+   "mi": 59.7
+  }
+ ],
+ "frontend/components/confidence-badge.tsx": [
+  {
+   "kind": "MIF",
+   "line": 37,
+   "name": "ConfidenceBadge",
+   "mi": 41.5
+  },
+  {
+   "kind": "MIm",
+   "line": 114,
+   "name": "ConfidenceBar",
+   "mi": 52.8
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-unknown-returns.ts": [
+  {
+   "kind": "MIF",
+   "line": 39,
+   "name": "createOnce",
+   "mi": 41.5
+  },
+  {
+   "kind": "MIF",
+   "line": 42,
+   "name": "resolvesToUnknown",
+   "mi": 45.2
+  },
+  {
+   "kind": "MIm",
+   "line": 78,
+   "name": "checkReturnType",
+   "mi": 59.5
+  }
+ ],
+ "frontend/components/navigation/workspace-search.tsx": [
+  {
+   "kind": "MIF",
+   "line": 13,
+   "name": "WorkspaceSearch",
+   "mi": 41.6
+  }
+ ],
+ "frontend/hooks/useSourceFilter.ts": [
+  {
+   "kind": "MIF",
+   "line": 19,
+   "name": "useSourceFilter",
+   "mi": 41.6
+  }
+ ],
+ "frontend/components/search-suggestions.tsx": [
+  {
+   "kind": "MIF",
+   "line": 18,
+   "name": "SearchSuggestions",
+   "mi": 41.7
+  }
+ ],
+ "frontend/__tests__/blindspot-view.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 16,
+   "name": "<anonymous>",
+   "mi": 42
+  },
+  {
+   "kind": "MIF",
+   "line": 17,
+   "name": "<anonymous>",
+   "mi": 44.7
+  },
+  {
+   "kind": "MIm",
+   "line": 136,
+   "name": "<anonymous>",
+   "mi": 52.9
+  },
+  {
+   "kind": "MIm",
+   "line": 158,
+   "name": "<anonymous>",
+   "mi": 56.9
+  }
+ ],
+ "frontend/hooks/useReadingHistory.ts": [
+  {
+   "kind": "MIF",
+   "line": 22,
+   "name": "useReadingHistory",
+   "mi": 42.3
+  },
+  {
+   "kind": "MIF",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 47.4
+  }
+ ],
+ "frontend/hooks/useBrowseIndex.ts": [
+  {
+   "kind": "MIF",
+   "line": 26,
+   "name": "useBrowseIndex",
+   "mi": 42.6
+  }
+ ],
+ "frontend/hooks/useLiveBrowseIndex.ts": [
+  {
+   "kind": "MIF",
+   "line": 26,
+   "name": "useLiveBrowseIndex",
+   "mi": 42.8
+  }
+ ],
+ "frontend/features/intelligence-atlas/lib/atlas-query-state.ts": [
+  {
+   "kind": "MIF",
+   "line": 95,
+   "name": "parseAtlasQueryState",
+   "mi": 42.9
+  },
+  {
+   "kind": "MIF",
+   "line": 129,
+   "name": "serializeAtlasQueryState",
+   "mi": 46.7
+  }
+ ],
+ "frontend/lib/verification.ts": [
+  {
+   "kind": "MIF",
+   "line": 89,
+   "name": "streamVerification",
+   "mi": 42.9
+  },
+  {
+   "kind": "MIm",
+   "line": 45,
+   "name": "verifyResearch",
+   "mi": 58.3
+  },
+  {
+   "kind": "MIm",
+   "line": 67,
+   "name": "verifyResearchJson",
+   "mi": 58.3
+  },
+  {
+   "kind": "MIm",
+   "line": 142,
+   "name": "getConfidenceColor",
+   "mi": 59.1
+  },
+  {
+   "kind": "MIm",
+   "line": 165,
+   "name": "getConfidenceBgColor",
+   "mi": 59.1
+  },
+  {
+   "kind": "MIm",
+   "line": 188,
+   "name": "getConfidenceLabel",
+   "mi": 59.1
+  }
+ ],
+ "frontend/components/live-news-toolbar.tsx": [
+  {
+   "kind": "MIF",
+   "line": 17,
+   "name": "LiveNewsToolbar",
+   "mi": 43
+  }
+ ],
+ "frontend/features/intelligence-atlas/tests/atlas-schema.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 12,
+   "name": "<anonymous>",
+   "mi": 43.2
+  },
+  {
+   "kind": "MIF",
+   "line": 63,
+   "name": "<anonymous>",
+   "mi": 44.9
+  },
+  {
+   "kind": "MIF",
+   "line": 189,
+   "name": "<anonymous>",
+   "mi": 46.8
+  },
+  {
+   "kind": "MIF",
+   "line": 152,
+   "name": "<anonymous>",
+   "mi": 47.6
+  },
+  {
+   "kind": "MIF",
+   "line": 11,
+   "name": "<anonymous>",
+   "mi": 48.9
+  },
+  {
+   "kind": "MIF",
+   "line": 225,
+   "name": "<anonymous>",
+   "mi": 49.9
+  },
+  {
+   "kind": "MIm",
+   "line": 188,
+   "name": "<anonymous>",
+   "mi": 52.5
+  },
+  {
+   "kind": "MIm",
+   "line": 116,
+   "name": "<anonymous>",
+   "mi": 53
+  },
+  {
+   "kind": "MIm",
+   "line": 144,
+   "name": "<anonymous>",
+   "mi": 56.5
+  },
+  {
+   "kind": "MIm",
+   "line": 110,
+   "name": "<anonymous>",
+   "mi": 57.5
+  },
+  {
+   "kind": "MIm",
+   "line": 257,
+   "name": "<anonymous>",
+   "mi": 58.6
+  }
+ ],
+ "frontend/features/intelligence-atlas/funding-bias-panel.tsx": [
+  {
+   "kind": "MIF",
+   "line": 17,
+   "name": "FundingBiasField",
+   "mi": 43.5
+  }
+ ],
+ "frontend/features/intelligence-atlas/tests/ownership-chain.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 33,
+   "name": "<anonymous>",
+   "mi": 43.6
+  },
+  {
+   "kind": "MIm",
+   "line": 21,
+   "name": "<anonymous>",
+   "mi": 54.3
+  }
+ ],
+ "frontend/__tests__/global-navigation.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "<anonymous>",
+   "mi": 43.7
+  },
+  {
+   "kind": "MIm",
+   "line": 62,
+   "name": "<anonymous>",
+   "mi": 58.6
+  },
+  {
+   "kind": "MIm",
+   "line": 76,
+   "name": "<anonymous>",
+   "mi": 59
+  },
+  {
+   "kind": "MIm",
+   "line": 99,
+   "name": "<anonymous>",
+   "mi": 59.1
+  }
+ ],
+ "frontend/components/novelty-badge.tsx": [
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "NoveltyBadge",
+   "mi": 43.8
+  }
+ ],
+ "frontend/__tests__/highlight-toolbar.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 39,
+   "name": "<anonymous>",
+   "mi": 44.4
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 55.3
+  }
+ ],
+ "frontend/components/live-news-source-picker.tsx": [
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "LiveNewsSourcePicker",
+   "mi": 44.5
+  },
+  {
+   "kind": "MIm",
+   "line": 47,
+   "name": "<anonymous>",
+   "mi": 52.2
+  }
+ ],
+ "frontend/lib/news-lens.ts": [
+  {
+   "kind": "MIF",
+   "line": 70,
+   "name": "sourceMatchesLens",
+   "mi": 44.6
+  }
+ ],
+ "frontend/hooks/useBookmarks.ts": [
+  {
+   "kind": "MIF",
+   "line": 52,
+   "name": "useBookmarks",
+   "mi": 44.8
+  },
+  {
+   "kind": "MIm",
+   "line": 11,
+   "name": "loadBookmarksFromApi",
+   "mi": 58
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "toggleBookmarkState",
+   "mi": 58.6
+  }
+ ],
+ "frontend/__tests__/browse-index.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 40,
+   "name": "<anonymous>",
+   "mi": 44.9
+  },
+  {
+   "kind": "MIF",
+   "line": 35,
+   "name": "<anonymous>",
+   "mi": 45.7
+  },
+  {
+   "kind": "MIm",
+   "line": 94,
+   "name": "<anonymous>",
+   "mi": 56.3
+  },
+  {
+   "kind": "MIm",
+   "line": 112,
+   "name": "<anonymous>",
+   "mi": 57.1
+  }
+ ],
+ "frontend/__tests__/highlight-note-popover.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "<anonymous>",
+   "mi": 44.9
+  },
+  {
+   "kind": "MIF",
+   "line": 63,
+   "name": "<anonymous>",
+   "mi": 45.3
+  },
+  {
+   "kind": "MIF",
+   "line": 14,
+   "name": "<anonymous>",
+   "mi": 49.3
+  }
+ ],
+ "frontend/__tests__/live-browse-index.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 40,
+   "name": "<anonymous>",
+   "mi": 44.9
+  },
+  {
+   "kind": "MIm",
+   "line": 35,
+   "name": "<anonymous>",
+   "mi": 52.4
+  }
+ ],
+ "frontend/lib/highlight-utils.tsx": [
+  {
+   "kind": "MIF",
+   "line": 8,
+   "name": "getGlobalOffset",
+   "mi": 45
+  },
+  {
+   "kind": "MIF",
+   "line": 190,
+   "name": "buildObsidianMarkdown",
+   "mi": 45.4
+  },
+  {
+   "kind": "MIF",
+   "line": 79,
+   "name": "renderTextWithHighlights",
+   "mi": 47
+  },
+  {
+   "kind": "MIm",
+   "line": 95,
+   "name": "<anonymous>",
+   "mi": 50.6
+  },
+  {
+   "kind": "MIm",
+   "line": 163,
+   "name": "getMarkdownWithHighlights",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 52,
+   "name": "getRenderableHighlights",
+   "mi": 54.1
+  },
+  {
+   "kind": "MIm",
+   "line": 140,
+   "name": "getHighlightColorClass",
+   "mi": 57
+  }
+ ],
+ "frontend/__tests__/source-groups.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 5,
+   "name": "createArticle",
+   "mi": 45.5
+  },
+  {
+   "kind": "MIF",
+   "line": 36,
+   "name": "<anonymous>",
+   "mi": 49.9
+  }
+ ],
+ "frontend/features/intelligence-atlas/ownership-chain.tsx": [
+  {
+   "kind": "MIF",
+   "line": 40,
+   "name": "<anonymous>",
+   "mi": 45.8
+  },
+  {
+   "kind": "MIF",
+   "line": 24,
+   "name": "OwnershipChain",
+   "mi": 47.7
+  }
+ ],
+ "frontend/__tests__/render-loop-regression.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 174,
+   "name": "<anonymous>",
+   "mi": 45.9
+  },
+  {
+   "kind": "MIm",
+   "line": 198,
+   "name": "<anonymous>",
+   "mi": 53.7
+  },
+  {
+   "kind": "MIm",
+   "line": 82,
+   "name": "installLoopGuard",
+   "mi": 54.5
+  },
+  {
+   "kind": "MIm",
+   "line": 152,
+   "name": "StreamStartupHarness",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 175,
+   "name": "<anonymous>",
+   "mi": 57.1
+  },
+  {
+   "kind": "MIm",
+   "line": 221,
+   "name": "<anonymous>",
+   "mi": 57.9
+  },
+  {
+   "kind": "MIm",
+   "line": 131,
+   "name": "ReadTrackingHarness",
+   "mi": 58.8
+  }
+ ],
+ "frontend/features/intelligence-atlas/tests/atlas-query-state.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 5,
+   "name": "<anonymous>",
+   "mi": 45.9
+  },
+  {
+   "kind": "MIm",
+   "line": 6,
+   "name": "<anonymous>",
+   "mi": 54
+  },
+  {
+   "kind": "MIm",
+   "line": 67,
+   "name": "<anonymous>",
+   "mi": 58.5
+  }
+ ],
+ "frontend/__tests__/news-view-state.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 26,
+   "name": "<anonymous>",
+   "mi": 46.3
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "<anonymous>",
+   "mi": 55.5
+  },
+  {
+   "kind": "MIm",
+   "line": 70,
+   "name": "<anonymous>",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 58.2
+  }
+ ],
+ "frontend/hooks/useFavorites.ts": [
+  {
+   "kind": "MIF",
+   "line": 12,
+   "name": "useFavorites",
+   "mi": 47
+  }
+ ],
+ "frontend/features/intelligence-atlas/tests/funding-bias-panel.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 39,
+   "name": "<anonymous>",
+   "mi": 47.1
+  },
+  {
+   "kind": "MIm",
+   "line": 29,
+   "name": "<anonymous>",
+   "mi": 51.7
+  },
+  {
+   "kind": "MIm",
+   "line": 76,
+   "name": "<anonymous>",
+   "mi": 59.5
+  }
+ ],
+ "frontend/lib/notification-state.ts": [
+  {
+   "kind": "MIF",
+   "line": 69,
+   "name": "useDismissedNotifications",
+   "mi": 47.5
+  }
+ ],
+ "frontend/lib/chat-branching.ts": [
+  {
+   "kind": "MIF",
+   "line": 112,
+   "name": "getMessageVersionInfo",
+   "mi": 48
+  },
+  {
+   "kind": "MIm",
+   "line": 82,
+   "name": "getVisibleConversationMessages",
+   "mi": 51.4
+  },
+  {
+   "kind": "MIm",
+   "line": 49,
+   "name": "getBranchGroupMap",
+   "mi": 59.5
+  }
+ ],
+ "frontend/lib/source-groups.ts": [
+  {
+   "kind": "MIF",
+   "line": 37,
+   "name": "buildSourceGroups",
+   "mi": 48.2
+  },
+  {
+   "kind": "MIm",
+   "line": 69,
+   "name": "compareSourceGroupsForGrid",
+   "mi": 52.5
+  },
+  {
+   "kind": "MIm",
+   "line": 14,
+   "name": "isUnitedStatesSource",
+   "mi": 58.8
+  }
+ ],
+ "frontend/__tests__/news-lens.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 44,
+   "name": "<anonymous>",
+   "mi": 48.7
+  },
+  {
+   "kind": "MIm",
+   "line": 23,
+   "name": "article",
+   "mi": 56.1
+  },
+  {
+   "kind": "MIm",
+   "line": 6,
+   "name": "source",
+   "mi": 59.2
+  }
+ ],
+ "frontend/__tests__/api.agentic-search.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 9,
+   "name": "<anonymous>",
+   "mi": 48.9
+  },
+  {
+   "kind": "MIm",
+   "line": 4,
+   "name": "<anonymous>",
+   "mi": 57.9
+  }
+ ],
+ "frontend/__tests__/chat-branching.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 50,
+   "name": "<anonymous>",
+   "mi": 49.1
+  },
+  {
+   "kind": "MIm",
+   "line": 49,
+   "name": "<anonymous>",
+   "mi": 51.5
+  },
+  {
+   "kind": "MIm",
+   "line": 66,
+   "name": "<anonymous>",
+   "mi": 52.5
+  },
+  {
+   "kind": "MIm",
+   "line": 94,
+   "name": "<anonymous>",
+   "mi": 54.3
+  }
+ ],
+ "frontend/components/semantic-tags.tsx": [
+  {
+   "kind": "MIF",
+   "line": 15,
+   "name": "SemanticTags",
+   "mi": 49.1
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/shared/lexical-type-parameters.ts": [
+  {
+   "kind": "MIF",
+   "line": 35,
+   "name": "lexicalTypeParameterNames",
+   "mi": 49.4
+  },
+  {
+   "kind": "MIm",
+   "line": 14,
+   "name": "collectInferTypeParameterNames",
+   "mi": 56
+  }
+ ],
+ "frontend/__tests__/notification-popup.test.tsx": [
+  {
+   "kind": "MIF",
+   "line": 20,
+   "name": "<anonymous>",
+   "mi": 49.7
+  },
+  {
+   "kind": "MIm",
+   "line": 19,
+   "name": "<anonymous>",
+   "mi": 56
+  },
+  {
+   "kind": "MIm",
+   "line": 48,
+   "name": "<anonymous>",
+   "mi": 57.7
+  }
+ ],
+ "frontend/features/intelligence-atlas/lib/atlas-api.ts": [
+  {
+   "kind": "MIF",
+   "line": 18,
+   "name": "atlasGraphQueryString",
+   "mi": 49.7
+  },
+  {
+   "kind": "MIm",
+   "line": 105,
+   "name": "exportAtlas",
+   "mi": 51.1
+  },
+  {
+   "kind": "MIm",
+   "line": 77,
+   "name": "fetchAtlasIndex",
+   "mi": 54.7
+  }
+ ],
+ "frontend/__tests__/notification-state.test.ts": [
+  {
+   "kind": "MIF",
+   "line": 11,
+   "name": "<anonymous>",
+   "mi": 49.8
+  },
+  {
+   "kind": "MIm",
+   "line": 32,
+   "name": "<anonymous>",
+   "mi": 50.4
+  }
+ ],
+ "frontend/__tests__/interactive-globe.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 105,
+   "name": "<anonymous>",
+   "mi": 50.5
+  },
+  {
+   "kind": "MIm",
+   "line": 84,
+   "name": "<anonymous>",
+   "mi": 52.3
+  },
+  {
+   "kind": "MIm",
+   "line": 87,
+   "name": "<anonymous>",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 42,
+   "name": "<anonymous>",
+   "mi": 57.9
+  },
+  {
+   "kind": "MIm",
+   "line": 50,
+   "name": "<anonymous>",
+   "mi": 58.1
+  },
+  {
+   "kind": "MIm",
+   "line": 46,
+   "name": "<anonymous>",
+   "mi": 58.9
+  }
+ ],
+ "frontend/__tests__/appearance-settings.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 69,
+   "name": "<anonymous>",
+   "mi": 50.7
+  },
+  {
+   "kind": "MIm",
+   "line": 170,
+   "name": "<anonymous>",
+   "mi": 52.1
+  },
+  {
+   "kind": "MIm",
+   "line": 17,
+   "name": "<anonymous>",
+   "mi": 52.2
+  },
+  {
+   "kind": "MIm",
+   "line": 39,
+   "name": "<anonymous>",
+   "mi": 53.2
+  },
+  {
+   "kind": "MIm",
+   "line": 128,
+   "name": "<anonymous>",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 121,
+   "name": "<anonymous>",
+   "mi": 55.8
+  },
+  {
+   "kind": "MIm",
+   "line": 163,
+   "name": "<anonymous>",
+   "mi": 56.3
+  },
+  {
+   "kind": "MIm",
+   "line": 147,
+   "name": "<anonymous>",
+   "mi": 57.3
+  },
+  {
+   "kind": "MIm",
+   "line": 25,
+   "name": "<anonymous>",
+   "mi": 58.4
+  }
+ ],
+ "frontend/__tests__/feed-ranking.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 8,
+   "name": "makeArticle",
+   "mi": 50.8
+  },
+  {
+   "kind": "MIm",
+   "line": 28,
+   "name": "<anonymous>",
+   "mi": 51.5
+  },
+  {
+   "kind": "MIm",
+   "line": 29,
+   "name": "<anonymous>",
+   "mi": 52.1
+  },
+  {
+   "kind": "MIm",
+   "line": 54,
+   "name": "<anonymous>",
+   "mi": 53
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "<anonymous>",
+   "mi": 56.6
+  }
+ ],
+ "frontend/__tests__/search-inline-edit.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 119,
+   "name": "<anonymous>",
+   "mi": 51.2
+  },
+  {
+   "kind": "MIm",
+   "line": 151,
+   "name": "<anonymous>",
+   "mi": 52.7
+  },
+  {
+   "kind": "MIm",
+   "line": 118,
+   "name": "<anonymous>",
+   "mi": 54.6
+  }
+ ],
+ "frontend/__tests__/cluster-comparison.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 10,
+   "name": "<anonymous>",
+   "mi": 51.3
+  },
+  {
+   "kind": "MIm",
+   "line": 9,
+   "name": "<anonymous>",
+   "mi": 53.7
+  },
+  {
+   "kind": "MIm",
+   "line": 43,
+   "name": "<anonymous>",
+   "mi": 54.7
+  },
+  {
+   "kind": "MIm",
+   "line": 22,
+   "name": "<anonymous>",
+   "mi": 57.2
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-module-mocking.ts": [
+  {
+   "kind": "MIm",
+   "line": 25,
+   "name": "isTestFrameworkObject",
+   "mi": 51.7
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "moduleMockCall",
+   "mi": 53.7
+  }
+ ],
+ "frontend/components/ui/button.tsx": [
+  {
+   "kind": "MIm",
+   "line": 54,
+   "name": "Button",
+   "mi": 51.9
+  }
+ ],
+ "frontend/__tests__/storage-snapshot.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 8,
+   "name": "<anonymous>",
+   "mi": 52
+  }
+ ],
+ "frontend/hooks/useLiveNewsPreferences.ts": [
+  {
+   "kind": "MIm",
+   "line": 14,
+   "name": "loadPreferences",
+   "mi": 52
+  },
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "useLiveNewsPreferences",
+   "mi": 57.9
+  }
+ ],
+ "frontend/__tests__/keyboard-activation.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 4,
+   "name": "<anonymous>",
+   "mi": 52.1
+  },
+  {
+   "kind": "MIm",
+   "line": 8,
+   "name": "<anonymous>",
+   "mi": 53.7
+  },
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "<anonymous>",
+   "mi": 57.5
+  }
+ ],
+ "frontend/components/read-time-badge.tsx": [
+  {
+   "kind": "MIm",
+   "line": 11,
+   "name": "ReadTimeBadge",
+   "mi": 52.1
+  }
+ ],
+ "frontend/components/theme-toggle.tsx": [
+  {
+   "kind": "MIm",
+   "line": 8,
+   "name": "ThemeToggle",
+   "mi": 52.2
+  }
+ ],
+ "frontend/__tests__/reading-queue.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 128,
+   "name": "<anonymous>",
+   "mi": 52.4
+  },
+  {
+   "kind": "MIm",
+   "line": 160,
+   "name": "<anonymous>",
+   "mi": 55.5
+  },
+  {
+   "kind": "MIm",
+   "line": 180,
+   "name": "<anonymous>",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 93,
+   "name": "<anonymous>",
+   "mi": 57.2
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-unknown-type-aliases.ts": [
+  {
+   "kind": "MIm",
+   "line": 28,
+   "name": "createOnce",
+   "mi": 53.2
+  },
+  {
+   "kind": "MIm",
+   "line": 50,
+   "name": "Program",
+   "mi": 53.9
+  },
+  {
+   "kind": "MIm",
+   "line": 31,
+   "name": "resolvesToUnknown",
+   "mi": 54.1
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-unsafe-dictionary-type.ts": [
+  {
+   "kind": "MIm",
+   "line": 100,
+   "name": "createOnce",
+   "mi": 53.7
+  },
+  {
+   "kind": "MIm",
+   "line": 119,
+   "name": "TSIndexSignature",
+   "mi": 59.6
+  },
+  {
+   "kind": "MIm",
+   "line": 75,
+   "name": "shouldReportType",
+   "mi": 59.7
+  }
+ ],
+ "frontend/app/layout.tsx": [
+  {
+   "kind": "MIm",
+   "line": 31,
+   "name": "RootLayout",
+   "mi": 53.8
+  }
+ ],
+ "frontend/__tests__/api-mapping.property.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 50,
+   "name": "<anonymous>",
+   "mi": 54.1
+  }
+ ],
+ "frontend/components/ui/select.tsx": [
+  {
+   "kind": "MIm",
+   "line": 53,
+   "name": "SelectContent",
+   "mi": 54.2
+  }
+ ],
+ "frontend/features/intelligence-atlas/tests/atlas-inspector.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 97,
+   "name": "<anonymous>",
+   "mi": 54.4
+  }
+ ],
+ "frontend/__tests__/country-mapping.test.ts": [
+  {
+   "kind": "MIm",
+   "line": 7,
+   "name": "<anonymous>",
+   "mi": 54.5
+  },
+  {
+   "kind": "MIm",
+   "line": 28,
+   "name": "<anonymous>",
+   "mi": 55.6
+  },
+  {
+   "kind": "MIm",
+   "line": 6,
+   "name": "<anonymous>",
+   "mi": 57.4
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-unknown-parameters.ts": [
+  {
+   "kind": "MIm",
+   "line": 55,
+   "name": "createOnce",
+   "mi": 54.6
+  },
+  {
+   "kind": "MIm",
+   "line": 27,
+   "name": "parameterName",
+   "mi": 57.7
+  },
+  {
+   "kind": "MIm",
+   "line": 56,
+   "name": "checkParameters",
+   "mi": 58.8
+  },
+  {
+   "kind": "MIm",
+   "line": 14,
+   "name": "parameterAnnotation",
+   "mi": 59.7
+  }
+ ],
+ "frontend/lib/cluster-display.ts": [
+  {
+   "kind": "MIm",
+   "line": 61,
+   "name": "getClusterPreviewStats",
+   "mi": 54.8
+  }
+ ],
+ "frontend/components/inline-definition.tsx": [
+  {
+   "kind": "MIm",
+   "line": 16,
+   "name": "InlineDefinitionPopover",
+   "mi": 55.2
+  }
+ ],
+ "frontend/__tests__/reading-history.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 5,
+   "name": "<anonymous>",
+   "mi": 55.8
+  },
+  {
+   "kind": "MIm",
+   "line": 27,
+   "name": "<anonymous>",
+   "mi": 56.8
+  },
+  {
+   "kind": "MIm",
+   "line": 10,
+   "name": "<anonymous>",
+   "mi": 58
+  }
+ ],
+ "frontend/components/safe-image.tsx": [
+  {
+   "kind": "MIm",
+   "line": 12,
+   "name": "SafeImage",
+   "mi": 55.8
+  }
+ ],
+ "frontend/app/providers.tsx": [
+  {
+   "kind": "MIm",
+   "line": 27,
+   "name": "Providers",
+   "mi": 55.9
+  }
+ ],
+ "frontend/lib/cluster-comparison.ts": [
+  {
+   "kind": "MIm",
+   "line": 30,
+   "name": "buildComparisonSourceOptions",
+   "mi": 55.9
+  }
+ ],
+ "frontend/features/intelligence-atlas/atlas-accessible-list.tsx": [
+  {
+   "kind": "MIm",
+   "line": 13,
+   "name": "AtlasAccessibleList",
+   "mi": 56.2
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/effect/rules/no-service-constructor-imports.ts": [
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "ImportDeclaration",
+   "mi": 56.4
+  },
+  {
+   "kind": "MIm",
+   "line": 30,
+   "name": "create",
+   "mi": 57.8
+  }
+ ],
+ "frontend/components/ui/badge.tsx": [
+  {
+   "kind": "MIm",
+   "line": 34,
+   "name": "Badge",
+   "mi": 56.6
+  }
+ ],
+ "frontend/components/ui/dialog.tsx": [
+  {
+   "kind": "MIm",
+   "line": 49,
+   "name": "DialogContent",
+   "mi": 56.8
+  }
+ ],
+ "frontend/app/wiki/ownership/error.tsx": [
+  {
+   "kind": "MIm",
+   "line": 10,
+   "name": "IntelligenceAtlasError",
+   "mi": 57.3
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/no-runtime-typeof.ts": [
+  {
+   "kind": "MIm",
+   "line": 51,
+   "name": "UnaryExpression",
+   "mi": 57.5
+  }
+ ],
+ "frontend/components/ErrorBoundary.tsx": [
+  {
+   "kind": "MIm",
+   "line": 29,
+   "name": "render",
+   "mi": 57.9
+  }
+ ],
+ "frontend/tools/oxlint/anti-slop/rules/require-safety-comment-for-type-assertion.ts": [
+  {
+   "kind": "MIm",
+   "line": 23,
+   "name": "hasSafetyComment",
+   "mi": 58.4
+  }
+ ],
+ "frontend/features/intelligence-atlas/lib/atlas-schema.ts": [
+  {
+   "kind": "MIm",
+   "line": 13,
+   "name": "<anonymous>",
+   "mi": 58.5
+  }
+ ],
+ "frontend/__tests__/inline-definition.test.tsx": [
+  {
+   "kind": "MIm",
+   "line": 7,
+   "name": "<anonymous>",
+   "mi": 59.4
+  },
+  {
+   "kind": "MIm",
+   "line": 20,
+   "name": "<anonymous>",
+   "mi": 59.4
+  }
+ ],
+ "frontend/lib/logger.ts": [
+  {
+   "kind": "MIm",
+   "line": 17,
+   "name": "isDebugMode",
+   "mi": 59.4
+  }
+ ],
+ "frontend/components/ui/input.tsx": [
+  {
+   "kind": "MIm",
+   "line": 16,
+   "name": "Input",
+   "mi": 59.9
+  }
+ ]
+}

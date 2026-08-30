@@ -125,6 +125,15 @@ def _decimal_string(value: Any) -> str | None:
     return result.rstrip("0").rstrip(".") if "." in result else result
 
 
+def _record_str(record: dict[str, Any], *keys: str) -> str:
+    """Return the first truthy field among keys, stringified and stripped."""
+    for key in keys:
+        value = record.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
 def _gleif_item_lei(attributes: dict[str, Any], item: dict[str, Any], start: dict[str, Any]) -> str:
     return str(attributes.get("lei") or item.get("id") or start.get("nodeId") or "")
 
@@ -137,6 +146,26 @@ def _gleif_legal_name(entity: dict[str, Any]) -> Any:
     return cast(dict[str, Any], entity.get("legalName") or {}).get("name")
 
 
+def _gleif_child_lei(start: dict[str, Any], lei: str) -> str:
+    return str(start.get("nodeId") or lei)
+
+
+def _gleif_child_name(entity: dict[str, Any], attributes: dict[str, Any], lei: str) -> str:
+    return str(_gleif_legal_name(entity) or attributes.get("child_name") or lei)
+
+
+def _gleif_parent_lei(end: dict[str, Any], attributes: dict[str, Any]) -> str:
+    return str(end.get("nodeId") or attributes.get("parent_lei") or "")
+
+
+def _gleif_parent_name(end: dict[str, Any], attributes: dict[str, Any]) -> str:
+    return str(attributes.get("parent_name") or end.get("nodeId") or "")
+
+
+def _gleif_legal_form_id(entity: dict[str, Any]) -> Any:
+    return cast(dict[str, Any], entity.get("legalForm") or {}).get("id")
+
+
 def _gleif_item_record(item: dict[str, Any]) -> dict[str, Any]:
     attributes = cast(dict[str, Any], item.get("attributes") or {})
     entity = cast(dict[str, Any], attributes.get("entity") or {})
@@ -146,11 +175,11 @@ def _gleif_item_record(item: dict[str, Any]) -> dict[str, Any]:
     periods = cast(list[dict[str, Any]], relationship.get("periods") or [])
     lei = _gleif_item_lei(attributes, item, start)
     return {
-        "child_lei": str(start.get("nodeId") or lei),
-        "child_name": str(_gleif_legal_name(entity) or attributes.get("child_name") or lei),
-        "parent_lei": str(end.get("nodeId") or attributes.get("parent_lei") or ""),
-        "parent_name": str(attributes.get("parent_name") or end.get("nodeId") or ""),
-        "legal_form": cast(dict[str, Any], entity.get("legalForm") or {}).get("id"),
+        "child_lei": _gleif_child_lei(start, lei),
+        "child_name": _gleif_child_name(entity, attributes, lei),
+        "parent_lei": _gleif_parent_lei(end, attributes),
+        "parent_name": _gleif_parent_name(end, attributes),
+        "legal_form": _gleif_legal_form_id(entity),
         "relationship_type": relationship.get("relationshipType"),
         "relationship_status": relationship.get("relationshipStatus"),
         "reporting_date": _gleif_reporting_date(periods, attributes),
@@ -175,6 +204,34 @@ def _companies_house_interest_ranges(natures: list[str]) -> dict[str, str]:
     return ranges
 
 
+def _companies_house_psc_record(number: str, name: str, item: dict[str, Any]) -> dict[str, Any]:
+    natures = [str(value) for value in item.get("natures_of_control") or []]
+    return {
+        "company_number": number,
+        "company_name": name,
+        "record_type": "psc",
+        "record_id": cast(dict[str, Any], item.get("links") or {}).get("self") or item.get("etag"),
+        "name": item.get("name"),
+        "kind": item.get("kind"),
+        "natures_of_control": natures,
+        "interests": _companies_house_interest_ranges(natures),
+        "notified_on": item.get("notified_on"),
+        "ceased_on": item.get("ceased_on"),
+    }
+
+
+def _companies_house_officer_record(number: str, name: str, item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "company_number": number,
+        "company_name": name,
+        "record_type": "officer",
+        "record_id": item.get("etag"),
+        "name": item.get("name"),
+        "officer_role": item.get("officer_role"),
+        "ceased_on": item.get("resigned_on"),
+    }
+
+
 def parse_companies_house_api(
     *, company: dict[str, Any], psc: dict[str, Any], officers: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -192,34 +249,9 @@ def parse_companies_house_api(
         }
     ]
     for item in cast(list[dict[str, Any]], psc.get("items") or []):
-        natures = [str(value) for value in item.get("natures_of_control") or []]
-        records.append(
-            {
-                "company_number": number,
-                "company_name": name,
-                "record_type": "psc",
-                "record_id": cast(dict[str, Any], item.get("links") or {}).get("self")
-                or item.get("etag"),
-                "name": item.get("name"),
-                "kind": item.get("kind"),
-                "natures_of_control": natures,
-                "interests": _companies_house_interest_ranges(natures),
-                "notified_on": item.get("notified_on"),
-                "ceased_on": item.get("ceased_on"),
-            }
-        )
+        records.append(_companies_house_psc_record(number, name, item))
     for item in cast(list[dict[str, Any]], officers.get("items") or []):
-        records.append(
-            {
-                "company_number": number,
-                "company_name": name,
-                "record_type": "officer",
-                "record_id": item.get("etag"),
-                "name": item.get("name"),
-                "officer_role": item.get("officer_role"),
-                "ceased_on": item.get("resigned_on"),
-            }
-        )
+        records.append(_companies_house_officer_record(number, name, item))
     return records
 
 
@@ -283,38 +315,61 @@ def parse_fcc_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def parse_article_html(
-    html: str, *, article_url: str, outlet_name: str, outlet_domain: str
+_JSONLD_AUTHOR_PATTERN = r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+
+
+def _ld_json_nodes(block: str) -> list[dict[str, Any]]:
+    """Return the dict nodes of one JSON-LD script block; empty on parse errors."""
+    try:
+        parsed = json.loads(block)
+    except json.JSONDecodeError:
+        return []
+    nodes = parsed if isinstance(parsed, list) else [parsed]
+    return [node for node in nodes if isinstance(node, dict)]
+
+
+def _ld_json_author_records(
+    node: dict[str, Any], *, article_url: str, outlet_name: str, outlet_domain: str
 ) -> list[dict[str, Any]]:
-    """Extract JSON-LD authors and explicit correction or retraction notices."""
+    """Normalize authors declared by one JSON-LD node."""
+    authors = node.get("author") or []
+    author_list = authors if isinstance(authors, list) else [authors]
     records: list[dict[str, Any]] = []
-    pattern = r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
-    for block in re.findall(pattern, html, flags=re.IGNORECASE | re.DOTALL):
-        try:
-            parsed = json.loads(block)
-        except json.JSONDecodeError:
-            continue
-        for node in parsed if isinstance(parsed, list) else [parsed]:
-            if not isinstance(node, dict):
-                continue
-            authors = node.get("author") or []
-            for author in authors if isinstance(authors, list) else [authors]:
-                author = {"name": author} if isinstance(author, str) else author
-                if isinstance(author, dict) and author.get("name"):
-                    records.append(
-                        {
-                            "record_type": "jsonld_author",
-                            "article_url": article_url,
-                            "headline": node.get("headline"),
-                            "outlet_name": outlet_name,
-                            "outlet_domain": outlet_domain,
-                            "author_name": author.get("name"),
-                            "author_url": author.get("url") or author.get("sameAs"),
-                            "selector": "script[type=application/ld+json]",
-                        }
-                    )
-    visible = " ".join(re.sub(r"<[^>]+>", " ", html).split())
-    for notice_type, marker in (("correction", "Correction:"), ("retraction", "Retraction:")):
+    for author in author_list:
+        author = {"name": author} if isinstance(author, str) else author
+        if isinstance(author, dict) and author.get("name"):
+            records.append(
+                {
+                    "record_type": "jsonld_author",
+                    "article_url": article_url,
+                    "headline": node.get("headline"),
+                    "outlet_name": outlet_name,
+                    "outlet_domain": outlet_domain,
+                    "author_name": author.get("name"),
+                    "author_url": author.get("url") or author.get("sameAs"),
+                    "selector": "script[type=application/ld+json]",
+                }
+            )
+    return records
+
+
+def _visible_text(html: str) -> str:
+    """Return the rendered text of an HTML document with tags stripped."""
+    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+
+
+_NOTICE_MARKERS: tuple[tuple[str, str], ...] = (
+    ("correction", "Correction:"),
+    ("retraction", "Retraction:"),
+)
+
+
+def _notice_records(
+    visible: str, *, article_url: str, outlet_name: str, outlet_domain: str
+) -> list[dict[str, Any]]:
+    """Find explicit correction or retraction notices in visible text."""
+    records: list[dict[str, Any]] = []
+    for notice_type, marker in _NOTICE_MARKERS:
         position = visible.casefold().find(marker.casefold())
         if position >= 0:
             records.append(
@@ -326,6 +381,32 @@ def parse_article_html(
                     "text": visible[position : position + 500],
                 }
             )
+    return records
+
+
+def parse_article_html(
+    html: str, *, article_url: str, outlet_name: str, outlet_domain: str
+) -> list[dict[str, Any]]:
+    """Extract JSON-LD authors and explicit correction or retraction notices."""
+    records: list[dict[str, Any]] = []
+    for block in re.findall(_JSONLD_AUTHOR_PATTERN, html, flags=re.IGNORECASE | re.DOTALL):
+        for node in _ld_json_nodes(block):
+            records.extend(
+                _ld_json_author_records(
+                    node,
+                    article_url=article_url,
+                    outlet_name=outlet_name,
+                    outlet_domain=outlet_domain,
+                )
+            )
+    records.extend(
+        _notice_records(
+            _visible_text(html),
+            article_url=article_url,
+            outlet_name=outlet_name,
+            outlet_domain=outlet_domain,
+        )
+    )
     return records
 
 
@@ -506,21 +587,27 @@ async def _gleif_identity_candidate(
     )
 
 
+def _gleif_record_identities(record: dict[str, Any]) -> tuple[str, str, str, str]:
+    """Return (child_lei, child_name, parent_lei, parent_name) for one record."""
+    child_lei = _record_str(record, "child_lei", "lei")
+    child_name = _record_str(record, "child_name", "legal_name") or child_lei
+    parent_lei = _record_str(record, "parent_lei")
+    parent_name = _record_str(record, "parent_name") or parent_lei
+    return child_lei, child_name, parent_lei, parent_name
+
+
 async def ingest_gleif_records(
     db: AsyncSession, *, payload: CapturedPayload, records: list[dict[str, Any]]
 ) -> IngestReport:
     """Ingest GLEIF Level 1 identity and Level 2 accounting-parent records."""
     report = IngestReport(source="gleif")
     for index, record in enumerate(records):
-        child_lei = str(record.get("child_lei") or record.get("lei") or "").strip()
-        child_name = str(record.get("child_name") or record.get("legal_name") or child_lei).strip()
+        child_lei, child_name, parent_lei, parent_name = _gleif_record_identities(record)
         if not child_lei or not child_name:
             continue
         child = await _entity(
             db, name=child_name, entity_kind="legal_entity", external_ids={"lei": child_lei}
         )
-        parent_lei = str(record.get("parent_lei") or "").strip()
-        parent_name = str(record.get("parent_name") or parent_lei).strip()
         if parent_lei and parent_name:
             parent = await _entity(
                 db, name=parent_name, entity_kind="legal_entity", external_ids={"lei": parent_lei}
@@ -607,48 +694,68 @@ def _corporate_qualifiers(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_CORPORATE_PREDICATES = {
+    "brand_of",
+    "operated_by",
+    "directly_owns",
+    "owns_equity_in",
+    "controls",
+    "funds",
+    "advertising_inventory_sold_by",
+    "formerly_known_as",
+    "successor_of",
+}
+
+
+def _corporate_record_fields(record: dict[str, Any]) -> dict[str, str] | None:
+    """Return normalized corporate-record fields, or None when the record is invalid."""
+    subject_name = _record_str(record, "subject_name")
+    object_name = _record_str(record, "object_name")
+    predicate = _record_str(record, "predicate")
+    if not subject_name or not object_name or predicate not in _CORPORATE_PREDICATES:
+        return None
+    return {
+        "subject_name": subject_name,
+        "object_name": object_name,
+        "predicate": predicate,
+        "subject_kind": _record_str(record, "subject_kind") or "publication_brand",
+        "object_kind": _record_str(record, "object_kind") or "legal_entity",
+        "document_type": _record_str(record, "document_type") or "official_company_record",
+        "lifecycle_state": _record_str(record, "lifecycle_state") or "current",
+        "source_class": _record_str(record, "source_class") or "own_site",
+    }
+
+
 async def ingest_corporate_records(
     db: AsyncSession, *, payload: CapturedPayload, records: list[dict[str, Any]]
 ) -> IngestReport:
     """Ingest official brand, ownership, control, and transaction-event records."""
     report = IngestReport(source="corporate_records")
-    allowed_predicates = {
-        "brand_of",
-        "operated_by",
-        "directly_owns",
-        "owns_equity_in",
-        "controls",
-        "funds",
-        "advertising_inventory_sold_by",
-        "formerly_known_as",
-        "successor_of",
-    }
     for index, record in enumerate(records):
-        subject_name = str(record.get("subject_name") or "").strip()
-        object_name = str(record.get("object_name") or "").strip()
-        predicate = str(record.get("predicate") or "").strip()
-        if not subject_name or not object_name or predicate not in allowed_predicates:
+        fields = _corporate_record_fields(record)
+        if fields is None:
             continue
         subject, object_entity = await _corporate_entities(
             db,
             record=record,
-            subject_name=subject_name,
-            object_name=object_name,
-            subject_kind=str(record.get("subject_kind") or "publication_brand"),
-            object_kind=str(record.get("object_kind") or "legal_entity"),
+            subject_name=fields["subject_name"],
+            object_name=fields["object_name"],
+            subject_kind=fields["subject_kind"],
+            object_kind=fields["object_kind"],
         )
-        lifecycle_state = str(record.get("lifecycle_state") or "current")
-        source_class = str(record.get("source_class") or "own_site")
         await _candidate(
             db,
             report=report,
             payload=payload,
             adapter="corporate_records",
-            document_key=f"{subject_name}:{predicate}:{object_name}:{lifecycle_state}:{index}",
-            document_type=str(record.get("document_type") or "official_company_record"),
-            source_class=source_class,
+            document_key=(
+                f"{fields['subject_name']}:{fields['predicate']}:{fields['object_name']}:"
+                f"{fields['lifecycle_state']}:{index}"
+            ),
+            document_type=fields["document_type"],
+            source_class=fields["source_class"],
             subject=subject,
-            predicate=predicate,
+            predicate=fields["predicate"],
             object_entity=object_entity,
             object_value=None,
             qualifiers=_corporate_qualifiers(record),
@@ -690,6 +797,46 @@ async def _companies_house_company_candidate(
     )
 
 
+async def _companies_house_person_controller(
+    db: AsyncSession,
+    *,
+    record: dict[str, Any],
+    company_number: str,
+    record_type: str,
+) -> tuple[EvidenceEntity, str] | None:
+    """Resolve the people/controller entity for a PSC or officer record."""
+    person_name = _record_str(record, "name")
+    if not person_name:
+        return None
+    is_person = record_type == "officer" or str(record.get("kind") or "").startswith("individual")
+    controller = await _entity(
+        db,
+        name=person_name,
+        entity_kind="person" if is_person else "legal_entity",
+        external_ids={
+            "companies_house_record": _record_str(record, "record_id")
+            or stable_hash(company_number, record_type, person_name)[:24]
+        },
+    )
+    return controller, person_name
+
+
+def _companies_house_person_qualifiers(record: dict[str, Any]) -> dict[str, Any]:
+    """Build the candidate qualifiers for a PSC or officer record."""
+    interests = cast(dict[str, Any], record.get("interests") or {})
+    return {
+        "role": record.get("officer_role"),
+        "natures_of_control": list(record.get("natures_of_control") or []),
+        "voting_interest_min": _decimal_string(interests.get("voting_min")),
+        "voting_interest_max": _decimal_string(interests.get("voting_max")),
+        "economic_interest_min": _decimal_string(interests.get("economic_min")),
+        "economic_interest_max": _decimal_string(interests.get("economic_max")),
+        "lifecycle_state": "historical" if record.get("ceased_on") else "current",
+        "notified_on": record.get("notified_on"),
+        "ceased_on": record.get("ceased_on"),
+    }
+
+
 async def _companies_house_person_candidate(
     db: AsyncSession,
     *,
@@ -701,34 +848,14 @@ async def _companies_house_person_candidate(
     company_number: str,
     record_type: str,
 ) -> None:
-    person_name = str(record.get("name") or "").strip()
-    if not person_name:
-        return
-    is_person = record_type == "officer" or str(record.get("kind") or "").startswith("individual")
-    controller = await _entity(
-        db,
-        name=person_name,
-        entity_kind="person" if is_person else "legal_entity",
-        external_ids={
-            "companies_house_record": str(
-                record.get("record_id")
-                or stable_hash(company_number, record_type, person_name)[:24]
-            )
-        },
+    identity = await _companies_house_person_controller(
+        db, record=record, company_number=company_number, record_type=record_type
     )
-    predicates = "employed_by" if record_type == "officer" else "controls"
-    interests = cast(dict[str, Any], record.get("interests") or {})
-    qualifiers = {
-        "role": record.get("officer_role"),
-        "natures_of_control": list(record.get("natures_of_control") or []),
-        "voting_interest_min": _decimal_string(interests.get("voting_min")),
-        "voting_interest_max": _decimal_string(interests.get("voting_max")),
-        "economic_interest_min": _decimal_string(interests.get("economic_min")),
-        "economic_interest_max": _decimal_string(interests.get("economic_max")),
-        "lifecycle_state": "historical" if record.get("ceased_on") else "current",
-        "notified_on": record.get("notified_on"),
-        "ceased_on": record.get("ceased_on"),
-    }
+    if identity is None:
+        return
+    controller, person_name = identity
+    is_officer = record_type == "officer"
+    predicates = "employed_by" if is_officer else "controls"
     await _candidate(
         db,
         report=report,
@@ -737,11 +864,11 @@ async def _companies_house_person_candidate(
         document_key=f"{company_number}:{record_type}:{record.get('record_id') or person_name}",
         document_type=f"companies_house_{record_type}",
         source_class="registry_filing",
-        subject=controller if record_type == "officer" else company,
+        subject=controller if is_officer else company,
         predicate=predicates,
-        object_entity=company if record_type == "officer" else controller,
+        object_entity=company if is_officer else controller,
         object_value=None,
-        qualifiers=qualifiers,
+        qualifiers=_companies_house_person_qualifiers(record),
         locator={"record_index": index, "record_type": record_type},
         structured_value=record,
     )
@@ -841,32 +968,42 @@ def _usaspending_amounts(record: dict[str, Any]) -> dict[str, str | None]:
     }
 
 
+def _usaspending_record_fields(record: dict[str, Any]) -> dict[str, str] | None:
+    """Return normalized award identity fields, or None when the record is invalid."""
+    award_id = _record_str(record, "award_id")
+    recipient_name = _record_str(record, "recipient_name")
+    agency_name = _record_str(record, "awarding_agency_name")
+    if not award_id or not recipient_name or not agency_name:
+        return None
+    return {
+        "award_id": award_id,
+        "recipient_name": recipient_name,
+        "recipient_id": _record_str(record, "recipient_id") or recipient_name,
+        "agency_name": agency_name,
+        "agency_id": _record_str(record, "awarding_agency_id") or agency_name,
+    }
+
+
 async def ingest_usaspending_records(
     db: AsyncSession, *, payload: CapturedPayload, records: list[dict[str, Any]]
 ) -> IngestReport:
     """Ingest awards while preserving ceiling, obligation, and outlay amounts."""
     report = IngestReport(source="usaspending")
     for index, record in enumerate(records):
-        award_id = str(record.get("award_id") or "").strip()
-        recipient_name = str(record.get("recipient_name") or "").strip()
-        agency_name = str(record.get("awarding_agency_name") or "").strip()
-        if not award_id or not recipient_name or not agency_name:
+        fields = _usaspending_record_fields(record)
+        if fields is None:
             continue
         recipient = await _entity(
             db,
-            name=recipient_name,
+            name=fields["recipient_name"],
             entity_kind="legal_entity",
-            external_ids={
-                "usaspending_recipient": str(record.get("recipient_id") or recipient_name)
-            },
+            external_ids={"usaspending_recipient": fields["recipient_id"]},
         )
         agency = await _entity(
             db,
-            name=agency_name,
+            name=fields["agency_name"],
             entity_kind="government_award",
-            external_ids={
-                "usaspending_agency": str(record.get("awarding_agency_id") or agency_name)
-            },
+            external_ids={"usaspending_agency": fields["agency_id"]},
         )
         for value_type, amount in _usaspending_amounts(record).items():
             if amount is None:
@@ -876,7 +1013,7 @@ async def ingest_usaspending_records(
                 report=report,
                 payload=payload,
                 adapter="usaspending",
-                document_key=f"{award_id}:{value_type}",
+                document_key=f"{fields['award_id']}:{value_type}",
                 document_type="usaspending_award",
                 source_class="government_record",
                 subject=recipient,
@@ -884,7 +1021,7 @@ async def ingest_usaspending_records(
                 object_entity=agency,
                 object_value={"amount": amount, "currency": "USD", "value_type": value_type},
                 qualifiers={
-                    "award_id": award_id,
+                    "award_id": fields["award_id"],
                     "award_type": record.get("award_type"),
                     "value_type": value_type,
                 },
@@ -920,23 +1057,32 @@ async def _fcc_record_target(
     return "political_ad_purchase", object_entity, "fcc_political_file"
 
 
+def _fcc_record_fields(record: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Return (facility_id, call_sign, record_type) or None when the record is invalid."""
+    facility_id = _record_str(record, "facility_id")
+    call_sign = _record_str(record, "call_sign") or facility_id
+    if not facility_id or not call_sign:
+        return None
+    record_type = _record_str(record, "record_type") or "ownership"
+    return facility_id, call_sign, record_type
+
+
 async def ingest_fcc_records(
     db: AsyncSession, *, payload: CapturedPayload, records: list[dict[str, Any]]
 ) -> IngestReport:
     """Ingest station ownership and political-file purchases as different facts."""
     report = IngestReport(source="fcc")
     for index, record in enumerate(records):
-        facility_id = str(record.get("facility_id") or "").strip()
-        call_sign = str(record.get("call_sign") or facility_id).strip()
-        if not facility_id or not call_sign:
+        fields = _fcc_record_fields(record)
+        if fields is None:
             continue
+        facility_id, call_sign, record_type = fields
         station = await _entity(
             db,
             name=call_sign,
             entity_kind="broadcast_station",
             external_ids={"fcc_facility_id": facility_id},
         )
-        record_type = str(record.get("record_type") or "ownership")
         target = await _fcc_record_target(db, record=record, record_type=record_type)
         if target is None:
             continue
@@ -966,6 +1112,90 @@ async def ingest_fcc_records(
     return report
 
 
+async def _article_author_branch(
+    db: AsyncSession,
+    *,
+    record: dict[str, Any],
+    url: str,
+    source_class: str,
+) -> tuple[EvidenceEntity, str, EvidenceEntity, str] | None:
+    """Resolve the article and author for a byline/JSON-LD author record."""
+    author_name = _record_str(record, "author_name")
+    if not author_name:
+        return None
+    author = await _entity(
+        db,
+        name=author_name,
+        entity_kind="person",
+        external_ids={
+            "author_profile": _record_str(record, "author_url") or f"{url}#{author_name}"
+        },
+    )
+    article = await _entity(
+        db,
+        name=_record_str(record, "headline") or url,
+        entity_kind="publication_brand",
+        external_ids={"article_url": url},
+    )
+    return article, "authored_by", author, source_class
+
+
+async def _reporter_byline_branch(
+    db: AsyncSession,
+    *,
+    record: dict[str, Any],
+    outlet: EvidenceEntity,
+) -> tuple[EvidenceEntity, str, EvidenceEntity, str] | None:
+    """Resolve the reporter and outlet for a bulk reporter-byline record."""
+    author_name = _record_str(record, "author_name")
+    reporter_key = _record_str(record, "reporter_id")
+    if not author_name or not reporter_key:
+        return None
+    author = await _entity(
+        db,
+        name=author_name,
+        entity_kind="person",
+        external_ids={"scoop_reporter_id": reporter_key},
+    )
+    return author, "authored_by", outlet, "article_byline"
+
+
+async def _staff_profile_branch(
+    db: AsyncSession,
+    *,
+    record: dict[str, Any],
+    url: str,
+    outlet: EvidenceEntity,
+) -> tuple[EvidenceEntity, str, EvidenceEntity, str] | None:
+    """Resolve the person for a staff-profile or masthead record."""
+    person_name = _record_str(record, "person_name")
+    if not person_name:
+        return None
+    subject = await _entity(
+        db, name=person_name, entity_kind="person", external_ids={"staff_profile": url}
+    )
+    return subject, "employed_by", outlet, "employer_profile"
+
+
+async def _syndication_branch(
+    db: AsyncSession,
+    *,
+    record: dict[str, Any],
+    outlet: EvidenceEntity,
+) -> tuple[EvidenceEntity, str, EvidenceEntity, str] | None:
+    """Resolve the origin outlet for a syndication record."""
+    origin_name = _record_str(record, "origin_name")
+    if not origin_name:
+        return None
+    object_entity = await _entity(
+        db,
+        name=origin_name,
+        entity_kind="publication_brand",
+        external_ids={"domain": _record_str(record, "origin_domain") or origin_name},
+    )
+    return outlet, "syndicated_by", object_entity, "article_structured_data"
+
+
 async def _article_record_branch(
     db: AsyncSession,
     *,
@@ -975,69 +1205,26 @@ async def _article_record_branch(
     outlet: EvidenceEntity,
 ) -> tuple[EvidenceEntity, str, EvidenceEntity | None, str] | None:
     if record_type in {"byline", "jsonld_author"}:
-        author_name = str(record.get("author_name") or "").strip()
-        if not author_name:
-            return None
-        author = await _entity(
-            db,
-            name=author_name,
-            entity_kind="person",
-            external_ids={
-                "author_profile": str(record.get("author_url") or f"{url}#{author_name}")
-            },
-        )
-        article = await _entity(
-            db,
-            name=str(record.get("headline") or url),
-            entity_kind="publication_brand",
-            external_ids={"article_url": url},
-        )
         source_class = (
             "article_structured_data" if record_type == "jsonld_author" else "article_byline"
         )
-        return article, "authored_by", author, source_class
+        return await _article_author_branch(db, record=record, url=url, source_class=source_class)
     if record_type == "reporter_byline":
-        # Bulk byline evidence from the local article corpus (see
-        # `app.scripts.ingest_reporter_bylines`), not a live HTML/JSON-LD
-        # fetch. Deliberately writes person -> outlet directly instead of
-        # article -> person like the `byline`/`jsonld_author` branch
-        # above: minting one throwaway `publication_brand` entity per
-        # article (as that branch does) would flood the Atlas with tens
-        # of thousands of headline-named organization nodes at this
-        # ingestion volume. `reporter_id` keys the person entity so every
-        # byline for the same reporter resolves to one stable entity
-        # instead of fragmenting per author-URL.
-        author_name = str(record.get("author_name") or "").strip()
-        reporter_key = str(record.get("reporter_id") or "").strip()
-        if not author_name or not reporter_key:
-            return None
-        author = await _entity(
-            db,
-            name=author_name,
-            entity_kind="person",
-            external_ids={"scoop_reporter_id": reporter_key},
-        )
-        return author, "authored_by", outlet, "article_byline"
+        return await _reporter_byline_branch(db, record=record, outlet=outlet)
     if record_type in {"staff_profile", "masthead"}:
-        person_name = str(record.get("person_name") or "").strip()
-        if not person_name:
-            return None
-        subject = await _entity(
-            db, name=person_name, entity_kind="person", external_ids={"staff_profile": url}
-        )
-        return subject, "employed_by", outlet, "employer_profile"
+        return await _staff_profile_branch(db, record=record, url=url, outlet=outlet)
     if record_type == "syndication":
-        origin_name = str(record.get("origin_name") or "").strip()
-        if not origin_name:
-            return None
-        object_entity = await _entity(
-            db,
-            name=origin_name,
-            entity_kind="publication_brand",
-            external_ids={"domain": str(record.get("origin_domain") or origin_name)},
-        )
-        return outlet, "syndicated_by", object_entity, "article_structured_data"
+        return await _syndication_branch(db, record=record, outlet=outlet)
     return outlet, "publishing_notice", None, "own_site"
+
+
+def _article_record_fields(record: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Return (url, outlet_name, record_type) or None when the record is invalid."""
+    url = _record_str(record, "article_url", "profile_url")
+    outlet_name = _record_str(record, "outlet_name")
+    if not url or not outlet_name:
+        return None
+    return url, outlet_name, _record_str(record, "record_type") or "byline"
 
 
 async def ingest_article_records(
@@ -1046,17 +1233,16 @@ async def ingest_article_records(
     """Ingest JSON-LD/bylines, profiles, staff, corrections, and syndication."""
     report = IngestReport(source="article_records")
     for index, record in enumerate(records):
-        url = str(record.get("article_url") or record.get("profile_url") or "").strip()
-        outlet_name = str(record.get("outlet_name") or "").strip()
-        if not url or not outlet_name:
+        fields = _article_record_fields(record)
+        if fields is None:
             continue
+        url, outlet_name, record_type = fields
         outlet = await _entity(
             db,
             name=outlet_name,
             entity_kind="publication_brand",
-            external_ids={"domain": str(record.get("outlet_domain") or outlet_name)},
+            external_ids={"domain": _record_str(record, "outlet_domain") or outlet_name},
         )
-        record_type = str(record.get("record_type") or "byline")
         branch = await _article_record_branch(
             db, record_type=record_type, record=record, url=url, outlet=outlet
         )

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from app.proof_suite.cases import CASE_BY_ID
+from app.services.atlas_entity_resolution import outlet_node_ids
 
 DEFAULT_CORPUS = Path(__file__).resolve().parents[2] / "tests" / "evidence_corpus"
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -372,29 +373,108 @@ async def _claim_entity_names(db: Any, claim_rows: list[Any]) -> dict[str, str]:
     return {cast(str, entity.id): cast(str, entity.canonical_name) for entity in entities}
 
 
+def _expected_entity_matches(
+    claim: Any, attr: str, expected: str, entity_names: dict[str, str]
+) -> bool:
+    entity_id = cast(str, getattr(claim, attr))
+    return _names_match(entity_names.get(entity_id), expected)
+
+
+def _predicate_matches(claim: Any, expectation: dict[str, Any]) -> bool:
+    predicate = expectation.get("predicate")
+    if not predicate:
+        return True
+    return claim.predicate == predicate and claim.status == str(
+        expectation.get("acceptance_status") or "accepted"
+    )
+
+
+def _entity_matches(
+    claim: Any, attribute: str, expectation: dict[str, Any], entity_names: dict[str, str]
+) -> bool:
+    expected = expectation.get("subject" if attribute == "subject_entity_id" else "object")
+    if not expected:
+        return True
+    return _expected_entity_matches(claim, attribute, str(expected), entity_names)
+
+
+def _lifecycle_matches(claim: Any, expectation: dict[str, Any]) -> bool:
+    expected = expectation.get("lifecycle_state")
+    if not expected:
+        return True
+    return (claim.qualifiers or {}).get("lifecycle_state") == expected
+
+
 def _expectation_matches(
     claim: Any,
     expectation: dict[str, Any],
-    predicates: set[str],
     entity_names: dict[str, str],
 ) -> bool:
-    predicate = expectation.get("predicate")
-    if predicate and claim.predicate != predicate:
-        return False
-    if predicate and claim.status != str(expectation.get("acceptance_status") or "accepted"):
-        return False
-    if expectation.get("subject") and not _names_match(
-        entity_names.get(cast(str, claim.subject_entity_id)), str(expectation["subject"])
-    ):
-        return False
-    if expectation.get("object") and not _names_match(
-        entity_names.get(cast(str, claim.object_entity_id)), str(expectation["object"])
-    ):
-        return False
-    return not (
-        expectation.get("lifecycle_state")
-        and (claim.qualifiers or {}).get("lifecycle_state") != expectation["lifecycle_state"]
+    return (
+        _predicate_matches(claim, expectation)
+        and _entity_matches(claim, "subject_entity_id", expectation, entity_names)
+        and _entity_matches(claim, "object_entity_id", expectation, entity_names)
+        and _lifecycle_matches(claim, expectation)
     )
+
+
+def _assert_expected_predicate(
+    case_id: str, expectation: dict[str, Any], predicates: set[str]
+) -> None:
+    predicate = expectation.get("predicate")
+    if predicate and predicate not in predicates:
+        raise CorpusReplayError(f"{case_id}: missing expected predicate {predicate}")
+    forbidden = expectation.get("forbidden_predicate")
+    if forbidden and forbidden in predicates:
+        raise CorpusReplayError(f"{case_id}: unsupported predicate present {forbidden}")
+
+
+def _matching_claims(
+    claim_rows: list[Any],
+    expectation: dict[str, Any],
+    entity_names: dict[str, str],
+) -> list[Any]:
+    return [
+        claim
+        for claim in claim_rows
+        if _expectation_matches(claim, expectation, entity_names)
+    ]
+
+
+def _actual_claim_rows(
+    claim_rows: list[Any], entity_names: dict[str, str]
+) -> list[tuple[Any, str | None, str | None, Any]]:
+    return [
+        (
+            claim.predicate,
+            entity_names.get(cast(str, claim.subject_entity_id)),
+            entity_names.get(cast(str, claim.object_entity_id)),
+            claim.qualifiers,
+        )
+        for claim in claim_rows
+    ]
+
+
+def _assert_forbidden_shortcut(
+    case_id: str,
+    expectation: dict[str, Any],
+    claim_rows: list[Any],
+    entity_names: dict[str, str],
+) -> None:
+    forbidden_subject = expectation.get("forbidden_subject")
+    forbidden_object = expectation.get("forbidden_object")
+    if not (forbidden_subject and forbidden_object):
+        return
+    if any(
+        _expected_entity_matches(
+            claim, "subject_entity_id", str(forbidden_subject), entity_names
+        )
+        and _expected_entity_matches(
+            claim, "object_entity_id", str(forbidden_object), entity_names
+        )
+        for claim in claim_rows
+    ):
+        raise CorpusReplayError(f"{case_id}: forbidden entity shortcut present")
 
 
 def _assert_expectations(
@@ -405,49 +485,16 @@ def _assert_expectations(
     entity_names: dict[str, str],
 ) -> None:
     for expectation in expectations:
+        _assert_expected_predicate(case_id, expectation, predicates)
         predicate = expectation.get("predicate")
-        if predicate and predicate not in predicates:
-            raise CorpusReplayError(f"{case_id}: missing expected predicate {predicate}")
-        forbidden = expectation.get("forbidden_predicate")
-        if forbidden and forbidden in predicates:
-            raise CorpusReplayError(f"{case_id}: unsupported predicate present {forbidden}")
-        matching = [
-            claim
-            for claim in claim_rows
-            if _expectation_matches(claim, expectation, predicates, entity_names)
-        ]
+        matching = _matching_claims(claim_rows, expectation, entity_names)
         if predicate and not matching:
-            actual = [
-                (
-                    claim.predicate,
-                    entity_names.get(cast(str, claim.subject_entity_id)),
-                    entity_names.get(cast(str, claim.object_entity_id)),
-                    claim.qualifiers,
-                )
-                for claim in claim_rows
-            ]
+            actual = _actual_claim_rows(claim_rows, entity_names)
             raise CorpusReplayError(
                 f"{case_id}: expected relationship classification not found; "
                 f"expected={expectation!r}; actual={actual!r}"
             )
-        forbidden_subject = expectation.get("forbidden_subject")
-        forbidden_object = expectation.get("forbidden_object")
-        if (
-            forbidden_subject
-            and forbidden_object
-            and any(
-                _names_match(
-                    entity_names.get(cast(str, claim.subject_entity_id)),
-                    str(forbidden_subject),
-                )
-                and _names_match(
-                    entity_names.get(cast(str, claim.object_entity_id)),
-                    str(forbidden_object),
-                )
-                for claim in claim_rows
-            )
-        ):
-            raise CorpusReplayError(f"{case_id}: forbidden entity shortcut present")
+        _assert_forbidden_shortcut(case_id, expectation, claim_rows, entity_names)
 
 
 async def _replay_case(db: Any, corpus: Path, case: dict[str, Any]) -> dict[str, Any]:
@@ -488,37 +535,23 @@ async def _replay_case(db: Any, corpus: Path, case: dict[str, Any]) -> dict[str,
     }
 
 
-async def _assert_dossier_projection(db: Any) -> bool:
-    from sqlalchemy import select
+async def _dossier_entity_id(db: Any, first_entity: Any) -> str | None:
+    if first_entity is None or first_entity.entity_kind not in {
+        "publication",
+        "publication_brand",
+        "digital_property",
+        "feed",
+        "broadcast_station",
+    }:
+        return f"organization:{first_entity.id}" if first_entity is not None else None
+    return (await outlet_node_ids(db, [first_entity])).get(cast(str, first_entity.id))
 
-    from app.models.evidence import EvidenceEntity
-    from app.services.atlas_entity import get_atlas_entity
-    from app.services.atlas_entity_resolution import outlet_node_ids
 
-    first_entity = (
-        await db.execute(select(EvidenceEntity).where(EvidenceEntity.canonical_name == "CNN"))
-    ).scalar_one_or_none()
-    dossier_entity_id: str | None = None
-    if first_entity is not None:
-        if first_entity.entity_kind in {
-            "publication",
-            "publication_brand",
-            "digital_property",
-            "feed",
-            "broadcast_station",
-        }:
-            dossier_entity_id = (await outlet_node_ids(db, [first_entity])).get(
-                cast(str, first_entity.id)
-            )
-        else:
-            dossier_entity_id = f"organization:{first_entity.id}"
-    dossier = await get_atlas_entity(db, dossier_entity_id) if dossier_entity_id else None
-    if dossier is None:
-        raise CorpusReplayError("CNN dossier projection was not available")
-    summary = next(section for section in dossier.dossier_sections if section.key == "summary")
-    ownership = next(
-        section for section in dossier.dossier_sections if section.key == "ownership_control"
-    )
+def _dossier_section(dossier: Any, key: str) -> Any:
+    return next(section for section in dossier.dossier_sections if section.key == key)
+
+
+def _assert_cnn_wbd_ownership(summary: Any, ownership: Any, dossier: Any) -> None:
     if not summary.statements or not _names_match(
         summary.statements[0].answer, "Warner Bros. Discovery"
     ):
@@ -537,6 +570,23 @@ async def _assert_dossier_projection(db: Any) -> bool:
             f"ownership={ownership.model_dump(mode='json')!r}; "
             f"connections={[item.model_dump(mode='json') for item in dossier.connections]!r}"
         )
+
+
+async def _assert_dossier_projection(db: Any) -> bool:
+    from sqlalchemy import select
+
+    from app.services.atlas_entity_resolution import outlet_node_ids
+
+    first_entity = (
+        await db.execute(select(EvidenceEntity).where(EvidenceEntity.canonical_name == "CNN"))
+    ).scalar_one_or_none()
+    dossier_entity_id = await _dossier_entity_id(db, first_entity)
+    dossier = await get_atlas_entity(db, dossier_entity_id) if dossier_entity_id else None
+    if dossier is None:
+        raise CorpusReplayError("CNN dossier projection was not available")
+    summary = _dossier_section(dossier, "summary")
+    ownership = _dossier_section(dossier, "ownership_control")
+    _assert_cnn_wbd_ownership(summary, ownership, dossier)
     if any(
         _names_match(statement.answer, "Ellison-controlled entities")
         for statement in summary.statements

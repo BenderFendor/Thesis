@@ -1,31 +1,25 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Copy,
-  Pencil,
-  RotateCcw,
-  Trash2,
-  Loader2,
-  Home,
+  ArrowRight,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ChevronUp,
-  ArrowRight,
+  Clock,
+  Copy,
   Cpu,
   Filter,
-  Clock,
+  Home,
+  Loader2,
+  Pencil,
+  RotateCcw,
   Square,
+  Trash2,
 } from "lucide-react";
-import type {
-  ThinkingStep} from "@/lib/api";
-import {
-  API_BASE_URL,
-  type NewsArticle,
-  semanticSearch,
-  type SemanticSearchResult,
-} from "@/lib/api";
+import { API_BASE_URL, semanticSearch } from '@/lib/api';
+import type { NewsArticle, SemanticSearchResult, ThinkingStep } from '@/lib/api';
 import { Button } from "@/components/ui/button";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import type { ChatSummary } from "@/components/chat-sidebar";
@@ -39,8 +33,8 @@ import { motion } from "framer-motion";
 import { SearchSuggestions } from "@/components/search-suggestions";
 import { VerificationPanel } from "@/components/verification-panel";
 import {
-  getMessageVersionInfo,
   getMessageVersionGroupId,
+  getMessageVersionInfo,
   getVisibleConversationMessages,
 } from "@/lib/chat-branching";
 
@@ -72,7 +66,7 @@ interface StructuredArticleSummary {
 
 interface StructuredArticlesPayload {
   articles?: StructuredArticleSummary[];
-  clusters?: Array<Record<string, unknown>>;
+  clusters?: Record<string, unknown>[];
   [key: string]: unknown;
 }
 
@@ -127,40 +121,44 @@ type ResearchStreamMessage =
 
 const isStatusMessage = (
   message: ResearchStreamMessage,
-): message is StatusMessage => message.type === "status";
-const isThinkingStepMessage = (
+): message is StatusMessage => message.type === "status",
+ isThinkingStepMessage = (
   message: ResearchStreamMessage,
-): message is ThinkingStepMessage => message.type === "thinking_step";
-const isArticlesJsonMessage = (
+): message is ThinkingStepMessage => message.type === "thinking_step",
+ isArticlesJsonMessage = (
   message: ResearchStreamMessage,
-): message is ArticlesJsonMessage => message.type === "articles_json";
-const isReferencedArticlesMessage = (
+): message is ArticlesJsonMessage => message.type === "articles_json",
+ isReferencedArticlesMessage = (
   message: ResearchStreamMessage,
 ): message is ReferencedArticlesMessage =>
-  message.type === "referenced_articles";
-const isCompleteMessage = (
+  message.type === "referenced_articles",
+ isCompleteMessage = (
   message: ResearchStreamMessage,
-): message is CompleteMessage => message.type === "complete";
-const isErrorMessage = (
+): message is CompleteMessage => message.type === "complete",
+ isErrorMessage = (
   message: ResearchStreamMessage,
-): message is ErrorMessage => message.type === "error";
+): message is ErrorMessage => message.type === "error",
 
-const stepStatusLabel = (stepType: string): string => {
+ stepStatusLabel = (stepType: string): string => {
   switch (stepType) {
-    case "thought":
+    case "thought": {
       return "Working through the question.";
+    }
     case "tool_start":
-    case "action":
+    case "action": {
       return "Checking more sources.";
-    case "observation":
+    }
+    case "observation": {
       return "Reviewing results.";
-    default:
+    }
+    default: {
       return "Working.";
+    }
   }
-};
+},
 
-const CHAT_STORAGE_KEY = "news-research.chat-state";
-const CHAT_STORAGE_VERSION = 1;
+ CHAT_STORAGE_KEY = "news-research.chat-state",
+ CHAT_STORAGE_VERSION = 1;
 
 interface StoredChatState {
   version: number;
@@ -181,23 +179,23 @@ function mapReferencedArticleToNewsArticle(
   );
 
   return {
-    id: Date.now() + Math.random(),
-    title: article.title || "No title",
-    source: article.source || "Unknown",
-    sourceId: (article.source || "unknown").toLowerCase().replace(/\s+/g, "-"),
+    bias: "center",
+    category: article.category || "general",
+    content: article.description || "No description",
     country: "International",
     credibility: "medium",
-    bias: "center",
-    summary: article.description || "No description",
-    content: article.description || "No description",
+    id: Date.now() + Math.random(),
     image: article.image || "/placeholder.svg",
-    publishedAt: article.published || new Date().toISOString(),
-    category: article.category || "general",
-    url: article.link || "",
-    tags,
-    originalLanguage: "en",
-    translated: false,
     isPersisted: false,
+    originalLanguage: "en",
+    publishedAt: article.published || new Date().toISOString(),
+    source: article.source || "Unknown",
+    sourceId: (article.source || "unknown").toLowerCase().replaceAll(/\s+/gu, "-"),
+    summary: article.description || "No description",
+    tags,
+    title: article.title || "No title",
+    translated: false,
+    url: article.link || "",
   };
 }
 
@@ -209,56 +207,56 @@ function mapReferencedArticleToNewsArticle(
     "Summarize the latest political developments",
     "Which sources have covered AI recently?",
     "Analyze bias in coverage of international conflicts",
-  ];
+  ],
 
-  const sourcePreviewLimit = 5;
+   sourcePreviewLimit = 5,
 
-  const formatShortDate = (date: string) => {
+   formatShortDate = (date: string) => {
     const parsed = new Date(date);
-    if (Number.isNaN(parsed.getTime())) return date;
+    if (Number.isNaN(parsed.getTime())) {return date;}
     return parsed.toLocaleDateString("en-US", {
-      month: "short",
       day: "numeric",
+      month: "short",
     });
-  }
+  },
 
-  const buildArticleEmbeds = (message?: Message | null): NewsArticle[] => {
-    if (!message) return [];
+   buildArticleEmbeds = (message?: Message | null): NewsArticle[] => {
+    if (!message) {return [];}
 
-    const structuredArticles = message.structured_articles_json?.articles ?? [];
-    const structuredFallback: NewsArticle[] = structuredArticles.map(
+    const structuredArticles = message.structured_articles_json?.articles ?? [],
+     structuredFallback: NewsArticle[] = structuredArticles.map(
       (article) => {
         const tags = [article.category, article.source].filter(
           (value): value is string => Boolean(value),
-        );
-        const link =
+        ),
+         link =
           typeof article.link === "string" && article.link
             ? article.link
-            : typeof article.url === "string"
+            : (typeof article.url === "string"
               ? article.url
-              : "";
-        const description =
+              : ""),
+         description =
           article.summary || article.description || "No description";
 
         return {
+          bias: "center" as const,
+          category: article.category || "general",
+          content: description,
+          country: "United States",
+          credibility: "medium" as const,
           id: Date.now() + Math.random(),
-          title: article.title || "No title",
+          image: article.image || "/placeholder.svg",
+          originalLanguage: "en",
+          publishedAt: article.published || new Date().toISOString(),
           source: article.source || "Unknown",
           sourceId: (article.source || "unknown")
             .toLowerCase()
-            .replace(/\s+/g, "-"),
-          country: "United States",
-          credibility: "medium" as const,
-          bias: "center" as const,
+            .replaceAll(/\s+/gu, "-"),
           summary: description,
-          content: description,
-          image: article.image || "/placeholder.svg",
-          publishedAt: article.published || new Date().toISOString(),
-          category: article.category || "general",
-          url: link,
           tags,
-          originalLanguage: "en",
+          title: article.title || "No title",
           translated: false,
+          url: link,
         };
       },
     );
@@ -274,18 +272,18 @@ function EmbeddedContent({
   content,
   articles,
   onOpenArticle,
-}: {
+}:Readonly< {
   content: string;
   articles: NewsArticle[];
   onOpenArticle: (article: NewsArticle) => void;
-}) {
+}>) {
     // Remove parentheses around standalone URLs (not markdown links)
     // Match patterns like " (https://...)" or "(https://...)" but not "[text](url)"
-    const cleanedContent = content.replace(
-      /(?<!\])\(https?:\/\/[^\)]+\)/gi,
-      (match) => {
-        return match.slice(1, -1); // Remove the surrounding parentheses
-      },
+    const cleanedContent = content.replaceAll(
+      /(?<!\])\(https?:\/\/[^)]+\)/giu,
+      (match) => 
+        match.slice(1, -1) // Remove the surrounding parentheses
+      ,
     );
 
     if (!articles || articles.length === 0) {
@@ -295,11 +293,8 @@ function EmbeddedContent({
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              strong: ({ ...props }) => (
-                <span className="font-semibold text-foreground" {...props} />
-              ),
-              a: ({ href, children, ...props }) => {
-                return (
+              a: ({ href, children, ...props }) => 
+                (
                   <a
                     href={href}
                     target="_blank"
@@ -309,8 +304,8 @@ function EmbeddedContent({
                   >
                     {children}
                   </a>
-                );
-              },
+                )
+              ,
               h1: ({ ...props }) => (
                 <h1
                   className="text-xl font-semibold text-foreground mt-6 mb-3"
@@ -329,14 +324,17 @@ function EmbeddedContent({
                   {...props}
                 />
               ),
-              ul: ({ ...props }) => (
-                <ul className="my-3 space-y-1" {...props} />
-              ),
               li: ({ ...props }) => (
                 <li className="text-foreground/80" {...props} />
               ),
               p: ({ ...props }) => (
                 <p className="text-foreground/80 leading-7 mb-4" {...props} />
+              ),
+              strong: ({ ...props }) => (
+                <span className="font-semibold text-foreground" {...props} />
+              ),
+              ul: ({ ...props }) => (
+                <ul className="my-3 space-y-1" {...props} />
               ),
             }}
           >
@@ -361,36 +359,6 @@ function EmbeddedContent({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            strong: ({ ...props }) => (
-              <span className="font-semibold text-foreground" {...props} />
-            ),
-            h1: ({ ...props }) => (
-              <h1
-                className="text-xl font-semibold text-foreground mt-6 mb-3"
-                {...props}
-              />
-            ),
-            h2: ({ ...props }) => (
-              <h2
-                className="text-lg font-semibold text-foreground mt-5 mb-2"
-                {...props}
-              />
-            ),
-            h3: ({ ...props }) => (
-              <h3
-                className="text-base font-medium text-foreground mt-4 mb-2"
-                {...props}
-              />
-            ),
-            ul: ({ ...props }) => (
-              <ul className="my-3 space-y-1" {...props} />
-            ),
-            li: ({ ...props }) => (
-              <li className="text-foreground/80" {...props} />
-            ),
-            p: ({ ...props }) => (
-              <p className="text-foreground/80 leading-7 mb-4" {...props} />
-            ),
             a: ({ href, children, ...props }) => {
               // Check if this URL matches one of our articles
               const article = href
@@ -402,7 +370,7 @@ function EmbeddedContent({
                 // Replace the link with an inline article card
                 return (
                   <button
-                    onClick={() => onOpenArticle(article)}
+                    onClick={() =>{  onOpenArticle(article); }}
                     className="not-prose group relative my-6 block w-full overflow-hidden rounded-3xl border border-border/40 bg-card/30 text-left transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-card/50 hover:shadow-2xl hover:shadow-black/30"
                   >
                       <div className="flex flex-col sm:flex-row gap-4 p-4">
@@ -454,6 +422,36 @@ function EmbeddedContent({
                 </a>
               );
             },
+            h1: ({ ...props }) => (
+              <h1
+                className="text-xl font-semibold text-foreground mt-6 mb-3"
+                {...props}
+              />
+            ),
+            h2: ({ ...props }) => (
+              <h2
+                className="text-lg font-semibold text-foreground mt-5 mb-2"
+                {...props}
+              />
+            ),
+            h3: ({ ...props }) => (
+              <h3
+                className="text-base font-medium text-foreground mt-4 mb-2"
+                {...props}
+              />
+            ),
+            li: ({ ...props }) => (
+              <li className="text-foreground/80" {...props} />
+            ),
+            p: ({ ...props }) => (
+              <p className="text-foreground/80 leading-7 mb-4" {...props} />
+            ),
+            strong: ({ ...props }) => (
+              <span className="font-semibold text-foreground" {...props} />
+            ),
+            ul: ({ ...props }) => (
+              <ul className="my-3 space-y-1" {...props} />
+            ),
           }}
         >
           {cleanedContent}
@@ -464,7 +462,7 @@ function EmbeddedContent({
 
 type VersionInfo = ReturnType<typeof getMessageVersionInfo>;
 
-type MessageItemProps = {
+interface MessageItemProps {
   message: Message;
   messages: Message[];
   activeAssistantVersions: Record<string, string>;
@@ -485,7 +483,7 @@ type MessageItemProps = {
   onOpenArticle: (article: NewsArticle) => void;
 }
 
-function MessageActionBar(props: {
+function MessageActionBar(props:Readonly< {
   message: Message;
   isAssistant: boolean;
   isInlineEditing: boolean;
@@ -496,7 +494,7 @@ function MessageActionBar(props: {
   onEdit: (messageId: string) => void;
   onReset: (messageId: string) => void;
   onDelete: (messageId: string) => void;
-}) {
+}>) {
   const { message, isAssistant, isInlineEditing, isSearching, versionInfo, onSelectVersion, onCopy, onEdit, onReset, onDelete } = props;
   return (
     <>
@@ -509,13 +507,13 @@ function MessageActionBar(props: {
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() =>
+                                            onClick={() =>{ 
                                               onSelectVersion(
                                                 versionInfo.groupId,
                                                 versionInfo.versionIds[
                                                   versionInfo.currentIndex - 1
                                                 ]!,
-                                              )
+                                              ); }
                                             }
                                             disabled={versionInfo.currentIndex === 0}
                                             className="h-7 w-7 px-0"
@@ -531,13 +529,13 @@ function MessageActionBar(props: {
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() =>
+                                            onClick={() =>{ 
                                               onSelectVersion(
                                                 versionInfo.groupId,
                                                 versionInfo.versionIds[
                                                   versionInfo.currentIndex + 1
                                                 ]!,
-                                              )
+                                              ); }
                                             }
                                             disabled={
                                               versionInfo.currentIndex ===
@@ -558,8 +556,8 @@ function MessageActionBar(props: {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() =>
-                                          onCopy(message.content)
+                                        onClick={() =>{ 
+                                          onCopy(message.content); }
                                         }
                                         className="h-8 px-2 text-xs"
                                       >
@@ -571,7 +569,7 @@ function MessageActionBar(props: {
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          onClick={() => onEdit(message.id)}
+                                          onClick={() =>{  onEdit(message.id); }}
                                           className="h-8 px-2 text-xs"
                                         >
                                           <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -583,7 +581,7 @@ function MessageActionBar(props: {
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          onClick={() => onReset(message.id)}
+                                          onClick={() =>{  onReset(message.id); }}
                                           disabled={isSearching}
                                           className="h-8 px-2 text-xs"
                                         >
@@ -595,7 +593,7 @@ function MessageActionBar(props: {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => onDelete(message.id)}
+                                        onClick={() =>{  onDelete(message.id); }}
                                         disabled={isSearching}
                                         className="h-8 px-2 text-xs"
                                       >
@@ -611,14 +609,14 @@ function MessageActionBar(props: {
   );
 }
 
-function MessageStepsToggle(props: {
+function MessageStepsToggle(props:Readonly< {
   message: Message;
   isAssistant: boolean;
   stepsExpanded: boolean;
   onToggleSteps: (messageId: string) => void;
-}) {
-  const { message, isAssistant, stepsExpanded, onToggleSteps } = props;
-  const stepCount = message.thinking_steps?.length ?? 0;
+}>) {
+  const { message, isAssistant, stepsExpanded, onToggleSteps } = props,
+   stepCount = message.thinking_steps?.length ?? 0;
   return (
     <>
                                 {isAssistant &&
@@ -627,8 +625,8 @@ function MessageStepsToggle(props: {
                                     <div className="mt-3">
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          onToggleSteps(message.id)
+                                        onClick={() =>{ 
+                                          onToggleSteps(message.id); }
                                         }
                                         className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                                       >
@@ -687,26 +685,26 @@ function ConversationMessageItem(props: MessageItemProps) {
     onSelectVersion,
     onToggleSteps,
     onOpenArticle,
-  } = props;
-                            const isAssistant = message.type === "assistant";
-                            const isInlineEditing =
-                              !isAssistant && editingMessageId === message.id;
-                            const stepCount =
-                              message.thinking_steps?.length ?? 0;
-                            const stepsExpanded = expandedStepMessageIds.has(
+  } = props,
+                             isAssistant = message.type === "assistant",
+                             isInlineEditing =
+                              !isAssistant && editingMessageId === message.id,
+                             stepCount =
+                              message.thinking_steps?.length ?? 0,
+                             stepsExpanded = expandedStepMessageIds.has(
                               message.id,
-                            );
-                            const versionInfo = getMessageVersionInfo(
+                            ),
+                             versionInfo = getMessageVersionInfo(
                               messages,
                               message.id,
                               activeAssistantVersions,
-                            );
-                            const messageClass =
+                            ),
+                             messageClass =
                               message.type === "user"
                                 ? "border-border/5 bg-[var(--news-bg-secondary)]/30 ml-20"
-                                : message.error
+                                : (message.error
                                   ? "border-border/5 bg-destructive/5 mr-12"
-                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4";
+                                  : "border-transparent bg-transparent pl-0 pr-0 mt-2 mr-4");
                               return (
                                 <motion.div
                                   initial={{ opacity: 0, y: 18 }}
@@ -736,8 +734,8 @@ function ConversationMessageItem(props: MessageItemProps) {
                                     >
                                       <textarea
                                         value={editingDraft}
-                                        onChange={(event) =>
-                                          setEditingDraft(event.target.value)
+                                        onChange={(event) =>{ 
+                                          setEditingDraft(event.target.value); }
                                         }
                                         onKeyDown={(event) => {
                                           if (
@@ -831,7 +829,7 @@ function ConversationMessageItem(props: MessageItemProps) {
                              );
 }
 
-type ChatScrollAreaProps = {
+interface ChatScrollAreaProps {
   conversationMessages: Message[];
   messages: Message[];
   activeAssistantVersions: Record<string, string>;
@@ -893,14 +891,14 @@ function ChatScrollArea(props: ChatScrollAreaProps) {
   );
 }
 
-type ChatComposerFormProps = {
+interface ChatComposerFormProps {
   query: string;
   setQuery: (value: string) => void;
   isSearching: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   composerFormRef: React.RefObject<HTMLFormElement | null>;
   onSearch: (e: React.FormEvent) => void;
-};
+}
 
 function ChatComposerForm(props: ChatComposerFormProps) {
   const { query, setQuery, isSearching, inputRef, composerFormRef, onSearch } = props;
@@ -915,7 +913,7 @@ function ChatComposerForm(props: ChatComposerFormProps) {
                             <textarea
                               ref={inputRef}
                               value={query}
-                              onChange={(e) => setQuery(e.target.value)}
+                              onChange={(e) =>{  setQuery(e.target.value); }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                   e.preventDefault();
@@ -961,20 +959,20 @@ function ChatComposerForm(props: ChatComposerFormProps) {
   );
 }
 
-type ResearchSidePanelsProps = {
+interface ResearchSidePanelsProps {
   thinkingSteps: ThinkingStep[];
   latestAssistantMessage: Message | undefined;
   latestUserMessage: Message | undefined;
   latestSemanticMessage: Message | undefined;
-  groupedSources: Array<{
+  groupedSources: {
     sourceId: string;
     sourceName: string;
     articles: NewsArticle[];
-  }>;
+  }[];
   expandedSourceIds: Set<string>;
   onToggleSource: (sourceId: string) => void;
   onOpenArticle: (article: NewsArticle) => void;
-};
+}
 
 function ResearchSidePanels(props: ResearchSidePanelsProps) {
   const { thinkingSteps, latestAssistantMessage, latestUserMessage, latestSemanticMessage, groupedSources, expandedSourceIds, onToggleSource, onOpenArticle } = props;
@@ -1035,7 +1033,7 @@ function ResearchSidePanels(props: ResearchSidePanelsProps) {
                                 ({ article, similarityScore }) => (
                                   <button
                                     key={`semantic-${article.url || article.id}`}
-                                    onClick={() => onOpenArticle(article)}
+                                    onClick={() =>{  onOpenArticle(article); }}
                                     className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
                                   >
                                     <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
@@ -1066,8 +1064,8 @@ function ResearchSidePanels(props: ResearchSidePanelsProps) {
                             {groupedSources.map((group) => {
                               const isExpanded = expandedSourceIds.has(
                                 group.sourceId,
-                              );
-                              const visibleArticles = isExpanded
+                              ),
+                               visibleArticles = isExpanded
                                 ? group.articles
                                 : group.articles.slice(0, sourcePreviewLimit);
 
@@ -1089,8 +1087,8 @@ function ResearchSidePanels(props: ResearchSidePanelsProps) {
                                       sourcePreviewLimit && (
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          onToggleSource(group.sourceId)
+                                        onClick={() =>{ 
+                                          onToggleSource(group.sourceId); }
                                         }
                                         className="font-mono text-xs uppercase tracking-wider text-primary hover:underline"
                                       >
@@ -1104,7 +1102,7 @@ function ResearchSidePanels(props: ResearchSidePanelsProps) {
                                     {visibleArticles.map((article) => (
                                       <button
                                         key={`${group.sourceId}-${article.url || article.id}`}
-                                        onClick={() => onOpenArticle(article)}
+                                        onClick={() =>{  onOpenArticle(article); }}
                                         className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
                                       >
                                         <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
@@ -1131,7 +1129,7 @@ function ResearchSidePanels(props: ResearchSidePanelsProps) {
   );
 }
 
-type ResearchChatViewProps = {
+interface ResearchChatViewProps {
   conversationMessages: Message[];
   messages: Message[];
   activeAssistantVersions: Record<string, string>;
@@ -1162,12 +1160,12 @@ type ResearchChatViewProps = {
   latestAssistantMessage: Message | undefined;
   latestUserMessage: Message | undefined;
   latestSemanticMessage: Message | undefined;
-  groupedSources: Array<{
+  groupedSources: {
     sourceId: string;
     sourceName: string;
     articles: NewsArticle[];
-  }>;
-};
+  }[];
+}
 
 function ResearchChatView(props: ResearchChatViewProps) {
   return (
@@ -1225,7 +1223,7 @@ function ResearchChatView(props: ResearchChatViewProps) {
   );
 }
 
-type WorkspaceHeaderProps = {
+interface WorkspaceHeaderProps {
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   isEmpty: boolean;
@@ -1234,7 +1232,7 @@ type WorkspaceHeaderProps = {
   latestAssistantMessage: Message | undefined;
   isSearching: boolean;
   onStop: () => void;
-};
+}
 
 function WorkspaceHeader(props: WorkspaceHeaderProps) {
   const { sidebarCollapsed, onToggleSidebar, isEmpty, activeBriefTitle, messageCount, latestAssistantMessage, isSearching, onStop } = props;
@@ -1333,14 +1331,14 @@ function WorkspaceHeader(props: WorkspaceHeaderProps) {
   );
 }
 
-type EmptyResearchViewProps = {
+interface EmptyResearchViewProps {
   query: string;
   setQuery: (value: string) => void;
   isSearching: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   onSearch: (e: React.FormEvent) => void;
   onSampleQuery: (sampleQuery: string) => void;
-};
+}
 
 function EmptyResearchView(props: EmptyResearchViewProps) {
   const { query, setQuery, isSearching, inputRef, onSearch, onSampleQuery } = props;
@@ -1368,13 +1366,13 @@ function EmptyResearchView(props: EmptyResearchViewProps) {
                   </motion.div>
 
                   <div className="group relative w-full">
-                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 blur-xl transition duration-500 group-hover:opacity-100"></div>
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 blur-xl transition duration-500 group-hover:opacity-100" />
                     <div className="relative rounded-2xl border border-border/40 bg-card/40 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl transition-all duration-300 ease-out focus-within:border-primary/30">
                       <form onSubmit={onSearch}>
                         <textarea
                           ref={inputRef}
                           value={query}
-                          onChange={(e) => setQuery(e.target.value)}
+                          onChange={(e) =>{  setQuery(e.target.value); }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
@@ -1432,7 +1430,7 @@ function EmptyResearchView(props: EmptyResearchViewProps) {
                     {sampleQueries.slice(0, 3).map((q) => (
                       <motion.button
                         key={q}
-                        onClick={() => onSampleQuery(q)}
+                        onClick={() =>{  onSampleQuery(q); }}
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35, ease: "easeOut" }}
@@ -1450,55 +1448,55 @@ function EmptyResearchView(props: EmptyResearchViewProps) {
 }
 
 function NewsResearchPageContent() {
-  const { replace } = useRouter();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
-    null,
-  );
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
-  const [chats, setChats] = useState<ChatSummary[]>([]);
-  const [chatMessagesMap, setChatMessagesMap] = useState<
+  const { replace } = useRouter(),
+   searchParams = useSearchParams(),
+   [query, setQuery] = useState(""),
+   [isSearching, setIsSearching] = useState(false),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(
+    undefined,
+  ),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [chats, setChats] = useState<ChatSummary[]>([]),
+   [chatMessagesMap, setChatMessagesMap] = useState<
     Record<string, Message[]>
-  >({});
-  const [activeAssistantVersionMap, setActiveAssistantVersionMap] = useState<
+  >({}),
+   [activeAssistantVersionMap, setActiveAssistantVersionMap] = useState<
     Record<string, Record<string, string>>
-  >({});
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingDraft, setEditingDraft] = useState("");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [expandedStepMessageIds, setExpandedStepMessageIds] = useState<
+  >({}),
+   [activeChatId, setActiveChatId] = useState<string | null>(undefined),
+   [editingMessageId, setEditingMessageId] = useState<string | null>(undefined),
+   [editingDraft, setEditingDraft] = useState(""),
+   [sidebarCollapsed, setSidebarCollapsed] = useState(true),
+   [expandedStepMessageIds, setExpandedStepMessageIds] = useState<
     Set<string>
-  >(new Set());
-  const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(
+  >(new Set()),
+   [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(
     new Set(),
-  );
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const composerFormRef = useRef<HTMLFormElement>(null);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
-  const isHydratingRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const consumedHandoffQueryRef = useRef<string | null>(null);
-  const handoffQuery = searchParams.get("query")?.trim() ?? "";
+  ),
+   inputRef = useRef<HTMLTextAreaElement>(undefined),
+   composerFormRef = useRef<HTMLFormElement>(undefined),
+   chatScrollRef = useRef<HTMLDivElement>(undefined),
+   isHydratingRef = useRef(true),
+   abortControllerRef = useRef<AbortController | null>(undefined),
+   consumedHandoffQueryRef = useRef<string | null>(undefined),
+   handoffQuery = searchParams.get("query")?.trim() ?? "",
 
-  const getChatPreview = useCallback((items: Message[]) => {
+   getChatPreview = useCallback((items:readonly  Message[]) => {
     const latest = [...items]
       .reverse()
       .find((message) => !message.toolType && message.content.trim().length > 0);
     return latest ? latest.content.slice(0, 200) : "";
-  }, []);
+  }, []),
 
-  const updateChatMessages = useCallback(
+   updateChatMessages = useCallback(
     (
       chatId: string,
-      updater: (prev: Message[]) => Message[],
-      options?: {
+      updater: (prev:readonly  Message[]) => Message[],
+      options?:Readonly< {
         syncSummary?: boolean;
         updatedAt?: string;
         summaryPreview?: string;
-      },
+      }>,
     ) => {
       let nextMessages: Message[] = [];
 
@@ -1515,8 +1513,8 @@ function NewsResearchPageContent() {
         return;
       }
 
-      const updatedAt = options?.updatedAt ?? new Date().toISOString();
-      const lastMessage = options?.summaryPreview ?? getChatPreview(nextMessages);
+      const updatedAt = options?.updatedAt ?? new Date().toISOString(),
+       lastMessage = options?.summaryPreview ?? getChatPreview(nextMessages);
 
       setChats((prev) =>
         prev.map((chat) =>
@@ -1531,62 +1529,62 @@ function NewsResearchPageContent() {
       );
     },
     [getChatPreview],
-  );
+  ),
 
-  const messages = useMemo(
+   messages = useMemo(
     () => (activeChatId ? chatMessagesMap[activeChatId] || [] : []),
     [activeChatId, chatMessagesMap],
-  );
-  const activeAssistantVersions = useMemo(
+  ),
+   activeAssistantVersions = useMemo(
     () => (activeChatId ? activeAssistantVersionMap[activeChatId] || {} : {}),
     [activeAssistantVersionMap, activeChatId],
-  );
-  const conversationMessages = useMemo(
+  ),
+   conversationMessages = useMemo(
     () => getVisibleConversationMessages(messages, activeAssistantVersions),
     [activeAssistantVersions, messages],
-  );
+  ),
 
-  const setActiveAssistantVersion = useCallback(
+   setActiveAssistantVersion = useCallback(
     (chatId: string, groupId: string, messageId: string) => {
       setActiveAssistantVersionMap((prev) => ({
         ...prev,
         [chatId]: {
-          ...(prev[chatId] || {}),
+          ...prev[chatId],
           [groupId]: messageId,
         },
       }));
     },
     [],
-  );
+  ),
 
-  const clearMessageEditing = useCallback(() => {
-    setEditingMessageId(null);
+   clearMessageEditing = useCallback(() => {
+    setEditingMessageId(undefined);
     setEditingDraft("");
-  }, []);
+  }, []),
 
-  const handleNewChat = () => {
-    const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const newChat: ChatSummary = {
+   handleNewChat = () => {
+    const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+     newChat: ChatSummary = {
       id,
-      title: "Untitled research",
       lastMessage: "",
+      title: "Untitled research",
       updatedAt: new Date().toISOString(),
     };
     // Abort any running stream when switching to a fresh chat
     abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    abortControllerRef.current = undefined;
     setChats((prev) => [newChat, ...prev]);
     setChatMessagesMap((prev) => ({ ...prev, [id]: [] }));
     setActiveAssistantVersionMap((prev) => ({ ...prev, [id]: {} }));
     setActiveChatId(id);
     clearMessageEditing();
     setIsSearching(false);
-  };
+  },
 
-  const handleStop = () => {
-    if (!activeChatId) return;
+   handleStop = () => {
+    if (!activeChatId) {return;}
     abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    abortControllerRef.current = undefined;
     setIsSearching(false);
     // Finalize the current streaming message with an explicit cancelled state.
     updateChatMessages(
@@ -1596,34 +1594,34 @@ function NewsResearchPageContent() {
         msg.isStreaming
           ? {
               ...msg,
+              content: msg.content || "Research cancelled.",
               isStreaming: false,
               streamingStatus: undefined,
-              content: msg.content || "Research cancelled.",
             }
           : msg,
       ),
       { syncSummary: false },
     );
-  };
+  },
 
-  const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
+   toggleSidebar = () =>{  setSidebarCollapsed((prev) => !prev); },
 
-  const handleSelectChat = (id: string) => {
+   handleSelectChat = (id: string) => {
     setActiveChatId(id);
     clearMessageEditing();
-  };
+  },
 
-  const handleRenameChat = (id: string, title: string) => {
+   handleRenameChat = (id: string, title: string) => {
     setChats((prev) =>
       prev.map((chat) => (chat.id === id ? { ...chat, title } : chat)),
     );
-  };
+  },
 
-  const handleDeleteChat = (id: string) => {
-    const remainingChats = chats.filter((chat) => chat.id !== id);
-    const nextChatId =
-      activeChatId === id ? (remainingChats[0]?.id ?? null) : activeChatId;
-    const { [id]: _removed, ...restMessages } = chatMessagesMap;
+   handleDeleteChat = (id: string) => {
+    const remainingChats = chats.filter((chat) => chat.id !== id),
+     nextChatId =
+      activeChatId === id ? (remainingChats[0]?.id ?? null) : activeChatId,
+     { [id]: _removed, ...restMessages } = chatMessagesMap;
     void _removed;
 
     setChats(remainingChats);
@@ -1633,9 +1631,9 @@ function NewsResearchPageContent() {
     if (activeChatId === id) {
       setActiveChatId(nextChatId || null);
     }
-  };
+  },
 
-  const handleDeleteChats = (ids: string[]) => {
+   handleDeleteChats = (ids:readonly  string[]) => {
     const remainingChats = chats.filter((chat) => !ids.includes(chat.id));
 
     // If active chat is deleted, switch to the first available remaining chat
@@ -1660,9 +1658,9 @@ function NewsResearchPageContent() {
     ) {
       setActiveChatId(nextChatId || null);
     }
-  };
+  },
 
-  const toggleStepVisibility = (messageId: string) => {
+   toggleStepVisibility = (messageId: string) => {
     setExpandedStepMessageIds((prev) => {
       const next = new Set(prev);
       if (next.has(messageId)) {
@@ -1672,9 +1670,9 @@ function NewsResearchPageContent() {
       }
       return next;
     });
-  };
+  },
 
-  const toggleSourceVisibility = (sourceId: string) => {
+   toggleSourceVisibility = (sourceId: string) => {
     setExpandedSourceIds((prev) => {
       const next = new Set(prev);
       if (next.has(sourceId)) {
@@ -1688,10 +1686,10 @@ function NewsResearchPageContent() {
 
   // Hydrate chats from localStorage on first load
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") {return;}
 
     try {
-      const stored = window.localStorage.getItem(CHAT_STORAGE_KEY);
+      const stored = globalThis.localStorage.getItem(CHAT_STORAGE_KEY);
       if (!stored) {
         return;
       }
@@ -1710,8 +1708,8 @@ function NewsResearchPageContent() {
       Object.entries(parsed.messages || {}).forEach(([chatId, items]) => {
         revivedMessages[chatId] = items.map((item) => ({
           ...item,
-          timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
           isStreaming: false,
+          timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
         }));
       });
 
@@ -1722,9 +1720,9 @@ function NewsResearchPageContent() {
       const targetChatId =
         parsed.activeChatId && revivedMessages[parsed.activeChatId]
           ? parsed.activeChatId
-          : parsed.chats && parsed.chats.length > 0
+          : (parsed.chats && parsed.chats.length > 0
             ? parsed.chats[0]!.id
-            : null;
+            : null);
 
       if (targetChatId) {
         setActiveChatId(targetChatId);
@@ -1733,7 +1731,7 @@ function NewsResearchPageContent() {
       console.warn("Failed to hydrate chat history", error);
     } finally {
       // Allow dependent effects to run on the next tick to avoid treating hydration updates as user edits
-      window.setTimeout(() => {
+      globalThis.setTimeout(() => {
         isHydratingRef.current = false;
       }, 0);
     }
@@ -1741,7 +1739,7 @@ function NewsResearchPageContent() {
 
   // Persist chats & messages to localStorage whenever they change (post-hydration)
   useEffect(() => {
-    if (typeof window === "undefined" || isHydratingRef.current) return;
+    if (typeof window === "undefined" || isHydratingRef.current) {return;}
 
     try {
       const serializableMessages: StoredChatState["messages"] = {};
@@ -1756,20 +1754,20 @@ function NewsResearchPageContent() {
       });
 
       const payload: StoredChatState = {
-        version: CHAT_STORAGE_VERSION,
+        activeAssistantVersionMap,
         activeChatId,
         chats,
-        activeAssistantVersionMap,
         messages: serializableMessages,
+        version: CHAT_STORAGE_VERSION,
       };
 
-      window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(payload));
+      globalThis.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(payload));
     } catch (error) {
       console.warn("Failed to persist chat history", error);
     }
   }, [activeAssistantVersionMap, chats, chatMessagesMap, activeChatId]);
 
-  const buildChatHistoryPayload = (items: Message[]) =>
+  const buildChatHistoryPayload = (items:readonly  Message[]) =>
     items
       .filter(
         (message) =>
@@ -1778,12 +1776,12 @@ function NewsResearchPageContent() {
           !message.isStreaming,
       )
       .map((message) => ({
-        type: message.type,
         content: message.content,
+        type: message.type,
       }))
-      .filter((entry) => entry.content && entry.content.trim().length > 0);
+      .filter((entry) => entry.content && entry.content.trim().length > 0),
 
-  const startResearch = useCallback(
+   startResearch = useCallback(
     async ({
       chatId,
       prompt,
@@ -1792,7 +1790,7 @@ function NewsResearchPageContent() {
       parentMessageId,
       retryGroupId,
       versionSelectionOverrides,
-    }: {
+    }:Readonly< {
       chatId: string;
       prompt: string;
       seedMessages: Message[];
@@ -1800,12 +1798,12 @@ function NewsResearchPageContent() {
       parentMessageId?: string;
       retryGroupId?: string;
       versionSelectionOverrides?: Record<string, string>;
-    }) => {
+    }>) => {
       const versionSelections = {
-        ...(activeAssistantVersionMap[chatId] || {}),
-        ...(versionSelectionOverrides || {}),
-      };
-      const visibleHistoryMessages = getVisibleConversationMessages(
+        ...activeAssistantVersionMap[chatId],
+        ...versionSelectionOverrides,
+      },
+       visibleHistoryMessages = getVisibleConversationMessages(
         seedMessages,
         versionSelections,
       ).filter(
@@ -1813,33 +1811,33 @@ function NewsResearchPageContent() {
           !retryGroupId ||
           message.type !== "assistant" ||
           getMessageVersionGroupId(message) !== retryGroupId,
-      );
-      const historyPayload = buildChatHistoryPayload(
+      ),
+       historyPayload = buildChatHistoryPayload(
         visibleHistoryMessages,
-      );
-      const promptQuery = `${prompt}\n\nProvide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`;
-      const timestamp = Date.now();
-      const assistantId = `assistant-${timestamp}`;
-      const assistantGroupId = retryGroupId ?? assistantId;
-      const semanticToolId = `semantic-${timestamp}`;
-      const thinkingSteps: ThinkingStep[] = [];
-      let structuredArticles: StructuredArticlesPayload | undefined;
-      let finalResult: ResearchResult | undefined;
+      ),
+       promptQuery = `${prompt}\n\nProvide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`,
+       timestamp = Date.now(),
+       assistantId = `assistant-${timestamp}`,
+       assistantGroupId = retryGroupId ?? assistantId,
+       semanticToolId = `semantic-${timestamp}`,
+       thinkingSteps: ThinkingStep[] = [];
+      let finalResult: ResearchResult | undefined,
+       structuredArticles: StructuredArticlesPayload | undefined;
 
       setIsSearching(true);
       setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
 
       const currentChatTitle =
-        newChatTitle || chats.find((chat) => chat.id === chatId)?.title;
-      const streamingPlaceholder: Message = {
-        id: assistantId,
-        type: "assistant",
+        newChatTitle || chats.find((chat) => chat.id === chatId)?.title,
+       streamingPlaceholder: Message = {
         content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
-        timestamp: new Date(),
+        id: assistantId,
         isStreaming: true,
-        streamingStatus: "Starting research...",
-        retryOfMessageId: retryGroupId,
         parentMessageId,
+        retryOfMessageId: retryGroupId,
+        streamingStatus: "Starting research...",
+        timestamp: new Date(),
+        type: "assistant",
       };
 
       updateChatMessages(chatId, (prev) => [...prev, streamingPlaceholder], {
@@ -1851,7 +1849,7 @@ function NewsResearchPageContent() {
           const relevant = response.results
             .filter((result: SemanticSearchResult) => {
               const { article, similarityScore } = result;
-              if (!article?.summary) return false;
+              if (!article?.summary) {return false;}
               if (typeof similarityScore === "number") {
                 return similarityScore >= 0.55;
               }
@@ -1864,20 +1862,20 @@ function NewsResearchPageContent() {
           }
 
           const toolMessage: Message = {
-            id: semanticToolId,
-            type: "assistant",
             content: "Found related coverage.",
+            id: semanticToolId,
+            retryOfMessageId: retryGroupId,
+            semanticResults: relevant,
             timestamp: new Date(),
             toolType: "semantic_search",
-            semanticResults: relevant,
-            retryOfMessageId: retryGroupId,
+            type: "assistant",
           };
 
           updateChatMessages(chatId, (prev) => {
             const withoutExisting = prev.filter(
               (msg) => msg.id !== semanticToolId,
-            );
-            const insertAt = withoutExisting.findIndex(
+            ),
+             insertAt = withoutExisting.findIndex(
               (msg) => msg.id === assistantId,
             );
 
@@ -1895,7 +1893,7 @@ function NewsResearchPageContent() {
         });
 
       try {
-        const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`);
+        const streamUrl = new URL(`${API_BASE_URL}/api/news/research/sutream`);
         streamUrl.searchParams.set("query", promptQuery);
         streamUrl.searchParams.set("include_thinking", "true");
         if (historyPayload.length > 0) {
@@ -1905,7 +1903,7 @@ function NewsResearchPageContent() {
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        const stallTimeout = window.setTimeout(() => {
+        const stallTimeout = globalThis.setTimeout(() => {
           updateChatMessages(chatId, (prev) =>
             prev.map((msg) =>
               msg.id === assistantId
@@ -1916,58 +1914,56 @@ function NewsResearchPageContent() {
                 : msg,
             ),
           { syncSummary: false });
-        }, 30000);
+        }, 30_000),
 
-        const processStatus = (data: StatusMessage) => {
+         processStatus = (data: StatusMessage) => {
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
-                  msg.id !== assistantId
-                    ? msg
-                    : { ...msg, streamingStatus: data.message },
+                  msg.id === assistantId
+                    ? { ...msg, streamingStatus: data.message }
+                    : msg,
                 ),
               { syncSummary: false });
             
-        }
-        const processThinking = (data: ThinkingStepMessage) => {
+        },
+         processThinking = (data: ThinkingStepMessage) => {
               thinkingSteps.push(data.step);
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
-                  msg.id !== assistantId
-                    ? msg
-                    : {
+                  msg.id === assistantId
+                    ? {
                         ...msg,
-                        thinking_steps: [...thinkingSteps],
                         streamingStatus: stepStatusLabel(data.step.type),
-                      },
+                        thinking_steps: [...thinkingSteps],
+                      }
+                    : msg,
                 ),
               { syncSummary: false });
             
-        }
-        const processArticles = (data: ArticlesJsonMessage) => {
+        },
+         processArticles = (data: ArticlesJsonMessage) => {
               try {
-                let parsed: StructuredArticlesPayload | null = null;
+                let parsed: StructuredArticlesPayload | null = undefined;
                 try {
                   parsed = JSON.parse(data.data) as StructuredArticlesPayload;
                 } catch {
-                  const jsonMatch = data.data.match(
-                    /```json:articles\n([\s\S]*?)\n```/,
-                  );
+                  const jsonMatch = /```json:articles\n([\s\S]*?)\n```/.exec(data.data);
                   if (jsonMatch)
-                    parsed = JSON.parse(
+                    {parsed = JSON.parse(
                       jsonMatch[1]!,
-                    ) as StructuredArticlesPayload;
+                    ) as StructuredArticlesPayload;}
                 }
                 if (parsed) {
                   structuredArticles = parsed;
                   updateChatMessages(chatId, (prev) =>
                     prev.map((msg) =>
-                      msg.id !== assistantId
-                        ? msg
-                        : {
+                      msg.id === assistantId
+                        ? {
                             ...msg,
-                            structured_articles_json: structuredArticles,
                             streamingStatus: "Article data ready.",
-                          },
+                            structured_articles_json: structuredArticles,
+                          }
+                        : msg,
                     ),
                   { syncSummary: false });
                 }
@@ -1975,63 +1971,63 @@ function NewsResearchPageContent() {
                 console.error("Failed to parse structured articles:", jsonError);
               }
             
-        }
-        const processReferenced = (data: ReferencedArticlesMessage) => {
+        },
+         processReferenced = (data: ReferencedArticlesMessage) => {
               const referencedArticlesPayload: ReferencedArticlePayload[] =
-                Array.isArray(data.articles) ? data.articles : [];
-              const referencedArticles = referencedArticlesPayload.map(
+                Array.isArray(data.articles) ? data.articles : [],
+               referencedArticles = referencedArticlesPayload.map(
                 mapReferencedArticleToNewsArticle,
               );
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
-                  msg.id !== assistantId
-                    ? msg
-                    : {
+                  msg.id === assistantId
+                    ? {
                         ...msg,
                         referenced_articles: referencedArticles,
                         streamingStatus: "Reviewing articles.",
-                      },
+                      }
+                    : msg,
                 ),
               { syncSummary: false });
             
-        }
-        const processComplete = (data: CompleteMessage) => {
-              window.clearTimeout(stallTimeout);
+        },
+         processComplete = (data: CompleteMessage) => {
+              globalThis.clearTimeout(stallTimeout);
               finalResult = data.result;
               const referencedArticles = (
                 finalResult.referenced_articles ?? []
               ).map(mapReferencedArticleToNewsArticle);
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
-                  msg.id !== assistantId
-                    ? msg
-                    : {
+                  msg.id === assistantId
+                    ? {
                         ...msg,
-                        content: finalResult?.answer || "No answer returned.",
-                        thinking_steps: [...thinkingSteps],
                         articles_searched: finalResult?.articles_searched,
+                        content: finalResult?.answer || "No answer returned.",
+                        error: !finalResult?.success,
+                        isStreaming: false,
                         referenced_articles: referencedArticles,
+                        streamingStatus: undefined,
                         structured_articles_json:
                           structuredArticles ?? msg.structured_articles_json,
-                        isStreaming: false,
-                        streamingStatus: undefined,
-                        error: !finalResult?.success,
-                      },
+                        thinking_steps: [...thinkingSteps],
+                      }
+                    : msg,
                 ),
               {
-                updatedAt: new Date().toISOString(),
                 summaryPreview: (
                   finalResult?.answer || "No answer returned."
                 ).slice(0, 200),
+                updatedAt: new Date().toISOString(),
               });
               setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
               setIsSearching(false);
-              abortControllerRef.current = null;
+              abortControllerRef.current = undefined;
               inputRef.current?.focus();
             
-        }
-        const processError = (data: ErrorMessage) => {
-              window.clearTimeout(stallTimeout);
+        },
+         processError = (data: ErrorMessage) => {
+              globalThis.clearTimeout(stallTimeout);
               let errorMessage = data.message || "Research hit an error.";
               const lowered = errorMessage.toLowerCase();
               if (
@@ -2044,38 +2040,38 @@ function NewsResearchPageContent() {
               }
               updateChatMessages(chatId, (prev) =>
                 prev.map((msg) =>
-                  msg.id !== assistantId
-                    ? msg
-                    : {
+                  msg.id === assistantId
+                    ? {
                         ...msg,
                         content: errorMessage,
                         error: true,
                         isStreaming: false,
                         streamingStatus: undefined,
-                      },
+                      }
+                    : msg,
                 ),
               {
-                updatedAt: new Date().toISOString(),
                 summaryPreview: errorMessage.slice(0, 200),
+                updatedAt: new Date().toISOString(),
               });
               setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
               setIsSearching(false);
-              abortControllerRef.current = null;
+              abortControllerRef.current = undefined;
             
-        }
-        const processEvent = (line: string) => {
-          if (!line.startsWith("data: ")) return;
+        },
+         processEvent = (line: string) => {
+          if (!line.startsWith("data: ")) {return;}
           const raw = line.slice(6).trim();
-          if (!raw || raw === "[DONE]") return;
+          if (!raw || raw === "[DONE]") {return;}
           try {
             const data = JSON.parse(raw) as ResearchStreamMessage;
 
-                        if (isStatusMessage(data)) return processStatus(data);
-            if (isThinkingStepMessage(data)) return processThinking(data);
-            if (isArticlesJsonMessage(data)) return processArticles(data);
-            if (isReferencedArticlesMessage(data)) return processReferenced(data);
-            if (isCompleteMessage(data)) return processComplete(data);
-            if (isErrorMessage(data)) return processError(data);
+                        if (isStatusMessage(data)) { processStatus(data);; return;}
+            if (isThinkingStepMessage(data)) { processThinking(data);; return;}
+            if (isArticlesJsonMessage(data)) { processArticles(data);; return;}
+            if (isReferencedArticlesMessage(data)) { processReferenced(data);; return;}
+            if (isCompleteMessage(data)) { processComplete(data);; return;}
+            if (isErrorMessage(data)) { processError(data);; return;}
 } catch (parseError) {
             console.error("Failed to parse research stream message:", parseError);
           }
@@ -2088,14 +2084,14 @@ function NewsResearchPageContent() {
           throw new Error(`Stream request failed: ${response.status}`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+        const reader = response.body.getReader(),
+         decoder = new TextDecoder();
         let buffer = "";
 
         try {
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {break;}
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
@@ -2103,10 +2099,10 @@ function NewsResearchPageContent() {
               processEvent(line);
             }
           }
-          if (buffer) processEvent(buffer);
+          if (buffer) {processEvent(buffer);}
         } finally {
           reader.releaseLock();
-          window.clearTimeout(stallTimeout);
+          globalThis.clearTimeout(stallTimeout);
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -2122,7 +2118,7 @@ function NewsResearchPageContent() {
                 : msg,
             ),
           { syncSummary: false });
-          abortControllerRef.current = null;
+          abortControllerRef.current = undefined;
           setIsSearching(false);
           return;
         }
@@ -2143,11 +2139,11 @@ function NewsResearchPageContent() {
               : msg,
           ),
         {
-          updatedAt: new Date().toISOString(),
           summaryPreview:
             (error instanceof Error
               ? error.message
               : "Could not start research.").slice(0, 200),
+          updatedAt: new Date().toISOString(),
         });
         setActiveAssistantVersion(chatId, assistantGroupId, assistantId);
         setIsSearching(false);
@@ -2159,35 +2155,35 @@ function NewsResearchPageContent() {
       setActiveAssistantVersion,
       updateChatMessages,
     ],
-  );
+  ),
 
-  const submitPrompt = useCallback(
+   submitPrompt = useCallback(
     async ({
       prompt,
       editingTargetId,
       clearComposer,
       forceNewChat,
-    }: {
+    }:Readonly< {
       prompt: string;
       editingTargetId?: string | null;
       clearComposer?: boolean;
       forceNewChat?: boolean;
-    }) => {
+    }>) => {
       const trimmedQuery = prompt.trim();
-      if (!trimmedQuery) return;
+      if (!trimmedQuery) {return;}
 
-      let newChatTitle: string | undefined;
-      let targetChatId = activeChatId;
+      let newChatTitle: string | undefined,
+       targetChatId = activeChatId;
       if (!activeChatId || forceNewChat) {
-        const firstSentence = (trimmedQuery.split(/[\.\n]/)[0] || "").trim();
-        const firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(" ");
-        const titleBase = firstSentence || firstFour || "New Chat";
-        const title = titleBase.slice(0, 60);
-        const id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const newChat = {
+        const firstSentence = (trimmedQuery.split(/[.\n]/)[0] || "").trim(),
+         firstFour = trimmedQuery.split(/\s+/).slice(0, 4).join(" "),
+         titleBase = firstSentence || firstFour || "New Chat",
+         title = titleBase.slice(0, 60),
+         id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+         newChat = {
           id,
-          title,
           lastMessage: trimmedQuery.slice(0, 120),
+          title,
           updatedAt: new Date().toISOString(),
         };
 
@@ -2199,41 +2195,41 @@ function NewsResearchPageContent() {
         newChatTitle = title;
       }
 
-      if (!targetChatId) return;
+      if (!targetChatId) {return;}
 
       const editingTarget = editingTargetId
         ? messages.find((message) => message.id === editingTargetId)
-        : null;
-      const latestVisibleMessage =
-        conversationMessages[conversationMessages.length - 1];
-      const editedParentMessageId = editingTarget
+        : null,
+       latestVisibleMessage =
+        conversationMessages.at(-1),
+       editedParentMessageId = editingTarget
         ? editingTarget.parentMessageId ??
           conversationMessages[
             conversationMessages.findIndex(
               (message) => message.id === editingTarget.id,
             ) - 1
           ]?.id
-        : undefined;
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        type: "user",
+        : undefined,
+       userMessage: Message = {
         content: trimmedQuery,
-        timestamp: new Date(),
-        retryOfMessageId:
-          editingTarget && editingTarget.type === "user"
-            ? getMessageVersionGroupId(editingTarget)
-            : undefined,
+        id: `user-${Date.now()}`,
         parentMessageId: editingTarget
           ? editedParentMessageId
           : latestVisibleMessage?.id,
-      };
-      const seedMessages = [...messages, userMessage];
+        retryOfMessageId:
+          editingTarget?.type === "user"
+            ? getMessageVersionGroupId(editingTarget)
+            : undefined,
+        timestamp: new Date(),
+        type: "user",
+      },
+       seedMessages = [...messages, userMessage];
 
       updateChatMessages(targetChatId, (prev) => [...prev, userMessage], {
-        updatedAt: new Date().toISOString(),
         summaryPreview: trimmedQuery.slice(0, 200),
+        updatedAt: new Date().toISOString(),
       });
-      if (editingTarget && editingTarget.type === "user") {
+      if (editingTarget?.type === "user") {
         setActiveAssistantVersion(
           targetChatId,
           getMessageVersionGroupId(editingTarget),
@@ -2249,12 +2245,12 @@ function NewsResearchPageContent() {
 
       await startResearch({
         chatId: targetChatId,
-        prompt: trimmedQuery,
-        seedMessages,
         newChatTitle,
         parentMessageId: userMessage.id,
+        prompt: trimmedQuery,
+        seedMessages,
         versionSelectionOverrides:
-          editingTarget && editingTarget.type === "user"
+          editingTarget?.type === "user"
             ? {
                 [getMessageVersionGroupId(editingTarget)]: userMessage.id,
               }
@@ -2273,103 +2269,103 @@ function NewsResearchPageContent() {
   );
 
   useEffect(() => {
-    if (isHydratingRef.current || isSearching) return;
-    if (!handoffQuery) return;
-    if (consumedHandoffQueryRef.current === handoffQuery) return;
+    if (isHydratingRef.current || isSearching) {return;}
+    if (!handoffQuery) {return;}
+    if (consumedHandoffQueryRef.current === handoffQuery) {return;}
 
     consumedHandoffQueryRef.current = handoffQuery;
     setQuery(handoffQuery);
     void submitPrompt({
-      prompt: handoffQuery,
       clearComposer: true,
       forceNewChat: true,
+      prompt: handoffQuery,
     });
     replace("/search");
   }, [handoffQuery, isSearching, replace, submitPrompt]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    await submitPrompt({ prompt: query, clearComposer: true });
-  };
+    await submitPrompt({ clearComposer: true, prompt: query });
+  },
 
-  const handleResetMessage = async (assistantMessageId: string) => {
-    if (isSearching || !activeChatId) return;
+   handleResetMessage = async (assistantMessageId: string) => {
+    if (isSearching || !activeChatId) {return;}
 
     const visibleAssistantIndex = conversationMessages.findIndex(
       (message) => message.id === assistantMessageId,
     );
-    if (visibleAssistantIndex <= 0) return;
+    if (visibleAssistantIndex <= 0) {return;}
 
     const targetAssistant = messages.find((message) => message.id === assistantMessageId);
-    if (!targetAssistant || targetAssistant.type !== "assistant") return;
+    if (targetAssistant?.type !== "assistant") {return;}
 
-    const retryUserMessage = [...conversationMessages.slice(0, visibleAssistantIndex)]
+    const retryUserMessage = conversationMessages.slice(0, visibleAssistantIndex)
       .reverse()
       .find((message) => message.type === "user");
-    if (!retryUserMessage || !retryUserMessage.content.trim()) return;
+    if (!retryUserMessage?.content.trim()) {return;}
     const versionGroupId = getMessageVersionGroupId(targetAssistant);
 
     await startResearch({
       chatId: activeChatId,
-      prompt: retryUserMessage.content,
-      seedMessages: messages,
       parentMessageId: retryUserMessage.id,
+      prompt: retryUserMessage.content,
       retryGroupId: versionGroupId,
+      seedMessages: messages,
     });
-  };
+  },
 
-  const handleSelectMessageVersion = (
+   handleSelectMessageVersion = (
     groupId: string,
     messageId: string,
   ) => {
-    if (!activeChatId) return;
+    if (!activeChatId) {return;}
     setActiveAssistantVersion(activeChatId, groupId, messageId);
-  };
+  },
 
-  const handleDeleteMessage = (messageId: string) => {
-    if (isSearching) return;
-    if (!activeChatId) return;
+   handleDeleteMessage = (messageId: string) => {
+    if (isSearching) {return;}
+    if (!activeChatId) {return;}
     if (editingMessageId === messageId) {
       clearMessageEditing();
     }
     updateChatMessages(activeChatId, (prev) =>
       prev.filter((message) => message.id !== messageId),
     );
-  };
+  },
 
-  const handleEditMessage = (messageId: string) => {
-    if (isSearching) return;
+   handleEditMessage = (messageId: string) => {
+    if (isSearching) {return;}
     const index = messages.findIndex((message) => message.id === messageId);
-    if (index === -1) return;
+    if (index === -1) {return;}
     const target = messages[index]!;
-    if (target.type !== "user") return;
+    if (target.type !== "user") {return;}
     setEditingMessageId(messageId);
-    setEditingDraft(target!.content);
-  };
+    setEditingDraft(target.content);
+  },
 
-  const handleCancelEditMessage = () => {
+   handleCancelEditMessage = () => {
     clearMessageEditing();
-  };
+  },
 
-  const handleSaveEditedMessage = async () => {
-    if (!editingMessageId) return;
+   handleSaveEditedMessage = async () => {
+    if (!editingMessageId) {return;}
     await submitPrompt({
-      prompt: editingDraft,
       editingTargetId: editingMessageId,
+      prompt: editingDraft,
     });
-  };
+  },
 
-  const handleCopyMessage = async (content: string) => {
+   handleCopyMessage = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content);
     } catch (error) {
       console.error("Failed to copy message:", error);
     }
-  };
+  },
 
 
 
-  const handleSampleQuery = (sampleQuery: string) => {
+   handleSampleQuery = (sampleQuery: string) => {
     clearMessageEditing();
     setQuery(sampleQuery);
     inputRef.current?.focus();
@@ -2381,68 +2377,68 @@ function NewsResearchPageContent() {
 
 ;
 
-  const isEmpty = messages.length === 0;
-  const latestUserMessage = useMemo(
+  const isEmpty = messages.length === 0,
+   latestUserMessage = useMemo(
     () =>
       [...conversationMessages]
         .reverse()
         .find((message) => message.type === "user"),
     [conversationMessages],
-  );
-  const latestAssistantMessage = useMemo(
+  ),
+   latestAssistantMessage = useMemo(
     () =>
       [...conversationMessages]
         .reverse()
         .find((message) => message.type === "assistant" && !message.toolType),
     [conversationMessages],
-  );
-  const latestSemanticMessage = useMemo(
+  ),
+   latestSemanticMessage = useMemo(
     () =>
       [...messages]
         .reverse()
         .find((message) => message.toolType === "semantic_search"),
     [messages],
-  );
-  const relatedArticles = useMemo(
+  ),
+   relatedArticles = useMemo(
     () => buildArticleEmbeds(latestAssistantMessage),
     [latestAssistantMessage],
-  );
+  ),
 
-  const groupedSources = useMemo(() => {
+   groupedSources = useMemo(() => {
     const groups = new Map<
       string,
       { sourceId: string; sourceName: string; articles: NewsArticle[] }
-    >();
-    const seenKeys = new Set<string>();
+    >(),
+     seenKeys = new Set<string>();
 
     relatedArticles.forEach((article) => {
       const urlKey = article.url || String(article.id);
-      if (seenKeys.has(urlKey)) return;
+      if (seenKeys.has(urlKey)) {return;}
       seenKeys.add(urlKey);
 
       const sourceId = article.sourceId || article.source || "unknown";
       if (!groups.has(sourceId)) {
         groups.set(sourceId, {
+          articles: [],
           sourceId,
           sourceName: article.source || "Unknown",
-          articles: [],
         });
       }
       groups.get(sourceId)!.articles.push(article);
     });
 
-    return Array.from(groups.values()).sort(
+    return [...groups.values()].sort(
       (a, b) => b.articles.length - a.articles.length,
     );
-  }, [relatedArticles]);
-  const thinkingSteps = latestAssistantMessage?.thinking_steps ?? [];
-  const activeBriefTitle =
+  }, [relatedArticles]),
+   thinkingSteps = latestAssistantMessage?.thinking_steps ?? [],
+   activeBriefTitle =
     latestUserMessage?.content ||
     chats.find((chat) => chat.id === activeChatId)?.title ||
     "Research thread";
 
   useEffect(() => {
-    if (!chatScrollRef.current) return;
+    if (!chatScrollRef.current) {return;}
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [conversationMessages.length, latestAssistantMessage?.isStreaming]);
 
@@ -2533,7 +2529,7 @@ function NewsResearchPageContent() {
         isOpen={isArticleModalOpen}
         onClose={() => {
           setIsArticleModalOpen(false);
-          setSelectedArticle(null);
+          setSelectedArticle(undefined);
         }}
       />
     </div>

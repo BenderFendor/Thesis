@@ -1,20 +1,15 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Compass, Network } from "lucide-react";
 
-import type { WorkspaceTab } from "@/app/wiki/ownership/source-intelligence-support";
+import type workspaceSupport from "@/app/wiki/ownership/source-intelligence-support";
 import { GlobalNavigation } from "@/components/global-navigation";
+
+type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];
 import {
   Dialog,
   DialogContent,
@@ -37,128 +32,118 @@ import {
   fetchAtlasStats,
   searchAtlas,
 } from "./lib/atlas-api";
-import {
-  parseAtlasQueryState,
-  serializeAtlasQueryState,
-  type AtlasPanel,
-  type AtlasQueryState,
-  type AtlasView,
-} from "./lib/atlas-query-state";
-import {
-  metricPercentage,
-  type AtlasEntityType,
-  type AtlasGraphFilters,
-  type AtlasNode,
-  type AtlasSearchItem,
-} from "./lib/atlas-schema";
+import { parseAtlasQueryState, serializeAtlasQueryState } from './lib/atlas-query-state';
+import type { AtlasPanel, AtlasQueryState, AtlasView } from './lib/atlas-query-state';
+import { metricPercentage } from './lib/atlas-schema';
+import type { AtlasEntityType, AtlasGraphFilters, AtlasNode, AtlasSearchItem } from './lib/atlas-schema';
 import styles from "./atlas.module.css";
 
 function isWorkspaceTab(value: string): value is WorkspaceTab {
   return ["ingestion", "storage", "parser", "llm", "errors", "performance", "media"].includes(value);
 }
 
-const VIEW_TABS: Array<{ value: AtlasView; label: string; icon: typeof Compass }> = [
-  { value: "directory", label: "Directory", icon: Compass },
-  { value: "graph", label: "Explore graph", icon: Network },
+const VIEW_TABS: { value: AtlasView; label: string; icon: typeof Compass }[] = [
+  { icon: Compass, label: "Directory", value: "directory" },
+  { icon: Network, label: "Explore graph", value: "graph" },
 ];
 
 export function IntelligenceAtlasWorkspace() {
-  const currentPathname = usePathname();
-  const { push, replace } = useRouter();
-  const searchParams = useSearchParams();
-  const searchParamsString = searchParams.toString();
-  const queryClient = useQueryClient();
-  const pathnameRef = useRef(currentPathname);
+  const currentPathname = usePathname(),
+   { push, replace } = useRouter(),
+   searchParams = useSearchParams(),
+   searchParamsString = searchParams.toString(),
+   queryClient = useQueryClient(),
+   pathnameRef = useRef(currentPathname);
   pathnameRef.current = currentPathname;
   const parsedState = useMemo(
     () => parseAtlasQueryState(new URLSearchParams(searchParamsString)),
     [searchParamsString],
-  );
-  const [searchText, setSearchText] = useState(parsedState.q);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
-  const [recentIds, setRecentIds] = useState<string[]>([]);
-  const [exporting, setExporting] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const isGraphView = parsedState.view === "graph";
+  ),
+   [searchText, setSearchText] = useState(parsedState.q),
+   [searchOpen, setSearchOpen] = useState(false),
+   [activeSearchIndex, setActiveSearchIndex] = useState(0),
+   [recentIds, setRecentIds] = useState<string[]>([]),
+   [exporting, setExporting] = useState(false),
+   searchInputRef = useRef<HTMLInputElement>(undefined),
+   isGraphView = parsedState.view === "graph",
 
-  const writeState = useCallback(
+   writeState = useCallback(
     (patch: Partial<AtlasQueryState>, mode: "push" | "replace" = "push") => {
-      const query = serializeAtlasQueryState({ ...parsedState, ...patch }).toString();
-      const href = `${pathnameRef.current || "/wiki/ownership"}${query ? `?${query}` : ""}`;
-      if (mode === "replace") replace(href, { scroll: false });
-      else push(href, { scroll: false });
+      const query = serializeAtlasQueryState({ ...parsedState, ...patch }).toString(),
+       href = `${pathnameRef.current || "/wiki/ownership"}${query ? `?${query}` : ""}`;
+      if (mode === "replace") {replace(href, { scroll: false });}
+      else {push(href, { scroll: false });}
     },
     [parsedState, push, replace],
   );
 
-  useEffect(() => setSearchText(parsedState.q), [parsedState.q]);
+  useEffect(() =>{  setSearchText(parsedState.q); }, [parsedState.q]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       if (searchText !== parsedState.q) {
         writeState({ q: searchText, selected: searchText ? parsedState.selected : null }, "replace");
       }
     }, 220);
-    return () => window.clearTimeout(timer);
+    return () =>{  globalThis.clearTimeout(timer); };
   }, [parsedState.q, parsedState.selected, searchText, writeState]);
 
   const graphFilters = useMemo<AtlasGraphFilters>(
     () => ({
-      q: parsedState.q || null,
-      entity_types: parsedState.entities,
-      relation_types: parsedState.relations,
-      country: parsedState.country,
-      funding: parsedState.funding,
       bias: parsedState.bias,
-      min_confidence: parsedState.minConfidence,
-      selected: parsedState.selected,
-      neighbors: parsedState.focus ? Math.max(parsedState.neighbors, 1) : parsedState.neighbors,
-      layout: parsedState.layout,
-      limit_nodes: 350,
-      limit_edges: 1500,
+      country: parsedState.country,
+      entity_types: parsedState.entities,
+      funding: parsedState.funding,
       include_evidence_preview: true,
+      layout: parsedState.layout,
+      limit_edges: 1500,
+      limit_nodes: 350,
+      min_confidence: parsedState.minConfidence,
+      neighbors: parsedState.focus ? Math.max(parsedState.neighbors, 1) : parsedState.neighbors,
+      q: parsedState.q || null,
+      relation_types: parsedState.relations,
+      selected: parsedState.selected,
     }),
     [parsedState],
-  );
+  ),
 
   // The graph canvas is demoted to a secondary "Explore graph" view, so its
   // (comparatively expensive) query only runs while that view is visible.
-  const graphQuery = useQuery({
-    queryKey: ["atlas", "graph", graphFilters],
-    queryFn: ({ signal }) => fetchAtlasGraph(graphFilters, signal),
-    staleTime: 60_000,
-    placeholderData: (previous) => previous,
+   graphQuery = useQuery({
     enabled: isGraphView,
+    placeholderData: (previous) => previous,
+    queryFn: ({ signal }) => fetchAtlasGraph(graphFilters, signal),
+    queryKey: ["atlas", "graph", graphFilters],
     retry: 1,
-  });
-  const statsQuery = useQuery({
-    queryKey: ["atlas", "stats"],
+    staleTime: 60_000,
+  }),
+   statsQuery = useQuery({
     queryFn: ({ signal }) => fetchAtlasStats(signal),
-    staleTime: 30_000,
+    queryKey: ["atlas", "stats"],
     retry: 1,
-  });
-  const ingestStatusQuery = useQuery({
-    queryKey: ["atlas", "ingestion-status"],
+    staleTime: 30_000,
+  }),
+   ingestStatusQuery = useQuery({
     queryFn: ({ signal }) => fetchAtlasIngestStatus(signal),
+    queryKey: ["atlas", "ingestion-status"],
+    retry: 1,
     staleTime: 30_000,
-    retry: 1,
-  });
-  const entityQuery = useQuery({
-    queryKey: ["atlas", "entity", parsedState.selected],
-    queryFn: ({ signal }) => fetchAtlasEntity(parsedState.selected ?? "", signal),
+  }),
+   entityQuery = useQuery({
     enabled: Boolean(parsedState.selected),
+    queryFn: ({ signal }) => fetchAtlasEntity(parsedState.selected ?? "", signal),
+    queryKey: ["atlas", "entity", parsedState.selected],
+    retry: 1,
     staleTime: 300_000,
-    retry: 1,
-  });
-  const searchQuery = useQuery({
-    queryKey: ["atlas", "search", searchText.trim()],
-    queryFn: ({ signal }) => searchAtlas(searchText.trim(), signal),
+  }),
+   searchQuery = useQuery({
     enabled: searchText.trim().length > 0 && searchOpen,
-    staleTime: 120_000,
+    queryFn: ({ signal }) => searchAtlas(searchText.trim(), signal),
+    queryKey: ["atlas", "search", searchText.trim()],
     retry: 1,
-  });
+    staleTime: 120_000,
+  }),
 
-  const searchItems = useMemo(
+   searchItems = useMemo(
     () => [
       ...(searchQuery.data?.outlets ?? []),
       ...(searchQuery.data?.organizations ?? []),
@@ -167,7 +152,7 @@ export function IntelligenceAtlasWorkspace() {
     ],
     [searchQuery.data],
   );
-  useEffect(() => setActiveSearchIndex(0), [searchText]);
+  useEffect(() =>{  setActiveSearchIndex(0); }, [searchText]);
   useEffect(() => {
     function handleGlobalKeyboard(event: globalThis.KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -175,28 +160,28 @@ export function IntelligenceAtlasWorkspace() {
         searchInputRef.current?.focus();
         setSearchOpen(true);
       } else if (event.key === "Escape") {
-        if (searchOpen) setSearchOpen(false);
-        else if (parsedState.panel !== "none") writeState({ panel: "none" }, "replace");
-        else if (parsedState.focus) writeState({ focus: false, neighbors: 0 }, "replace");
+        if (searchOpen) {setSearchOpen(false);}
+        else if (parsedState.panel !== "none") {writeState({ panel: "none" }, "replace");}
+        else if (parsedState.focus) {writeState({ focus: false, neighbors: 0 }, "replace");}
       }
     }
-    window.addEventListener("keydown", handleGlobalKeyboard);
-    return () => window.removeEventListener("keydown", handleGlobalKeyboard);
+    globalThis.addEventListener("keydown", handleGlobalKeyboard);
+    return () =>{  globalThis.removeEventListener("keydown", handleGlobalKeyboard); };
   }, [parsedState.focus, parsedState.panel, searchOpen, writeState]);
 
-  const nodes = useMemo(() => graphQuery.data?.nodes ?? [], [graphQuery.data?.nodes]);
-  const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const selectedNode = parsedState.selected ? nodesById.get(parsedState.selected) ?? null : null;
+  const nodes = useMemo(() => graphQuery.data?.nodes ?? [], [graphQuery.data?.nodes]),
+   nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]),
+   selectedNode = parsedState.selected ? nodesById.get(parsedState.selected) ?? null : null;
   useEffect(() => {
     if (parsedState.selected) {
       setRecentIds((current) => [parsedState.selected!, ...current.filter((id) => id !== parsedState.selected)].slice(0, 8));
     }
   }, [parsedState.selected]);
   const dockNodes = useMemo(() => {
-    const result: AtlasNode[] = [];
-    const seen = new Set<string>();
-    const recent = recentIds.map((id) => nodesById.get(id)).filter((node): node is AtlasNode => Boolean(node));
-    const popular = [...nodes].sort((left, right) => right.connection_count - left.connection_count).slice(0, 8);
+    const result: AtlasNode[] = [],
+     seen = new Set<string>(),
+     recent = recentIds.map((id) => nodesById.get(id)).filter((node): node is AtlasNode => Boolean(node)),
+     popular = [...nodes].sort((left, right) => right.connection_count - left.connection_count).slice(0, 8);
     for (const node of [...(selectedNode ? [selectedNode] : []), ...recent, ...popular]) {
       if (!seen.has(node.id) && result.length < 7) {
         seen.add(node.id);
@@ -210,7 +195,7 @@ export function IntelligenceAtlasWorkspace() {
     const entities = entityType && !parsedState.entities.includes(entityType)
       ? [...parsedState.entities, entityType]
       : parsedState.entities;
-    writeState({ selected: entityId, entities, neighbors: 1, panel: "inspector" });
+    writeState({ entities, neighbors: 1, panel: "inspector", selected: entityId });
     setSearchOpen(false);
   }
   function chooseSearchResult(item: AtlasSearchItem) {
@@ -218,7 +203,7 @@ export function IntelligenceAtlasWorkspace() {
     const entities = parsedState.entities.includes(item.entity_type)
       ? parsedState.entities
       : [...parsedState.entities, item.entity_type];
-    writeState({ q: item.label, selected: item.id, entities, neighbors: 1, panel: "inspector" });
+    writeState({ entities, neighbors: 1, panel: "inspector", q: item.label, selected: item.id });
     setSearchOpen(false);
   }
   function handleSearchKeyboard(event: KeyboardEvent<HTMLInputElement>) {
@@ -250,7 +235,7 @@ export function IntelligenceAtlasWorkspace() {
       push(node.profile_path);
       return;
     }
-    writeState({ view: "graph", selected: node.id, entities: [node.entity_type], neighbors: 1, panel: "inspector" });
+    writeState({ entities: [node.entity_type], neighbors: 1, panel: "inspector", selected: node.id, view: "graph" });
   }
 
   async function refreshData() {
@@ -275,18 +260,18 @@ export function IntelligenceAtlasWorkspace() {
     writeState({ panel }, "replace");
   }
 
-  const operationsTab: WorkspaceTab = isWorkspaceTab(parsedState.tab) ? parsedState.tab : "ingestion";
-  const totalStats = statsQuery.data?.stats ?? graphQuery.data?.stats;
-  const coverage = totalStats ? metricPercentage(totalStats.ownership_coverage) : 0;
-  const selectedSourceName = entityQuery.data?.entity_type === "outlet"
+  const operationsTab: WorkspaceTab = isWorkspaceTab(parsedState.tab) ? parsedState.tab : "ingestion",
+   totalStats = statsQuery.data?.stats ?? graphQuery.data?.stats,
+   coverage = totalStats ? metricPercentage(totalStats.ownership_coverage) : 0,
+   selectedSourceName = entityQuery.data?.entity_type === "outlet"
     ? entityQuery.data.label
-    : selectedNode?.entity_type === "outlet" ? selectedNode.label : null;
-  const measurementsQuery = useQuery({
-    queryKey: ["atlas", "media-measurements", selectedSourceName],
-    queryFn: ({ signal }) => fetchMediaMeasurements(selectedSourceName ?? "", signal),
+    : (selectedNode?.entity_type === "outlet" ? selectedNode.label : null),
+   measurementsQuery = useQuery({
     enabled: Boolean(selectedSourceName),
-    staleTime: 300_000,
+    queryFn: ({ signal }) => fetchMediaMeasurements(selectedSourceName ?? "", signal),
+    queryKey: ["atlas", "media-measurements", selectedSourceName],
     retry: 1,
+    staleTime: 300_000,
   });
 
   return (
@@ -310,12 +295,12 @@ export function IntelligenceAtlasWorkspace() {
               setSearchText(event.target.value);
               setSearchOpen(true);
             }}
-            onSearchFocus={() => setSearchOpen(true)}
+            onSearchFocus={() =>{  setSearchOpen(true); }}
             onSearchKeyDown={handleSearchKeyboard}
             onSearchHover={setActiveSearchIndex}
             onChooseSearchResult={chooseSearchResult}
-            onToggleFocus={() => writeState({ focus: !parsedState.focus, neighbors: parsedState.focus ? 0 : 1 })}
-            onCopy={() => void navigator.clipboard?.writeText(window.location.href)}
+            onToggleFocus={() =>{  writeState({ focus: !parsedState.focus, neighbors: parsedState.focus ? 0 : 1 }); }}
+            onCopy={() => void navigator.clipboard?.writeText(globalThis.location.href)}
             onExport={() => void handleExport()}
             onRefresh={() => void refreshData()}
           />
@@ -330,7 +315,7 @@ export function IntelligenceAtlasWorkspace() {
                   className={styles.pillButton}
                   data-active={parsedState.view === tab.value}
                   aria-current={parsedState.view === tab.value ? "page" : undefined}
-                  onClick={() => writeState({ view: tab.value })}
+                  onClick={() =>{  writeState({ view: tab.value }); }}
                 >
                   <Icon className="h-3.5 w-3.5" /> {tab.label}
                 </button>
@@ -365,10 +350,10 @@ export function IntelligenceAtlasWorkspace() {
               dockNodes={dockNodes}
               totalStats={totalStats}
               ownershipCoverage={coverage}
-              onStateChange={(patch) => writeState(patch)}
+              onStateChange={(patch) =>{  writeState(patch); }}
               onSelect={selectEntity}
-              onOpenIndex={() => writeState({ view: "directory" })}
-              onOpenOperations={() => setPanel("operations")}
+              onOpenIndex={() =>{  writeState({ view: "directory" }); }}
+              onOpenOperations={() =>{  setPanel("operations"); }}
               onRetry={() => void graphQuery.refetch()}
             />
           ) : (
@@ -377,7 +362,7 @@ export function IntelligenceAtlasWorkspace() {
               country={parsedState.country}
               funding={parsedState.funding}
               bias={parsedState.bias}
-              onFiltersChange={(filters) => writeState(filters, "replace")}
+              onFiltersChange={(filters) =>{  writeState(filters, "replace"); }}
               onSelect={openDirectoryRow}
               variant="page"
               active={!isGraphView}
@@ -386,7 +371,7 @@ export function IntelligenceAtlasWorkspace() {
         </section>
       </div>
 
-      <Dialog open={parsedState.panel === "inspector" && Boolean(parsedState.selected)} onOpenChange={(open) => setPanel(open ? "inspector" : "none")}>
+      <Dialog open={parsedState.panel === "inspector" && Boolean(parsedState.selected)} onOpenChange={(open) =>{  setPanel(open ? "inspector" : "none"); }}>
         <DialogContent className="left-auto right-0 top-0 h-dvh w-[min(460px,100vw)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-r-0 border-white/10 bg-[#0d0f0c]/[0.98] p-0 text-[#f0ede4] shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Atlas entity inspector</DialogTitle>
@@ -398,15 +383,15 @@ export function IntelligenceAtlasWorkspace() {
             error={entityQuery.error instanceof Error ? entityQuery.error : null}
             measurements={measurementsQuery.data}
             measurementsLoading={measurementsQuery.isLoading}
-            onSelectConnection={(entityId) => selectEntity(entityId, nodesById.get(entityId)?.entity_type)}
+            onSelectConnection={(entityId) =>{  selectEntity(entityId, nodesById.get(entityId)?.entity_type); }}
           />
         </DialogContent>
       </Dialog>
       <AtlasOperationsSheet
         open={parsedState.panel === "operations"}
-        onOpenChange={(open) => setPanel(open ? "operations" : "none")}
+        onOpenChange={(open) =>{  setPanel(open ? "operations" : "none"); }}
         activeTab={operationsTab}
-        onTabChange={(tab) => writeState({ panel: "operations", tab }, "replace")}
+        onTabChange={(tab) =>{  writeState({ panel: "operations", tab }, "replace"); }}
         selectedSourceName={selectedSourceName}
       />
     </main>

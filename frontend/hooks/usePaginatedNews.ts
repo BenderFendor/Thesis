@@ -7,8 +7,8 @@ import type {
   PaginatedResponse,
   PaginationParams} from "@/lib/api";
 import {
-  fetchNewsPaginated,
-  fetchCachedNewsPaginated
+  fetchCachedNewsPaginated,
+  fetchNewsPaginated
 } from "@/lib/api"
 import { serializeSources } from "@/lib/utils"
 
@@ -45,27 +45,27 @@ export function usePaginatedNews(
     search,
     useCached = true,
     enabled = true,
-  } = options
+  } = options,
 
-  const queryClient = useQueryClient()
+   queryClient = useQueryClient(),
 
-  const queryKey = useMemo(
+   queryKey = useMemo(
     () => [
       "news",
       "paginated",
       {
-        limit,
         category: category || null,
+        limit,
+        search: search || null,
         source: source || null,
         sources: serializeSources(sources),
-        search: search || null,
         useCached,
       },
     ],
     [limit, category, source, sources, search, useCached]
-  )
+  ),
 
-  const {
+   {
     data,
     fetchNextPage,
     hasNextPage,
@@ -73,16 +73,27 @@ export function usePaginatedNews(
     isLoading,
     error,
     refetch,
-  } = useInfiniteQuery<PaginatedResponse, Error>({
-    queryKey,
+  } = useInfiniteQuery<PaginatedResponse>({
+    enabled,
+    gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.has_more) {return}
+
+      if (useCached) {
+        return parseInt(lastPage.next_cursor || "0", 10)
+      }
+        return lastPage.next_cursor
+      
+    },
+    initialPageParam: useCached ? 0 : undefined,
     queryFn: async ({ pageParam }) => {
       const params: PaginationParams & { offset?: number } = {
-        limit,
         category,
+        limit,
         search,
-      }
+      },
 
-      const serializedSources = serializeSources(sources)
+       serializedSources = serializeSources(sources)
       if (serializedSources) {
         params.sources = serializedSources
       } else if (source) {
@@ -92,32 +103,21 @@ export function usePaginatedNews(
       if (useCached) {
         params.offset = typeof pageParam === "number" ? pageParam : 0
         return fetchCachedNewsPaginated(params)
-      } else {
+      }
         params.cursor = typeof pageParam === "string" ? pageParam : undefined
         return fetchNewsPaginated(params)
-      }
+      
     },
-    initialPageParam: useCached ? 0 : undefined,
-    getNextPageParam: (lastPage) => {
-      if (!lastPage.has_more) return undefined
-
-      if (useCached) {
-        return parseInt(lastPage.next_cursor || "0", 10)
-      } else {
-        return lastPage.next_cursor
-      }
-    },
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+    queryKey,
     refetchOnWindowFocus: false,
-    enabled,
-  });
+    staleTime: 30 * 1000, // 30 seconds,
+  }),
 
-  const articles = useMemo(() => {
-    if (!data?.pages) return []
-    const allArticles = data.pages.flatMap((page) => page.articles)
+   articles = useMemo(() => {
+    if (!data?.pages) {return []}
+    const allArticles = data.pages.flatMap((page) => page.articles),
     // Deduplicate by ID to handle potential backend duplicates
-    const seen = new Set<number>()
+     seen = new Set<number>()
     return allArticles.filter((article) => {
       if (seen.has(article.id)) {
         return false
@@ -125,31 +125,31 @@ export function usePaginatedNews(
       seen.add(article.id)
       return true
     })
-  }, [data])
+  }, [data]),
 
-  const totalCount = useMemo(() => {
-    return data?.pages[0]?.total ?? 0
-  }, [data])
+   totalCount = useMemo(() => 
+    data?.pages[0]?.total ?? 0
+  , [data]),
 
-  const handleFetchNextPage = useCallback(() => {
+   handleFetchNextPage = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
       void fetchNextPage()
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]),
 
-  const invalidate = useCallback(() => {
+   invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["news"] })
   }, [queryClient])
 
   return {
     articles,
-    totalCount,
-    isLoading,
-    isFetchingNextPage,
-    hasNextPage: hasNextPage ?? false,
-    fetchNextPage: handleFetchNextPage,
-    refetch,
-    invalidate,
     error: error ?? null,
+    fetchNextPage: handleFetchNextPage,
+    hasNextPage: hasNextPage ?? false,
+    invalidate,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+    totalCount,
   }
 }

@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 
-jest.mock("@/lib/api", () => {
+jest.mock<typeof import('@/lib/api')>("@/lib/api", () => {
   const actual = jest.requireActual("@/lib/api")
   return {
     ...actual,
@@ -17,13 +18,13 @@ const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
         gcTime: 0,
+        retry: false,
       },
     },
-  })
+  }),
 
-  const QueryClientWrapper = ({ children }: { children: ReactNode }) => (
+   QueryClientWrapper = ({ children }:Readonly< { children: ReactNode }>) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
 
@@ -36,25 +37,25 @@ describe("useLiveBrowseIndex", () => {
     jest.clearAllMocks()
   })
 
-  it("fetches the live browse index with stable multi-source serialization", async () => {
-    ;(fetchLiveBrowseIndex as jest.Mock).mockResolvedValue({
+  it("fetches the live browse index with stable multi-source serialization", async () => {expect.hasAssertions();
+    ;(jest.mocked(fetchLiveBrowseIndex)).mockResolvedValue({
       articles: [
         {
-          id: 1,
-          title: "Live Article",
-          source: "Test News",
-          sourceId: "test-news",
+          bias: "center",
+          category: "general",
           country: "US",
           credibility: "high",
-          bias: "center",
-          summary: "Summary",
+          id: 1,
           image: "/placeholder.svg",
-          publishedAt: new Date().toISOString(),
-          category: "general",
-          url: "https://example.com/live",
-          tags: [],
           originalLanguage: "en",
+          publishedAt: new Date().toISOString(),
+          source: "Test News",
+          sourceId: "test-news",
+          summary: "Summary",
+          tags: [],
+          title: "Live Article",
           translated: false,
+          url: "https://example.com/live",
         },
       ],
       total: 1,
@@ -81,7 +82,7 @@ describe("useLiveBrowseIndex", () => {
     expect(result.current.articles).toHaveLength(1)
   })
 
-  it("does not fetch when disabled", () => {
+  it("does not fetch when disabled", () => {expect.hasAssertions();
     const { result } = renderHook(() => useLiveBrowseIndex({ enabled: false }), {
       wrapper: createWrapper(),
     })

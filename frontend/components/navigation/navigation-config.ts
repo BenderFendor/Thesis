@@ -1,15 +1,6 @@
-import {
-  ArrowRightLeft,
-  Bookmark,
-  Globe,
-  Grid3X3,
-  Network,
-  Palette,
-  Radio,
-  ScrollText,
-  SlidersHorizontal,
-  type LucideIcon,
-} from "lucide-react"
+import { ArrowRightLeft, Bookmark, Globe, Grid3X3, Network, Palette, Radio, ScrollText, SlidersHorizontal } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
 export type ViewMode = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
 export interface ViewNavigationItem {
@@ -25,49 +16,47 @@ export interface RouteNavigationItem {
   description: string
   icon: LucideIcon
   match: (pathname: string) => boolean
-}
+}const 
 
 export const VIEW_NAVIGATION: readonly ViewNavigationItem[] = [
-  { key: "globe", label: "Globe", description: "Browse coverage by geography", icon: Globe },
-  { key: "grid", label: "Grid", description: "Scan stories and source groups", icon: Grid3X3 },
-  { key: "scroll", label: "Scroll", description: "Read a continuous news stream", icon: ScrollText },
-  { key: "blindspot", label: "Blindspot", description: "Compare missing and uneven coverage", icon: ArrowRightLeft },
-  { key: "live-news", label: "Live", description: "Follow current source updates", icon: Radio },
-]
-
+  { description: "Browse coverage by geography", icon: Globe, key: "globe", label: "Globe" },
+  { description: "Scan stories and source groups", icon: Grid3X3, key: "grid", label: "Grid" },
+  { description: "Read a continuous news stream", icon: ScrollText, key: "scroll", label: "Scroll" },
+  { description: "Compare missing and uneven coverage", icon: ArrowRightLeft, key: "blindspot", label: "Blindspot" },
+  { description: "Follow current source updates", icon: Radio, key: "live-news", label: "Live" },
+],
 export const WIKI_NAVIGATION: readonly RouteNavigationItem[] = [
   {
-    href: "/wiki/ownership",
-    label: "Intelligence Atlas",
     description: "Research media records, ownership, reporter networks, and evidence",
+    href: "/wiki/ownership",
     icon: Network,
+    label: "Intelligence Atlas",
     match: (pathname) => pathname.startsWith("/wiki"),
   },
-]
-
+],
 export const LIBRARY_NAVIGATION: readonly RouteNavigationItem[] = [
   {
-    href: "/saved",
-    label: "Saved",
     description: "Return to saved articles and queues",
+    href: "/saved",
     icon: Bookmark,
+    label: "Saved",
     match: (pathname) => pathname.startsWith("/saved"),
   },
   {
-    href: "/sources",
-    label: "Sources",
     description: "Manage source filters and subscriptions",
+    href: "/sources",
     icon: SlidersHorizontal,
+    label: "Sources",
     match: (pathname) => pathname.startsWith("/sources") || pathname.startsWith("/source/"),
   },
   {
-    href: "/settings",
-    label: "Appearance",
     description: "Tune colors, typography, spacing, and motion",
+    href: "/settings",
     icon: Palette,
+    label: "Appearance",
     match: (pathname) => pathname.startsWith("/settings"),
   },
-]
+];
 
 export function isViewMode(value: string | null): value is ViewMode {
   return VIEW_NAVIGATION.some((item) => item.key === value)

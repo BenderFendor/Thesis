@@ -1,18 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 
-import {
-  callOperation,
-  evaluateSmoke,
-  listOperations,
-  listWebSockets,
-  parseOptions,
-  prepareRequest,
-  runInvestigateCommand,
-  type OpenApiSpec,
-} from "../scoop.ts";
+import { callOperation, evaluateSmoke, listOperations, listWebSockets, parseOptions, prepareRequest, runInvestigateCommand } from '../scoop.ts';
+import type { OpenApiSpec } from '../scoop.ts';
 
 const SPEC: OpenApiSpec = {
   openapi: "3.1.0",
@@ -20,64 +13,64 @@ const SPEC: OpenApiSpec = {
     "/items/{item_id}": {
       post: {
         operationId: "update_item",
+        parameters: [
+          { in: "path", name: "item_id", required: true, schema: { type: "integer" } },
+          { in: "query", name: "verbose", schema: { type: "boolean" } },
+          { in: "query", name: "labels", schema: { items: { type: "string" }, type: "array" } },
+          { in: "header", name: "X-Trace", schema: { type: "string" } },
+        ],
+        requestBody: { content: { "application/json": {} }, required: true },
+        responses: { "200": { description: "ok" } },
         summary: "Update item",
         tags: ["items"],
-        parameters: [
-          { name: "item_id", in: "path", required: true, schema: { type: "integer" } },
-          { name: "verbose", in: "query", schema: { type: "boolean" } },
-          { name: "labels", in: "query", schema: { type: "array", items: { type: "string" } } },
-          { name: "X-Trace", in: "header", schema: { type: "string" } },
-        ],
-        requestBody: { required: true, content: { "application/json": {} } },
-        responses: { "200": { description: "ok" } },
       },
     },
     "/research/entity/organization/research": {
       post: {
         operationId: "research_organization_research_entity_organization_research_post",
+        parameters: [
+          { in: "query", name: "force_refresh", schema: { type: "boolean" } },
+        ],
+        requestBody: { content: { "application/json": {} }, required: true },
+        responses: { "200": { description: "ok" } },
         summary: "Research Organization",
         tags: ["entity-research"],
-        parameters: [
-          { name: "force_refresh", in: "query", schema: { type: "boolean" } },
-        ],
-        requestBody: { required: true, content: { "application/json": {} } },
-        responses: { "200": { description: "ok" } },
       },
     },
     "/research/entity/organization/{org_name}/ownership-chain": {
       get: {
         operationId: "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
+        parameters: [
+          { in: "path", name: "org_name", required: true, schema: { type: "string" } },
+          { in: "query", name: "max_depth", schema: { type: "integer" } },
+        ],
+        responses: { "200": { description: "ok" } },
         summary: "Get Ownership Chain",
         tags: ["entity-research"],
-        parameters: [
-          { name: "org_name", in: "path", required: true, schema: { type: "string" } },
-          { name: "max_depth", in: "query", schema: { type: "integer" } },
-        ],
-        responses: { "200": { description: "ok" } },
-      },
-    },
-    "/research/entity/source/profile": {
-      post: {
-        operationId: "research_source_profile_research_entity_source_profile_post",
-        summary: "Research Source Profile",
-        tags: ["entity-research"],
-        parameters: [
-          { name: "force_refresh", in: "query", schema: { type: "boolean" } },
-        ],
-        requestBody: { required: true, content: { "application/json": {} } },
-        responses: { "200": { description: "ok" } },
       },
     },
     "/research/entity/reporter/profile": {
       post: {
         operationId: "profile_reporter_research_entity_reporter_profile_post",
+        parameters: [
+          { in: "query", name: "force_refresh", schema: { type: "boolean" } },
+        ],
+        requestBody: { content: { "application/json": {} }, required: true },
+        responses: { "200": { description: "ok" } },
         summary: "Profile Reporter",
         tags: ["entity-research"],
+      },
+    },
+    "/research/entity/source/profile": {
+      post: {
+        operationId: "research_source_profile_research_entity_source_profile_post",
         parameters: [
-          { name: "force_refresh", in: "query", schema: { type: "boolean" } },
+          { in: "query", name: "force_refresh", schema: { type: "boolean" } },
         ],
-        requestBody: { required: true, content: { "application/json": {} } },
+        requestBody: { content: { "application/json": {} }, required: true },
         responses: { "200": { description: "ok" } },
+        summary: "Research Source Profile",
+        tags: ["entity-research"],
       },
     },
   },
@@ -86,21 +79,21 @@ const SPEC: OpenApiSpec = {
   ],
 };
 
-let server: Server;
-let baseUrl: string;
+let baseUrl: string,
+ server: Server;
 
 before(async () => {
   server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    for await (const chunk of request) {chunks.push(Buffer.from(chunk));}
     const rawBody = Buffer.concat(chunks).toString("utf8");
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(
       JSON.stringify({
-        method: request.method,
-        url: request.url,
-        trace: request.headers["x-trace"],
         body: rawBody ? JSON.parse(rawBody) : null,
+        method: request.method,
+        trace: request.headers["x-trace"],
+        url: request.url,
       }),
     );
   });
@@ -113,13 +106,14 @@ before(async () => {
 
 after(async () => {
   const { promise, resolve, reject } = Promise.withResolvers<void>();
-  server.close((error) => (error ? reject(error) : resolve()));
+  server.close((error) =>{ error ? reject(error) : resolve(); });
   await promise;
 });
-test("OpenAPI and WebSocket inventories expose the backend contract", () => {
+test("OpenAPI and WebSocket inventories expose the backend contract", () => {  expect.hasAssertions();
+  
   const operations = listOperations(SPEC).map(({ operationId, method, path }) => ({
-    operationId,
     method,
+    operationId,
     path,
   }));
   assert.equal(operations.length, 5);
@@ -137,7 +131,8 @@ test("OpenAPI and WebSocket inventories expose the backend contract", () => {
   ]);
 });
 
-test("request preparation follows OpenAPI parameter locations and types", () => {
+test("request preparation follows OpenAPI parameter locations and types", () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -151,15 +146,16 @@ test("request preparation follows OpenAPI parameter locations and types", () => 
     "X-Trace=trace-1",
     "--body",
     '{"active":true}',
-  ]);
-  const request = prepareRequest(SPEC, "update_item", options);
+  ]),
+   request = prepareRequest(SPEC, "update_item", options);
 
   assert.equal(request.url, `${baseUrl}/items/42?verbose=true&labels=ownership&labels=reporters`);
   assert.equal(new Headers(request.init.headers).get("X-Trace"), "trace-1");
   assert.equal(request.init.body, '{"active":true}');
 });
 
-test("real HTTP call and smoke assertions use the same operation", async () => {
+test("real HTTP call and smoke assertions use the same operation", async () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -175,16 +171,17 @@ test("real HTTP call and smoke assertions use the same operation", async () => {
     "/trace=trace-2",
     "--expect-json",
     "/body/active=true",
-  ]);
-  const result = await callOperation(SPEC, "update_item", options);
-  const report = evaluateSmoke(result, options);
+  ]),
+   result = await callOperation(SPEC, "update_item", options),
+   report = evaluateSmoke(result, options);
 
   assert.equal(result.response.status, 200);
   assert.equal(report.ok, true);
   assert.equal(report.checks.length, 3);
 });
 
-test("required OpenAPI inputs fail before network access", () => {
+test("required OpenAPI inputs fail before network access", () => {  expect.hasAssertions();
+  
   assert.throws(
     () => prepareRequest(SPEC, "update_item", parseOptions(["--body", "{}"])),
     /Missing required parameter: item_id/,
@@ -200,19 +197,20 @@ test("required OpenAPI inputs fail before network access", () => {
   );
 });
 
-test("investigate organization operation resolves from spec and sends name in POST body", async () => {
+test("investigate organization operation resolves from spec and sends name in POST body", async () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
     "--body",
     JSON.stringify({ name: "BBC News" }),
-  ]);
-  const result = await callOperation(
+  ]),
+   result = await callOperation(
     SPEC,
     "research_organization_research_entity_organization_research_post",
     options,
-  );
-  const echo = result.body as { method: string; url: string; body: { name: string } };
+  ),
+   echo = result.body as { method: string; url: string; body: { name: string } };
 
   assert.equal(result.response.status, 200);
   assert.equal(echo.body.name, "BBC News");
@@ -220,26 +218,28 @@ test("investigate organization operation resolves from spec and sends name in PO
   assert.match(echo.url, /\/research\/entity\/organization\/research/);
 });
 
-test("investigate source operation resolves from spec with name and website in POST body", async () => {
+test("investigate source operation resolves from spec with name and website in POST body", async () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
     "--body",
     JSON.stringify({ name: "Al Jazeera", website: "https://www.aljazeera.com" }),
-  ]);
-  const result = await callOperation(
+  ]),
+   result = await callOperation(
     SPEC,
     "research_source_profile_research_entity_source_profile_post",
     options,
-  );
-  const echo = result.body as { body: { name: string; website: string } };
+  ),
+   echo = result.body as { body: { name: string; website: string } };
 
   assert.equal(result.response.status, 200);
   assert.equal(echo.body.name, "Al Jazeera");
   assert.equal(echo.body.website, "https://www.aljazeera.com");
 });
 
-test("investigate reporter operation resolves from spec with organization and refresh", async () => {
+test("investigate reporter operation resolves from spec with organization and refresh", async () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -247,13 +247,13 @@ test("investigate reporter operation resolves from spec with organization and re
     "force_refresh=true",
     "--body",
     JSON.stringify({ name: "Moscow Times", organization: "The Moscow Times" }),
-  ]);
-  const result = await callOperation(
+  ]),
+   result = await callOperation(
     SPEC,
     "profile_reporter_research_entity_reporter_profile_post",
     options,
-  );
-  const echo = result.body as { url: string; body: { name: string; organization: string } };
+  ),
+   echo = result.body as { url: string; body: { name: string; organization: string } };
 
   assert.equal(result.response.status, 200);
   assert.equal(echo.body.name, "Moscow Times");
@@ -261,19 +261,20 @@ test("investigate reporter operation resolves from spec with organization and re
   assert.match(echo.url, /force_refresh=true/);
 });
 
-test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {
+test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {  expect.hasAssertions();
+  
   const options = parseOptions([
     "--base-url",
     baseUrl,
     "--param",
     "org_name=Sinclair Broadcast Group",
-  ]);
-  const result = await callOperation(
+  ]),
+   result = await callOperation(
     SPEC,
     "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
     options,
-  );
-  const echo = result.body as { url: string };
+  ),
+   echo = result.body as { url: string };
 
   assert.equal(result.response.status, 200);
   assert.match(
@@ -282,16 +283,17 @@ test("investigate ownership operation resolves from spec and encodes org_name as
   );
 });
 
-test("curated organization workflow uses generated operation parameters", async () => {
-  let requestedUrl = "";
-  let requestedBody = "";
+test("curated organization workflow uses generated operation parameters", async () => {  expect.hasAssertions();
+  
+  let requestedBody = "",
+   requestedUrl = "";
   const fetchImpl: typeof fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedBody = String(init?.body ?? "");
-    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
-  };
+    return new Response("{}", { headers: { "Content-Type": "application/json" }, status: 200 });
+  },
 
-  const exitCode = await runInvestigateCommand(
+   exitCode = await runInvestigateCommand(
     SPEC,
     "organization",
     "Arbitrary Media Cooperative",
@@ -313,14 +315,15 @@ test("curated organization workflow uses generated operation parameters", async 
   });
 });
 
-test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {
+test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {  expect.hasAssertions();
+  
   let requestedUrl = "";
   const fetchImpl: typeof fetch = async (input) => {
     requestedUrl = String(input);
-    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
-  };
+    return new Response("{}", { headers: { "Content-Type": "application/json" }, status: 200 });
+  },
 
-  const exitCode = await runInvestigateCommand(
+   exitCode = await runInvestigateCommand(
     SPEC,
     "ownership",
     "Independent Holding Company",

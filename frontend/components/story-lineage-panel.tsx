@@ -10,16 +10,16 @@ interface StoryLineagePanelProps {
 }
 
 const relationLabels: Record<string, string> = {
-  same_wire_story: "Wire reuse",
-  likely_source: "Likely source",
   later_variant: "Later variant",
+  likely_source: "Likely source",
+  same_wire_story: "Wire reuse",
   updates: "Update",
 };
 
 export function StoryLineagePanel({ clusterId }: StoryLineagePanelProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cluster-lineage", clusterId],
     queryFn: () => fetchClusterLineage(clusterId),
+    queryKey: ["cluster-lineage", clusterId],
     staleTime: 60 * 1000,
   });
 

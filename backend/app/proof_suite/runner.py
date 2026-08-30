@@ -177,6 +177,18 @@ async def _matching_accepted_relationship(
     return None
 
 
+async def _entity_kind_matches(
+    db: AsyncSession,
+    entity_id: Any,
+    expected_kind: Any,
+) -> bool:
+    """True when the entity kind is unknown-when-unspecified or matches."""
+    if expected_kind is None:
+        return True
+    entity = await db.get(EvidenceEntity, cast(str, entity_id))
+    return entity is not None and entity.record_kind == expected_kind
+
+
 async def _record_relationship_shape(
     db: AsyncSession,
     accumulator: _EvaluationAccumulator,
@@ -187,15 +199,11 @@ async def _record_relationship_shape(
     accumulator.record("correct_predicates", True)
     accumulator.record("correct_direction", True)
 
-    subject = await db.get(EvidenceEntity, cast(str, relationship.subject_entity_id))
-    object_entity = await db.get(EvidenceEntity, cast(str, relationship.object_entity_id))
-    expected_subject_kind = expected.get("subject_record_kind")
-    expected_object_kind = expected.get("object_record_kind")
-    subject_kind_ok = expected_subject_kind is None or (
-        subject is not None and subject.record_kind == expected_subject_kind
+    subject_kind_ok = await _entity_kind_matches(
+        db, relationship.subject_entity_id, expected.get("subject_record_kind")
     )
-    object_kind_ok = expected_object_kind is None or (
-        object_entity is not None and object_entity.record_kind == expected_object_kind
+    object_kind_ok = await _entity_kind_matches(
+        db, relationship.object_entity_id, expected.get("object_record_kind")
     )
     accumulator.record("correct_record_kinds", subject_kind_ok and object_kind_ok)
 
@@ -205,19 +213,23 @@ async def _record_relationship_shape(
         "correct_qualifiers",
         all(actual_qualifiers.get(key) == value for key, value in expected_qualifiers.items()),
     )
-    expected_txn_status = expected_qualifiers.get("txn_status")
     accumulator.record(
         "correct_transaction_status",
-        expected_txn_status is None or actual_qualifiers.get("txn_status") == expected_txn_status,
+        expected_qualifiers.get("txn_status") is None
+        or actual_qualifiers.get("txn_status") == expected_qualifiers.get("txn_status"),
     )
 
-    expected_valid_from = expected.get("valid_from")
-    expected_valid_to = expected.get("valid_to")
-    date_bounds = (
-        expected_valid_from is None or relationship.valid_from == expected_valid_from,
-        expected_valid_to is None or relationship.valid_to == expected_valid_to,
+    accumulator.record(
+        "correct_dates",
+        all(
+            (
+                expected.get("valid_from") is None
+                or relationship.valid_from == expected.get("valid_from"),
+                expected.get("valid_to") is None
+                or relationship.valid_to == expected.get("valid_to"),
+            )
+        ),
     )
-    accumulator.record("correct_dates", all(date_bounds))
 
 
 async def _relationship_claims(

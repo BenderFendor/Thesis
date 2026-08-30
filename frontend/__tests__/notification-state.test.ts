@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   dismissAllNotifications,
   dismissNotification,
@@ -5,7 +6,7 @@ import {
   retainActiveDismissedNotifications,
   useDismissedNotifications,
 } from "@/lib/notification-state"
-import { renderHook, waitFor, act } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 
 describe("notification state helpers", () => {
   const notifications = [
@@ -13,22 +14,22 @@ describe("notification state helpers", () => {
     { id: "b" },
   ]
 
-  it("dismisses individual notifications", () => {
+  it("dismisses individual notifications", () => {expect.hasAssertions();
     const dismissed = dismissNotification(new Set<string>(), "a")
-    expect(getVisibleNotifications(notifications, dismissed)).toEqual([{ id: "b" }])
+    expect(getVisibleNotifications(notifications, dismissed)).toStrictEqual([{ id: "b" }])
   })
 
-  it("dismisses all current notifications", () => {
+  it("dismisses all current notifications", () => {expect.hasAssertions();
     const dismissed = dismissAllNotifications(new Set<string>(), notifications)
-    expect(getVisibleNotifications(notifications, dismissed)).toEqual([])
+    expect(getVisibleNotifications(notifications, dismissed)).toStrictEqual([])
   })
 
-  it("drops dismissed ids once the notification disappears", () => {
+  it("drops dismissed ids once the notification disappears", () => {expect.hasAssertions();
     const retained = retainActiveDismissedNotifications(new Set(["a", "stale"]), notifications)
-    expect([...retained]).toEqual(["a"])
+    expect([...retained]).toStrictEqual(["a"])
   })
 
-  it("forgets stale dismissed ids so recurring notifications become visible again", async () => {
+  it("forgets stale dismissed ids so recurring notifications become visible again", async () => {expect.hasAssertions();
     const { result, rerender } = renderHook(
       ({ items }) => useDismissedNotifications(items),
       {
@@ -45,19 +46,19 @@ describe("notification state helpers", () => {
     await waitFor(() => {
       expect(result.current.dismissedIds.has("a")).toBe(true)
     })
-    expect(result.current.visibleNotifications).toEqual([{ id: "b" }])
+    expect(result.current.visibleNotifications).toStrictEqual([{ id: "b" }])
 
     rerender({ items: [{ id: "b" }] })
 
     await waitFor(() => {
       expect(result.current.dismissedIds.has("a")).toBe(false)
     })
-    expect(result.current.visibleNotifications).toEqual([{ id: "b" }])
+    expect(result.current.visibleNotifications).toStrictEqual([{ id: "b" }])
 
     rerender({ items: notifications })
 
     await waitFor(() => {
-      expect(result.current.visibleNotifications).toEqual(notifications)
+      expect(result.current.visibleNotifications).toStrictEqual(notifications)
     })
   })
 })

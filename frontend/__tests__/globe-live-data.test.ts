@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import fc from "fast-check"
 import type { NewsArticle } from "@/lib/api"
 import {
@@ -8,36 +9,37 @@ import {
 
 function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
   return {
-    id: overrides.id ?? 1,
-    title: overrides.title ?? "Article",
-    source: overrides.source ?? "Source",
-    sourceId: overrides.sourceId ?? "source",
+    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(overrides.publishedAt ?? "2026-04-09T00:00:00.000Z"),
+    bias: overrides.bias ?? "center",
+    category: overrides.category ?? "general",
     country: overrides.country ?? "US",
     credibility: overrides.credibility ?? "high",
-    bias: overrides.bias ?? "center",
-    summary: overrides.summary ?? "Summary",
+    id: overrides.id ?? 1,
     image: overrides.image ?? "/placeholder.svg",
-    publishedAt: overrides.publishedAt ?? "2026-04-09T00:00:00.000Z",
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(overrides.publishedAt ?? "2026-04-09T00:00:00.000Z"),
-    category: overrides.category ?? "general",
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-    tags: overrides.tags ?? [],
-    originalLanguage: overrides.originalLanguage ?? "en",
-    translated: overrides.translated ?? false,
-    source_country: overrides.source_country,
     mentioned_countries: overrides.mentioned_countries,
+    originalLanguage: overrides.originalLanguage ?? "en",
+    publishedAt: overrides.publishedAt ?? "2026-04-09T00:00:00.000Z",
+    source: overrides.source ?? "Source",
+    sourceId: overrides.sourceId ?? "source",
+    source_country: overrides.source_country,
+    summary: overrides.summary ?? "Summary",
+    tags: overrides.tags ?? [],
+    title: overrides.title ?? "Article",
+    translated: overrides.translated ?? false,
+    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
   }
 }
 
 describe("globe live data", () => {
-  it("preserves article totals in derived country metrics", () => {
+  it("preserves article totals in derived country metrics", () => {  expect.hasAssertions();
+  
     const articleArbitrary = fc.record({
-      id: fc.integer({ min: 1, max: 10_000 }),
-      sourceId: fc.stringMatching(/^[a-z]{1,8}$/),
-      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/),
       country: fc.constantFrom("US", "GB", "DE", "International"),
-      source_country: fc.option(fc.constantFrom("US", "GB", "DE"), { nil: undefined }),
+      id: fc.integer({ max: 10_000, min: 1 }),
       mentioned_countries: fc.array(fc.constantFrom("US", "GB", "DE"), { maxLength: 4 }),
+      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/),
+      sourceId: fc.stringMatching(/^[a-z]{1,8}$/),
+      source_country: fc.option(fc.constantFrom("US", "GB", "DE"), { nil: undefined }),
     })
 
     fc.assert(
@@ -45,14 +47,14 @@ describe("globe live data", () => {
         const articles = rawArticles.map((article, index) =>
           makeArticle({
             ...article,
+            _parsedTimestamp: Date.parse(`2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`),
             id: article.id + index,
             publishedAt: `2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`,
-            _parsedTimestamp: Date.parse(`2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`),
             url: `https://example.com/${article.id}-${index}`,
           }),
-        )
+        ),
 
-        const metrics = buildCountryMetricsFromArticles(articles)
+         metrics = buildCountryMetricsFromArticles(articles)
         expect(metrics.total_articles).toBe(articles.length)
         expect(metrics.articles_with_country + metrics.articles_without_country).toBe(
           articles.length,
@@ -61,52 +63,53 @@ describe("globe live data", () => {
     )
   })
 
-  it("builds country metadata and local lens views from the shared live dataset", () => {
+  it("builds country metadata and local lens views from the shared live dataset", () => {  expect.hasAssertions();
+  
     const articles = [
       makeArticle({
-        id: 1,
-        source: "Tokyo Times",
-        sourceId: "tokyo-times",
+        _parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
         country: "JP",
-        source_country: "JP",
+        id: 1,
         mentioned_countries: ["JP"],
         publishedAt: "2026-04-09T02:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
+        source: "Tokyo Times",
+        sourceId: "tokyo-times",
+        source_country: "JP",
       }),
       makeArticle({
-        id: 2,
-        source: "World Wire",
-        sourceId: "world-wire",
+        _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
         country: "US",
-        source_country: "US",
+        id: 2,
         mentioned_countries: ["JP"],
         publishedAt: "2026-04-09T03:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+        source: "World Wire",
+        sourceId: "world-wire",
+        source_country: "US",
       }),
       makeArticle({
-        id: 3,
-        source: "Kyoto Daily",
-        sourceId: "kyoto-daily",
+        _parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
         country: "JP",
-        source_country: "JP",
+        id: 3,
         mentioned_countries: [],
         publishedAt: "2026-04-09T04:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
+        source: "Kyoto Daily",
+        sourceId: "kyoto-daily",
+        source_country: "JP",
       }),
-    ]
+    ],
 
-    const countryList = buildCountryListFromArticles(articles)
+     countryList = buildCountryListFromArticles(articles)
     expect(countryList.countries[0]).toMatchObject({
-      code: "JP",
       article_count: 2,
+      code: "JP",
     })
 
     const internalLens = buildLocalLensFromArticles({
       articles,
       code: "JP",
       countryName: "Japan",
-      view: "internal",
       limit: 10,
+      view: "internal",
     })
     expect(internalLens.total).toBe(1)
     expect(internalLens.matching_strategy).toBe("country_mentions")
@@ -116,32 +119,33 @@ describe("globe live data", () => {
       articles,
       code: "JP",
       countryName: "Japan",
-      view: "external",
       limit: 10,
+      view: "external",
     })
     expect(externalLens.total).toBe(1)
     expect(externalLens.articles[0]?.source).toBe("World Wire")
   })
 
-  it("dedupes duplicate articles in local lens results", () => {
+  it("dedupes duplicate articles in local lens results", () => {  expect.hasAssertions();
+  
     const duplicate = makeArticle({
-      id: 42,
-      source: "World Wire",
-      sourceId: "world-wire",
+      _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
       country: "US",
-      source_country: "US",
+      id: 42,
       mentioned_countries: ["JP"],
       publishedAt: "2026-04-09T03:00:00.000Z",
-      _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+      source: "World Wire",
+      sourceId: "world-wire",
+      source_country: "US",
       url: "https://example.com/world-wire-jp",
-    })
+    }),
 
-    const externalLens = buildLocalLensFromArticles({
+     externalLens = buildLocalLensFromArticles({
       articles: [duplicate, duplicate],
       code: "JP",
       countryName: "Japan",
-      view: "external",
       limit: 10,
+      view: "external",
     })
 
     expect(externalLens.total).toBe(1)

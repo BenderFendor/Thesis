@@ -35,7 +35,7 @@ export function dismissNotification(
 
 export function dismissAllNotifications<T extends NotificationLike>(
   dismissedIds: Set<string>,
-  notifications: T[],
+  notifications:readonly  T[],
 ): Set<string> {
   const next = new Set(dismissedIds)
   notifications.forEach((notification) => next.add(notification.id))
@@ -44,10 +44,10 @@ export function dismissAllNotifications<T extends NotificationLike>(
 
 export function retainActiveDismissedNotifications<T extends NotificationLike>(
   dismissedIds: Set<string>,
-  notifications: T[],
+  notifications:readonly  T[],
 ): Set<string> {
-  const activeIds = new Set(notifications.map((notification) => notification.id))
-  const retainedIds = [...dismissedIds].filter((id) => activeIds.has(id))
+  const activeIds = new Set(notifications.map((notification) => notification.id)),
+   retainedIds = [...dismissedIds].filter((id) => activeIds.has(id))
 
   if (retainedIds.length === dismissedIds.size) {
     const unchanged = retainedIds.every((id) => dismissedIds.has(id))
@@ -60,18 +60,18 @@ export function retainActiveDismissedNotifications<T extends NotificationLike>(
 }
 
 export function getVisibleNotifications<T extends NotificationLike>(
-  notifications: T[],
+  notifications:readonly  T[],
   dismissedIds: Set<string>,
 ): T[] {
   return notifications.filter((notification) => !dismissedIds.has(notification.id))
 }
 
 export function useDismissedNotifications<T extends NotificationLike>(
-  notifications: T[],
+  notifications:readonly  T[],
 ) {
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set()),
 
-  const activeDismissedIds = useMemo(
+   activeDismissedIds = useMemo(
     () => retainActiveDismissedNotifications(dismissedIds, notifications),
     [dismissedIds, notifications],
   )
@@ -96,26 +96,26 @@ export function useDismissedNotifications<T extends NotificationLike>(
       )
     },
     [notifications],
-  )
+  ),
 
-  const dismissAll = useCallback(() => {
+   dismissAll = useCallback(() => {
     setDismissedIds((current) =>
       dismissAllNotifications(
         retainActiveDismissedNotifications(current, notifications),
         notifications,
       ),
     )
-  }, [notifications])
+  }, [notifications]),
 
-  const visibleNotifications = useMemo(
+   visibleNotifications = useMemo(
     () => getVisibleNotifications(notifications, activeDismissedIds),
     [notifications, activeDismissedIds],
   )
 
   return {
+    dismissAll,
+    dismissOne,
     dismissedIds: activeDismissedIds,
     visibleNotifications,
-    dismissOne,
-    dismissAll,
   }
 }

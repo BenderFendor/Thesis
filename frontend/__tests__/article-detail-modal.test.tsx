@@ -1,312 +1,143 @@
-import React from "react";
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ArticleDetailModal } from "@/components/article-detail-modal";
+import type { ArticleDetailServices } from "@/components/article-detail-modal";
 import type { NewsArticle } from "@/lib/api";
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 
-jest.mock("next/link", () => {
-  return function MockLink({ href, children, ...props }: { href: string; children: React.ReactNode }) {
-    return (
-      <a href={href} {...props}>
-        {children}
-      </a>
-    );
-  };
-});
-
-const stripMotionProps = <T extends object>(props: T) => {
-  const next = { ...(props as T & Record<string, unknown>) };
-  delete next.layout;
-  delete next.layoutId;
-  delete next.transition;
-  delete next.initial;
-  delete next.animate;
-  delete next.exit;
-  return next;
-};
-
-jest.mock("framer-motion", () => ({
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: {
-    div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...stripMotionProps(props)}>{children}</div>,
-    h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h1 {...stripMotionProps(props)}>{children}</h1>,
-    img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => React.createElement("img", { alt: props.alt ?? "", ...stripMotionProps(props) }),
-  },
-}));
-
-jest.mock("lucide-react", () => {
-  const Icon = (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />;
-  return new Proxy(
-    {},
-    {
-      get: () => Icon,
-    }
-  );
-});
-
-jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
-
-jest.mock("@/components/ui/button", () => ({
-  Button: ({ children, asChild, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
-    if (asChild) {
-      return <>{children}</>;
-    }
-    return <button {...props}>{children}</button>;
-  },
-}));
-
-jest.mock("@/components/ui/badge", () => ({
-  Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-}));
-
-jest.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-const SheetOpenContext = React.createContext(false);
-
-jest.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children, open }: { children: React.ReactNode; open: boolean }) => (
-    <SheetOpenContext.Provider value={open}>{children}</SheetOpenContext.Provider>
-  ),
-  SheetContent: ({ children }: { children: React.ReactNode }) => {
-    const open = React.useContext(SheetOpenContext);
-    return open ? <>{children}</> : null;
-  },
-  SheetDescription: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SheetHeader: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-jest.mock("@/components/inline-definition", () => () => null);
-jest.mock("@/components/reporter-profile", () => ({
-  ReporterProfilePanel: () => <div>Reporter profile</div>,
-}));
-jest.mock("@/components/source-research-panel", () => ({
-  SourceResearchPanel: () => <div>Source research</div>,
-}));
-jest.mock("@/components/related-articles", () => ({
-  RelatedArticles: () => null,
-}));
-jest.mock("@/components/article-content", () => ({
-  ArticleContent: () => <div>Article content</div>,
-}));
-jest.mock("@/components/highlight-toolbar", () => ({
-  HighlightToolbar: () => null,
-}));
-jest.mock("@/components/highlight-note-popover", () => ({
-  HighlightNotePopover: () => null,
-}));
-
-jest.mock("@/hooks/useLikedArticles", () => ({
-  useLikedArticles: () => ({
-    isLiked: jest.fn(() => false),
-    toggleLike: jest.fn(),
+const mockedApi = {
+  analyzeArticle: jest.fn<ArticleDetailServices["analyzeArticle"]>(() => ({ article_url: "", success: false })),
+  createHighlight: jest.fn<ArticleDetailServices["createHighlight"]>((highlight) => highlight),
+  deleteHighlight: jest.fn<ArticleDetailServices["deleteHighlight"]>(async () => {}),
+  fetchLanguageDiagnostics: jest.fn<ArticleDetailServices["fetchLanguageDiagnostics"]>(() => ({
+    article_url: "",
+    sentence_count: 0,
+    success: true,
+    word_count: 0,
+  })),
+  fetchSourceDebugData: jest.fn<ArticleDetailServices["fetchSourceDebugData"]>(() => {
+    throw new Error("Source debugging is not expected in this test");
   }),
-}));
-
-jest.mock("@/hooks/useBookmarks", () => ({
-  useBookmarks: () => ({
-    isBookmarked: jest.fn(() => false),
-    toggleBookmark: jest.fn(async () => undefined),
+  getHighlightsForArticle: jest.fn<ArticleDetailServices["getHighlightsForArticle"]>(() => []),
+  getSourceById: jest.fn<ArticleDetailServices["getSourceById"]>(async () => {}),
+  performAgenticSearch: jest.fn<ArticleDetailServices["performAgenticSearch"]>(() => ({ answer: "", success: false })),
+  updateHighlight: jest.fn<ArticleDetailServices["updateHighlight"]>(() => {
+    throw new Error("Highlight updates are not expected in this test");
   }),
-}));
+} satisfies ArticleDetailServices,
 
-jest.mock("@/hooks/useReadingQueue", () => ({
-  useReadingQueue: () => ({
-    addArticleToQueue: jest.fn(),
-    removeArticleFromQueue: jest.fn(),
-    isArticleInQueue: jest.fn(() => false),
-    queuedArticles: [],
-  }),
-}));
-
-jest.mock("@/hooks/useFavorites", () => ({
-  useFavorites: () => ({
-    isFavorite: jest.fn(() => false),
-    toggleFavorite: jest.fn(),
-  }),
-}));
-
-const markAsRead = jest.fn();
-
-jest.mock("@/hooks/useReadingHistory", () => ({
-  useReadingHistory: () => ({
-    markAsRead,
-  }),
-}));
-
-jest.mock("@/hooks/useInlineDefinition", () => ({
-  useInlineDefinition: () => ({
-    result: null,
-    open: false,
-    setOpen: jest.fn(),
-    anchorPosition: null,
-  }),
-}));
-
-jest.mock("@/lib/performance-logger", () => ({
-  logUserAction: jest.fn(),
-}));
-
-jest.mock("@/lib/logger", () => ({
-  isDebugMode: jest.fn(() => false),
-}));
-
-jest.mock("@/lib/highlight-store", () => ({
-  loadHighlightStore: jest.fn(() => ({ version: 1, article_url: "", highlights: [] })),
-  mergeHighlights: jest.fn(({ local }: { local: unknown[] }) => local),
-  saveHighlightStore: jest.fn(),
-  toRemoteHighlights: jest.fn(() => []),
-  generateClientId: jest.fn(() => "client-1"),
-  markFailed: jest.fn(({ highlight }: { highlight: unknown }) => highlight),
-  markPending: jest.fn(({ highlight }: { highlight: unknown }) => highlight),
-  markSynced: jest.fn(({ highlight }: { highlight: unknown }) => highlight),
-  createHighlightFingerprint: jest.fn(() => "fingerprint"),
-  dedupeLocalHighlights: jest.fn((highlights: unknown[]) => highlights),
-}));
-
-jest.mock("@/lib/highlight-utils", () => ({
-  buildObsidianMarkdown: jest.fn(() => ""),
-  highlightStableId: jest.fn((highlight) =>
-    highlight.id ? `server:${highlight.id}` : `client:${highlight.client_id}`
-  ),
-}));
-
-jest.mock("@/lib/api", () => ({
-  API_BASE_URL: "http://localhost:8000",
-  getSourceById: jest.fn(async () => null),
-  fetchSourceDebugData: jest.fn(async () => null),
-  analyzeArticle: jest.fn(async () => null),
-  performAgenticSearch: jest.fn(async () => ({ success: false })),
-  getHighlightsForArticle: jest.fn(async () => []),
-  createHighlight: jest.fn(async (highlight) => highlight),
-  updateHighlight: jest.fn(async (id: number, highlight) => ({ id, ...highlight })),
-  deleteHighlight: jest.fn(async () => undefined),
-}));
-
-const mockedApi = jest.requireMock("@/lib/api") as {
-  getSourceById: jest.Mock;
-  analyzeArticle: jest.Mock;
-  getHighlightsForArticle: jest.Mock;
-  performAgenticSearch: jest.Mock;
-};
-
-const baseArticle: NewsArticle = {
-  id: 1,
-  title: "Test article",
-  source: "Example News",
-  sourceId: "example-news",
+ baseArticle: NewsArticle = {
+  bias: "center",
+  category: "Politics",
+  content: "Content",
   country: "US",
   credibility: "high",
-  bias: "center",
-  summary: "Summary",
-  content: "Content",
+  id: 1,
   image: "none",
-  publishedAt: "2026-03-13T12:00:00Z",
-  category: "Politics",
-  url: "article-1",
-  tags: [],
   originalLanguage: "en",
+  publishedAt: "2026-03-13T12:00:00Z",
+  source: "Example News",
+  sourceId: "example-news",
+  summary: "Summary",
+  tags: [],
+  title: "Test article",
   translated: false,
+  url: "article-1",
 };
 
-describe("ArticleDetailModal", () => {
+describe("articleDetailModal", () => {
   beforeEach(() => {
-    markAsRead.mockClear();
+    localStorage.clear();
     mockedApi.getSourceById.mockClear();
     mockedApi.analyzeArticle.mockClear();
     mockedApi.getHighlightsForArticle.mockClear();
     mockedApi.performAgenticSearch.mockClear();
   });
 
-  it("renders the reporter label from article.author", async () => {
+  it("renders the reporter label from article.author", async () => {expect.hasAssertions();
     renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
-        isOpen={true}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
-    expect(await screen.findByText("Reporter: Zhiqun Zhu")).toBeInTheDocument();
+    await expect(screen.findByText("Reporter: Zhiqun Zhu")).resolves.toBeInTheDocument();
     await waitFor(() => {
-      expect(markAsRead).toHaveBeenCalledWith(1, "Test article", "Example News");
+      expect(localStorage.getItem("thesis_reading_history")).toContain('"articleId":1');
       expect(mockedApi.getSourceById).toHaveBeenCalledWith("example-news");
       expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-1");
     });
   });
 
-  it("falls back to the first non-empty entry in article.authors", async () => {
+  it("falls back to the first non-empty entry in article.authors", async () => {expect.hasAssertions();
     renderWithQueryClient(
       <ArticleDetailModal
-        article={{ ...baseArticle, id: 2, url: "article-2", author: "", authors: ["", "Taylor Smith", "Another Name"] }}
-        isOpen={true}
+        article={{ ...baseArticle, author: "", authors: ["", "Taylor Smith", "Another Name"], id: 2, url: "article-2" }}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
-    expect(await screen.findByText("Reporter: Taylor Smith")).toBeInTheDocument();
+    await expect(screen.findByText("Reporter: Taylor Smith")).resolves.toBeInTheDocument();
   });
 
-  it("resets the wiki sheet after the modal closes or switches articles", async () => {
+  it("resets the wiki sheet after the modal closes or switches articles", async () => {expect.hasAssertions();
     const { rerender } = renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
-        isOpen={true}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
     fireEvent.click(await screen.findByText("Reporter: Zhiqun Zhu"));
-    expect(await screen.findByText("Reporter profile")).toBeInTheDocument();
+    await expect(screen.findByRole("heading", { name: "Zhiqun Zhu" })).resolves.toBeInTheDocument();
 
     rerender(
       <ArticleDetailModal
         article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
         isOpen={false}
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
     rerender(
       <ArticleDetailModal
-        article={{ ...baseArticle, id: 3, url: "article-3", author: "Taylor Smith", authors: ["Taylor Smith"] }}
-        isOpen={true}
+        article={{ ...baseArticle, author: "Taylor Smith", authors: ["Taylor Smith"], id: 3, url: "article-3" }}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
     await waitFor(() => {
-      expect(screen.queryByText("Reporter profile")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Zhiqun Zhu" })).not.toBeInTheDocument();
     });
   });
 
-  it("uses vertical keys to scroll the popup instead of changing the article", async () => {
-    const onNavigate = jest.fn();
-    const scrollBy = jest.fn();
+  it("uses vertical keys to scroll the popup instead of changing the article", async () => {expect.hasAssertions();
+    const onNavigate = jest.fn(),
+     scrollBy = jest.fn();
 
     renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, id: 4, url: "article-4" }}
-        isOpen={true}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
         onNavigate={onNavigate}
       />
     );
 
-    const scrollRegion = document.getElementById("article-detail-scroll-region") as HTMLDivElement;
+    const scrollRegion = document.querySelector("#article-detail-scroll-region") as HTMLDivElement;
     expect(scrollRegion).not.toBeNull();
 
     Object.defineProperty(scrollRegion, "clientHeight", {
@@ -322,27 +153,28 @@ describe("ArticleDetailModal", () => {
       expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-4");
     });
 
-    fireEvent.keyDown(window, { key: "ArrowDown" });
-    fireEvent.keyDown(window, { key: "PageDown" });
+    fireEvent.keyDown(globalThis, { key: "ArrowDown" });
+    fireEvent.keyDown(globalThis, { key: "PageDown" });
 
-    expect(scrollBy).toHaveBeenNthCalledWith(1, { top: 72, behavior: "smooth" });
-    expect(scrollBy).toHaveBeenNthCalledWith(2, { top: 540, behavior: "smooth" });
+    expect(scrollBy).toHaveBeenNthCalledWith(1, { behavior: "smooth", top: 72 });
+    expect(scrollBy).toHaveBeenNthCalledWith(2, { behavior: "smooth", top: 540 });
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("lets the progress rail control the popup scroll position", async () => {
+  it("lets the progress rail control the popup scroll position", async () => {expect.hasAssertions();
     const scrollTo = jest.fn();
 
     renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, id: 5, url: "article-5" }}
-        isOpen={true}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
-    const scrollRegion = document.getElementById("article-detail-scroll-region") as HTMLDivElement;
-    const progressRail = screen.getByRole("scrollbar", { name: "Article reading progress" });
+    const scrollRegion = document.querySelector("#article-detail-scroll-region") as HTMLDivElement,
+     progressRail = screen.getByRole("scrollbar", { name: "Article reading progress" });
 
     Object.defineProperty(scrollRegion, "clientHeight", {
       configurable: true,
@@ -359,15 +191,15 @@ describe("ArticleDetailModal", () => {
     Object.defineProperty(progressRail, "getBoundingClientRect", {
       configurable: true,
       value: () => ({
-        top: 100,
         bottom: 300,
         height: 200,
         left: 0,
         right: 12,
+        toJSON: () => ({}),
+        top: 100,
         width: 12,
         x: 0,
         y: 100,
-        toJSON: () => ({}),
       }),
     });
 
@@ -386,52 +218,58 @@ describe("ArticleDetailModal", () => {
 
     progressRail.dispatchEvent(pointerDownEvent);
 
-    expect(scrollTo).toHaveBeenCalledWith({ top: 750, behavior: "auto" });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 750 });
   });
 
-  it("renders AI analysis results after the analysis action runs", async () => {
+  it("renders AI analysis results after the analysis action runs", async () => {expect.hasAssertions();
     const user = userEvent.setup();
     mockedApi.analyzeArticle.mockResolvedValueOnce({
-      success: true,
       article_url: "article-6",
-      summary: "A concise summary for the selected article.",
       bias_analysis: {
-        overall_bias_score: "6",
-        tone_bias: "Measured but skeptical",
         framing_bias: "Centers the policy conflict",
-      },
-      source_analysis: {
-        credibility_assessment: "medium",
-        political_leaning: "left",
+        overall_bias_score: "6",
+        selection_bias: "Focuses on the policy dispute",
+        source_diversity: "Uses several relevant sources",
+        tone_bias: "Measured but skeptical",
       },
       fact_check_results: [
         {
           claim: "A disputed claim from the article",
-          verification_status: "unverified",
           confidence: "low",
           evidence: "No confirming public record was provided.",
           sources: [],
+          verification_status: "unverified",
         },
       ],
+      source_analysis: {
+        credibility_assessment: "medium",
+        funding_model: "subscriber supported",
+        ownership: "independent",
+        political_leaning: "left",
+        reputation: "established outlet",
+      },
+      success: true,
+      summary: "A concise summary for the selected article.",
     });
 
     renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, id: 6, url: "article-6" }}
-        isOpen={true}
+        isOpen
         onClose={jest.fn()}
+        services={mockedApi}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: /run ai analysis/i }));
+    await user.click(screen.getByRole("button", { name: /run ai analysis/iu }));
 
-    expect(await screen.findByText("AI Summary")).toBeInTheDocument();
+    await expect(screen.findByText("AI Summary")).resolves.toBeInTheDocument();
     expect(screen.getByText("A concise summary for the selected article.")).toBeInTheDocument();
     expect(screen.getByText("1 claim ready for verification review")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /expand for full ai analysis/i }));
+    await user.click(screen.getByRole("button", { name: /expand for full ai analysis/iu }));
 
-    expect(await screen.findByText("Fact Check Results")).toBeInTheDocument();
+    await expect(screen.findByText("Fact Check Results")).resolves.toBeInTheDocument();
     expect(screen.getByText("1 claims")).toBeInTheDocument();
     expect(mockedApi.analyzeArticle).toHaveBeenCalledWith("article-6", "Example News");
   });

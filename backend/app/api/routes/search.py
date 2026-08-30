@@ -1,16 +1,51 @@
 """Search."""
 
-from __future__ import annotations
-
+from collections.abc import Sequence
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Article as ArticleRecord, SearchHistory, get_db
-from app.vector_store import get_vector_store
+from app.vector_store import SimilarArticleResult, get_vector_store
 
 router = APIRouter(prefix="/api/search", tags=["search"])
+
+
+def _semantic_filter_metadata(category: str | None) -> dict[str, str] | None:
+    """Normalize a category filter for chroma metadata matching."""
+    normalized = category.lower() if category else None
+    if not normalized or normalized == "all":
+        return None
+    return {"category": normalized}
+
+
+def _semantic_result_payloads(
+    chroma_results: Sequence[SimilarArticleResult],
+    article_map: dict[Any, ArticleRecord],
+) -> list[dict[str, object]]:
+    """Build search result payloads for chroma rows with a matching article."""
+    payloads: list[dict[str, object]] = []
+    for chroma_result in chroma_results:
+        article = article_map.get(chroma_result["article_id"])
+        if not article:
+            continue
+        payloads.append(
+            {
+                "id": article.id,
+                "title": article.title,
+                "source": article.source,
+                "summary": article.summary,
+                "image": article.image_url,
+                "published": article.published_at.isoformat() if article.published_at else None,
+                "category": article.category,
+                "url": article.url,
+                "similarity_score": chroma_result["similarity_score"],
+                "distance": chroma_result["distance"],
+            }
+        )
+    return payloads
 
 
 @router.get("/semantic")
@@ -25,56 +60,20 @@ async def semantic_search(
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store is not available")
 
-    normalized_category = category.lower() if category else None
-    filter_metadata = (
-        {"category": normalized_category}
-        if normalized_category and normalized_category != "all"
-        else None
-    )
-
     chroma_results = vector_store.search_similar(
         query=query,
         limit=limit,
-        filter_metadata=filter_metadata,
+        filter_metadata=_semantic_filter_metadata(category),
     )
-
-    if not chroma_results:
+    article_ids = [result["article_id"] for result in chroma_results if result["article_id"]]
+    if not chroma_results or not article_ids:
         return {"query": query, "results": [], "total": 0}
 
-    article_ids = [
-        result.get("article_id") for result in chroma_results if result.get("article_id")
-    ]
-    if not article_ids:
-        return {"query": query, "results": [], "total": 0}
+    articles_result = await db.execute(
+        select(ArticleRecord).where(ArticleRecord.id.in_(article_ids))
+    )
+    article_map = {article.id: article for article in articles_result.scalars().all()}
+    results = _semantic_result_payloads(chroma_results, article_map)
 
-    articles_stmt = select(ArticleRecord).where(ArticleRecord.id.in_(article_ids))
-    articles_result = await db.execute(articles_stmt)
-    articles = articles_result.scalars().all()
-    article_map = {article.id: article for article in articles}
-
-    results: list[dict[str, object]] = []
-    for chroma_result in chroma_results:
-        article_id = chroma_result.get("article_id")
-        article = article_map.get(article_id)
-        if not article:
-            continue
-
-        results.append(
-            {
-                "id": article.id,
-                "title": article.title,
-                "source": article.source,
-                "summary": article.summary,
-                "image": article.image_url,
-                "published": article.published_at.isoformat() if article.published_at else None,
-                "category": article.category,
-                "url": article.url,
-                "similarity_score": chroma_result.get("similarity_score"),
-                "distance": chroma_result.get("distance"),
-            }
-        )
-
-    search_record = SearchHistory(query=query, search_type="semantic", results_count=len(results))
-    db.add(search_record)
-
+    db.add(SearchHistory(query=query, search_type="semantic", results_count=len(results)))
     return {"query": query, "results": results, "total": len(results)}

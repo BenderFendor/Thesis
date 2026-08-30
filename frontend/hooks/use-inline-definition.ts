@@ -10,12 +10,12 @@ export interface InlineDefinitionResult {
 }
 
 export function useInlineDefinition() {
-  const [result, setResult] = useState<InlineDefinitionResult | null>(null);
-  const [open, setOpen] = useState(false);
-  const [anchorPosition, setAnchorPosition] = useState<{ x: number; y: number } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const lastTermRef = useRef<string | null>(null);
-  const lastRequestAtRef = useRef<number>(0);
+  const [result, setResult] = useState<InlineDefinitionResult | null>(undefined),
+   [open, setOpen] = useState(false),
+   [anchorPosition, setAnchorPosition] = useState<{ x: number; y: number } | null>(null),
+   abortRef = useRef<AbortController | null>(undefined),
+   lastTermRef = useRef<string | null>(undefined),
+   lastRequestAtRef = useRef<number>(0);
 
   useEffect(() => {
     // Avoid installing selection listeners in jsdom/unit tests where
@@ -25,37 +25,37 @@ export function useInlineDefinition() {
     }
     const onMouseUp = async (e: MouseEvent) => {
       try {
-        if (!e.altKey) return;
+        if (!e.altKey) {return;}
 
-        const selection = window.getSelection();
-        if (!selection) return;
+        const selection = globalThis.getSelection();
+        if (!selection) {return;}
         const text = selection.toString().trim();
-        if (!text) return;
+        if (!text) {return;}
 
         // Position the popover near the selection
         const range = selection.getRangeAt(0);
-        let rect: DOMRect | null = null;
+        let rect: DOMRect | null = undefined;
         try {
           rect = range.getBoundingClientRect();
         } catch {
-          rect = null;
+          rect = undefined;
         }
 
         if (rect) {
           setAnchorPosition({
-            x: rect.left + rect.width / 2 + window.scrollX,
-            y: rect.top + window.scrollY,
+            x: rect.left + rect.width / 2 + globalThis.scrollX,
+            y: rect.top + globalThis.scrollY,
           });
         } else {
           setAnchorPosition({
-            x: e.clientX + window.scrollX,
-            y: e.clientY + window.scrollY,
+            x: e.clientX + globalThis.scrollX,
+            y: e.clientY + globalThis.scrollY,
           });
         }
 
-        const now = Date.now();
-        const normalized = text.toLowerCase();
-        const recentlyRequested =
+        const now = Date.now(),
+         normalized = text.toLowerCase(),
+         recentlyRequested =
           lastTermRef.current === normalized && now - lastRequestAtRef.current < 4000;
 
         if (recentlyRequested) {
@@ -67,30 +67,30 @@ export function useInlineDefinition() {
         lastRequestAtRef.current = now;
 
         // Cancel previous
-        if (abortRef.current) abortRef.current.abort();
+        if (abortRef.current) {abortRef.current.abort();}
         abortRef.current = new AbortController();
 
-        setResult({ term: text, definition: "Loading..." });
+        setResult({ definition: "Loading...", term: text });
         setOpen(true);
 
         const resp = await requestInlineDefinition(text);
         if (resp.success) {
-          setResult({ term: text, definition: resp.definition });
+          setResult({ definition: resp.definition, term: text });
         } else {
-          setResult({ term: text, error: resp.error });
+          setResult({ error: resp.error, term: text });
         }
-      } catch (err) {
-        // ignore aborts and others
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error("Inline definition error:", err);
-        const message = err instanceof Error ? err.message : String(err);
+      } catch (error) {
+        // Ignore aborts and others
+        if (error instanceof DOMException && error.name === "AbortError") {return;}
+        console.error("Inline definition error:", error);
+        const message = error instanceof Error ? error.message : String(error);
         setResult((r) => (r ? { ...r, error: message } : null));
       }
-    };
+    },
 
-    const onKey = (e: KeyboardEvent) => {
+     onKey = (e: KeyboardEvent) => {
       // Close on Escape
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {setOpen(false);}
     };
 
     document.addEventListener("mouseup", onMouseUp);
@@ -98,9 +98,9 @@ export function useInlineDefinition() {
     return () => {
       document.removeEventListener("mouseup", onMouseUp);
       document.removeEventListener("keydown", onKey);
-      if (abortRef.current) abortRef.current.abort();
+      if (abortRef.current) {abortRef.current.abort();}
     };
   }, []);
 
-  return { result, open, setOpen, anchorPosition };
+  return { anchorPosition, open, result, setOpen };
 }

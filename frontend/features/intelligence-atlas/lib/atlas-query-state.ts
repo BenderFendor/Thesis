@@ -76,7 +76,7 @@ function csvValues(value: string | null): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
-// Legacy alias: old bookmarks/shared links may still carry "source" for what
+// Legacy alias: old bookmarks/suhared links may still carry "source" for what
 // is now the "outlet" entity type. Normalize on read; never write it back out.
 function normalizeLegacyEntityValue(value: string): string {
   return value === "source" ? "outlet" : value;

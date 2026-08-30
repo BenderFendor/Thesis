@@ -1,63 +1,86 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+type ClassValue =
+  | string
+  | number
+  | bigint
+  | boolean
+  | null
+  | undefined
+  | readonly ClassValue[];
+
+interface DebugLogger {
+  debug: (...args: readonly unknown[]) => void;
+  error: (...args: readonly unknown[]) => void;
+  warn: (...args: readonly unknown[]) => void;
 }
 
-// Logger utility for debug mode control
-let DEBUG_MODE = false
-
-export function setDebugMode(enabled: boolean) {
-  DEBUG_MODE = enabled
-  if (typeof window !== "undefined") {
-    localStorage.setItem("thesis_debug_mode", String(enabled))
-  }
+interface TimerBox {
+  value?: NodeJS.Timeout;
 }
 
-export function getDebugMode(): boolean {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("thesis_debug_mode")
+const DEBUG_MODE_STORAGE_KEY = "thesis_debug_mode",
+ ZERO = 0,
+ cn = (...inputs: readonly ClassValue[]): string => twMerge(clsx(inputs)),
+ debounce = <TArgs extends unknown[]>(
+  func: (...args: TArgs) => void,
+  wait: number,
+): ((...args: TArgs) => void) => {
+  const timer: TimerBox = {};
+  return (...args: TArgs) => {
+    if (timer.value !== undefined) {
+      globalThis.clearTimeout(timer.value);
+    }
+    timer.value = globalThis.setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
+},
+ debugState = { enabled: false },
+ getDebugMode = (): boolean => {
+  if (globalThis.window !== undefined) {
+    const stored = globalThis.localStorage.getItem(DEBUG_MODE_STORAGE_KEY);
     if (stored !== null) {
-      return stored === "true"
+      return stored === "true";
     }
   }
-  return DEBUG_MODE
-}
-
-export function getLogger(name: string) {
-  return {
-    debug: (...args: unknown[]) => {
-      if (getDebugMode()) {
-        console.log(`[${name}]`, ...args)
-      }
-    },
-    error: (...args: unknown[]) => {
-      console.error(`[${name}]`, ...args)
-    },
-    warn: (...args: unknown[]) => {
-      console.warn(`[${name}]`, ...args)
-    },
+  return debugState.enabled;
+},
+ getLogger = (name: string): DebugLogger => ({
+  debug: (...args: readonly unknown[]) => {
+    if (getDebugMode()) {
+      globalThis.console.log(`[${name}]`, ...args);
+    }
+  },
+  error: (...args: readonly unknown[]) => {
+    globalThis.console.error(`[${name}]`, ...args);
+  },
+  warn: (...args: readonly unknown[]) => {
+    globalThis.console.warn(`[${name}]`, ...args);
+  },
+}),
+ serializeSources = (sources?: readonly string[]): string | undefined => {
+  if (sources !== undefined && sources.length > ZERO) {
+    return sources.toSorted().join(",");
   }
-}
-
-// Debounce function for search input
-export function debounce<TArgs extends unknown[], TResult>(
-  func: (...args: TArgs) => TResult,
-  wait: number
-): (...args: TArgs) => void {
-  let timeout: NodeJS.Timeout | null = null
-
-  return (...args: TArgs) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
+  return undefined;
+},
+ setDebugMode = (enabled: boolean): void => {
+  debugState.enabled = enabled;
+  if (globalThis.window !== undefined) {
+    globalThis.localStorage.setItem(
+      DEBUG_MODE_STORAGE_KEY,
+      String(enabled),
+    );
   }
-}
+};
 
-// Deterministic query-param serialization for multi-source filters
-export function serializeSources(sources?: string[]): string | null {
-  if (!sources?.length) {
-    return null
-  }
-  return [...sources].sort().join(",")
-}
+export {
+  cn,
+  debounce,
+  getDebugMode,
+  getLogger,
+  serializeSources,
+  setDebugMode,
+};

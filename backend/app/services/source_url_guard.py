@@ -51,30 +51,39 @@ def _site_host_from_google_news(url: str) -> str | None:
     return normalize_host(site_match.group(1))
 
 
+def _hostname(url_value: str) -> str | None:
+    """Normalize a single URL value to a hostname, or None when it has none."""
+    raw_value = url_value if "://" in url_value else f"https://{url_value}"
+    return normalize_host(urlparse(raw_value).netloc) or None
+
+
+def _strip_feed_prefix(host: str) -> str | None:
+    """Strip a leading feeds./rss. prefix from a host, when present."""
+    for prefix in ("feeds.", "rss."):
+        if host.startswith(prefix) and "." in host:
+            return host.split(".", 1)[1]
+    return None
+
+
+def _final_domain(raw_value: str) -> str | None:
+    """Resolve the canonical domain for a raw URL value."""
+    host = _hostname(raw_value)
+    if not host:
+        return None
+    site_host = _site_host_from_google_news(raw_value)
+    if site_host:
+        return site_host
+    return _strip_feed_prefix(host) or host
+
+
 def extract_domain(url_value: Any) -> str | None:
     """Extract Domain."""
     urls = iter_urls(url_value)
     if not urls:
         if isinstance(url_value, str):
-            host = extract_host(url_value if "://" in url_value else f"https://{url_value}")
-            return host or None
+            return _final_domain(url_value)
         return None
-
-    raw_value = urls[0]
-    parsed = urlparse(raw_value if "://" in raw_value else f"https://{raw_value}")
-    host = normalize_host(parsed.netloc)
-    if not host:
-        return None
-
-    site_host = _site_host_from_google_news(raw_value)
-    if site_host:
-        return site_host
-
-    if host.startswith("feeds.") and "." in host:
-        return host.split(".", 1)[1]
-    if host.startswith("rss.") and "." in host:
-        return host.split(".", 1)[1]
-    return host
+    return _final_domain(urls[0])
 
 
 def normalize_site_url(url_value: Any) -> str | None:

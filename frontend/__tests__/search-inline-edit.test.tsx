@@ -14,10 +14,10 @@ jest.mock("next/link", () => ({
   default: ({
     children,
     href,
-  }: {
+  }:Readonly< {
     children: ReactNode;
     href: string;
-  }) => <a href={href}>{children}</a>,
+  }>) => <a href={href}>{children}</a>,
 }));
 
 jest.mock("framer-motion", () => ({
@@ -75,7 +75,7 @@ jest.mock("framer-motion", () => ({
 
 jest.mock("react-markdown", () => ({
   __esModule: true,
-  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+  default: ({ children }:Readonly< { children: ReactNode }>) => <>{children}</>,
 }));
 
  jest.mock("remark-gfm", () => ({
@@ -107,7 +107,7 @@ jest.mock("@/components/chat-sidebar", () => ({
   default: () => null,
 }));
 
-jest.mock("@/components/search-suggestions", () => ({
+jest.mock("@/components/suearch-suggestions", () => ({
   SearchSuggestions: () => null,
 }));
 
@@ -117,8 +117,8 @@ jest.mock("@/components/verification-panel", () => ({
 
 describe("NewsResearchPage inline editing", () => {
   beforeEach(() => {
-    window.localStorage.clear();
-    window.localStorage.setItem(
+    globalThis.localStorage.clear();
+    globalThis.localStorage.setItem(
       "news-research.chat-state",
       JSON.stringify({
         version: 1,
@@ -148,7 +148,8 @@ describe("NewsResearchPage inline editing", () => {
     );
   });
 
-  it("edits the selected message inline instead of filling the composer", async () => {
+  it("edits the selected message inline instead of filling the composer", async () => {  expect.hasAssertions();
+
     const user = userEvent.setup();
 
     renderWithQueryClient(<NewsResearchPage />);

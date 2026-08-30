@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,21 +14,21 @@ import {
 } from "@/components/ui/select";
 import {
   Clock,
-  TrendingUp,
-  PlusCircle,
-  MinusCircle,
   Heart,
+  MinusCircle,
+  PlusCircle,
+  TrendingUp,
 } from "lucide-react";
 import type {
-  TrendingCluster,
   BreakingCluster,
-  TrendingResponse,
   BreakingResponse,
+  NewsArticle,
   TrendingArticle,
-  NewsArticle} from "@/lib/api";
+  TrendingCluster,
+  TrendingResponse} from "@/lib/api";
 import {
-  fetchTrending,
-  fetchBreaking
+  fetchBreaking,
+  fetchTrending
 } from "@/lib/api";
 import {
   filterTrendingClusters,
@@ -37,7 +37,7 @@ import {
 } from "@/lib/cluster-display";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
-import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 function handleCardKeyDown(
@@ -52,17 +52,17 @@ function hasRealImage(src?: string | null): boolean {
 }
 
 function formatTimeAgo(dateStr?: string | null): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-  if (diffHours < 1) return "Now";
-  if (diffHours < 24) return `${diffHours}H`;
+  if (!dateStr) {return "";}
+  const date = new Date(dateStr),
+   now = new Date(),
+   diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  if (diffHours < 1) {return "Now";}
+  if (diffHours < 24) {return `${diffHours}H`;}
   return `${Math.floor(diffHours / 24)}d`;
 }
 
 function extractKeyTerms(title?: string): Set<string> {
-  if (!title) return new Set();
+  if (!title) {return new Set();}
   const stopWords = new Set([
     "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her",
     "was", "one", "our", "out", "has", "his", "how", "its", "may", "new", "now",
@@ -72,11 +72,11 @@ function extractKeyTerms(title?: string): Set<string> {
     "then", "they", "would", "about", "could", "first", "other", "their", "there",
     "these", "which", "being", "member", "founding", "guitarist", "dies", "aged",
     "dead", "death", "years", "year", "cofounder", "founder",
-  ]);
+  ]),
   
-  const words = title
+   words = title
     .toLowerCase()
-    .replace(/[^\w\s]/g, " ")
+    .replaceAll(/[^\w\s]/gu, " ")
     .split(/\s+/)
     .filter(w => w.length > 2 && !stopWords.has(w));
   
@@ -84,23 +84,23 @@ function extractKeyTerms(title?: string): Set<string> {
 }
 
 function deduplicateClusters<T extends { representative_article?: { title?: string } | null; label?: string | null; keywords?: string[] }>(
-  clusters: T[]
+  clusters:readonly  T[]
 ): T[] {
-  const seen: Array<{ terms: Set<string>; title: string }> = [];
+  const seen: { terms: Set<string>; title: string }[] = [];
   
   return clusters.filter(cluster => {
-    const title = cluster.representative_article?.title || "";
-    const label = cluster.label || "";
-    const keywords = (cluster.keywords || []).join(" ");
+    const title = cluster.representative_article?.title || "",
+     label = cluster.label || "",
+     keywords = (cluster.keywords || []).join(" "),
     
-    const combined = `${title} ${label} ${keywords}`;
-    const terms = extractKeyTerms(combined);
+     combined = `${title} ${label} ${keywords}`,
+     terms = extractKeyTerms(combined);
     
-    if (terms.size === 0) return true;
+    if (terms.size === 0) {return true;}
     
     for (const existing of seen) {
-      const overlap = countSetOverlap(terms, existing.terms);
-      const overlapRatio = overlap / Math.min(terms.size, existing.terms.size);
+      const overlap = countSetOverlap(terms, existing.terms),
+       overlapRatio = overlap / Math.min(terms.size, existing.terms.size);
       
       if (overlap >= 2 && overlapRatio >= 0.4) {
         return false;
@@ -115,63 +115,63 @@ function deduplicateClusters<T extends { representative_article?: { title?: stri
 function countSetOverlap(a: Set<string>, b: Set<string>): number {
   let count = 0;
   for (const word of a) {
-    if (b.has(word)) count++;
+    if (b.has(word)) {count++;}
   }
   return count;
 }
 
 function trendingArticleToNewsArticle(article: TrendingArticle, clusterLabel?: string): NewsArticle {
   return {
-    id: article.id,
-    title: article.title,
-    source: article.source,
-    sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
+    bias: "center" as const,
+    category: "trending",
     country: "US",
     credibility: "medium" as const,
-    bias: "center" as const,
-    summary: article.summary || clusterLabel || "",
+    id: article.id,
     image: article.image_url || "",
-    publishedAt: article.published_at || new Date().toISOString(),
-    category: "trending",
-    url: article.url,
-    tags: [],
     originalLanguage: "en",
+    publishedAt: article.published_at || new Date().toISOString(),
+    source: article.source,
+    sourceId: article.source.toLowerCase().replaceAll(/\s+/gu, "-"),
+    summary: article.summary || clusterLabel || "",
+    tags: [],
+    title: article.title,
     translated: false,
+    url: article.url,
   };
 }
 
 export function TrendingFeed() {
-  const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | BreakingCluster | null>(null);
-  const [isBreakingCluster, setIsBreakingCluster] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const { likedIds, toggleLike } = useLikedArticles();
-  const [trendingWindow, setTrendingWindow] = useState<"1d" | "1w" | "1m">("1d");
+  const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | BreakingCluster | null>(undefined),
+   [isBreakingCluster, setIsBreakingCluster] = useState(false),
+   [isModalOpen, setIsModalOpen] = useState(false),
+   { likedIds, toggleLike } = useLikedArticles(),
+   [trendingWindow, setTrendingWindow] = useState<"1d" | "1w" | "1m">("1d"),
   
-  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
+   { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue(),
 
-  const trendingQuery = useQuery<TrendingResponse>({
-    queryKey: ["trending-feed", trendingWindow, 10],
+   trendingQuery = useQuery<TrendingResponse>({
     queryFn: () => fetchTrending(trendingWindow, 10),
+    queryKey: ["trending-feed", trendingWindow, 10],
+    refetchInterval: 60_000 * 5,
     retry: 1,
-    refetchInterval: 60000 * 5,
-  });
-  const breakingQuery = useQuery<BreakingResponse>({
-    queryKey: ["breaking-feed", 5],
+  }),
+   breakingQuery = useQuery<BreakingResponse>({
     queryFn: () => fetchBreaking(5),
+    queryKey: ["breaking-feed", 5],
+    refetchInterval: 60_000 * 5,
     retry: 1,
-    refetchInterval: 60000 * 5,
-  });
-  const trendingData = trendingQuery.data ?? null;
-  const breakingData = breakingQuery.data ?? null;
-  const loading = trendingQuery.isLoading || breakingQuery.isLoading;
+  }),
+   trendingData = trendingQuery.data ?? null,
+   breakingData = breakingQuery.data ?? null,
+   loading = trendingQuery.isLoading || breakingQuery.isLoading,
 
-  const handleClusterClick = useCallback((cluster: TrendingCluster | BreakingCluster, isBreaking: boolean) => {
+   handleClusterClick = useCallback((cluster: TrendingCluster | BreakingCluster, isBreaking: boolean) => {
     setSelectedCluster(cluster);
     setIsBreakingCluster(isBreaking);
     setIsModalOpen(true);
-  }, []);
+  }, []),
 
-  const handleQueueToggle = useCallback(
+   handleQueueToggle = useCallback(
     (article: NewsArticle, e: React.MouseEvent) => {
       e.stopPropagation();
       if (isArticleInQueue(article.url)) {
@@ -181,9 +181,9 @@ export function TrendingFeed() {
       }
     },
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue]
-  );
+  ),
 
-  const handleLike = useCallback((articleId: number, e: React.MouseEvent) => {
+   handleLike = useCallback((articleId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     void toggleLike(articleId);
   }, [toggleLike]);
@@ -192,11 +192,11 @@ export function TrendingFeed() {
     return <TrendingSkeleton />;
   }
 
-  const rawBreaking = breakingData?.clusters || [];
-  const rawTrending = trendingData?.clusters || [];
+  const rawBreaking = breakingData?.clusters || [],
+   rawTrending = trendingData?.clusters || [],
   
-  const breakingClusters = deduplicateClusters(rawBreaking);
-  const trendingClusters = deduplicateClusters(
+   breakingClusters = deduplicateClusters(rawBreaking),
+   trendingClusters = deduplicateClusters(
     filterTrendingClusters(rawTrending, breakingClusters)
   );
 
@@ -221,7 +221,7 @@ export function TrendingFeed() {
           </div>
           <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-3">
             <div className="flex items-center gap-1 rounded-sm bg-white/[0.03] p-1 border border-white/5">
-              <Select value={trendingWindow} onValueChange={(value) => setTrendingWindow(value as "1d" | "1w" | "1m")}>
+              <Select value={trendingWindow} onValueChange={(value) =>{  setTrendingWindow(value as "1d" | "1w" | "1m"); }}>
                 <SelectTrigger
                   className="h-6 border-none bg-transparent px-2 text-[9px] font-mono uppercase tracking-widest text-muted-foreground/80 focus:ring-0"
                   title="Filter by time"
@@ -278,7 +278,7 @@ export function TrendingFeed() {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
-          setSelectedCluster(null);
+          setSelectedCluster(undefined);
         }}
       />
     </>
@@ -292,26 +292,26 @@ function BreakingCard({
   onLike,
   isInQueue,
   isLiked,
-}: {
+}:Readonly< {
   cluster: BreakingCluster;
   onClusterClick: (cluster: TrendingCluster | BreakingCluster, isBreaking: boolean) => void;
   onQueueToggle: (article: NewsArticle, e: React.MouseEvent) => void;
   onLike: (articleId: number, e: React.MouseEvent) => void;
   isInQueue: (url: string) => boolean;
   isLiked: Set<number>;
-}) {
-  const article = cluster.representative_article;
-  const label = cluster.label || cluster.keywords.slice(0, 3).join(" ");
-  const imageUrl = pickClusterImageUrl(cluster);
-  const showImage = hasRealImage(imageUrl);
+}>) {
+  const article = cluster.representative_article,
+   label = cluster.label || cluster.keywords.slice(0, 3).join(" "),
+   imageUrl = pickClusterImageUrl(cluster),
+   showImage = hasRealImage(imageUrl);
 
-  if (!article) return null;
+  if (!article) {return undefined;}
 
-  const newsArticle = trendingArticleToNewsArticle(article, label);
-  const inQueue = isInQueue(article.url);
-  const liked = isLiked.has(article.id);
+  const newsArticle = trendingArticleToNewsArticle(article, label),
+   inQueue = isInQueue(article.url),
+   liked = isLiked.has(article.id),
 
-  const handleClick = () => {
+   handleClick = () => {
     onClusterClick(cluster, true);
   };
 
@@ -320,7 +320,7 @@ function BreakingCard({
       role="button"
       tabIndex={0}
       onClick={handleClick}
-      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
+      onKeyDown={(event) =>{  handleCardKeyDown(event, handleClick); }}
       className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-lg"
     >
       <div className="absolute top-0 left-0 w-px h-full bg-red-500/40 z-10 shadow-[0_0_20px_rgba(239,68,68,0.4)]" />
@@ -328,7 +328,7 @@ function BreakingCard({
       <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
         {showImage ? (
           <SafeImage
-            src={imageUrl!}
+            src={imageUrl}
             alt={article.title || label}
             fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
@@ -341,7 +341,7 @@ function BreakingCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(e) => onQueueToggle(newsArticle, e)}
+            onClick={(e) =>{  onQueueToggle(newsArticle, e); }}
             className="h-5 w-5 p-0 bg-black/60 hover:bg-black/80 sm:h-6 sm:w-6"
           >
             {inQueue ? (
@@ -353,7 +353,7 @@ function BreakingCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(e) => onLike(article.id, e)}
+            onClick={(e) =>{  onLike(article.id, e); }}
             className="h-5 w-5 p-0 bg-black/60 hover:bg-black/80 sm:h-6 sm:w-6"
           >
             <Heart
@@ -403,7 +403,7 @@ function TrendingCard({
   onLike,
   isInQueue,
   isLiked,
-}: {
+}:Readonly< {
   cluster: TrendingCluster;
   rank: number;
   onClusterClick: (cluster: TrendingCluster | BreakingCluster, isBreaking: boolean) => void;
@@ -411,19 +411,19 @@ function TrendingCard({
   onLike: (articleId: number, e: React.MouseEvent) => void;
   isInQueue: (url: string) => boolean;
   isLiked: Set<number>;
-}) {
-  const article = cluster.representative_article;
-  const label = cluster.label || cluster.keywords.slice(0, 3).join(" ");
-  const imageUrl = pickClusterImageUrl(cluster);
-  const showImage = hasRealImage(imageUrl);
+}>) {
+  const article = cluster.representative_article,
+   label = cluster.label || cluster.keywords.slice(0, 3).join(" "),
+   imageUrl = pickClusterImageUrl(cluster),
+   showImage = hasRealImage(imageUrl);
 
-  if (!article) return null;
+  if (!article) {return undefined;}
 
-  const newsArticle = trendingArticleToNewsArticle(article, label);
-  const inQueue = isInQueue(article.url);
-  const liked = isLiked.has(article.id);
+  const newsArticle = trendingArticleToNewsArticle(article, label),
+   inQueue = isInQueue(article.url),
+   liked = isLiked.has(article.id),
 
-  const handleClick = () => {
+   handleClick = () => {
     onClusterClick(cluster, false);
   };
 
@@ -432,13 +432,13 @@ function TrendingCard({
       role="button"
       tabIndex={0}
       onClick={handleClick}
-      onKeyDown={(event) => handleCardKeyDown(event, handleClick)}
+      onKeyDown={(event) =>{  handleCardKeyDown(event, handleClick); }}
       className="group relative flex min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-0 sm:rounded-lg"
     >
       <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
         {showImage ? (
           <SafeImage
-            src={imageUrl!}
+            src={imageUrl}
             alt={article.title || label}
             fill
             className="w-full h-full object-cover grayscale opacity-80 transition duration-700 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105"
@@ -451,7 +451,7 @@ function TrendingCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(e) => onQueueToggle(newsArticle, e)}
+            onClick={(e) =>{  onQueueToggle(newsArticle, e); }}
             className="h-5 w-5 p-0 bg-black/60 hover:bg-black/80 sm:h-6 sm:w-6"
           >
             {inQueue ? (
@@ -463,7 +463,7 @@ function TrendingCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(e) => onLike(article.id, e)}
+            onClick={(e) =>{  onLike(article.id, e); }}
             className="h-5 w-5 p-0 bg-black/60 hover:bg-black/80 sm:h-6 sm:w-6"
           >
             <Heart

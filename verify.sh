@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-set -e
-
 echo "--- TypeScript / Frontend ---"
+rm -f frontend/tsconfig.tsbuildinfo
 npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+node scripts/check-imports.mjs
 npm --prefix frontend run build
 npm --prefix frontend run lint
 

@@ -30,13 +30,13 @@ function isUnitedStatesSource(group: SourceGroup): boolean {
 
 function getArticleKey(article: NewsArticle): string {
   const url = article.url?.trim()
-  if (url) return `url:${url}`
+  if (url) {return `url:${url}`}
   return `id:${article.id}`
 }
 
-export function buildSourceGroups(articles: NewsArticle[]): SourceGroup[] {
-  const groups = new Map<string, SourceGroup>()
-  const seenArticles = new Set<string>()
+export function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup[] {
+  const groups = new Map<string, SourceGroup>(),
+   seenArticles = new Set<string>()
 
   for (const article of articles) {
     const articleKey = getArticleKey(article)
@@ -45,8 +45,8 @@ export function buildSourceGroups(articles: NewsArticle[]): SourceGroup[] {
     }
     seenArticles.add(articleKey)
 
-    const sourceId = article.sourceId || article.source
-    const existingGroup = groups.get(sourceId)
+    const sourceId = article.sourceId || article.source,
+     existingGroup = groups.get(sourceId)
 
     if (existingGroup) {
       existingGroup.articles.push(article)
@@ -54,27 +54,27 @@ export function buildSourceGroups(articles: NewsArticle[]): SourceGroup[] {
     }
 
     groups.set(sourceId, {
+      articles: [article],
+      bias: article.bias,
+      credibility: article.credibility,
+      sourceCountry: article.source_country || article.country,
       sourceId,
       sourceName: article.source,
-      articles: [article],
-      credibility: article.credibility,
-      bias: article.bias,
-      sourceCountry: article.source_country || article.country,
     })
   }
 
-  return Array.from(groups.values())
+  return [...groups.values()]
 }
 
 export function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): number {
-  const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0
-  const bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
+  const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0,
+   bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
   if (aIsUnitedStates !== bIsUnitedStates) {
     return bIsUnitedStates - aIsUnitedStates
   }
 
-  const aLatestTimestamp = Math.max(...a.articles.map((article) => article._parsedTimestamp ?? 0))
-  const bLatestTimestamp = Math.max(...b.articles.map((article) => article._parsedTimestamp ?? 0))
+  const aLatestTimestamp = Math.max(...a.articles.map((article) => article._parsedTimestamp ?? 0)),
+   bLatestTimestamp = Math.max(...b.articles.map((article) => article._parsedTimestamp ?? 0))
   if (aLatestTimestamp !== bLatestTimestamp) {
     return bLatestTimestamp - aLatestTimestamp
   }
@@ -88,16 +88,16 @@ export function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): numb
 }
 
 export function getVisibleSourceIds(
-  sourceGroups: SourceGroup[],
+  sourceGroups:readonly  SourceGroup[],
   favoriteSourceIds: Set<string>,
   batchCount: number,
   batchSize: number,
 ): Set<string> {
   const visibleFavoriteIds = sourceGroups
     .filter((group) => favoriteSourceIds.has(group.sourceId))
-    .map((group) => group.sourceId)
+    .map((group) => group.sourceId),
 
-  const visibleNonFavoriteIds = sourceGroups
+   visibleNonFavoriteIds = sourceGroups
     .filter((group) => !favoriteSourceIds.has(group.sourceId))
     .slice(0, Math.max(0, batchCount) * Math.max(1, batchSize))
     .map((group) => group.sourceId)
@@ -106,7 +106,7 @@ export function getVisibleSourceIds(
 }
 
 export function getCollapsedVisibleArticleCount(
-  sourceGroups: SourceGroup[],
+  sourceGroups:readonly  SourceGroup[],
   visibleSourceIds: Set<string>,
   collapsedArticleCount: number,
 ): number {

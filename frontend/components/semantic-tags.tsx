@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Tag, Loader2 } from "lucide-react";
+import { Loader2, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ArticleTopic } from "@/lib/api";
 import { fetchArticleTopics } from "@/lib/api";
@@ -18,11 +18,11 @@ export function SemanticTags({
   maxTags = 3,
 }: SemanticTagsProps) {
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ["article-topics", articleId],
     queryFn: () => fetchArticleTopics(articleId),
+    queryKey: ["article-topics", articleId],
     retry: 1,
-  });
-  const topics: ArticleTopic[] = data?.topics.slice(0, maxTags) ?? [];
+  }),
+   topics: ArticleTopic[] = data?.topics.slice(0, maxTags) ?? [];
 
   if (loading) {
     return (
@@ -33,7 +33,7 @@ export function SemanticTags({
   }
 
   if (error || topics.length === 0) {
-    return null;
+    return undefined;
   }
 
   return (

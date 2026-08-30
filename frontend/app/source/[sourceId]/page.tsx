@@ -1,20 +1,21 @@
 "use client"
 
-import { useState, use } from "react"
+import { use, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Globe, MapPin, ExternalLink, Star, Clock, Newspaper, AlertTriangle, Bug, BookOpen } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
+import { AlertTriangle, ArrowLeft, BookOpen, Bug, Clock, ExternalLink, Globe, MapPin, Newspaper, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { SourceResearchPanel } from "@/components/source-research-panel"
 import { SafeImage } from "@/components/safe-image"
-import { type NewsArticle, getSourceById } from "@/lib/api"
-import { useBrowseIndex } from "@/hooks/useBrowseIndex"
-import { useDebugMode } from "@/hooks/useDebugMode"
+import { getSourceById } from '@/lib/api';
+import type { NewsArticle } from '@/lib/api';
+import { useBrowseIndex } from "@/hooks/use-browse-index"
+import { useDebugMode } from "@/hooks/use-debug-mode"
 import { useFavorites } from "@/hooks/useFavorites"
 
 interface SourcePageProps {
@@ -22,62 +23,70 @@ interface SourcePageProps {
 }
 
 export default function SourcePage(props: SourcePageProps) {
-  const params = use(props.params)
-  const sourceId = decodeURIComponent(params.sourceId)
-  const router = useRouter()
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const debugMode = useDebugMode()
-  const { isFavorite, toggleFavorite } = useFavorites()
+  const params = use(props.params),
+   sourceId = decodeURIComponent(params.sourceId),
+   router = useRouter(),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(undefined),
+   [modalOpen, setModalOpen] = useState(false),
+   debugMode = useDebugMode(),
+   { isFavorite, toggleFavorite } = useFavorites(),
 
-  const { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
-    queryKey: ["source", sourceId],
+   { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
     queryFn: () => getSourceById(sourceId),
+    queryKey: ["source", sourceId],
     staleTime: 1000 * 60 * 5,
-  })
+  }),
 
-  const {
+   {
     articles,
     isLoading: articlesLoading,
   } = useBrowseIndex({
-    sources: [sourceId],
     enabled: Boolean(sourceId),
-  })
+    sources: [sourceId],
+  }),
 
-  const getBiasColor = (bias: string) => {
+   getBiasColor = (bias: string) => {
     switch (bias) {
-      case "left": return "bg-blue-500/10 text-blue-400 border-blue-500/20"
-      case "center": return "bg-white/5 text-muted-foreground border-white/10"
-      case "right": return "bg-red-500/10 text-red-400 border-red-500/20"
-      default: return "bg-white/5 text-muted-foreground border-white/10"
+      case "left": { return "bg-blue-500/10 text-blue-400 border-blue-500/20"
+      }
+      case "center": { return "bg-white/5 text-muted-foreground border-white/10"
+      }
+      case "right": { return "bg-red-500/10 text-red-400 border-red-500/20"
+      }
+      default: { return "bg-white/5 text-muted-foreground border-white/10"
+      }
     }
-  }
+  },
 
-  const getCredibilityColor = (credibility: string) => {
+   getCredibilityColor = (credibility: string) => {
     switch (credibility) {
-      case "high": return "bg-primary/10 text-primary border-primary/20"
-      case "medium": return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-      case "low": return "bg-red-500/10 text-red-400 border-red-500/20"
-      default: return "bg-white/5 text-muted-foreground border-white/10"
+      case "high": { return "bg-primary/10 text-primary border-primary/20"
+      }
+      case "medium": { return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+      }
+      case "low": { return "bg-red-500/10 text-red-400 border-red-500/20"
+      }
+      default: { return "bg-white/5 text-muted-foreground border-white/10"
+      }
     }
-  }
+  },
 
-  const hasRealImage = (src?: string | null) => {
-    if (!src) return false
+   hasRealImage = (src?: string | null) => {
+    if (!src) {return false}
     const trimmed = src.trim()
-    if (!trimmed) return false
-    if (trimmed === "none") return false
+    if (!trimmed) {return false}
+    if (trimmed === "none") {return false}
     const lower = trimmed.toLowerCase()
     return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
-  }
+  },
 
-  const handleArticleClick = (article: NewsArticle) => {
+   handleArticleClick = (article: NewsArticle) => {
     setSelectedArticle(article)
     setModalOpen(true)
-  }
+  },
 
-  const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
+   handleBack = () => {
+    if (typeof window !== "undefined" && globalThis.history.length > 1) {
       router.back()
       return
     }
@@ -118,7 +127,7 @@ export default function SourcePage(props: SourcePageProps) {
     try {
       return new URL(source.url).hostname
     } catch {
-      return undefined
+      return
     }
   })() : undefined
 
@@ -143,7 +152,7 @@ export default function SourcePage(props: SourcePageProps) {
             <div className="flex items-center gap-3">
               <h1 className="font-serif text-lg font-bold tracking-tight">{source.name}</h1>
               <Link
-                href={`/wiki/source/${encodeURIComponent(source.name)}`}
+                href={`/wiki/suource/${encodeURIComponent(source.name)}`}
                 className="text-muted-foreground hover:text-primary transition-colors"
                 title="View wiki profile"
               >
@@ -152,7 +161,7 @@ export default function SourcePage(props: SourcePageProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => toggleFavorite(source.id)}
+                onClick={() =>{  toggleFavorite(source.id); }}
                 className="h-6 w-6 rounded-full hover:bg-white/5"
               >
                 <Star
@@ -265,7 +274,7 @@ export default function SourcePage(props: SourcePageProps) {
                   <div key={i} className="aspect-[4/3] bg-[var(--news-bg-secondary)] rounded-lg border border-white/10 animate-pulse" />
                 ))}
               </div>
-            ) : articles.length === 0 ? (
+            ) : (articles.length === 0 ? (
               <div className="py-24 text-center border border-dashed border-white/10 rounded-lg">
                 <p className="text-muted-foreground font-serif italic">No recent coverage found from this source.</p>
               </div>
@@ -279,11 +288,11 @@ export default function SourcePage(props: SourcePageProps) {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.3, delay: i * 0.03 }}
+                      transition={{ delay: i * 0.03, duration: 0.3 }}
                     >
                       <Card
                         className="group relative border border-white/10 bg-[var(--news-bg-secondary)] rounded-lg cursor-pointer overflow-hidden hover:border-white/20 hover:bg-[#1a1a1a] transition-all h-full"
-                        onClick={() => handleArticleClick(article)}
+                        onClick={() =>{  handleArticleClick(article); }}
                       >
                         <div className="aspect-[16/9] w-full overflow-hidden bg-white/5 relative">
                           {hasRealImage(article.image) ? (
@@ -315,8 +324,8 @@ export default function SourcePage(props: SourcePageProps) {
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
                              <Clock className="w-3 h-3" />
                              {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                                month: "short",
                                 day: "numeric",
+                                month: "short",
                               })}
                           </div>
                           
@@ -333,7 +342,7 @@ export default function SourcePage(props: SourcePageProps) {
                   ))}
                 </AnimatePresence>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </main>
@@ -341,7 +350,7 @@ export default function SourcePage(props: SourcePageProps) {
       <ArticleDetailModal
         article={selectedArticle}
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() =>{  setModalOpen(false); }}
       />
     </div>
   )

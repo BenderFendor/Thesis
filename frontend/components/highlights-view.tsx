@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import type { Highlight} from "@/lib/api";
-import { getAllHighlights, deleteHighlight } from "@/lib/api";
+import { deleteHighlight, getAllHighlights } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Highlighter, X } from "lucide-react";
 import { toast } from "sonner";
 
 export function HighlightsView() {
-  const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterColor, setFilterColor] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [highlights, setHighlights] = useState<Highlight[]>([]),
+   [loading, setLoading] = useState(true),
+   [filterColor, setFilterColor] = useState<string | null>(undefined),
+   [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const fetchHighlights = async () => {
@@ -32,7 +32,7 @@ export function HighlightsView() {
   }, []);
 
   const handleDelete = async (highlightId: number | undefined) => {
-    if (!highlightId) return;
+    if (!highlightId) {return;}
 
     try {
       await deleteHighlight(highlightId);
@@ -42,15 +42,15 @@ export function HighlightsView() {
       console.error("Failed to delete highlight:", error);
       toast.error("Failed to delete highlight");
     }
-  };
+  },
 
-  const colorMap = {
-    yellow: "bg-yellow-200 border-yellow-300",
+   colorMap = {
     blue: "bg-blue-200 border-blue-300",
     red: "bg-red-200 border-red-300",
-  };
+    yellow: "bg-yellow-200 border-yellow-300",
+  },
 
-  const filtered = highlights
+   filtered = highlights
     .filter((h) => !filterColor || h.color === filterColor)
     .filter(
       (h) =>
@@ -74,7 +74,7 @@ export function HighlightsView() {
         <Button
           variant={filterColor === null ? "default" : "outline"}
           size="sm"
-          onClick={() => setFilterColor(null)}
+          onClick={() =>{  setFilterColor(undefined); }}
         >
           All
         </Button>
@@ -83,9 +83,9 @@ export function HighlightsView() {
             key={color}
             variant={filterColor === color ? "default" : "outline"}
             size="sm"
-            onClick={() => setFilterColor(color)}
+            onClick={() =>{  setFilterColor(color); }}
             className={
-              filterColor === color ? colorMap[color as keyof typeof colorMap] : ""
+              filterColor === color ? colorMap[color] : ""
             }
           >
             {color.charAt(0).toUpperCase() + color.slice(1)}
@@ -98,7 +98,7 @@ export function HighlightsView() {
           type="text"
           placeholder="Search highlights..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) =>{  setSearchTerm(e.target.value); }}
           className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
         />
       </div>

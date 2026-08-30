@@ -64,9 +64,9 @@ export function SidebarNavigationItem({
         </span>
       </span>
     </>
-  )
+  ),
 
-  const className = cn(
+   className = cn(
     itemClassName,
     expanded ? "justify-start gap-3 px-3" : "justify-center gap-0 px-0",
     active

@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 
-jest.mock("@/lib/api", () => {
+jest.mock<typeof import('@/lib/api')>("@/lib/api", () => {
   const actual = jest.requireActual("@/lib/api")
   return {
     ...actual,
@@ -10,21 +11,20 @@ jest.mock("@/lib/api", () => {
   }
 })
 
-import { useBrowseIndex } from "@/hooks/useBrowseIndex"
-import { fetchBrowseIndex } from "@/lib/api"
-import { mapBackendArticles } from "@/lib/api"
+import { useBrowseIndex } from "@/hooks/use-browse-index"
+import { fetchBrowseIndex,mapBackendArticles } from "@/lib/api"
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
         gcTime: 0,
+        retry: false,
       },
     },
-  })
+  }),
 
-  const QueryClientWrapper = ({ children }: { children: ReactNode }) => (
+   QueryClientWrapper = ({ children }:Readonly< { children: ReactNode }>) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
 
@@ -37,25 +37,25 @@ describe("useBrowseIndex", () => {
     jest.clearAllMocks()
   })
 
-  it("fetches the full browse index with stable multi-source serialization", async () => {
-    ;(fetchBrowseIndex as jest.Mock).mockResolvedValue({
+  it("fetches the full browse index with stable multi-source serialization", async () => {expect.hasAssertions();
+    ;(jest.mocked(fetchBrowseIndex)).mockResolvedValue({
       articles: [
         {
-          id: 1,
-          title: "Article A",
-          source: "Test News",
-          sourceId: "test-news",
+          bias: "center",
+          category: "general",
           country: "US",
           credibility: "high",
-          bias: "center",
-          summary: "Summary",
+          id: 1,
           image: "/placeholder.svg",
-          publishedAt: new Date().toISOString(),
-          category: "general",
-          url: "https://example.com/a",
-          tags: [],
           originalLanguage: "en",
+          publishedAt: new Date().toISOString(),
+          source: "Test News",
+          sourceId: "test-news",
+          summary: "Summary",
+          tags: [],
+          title: "Article A",
           translated: false,
+          url: "https://example.com/a",
         },
       ],
       total: 1,
@@ -82,7 +82,7 @@ describe("useBrowseIndex", () => {
     expect(result.current.articles).toHaveLength(1)
   })
 
-  it("does not fetch when disabled", () => {
+  it("does not fetch when disabled", () => {expect.hasAssertions();
     const { result } = renderHook(() => useBrowseIndex({ enabled: false }), {
       wrapper: createWrapper(),
     })
@@ -91,15 +91,15 @@ describe("useBrowseIndex", () => {
     expect(fetchBrowseIndex).not.toHaveBeenCalled()
   })
 
-  it("does not synthesize full article content from summary-only browse rows", () => {
+  it("does not synthesize full article content from summary-only browse rows", () => {expect.hasAssertions();
     const [article] = mapBackendArticles([
       {
-        id: 1,
-        title: "Article A",
-        source: "Test News",
-        description: "Short browse summary",
-        published_at: new Date().toISOString(),
         category: "general",
+        description: "Short browse summary",
+        id: 1,
+        published_at: new Date().toISOString(),
+        source: "Test News",
+        title: "Article A",
         url: "https://example.com/a",
       },
     ])
@@ -109,20 +109,20 @@ describe("useBrowseIndex", () => {
     expect(article!.hasFullContent).toBe(false)
   })
 
-  it("marks live cache rows without durable ids as unpersisted", () => {
+  it("marks live cache rows without durable ids as unpersisted", () => {expect.hasAssertions();
     const [article] = mapBackendArticles([
       {
-        title: "Live cache row",
-        source: "Test News",
-        description: "Short browse summary",
-        published_at: new Date().toISOString(),
         category: "general",
-        url: "https://example.com/live-cache",
+        description: "Short browse summary",
         is_persisted: false,
+        published_at: new Date().toISOString(),
+        source: "Test News",
+        title: "Live cache row",
+        url: "https://example.com/live-cache",
       },
     ])
 
-    expect(article!.id).toEqual(expect.any(Number))
+    expect(article!.id).toStrictEqual(expect.any(Number))
     expect(article!.isPersisted).toBe(false)
   })
 })

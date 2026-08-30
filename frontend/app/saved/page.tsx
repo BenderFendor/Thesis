@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type NewsArticle } from "@/lib/api"
+import type { NewsArticle,ReadingShelf } from '@/lib/api';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,27 +11,27 @@ import { ArticleDetailModal } from "@/components/article-detail-modal"
 import { 
   ArrowLeft, 
   Bookmark, 
-  Heart, 
-  Loader2, 
-  List,
-  Sparkles,
-  PlusCircle,
-  MinusCircle,
-  Trash2,
+  ChevronDown, 
+  ChevronRight, 
+  Heart,
   Inbox,
+  List,
+  Loader2,
+  MinusCircle,
   Newspaper,
-  ChevronRight,
-  ChevronDown,
+  PlusCircle,
+  Sparkles,
+  Trash2,
   X
 } from "lucide-react"
 import Link from "next/link"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
-import { useLikedArticles } from "@/hooks/useLikedArticles"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useBookmarks } from "@/hooks/useBookmarks"
 import { HighlightsView } from "@/components/highlights-view"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
-import { type ReadingShelf, API_BASE_URL, createReadingShelf, getAllHighlights, getReadingShelves } from "@/lib/api"
+import { API_BASE_URL, createReadingShelf, getAllHighlights, getReadingShelves } from '@/lib/api';
 import { SafeImage } from "@/components/safe-image"
 
 function cardFrameStyle(isExpanded: boolean) {
@@ -45,8 +45,8 @@ function cardFrameStyle(isExpanded: boolean) {
     outlineColor: isExpanded
       ? "var(--primary)"
       : undefined,
-    outlineWidth: isExpanded ? "2px" : "0px",
     outlineOffset: isExpanded ? "0px" : "0px",
+    outlineWidth: isExpanded ? "2px" : "0px",
   }
 }
 
@@ -56,13 +56,13 @@ function EmptyStateCard({
   description,
   showBrowseLink = false,
   cardClassName = "",
-}: {
+}:Readonly< {
   icon: React.ElementType
   title: string
   description: string
   showBrowseLink?: boolean
   cardClassName?: string
-}) {
+}>) {
   return (
     <Card className={`border-dashed border-white/20 bg-[var(--news-bg-secondary)]/50 ${cardClassName}`}>
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -88,14 +88,14 @@ function ResearchShelvesCard({
   onNewShelfNameChange,
   onCreateShelf,
   isPending,
-}: {
+}:Readonly< {
   shelves: ReadingShelf[] | undefined
   shelvesLoading: boolean
   newShelfName: string
   onNewShelfNameChange: (name: string) => void
   onCreateShelf: () => void
   isPending: boolean
-}) {
+}>) {
   return (
     <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
       <CardContent className="p-4">
@@ -106,9 +106,9 @@ function ResearchShelvesCard({
         <div className="mb-3 flex gap-2">
           <input
             value={newShelfName}
-            onChange={(event) => onNewShelfNameChange(event.target.value)}
+            onChange={(event) =>{  onNewShelfNameChange(event.target.value); }}
             onKeyDown={(event) => {
-              if (event.key === "Enter") onCreateShelf()
+              if (event.key === "Enter") {onCreateShelf()}
             }}
             placeholder="New shelf"
             className="min-w-0 flex-1 rounded-md border border-white/10 bg-[var(--news-bg-primary)] px-3 py-2 text-sm text-foreground"
@@ -124,7 +124,7 @@ function ResearchShelvesCard({
         </div>
         {shelvesLoading ? (
           <p className="text-sm text-muted-foreground">Loading shelves...</p>
-        ) : shelves && shelves.length > 0 ? (
+        ) : (shelves && shelves.length > 0 ? (
           <div className="space-y-2">
             {shelves.map((shelf) => (
               <div
@@ -142,7 +142,7 @@ function ResearchShelvesCard({
           <p className="text-sm text-muted-foreground">
             Create shelves for topics, open questions, and claim trails.
           </p>
-        )}
+        ))}
       </CardContent>
     </Card>
   )
@@ -158,7 +158,7 @@ function CardActionButtons({
   onToggleQueue,
   onLike,
   onBookmark,
-}: {
+}:Readonly< {
   articleId?: number
   url: string
   inQueue: boolean
@@ -168,9 +168,9 @@ function CardActionButtons({
   onToggleQueue: () => void
   onLike: (id: number) => void
   onBookmark: (id: number) => void
-}) {
-  const isLiked = typeof articleId === "number" ? likedIds.has(articleId) : false
-  const isBookmarked = typeof articleId === "number" ? bookmarkIds.has(articleId) : false
+}>) {
+  const isLiked = typeof articleId === "number" ? likedIds.has(articleId) : false,
+   isBookmarked = typeof articleId === "number" ? bookmarkIds.has(articleId) : false
 
   return (
     <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ function ArticleCard({
   onToggleQueue,
   onLike,
   onBookmark,
-}: {
+}:Readonly< {
   article: NewsArticle & { type?: "bookmark" | "liked" | "both" }
   index?: number
   isExpanded: boolean
@@ -267,9 +267,9 @@ function ArticleCard({
   onToggleQueue: () => void
   onLike: (id: number) => void
   onBookmark: (id: number) => void
-}) {
-  const showImage = hasRealImage(article.image)
-  const readTime = article._queueData?.readingTimeMinutes
+}>) {
+  const showImage = hasRealImage(article.image),
+   readTime = article._queueData?.readingTimeMinutes
 
   return (
     <div
@@ -409,43 +409,43 @@ function ArticleCard({
 }
 
 export default function SavedArticlesPage() {
-  const [bookmarks, setBookmarks] = useState<NewsArticle[]>([])
-  const [likedArticles, setLikedArticles] = useState<NewsArticle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("all")
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [expandedArticleUrl, setExpandedArticleUrl] = useState<string | null>(null)
-  const [queueDigest, setQueueDigest] = useState<string | null>(null)
-  const [digestLoading, setDigestLoading] = useState(false)
-  const [showDigest, setShowDigest] = useState(false)
-  const [highlightCount, setHighlightCount] = useState(0)
-  const [loadIssues, setLoadIssues] = useState<string[]>([])
-  const [newShelfName, setNewShelfName] = useState("")
-  const queryClient = useQueryClient()
-  const shelvesQuery = useQuery({
-    queryKey: ["reading-shelves"],
+  const [bookmarks, setBookmarks] = useState<NewsArticle[]>([]),
+   [likedArticles, setLikedArticles] = useState<NewsArticle[]>([]),
+   [loading, setLoading] = useState(true),
+   [activeTab, setActiveTab] = useState("all"),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(undefined),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [expandedArticleUrl, setExpandedArticleUrl] = useState<string | null>(undefined),
+   [queueDigest, setQueueDigest] = useState<string | null>(undefined),
+   [digestLoading, setDigestLoading] = useState(false),
+   [showDigest, setShowDigest] = useState(false),
+   [highlightCount, setHighlightCount] = useState(0),
+   [loadIssues, setLoadIssues] = useState<string[]>([]),
+   [newShelfName, setNewShelfName] = useState(""),
+   queryClient = useQueryClient(),
+   shelvesQuery = useQuery({
     queryFn: getReadingShelves,
+    queryKey: ["reading-shelves"],
     retry: 1,
-  })
-  const createShelfMutation = useMutation({
+  }),
+   createShelfMutation = useMutation({
     mutationFn: createReadingShelf,
     onSuccess: () => {
       setNewShelfName("")
       void queryClient.invalidateQueries({ queryKey: ["reading-shelves"] })
     },
-  })
+  }),
   
-  const { 
+   { 
     queuedArticles, 
     addArticleToQueue, 
     removeArticleFromQueue, 
     isArticleInQueue 
-  } = useReadingQueue()
-  const { toggleLike, likedIds, refresh: refreshLiked } = useLikedArticles()
-  const { toggleBookmark, bookmarkIds, refresh: refreshBookmarks } = useBookmarks()
+  } = useReadingQueue(),
+   { toggleLike, likedIds, refresh: refreshLiked } = useLikedArticles(),
+   { toggleBookmark, bookmarkIds, refresh: refreshBookmarks } = useBookmarks(),
 
-  const loadData = useCallback(async () => {
+   loadData = useCallback(async () => {
     setLoading(true)
     setLoadIssues([])
     try {
@@ -453,9 +453,9 @@ export default function SavedArticlesPage() {
         refreshBookmarks(),
         refreshLiked(),
         getAllHighlights(),
-      ])
+      ]),
 
-      const issues: string[] = []
+       issues: string[] = []
 
       if (bookmarksResult.status === "fulfilled") {
         const bookmarkArticles = (bookmarksResult.value ?? []).map((entry) => entry.article)
@@ -493,13 +493,13 @@ export default function SavedArticlesPage() {
   const handleArticleClick = (article: NewsArticle) => {
     setSelectedArticle(article)
     setIsArticleModalOpen(true)
-  }
+  },
 
-  const hasRealImage = useCallback((src?: string | null) => {
-    if (!src) return false
+   hasRealImage = useCallback((src?: string | null) => {
+    if (!src) {return false}
     const trimmed = src.trim()
-    if (!trimmed) return false
-    if (trimmed === "none") return false
+    if (!trimmed) {return false}
+    if (trimmed === "none") {return false}
     const lower = trimmed.toLowerCase()
     return (
       !lower.includes("/placeholder.svg") &&
@@ -508,65 +508,65 @@ export default function SavedArticlesPage() {
   }, [])
 
   function stripStructuredBlock(digest: string): string {
-    const fenceRe = /```json:articles\n[\s\S]*?\n```/g;
+    const fenceRe = /```json:articles\n[\s\S]*?\n```/gu;
     return digest.replace(fenceRe, "").trim();
   }
 
   const generateQueueDigest = async () => {
-    if (queuedArticles.length === 0) return;
+    if (queuedArticles.length === 0) {return;}
 
     try {
       setDigestLoading(true);
       const articleSummaries = queuedArticles.map((article) => ({
-        title: article.title,
-        source: article.source,
-        url: article.url,
-        summary: article.summary || "",
         category: article.category || "Uncategorized",
-      }));
+        source: article.source,
+        summary: article.summary || "",
+        title: article.title,
+        url: article.url,
+      })),
 
-      const grouped = articleSummaries.reduce(
+       grouped = articleSummaries.reduce< Record<string, typeof articleSummaries>>(
         (acc, article) => {
           const cat = article.category;
-          if (!acc[cat]) acc[cat] = [];
+          if (!acc[cat]) {acc[cat] = [];}
           acc[cat].push(article);
           return acc;
         },
-        {} as Record<string, typeof articleSummaries>
-      );
+        {}
+      ),
 
-      const response = await fetch(
+       response = await fetch(
         `${API_BASE_URL}/api/queue/digest`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             articles: articleSummaries,
             grouped,
           }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
         }
       );
 
       if (response.ok) {
-        const data = await response.json();
-        const raw = data.digest || data.content || "";
+        const data = await response.json(),
+         raw = data.digest || data.content || "";
         setQueueDigest(stripStructuredBlock(raw));
         setShowDigest(true);
       }
-    } catch (e) {
-      console.error("Error generating digest:", e);
+    } catch (error) {
+      console.error("Error generating digest:", error);
     } finally {
       setDigestLoading(false);
     }
-  };
+  },
 
   // Combine all saved articles
-  const allSavedArticles = useMemo(() => {
-    const bookmarkMap = new Map(bookmarks.map(b => [b.url, { ...b, type: "bookmark" as const }]))
-    const likedMap = new Map(likedArticles.map(l => [l.url, { ...l, type: "liked" as const }]))
+   allSavedArticles = useMemo(() => {
+    const bookmarkMap = new Map(bookmarks.map(b => [b.url, { ...b, type: "bookmark" as const }])),
+     likedMap = new Map(likedArticles.map(l => [l.url, { ...l, type: "liked" as const }])),
     
     // Merge, with bookmarks taking precedence for type
-    const allArticles = new Map<string, NewsArticle & { type: "bookmark" | "liked" | "both" }>()
+     allArticles = new Map<string, NewsArticle & { type: "bookmark" | "liked" | "both" }>()
     
     bookmarkMap.forEach((article, url) => {
       allArticles.set(url, article)
@@ -581,12 +581,12 @@ export default function SavedArticlesPage() {
       }
     })
     
-    return Array.from(allArticles.values())
-  }, [bookmarks, likedArticles])
+    return [...allArticles.values()]
+  }, [bookmarks, likedArticles]),
 
-  const handleCreateShelf = () => {
+   handleCreateShelf = () => {
     const name = newShelfName.trim()
-    if (!name) return
+    if (!name) {return}
     createShelfMutation.mutate({ name })
   }
 
@@ -692,7 +692,7 @@ export default function SavedArticlesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowDigest(false)}
+                    onClick={() =>{  setShowDigest(false); }}
                   >
                     <X className="w-4 h-4 mr-1" /> Close Digest
                   </Button>
@@ -710,7 +710,7 @@ export default function SavedArticlesPage() {
                 <Loader2 className="w-8 h-8 animate-spin mr-3" />
                 <span className="text-muted-foreground">Loading saved articles...</span>
               </div>
-            ) : allSavedArticles.length === 0 ? (
+            ) : (allSavedArticles.length === 0 ? (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <EmptyStateCard
                   cardClassName="lg:col-span-2"
@@ -745,8 +745,8 @@ export default function SavedArticlesPage() {
                         hasRealImage={hasRealImage}
                         likedIds={likedIds}
                         bookmarkIds={bookmarkIds}
-                        onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === article.url ? null : article.url)}
-                        onRead={() => handleArticleClick(article)}
+                        onToggleExpanded={() =>{  setExpandedArticleUrl(expandedArticleUrl === article.url ? null : article.url); }}
+                        onRead={() =>{  handleArticleClick(article); }}
                         onToggleQueue={() => {
                           if (isArticleInQueue(article.url)) {
                             removeArticleFromQueue(article.url)
@@ -781,7 +781,7 @@ export default function SavedArticlesPage() {
                             <div
                               key={`${article.url}-${index}`}
                               className="flex items-center gap-2 p-2 rounded-lg bg-[var(--news-bg-primary)]/50 cursor-pointer hover:bg-[var(--news-bg-primary)]"
-                              onClick={() => handleArticleClick(article)}
+                              onClick={() =>{  handleArticleClick(article); }}
                             >
                               <span className="text-xs font-bold text-primary w-5">{index + 1}</span>
                               <span className="text-sm line-clamp-1 flex-1">{article.title}</span>
@@ -872,7 +872,7 @@ export default function SavedArticlesPage() {
                   </Card>
                 </div>
               </div>
-            )}
+            ))}
           </TabsContent>
 
           {/* Bookmarks Tab */}
@@ -882,7 +882,7 @@ export default function SavedArticlesPage() {
                 <Loader2 className="w-8 h-8 animate-spin mr-3" />
                 <span className="text-muted-foreground">Loading bookmarks...</span>
               </div>
-            ) : bookmarks.length === 0 ? (
+            ) : (bookmarks.length === 0 ? (
               <EmptyStateCard
                 icon={Bookmark}
                 title="No bookmarks yet"
@@ -901,8 +901,8 @@ export default function SavedArticlesPage() {
                     hasRealImage={hasRealImage}
                     likedIds={likedIds}
                     bookmarkIds={bookmarkIds}
-                    onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === bookmark.url ? null : bookmark.url)}
-                    onRead={() => handleArticleClick(bookmark)}
+                    onToggleExpanded={() =>{  setExpandedArticleUrl(expandedArticleUrl === bookmark.url ? null : bookmark.url); }}
+                    onRead={() =>{  handleArticleClick(bookmark); }}
                     onToggleQueue={() => {
                       if (isArticleInQueue(bookmark.url)) {
                         removeArticleFromQueue(bookmark.url)
@@ -915,7 +915,7 @@ export default function SavedArticlesPage() {
                   />
                 ))}
               </div>
-            )}
+            ))}
           </TabsContent>
 
           {/* Liked Tab */}
@@ -925,7 +925,7 @@ export default function SavedArticlesPage() {
                 <Loader2 className="w-8 h-8 animate-spin mr-3" />
                 <span className="text-muted-foreground">Loading liked articles...</span>
               </div>
-            ) : likedArticles.length === 0 ? (
+            ) : (likedArticles.length === 0 ? (
               <EmptyStateCard
                 icon={Heart}
                 title="No liked articles yet"
@@ -944,8 +944,8 @@ export default function SavedArticlesPage() {
                     hasRealImage={hasRealImage}
                     likedIds={likedIds}
                     bookmarkIds={bookmarkIds}
-                    onToggleExpanded={() => setExpandedArticleUrl(expandedArticleUrl === liked.url ? null : liked.url)}
-                    onRead={() => handleArticleClick(liked)}
+                    onToggleExpanded={() =>{  setExpandedArticleUrl(expandedArticleUrl === liked.url ? null : liked.url); }}
+                    onRead={() =>{  handleArticleClick(liked); }}
                     onToggleQueue={() => {
                       if (isArticleInQueue(liked.url)) {
                         removeArticleFromQueue(liked.url)
@@ -958,7 +958,7 @@ export default function SavedArticlesPage() {
                   />
                 ))}
               </div>
-            )}
+            ))}
           </TabsContent>
 
           {/* Reading Queue Tab */}
@@ -1024,7 +1024,7 @@ export default function SavedArticlesPage() {
                         <div className="flex-1 min-w-0">
                           <h3 
                             className="font-bold font-serif text-sm leading-tight cursor-pointer hover:text-primary"
-                            onClick={() => handleArticleClick(article)}
+                            onClick={() =>{  handleArticleClick(article); }}
                           >
                             {article.title}
                           </h3>
@@ -1035,7 +1035,7 @@ export default function SavedArticlesPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleArticleClick(article)}
+                              onClick={() =>{  handleArticleClick(article); }}
                             >
                               Read
                             </Button>
@@ -1094,7 +1094,7 @@ export default function SavedArticlesPage() {
         isOpen={isArticleModalOpen}
         onClose={() => {
           setIsArticleModalOpen(false)
-          setSelectedArticle(null)
+          setSelectedArticle(undefined)
         }}
       />
     </div>

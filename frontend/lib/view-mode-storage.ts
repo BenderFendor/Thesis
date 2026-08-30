@@ -11,7 +11,7 @@ export function getStoredGridViewMode(): GridViewMode {
     return "source"
   }
 
-  const saved = window.localStorage.getItem(GRID_VIEW_MODE_STORAGE_KEY)
+  const saved = globalThis.localStorage.getItem(GRID_VIEW_MODE_STORAGE_KEY)
   return isGridViewMode(saved) ? saved : "source"
 }
 
@@ -20,5 +20,5 @@ export function setStoredGridViewMode(mode: GridViewMode): void {
     return
   }
 
-  window.localStorage.setItem(GRID_VIEW_MODE_STORAGE_KEY, mode)
+  globalThis.localStorage.setItem(GRID_VIEW_MODE_STORAGE_KEY, mode)
 }

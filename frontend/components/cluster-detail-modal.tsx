@@ -1,22 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
-  X,
-  ExternalLink,
-  Loader2,
-  TrendingUp,
-  Zap,
   ArrowRightLeft,
   Clock,
-  Newspaper,
-  PlusCircle,
-  MinusCircle,
+  ExternalLink,
   Heart,
+  Loader2,
   Maximize2,
   Minimize2,
+  MinusCircle,
+  Newspaper,
+  PlusCircle,
+  TrendingUp,
+  X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,23 +25,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SafeImage } from "@/components/safe-image";
 import type {
   AllCluster,
-  GdeltContext,
-  TrendingCluster,
   BreakingCluster,
-  NewsArticle} from "@/lib/api";
+  GdeltContext,
+  NewsArticle,
+  TrendingCluster} from "@/lib/api";
 import {
-  fetchClusterDetail,
   API_BASE_URL,
+  fetchClusterDetail,
 } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
-import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { ArticleContent } from "@/components/article-content";
-import {
-  buildComparisonSourceOptions,
-  getDefaultComparisonArticleIds,
-  getSelectedComparisonArticles,
-  type ComparisonSourceOption,
-} from "@/lib/cluster-comparison";
+import { buildComparisonSourceOptions, getDefaultComparisonArticleIds, getSelectedComparisonArticles } from '@/lib/cluster-comparison';
+import type { ComparisonSourceOption } from '@/lib/cluster-comparison';
 import { toast } from "sonner";
 import {
   Select,
@@ -126,30 +123,30 @@ interface ComparisonData {
     };
   };
   keywords: {
-    source_1_top: Array<{ word: string; count: number }>;
-    source_2_top: Array<{ word: string; count: number }>;
+    source_1_top: { word: string; count: number }[];
+    source_2_top: { word: string; count: number }[];
     comparison: {
-      common_keywords: Array<{
+      common_keywords: {
         keyword: string;
         source_1_freq: number;
         source_2_freq: number;
         difference: number;
         emphasis: string;
-      }>;
-      unique_to_source_1: Array<{ keyword: string; frequency: number }>;
-      unique_to_source_2: Array<{ keyword: string; frequency: number }>;
+      }[];
+      unique_to_source_1: { keyword: string; frequency: number }[];
+      unique_to_source_2: { keyword: string; frequency: number }[];
     };
   };
   diff: {
-    added: Array<{ index: number; text: string; type: string }>;
-    removed: Array<{ index: number; text: string; type: string }>;
-    similar: Array<{
+    added: { index: number; text: string; type: string }[];
+    removed: { index: number; text: string; type: string }[];
+    similar: {
       source_1_index: number;
       source_2_index: number;
       source_1_text: string;
       source_2_text: string;
       similarity: number;
-    }>;
+    }[];
   };
   summary: {
     common_entities_count: number;
@@ -161,20 +158,20 @@ interface ComparisonData {
   };
 }
 
-function buildComparisonRequestKey(articleIds: number[]): string {
-  return articleIds.slice().sort((a, b) => a - b).join(":");
+function buildComparisonRequestKey(articleIds:readonly  number[]): string {
+  return [...articleIds].sort((a, b) => a - b).join(":");
 }
 
 function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return "";
+  if (!dateStr) {return "";}
   const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return dateStr;
+  if (isNaN(date.getTime())) {return dateStr;}
   return date.toLocaleDateString("en-US", {
-    month: "short",
     day: "numeric",
-    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -193,7 +190,7 @@ function toPct(value: number, min = -10, max = 10): number {
 
 function clusterContextOf(
   clusterDetail: { gdelt_context?: GdeltContext | null } | null | undefined,
-  cluster: { gdelt_context?: GdeltContext | null },
+  cluster:Readonly< { gdelt_context?: GdeltContext | null }>,
 ): GdeltContext | null {
   return clusterDetail?.gdelt_context ?? cluster.gdelt_context ?? null;
 }
@@ -203,22 +200,22 @@ function resolveToneView(
   clusterContext: GdeltContext | null,
 ): { toneDelta: number | null; toneAvg: number | null } {
   return {
-    toneDelta: activeContext?.tone_delta_vs_cluster ?? null,
     toneAvg: activeContext?.tone_avg ?? clusterContext?.tone_avg ?? null,
+    toneDelta: activeContext?.tone_delta_vs_cluster ?? null,
   };
 }
 
 function getCameoSummary(context?: GdeltContext | null): string | null {
   const cameo = context?.top_cameo?.[0];
-  if (!cameo) return null;
+  if (!cameo) {return undefined;}
   const label = cameo.label || cameo.code || "CAMEO";
   return cameo.count > 1 ? `${label} · ${cameo.count}` : label;
 }
 
 function hasRealImage(src?: string | null): boolean {
-  if (!src) return false;
+  if (!src) {return false;}
   const trimmed = src.trim();
-  if (!trimmed || trimmed === "none") return false;
+  if (!trimmed || trimmed === "none") {return false;}
   const lower = trimmed.toLowerCase();
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
 }
@@ -239,8 +236,8 @@ async function fetchArticleContentText(
   }
 
   const data: { text?: string | null; full_text?: string | null } =
-    await response.json();
-  const text = data.text || data.full_text || null;
+    await response.json(),
+   text = data.text || data.full_text || null;
   fullArticleCache.set(article.url, text);
   return text;
 }
@@ -251,7 +248,7 @@ export function ClusterDetailModal({
   isOpen,
   onClose,
 }: ClusterDetailModalProps) {
-  if (!isOpen || !cluster) return null;
+  if (!isOpen || !cluster) {return undefined;}
 
   return (
     <ClusterDetailModalContent
@@ -446,11 +443,15 @@ function GdeltContextStrip({
               {formatSignedNumber(toneAvg, 2)}
             </span>
             <span className="pb-1 text-xs text-muted-foreground">
-              {toneDelta !== null ? "vs cluster" : "cluster avg"}
+              {toneDelta === null ? "cluster avg" : "vs cluster"}
             </span>
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            {toneDelta !== null ? (
+            {toneDelta === null ? (typeof context.tone_avg === "number" ? (
+              <span>Cluster avg {context.tone_avg.toFixed(2)}</span>
+            ) : (
+              <span>No tone data</span>
+            )) : (
               <span
                 className={
                   toneDelta >= 0 ? "text-emerald-400" : "text-red-400"
@@ -458,10 +459,6 @@ function GdeltContextStrip({
               >
                 {formatSignedNumber(toneDelta, 2)}
               </span>
-            ) : typeof context.tone_avg === "number" ? (
-              <span>Cluster avg {context.tone_avg.toFixed(2)}</span>
-            ) : (
-              <span>No tone data</span>
             )}
           </div>
         </div>
@@ -504,7 +501,7 @@ function ArticleTab({
           {hasRealImage(article.image_url) && (
             <div className="relative aspect-video max-h-[300px] overflow-hidden rounded-lg mb-6">
               <SafeImage
-                src={article.image_url!}
+                src={article.image_url}
                 alt={article.title}
                 fill
                 className="w-full h-full object-cover"
@@ -527,7 +524,7 @@ function ArticleTab({
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Link
               href={`/source/${encodeURIComponent(
-                article.source.toLowerCase().replace(/\s+/g, "-")
+                article.source.toLowerCase().replaceAll(/\s+/gu, "-")
               )}`}
               className="font-medium hover:text-primary transition-colors"
               onClick={(e) => {
@@ -596,7 +593,7 @@ function ArticleTab({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onLike(article.id)}
+              onClick={() =>{  onLike(article.id); }}
               className={
                 likedIds.has(article.id)
                   ? "text-red-400"
@@ -613,7 +610,7 @@ function ArticleTab({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onQueueToggle(article)}
+              onClick={() =>{  onQueueToggle(article); }}
               className={
                 isArticleInQueue(article.url)
                   ? "text-blue-400"
@@ -695,7 +692,7 @@ function ComparisonArticleColumn({
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
             <span className="text-muted-foreground text-sm">Loading...</span>
           </div>
-        ) : content ? (
+        ) : (content ? (
           <div className="space-y-2 text-sm">
             {/* Show similar sentences with highlighting */}
             {comparisonData.diff.similar.slice(0, 5).map((item, sidx) => (
@@ -729,7 +726,7 @@ function ComparisonArticleColumn({
           <div className="text-sm text-muted-foreground">
             No content available
           </div>
-        )}
+        ))}
       </div>
 
       {/* Actions */}
@@ -958,7 +955,7 @@ interface KeywordsFooterProps {
 }
 
 function KeywordsFooter({ keywords }: KeywordsFooterProps) {
-  if (keywords.length === 0) return null;
+  if (keywords.length === 0) {return undefined;}
   return (
     <div className="border-t border-border/60 px-4 py-3 flex-shrink-0">
       <div className="flex items-center gap-2 flex-wrap">
@@ -1002,11 +999,11 @@ function ComparisonTab({
   detailArticleCount,
   onSourceChange,
 }: ComparisonTabProps) {
-  const hasDistinctComparisonSources = comparisonSourceOptions.length >= 2;
-  const visibleComparisonSourceOptions = comparisonSourceOptions.slice(0, 2);
-  const primaryComparisonArticle = comparisonArticles[0] ?? null;
-  const secondaryComparisonArticle = comparisonArticles[1] ?? null;
-  const hasComparisonPair =
+  const hasDistinctComparisonSources = comparisonSourceOptions.length >= 2,
+   visibleComparisonSourceOptions = comparisonSourceOptions.slice(0, 2),
+   primaryComparisonArticle = comparisonArticles[0] ?? null,
+   secondaryComparisonArticle = comparisonArticles[1] ?? null,
+   hasComparisonPair =
     primaryComparisonArticle !== null && secondaryComparisonArticle !== null;
 
   return (
@@ -1019,7 +1016,7 @@ function ComparisonTab({
                 .find((article) => {
                   const articleSourceId =
                     article.source_id ||
-                    article.source.trim().toLowerCase().replace(/\s+/g, "-");
+                    article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
                   return articleSourceId === sourceOption.sourceId;
                 })
                 ?.id?.toString();
@@ -1033,8 +1030,8 @@ function ComparisonTab({
                   </div>
                   <Select
                     value={selectedArticleId}
-                    onValueChange={(value) =>
-                      onSourceChange(sourceOption.sourceId, value)
+                    onValueChange={(value) =>{ 
+                      onSourceChange(sourceOption.sourceId, value); }
                     }
                   >
                     <SelectTrigger className="w-full border-border/60 bg-[var(--news-bg-primary)] text-left text-xs">
@@ -1074,7 +1071,7 @@ function ComparisonTab({
               {comparisonData && (
                 <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-[var(--news-bg-secondary)] rounded-full text-xs">
                   <span>Content Similarity:</span>
-                  <span className={`font-bold ${comparisonData.similarity.overall_match_percent > 70 ? 'text-green-400' : comparisonData.similarity.overall_match_percent > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`font-bold ${comparisonData.similarity.overall_match_percent > 70 ? 'text-green-400' : (comparisonData.similarity.overall_match_percent > 40 ? 'text-yellow-400' : 'text-red-400')}`}>
                     {comparisonData.similarity.overall_match_percent}%
                   </span>
                 </div>
@@ -1086,7 +1083,7 @@ function ComparisonTab({
             </div>
           )}
 
-          {!hasComparisonPair ? null : comparisonLoading ? (
+          {hasComparisonPair ? comparisonLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
               <span className="ml-3 text-muted-foreground">Analyzing articles...</span>
@@ -1132,7 +1129,7 @@ function ComparisonTab({
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               {comparisonError || "Failed to load comparison data. Please try again."}
             </div>
-          )}
+          ) : null}
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -1150,52 +1147,52 @@ function ClusterDetailModalContent({
   isBreaking,
   onClose,
 }: ClusterDetailModalContentProps) {
-  const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
-  const [articleContents, setArticleContents] = useState<Map<number, string | null>>(new Map());
-  const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const { likedIds, toggleLike } = useLikedArticles();
-  const [comparisonMode, setComparisonMode] = useState(false);
-  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [selectedArticlesForComparison, setSelectedArticlesForComparison] = useState<number[]>([]);
-  const [comparisonError, setComparisonError] = useState<string | null>(null);
-  const articleContentRef = useRef<HTMLDivElement>(null);
-  const comparisonRequestKeyRef = useRef<string | null>(null);
-  const clusterId = cluster.cluster_id;
+  const [activeArticleId, setActiveArticleId] = useState<string | null>(undefined),
+   [articleContents, setArticleContents] = useState<Map<number, string | null>>(new Map()),
+   [loadingArticle, setLoadingArticle] = useState<number | null>(undefined),
+   [isExpanded, setIsExpanded] = useState(false),
+   { likedIds, toggleLike } = useLikedArticles(),
+   [comparisonMode, setComparisonMode] = useState(false),
+   [comparisonData, setComparisonData] = useState<ComparisonData | null>(undefined),
+   [comparisonLoading, setComparisonLoading] = useState(false),
+   [selectedArticlesForComparison, setSelectedArticlesForComparison] = useState<number[]>([]),
+   [comparisonError, setComparisonError] = useState<string | null>(undefined),
+   articleContentRef = useRef<HTMLDivElement>(undefined),
+   comparisonRequestKeyRef = useRef<string | null>(undefined),
+   clusterId = cluster.cluster_id,
 
-  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
-  const {
+   { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue(),
+   {
     data: clusterDetail,
     isLoading: loading,
     error: clusterDetailError,
   } = useQuery({
-    queryKey: ["cluster-detail", clusterId],
     queryFn: () => fetchClusterDetail(clusterId),
+    queryKey: ["cluster-detail", clusterId],
     retry: 1,
-  });
-  const resolvedActiveArticleId =
-    activeArticleId ?? clusterDetail?.articles[0]?.id.toString() ?? null;
-  const comparisonClusterArticles: ComparisonArticle[] = useMemo(
+  }),
+   resolvedActiveArticleId =
+    activeArticleId ?? clusterDetail?.articles[0]?.id.toString() ?? null,
+   comparisonClusterArticles: ComparisonArticle[] = useMemo(
     () => clusterDetail?.articles.map(normalizeComparisonArticle) ?? [],
     [clusterDetail],
-  );
+  ),
 
-  const loadArticleContent = useCallback(async (article: ClusterArticle) => {
+   loadArticleContent = useCallback(async (article: ClusterArticle) => {
     setLoadingArticle(article.id);
     try {
       const text = await fetchArticleContentText(article);
       setArticleContents((prev) => new Map(prev).set(article.id, text));
-    } catch (err) {
-      console.error("Failed to extract article:", err);
-      setArticleContents((prev) => new Map(prev).set(article.id, null));
+    } catch (error) {
+      console.error("Failed to extract article:", error);
+      setArticleContents((prev) => new Map(prev).set(article.id, undefined));
     } finally {
-      setLoadingArticle(null);
+      setLoadingArticle(undefined);
     }
   }, []);
 
   useEffect(() => {
-    if (!resolvedActiveArticleId || !clusterDetail) return;
+    if (!resolvedActiveArticleId || !clusterDetail) {return;}
     const article = clusterDetail.articles.find(
       (a) => a.id.toString() === resolvedActiveArticleId,
     );
@@ -1206,30 +1203,30 @@ function ClusterDetailModalContent({
 
   const handleLike = useCallback((articleId: number) => {
     void toggleLike(articleId);
-  }, [toggleLike]);
+  }, [toggleLike]),
 
-  const loadComparisonData = useCallback(async (articleIds: number[]) => {
-    if (articleIds.length < 2 || !clusterDetail) return;
+   loadComparisonData = useCallback(async (articleIds:readonly  number[]) => {
+    if (articleIds.length < 2 || !clusterDetail) {return;}
 
     const requestKey = buildComparisonRequestKey(articleIds);
     if (comparisonRequestKeyRef.current === requestKey) {
       return;
     }
 
-    setComparisonError(null);
+    setComparisonError(undefined);
     const comparisonArticles = getSelectedComparisonArticles(
       comparisonClusterArticles,
       articleIds,
     );
     if (comparisonArticles.length < 2) {
-      setComparisonData(null);
+      setComparisonData(undefined);
       setComparisonError("Select one article from two distinct outlets.");
       return;
     }
 
     const [sourceOne, sourceTwo] = comparisonArticles;
     if (sourceOne!.source.trim().toLowerCase() === sourceTwo!.source.trim().toLowerCase()) {
-      setComparisonData(null);
+      setComparisonData(undefined);
       const message = "Compare Sources needs coverage from at least two outlets.";
       setComparisonError(message);
       toast.error(message);
@@ -1250,11 +1247,11 @@ function ClusterDetailModalContent({
             .then((text) => [article.id, text] as const)
             .catch((error: unknown) => {
               console.error("Failed to extract comparison article:", error);
-              return [article.id, null] as const;
+              return [article.id, undefined] as const;
             });
         }),
-      );
-      const contentById = new Map(contentEntries);
+      ),
+       contentById = new Map(contentEntries);
       setArticleContents((prev) => {
         const next = new Map(prev);
         for (const [articleId, text] of contentEntries) {
@@ -1263,10 +1260,10 @@ function ClusterDetailModalContent({
         return next;
       });
 
-      const content1 = contentById.get(sourceOne!.id) || "";
-      const content2 = contentById.get(sourceTwo!.id) || "";
+      const content1 = contentById.get(sourceOne!.id) || "",
+       content2 = contentById.get(sourceTwo!.id) || "";
       if (!content1 || !content2) {
-        setComparisonData(null);
+        setComparisonData(undefined);
         const message = "Compare Sources needs full text from two articles.";
         setComparisonError(message);
         toast.error(message);
@@ -1274,14 +1271,14 @@ function ClusterDetailModalContent({
       }
 
       const response = await fetch(`${API_BASE_URL}/compare/articles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content_1: content1,
           content_2: content2,
           title_1: sourceOne!.title,
           title_2: sourceTwo!.title,
         }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       });
 
       if (!response.ok) {
@@ -1289,34 +1286,34 @@ function ClusterDetailModalContent({
       }
       const data = await response.json();
       setComparisonData(data);
-    } catch (err) {
-      console.error("Failed to load comparison:", err);
-      setComparisonData(null);
+    } catch (error) {
+      console.error("Failed to load comparison:", error);
+      setComparisonData(undefined);
       const message =
-        err instanceof Error
-          ? err.message
+        error instanceof Error
+          ? error.message
           : "Failed to compare the selected sources.";
       setComparisonError(message);
       toast.error(message);
     } finally {
       setComparisonLoading(false);
     }
-  }, [articleContents, clusterDetail, comparisonClusterArticles]);
+  }, [articleContents, clusterDetail, comparisonClusterArticles]),
 
-  const handleTabChange = useCallback((value: string) => {
+   handleTabChange = useCallback((value: string) => {
     setActiveArticleId(value);
     setComparisonMode(value === "compare");
-  }, []);
+  }, []),
 
-  const handleOpenComparison = useCallback(() => {
+   handleOpenComparison = useCallback(() => {
     if (!clusterDetail) {
       return;
     }
 
-    setComparisonError(null);
+    setComparisonError(undefined);
     const comparisonIds = getDefaultComparisonArticleIds(comparisonClusterArticles);
     if (comparisonIds.length < 2) {
-      setComparisonData(null);
+      setComparisonData(undefined);
       const message = "Compare Sources needs coverage from at least two outlets.";
       setComparisonError(message);
       toast.error(message);
@@ -1324,29 +1321,29 @@ function ClusterDetailModalContent({
     }
 
     setSelectedArticlesForComparison(comparisonIds);
-    setComparisonData(null);
+    setComparisonData(undefined);
     setComparisonMode(true);
-    comparisonRequestKeyRef.current = null;
-  }, [clusterDetail, comparisonClusterArticles]);
+    comparisonRequestKeyRef.current = undefined;
+  }, [clusterDetail, comparisonClusterArticles]),
 
-  const handleQueueToggle = useCallback(
+   handleQueueToggle = useCallback(
     (article: ClusterArticle) => {
       const newsArticle: NewsArticle = {
-        id: article.id,
-        title: article.title,
-        source: article.source,
-        sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
+        bias: "center",
+        category: "trending",
         country: "US",
         credibility: "medium",
-        bias: "center",
-        summary: "",
+        id: article.id,
         image: article.image_url || "",
-        publishedAt: article.published_at || new Date().toISOString(),
-        category: "trending",
-        url: article.url,
-        tags: [],
         originalLanguage: "en",
+        publishedAt: article.published_at || new Date().toISOString(),
+        source: article.source,
+        sourceId: article.source.toLowerCase().replaceAll(/\s+/gu, "-"),
+        summary: "",
+        tags: [],
+        title: article.title,
         translated: false,
+        url: article.url,
       };
 
       if (isArticleInQueue(article.url)) {
@@ -1356,14 +1353,14 @@ function ClusterDetailModalContent({
       }
     },
     [isArticleInQueue, removeArticleFromQueue, addArticleToQueue]
-  );
+  ),
 
 
 
-  const handleComparisonSourceChange = useCallback(
+   handleComparisonSourceChange = useCallback(
     (sourceId: string, nextArticleId: string) => {
       const parsedId = Number(nextArticleId);
-      if (!Number.isFinite(parsedId)) return;
+      if (!Number.isFinite(parsedId)) {return;}
 
       setSelectedArticlesForComparison((prev) => {
         const nextArticles = getSelectedComparisonArticles(
@@ -1371,11 +1368,11 @@ function ClusterDetailModalContent({
           prev,
         ).filter((article) => {
           const articleSourceId =
-            article.source_id || article.source.trim().toLowerCase().replace(/\s+/g, "-");
+            article.source_id || article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
           return articleSourceId !== sourceId;
         });
 
-        comparisonRequestKeyRef.current = null;
+        comparisonRequestKeyRef.current = undefined;
         return [...nextArticles.map((article) => article.id), parsedId];
       });
     },
@@ -1383,31 +1380,31 @@ function ClusterDetailModalContent({
   );
 
   useEffect(() => {
-    if (!comparisonMode || selectedArticlesForComparison.length < 2) return;
+    if (!comparisonMode || selectedArticlesForComparison.length < 2) {return;}
     void loadComparisonData(selectedArticlesForComparison);
   }, [comparisonMode, selectedArticlesForComparison, loadComparisonData]);
 
-  const loadError = clusterDetailError ? "Failed to load cluster details." : null;
-  const activeArticle = clusterDetail?.articles.find(
+  const loadError = clusterDetailError ? "Failed to load cluster details." : null,
+   activeArticle = clusterDetail?.articles.find(
     (a) => a.id.toString() === resolvedActiveArticleId
-  );
-  const activeContent = activeArticle ? articleContents.get(activeArticle.id) : null;
-  const comparisonArticles = clusterDetail
+  ),
+   activeContent = activeArticle ? articleContents.get(activeArticle.id) : null,
+   comparisonArticles = clusterDetail
     ? getSelectedComparisonArticles(
         comparisonClusterArticles,
         selectedArticlesForComparison,
       )
-    : [];
-  const comparisonSourceOptions = clusterDetail
+    : [],
+   comparisonSourceOptions = clusterDetail
     ? buildComparisonSourceOptions(comparisonClusterArticles)
-    : [];
-  const label = cluster.label || cluster.keywords.slice(0, 3).join(", ");
-  const breakingCluster = cluster as BreakingCluster;
-  const trendingCluster = cluster as TrendingCluster;
-  const clusterContext = clusterContextOf(clusterDetail, cluster);
-  const activeArticleContext = activeArticle?.gdelt_context ?? null;
-  const cameoSummary = getCameoSummary(clusterContext);
-  const { toneDelta, toneAvg } = resolveToneView(activeArticleContext, clusterContext);
+    : [],
+   label = cluster.label || cluster.keywords.slice(0, 3).join(", "),
+   breakingCluster = cluster as BreakingCluster,
+   trendingCluster = cluster as TrendingCluster,
+   clusterContext = clusterContextOf(clusterDetail, cluster),
+   activeArticleContext = activeArticle?.gdelt_context ?? null,
+   cameoSummary = getCameoSummary(clusterContext),
+   { toneDelta, toneAvg } = resolveToneView(activeArticleContext, clusterContext);
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
@@ -1425,7 +1422,7 @@ function ClusterDetailModalContent({
           breakingCluster={breakingCluster}
           trendingCluster={trendingCluster}
           isExpanded={isExpanded}
-          onToggleExpand={() => setIsExpanded(!isExpanded)}
+          onToggleExpand={() =>{  setIsExpanded(!isExpanded); }}
           onClose={onClose}
         />
 

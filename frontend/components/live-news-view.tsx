@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { LiveNewsToolbar } from "./live-news-toolbar"
 import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { StreamCard } from "./stream-card"
-import { useLiveNewsPreferences } from "@/hooks/useLiveNewsPreferences"
+import { useLiveNewsPreferences } from "@/hooks/use-live-news-preferences"
 import { getDefaultSources } from "@/lib/live-news-sources"
 import type { NewsArticle } from "@/lib/api"
 
@@ -13,36 +13,36 @@ interface LiveNewsViewProps {
   loading: boolean
 }
 
-const MIN_DESKTOP_WIDTH = 1024
-const MAX_LOADED_IFRAMES = 3
+const MAX_LOADED_IFRAMES = 3,
+ MIN_DESKTOP_WIDTH = 1024
 
 export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNewsViewProps) {
-  const [prefs, updatePrefs, resetToDefaults] = useLiveNewsPreferences()
-  const [loadedSources, setLoadedSources] = useState<Set<string>>(new Set())
-  const [fullscreenId, setFullscreenId] = useState<string | null>(null)
-  const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(true)
+  const [prefs, updatePrefs, resetToDefaults] = useLiveNewsPreferences(),
+   [loadedSources, setLoadedSources] = useState<Set<string>>(new Set()),
+   [fullscreenId, setFullscreenId] = useState<string | null>(undefined),
+   [sourcePickerOpen, setSourcePickerOpen] = useState(false),
+   [isDesktop, setIsDesktop] = useState(true),
 
-  const allSources = useMemo(() => getDefaultSources(), [])
+   allSources = useMemo(() => getDefaultSources(), []),
 
-  const activeSources = useMemo(() => {
+   activeSources = useMemo(() => {
     const activeIds = new Set(prefs.activeSourceIds)
     return allSources.filter((s) => activeIds.has(s.id))
   }, [allSources, prefs.activeSourceIds])
 
   useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= MIN_DESKTOP_WIDTH)
+    const check = () =>{  setIsDesktop(globalThis.innerWidth >= MIN_DESKTOP_WIDTH); }
     check()
-    window.addEventListener("resize", check)
-    return () => window.removeEventListener("resize", check)
+    globalThis.addEventListener("resize", check)
+    return () =>{  globalThis.removeEventListener("resize", check); }
   }, [])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFullscreenId(null)
+      if (e.key === "Escape") {setFullscreenId(undefined)}
     }
-    window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
+    globalThis.addEventListener("keydown", handleKey)
+    return () =>{  globalThis.removeEventListener("keydown", handleKey); }
   }, [])
 
   const handleBecameVisible = useCallback((sourceId: string) => {
@@ -57,17 +57,17 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
       }
       return next
     })
-  }, [])
+  }, []),
 
-  const handleBecameHidden = useCallback((sourceId: string) => {
+   handleBecameHidden = useCallback((sourceId: string) => {
     setLoadedSources((prev) => {
       const next = new Set(prev)
       next.delete(sourceId)
       return next
     })
-  }, [])
+  }, []),
 
-  const handleToggleMute = useCallback(
+   handleToggleMute = useCallback(
     (_sourceId: string) => {
       if (prefs.muteState === "all-muted") {
         updatePrefs({ muteState: "per-source" })
@@ -76,30 +76,30 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
       }
     },
     [prefs.muteState, updatePrefs],
-  )
+  ),
 
-  const handleCloseSource = useCallback(
+   handleCloseSource = useCallback(
     (sourceId: string) => {
       const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
       updatePrefs({ activeSourceIds: nextIds })
-      if (fullscreenId === sourceId) setFullscreenId(null)
+      if (fullscreenId === sourceId) {setFullscreenId(undefined)}
     },
     [prefs.activeSourceIds, fullscreenId, updatePrefs],
-  )
+  ),
 
-  const handleDoubleClick = useCallback((sourceId: string) => {
+   handleDoubleClick = useCallback((sourceId: string) => {
     setFullscreenId((prev) => (prev === sourceId ? null : sourceId))
-  }, [])
+  }, []),
 
-  const handleMuteAll = useCallback(() => {
+   handleMuteAll = useCallback(() => {
     updatePrefs({ muteState: "all-muted" })
-  }, [updatePrefs])
+  }, [updatePrefs]),
 
-  const handleUnmuteAll = useCallback(() => {
+   handleUnmuteAll = useCallback(() => {
     updatePrefs({ muteState: "per-source" })
-  }, [updatePrefs])
+  }, [updatePrefs]),
 
-  const handleToggleSource = useCallback(
+   handleToggleSource = useCallback(
     (sourceId: string) => {
       const nextIds = prefs.activeSourceIds.includes(sourceId)
         ? prefs.activeSourceIds.filter((id) => id !== sourceId)
@@ -107,14 +107,14 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
       updatePrefs({ activeSourceIds: nextIds })
     },
     [prefs.activeSourceIds, updatePrefs],
-  )
+  ),
 
-  const mutedForSource = useCallback(
+   mutedForSource = useCallback(
     (_sourceId: string) => prefs.muteState === "all-muted",
     [prefs.muteState],
-  )
+  ),
 
-  const gridTemplateColumns =
+   gridTemplateColumns =
     prefs.layout === "2x2"
       ? "repeat(2, 1fr)"
       : prefs.layout === "3x3"
@@ -132,7 +132,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
           </span>
           <p className="font-serif text-sm leading-relaxed text-foreground/60">
             Live News view requires a larger screen. Please switch to a desktop
-            device or expand your browser window.
+            device or expand your browser globalThis.
           </p>
         </div>
       </div>
@@ -143,12 +143,12 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
     <div className="flex flex-col h-full">
       <LiveNewsToolbar
         layout={prefs.layout}
-        onLayoutChange={(layout) => updatePrefs({ layout })}
+        onLayoutChange={(layout) =>{  updatePrefs({ layout }); }}
         muteState={prefs.muteState}
         onMuteAll={handleMuteAll}
         onUnmuteAll={handleUnmuteAll}
         onReset={resetToDefaults}
-        onAddSource={() => setSourcePickerOpen(true)}
+        onAddSource={() =>{  setSourcePickerOpen(true); }}
         activeCount={activeSources.length}
         totalCount={allSources.length}
       />
@@ -168,10 +168,10 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
         <div
           className="flex-1 overflow-y-auto p-3"
           style={{
-            display: "grid",
-            gridTemplateColumns,
-            gap: "0.75rem",
             alignContent: "start",
+            display: "grid",
+            gap: "0.75rem",
+            gridTemplateColumns,
           }}
         >
           {fullscreenId ? (
@@ -183,7 +183,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
                   source={source}
                   muted={mutedForSource(source.id)}
                   loaded={loadedSources.has(source.id)}
-                  isFullscreen={true}
+                  isFullscreen
                   onToggleMute={handleToggleMute}
                   onClose={handleCloseSource}
                   onDoubleClick={handleDoubleClick}
@@ -215,7 +215,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
         sources={allSources}
         activeSourceIds={prefs.activeSourceIds}
         onToggleSource={handleToggleSource}
-        onClose={() => setSourcePickerOpen(false)}
+        onClose={() =>{  setSourcePickerOpen(false); }}
       />
     </div>
   )

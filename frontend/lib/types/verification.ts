@@ -4,12 +4,12 @@ type VerificationRequestSchema = OpenApiComponents["schemas"]["VerificationReque
 type VerificationResultSchema = OpenApiComponents["schemas"]["VerificationResult"]
 type VerifiedClaimSchema = OpenApiComponents["schemas"]["VerifiedClaim"]
 
-export type ConfidenceLevel = OpenApiComponents["schemas"]["ConfidenceLevel"]
-export type SourceType = OpenApiComponents["schemas"]["SourceType"]
-export type SourceInfo =
+type ConfidenceLevel = OpenApiComponents["schemas"]["ConfidenceLevel"]
+type SourceType = OpenApiComponents["schemas"]["SourceType"]
+type SourceInfo =
   OpenApiComponents["schemas"]["app__models__verification__SourceInfo"]
 
-export interface VerifiedClaim
+interface VerifiedClaim
   extends Omit<
     VerifiedClaimSchema,
     "confidence_level" | "supporting_sources" | "conflicting_sources" | "footnotes"
@@ -20,7 +20,7 @@ export interface VerifiedClaim
   footnotes: number[]
 }
 
-export interface VerificationResult
+interface VerificationResult
   extends Omit<
     VerificationResultSchema,
     "overall_confidence_level" | "verified_claims" | "sources"
@@ -30,13 +30,13 @@ export interface VerificationResult
   sources: Record<string, SourceInfo>
 }
 
-export interface VerificationRequest
+interface VerificationRequest
   extends Omit<VerificationRequestSchema, "main_answer" | "previous_claims"> {
   main_answer: string
   previous_claims?: VerifiedClaim[]
 }
 
-export interface VerificationStatus {
+interface VerificationStatus {
   enabled: boolean
   max_duration_seconds: number
   max_claims: number
@@ -46,7 +46,7 @@ export interface VerificationStatus {
   allowed_domains_count: number
 }
 
-export interface VerificationSummary {
+interface VerificationSummary {
   summary: {
     overall_confidence: number
     overall_level: ConfidenceLevel
@@ -56,7 +56,7 @@ export interface VerificationSummary {
     low_confidence: number
     total_sources: number
   }
-  claims: Array<{
+  claims: {
     id: string
     text: string
     confidence: number
@@ -65,7 +65,7 @@ export interface VerificationSummary {
     conflicting_sources: string[]
     needs_recheck: boolean
     recheck_reason: string | null
-  }>
+  }[]
   sources: Record<
     string,
     {
@@ -81,8 +81,20 @@ export interface VerificationSummary {
   >
 }
 
-export type VerificationStreamEvent =
+type VerificationStreamEvent =
   | { type: "started"; query: string }
   | { type: "claim"; claim: VerifiedClaim; progress: number }
   | { type: "complete"; result: VerificationResult }
-  | { type: "error"; content: string }
+   | { type: "error"; content: string }
+
+export {
+  ConfidenceLevel,
+  SourceType,
+  SourceInfo,
+  VerifiedClaim,
+  VerificationResult,
+  VerificationRequest,
+  VerificationStatus,
+  VerificationSummary,
+  VerificationStreamEvent,
+}

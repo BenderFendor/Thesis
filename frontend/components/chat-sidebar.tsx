@@ -25,7 +25,7 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
-  onDeleteMultiple?: (ids: string[]) => void;
+  onDeleteMultiple?: (ids:readonly  string[]) => void;
   activeId?: string | null;
   collapsed?: boolean;
   onToggle?: () => void;
@@ -42,52 +42,52 @@ export function ChatSidebar({
   collapsed = false,
   onToggle,
 }: ChatSidebarProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState(""),
+   [editingId, setEditingId] = useState<string | null>(undefined),
+   [draftTitle, setDraftTitle] = useState(""),
+   [isSelectionMode, setIsSelectionMode] = useState(false),
+   [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
 
-  const filteredChats = useMemo(() => {
-    if (!searchTerm.trim()) return chats;
+   filteredChats = useMemo(() => {
+    if (!searchTerm.trim()) {return chats;}
     const term = searchTerm.trim().toLowerCase();
 
     return chats.filter((chat) => {
-      const inTitle = chat.title?.toLowerCase().includes(term);
-      const inMessage = chat.lastMessage?.toLowerCase().includes(term);
+      const inTitle = chat.title?.toLowerCase().includes(term),
+       inMessage = chat.lastMessage?.toLowerCase().includes(term);
       return inTitle || inMessage;
     });
-  }, [chats, searchTerm]);
+  }, [chats, searchTerm]),
 
-  const allFilteredSelected =
-    filteredChats.length > 0 && selectedIds.size === filteredChats.length;
+   allFilteredSelected =
+    filteredChats.length > 0 && selectedIds.size === filteredChats.length,
 
-  const startRename = (chat: ChatSummary) => {
+   startRename = (chat: ChatSummary) => {
     setEditingId(chat.id);
     setDraftTitle(chat.title);
-  };
+  },
 
-  const cancelRename = () => {
-    setEditingId(null);
+   cancelRename = () => {
+    setEditingId(undefined);
     setDraftTitle("");
-  };
+  },
 
-  const commitRename = () => {
-    if (!editingId) return;
+   commitRename = () => {
+    if (!editingId) {return;}
     const trimmed = draftTitle.trim();
     if (trimmed) {
       onRename(editingId, trimmed);
     }
     cancelRename();
-  };
+  },
 
-  const toggleSelectionMode = () => {
+   toggleSelectionMode = () => {
     setIsSelectionMode((prev) => !prev);
     setSelectedIds(new Set());
-    setEditingId(null);
-  };
+    setEditingId(undefined);
+  },
 
-  const toggleSelection = (id: string) => {
+   toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -97,31 +97,31 @@ export function ChatSidebar({
       }
       return next;
     });
-  };
+  },
 
-  const handleDeleteSelected = () => {
-    if (selectedIds.size === 0) return;
+   handleDeleteSelected = () => {
+    if (selectedIds.size === 0) {return;}
 
     if (
-      window.confirm(
+      globalThis.confirm(
         `Delete ${selectedIds.size} selected chats? This action cannot be undone.`,
       )
     ) {
       if (onDeleteMultiple) {
-        onDeleteMultiple(Array.from(selectedIds));
+        onDeleteMultiple([...selectedIds]);
       } else {
-        selectedIds.forEach((id) => onDelete(id));
+        selectedIds.forEach((id) =>{  onDelete(id); });
       }
       setIsSelectionMode(false);
       setSelectedIds(new Set());
     }
-  };
+  },
 
-  const handleDeleteAll = () => {
-    if (chats.length === 0) return;
+   handleDeleteAll = () => {
+    if (chats.length === 0) {return;}
 
     if (
-      window.confirm(
+      globalThis.confirm(
         `Delete all ${chats.length} chats? This action cannot be undone.`,
       )
     ) {
@@ -129,14 +129,14 @@ export function ChatSidebar({
       if (onDeleteMultiple) {
         onDeleteMultiple(ids);
       } else {
-        ids.forEach((id) => onDelete(id));
+        ids.forEach((id) =>{  onDelete(id); });
       }
       setIsSelectionMode(false);
       setSelectedIds(new Set());
     }
-  };
+  },
 
-  const toggleSelectAll = () => {
+   toggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
       return;
@@ -164,7 +164,7 @@ export function ChatSidebar({
             return (
               <button
                 key={chat.id}
-                onClick={() => onSelect(chat.id)}
+                onClick={() =>{  onSelect(chat.id); }}
                 title={chat.title}
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xs font-semibold uppercase tracking-wide transition-all duration-300 ease-out active:scale-95 ${
                   isActive
@@ -211,37 +211,7 @@ export function ChatSidebar({
           )}
         </div>
 
-        {!isSelectionMode ? (
-          <div className="flex gap-2">
-            <Button
-              onClick={onNewChat}
-              variant="ghost"
-              className="h-10 flex-1 justify-start gap-2 rounded-full border border-border/40 bg-card/50 text-sm font-medium transition-all duration-300 ease-out hover:bg-card active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              New Session
-            </Button>
-            <Button
-              onClick={toggleSelectionMode}
-              variant="ghost"
-              size="icon"
-              title="Select chats"
-              className="h-10 w-10 rounded-full border border-border/40 bg-card/50 transition-all duration-300 ease-out hover:bg-card active:scale-95"
-            >
-              <CheckSquare className="h-4 w-4 text-muted-foreground" />
-            </Button>
-            <Button
-              onClick={handleDeleteAll}
-              variant="ghost"
-              size="icon"
-              title="Delete all chats"
-              disabled={chats.length === 0}
-              className="h-10 w-10 rounded-full border border-border/40 bg-card/50 text-destructive transition-all duration-300 ease-out hover:bg-card active:scale-95 disabled:opacity-40"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
+        {isSelectionMode ? (
           <div className="flex items-center justify-between gap-2 rounded-3xl border border-border/40 bg-card/50 px-4 py-3">
             <span className="text-sm text-muted-foreground">
               {selectedIds.size} selected
@@ -275,13 +245,43 @@ export function ChatSidebar({
               </Button>
             </div>
           </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              onClick={onNewChat}
+              variant="ghost"
+              className="h-10 flex-1 justify-start gap-2 rounded-full border border-border/40 bg-card/50 text-sm font-medium transition-all duration-300 ease-out hover:bg-card active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+              New Session
+            </Button>
+            <Button
+              onClick={toggleSelectionMode}
+              variant="ghost"
+              size="icon"
+              title="Select chats"
+              className="h-10 w-10 rounded-full border border-border/40 bg-card/50 transition-all duration-300 ease-out hover:bg-card active:scale-95"
+            >
+              <CheckSquare className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            <Button
+              onClick={handleDeleteAll}
+              variant="ghost"
+              size="icon"
+              title="Delete all chats"
+              disabled={chats.length === 0}
+              className="h-10 w-10 rounded-full border border-border/40 bg-card/50 text-destructive transition-all duration-300 ease-out hover:bg-card active:scale-95 disabled:opacity-40"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         )}
 
         <div className="relative mt-4">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) =>{  setSearchTerm(event.target.value); }}
             placeholder="Search conversations"
             aria-label="Search chats"
             className="h-11 w-full rounded-full border border-border/40 bg-card/30 pl-11 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
@@ -298,9 +298,9 @@ export function ChatSidebar({
           <ul className="space-y-2">
             <AnimatePresence initial={false}>
               {filteredChats.map((chat, index) => {
-                const isActive = activeId === chat.id;
-                const isEditing = editingId === chat.id;
-                const isSelected = selectedIds.has(chat.id);
+                const isActive = activeId === chat.id,
+                 isEditing = editingId === chat.id,
+                 isSelected = selectedIds.has(chat.id);
 
                 return (
                   <motion.li
@@ -309,17 +309,17 @@ export function ChatSidebar({
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2, ease: "easeOut", delay: index * 0.02 }}
+                    transition={{ delay: index * 0.02, duration: 0.2, ease: "easeOut" }}
                   >
                     <div
                       className={`group rounded-3xl border p-4 transition-all duration-300 ease-out ${
                         isSelectionMode
-                          ? isSelected
+                          ? (isSelected
                             ? "border-primary/40 bg-primary/10"
-                            : "border-border/30 bg-card/30 hover:bg-card/50"
-                          : isActive
+                            : "border-border/30 bg-card/30 hover:bg-card/50")
+                          : (isActive
                             ? "border-primary/40 bg-card shadow-lg shadow-black/20"
-                            : "border-border/30 bg-card/30 hover:bg-card/50"
+                            : "border-border/30 bg-card/30 hover:bg-card/50")
                       }`}
                       onClick={() => {
                         if (isSelectionMode) {
@@ -348,8 +348,8 @@ export function ChatSidebar({
                             {chat.updatedAt && (
                               <span className="text-xs text-muted-foreground">
                                 {new Date(chat.updatedAt).toLocaleDateString("en-US", {
-                                  month: "short",
                                   day: "numeric",
+                                  month: "short",
                                 })}
                               </span>
                             )}
@@ -361,11 +361,11 @@ export function ChatSidebar({
                                 event.preventDefault();
                                 commitRename();
                               }}
-                              onClick={(event) => event.stopPropagation()}
+                              onClick={(event) =>{  event.stopPropagation(); }}
                             >
                               <input
                                 value={draftTitle}
-                                onChange={(event) => setDraftTitle(event.target.value)}
+                                onChange={(event) =>{  setDraftTitle(event.target.value); }}
                                 onBlur={commitRename}
                                 onKeyDown={(event) => {
                                   if (event.key === "Escape") {
@@ -425,7 +425,7 @@ export function ChatSidebar({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 if (
-                                  window.confirm(
+                                  globalThis.confirm(
                                     "Delete this chat? This action cannot be undone.",
                                   )
                                 ) {

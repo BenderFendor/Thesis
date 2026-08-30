@@ -37,42 +37,42 @@ export interface AtlasLayoutRequest {
 }
 
 function hashValue(value: string): number {
-  let hash = 2166136261;
+  let hash = 2_166_136_261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+    hash = Math.imul(hash, 16_777_619);
   }
   return hash >>> 0;
 }
 
 function seededUnit(value: string, salt: number): number {
-  return (hashValue(`${value}:${salt}`) % 100000) / 100000;
+  return (hashValue(`${value}:${salt}`) % 100_000) / 100_000;
 }
 
 function groupKey(node: AtlasLayoutNodeInput, layout: AtlasLayoutMode): string {
-  if (layout === "geography") return node.country_code || "Unspecified";
+  if (layout === "geography") {return node.country_code || "Unspecified";}
   return node.entity_type;
 }
 
 function initialPosition(node: AtlasLayoutNodeInput, index: number, request: AtlasLayoutRequest): AtlasPosition {
   if (request.layout === "radial" && request.selectedId) {
-    if (node.id === request.selectedId) return { x: request.width / 2, y: request.height / 2 };
-    const angle = seededUnit(node.id, 9) * Math.PI * 2;
-    const ring = 150 + (index % 4) * 78;
+    if (node.id === request.selectedId) {return { x: request.width / 2, y: request.height / 2 };}
+    const angle = seededUnit(node.id, 9) * Math.PI * 2,
+     ring = 150 + (index % 4) * 78;
     return {
       x: request.width / 2 + Math.cos(angle) * ring,
       y: request.height / 2 + Math.sin(angle) * ring,
     };
   }
 
-  const key = groupKey(node, request.layout);
-  const groupHash = hashValue(key);
-  const centerAngle = (groupHash % 360) * (Math.PI / 180);
-  const groupRadius = Math.min(request.width, request.height) * 0.24;
-  const centerX = request.width / 2 + Math.cos(centerAngle) * groupRadius;
-  const centerY = request.height / 2 + Math.sin(centerAngle) * groupRadius;
-  const localAngle = seededUnit(node.id, 3) * Math.PI * 2;
-  const localRadius = 40 + seededUnit(node.id, 4) * 170;
+  const key = groupKey(node, request.layout),
+   groupHash = hashValue(key),
+   centerAngle = (groupHash % 360) * (Math.PI / 180),
+   groupRadius = Math.min(request.width, request.height) * 0.24,
+   centerX = request.width / 2 + Math.cos(centerAngle) * groupRadius,
+   centerY = request.height / 2 + Math.sin(centerAngle) * groupRadius,
+   localAngle = seededUnit(node.id, 3) * Math.PI * 2,
+   localRadius = 40 + seededUnit(node.id, 4) * 170;
   return {
     x: centerX + Math.cos(localAngle) * localRadius,
     y: centerY + Math.sin(localAngle) * localRadius,
@@ -112,25 +112,25 @@ export class AtlasForceLayoutRunner {
   }
 
   step(): void {
-    const request = this.request;
-    const alpha = 1 - this.iteration / this.totalIterations;
-    const forces = new Map(request.nodes.map((node) => [node.id, { x: 0, y: 0 }]));
+    const {request} = this,
+     alpha = 1 - this.iteration / this.totalIterations,
+     forces = new Map(request.nodes.map((node) => [node.id, { x: 0, y: 0 }]));
 
     for (let leftIndex = 0; leftIndex < request.nodes.length; leftIndex += 1) {
-      const left = request.nodes[leftIndex]!;
-      const leftPosition = this.positions.get(left.id)!;
+      const left = request.nodes[leftIndex]!,
+       leftPosition = this.positions.get(left.id)!;
       for (let rightIndex = leftIndex + 1; rightIndex < request.nodes.length; rightIndex += 1) {
-        const right = request.nodes[rightIndex]!;
-        const rightPosition = this.positions.get(right.id)!;
-        let dx = rightPosition.x - leftPosition.x;
-        let dy = rightPosition.y - leftPosition.y;
-        const distanceSquared = Math.max(dx * dx + dy * dy, 36);
-        const distance = Math.sqrt(distanceSquared);
+        const right = request.nodes[rightIndex]!,
+         rightPosition = this.positions.get(right.id)!;
+        let dx = rightPosition.x - leftPosition.x,
+         dy = rightPosition.y - leftPosition.y;
+        const distanceSquared = Math.max(dx * dx + dy * dy, 36),
+         distance = Math.sqrt(distanceSquared);
         dx /= distance;
         dy /= distance;
-        const repulsion = Math.min(9, 1800 / distanceSquared) * alpha;
-        const leftForce = forces.get(left.id)!;
-        const rightForce = forces.get(right.id)!;
+        const repulsion = Math.min(9, 1800 / distanceSquared) * alpha,
+         leftForce = forces.get(left.id)!,
+         rightForce = forces.get(right.id)!;
         leftForce.x -= dx * repulsion;
         leftForce.y -= dy * repulsion;
         rightForce.x += dx * repulsion;
@@ -139,18 +139,18 @@ export class AtlasForceLayoutRunner {
     }
 
     for (const edge of request.edges) {
-      const sourcePosition = this.positions.get(edge.source_id);
-      const targetPosition = this.positions.get(edge.target_id);
-      if (!sourcePosition || !targetPosition) continue;
-      let dx = targetPosition.x - sourcePosition.x;
-      let dy = targetPosition.y - sourcePosition.y;
+      const sourcePosition = this.positions.get(edge.source_id),
+       targetPosition = this.positions.get(edge.target_id);
+      if (!sourcePosition || !targetPosition) {continue;}
+      let dx = targetPosition.x - sourcePosition.x,
+       dy = targetPosition.y - sourcePosition.y;
       const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
       dx /= distance;
       dy /= distance;
-      const desiredDistance = edge.relation_type === "ownership" ? 118 : 145;
-      const spring = (distance - desiredDistance) * 0.006 * Math.max(edge.weight, 0.25) * alpha;
-      const sourceForce = forces.get(edge.source_id)!;
-      const targetForce = forces.get(edge.target_id)!;
+      const desiredDistance = edge.relation_type === "ownership" ? 118 : 145,
+       spring = (distance - desiredDistance) * 0.006 * Math.max(edge.weight, 0.25) * alpha,
+       sourceForce = forces.get(edge.source_id)!,
+       targetForce = forces.get(edge.target_id)!;
       sourceForce.x += dx * spring;
       sourceForce.y += dy * spring;
       targetForce.x -= dx * spring;
@@ -158,18 +158,18 @@ export class AtlasForceLayoutRunner {
     }
 
     for (const node of request.nodes) {
-      const position = this.positions.get(node.id)!;
-      const force = forces.get(node.id)!;
-      const velocity = this.velocities.get(node.id)!;
-      const group = groupKey(node, request.layout);
-      const groupAngle = (hashValue(group) % 360) * (Math.PI / 180);
-      const groupingRadius = request.layout === "geography" ? 0.27 : 0.18;
-      let targetX = request.width / 2 + Math.cos(groupAngle) * request.width * groupingRadius;
-      let targetY = request.height / 2 + Math.sin(groupAngle) * request.height * groupingRadius;
+      const position = this.positions.get(node.id)!,
+       force = forces.get(node.id)!,
+       velocity = this.velocities.get(node.id)!,
+       group = groupKey(node, request.layout),
+       groupAngle = (hashValue(group) % 360) * (Math.PI / 180),
+       groupingRadius = request.layout === "geography" ? 0.27 : 0.18;
+      let targetX = request.width / 2 + Math.cos(groupAngle) * request.width * groupingRadius,
+       targetY = request.height / 2 + Math.sin(groupAngle) * request.height * groupingRadius;
 
       if (request.layout === "radial" && request.selectedId) {
-        const graphDistance = this.adjacency.get(request.selectedId)?.has(node.id) ? 185 : 330;
-        const angle = seededUnit(node.id, 11) * Math.PI * 2;
+        const graphDistance = this.adjacency.get(request.selectedId)?.has(node.id) ? 185 : 330,
+         angle = seededUnit(node.id, 11) * Math.PI * 2;
         targetX = request.width / 2 + Math.cos(angle) * (node.id === request.selectedId ? 0 : graphDistance);
         targetY = request.height / 2 + Math.sin(angle) * (node.id === request.selectedId ? 0 : graphDistance);
       }

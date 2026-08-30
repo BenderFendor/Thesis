@@ -1,29 +1,19 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { render, screen } from "@testing-library/react";
 
 import { AtlasInspector } from "../atlas-inspector";
 import type { AtlasEntityRecord, AtlasMeasurementsResponse } from "../lib/atlas-schema";
 
 const record: AtlasEntityRecord = {
-  id: "outlet:cnn",
-  entity_type: "outlet",
-  label: "CNN",
-  status: "accepted",
   confidence_tier: "verified",
-  last_verified_at: "2026-07-21T12:00:00Z",
+  connections: [],
   details: {},
-  entity_kind: "publication_brand",
   dossier_sections: [
     {
       key: "summary",
-      title: "Summary",
       statements: [
         {
-          label: "Current owner or operator",
           answer: "Warner Bros. Discovery",
-          state: "known",
-          predicate: "brand_of",
-          lifecycle_state: "current",
-          qualifiers: {},
           evidence: [
             {
               id: "evidence-1",
@@ -39,66 +29,78 @@ const record: AtlasEntityRecord = {
               contradictions: [],
             },
           ],
+          label: "Current owner or operator",
+          lifecycle_state: "current",
+          predicate: "brand_of",
+          qualifiers: {},
+          state: "known",
         },
       ],
+      title: "Summary",
     },
     {
       key: "ownership_control",
-      title: "Ownership and control",
       statements: [
         {
-          label: "Proposed relationship",
           answer: "Paramount Skydance",
-          state: "known",
-          predicate: "successor_of",
-          lifecycle_state: "proposed",
-          qualifiers: {},
           evidence: [],
+          label: "Proposed relationship",
+          lifecycle_state: "proposed",
+          predicate: "successor_of",
+          qualifiers: {},
+          state: "known",
         },
       ],
+      title: "Ownership and control",
     },
     {
       key: "evidence_conflicts_freshness_gaps",
-      title: "Evidence, conflicts, freshness, and known gaps",
       statements: [
         {
-          label: "Known gaps",
           answer: "The legal chain is incomplete.",
-          state: "chain_incomplete",
-          qualifiers: {},
           evidence: [],
+          label: "Known gaps",
+          qualifiers: {},
+          state: "chain_incomplete",
         },
       ],
+      title: "Evidence, conflicts, freshness, and known gaps",
     },
   ],
+  entity_kind: "publication_brand",
+  entity_type: "outlet",
   evidence: [],
-  connections: [],
-};
+  id: "outlet:cnn",
+  label: "CNN",
+  last_verified_at: "2026-07-21T12:00:00Z",
+  status: "accepted",
+},
 
-const measurements: AtlasMeasurementsResponse = {
-  source_name: "CNN",
+ measurements: AtlasMeasurementsResponse = {
   measurements: [
     {
-      id: "calc-1",
-      measurement_name: "publication_cadence",
       algorithm_version: "media_measurements/1.0",
       created_at: "2026-07-21T12:00:00Z",
+      id: "calc-1",
+      measurement_name: "publication_cadence",
       result: {
+        corpus_window: { end: "2026-07-21T00:00:00Z", start: "2026-07-01T00:00:00Z" },
+        coverage: { denominator: 12, numerator: 12 },
         denominator: 12,
-        corpus_window: { start: "2026-07-01T00:00:00Z", end: "2026-07-21T00:00:00Z" },
-        coverage: { numerator: 12, denominator: 12 },
       },
     },
   ],
+  source_name: "CNN",
 };
 
-describe("AtlasInspector", () => {
-  it("separates current and proposed answers, exposes gaps, evidence, and traces", () => {
+describe("atlasInspector", () => {
+  it("separates current and proposed answers, exposes gaps, evidence, and traces", () => {  expect.hasAssertions();
+  
     render(
       <AtlasInspector
         record={record}
         loading={false}
-        error={null}
+        error={undefined}
         measurements={measurements}
         onSelectConnection={jest.fn()}
       />,

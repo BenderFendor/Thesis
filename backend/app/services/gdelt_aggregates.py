@@ -122,6 +122,59 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
+def _source_deviation(
+    mean_tone: float | None, reference_mean: float | None, stddev: float
+) -> float:
+    """Standardized deviation of a mean tone against a reference mean."""
+    if mean_tone is None or reference_mean is None or stddev <= 0:
+        return 0.0
+    return round((mean_tone - reference_mean) / stddev, 3)
+
+
+async def _tone_stats_for_domains(
+    db_session: Any,
+    domains: list[str] | None,
+    cutoff_naive: Any,
+) -> tuple[float | None, float]:
+    """Fetch avg tone and population stddev over an optional domain set."""
+    from sqlalchemy import select, func
+    from app.database import GDELTEvent
+
+    conditions = [GDELTEvent.published_at >= cutoff_naive]
+    if domains is not None:
+        conditions.append(GDELTEvent.source.in_(domains))
+    mean_result = await db_session.execute(
+        select(func.avg(GDELTEvent.tone)).where(*conditions)
+    )
+    mean = mean_result.scalar()
+    stddev_result = await db_session.execute(
+        select(func.stddev_pop(GDELTEvent.tone)).where(*conditions)
+    )
+    stddev = stddev_result.scalar() or 1.0
+    return mean, stddev
+
+
+async def _source_language(db_session: Any, source_domain: str) -> str:
+    from sqlalchemy import select
+    from app.database import SourceMetadata
+
+    lang_result = await db_session.execute(
+        select(SourceMetadata.language).where(SourceMetadata.domain == source_domain)
+    )
+    lang_row = lang_result.scalars().first()
+    return lang_row if lang_row is not None else "en"
+
+
+async def _language_domains(db_session: Any, language: str) -> list[str]:
+    from sqlalchemy import select
+    from app.database import SourceMetadata
+
+    lang_domains_result = await db_session.execute(
+        select(SourceMetadata.domain).where(SourceMetadata.language == language)
+    )
+    return [row[0] for row in lang_domains_result.all() if row[0]]
+
+
 async def compute_source_tone_deviation(
     source_domain: str,
     db_session: Any,
@@ -139,74 +192,27 @@ async def compute_source_tone_deviation(
     """
     from datetime import datetime, timedelta
 
-    from sqlalchemy import select, func
-    from app.database import GDELTEvent, SourceMetadata
-
     cutoff = datetime.now(UTC) - timedelta(days=days)
     cutoff_naive = cutoff.replace(tzinfo=None)
 
-    language = "en"
-
-    lang_result = await db_session.execute(
-        select(SourceMetadata.language).where(SourceMetadata.domain == source_domain)
+    language = await _source_language(db_session, source_domain)
+    source_mean_tone, _ = await _tone_stats_for_domains(
+        db_session, [source_domain], cutoff_naive
     )
-    lang_row = lang_result.scalars().first()
-    lang_row_val = lang_row
-    if lang_row_val is not None:
-        language = lang_row_val
-
-    tone_result = await db_session.execute(
-        select(func.avg(GDELTEvent.tone)).where(
-            GDELTEvent.source == source_domain,
-            GDELTEvent.published_at >= cutoff_naive,
-        )
+    global_mean_tone, global_stddev = await _tone_stats_for_domains(
+        db_session, None, cutoff_naive
     )
-    source_mean_tone = tone_result.scalar()
 
-    global_tone_result = await db_session.execute(
-        select(func.avg(GDELTEvent.tone)).where(
-            GDELTEvent.published_at >= cutoff_naive,
-        )
-    )
-    global_mean_tone = global_tone_result.scalar()
-
-    global_stddev_result = await db_session.execute(
-        select(func.stddev_pop(GDELTEvent.tone)).where(
-            GDELTEvent.published_at >= cutoff_naive,
-        )
-    )
-    global_stddev = global_stddev_result.scalar() or 1.0
-
-    global_sigma = 0.0
-    if source_mean_tone is not None and global_mean_tone is not None and global_stddev > 0:
-        global_sigma = round((source_mean_tone - global_mean_tone) / global_stddev, 3)
-
+    global_sigma = _source_deviation(source_mean_tone, global_mean_tone, global_stddev)
     language_sigma = global_sigma
 
-    lang_domains_result = await db_session.execute(
-        select(SourceMetadata.domain).where(SourceMetadata.language == language)
-    )
-    lang_domains = [row[0] for row in lang_domains_result.all() if row[0]]
-
+    lang_domains = await _language_domains(db_session, language)
     if lang_domains and source_mean_tone is not None:
-        lang_tone_result = await db_session.execute(
-            select(func.avg(GDELTEvent.tone)).where(
-                GDELTEvent.source.in_(lang_domains),
-                GDELTEvent.published_at >= cutoff_naive,
-            )
+        lang_mean_tone, lang_stddev = await _tone_stats_for_domains(
+            db_session, lang_domains, cutoff_naive
         )
-        lang_mean_tone = lang_tone_result.scalar()
-
-        lang_stddev_result = await db_session.execute(
-            select(func.stddev_pop(GDELTEvent.tone)).where(
-                GDELTEvent.source.in_(lang_domains),
-                GDELTEvent.published_at >= cutoff_naive,
-            )
-        )
-        lang_stddev = lang_stddev_result.scalar() or 1.0
-
-        if lang_mean_tone is not None and lang_stddev > 0:
-            language_sigma = round((source_mean_tone - lang_mean_tone) / lang_stddev, 3)
+        if lang_mean_tone is not None:
+            language_sigma = _source_deviation(source_mean_tone, lang_mean_tone, lang_stddev)
 
     return {
         "source_domain": source_domain,

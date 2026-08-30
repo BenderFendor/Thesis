@@ -2,7 +2,7 @@
 
 import { useReadingQueue } from "@/hooks/useReadingQueue";
 import { useBookmarks } from "@/hooks/useBookmarks";
-import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { Button } from "@/components/ui/button";
@@ -16,33 +16,25 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  List,
+  AlertTriangle,
+  Bookmark,
+  Bug,
   ChevronDown,
-  Trash2,
-  X,
+  DollarSign,
   ExternalLink,
   Heart,
-  Star,
-  Bookmark,
+  List,
   Sparkles,
-  AlertTriangle,
-  DollarSign,
-  Bug,
+  Star,
+  Trash2,
+  X,
 } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/safe-image";
-import {
-  type NewsArticle,
-  analyzeArticle,
-  type ArticleAnalysis,
-  API_BASE_URL,
-  getSourceById,
-  type NewsSource,
-  fetchSourceDebugData,
-  type SourceDebugData,
-} from "@/lib/api";
+import { API_BASE_URL, analyzeArticle, fetchSourceDebugData, getSourceById } from '@/lib/api';
+import type { ArticleAnalysis, NewsArticle, NewsSource, SourceDebugData } from '@/lib/api';
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import { ArticleInlineEmbed } from "@/components/article-inline-embed";
 import { NoveltyBadge } from "@/components/novelty-badge";
@@ -50,9 +42,9 @@ import { SemanticTags } from "@/components/semantic-tags";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 function getArticlePreview(article: NewsArticle): string {
-  const text = article.summary || article.content || "No description available";
-  const words = text.split(/\s+/);
-  return words.length > 150 ? words.slice(0, 150).join(" ") + " ..." : text;
+  const text = article.summary || article.content || "No description available",
+   words = text.split(/\s+/);
+  return words.length > 150 ? `${words.slice(0, 150).join(" ")  } ...` : text;
 }
 
 function handleCardKeyDown(
@@ -76,26 +68,26 @@ function DigestCodeRenderer({
   onOpenArticle,
   ...props
 }: DigestCodeRendererProps) {
-  const text = String(children).replace(/\n$/, "");
-  const nodeWithLang = node as { lang?: string } | undefined;
-  const isStructured =
+  const text = String(children).replace(/\n$/, ""),
+   nodeWithLang = node as { lang?: string } | undefined,
+   isStructured =
     (className === "language-json:articles") ||
     // Some markdown renderers include the fence label in node.lang or node.meta
     (typeof nodeWithLang?.lang === 'string' && nodeWithLang.lang === 'json:articles') ||
     (text.trim().startsWith('{') && text.includes('"articles"'));
   if (isStructured) {
-    // try parse and render ArticleInlineEmbed components
+    // Try parse and render ArticleInlineEmbed components
     try {
-      const payload = JSON.parse(text);
-      const items = Array.isArray(payload.articles) ? payload.articles : [];
+      const payload = JSON.parse(text),
+       items = Array.isArray(payload.articles) ? payload.articles : [];
       return (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
           {items.map((it: { url?: string; link?: string } | null, idx: number) => {
             const articleRef =
               typeof it === "object" && it !== null
-                ? (it as { url?: string; link?: string })
-                : {};
-            const url = articleRef.url || articleRef.link || `about:blank#${idx}`;
+                ? (it)
+                : {},
+             url = articleRef.url || articleRef.link || `about:blank#${idx}`;
             return (
               <ArticleInlineEmbed
                 key={url}
@@ -106,11 +98,11 @@ function DigestCodeRenderer({
           })}
         </div>
       );
-    } catch (err) {
-      console.error('Failed to parse structured articles JSON in markdown code block', err);
+    } catch (error) {
+      console.error('Failed to parse structured articles JSON in markdown code block', error);
     }
   }
-  // fallback: simple inline code style
+  // Fallback: simple inline code style
   return (
     <code
       className="px-2 py-1 rounded text-sm"
@@ -168,7 +160,7 @@ function QueueCardMeta({
             color: "rgb(59, 130, 246)",
           }}
         >
-          <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+          <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
           Loading...
         </Badge>
       )}
@@ -266,7 +258,7 @@ function QueueCard({
   return (
     <div
       onClick={onToggle}
-      onKeyDown={(event) => handleCardKeyDown(event, onToggle)}
+      onKeyDown={(event) =>{  handleCardKeyDown(event, onToggle); }}
       role="button"
       tabIndex={0}
       className={cn(
@@ -297,8 +289,8 @@ function QueueCard({
           outlineColor: isExpanded
             ? "var(--primary)"
             : undefined,
-          outlineWidth: isExpanded ? "2px" : "0px",
           outlineOffset: "0px",
+          outlineWidth: isExpanded ? "2px" : "0px",
         }}
       >
         <div className="flex items-start gap-3">
@@ -432,8 +424,8 @@ function ArticleDetailHeader({
               className="text-xs px-2 py-1 rounded-full"
               style={{
                 backgroundColor: "rgba(168, 85, 247, 0.2)",
-                color: "var(--primary)",
                 border: "1px solid rgba(168, 85, 247, 0.3)",
+                color: "var(--primary)",
               }}
             >
               {readTime} min read
@@ -489,12 +481,12 @@ function FullArticleSection({
       <h3 className="font-bold text-lg mb-2">Full Article</h3>
       {articleLoading ? (
         <div className="flex items-center gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
           <p className="text-gray-400 text-sm">
             Loading full article text...
           </p>
         </div>
-      ) : fullArticleText ? (
+      ) : (fullArticleText ? (
         <div
           className="text-gray-300 leading-relaxed whitespace-pre-wrap text-sm"
           style={{ color: "var(--foreground)" }}
@@ -508,7 +500,7 @@ function FullArticleSection({
         >
           {article.content || article.summary}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -650,8 +642,8 @@ function ArticleDetailMain({
       <div
         className="flex flex-wrap gap-4 text-sm pb-4 border-b"
         style={{
-          color: "var(--muted-foreground)",
           borderColor: "var(--border)",
+          color: "var(--muted-foreground)",
         }}
       >
         {article.publishedAt && (
@@ -775,12 +767,12 @@ function AiSummaryCard({
           borderColor: "var(--border)",
         }}
       >
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
       </div>
     );
   }
   if (!aiAnalysis?.success || !aiAnalysis.summary) {
-    return null;
+    return undefined;
   }
   return (
     <div
@@ -815,7 +807,7 @@ interface BiasAnalysisCardProps {
 
 function BiasAnalysisCard({ aiAnalysis }: BiasAnalysisCardProps) {
   if (!aiAnalysis?.success || !aiAnalysis.bias_analysis) {
-    return null;
+    return undefined;
   }
   return (
     <div
@@ -872,7 +864,7 @@ function SourceDebugPanel({
   if (debugLoading) {
     return (
       <div className="flex items-center justify-center">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
       </div>
     );
   }
@@ -934,9 +926,9 @@ function SourceCard({
       </h3>
       {sourceLoading ? (
         <div className="flex items-center justify-center p-4">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
         </div>
-      ) : source ? (
+      ) : (source ? (
         <div className="space-y-2 text-xs">
           {source.funding && source.funding.length > 0 && (
             <div className="flex items-center gap-2">
@@ -1005,7 +997,7 @@ function SourceCard({
         >
           Source info unavailable
         </p>
-      )}
+      ))}
       <Button
         variant="outline"
         size="sm"
@@ -1078,8 +1070,7 @@ function ArticleDetailFooter({
             : "text-gray-400 hover:text-green-400"
         }
         title="Mark as read (M)"
-      >
-      </Button>
+       />
       <Button
         variant="ghost"
         onClick={onRemove}
@@ -1266,13 +1257,13 @@ function QueueDigestView({
         {digestLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               <p style={{ color: "var(--muted-foreground)" }}>
                 Generating your digest...
               </p>
             </div>
           </div>
-        ) : queueDigest ? (
+        ) : (queueDigest ? (
           <div
             className="px-6 py-8 prose prose-invert max-w-none"
             style={{ color: "var(--foreground)" }}
@@ -1380,47 +1371,47 @@ function QueueDigestView({
               Failed to generate digest
             </p>
           </div>
-        )}
+        ))}
       </div>
     </>
   );
 }
 
 export function ReadingQueueSidebar() {
-  const READ_SPEED_WPM = 230; // Average adult reading speed
-  const { queuedArticles, removeArticleFromQueue, isLoaded } =
-    useReadingQueue();
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const { getRecentIds: getReadingHistoryIds } = useReadingHistory();
-  const readingHistoryIds = useMemo(() => getReadingHistoryIds(50), [getReadingHistoryIds]);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const [selectedArticleUrl, setSelectedArticleUrl] = useState<string | null>(
-    null
-  );
-  const { isLiked, toggleLike } = useLikedArticles();
-  const { isBookmarked, toggleBookmark } = useBookmarks();
-  const [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(null);
-  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
-  const [source, setSource] = useState<NewsSource | null>(null);
-  const [sourceLoading, setSourceLoading] = useState(false);
-  const [showSourceDetails, setShowSourceDetails] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [debugLoading, setDebugLoading] = useState(false);
-  const [debugData, setDebugData] = useState<SourceDebugData | null>(null);
-  const [fullArticleText, setFullArticleText] = useState<string | null>(null);
-  const [articleLoading, setArticleLoading] = useState(false);
-  const [readArticles, setReadArticles] = useState<Set<string>>(new Set());
-  const [estimatedReadTimes, setEstimatedReadTimes] = useState<
+  const READ_SPEED_WPM = 230, // Average adult reading speed
+   { queuedArticles, removeArticleFromQueue, isLoaded } =
+    useReadingQueue(),
+   { isFavorite, toggleFavorite } = useFavorites(),
+   { getRecentIds: getReadingHistoryIds } = useReadingHistory(),
+   readingHistoryIds = useMemo(() => getReadingHistoryIds(50), [getReadingHistoryIds]),
+   [expandedIndex, setExpandedIndex] = useState<number | null>(undefined),
+   [selectedArticleUrl, setSelectedArticleUrl] = useState<string | null>(
+    undefined
+  ),
+   { isLiked, toggleLike } = useLikedArticles(),
+   { isBookmarked, toggleBookmark } = useBookmarks(),
+   [aiAnalysis, setAiAnalysis] = useState<ArticleAnalysis | null>(undefined),
+   [aiAnalysisLoading, setAiAnalysisLoading] = useState(false),
+   [source, setSource] = useState<NewsSource | null>(undefined),
+   [sourceLoading, setSourceLoading] = useState(false),
+   [showSourceDetails, setShowSourceDetails] = useState(false),
+   [debugOpen, setDebugOpen] = useState(false),
+   [debugLoading, setDebugLoading] = useState(false),
+   [debugData, setDebugData] = useState<SourceDebugData | null>(undefined),
+   [fullArticleText, setFullArticleText] = useState<string | null>(undefined),
+   [articleLoading, setArticleLoading] = useState(false),
+   [readArticles, setReadArticles] = useState<Set<string>>(new Set()),
+   [estimatedReadTimes, setEstimatedReadTimes] = useState<
     Record<string, number>
-  >({});
-  const [queueDigest, setQueueDigest] = useState<string | null>(null);
-  const [digestLoading, setDigestLoading] = useState(false);
-  const [showQueueOverview, setShowQueueOverview] = useState(false);
-  const [embedModalArticle, setEmbedModalArticle] = useState<NewsArticle | null>(null);
-  const [embedModalOpen, setEmbedModalOpen] = useState(false);
+  >({}),
+   [queueDigest, setQueueDigest] = useState<string | null>(undefined),
+   [digestLoading, setDigestLoading] = useState(false),
+   [showQueueOverview, setShowQueueOverview] = useState(false),
+   [embedModalArticle, setEmbedModalArticle] = useState<NewsArticle | null>(undefined),
+   [embedModalOpen, setEmbedModalOpen] = useState(false),
 
-  const generateQueueDigest = async () => {
-    if (!queuedArticles || queuedArticles.length === 0) return;
+   generateQueueDigest = async () => {
+    if (!queuedArticles || queuedArticles.length === 0) {return;}
 
     try {
       setDigestLoading(true);
@@ -1428,74 +1419,74 @@ export function ReadingQueueSidebar() {
       // Build article summaries without calling AI analysis (to avoid rate limiting)
       // Use existing article summaries instead of fetching AI analysis for each one
       const articleSummaries = queuedArticles.map((article) => ({
-        title: article.title,
-        source: article.source,
-        url: article.url,
-        summary: article.summary || "",
         category: article.category || "Uncategorized",
-      }));
+        source: article.source,
+        summary: article.summary || "",
+        title: article.title,
+        url: article.url,
+      })),
 
       // Group by category
-      const grouped = articleSummaries.reduce(
+       grouped = articleSummaries.reduce< Record<string, typeof articleSummaries>>(
         (acc, article) => {
           const cat = article.category;
-          if (!acc[cat]) acc[cat] = [];
+          if (!acc[cat]) {acc[cat] = [];}
           acc[cat].push(article);
           return acc;
         },
-        {} as Record<string, typeof articleSummaries>
-      );
+        {}
+      ),
 
       // Generate digest via API (single AI call for the whole digest)
-      const response = await fetch(
+       response = await fetch(
         `${API_BASE_URL}/api/queue/digest`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             articles: articleSummaries,
             grouped,
           }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
         }
       );
 
       if (response.ok) {
-        const data = await response.json();
-        const raw = data.digest || data.content || "";
-        const fenceRe = /```json:articles\n[\s\S]*?\n```/g;
+        const data = await response.json(),
+         raw = data.digest || data.content || "",
+         fenceRe = /```json:articles\n[\s\S]*?\n```/gu;
         setQueueDigest(raw.replace(fenceRe, "").trim());
       } else {
         console.error("Failed to generate digest");
-        setQueueDigest(null);
+        setQueueDigest(undefined);
       }
-    } catch (e) {
-      console.error("Error generating digest:", e);
-      setQueueDigest(null);
+    } catch (error) {
+      console.error("Error generating digest:", error);
+      setQueueDigest(undefined);
     } finally {
       setDigestLoading(false);
     }
-  };
+  },
 
-  const calculateReadTime = (text: string): number => {
-    if (!text) return 0;
+   calculateReadTime = (text: string): number => {
+    if (!text) {return 0;}
     const wordCount = text.trim().split(/\s+/).length;
     return Math.ceil(wordCount / READ_SPEED_WPM);
-  };
+  },
 
-  const handleRemove = (articleUrl: string) => {
+   handleRemove = (articleUrl: string) => {
     removeArticleFromQueue(articleUrl);
-  };
+  },
 
-  const handleMarkAsRead = (articleUrl: string) => {
+   handleMarkAsRead = (articleUrl: string) => {
     setReadArticles((prev) => {
       const next = new Set(prev);
       next.add(articleUrl);
       return next;
     });
-  };
+  },
 
-  const handleNavigateArticle = useCallback((direction: "next" | "previous") => {
-    if (!selectedArticleUrl || !queuedArticles) return;
+   handleNavigateArticle = useCallback((direction: "next" | "previous") => {
+    if (!selectedArticleUrl || !queuedArticles) {return;}
 
     const currentIndex = queuedArticles.findIndex(
       (a) => a.url === selectedArticleUrl
@@ -1511,55 +1502,55 @@ export function ReadingQueueSidebar() {
     if (newIndex !== currentIndex) {
       setSelectedArticleUrl(queuedArticles[newIndex]!.url);
     }
-  }, [queuedArticles, selectedArticleUrl]);
+  }, [queuedArticles, selectedArticleUrl]),
 
-  const loadAiAnalysis = useCallback(async (article: NewsArticle) => {
+   loadAiAnalysis = useCallback(async (article: NewsArticle) => {
     try {
       setAiAnalysisLoading(true);
       const analysis = await analyzeArticle(article.url, article.source);
       setAiAnalysis(analysis);
-    } catch (e) {
-      console.error("Failed to analyze article:", e);
+    } catch (error) {
+      console.error("Failed to analyze article:", error);
       setAiAnalysis({
-        success: false,
         article_url: article.url,
-        error: e instanceof Error ? e.message : "Failed to analyze article",
+        error: error instanceof Error ? error.message : "Failed to analyze article",
+        success: false,
       });
     } finally {
       setAiAnalysisLoading(false);
     }
-  }, []);
+  }, []),
 
-  const loadSource = useCallback(async (article: NewsArticle) => {
+   loadSource = useCallback(async (article: NewsArticle) => {
     setSourceLoading(true);
     try {
       const fetchedSource = await getSourceById(article.sourceId);
       setSource(fetchedSource || null);
     } catch (error) {
       console.error("Failed to load source:", error);
-      setSource(null);
+      setSource(undefined);
     } finally {
       setSourceLoading(false);
     }
-  }, []);
+  }, []),
 
-  const loadDebugData = async (article: NewsArticle) => {
+   loadDebugData = async (article: NewsArticle) => {
     try {
       setDebugLoading(true);
       const data = await fetchSourceDebugData(article.source);
       setDebugData(data);
-    } catch (e) {
-      console.error("Failed to fetch debug data:", e);
-      setDebugData(null);
+    } catch (error) {
+      console.error("Failed to fetch debug data:", error);
+      setDebugData(undefined);
     } finally {
       setDebugLoading(false);
     }
-  };
+  },
 
-  const loadFullArticle = useCallback(async (article: NewsArticle) => {
+   loadFullArticle = useCallback(async (article: NewsArticle) => {
     try {
       setArticleLoading(true);
-      setFullArticleText(null);
+      setFullArticleText(undefined);
 
       // Check if article already has preloaded full text
       if (article._queueData?.fullText) {
@@ -1572,8 +1563,8 @@ export function ReadingQueueSidebar() {
         `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
       );
       if (response.ok) {
-        const data = await response.json();
-        const text = data.text || data.full_text || null;
+        const data = await response.json(),
+         text = data.text || data.full_text || null;
         setFullArticleText(text);
 
         // Calculate and store read time
@@ -1585,18 +1576,18 @@ export function ReadingQueueSidebar() {
           }));
         }
       }
-    } catch (e) {
-      console.error("Failed to fetch full article:", e);
+    } catch (error) {
+      console.error("Failed to fetch full article:", error);
     } finally {
       setArticleLoading(false);
     }
-  }, []);
+  }, []),
 
-  const selectedArticle =
+   selectedArticle =
     selectedArticleUrl && queuedArticles
       ? queuedArticles.find((a) => a.url === selectedArticleUrl)
-      : null;
-  const selectedArticleIndex = selectedArticle
+      : null,
+   selectedArticleIndex = selectedArticle
     ? queuedArticles.findIndex((a) => a.url === selectedArticleUrl)
     : -1;
 
@@ -1604,8 +1595,8 @@ export function ReadingQueueSidebar() {
   useEffect(() => {
     if (selectedArticle) {
       // Reset all state for the new article
-      // liked state derived from backend
-      // bookmark state derived from backend
+      // Liked state derived from backend
+      // Bookmark state derived from backend
       setShowSourceDetails(false);
       setDebugOpen(false);
 
@@ -1613,10 +1604,10 @@ export function ReadingQueueSidebar() {
       setAiAnalysisLoading(true);
       setSourceLoading(true);
       setArticleLoading(true);
-      setAiAnalysis(null);
-      setSource(null);
-      setDebugData(null);
-      setFullArticleText(null);
+      setAiAnalysis(undefined);
+      setSource(undefined);
+      setDebugData(undefined);
+      setFullArticleText(undefined);
 
       // Load article content first (priority)
       loadFullArticle(selectedArticle);
@@ -1630,7 +1621,7 @@ export function ReadingQueueSidebar() {
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedArticle) return;
+      if (!selectedArticle) {return;}
 
       if (e.key === "ArrowRight") {
         e.preventDefault();
@@ -1643,22 +1634,22 @@ export function ReadingQueueSidebar() {
         handleMarkAsRead(selectedArticle.url);
       } else if (e.key === "Escape") {
         e.preventDefault();
-        setSelectedArticleUrl(null);
+        setSelectedArticleUrl(undefined);
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () =>{  globalThis.removeEventListener("keydown", handleKeyDown); };
   }, [handleNavigateArticle, queuedArticles, selectedArticle, selectedArticleUrl]);
 
   const handleOpenDigest = () => {
     setShowQueueOverview(true);
     generateQueueDigest();
-  };
+  },
 
-  const handleToggleDebug = (article: NewsArticle) => {
+   handleToggleDebug = (article: NewsArticle) => {
     setDebugOpen(!debugOpen);
-    if (!debugOpen) loadDebugData(article);
+    if (!debugOpen) {loadDebugData(article);}
   };
 
   return (
@@ -1686,8 +1677,8 @@ export function ReadingQueueSidebar() {
           className="flex flex-col p-0"
           style={{
             backgroundColor: "var(--news-bg-primary)",
-            width: selectedArticle ? "70vw" : "540px",
             maxWidth: selectedArticle ? "70vw" : "100%",
+            width: selectedArticle ? "70vw" : "540px",
           }}
         >
           {/* Full-screen article detail view */}
@@ -1704,34 +1695,34 @@ export function ReadingQueueSidebar() {
               source={source}
               sourceLoading={sourceLoading}
               showSourceDetails={showSourceDetails}
-              onToggleSourceDetails={() =>
-                setShowSourceDetails(!showSourceDetails)
+              onToggleSourceDetails={() =>{ 
+                setShowSourceDetails(!showSourceDetails); }
               }
               debugOpen={debugOpen}
-            onToggleDebug={() => handleToggleDebug(selectedArticle)}
+            onToggleDebug={() =>{  handleToggleDebug(selectedArticle); }}
               debugLoading={debugLoading}
               debugData={debugData}
               isLiked={Boolean(selectedArticle.id) && isLiked(selectedArticle.id)}
               isFavorite={isFavorite(selectedArticle.sourceId)}
               isBookmarked={Boolean(selectedArticle.id) && isBookmarked(selectedArticle.id)}
               isRead={readArticles.has(selectedArticle.url)}
-              onPrevious={() => handleNavigateArticle("previous")}
-              onNext={() => handleNavigateArticle("next")}
-              onClose={() => setSelectedArticleUrl(null)}
+              onPrevious={() =>{  handleNavigateArticle("previous"); }}
+              onNext={() =>{  handleNavigateArticle("next"); }}
+              onClose={() =>{  setSelectedArticleUrl(undefined); }}
               onLike={() => {
-                if (selectedArticle.id) toggleLike(selectedArticle.id);
+                if (selectedArticle.id) {toggleLike(selectedArticle.id);}
               }}
-              onFavorite={() => toggleFavorite(selectedArticle.sourceId)}
+              onFavorite={() =>{  toggleFavorite(selectedArticle.sourceId); }}
               onBookmark={() => {
-                if (selectedArticle.id) toggleBookmark(selectedArticle.id);
+                if (selectedArticle.id) {toggleBookmark(selectedArticle.id);}
               }}
-              onMarkRead={() => handleMarkAsRead(selectedArticle.url)}
+              onMarkRead={() =>{  handleMarkAsRead(selectedArticle.url); }}
               onRemove={() => {
                 handleRemove(selectedArticle.url);
-                setSelectedArticleUrl(null);
+                setSelectedArticleUrl(undefined);
               }}
             />
-          ) : showQueueOverview ? (
+          ) : (showQueueOverview ? (
             /* Queue Digest View */
             <QueueDigestView
               articleCount={queuedArticles.length}
@@ -1739,12 +1730,12 @@ export function ReadingQueueSidebar() {
               queueDigest={queueDigest}
               embedModalArticle={embedModalArticle}
               embedModalOpen={embedModalOpen}
-              onClose={() => setShowQueueOverview(false)}
+              onClose={() =>{  setShowQueueOverview(false); }}
               onOpenArticle={(article) => {
                 setEmbedModalArticle(article);
                 setEmbedModalOpen(true);
               }}
-              onEmbedClose={() => setEmbedModalOpen(false)}
+              onEmbedClose={() =>{  setEmbedModalOpen(false); }}
               onNavigateArticle={handleNavigateArticle}
             />
           ) : (
@@ -1832,18 +1823,18 @@ export function ReadingQueueSidebar() {
                         isExpanded={expandedIndex === index}
                         estimatedReadTime={estimatedReadTimes[article.url]}
                         readingHistoryIds={readingHistoryIds}
-                        onToggle={() =>
-                          setExpandedIndex(expandedIndex === index ? null : index)
+                        onToggle={() =>{ 
+                          setExpandedIndex(expandedIndex === index ? null : index); }
                         }
-                        onOpen={() => setSelectedArticleUrl(article.url)}
-                        onRemove={() => handleRemove(article.url)}
+                        onOpen={() =>{  setSelectedArticleUrl(article.url); }}
+                        onRemove={() =>{  handleRemove(article.url); }}
                       />
                     ))}
                   </div>
                 )}
               </div>
             </>
-          )}
+          ))}
         </SheetContent>
       </Sheet>
     </>

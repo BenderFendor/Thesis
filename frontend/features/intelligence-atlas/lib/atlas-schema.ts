@@ -195,7 +195,7 @@ export type AtlasExternalId = z.infer<typeof AtlasExternalIdSchema>;
 // bias_block`): each field independently prefers an accepted evidence-spine
 // claim (origin="claim", carrying claim_ids/evidence) over the legacy
 // SourceMetadata/Organization value (origin="legacy", no evidence) --
-// origin is null only when neither exists.
+// origin is undefined only when neither exists.
 export const AtlasFundingBiasFieldSchema = z.object({
   value: z.string().nullable().optional(),
   origin: z.enum(["claim", "legacy"]).nullable().optional(),
@@ -215,7 +215,7 @@ export type AtlasFundingAndBias = z.infer<typeof AtlasFundingAndBiasSchema>;
 
 export function parseFundingAndBias(details: Record<string, unknown>): AtlasFundingAndBias | null {
   const raw = details.funding_and_bias;
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object") return undefined;
   const parsed = AtlasFundingAndBiasSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
@@ -314,7 +314,7 @@ export type FundingBiasMethodology = z.infer<typeof FundingBiasMethodologySchema
 export type FundingBiasStatistic = z.infer<typeof FundingBiasStatisticSchema>;
 export type FundingBiasAnalysisResponse = z.infer<typeof FundingBiasAnalysisResponseSchema>;
 
-export function metricPercentage(metric: { numerator: number; denominator: number }): number {
+export function metricPercentage(metric:Readonly< { numerator: number; denominator: number }>): number {
   if (metric.denominator <= 0) return 0;
   return Math.round((metric.numerator / metric.denominator) * 1000) / 10;
 }

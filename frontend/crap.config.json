@@ -1,0 +1,14 @@
+{
+  "threshold": 30,
+  "testRunner": "jest",
+  "packageManager": "npm",
+  "exclude": [
+    "frontend/lib/generated/**",
+    "frontend/__tests__/**",
+    "frontend/**/__tests__/**",
+    "frontend/**/*.test.ts",
+    "frontend/**/*.test.tsx",
+    "frontend/**/*.spec.ts",
+    "frontend/**/*.spec.tsx"
+  ]
+}

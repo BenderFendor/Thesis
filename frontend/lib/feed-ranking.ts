@@ -135,7 +135,7 @@ export function tokenizeArticle(article: NewsArticle): string[] {
   const tokens = parts
     .join(" ")
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^a-z0-9\s]/gu, " ")
     .split(/\s+/)
     .map(normalizeToken)
     .filter((token) => token.length > 2 && !STOP_WORDS.has(token))
@@ -147,7 +147,7 @@ function addWeight(target: Record<string | number, number>, key: string | number
   target[key] = (target[key] || 0) + value
 }
 
-function collectTopicKeywords(topics: ArticleTopic[]): string[] {
+function collectTopicKeywords(topics:readonly  ArticleTopic[]): string[] {
   const keywords = topics.flatMap((topic) => topic.keywords || [])
   return Array.from(new Set(keywords.map(normalizeToken).filter(Boolean)))
 }
@@ -170,11 +170,11 @@ function topClusterEntries(weights: Record<number, number>, labels: Record<numbe
 }
 
 export function buildInterestProfile(
-  seeds: PersonalizationSeed[],
+  seeds:readonly  PersonalizationSeed[],
   topicsByArticleId: Record<number, ArticleTopic[]>,
 ): InterestProfile | null {
   if (seeds.length === 0) {
-    return null
+    return undefined
   }
 
   const clusterWeights: Record<number, number> = {}
@@ -323,7 +323,7 @@ export function scoreArticle(
 }
 
 export function rankFeedArticles(
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
   profile: InterestProfile | null,
   isFavorite: (sourceId: string) => boolean,
 ): RankedFeedResult {

@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react"
-import { Volume2, VolumeX, X, AlertTriangle } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { AlertTriangle, Volume2, VolumeX, X } from "lucide-react"
 import type { LiveNewsSource } from "@/lib/live-news-sources"
 
 interface StreamCardProps {
@@ -35,21 +36,21 @@ export function StreamCard({
   onBecameVisible,
   onBecameHidden,
 }: StreamCardProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [hovering, setHovering] = useState(false)
-  const [embedError, setEmbedError] = useState(false)
-  const observeRef = useRef<IntersectionObserver | null>(null)
+  const containerRef = useRef<HTMLDivElement>(undefined),
+   iframeRef = useRef<HTMLIFrameElement>(undefined),
+   [hovering, setHovering] = useState(false),
+   [embedError, setEmbedError] = useState(false),
+   observeRef = useRef<IntersectionObserver | null>(undefined),
 
-  const embedUrl = buildEmbedUrl(source.channelId, muted)
+   embedUrl = buildEmbedUrl(source.channelId, muted),
 
-  const handleIframeError = useCallback(() => {
+   handleIframeError = useCallback(() => {
     setEmbedError(true)
   }, [])
 
   useEffect(() => {
     const el = containerRef.current
-    if (!el) return
+    if (!el) {return}
 
     observeRef.current = new IntersectionObserver(
       ([entry]) => {
@@ -70,7 +71,7 @@ export function StreamCard({
   }, [source.id, onBecameVisible, onBecameHidden])
 
   useEffect(() => {
-    if (!loaded) return
+    if (!loaded) {return}
 
     let errorTimer: ReturnType<typeof setTimeout> | undefined
     const handleMessage = (event: MessageEvent) => {
@@ -78,51 +79,50 @@ export function StreamCard({
         event.origin !== "https://www.youtube.com" ||
         typeof event.data !== "string"
       )
-        return
+        {return}
       try {
         const data = JSON.parse(event.data)
         if (data?.event === "error") {
           setEmbedError(true)
         }
       } catch {
-        // not JSON, ignore
+        // Not JSON, ignore
       }
     }
 
     if (iframeRef.current) {
       errorTimer = setTimeout(() => {
         // YouTube error iframes don't fire error events;
-        // detect via the embedded page title pattern
+        // Detect via the embedded page title pattern
         try {
           const iframeDoc =
             iframeRef.current?.contentDocument ||
             iframeRef.current?.contentWindow?.document
           if (
-            iframeDoc &&
-            iframeDoc.title.includes("Error") &&
+            iframeDoc?.title?.includes("Error") &&
             iframeDoc.title.includes("YouTube")
           ) {
             setEmbedError(true)
           }
         } catch {
-          // cross-origin, can't inspect content
+          // Cross-origin, can't inspect content
         }
       }, 8000)
     }
 
-    window.addEventListener("message", handleMessage)
+    globalThis.addEventListener("message", handleMessage)
     return () => {
-      window.removeEventListener("message", handleMessage)
-      if (errorTimer) clearTimeout(errorTimer)
+      globalThis.removeEventListener("message", handleMessage)
+      if (errorTimer) {clearTimeout(errorTimer)}
     }
   }, [loaded])
 
   const containerStyle: CSSProperties = isFullscreen
     ? {
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
         background: "var(--news-bg-primary)",
+        inset: 0,
+        position: "fixed",
+        zIndex: 100,
       }
     : {}
 
@@ -131,9 +131,9 @@ export function StreamCard({
       ref={containerRef}
       className="relative overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-secondary)] group"
       style={containerStyle}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
-      onDoubleClick={() => onDoubleClick(source.id)}
+      onMouseEnter={() =>{  setHovering(true); }}
+      onMouseLeave={() =>{  setHovering(false); }}
+      onDoubleClick={() =>{  onDoubleClick(source.id); }}
     >
       <div
         className="relative w-full"

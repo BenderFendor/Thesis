@@ -1,4 +1,5 @@
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { ArrowRight, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -10,9 +11,9 @@ interface WorkspaceSearchProps {
 }
 
 export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearchProps) {
-  const [query, setQuery] = useState("")
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const shouldFocusRef = useRef(false)
+  const [query, setQuery] = useState(""),
+   inputRef = useRef<HTMLInputElement | null>(undefined),
+   shouldFocusRef = useRef(false)
 
   useEffect(() => {
     if (expanded && shouldFocusRef.current) {
@@ -24,9 +25,9 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
   const handleCollapsedClick = () => {
     shouldFocusRef.current = true
     onExpand()
-  }
+  },
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+   handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmed = query.trim()
     if (!trimmed) {
@@ -61,7 +62,7 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
         ref={inputRef}
         type="search"
         value={query}
-        onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
+        onChange={(event: ChangeEvent<HTMLInputElement>) =>{  setQuery(event.target.value); }}
         placeholder="Search the workspace"
         aria-label="Search the workspace"
         className="h-11 w-full rounded-lg border border-white/10 bg-[var(--news-bg-primary)] pl-10 pr-11 text-sm text-foreground placeholder:text-muted-foreground/65 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30"

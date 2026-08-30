@@ -132,7 +132,7 @@ export function getServerAppearanceSettings(): AppearanceSettings {
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number): number {
+function clampNumber(value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
@@ -229,16 +229,16 @@ function snapStep(value: number): number {
 
 function readRawStorageValue(): string | null {
   if (typeof window === "undefined") {
-    return null;
+    return undefined;
   }
   try {
-    return window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
+    return globalThis.localStorage.getItem(APPEARANCE_STORAGE_KEY);
   } catch {
-    return null;
+    return undefined;
   }
 }
 
-let snapshotCache: { raw: string | null; value: AppearanceSettings } | null = null;
+let snapshotCache: { raw: string | null; value: AppearanceSettings } | null = undefined;
 
 /**
  * useSyncExternalStore-compatible snapshot: parses and validates at most once
@@ -250,12 +250,12 @@ export function loadAppearanceSettings(): AppearanceSettings {
     return snapshotCache.value;
   }
 
-  let parsed: unknown = null;
+  let parsed: unknown = undefined;
   if (raw !== null) {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      parsed = null;
+      parsed = undefined;
     }
   }
   const value = normalizeAppearanceSettings(parsed);
@@ -391,7 +391,7 @@ export function buildAppearanceBootstrapScript(): string {
 
   return `(function(){try{
 var d=${d};var R=${ranges};
-var raw=window.localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)});
+var raw=globalThis.localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)});
 if(!raw){return;}
 var s=JSON.parse(raw);
 if(!s||s.version!==1){return;}

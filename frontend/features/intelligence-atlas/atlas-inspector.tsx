@@ -16,25 +16,25 @@ interface AtlasInspectorProps {
 }
 
 function humanize(value: string): string {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
 function displayValue(value: unknown): string | null {
-  if (value == null || value === "") return null;
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value == null || value === "") {return undefined;}
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {return String(value);}
   if (Array.isArray(value)) {
     const simpleValues = value.filter((item) => ["string", "number", "boolean"].includes(typeof item));
-    if (simpleValues.length === value.length) return simpleValues.join(", ");
+    if (simpleValues.length === value.length) {return simpleValues.join(", ");}
     return value.length > 0 ? `${value.length} records` : null;
   }
-  if (typeof value === "object") return `${Object.keys(value as Record<string, unknown>).length} fields`;
-  return null;
+  if (typeof value === "object") {return `${Object.keys(value).length} fields`;}
+  return undefined;
 }
 
 function dateLabel(value?: string | null): string {
-  if (!value) return "Not recorded";
+  if (!value) {return "Not recorded";}
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not recorded";
+  if (Number.isNaN(date.getTime())) {return "Not recorded";}
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
 }
 
@@ -77,13 +77,13 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
 
   const analysisScores = Object.entries(record.details.analysis_scores ?? {}).filter(
     (entry): entry is [string, number] => typeof entry[1] === "number",
-  );
-  const details = Object.entries(record.details)
+  ),
+   details = Object.entries(record.details)
     .filter(([key]) => key !== "analysis_scores")
     .map(([key, value]) => [key, displayValue(value)] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
-    .slice(0, 18);
-  const dossierSections = record.dossier_sections ?? [];
+    .slice(0, 18),
+   dossierSections = record.dossier_sections ?? [];
 
   return (
     <div className={styles.inspector}>
@@ -205,11 +205,11 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
           </div>
           {measurementsLoading ? (
             <div className={`${styles.detailCard} mt-2`}>Calculating from the indexed corpus.</div>
-          ) : measurements?.measurements.length ? (
+          ) : (measurements?.measurements.length ? (
             <div className={styles.detailGrid}>
               {measurements.measurements.map((measurement) => {
-                const denominator = measurement.result.denominator;
-                const window = measurement.result.corpus_window as { start?: string | null; end?: string | null } | undefined;
+                const {denominator} = measurement.result,
+                 window = measurement.result.corpus_window as { start?: string | null; end?: string | null } | undefined;
                 return (
                   <div key={measurement.id} className={`${styles.detailCard} col-span-2`}>
                     <div className={styles.microLabel}>{humanize(measurement.measurement_name)}</div>
@@ -217,11 +217,11 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
                       Denominator: {typeof denominator === "number" ? denominator : "not available"}
                     </div>
                     <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-[#77736a]">
-                      {measurement.algorithm_version} · {window?.start ? dateLabel(window.start) : "No dated articles"} to {window?.end ? dateLabel(window.end) : "No dated articles"}
+                      {measurement.algorithm_version} · {window?.start ? dateLabel(globalThis.start) : "No dated articles"} to {window?.end ? dateLabel(globalThis.end) : "No dated articles"}
                     </div>
                     <details className="mt-2 text-xs text-[#c9c3b6]">
                       <summary className="cursor-pointer text-[#d7b35f]">Open calculation trace</summary>
-                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-white/10 p-2">{JSON.stringify(measurement.result, null, 2)}</pre>
+                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-white/10 p-2">{JSON.stringify(measurement.result, undefined, 2)}</pre>
                     </details>
                   </div>
                 );
@@ -229,7 +229,7 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
             </div>
           ) : (
             <div className={`${styles.detailCard} mt-2`}>No measurement is available for this indexed corpus.</div>
-          )}
+          ))}
         </section>
 
         <section className={styles.inspectorSection}>
@@ -247,7 +247,7 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
                   key={edge.id}
                   type="button"
                   className={styles.connectionButton}
-                  onClick={() => onSelectConnection(entity.id)}
+                  onClick={() =>{  onSelectConnection(entity.id); }}
                 >
                   <span>
                     <span className="block text-sm text-[#f0ede4]">{entity.label}</span>
@@ -257,7 +257,7 @@ export function AtlasInspector({ record, loading, error, measurements, measureme
                   </span>
                   <span className="text-right">
                     <span className={styles.confidence} data-tier={edge.confidence_tier ?? "unresolved"}>
-                      {edge.confidence != null ? `${Math.round(edge.confidence * 100)}%` : "Unrated"}
+                      {edge.confidence == null ? "Unrated" : `${Math.round(edge.confidence * 100)}%`}
                     </span>
                     <span className="mt-1 block text-[10px] text-[#77736a]">{edge.evidence_count} evidence</span>
                   </span>

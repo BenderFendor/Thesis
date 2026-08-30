@@ -1,59 +1,54 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  streamNews,
-  type NewsArticle,
-  type StreamOptions,
-  type StreamProgress,
-} from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { API_BASE_URL,streamNews } from '@/lib/api';
+import type { NewsArticle, StreamOptions, StreamProgress } from '@/lib/api';
 import { logger } from "@/lib/logger";
 import {
+  endStream as perfEndStream,
+  logStreamEvent as perfLogStreamEvent,
   perfLogger,
   startStream as perfStartStream,
-  logStreamEvent as perfLogStreamEvent,
-  endStream as perfEndStream,
 } from "@/lib/performance-logger";
-import { API_BASE_URL } from "@/lib/api";
 
 interface UseNewsStreamOptions extends Omit<
   StreamOptions,
   "onProgress" | "onSourceComplete" | "onError"
 > {
-  onUpdate?: (articles: NewsArticle[]) => void;
-  onComplete?: (result: {
+  onUpdate?: (articles:readonly  NewsArticle[]) => void;
+  onComplete?: (result:Readonly< {
     articles: NewsArticle[];
     sources: string[];
     errors: string[];
-  }) => void;
+  }>) => void;
   onError?: (error: string) => void;
 }
 
 export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [progress, setProgress] = useState<StreamProgress>({
+  const [isStreaming, setIsStreaming] = useState(false),
+   [articles, setArticles] = useState<NewsArticle[]>([]),
+   [progress, setProgress] = useState<StreamProgress>({
     completed: 0,
-    total: 0,
     percentage: 0,
-  });
-  const [status, setStatus] = useState<string>("idle");
-  const [currentMessage, setCurrentMessage] = useState("");
-  const [sources, setSources] = useState<string[]>([]);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [streamId, setStreamId] = useState<string>();
-  const [apiUrl, setApiUrl] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
+    total: 0,
+  }),
+   [status, setStatus] = useState<string>("idle"),
+   [currentMessage, setCurrentMessage] = useState(""),
+   [sources, setSources] = useState<string[]>([]),
+   [errors, setErrors] = useState<string[]>([]),
+   [streamId, setStreamId] = useState<string>(),
+   [apiUrl, setApiUrl] = useState<string | null>(undefined),
+   [retryCount, setRetryCount] = useState(0),
+   maxRetries = 3,
 
-  const streamPromiseRef = useRef<Promise<unknown> | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef<boolean>(true);
-  const startingRef = useRef<boolean>(false);
-  const optionsRef = useRef(options);
-  const isStreamingRef = useRef(isStreaming);
-  const retryCountRef = useRef(retryCount);
-  const seenArticleIdsRef = useRef<Set<string>>(new Set());
-  const pendingArticlesRef = useRef<NewsArticle[]>([]);
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   streamPromiseRef = useRef<Promise<unknown> | null>(undefined),
+   abortControllerRef = useRef<AbortController | null>(undefined),
+   isMountedRef = useRef<boolean>(true),
+   startingRef = useRef<boolean>(false),
+   optionsRef = useRef(options),
+   isStreamingRef = useRef(isStreaming),
+   retryCountRef = useRef(retryCount),
+   seenArticleIdsRef = useRef<Set<string>>(new Set()),
+   pendingArticlesRef = useRef<NewsArticle[]>([]),
+   flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(undefined);
 
   optionsRef.current = options;
   isStreamingRef.current = isStreaming;
@@ -62,7 +57,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   const flushPendingArticles = useCallback(() => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
+      flushTimerRef.current = undefined;
     }
     if (pendingArticlesRef.current.length === 0 || !isMountedRef.current) {
       return;
@@ -70,25 +65,24 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
 
     const batch = pendingArticlesRef.current.splice(
       0,
-      pendingArticlesRef.current.length,
     );
     setArticles((prev) => {
       const updated = [...prev, ...batch];
       optionsRef.current.onUpdate?.(updated);
       return updated;
     });
-  }, []);
+  }, []),
 
-  const scheduleArticlesFlush = useCallback(() => {
+   scheduleArticlesFlush = useCallback(() => {
     if (flushTimerRef.current) {
       return;
     }
     flushTimerRef.current = setTimeout(() => {
       flushPendingArticles();
     }, 80);
-  }, [flushPendingArticles]);
+  }, [flushPendingArticles]),
 
-  const startStream = useCallback(
+   startStream = useCallback(
     async (streamOptions?: Partial<StreamOptions>) => {
       if (startingRef.current || isStreamingRef.current) {
         console.warn("Stream already in progress, ignoring start request");
@@ -114,18 +108,18 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       pendingArticlesRef.current = [];
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
-        flushTimerRef.current = null;
+        flushTimerRef.current = undefined;
       }
       isStreamingRef.current = true;
       setIsStreaming(true);
       setArticles([]);
-      setProgress({ completed: 0, total: 0, percentage: 0 });
+      setProgress({ completed: 0, percentage: 0, total: 0 });
       setStatus("starting");
       setCurrentMessage("Loading cached articles from database...");
       setSources([]);
       setErrors([]);
       setStreamId(undefined);
-      setApiUrl(null);
+      setApiUrl(undefined);
 
       // Generate stream ID for tracking
       const trackingStreamId = `fe_stream_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -138,7 +132,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           ...streamOptions,
           signal: abortControllerRef.current.signal,
           onProgress: (progress) => {
-            if (!isMountedRef.current) return;
+            if (!isMountedRef.current) {return;}
             setProgress(progress);
             setCurrentMessage(
               progress.message ||
@@ -150,25 +144,25 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
             perfLogStreamEvent(trackingStreamId, "progress", {
               details: {
                 completed: progress.completed,
-                total: progress.total,
-                percentage: progress.percentage,
                 message: progress.message,
+                percentage: progress.percentage,
+                total: progress.total,
               },
             });
           },
           onSourceComplete: (source, sourceArticles) => {
-            if (!isMountedRef.current) return;
+            if (!isMountedRef.current) {return;}
 
             // Log source completion to performance logger
             perfLogStreamEvent(trackingStreamId, "source_complete", {
-              source,
               articleCount: sourceArticles.length,
+              source,
             });
 
             // Filter out duplicates using a Set of article IDs
             const newArticles = sourceArticles.filter((article) => {
-              const urlKey = article.url ? `url:${article.url}` : null;
-              const idKey = `id:${article.id}`;
+              const urlKey = article.url ? `url:${article.url}` : null,
+               idKey = `id:${article.id}`;
               // Check if article is duplicate by URL or ID
               if (urlKey && seenArticleIdsRef.current.has(urlKey)) {
                 return false; // Skip duplicate by URL
@@ -188,17 +182,17 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
               pendingArticlesRef.current.push(...newArticles);
               scheduleArticlesFlush();
             }
-            setSources((prev) => Array.from(new Set([...prev, source])));
+            setSources((prev) => [...new Set([...prev, source])]);
           },
           onError: (error) => {
-            if (!isMountedRef.current) return;
+            if (!isMountedRef.current) {return;}
             setErrors((prev) => [...prev, error]);
             optionsRef.current.onError?.(error);
 
             // Log error to performance logger
             perfLogStreamEvent(trackingStreamId, "error", {
-              isError: true,
               details: { error },
+              isError: true,
             });
           },
         });
@@ -225,14 +219,14 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
           const totalDuration = Date.now() - streamStartTime;
           perfEndStream(trackingStreamId, "complete");
           perfLogger.logEvent("stream_end", "stream", "complete", {
-            streamId: trackingStreamId,
-            durationMs: totalDuration,
             details: {
               articleCount: result.articles.length,
-              sourceCount: result.sources.length,
-              errorCount: result.errors.length,
               backendStreamId: result.streamId,
+              errorCount: result.errors.length,
+              sourceCount: result.sources.length,
             },
+            durationMs: totalDuration,
+            streamId: trackingStreamId,
           });
         }
       } catch (error) {
@@ -242,15 +236,15 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
             setCurrentMessage("Stream was cancelled");
             perfEndStream(trackingStreamId, "cancelled");
           } else if (retryCountRef.current < maxRetries) {
-            const nextRetryCount = retryCountRef.current + 1;
-            const delay = 2000 * Math.pow(2, retryCountRef.current);
+            const nextRetryCount = retryCountRef.current + 1,
+             delay = 2000 * 2 ** retryCountRef.current;
             setStatus(`retrying-${nextRetryCount}`);
             setCurrentMessage(
               `Connection lost, retrying... (${nextRetryCount}/${maxRetries})`,
             );
 
             perfLogStreamEvent(trackingStreamId, "retry", {
-              details: { retryCount: nextRetryCount, delayMs: delay },
+              details: { delayMs: delay, retryCount: nextRetryCount },
             });
 
             await new Promise((resolve) => setTimeout(resolve, delay));
@@ -274,9 +268,9 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
       }
     },
     [flushPendingArticles, scheduleArticlesFlush],
-  );
+  ),
 
-  const abortStream = useCallback(
+   abortStream = useCallback(
     (immediate = false) => {
       if (
         (startingRef.current || isStreamingRef.current) &&
@@ -305,7 +299,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
   // WebSocket listener for image updates
   useEffect(() => {
     const ws = new WebSocket(
-      API_BASE_URL.replace(/^http/, "ws") + "/ws" ||
+      `${API_BASE_URL.replace(/^http/, "ws")  }/ws` ||
         "ws://localhost:8000/ws",
     );
 
@@ -331,7 +325,7 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     return () => {
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
-        flushTimerRef.current = null;
+        flushTimerRef.current = undefined;
       }
       // On unmount, immediately abort the stream if it's still going
       if (isStreamingRef.current && abortControllerRef.current) {
@@ -346,9 +340,9 @@ export const useNewsStream = (options: UseNewsStreamOptions = {}) => {
     if (isMountedRef.current) {
       setErrors([]);
     }
-  }, []);
+  }, []),
 
-  const removeError = useCallback((errorToRemove: string) => {
+   removeError = useCallback((errorToRemove: string) => {
     if (isMountedRef.current) {
       setErrors((prev) => prev.filter((error) => error !== errorToRemove));
     }

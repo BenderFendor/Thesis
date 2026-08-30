@@ -1,33 +1,29 @@
 "use client"
 
-import { useMemo, useRef, useState, type PointerEvent, type RefObject } from "react"
+import { useMemo, useRef, useState } from 'react';
+import type { PointerEvent, RefObject } from 'react';
 import { InteractiveGlobe } from "./interactive-globe"
 import { ArticleDetailModal } from "./article-detail-modal"
 import { cn } from "@/lib/utils"
-import {
-  fetchCountryGeoData,
-  type CountryArticleCounts,
-  type CountryListItem,
-  type LocalLensResponse,
-  type NewsArticle,
-} from "@/lib/api"
+import { fetchCountryGeoData } from '@/lib/api';
+import type { CountryArticleCounts, CountryListItem, LocalLensResponse, NewsArticle } from '@/lib/api';
 import { useQuery } from "@tanstack/react-query"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   AlertCircle,
+  Bookmark,
   ChevronDown,
   Globe2,
   Lamp,
   MapPin,
+  MoreHorizontal,
   Newspaper,
-  Radio,
   PanelRight,
+  Radio,
   ShieldCheck,
   Signal,
-  X,
-  Bookmark,
-  MoreHorizontal
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -73,21 +69,21 @@ interface TopicSignalEntry {
 }
 
 function hasRealImage(src?: string | null) {
-  if (!src) return false
+  if (!src) {return false}
   const trimmed = src.trim()
-  if (!trimmed || trimmed === "none") return false
+  if (!trimmed || trimmed === "none") {return false}
   const lower = trimmed.toLowerCase()
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
 }
 
 function formatPublishedDate(value: string) {
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (Number.isNaN(date.getTime())) {return value}
   return date.toLocaleDateString(undefined, {
-    month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    month: "short",
   })
 }
 
@@ -103,7 +99,7 @@ function articleRenderKey(article: NewsArticle, index: number): string {
 }
 
 function intensityLabel(metrics?: CountryArticleCounts) {
-  if (!metrics?.counts) return "Coverage heat"
+  if (!metrics?.counts) {return "Coverage heat"}
   return metrics.window_hours ? `Coverage heat · ${metrics.window_hours}h` : "Coverage heat"
 }
 
@@ -112,9 +108,9 @@ function signalTotal(
   signalId: string,
   countryCode: string | null,
 ) {
-  if (!metrics?.geo_signals || !countryCode) return 0
+  if (!metrics?.geo_signals || !countryCode) {return 0}
   const signal = metrics.geo_signals.find((item) => item.id === signalId)
-  if (!signal) return 0
+  if (!signal) {return 0}
   return signal.country_counts[countryCode] || 0
 }
 
@@ -133,7 +129,7 @@ function FloatingHeader({
   focusLabel,
   localLensData,
   onResetFocus,
-}: {
+}:Readonly< {
   isFocusExpanded: boolean
   selectedCountry: string | null
   articleCount: number
@@ -141,11 +137,11 @@ function FloatingHeader({
   focusLabel: string
   localLensData: LocalLensResponse | null
   onResetFocus: () => void
-}) {
+}>) {
   return (
     <div className={cn(
       "pointer-events-none absolute left-3 right-3 top-3 z-10 hidden transition-all duration-500 lg:left-8 lg:right-auto lg:top-8 lg:block",
-      isFocusExpanded ? "opacity-0" : selectedCountry ? "opacity-0 lg:opacity-100" : "opacity-100"
+      isFocusExpanded ? "opacity-0" : (selectedCountry ? "opacity-0 lg:opacity-100" : "opacity-100")
     )}>
       <div className={cn("pointer-events-auto max-w-full space-y-2 rounded-2xl border border-white/10 bg-black/40 p-4 shadow-2xl backdrop-blur-xl transition-transform duration-500 lg:max-w-[31rem] lg:space-y-3 lg:p-6", selectedCountry ? "scale-95 lg:scale-100" : "scale-100")}>
         <div className="flex items-center gap-2 lg:gap-3">
@@ -181,12 +177,12 @@ function IntensityPanel({
   lightingMode,
   onLightingChange,
   heatLabel,
-}: {
+}:Readonly< {
   isFocusExpanded: boolean
   lightingMode: LightingMode
   onLightingChange: (mode: LightingMode) => void
   heatLabel: string
-}) {
+}>) {
   return (
     <div className={cn("absolute bottom-8 left-8 z-10 hidden lg:block transition-opacity duration-500", isFocusExpanded ? "opacity-0" : "opacity-100")}>
       <div className="flex items-center gap-6 rounded-2xl border border-white/10 bg-black/40 px-5 py-3.5 shadow-2xl backdrop-blur-xl">
@@ -214,7 +210,7 @@ function IntensityPanel({
           <Lamp className="h-3.5 w-3.5 text-foreground/55" />
           <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
             <button
-              onClick={() => onLightingChange("all-lit")}
+              onClick={() =>{  onLightingChange("all-lit"); }}
               className={cn(
                 "rounded-full px-3 py-1 text-[9px] font-mono uppercase tracking-[0.18em] transition-colors",
                 lightingMode === "all-lit"
@@ -225,7 +221,7 @@ function IntensityPanel({
               All Lit
             </button>
             <button
-              onClick={() => onLightingChange("day-night")}
+              onClick={() =>{  onLightingChange("day-night"); }}
               className={cn(
                 "rounded-full px-3 py-1 text-[9px] font-mono uppercase tracking-[0.18em] transition-colors",
                 lightingMode === "day-night"
@@ -242,10 +238,10 @@ function IntensityPanel({
   )
 }
 
-function BriefingArticleCard({ article, onSelect }: { article: NewsArticle; onSelect: (article: NewsArticle) => void }) {
+function BriefingArticleCard({ article, onSelect }:Readonly< { article: NewsArticle; onSelect: (article: NewsArticle) => void }>) {
   return (
     <div
-      onClick={() => onSelect(article)}
+      onClick={() =>{  onSelect(article); }}
       className="group cursor-pointer rounded-xl border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 transition-all hover:border-white/40 hover:bg-[var(--news-bg-primary)] hover:scale-[1.02]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -326,7 +322,7 @@ function CollapsedPanelHeader({
   onSidebarTabChange,
   lightingMode,
   onLightingChange,
-}: {
+}:Readonly< {
   selectedCountry: string | null
   focusLabel: string
   articleCount: number
@@ -347,7 +343,7 @@ function CollapsedPanelHeader({
   onSidebarTabChange: (value: string) => void
   lightingMode: LightingMode
   onLightingChange: (mode: LightingMode) => void
-}) {
+}>) {
   return (
     <div className="space-y-2.5 border-b border-white/10 p-3 shrink-0 lg:space-y-3 lg:p-4">
       <button
@@ -369,11 +365,11 @@ function CollapsedPanelHeader({
           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-foreground/80">{articleCount}</span> articles
-              <span className="text-white/20">•</span>
+              <span className="text-white/20">•</supan>
               <span className="font-medium text-foreground/80">{sourceCount}</span> sources
               {selectedCountry && (
                 <>
-                  <span className="text-white/20">•</span>
+                  <span className="text-white/20">•</supan>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -383,7 +379,7 @@ function CollapsedPanelHeader({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Combined global attention signal for this country in the active window.</p>
+                        <p>Combined global attention signal for this country in the active globalThis.</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -400,7 +396,7 @@ function CollapsedPanelHeader({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onSetSheetExpanded((value) => !value)}
+          onClick={() =>{  onSetSheetExpanded((value) => !value); }}
           className="h-8 w-8 rounded-full border-white/10 bg-transparent p-0 hover:bg-white/5 lg:hidden"
           aria-label={isMobileSheetExpanded ? "Collapse globe briefing" : "Expand globe briefing"}
         >
@@ -482,7 +478,7 @@ function CollapsedPanelHeader({
       <div className={cn("grid grid-cols-2 gap-2 lg:hidden", !isMobileSheetExpanded && "hidden")}>
         <button
           type="button"
-          onClick={() => onLightingChange("all-lit")}
+          onClick={() =>{  onLightingChange("all-lit"); }}
           className={cn(
             "rounded-full border border-white/10 px-3 py-2 text-[9px] font-mono uppercase tracking-[0.16em]",
             lightingMode === "all-lit" ? "bg-primary/15 text-primary" : "text-muted-foreground",
@@ -492,7 +488,7 @@ function CollapsedPanelHeader({
         </button>
         <button
           type="button"
-          onClick={() => onLightingChange("day-night")}
+          onClick={() =>{  onLightingChange("day-night"); }}
           className={cn(
             "rounded-full border border-white/10 px-3 py-2 text-[9px] font-mono uppercase tracking-[0.16em]",
             lightingMode === "day-night" ? "bg-primary/15 text-primary" : "text-muted-foreground",
@@ -515,7 +511,7 @@ function CollapsedBriefingTab({
   selectedCountryMeta,
   onArticleSelect,
   onLoadMore,
-}: {
+}:Readonly< {
   viewMode: "internal" | "external"
   onViewModeChange: (value: "internal" | "external") => void
   selectedCountry: string | null
@@ -525,13 +521,13 @@ function CollapsedBriefingTab({
   selectedCountryMeta: CountryListItem | null
   onArticleSelect: (article: NewsArticle) => void
   onLoadMore: () => void
-}) {
+}>) {
   return (
     <div className="flex h-full flex-col min-h-0">
       <div className="border-b border-white/10 bg-[var(--news-bg-primary)]/30 px-4 py-3">
         <Tabs
           value={viewMode}
-          onValueChange={(value) => onViewModeChange(value === "external" ? "external" : "internal")}
+          onValueChange={(value) =>{  onViewModeChange(value === "external" ? "external" : "internal"); }}
           className="w-full"
         >
           <TabsList className="h-10 w-full rounded-full border border-white/10 bg-black/20 p-1">
@@ -651,7 +647,7 @@ function CollapsedIntelligenceTab({
   mentionVolume,
   coverage,
   onArticleSelect,
-}: {
+}:Readonly< {
   lensArticles: NewsArticle[]
   selectedCountry: string | null
   focusLabel: string
@@ -664,7 +660,7 @@ function CollapsedIntelligenceTab({
   mentionVolume: number
   coverage: number
   onArticleSelect: (article: NewsArticle) => void
-}) {
+}>) {
   const leadArticle = lensArticles[0] || null
 
   return (
@@ -677,7 +673,7 @@ function CollapsedIntelligenceTab({
           </span>
         </div>
         {leadArticle ? (
-          <div className="cursor-pointer p-4 group" onClick={() => onArticleSelect(leadArticle)}>
+          <div className="cursor-pointer p-4 group" onClick={() =>{  onArticleSelect(leadArticle); }}>
             {hasRealImage(leadArticle.image) && (
               <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10">
                 <SafeImage
@@ -792,14 +788,14 @@ function CollapsedSourcesTab({
   sourceWorkspace,
   sourceSummaryLength,
   onArticleSelect,
-}: {
+}:Readonly< {
   selectedCountry: string | null
   focusLabel: string
   sourceCount: number
   sourceWorkspace: WorkspaceSource[]
   sourceSummaryLength: number
   onArticleSelect: (article: NewsArticle) => void
-}) {
+}>) {
   return (
     <div className="flex-1 min-h-0 p-4 pb-20 custom-scrollbar lg:overflow-y-auto">
       <div className="rounded-2xl border border-white/10 bg-[var(--news-bg-primary)]/30 p-4">
@@ -908,7 +904,7 @@ function CollapsedPanel({
   sourceVolume,
   mentionVolume,
   coverage,
-}: {
+}:Readonly< {
   selectedCountry: string | null
   isFocusExpanded: boolean
   isMobileSheetExpanded: boolean
@@ -944,7 +940,7 @@ function CollapsedPanel({
   sourceVolume: number
   mentionVolume: number
   coverage: number
-}) {
+}>) {
   return (
     <div className={cn(
       "absolute z-40 flex flex-col shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[height,max-height]",
@@ -1044,7 +1040,7 @@ function ExpandedLeftSidebar({
   trendingTopicsRef,
   sourceBreakdownRef,
   coverageMapRef,
-}: {
+}:Readonly< {
   focusLabel: string
   articleCount: number
   sourceCount: number
@@ -1060,7 +1056,7 @@ function ExpandedLeftSidebar({
   trendingTopicsRef: RefObject<HTMLDivElement | null>
   sourceBreakdownRef: RefObject<HTMLDivElement | null>
   coverageMapRef: RefObject<HTMLDivElement | null>
-}) {
+}>) {
   return (
     <div className="w-[280px] border-r border-white/10 flex flex-col overflow-y-auto custom-scrollbar bg-black/35 backdrop-blur-xl">
       {/* FOCUS */}
@@ -1098,7 +1094,7 @@ function ExpandedLeftSidebar({
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Views</h3>
         <div className="flex flex-col gap-0 rounded-2xl border border-white/10 overflow-hidden bg-black/30">
           <button
-            onClick={() => onViewModeChange("internal")}
+            onClick={() =>{  onViewModeChange("internal"); }}
             className={cn(
               "w-full text-left px-3 py-3 text-[9px] uppercase tracking-[0.14em] flex items-center gap-2.5 border-b border-white/10 transition-colors whitespace-nowrap",
               viewMode === "internal" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
@@ -1107,7 +1103,7 @@ function ExpandedLeftSidebar({
             <Radio size={14} className={viewMode === "internal" ? "text-primary" : ""} /> Local Lens
           </button>
           <button
-            onClick={() => onViewModeChange("external")}
+            onClick={() =>{  onViewModeChange("external"); }}
             className={cn(
               "w-full text-left px-3 py-3 text-[9px] uppercase tracking-[0.14em] flex items-center gap-2.5 transition-colors whitespace-nowrap",
               viewMode === "external" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
@@ -1123,7 +1119,7 @@ function ExpandedLeftSidebar({
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Quick Nav</h3>
         <div className="flex flex-col gap-1">
           <button
-            onClick={() => onNavigate("briefing", lensBriefRef)}
+            onClick={() =>{  onNavigate("briefing", lensBriefRef); }}
             className={cn(
               "w-full text-left px-3 py-2.5 text-sm flex items-center gap-3 rounded-xl transition-colors",
               sidebarTab === "briefing" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
@@ -1131,10 +1127,10 @@ function ExpandedLeftSidebar({
           >
             <div className="w-1.5 h-1.5 rounded-full bg-primary" /> Lens Brief
           </button>
-          <button onClick={() => onNavigate("briefing", topStoriesRef)} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "briefing" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Top Stories</button>
-          <button onClick={() => onNavigate("intelligence", trendingTopicsRef)} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "intelligence" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Trending Topics</button>
-          <button onClick={() => onNavigate("sources", sourceBreakdownRef)} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "sources" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Source Breakdown</button>
-          <button onClick={() => onNavigate("sources", coverageMapRef)} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "sources" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Coverage Map</button>
+          <button onClick={() =>{  onNavigate("briefing", topStoriesRef); }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "briefing" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Top Stories</button>
+          <button onClick={() =>{  onNavigate("intelligence", trendingTopicsRef); }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "intelligence" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Trending Topics</button>
+          <button onClick={() =>{  onNavigate("sources", sourceBreakdownRef); }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "sources" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Source Breakdown</button>
+          <button onClick={() =>{  onNavigate("sources", coverageMapRef); }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-xl transition-colors", sidebarTab === "sources" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Coverage Map</button>
         </div>
       </div>
 
@@ -1144,7 +1140,7 @@ function ExpandedLeftSidebar({
         <p className="text-xs text-muted-foreground leading-relaxed">
           Compare how local outlets report on their own country versus how the world covers it.
         </p>
-        <button onClick={() => onNavigate("sources", coverageMapRef)} className="text-primary border-b border-primary/60 text-xs mt-3 inline-flex items-center pb-0.5 hover:opacity-80">Learn more →</button>
+        <button onClick={() =>{  onNavigate("sources", coverageMapRef); }} className="text-primary border-b border-primary/60 text-xs mt-3 inline-flex items-center pb-0.5 hover:opacity-80">Learn more →</button>
       </div>
     </div>
   )
@@ -1157,20 +1153,20 @@ function ExpandedTopNav({
   lensBriefRef,
   trendingTopicsRef,
   sourceBreakdownRef,
-}: {
+}:Readonly< {
   sidebarTab: string
   onNavigate: (tab: "briefing" | "intelligence" | "sources", ref: RefObject<HTMLDivElement | null>) => void
   onClose: () => void
   lensBriefRef: RefObject<HTMLDivElement | null>
   trendingTopicsRef: RefObject<HTMLDivElement | null>
   sourceBreakdownRef: RefObject<HTMLDivElement | null>
-}) {
+}>) {
   return (
     <div className="flex items-center justify-between px-8 py-0 border-b border-white/10 bg-black/20 backdrop-blur-xl">
       <div className="flex gap-8 h-14">
-        <button onClick={() => onNavigate("briefing", lensBriefRef)} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "briefing" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Briefing</button>
-        <button onClick={() => onNavigate("intelligence", trendingTopicsRef)} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "intelligence" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Intel</button>
-        <button onClick={() => onNavigate("sources", sourceBreakdownRef)} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "sources" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Sources</button>
+        <button onClick={() =>{  onNavigate("briefing", lensBriefRef); }} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "briefing" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Briefing</button>
+        <button onClick={() =>{  onNavigate("intelligence", trendingTopicsRef); }} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "intelligence" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Intel</button>
+        <button onClick={() =>{  onNavigate("sources", sourceBreakdownRef); }} className={cn("text-[10px] uppercase tracking-[0.2em] font-medium h-full border-b-2 transition-colors", sidebarTab === "sources" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Sources</button>
       </div>
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={onClose} className="rounded-full border-white/10 bg-black/20 text-foreground hover:bg-white/5 text-xs px-4 h-9">
@@ -1184,7 +1180,7 @@ function ExpandedTopNav({
   )
 }
 
-function ExpandedSourceDossier({ source, onSelect }: { source: WorkspaceSource; onSelect: (article: NewsArticle) => void }) {
+function ExpandedSourceDossier({ source, onSelect }:Readonly< { source: WorkspaceSource; onSelect: (article: NewsArticle) => void }>) {
   return (
     <button
       type="button"
@@ -1252,7 +1248,7 @@ function ExpandedSourcesTab({
   onArticleSelect,
   sourceBreakdownRef,
   coverageMapRef,
-}: {
+}:Readonly< {
   articleCount: number
   sourceCount: number
   focusLabel: string
@@ -1265,7 +1261,7 @@ function ExpandedSourcesTab({
   onArticleSelect: (article: NewsArticle) => void
   sourceBreakdownRef: RefObject<HTMLDivElement | null>
   coverageMapRef: RefObject<HTMLDivElement | null>
-}) {
+}>) {
   return (
     <div className="space-y-8">
       <div className="rounded-[28px] border border-white/10 bg-black/30 p-8 backdrop-blur-xl shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
@@ -1422,14 +1418,14 @@ function ExpandedArticleRow({
   isBookmarked,
   onToggleBookmark,
   onSelect,
-}: {
+}:Readonly< {
   article: NewsArticle
   isBookmarked: (articleId: number) => boolean
   onToggleBookmark: (articleId: number) => void
   onSelect: (article: NewsArticle) => void
-}) {
+}>) {
   return (
-    <div onClick={() => onSelect(article)} className="group flex gap-6 p-6 border-b border-white/10 last:border-0 hover:bg-white/[0.03] transition-all cursor-pointer">
+    <div onClick={() =>{  onSelect(article); }} className="group flex gap-6 p-6 border-b border-white/10 last:border-0 hover:bg-white/[0.03] transition-all cursor-pointer">
       <div className="flex-1 min-w-0 py-1">
         <div className="flex items-center gap-3 mb-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
           <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/10 text-primary px-2 py-0.5">{sourceLabel(article)}</Badge>
@@ -1448,7 +1444,7 @@ function ExpandedArticleRow({
             type="button"
             onClick={(event) => {
               event.stopPropagation()
-              void onToggleBookmark(article.id)
+               onToggleBookmark(article.id)
             }}
             className={cn("transition-colors", isBookmarked(article.id) ? "text-primary" : "hover:text-foreground")}
             title={isBookmarked(article.id) ? "Remove bookmark" : "Bookmark article"}
@@ -1459,7 +1455,7 @@ function ExpandedArticleRow({
             type="button"
             onClick={(event) => {
               event.stopPropagation()
-              window.open(article.url, "_blank", "noopener,noreferrer")
+              globalThis.open(article.url, "_blank", "noopener,noreferrer")
             }}
             className="hover:text-foreground"
             title="Open original article"
@@ -1498,7 +1494,7 @@ function ExpandedBriefingTab({
   trendingTopicsRef,
   sourceBreakdownRef,
   coverageMapRef,
-}: {
+}:Readonly< {
   selectedCountry: string | null
   localLensData: LocalLensResponse | null
   latestLensTimestamp: number | null
@@ -1519,13 +1515,13 @@ function ExpandedBriefingTab({
   trendingTopicsRef: RefObject<HTMLDivElement | null>
   sourceBreakdownRef: RefObject<HTMLDivElement | null>
   coverageMapRef: RefObject<HTMLDivElement | null>
-}) {
+}>) {
   const sortLabel = expandedSort === "recent"
     ? "Most Recent"
-    : expandedSort === "oldest"
+    : (expandedSort === "oldest"
       ? "Oldest First"
-      : "Source A-Z"
-  const latestTimestampLabel = latestLensTimestamp
+      : "Source A-Z"),
+   latestTimestampLabel = latestLensTimestamp
     ? formatPublishedDate(new Date(latestLensTimestamp).toISOString())
     : "N/A"
 
@@ -1552,7 +1548,7 @@ function ExpandedBriefingTab({
           </div>
         </div>
         <div className="absolute right-8 top-1/2 -translate-y-1/2 opacity-60 flex items-center justify-center">
-          <div className="w-48 h-32 rounded-full bg-[radial-gradient(circle,rgba(186,137,63,0.45)_1px,transparent_1.4px)] [background-size:8px_8px] blur-[0.2px]"></div>
+          <div className="w-48 h-32 rounded-full bg-[radial-gradient(circle,rgba(186,137,63,0.45)_1px,transparent_1.4px)] [background-size:8px_8px] blur-[0.2px]" />
         </div>
       </div>
 
@@ -1562,7 +1558,7 @@ function ExpandedBriefingTab({
            {articleCount} Articles
          </div>
          <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-           <span>Updated {latestTimestampLabel} <Radio size={12} className="inline ml-1"/></span>
+           <span>Updated {latestTimestampLabel} <Radio size={12} className="inline ml-1"/></supan>
            <button onClick={onCycleSort} className="flex items-center gap-1 hover:text-foreground transition-colors">{sortLabel} <ChevronDown size={12}/></button>
          </div>
       </div>
@@ -1668,7 +1664,7 @@ function ExpandedRightSidebar({
   countryMetrics,
   onScrollTo,
   lensBriefRef,
-}: {
+}:Readonly< {
   focusLabel: string
   articleCount: number
   sourceCount: number
@@ -1682,7 +1678,7 @@ function ExpandedRightSidebar({
   countryMetrics: CountryArticleCounts
   onScrollTo: (ref: RefObject<HTMLDivElement | null>) => void
   lensBriefRef: RefObject<HTMLDivElement | null>
-}) {
+}>) {
   return (
     <div className="w-[320px] border-l border-white/10 p-5 flex flex-col overflow-y-auto custom-scrollbar bg-black/35 backdrop-blur-xl">
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Focus</h3>
@@ -1720,7 +1716,7 @@ function ExpandedRightSidebar({
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Lens Controls</h3>
       <div className="grid grid-cols-2 gap-0 rounded-2xl border border-white/10 overflow-hidden mb-8 bg-black/30 p-1">
         <button
-          onClick={() => onViewModeChange("internal")}
+          onClick={() =>{  onViewModeChange("internal"); }}
           className={cn(
             "min-w-0 rounded-xl px-3 py-2.5 text-[9px] uppercase tracking-[0.1em] leading-none text-center whitespace-nowrap transition-colors",
             viewMode === "internal"
@@ -1731,7 +1727,7 @@ function ExpandedRightSidebar({
           Local Lens
         </button>
         <button
-          onClick={() => onViewModeChange("external")}
+          onClick={() =>{  onViewModeChange("external"); }}
           className={cn(
             "min-w-0 rounded-xl px-3 py-2.5 text-[9px] uppercase tracking-[0.1em] leading-none text-center whitespace-nowrap transition-colors",
             viewMode === "external"
@@ -1747,7 +1743,7 @@ function ExpandedRightSidebar({
       <p className="text-xs text-muted-foreground leading-relaxed mb-2">
         Pick a country to see two lenses: what its own outlets publish, and how foreign outlets frame the same place.
       </p>
-      <button onClick={() => onScrollTo(lensBriefRef)} className="text-primary border-b border-primary/60 text-[10px] uppercase tracking-widest mb-6 inline-block pb-0.5 hover:opacity-80 w-max">View guide →</button>
+      <button onClick={() =>{  onScrollTo(lensBriefRef); }} className="text-primary border-b border-primary/60 text-[10px] uppercase tracking-widest mb-6 inline-block pb-0.5 hover:opacity-80 w-max">View guide →</button>
 
       <div className="flex justify-between items-end mb-3">
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Coverage Heat</h3>
@@ -1765,7 +1761,7 @@ function ExpandedRightSidebar({
 
       <div className="flex justify-between items-end mb-3">
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Intensity</h3>
-        <span className="text-sm font-mono text-foreground">{intensityScore}/5</span>
+        <span className="text-sm font-mono text-foreground">{intensityScore}/5</supan>
       </div>
       <div className="flex gap-1 mb-6">
         {Array.from({length: 5}).map((_, i) => (
@@ -1774,51 +1770,51 @@ function ExpandedRightSidebar({
       </div>
 
       <div className="grid grid-cols-2 gap-0 rounded-2xl border border-white/10 overflow-hidden mt-auto bg-black/30">
-        <button onClick={() => onLightingChange("all-lit")} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap border-r border-white/10 transition-colors", lightingMode === "all-lit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>All Lit</button>
-        <button onClick={() => onLightingChange("day-night")} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap transition-colors", lightingMode === "day-night" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Day / Night</button>
+        <button onClick={() =>{  onLightingChange("all-lit"); }} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap border-r border-white/10 transition-colors", lightingMode === "all-lit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>All Lit</button>
+        <button onClick={() =>{  onLightingChange("day-night"); }} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap transition-colors", lightingMode === "day-night" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Day / Night</button>
       </div>
     </div>
   )
 }
 
 export function GlobeView({ articles, loading }: GlobeViewProps) {
-  const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
-  const [selectedCountryName, setSelectedCountryName] = useState<string | null>(null)
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<"internal" | "external">("internal")
-  const [sidebarTab, setSidebarTab] = useState("briefing")
-  const [isFocusExpanded, setIsFocusExpanded] = useState(false)
-  const [isMobileSheetExpanded, setIsMobileSheetExpanded] = useState(false)
-  const [lensLimit, setLensLimit] = useState(40)
-  const [earthLightingMode, setEarthLightingMode] = useState<LightingMode>("all-lit")
-  const [expandedSort, setExpandedSort] = useState<"recent" | "oldest" | "source">("recent")
-  const lensBriefRef = useRef<HTMLDivElement | null>(null)
-  const topStoriesRef = useRef<HTMLDivElement | null>(null)
-  const trendingTopicsRef = useRef<HTMLDivElement | null>(null)
-  const sourceBreakdownRef = useRef<HTMLDivElement | null>(null)
-  const coverageMapRef = useRef<HTMLDivElement | null>(null)
-  const sheetDragRef = useRef<{ startY: number; lastY: number; pointerId: number; moved: boolean } | null>(null)
-  const sheetDragSuppressClickRef = useRef(false)
-  const { isBookmarked, toggleBookmark } = useBookmarks()
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(undefined),
+   [selectedCountryName, setSelectedCountryName] = useState<string | null>(undefined),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(undefined),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [viewMode, setViewMode] = useState<"internal" | "external">("internal"),
+   [sidebarTab, setSidebarTab] = useState("briefing"),
+   [isFocusExpanded, setIsFocusExpanded] = useState(false),
+   [isMobileSheetExpanded, setIsMobileSheetExpanded] = useState(false),
+   [lensLimit, setLensLimit] = useState(40),
+   [earthLightingMode, setEarthLightingMode] = useState<LightingMode>("all-lit"),
+   [expandedSort, setExpandedSort] = useState<"recent" | "oldest" | "source">("recent"),
+   lensBriefRef = useRef<HTMLDivElement | null>(undefined),
+   topStoriesRef = useRef<HTMLDivElement | null>(undefined),
+   trendingTopicsRef = useRef<HTMLDivElement | null>(undefined),
+   sourceBreakdownRef = useRef<HTMLDivElement | null>(undefined),
+   coverageMapRef = useRef<HTMLDivElement | null>(undefined),
+   sheetDragRef = useRef<{ startY: number; lastY: number; pointerId: number; moved: boolean } | null>(null),
+   sheetDragSuppressClickRef = useRef(false),
+   { isBookmarked, toggleBookmark } = useBookmarks(),
 
-  const { data: geoData } = useQuery({
-    queryKey: ["country-geo-data"],
+   { data: geoData } = useQuery({
     queryFn: fetchCountryGeoData,
+    queryKey: ["country-geo-data"],
     staleTime: Infinity,
-  })
+  }),
 
-  const countryMetrics = useMemo<CountryArticleCounts>(
+   countryMetrics = useMemo<CountryArticleCounts>(
     () => buildCountryMetricsFromArticles(articles),
     [articles],
-  )
-  const countryList = useMemo(
+  ),
+   countryList = useMemo(
     () => buildCountryListFromArticles(articles),
     [articles],
-  )
-  const localLensData = useMemo(() => {
+  ),
+   localLensData = useMemo(() => {
     if (!selectedCountry) {
-      return null
+      return undefined
     }
 
     const countryName =
@@ -1828,12 +1824,12 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       articles,
       code: selectedCountry,
       countryName,
-      view: viewMode,
       limit: lensLimit,
+      view: viewMode,
     })
-  }, [articles, geoData, lensLimit, selectedCountry, selectedCountryName, viewMode])
+  }, [articles, geoData, lensLimit, selectedCountry, selectedCountryName, viewMode]),
 
-  const handleCountrySelect = (country: string | null, name?: string | null) => {
+   handleCountrySelect = (country: string | null, name?: string | null) => {
     setSelectedCountry(country)
     const resolvedName = country && geoData?.countries?.[country]?.name
     setSelectedCountryName(country ? resolvedName || name || country : null)
@@ -1842,126 +1838,120 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
     setIsFocusExpanded(false)
     setIsMobileSheetExpanded(false)
     setLensLimit(40)
-  }
+  },
 
-  const handleArticleSelect = (article: NewsArticle) => {
+   handleArticleSelect = (article: NewsArticle) => {
     setSelectedArticle(article)
     setIsArticleModalOpen(true)
-  }
+  },
 
-  const globalSourceSummary = useMemo(() => {
+   globalSourceSummary = useMemo(() => {
     const counts = new Map<string, number>()
     articles.forEach((article) => {
       const key = article.source || "Unknown"
       counts.set(key, (counts.get(key) || 0) + 1)
     })
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+    return [...counts.entries()]
+      .map(([name, count]) => ({ count, name }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
-  }, [articles])
-  const globalSourceCount = useMemo(() => {
-    return new Set(
+  }, [articles]),
+   globalSourceCount = useMemo(() => 
+    new Set(
       articles
         .map((article) => article.sourceId || article.source)
         .filter((value): value is string => Boolean(value)),
     ).size
-  }, [articles])
+  , [articles]),
 
-  const selectedLensArticles = selectedCountry ? localLensData?.articles || [] : []
-  const lensArticles = selectedCountry ? selectedLensArticles : articles
+   selectedLensArticles = selectedCountry ? localLensData?.articles || [] : [],
+   lensArticles = selectedCountry ? selectedLensArticles : articles,
 
-  const sourceSummary = useMemo(() => {
+   sourceSummary = useMemo(() => {
     const counts = new Map<string, number>()
     lensArticles.forEach((article) => {
       const key = article.source || "Unknown"
       counts.set(key, (counts.get(key) || 0) + 1)
     })
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+    return [...counts.entries()]
+      .map(([name, count]) => ({ count, name }))
       .sort((a, b) => b.count - a.count)
-  }, [lensArticles])
+  }, [lensArticles]),
 
-  const sourceWorkspace = useMemo(() => {
-    return sourceSummary.slice(0, 12).map((source) => {
+   sourceWorkspace = useMemo(() => 
+    sourceSummary.slice(0, 12).map((source) => {
       const sourceArticles = lensArticles.filter((article) => (article.source || "Unknown") === source.name)
       return {
         ...source,
-        latestArticle: sourceArticles[0] || null,
-        latestPublishedAt: sourceArticles[0]?.publishedAt || null,
+        countries: [...new Set(sourceArticles.map((article) => article.source_country || article.country).filter((value): value is string => Boolean(value)))].slice(0, 3),
         credibilityShare: sourceArticles.length === 0
           ? 0
           : Math.round(
               (sourceArticles.filter((article) => article.credibility === "high").length / sourceArticles.length) * 100,
             ),
-        countries: Array.from(
-          new Set(
-            sourceArticles
-              .map((article) => article.source_country || article.country)
-              .filter((value): value is string => Boolean(value)),
-          ),
-        ).slice(0, 3),
+        latestArticle: sourceArticles[0] || null,
+        latestPublishedAt: sourceArticles[0]?.publishedAt || null,
       }
     })
-  }, [lensArticles, sourceSummary])
+  , [lensArticles, sourceSummary]),
 
-  const sourceCoverageLeaders = useMemo(() => {
-    if (sourceWorkspace.length === 0) return []
+   sourceCoverageLeaders = useMemo(() => {
+    if (sourceWorkspace.length === 0) {return []}
     const leadCount = sourceWorkspace[0]?.count || 1
     return sourceWorkspace.map((source) => ({
       ...source,
       share: Math.max(8, Math.round((source.count / leadCount) * 100)),
     }))
-  }, [sourceWorkspace])
+  }, [sourceWorkspace]),
 
-  const verificationStats = useMemo(() => {
+   verificationStats = useMemo(() => {
     const total = lensArticles.length
-    if (total === 0) return { highPct: 0 }
+    if (total === 0) {return { highPct: 0 }}
     const high = lensArticles.filter((article) => article.credibility === "high").length
     return { highPct: Math.round((high / total) * 100) }
-  }, [lensArticles])
+  }, [lensArticles]),
 
-  const selectedCountryCoverage = selectedCountry
+   selectedCountryCoverage = selectedCountry
     ? countryMetrics?.counts?.[selectedCountry] || 0
-    : 0
-  const selectedCountrySourceVolume = selectedCountry
+    : 0,
+   selectedCountrySourceVolume = selectedCountry
     ? countryMetrics?.source_counts?.[selectedCountry] || 0
-    : 0
-  const selectedCountryMentionVolume = signalTotal(
+    : 0,
+   selectedCountryMentionVolume = signalTotal(
     countryMetrics,
     "country_mentions",
     selectedCountry,
-  )
-  const selectedCountryOriginVolume = signalTotal(
+  ),
+   selectedCountryOriginVolume = signalTotal(
     countryMetrics,
     "source_origin",
     selectedCountry,
-  )
-  const focusLabel = selectedCountryName || "Global Focus"
-  const topSources = (selectedCountry ? sourceSummary : globalSourceSummary).slice(0, 5)
-  const sourceCount = selectedCountry
+  ),
+   focusLabel = selectedCountryName || "Global Focus",
+   topSources = (selectedCountry ? sourceSummary : globalSourceSummary).slice(0, 5),
+   sourceCount = selectedCountry
     ? localLensData?.source_count || sourceSummary.length
-    : globalSourceCount
-  const articleCount = selectedCountry ? localLensData?.total || 0 : articles.length
-  const selectedCountryMeta = useMemo(() => {
-    if (!selectedCountry) return null
+    : globalSourceCount,
+   articleCount = selectedCountry ? localLensData?.total || 0 : articles.length,
+   selectedCountryMeta = useMemo(() => {
+    if (!selectedCountry) {return undefined}
     return countryList?.countries.find((item) => item.code === selectedCountry) || null
-  }, [countryList, selectedCountry])
+  }, [countryList, selectedCountry]),
 
-  const latestLensTimestamp = useMemo(() => {
+   latestLensTimestamp = useMemo(() => {
     const validTimestamps = lensArticles
       .map((article) => new Date(article.publishedAt).getTime())
       .filter((value) => Number.isFinite(value))
-    if (validTimestamps.length === 0) return null
+    if (validTimestamps.length === 0) {return undefined}
     return Math.max(...validTimestamps)
-  }, [lensArticles])
+  }, [lensArticles]),
 
-  const expandedArticles = useMemo(() => {
+   expandedArticles = useMemo(() => {
     const sorted = [...lensArticles]
     if (expandedSort === "source") {
       sorted.sort((a, b) => {
         const sourceCompare = (a.source || "").localeCompare(b.source || "")
-        if (sourceCompare !== 0) return sourceCompare
+        if (sourceCompare !== 0) {return sourceCompare}
         return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       })
       return sorted
@@ -1972,16 +1962,16 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       sorted.reverse()
     }
     return sorted
-  }, [expandedSort, lensArticles])
+  }, [expandedSort, lensArticles]),
 
-  const topicSignals = useMemo(() => {
+   topicSignals = useMemo(() => {
     const counts = new Map<string, number>()
     lensArticles.forEach((article) => {
       const tokens = [
         ...(article.tags || []),
         article.category,
         article.geo_signal?.label,
-      ].filter((value): value is string => Boolean(value && value.trim()))
+      ].filter((value): value is string => Boolean(value?.trim()))
 
       tokens.forEach((token) => {
         const normalized = token.trim()
@@ -1989,107 +1979,107 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
       })
     })
 
-    return Array.from(counts.entries())
-      .map(([label, count]) => ({ label, count }))
+    return [...counts.entries()]
+      .map(([label, count]) => ({ count, label }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8)
-  }, [lensArticles])
+  }, [lensArticles]),
 
-  const coverageBreakdown = useMemo(() => {
+   coverageBreakdown = useMemo(() => {
     const counts = new Map<string, number>()
     lensArticles.forEach((article) => {
       const countries = article.mentioned_countries?.length
         ? article.mentioned_countries
-        : article.source_country
+        : (article.source_country
           ? [article.source_country]
-          : []
+          : [])
       countries.forEach((country) => {
         counts.set(country, (counts.get(country) || 0) + 1)
       })
     })
-    return Array.from(counts.entries())
-      .map(([country, count]) => ({ country, count }))
+    return [...counts.entries()]
+      .map(([country, count]) => ({ count, country }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6)
-  }, [lensArticles])
+  }, [lensArticles]),
 
-  const intensityScore = useMemo(() => {
+   intensityScore = useMemo(() => {
     const maxCoverage = Math.max(...Object.values(countryMetrics?.counts || {}), 0)
-    if (!selectedCountry || maxCoverage === 0) return 0
+    if (!selectedCountry || maxCoverage === 0) {return 0}
     return Math.max(1, Math.min(5, Math.ceil((selectedCountryCoverage / maxCoverage) * 5)))
-  }, [countryMetrics?.counts, selectedCountry, selectedCountryCoverage])
+  }, [countryMetrics?.counts, selectedCountry, selectedCountryCoverage]),
 
-  const cycleExpandedSort = () => {
+   cycleExpandedSort = () => {
     setExpandedSort((current) => {
-      if (current === "recent") return "oldest"
-      if (current === "oldest") return "source"
+      if (current === "recent") {return "oldest"}
+      if (current === "oldest") {return "source"}
       return "recent"
     })
-  }
+  },
 
-  const scrollToSection = (ref: RefObject<HTMLDivElement | null>) => {
+   scrollToSection = (ref: RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
+  },
 
-  const handleSheetHandleClick = () => {
+   handleSheetHandleClick = () => {
     if (sheetDragSuppressClickRef.current) {
       sheetDragSuppressClickRef.current = false
       return
     }
     setIsMobileSheetExpanded((value) => !value)
-  }
+  },
 
-  const handleSheetDragStart = (event: PointerEvent<HTMLButtonElement>) => {
+   handleSheetDragStart = (event: PointerEvent<HTMLButtonElement>) => {
     sheetDragRef.current = {
-      startY: event.clientY,
       lastY: event.clientY,
-      pointerId: event.pointerId,
       moved: false,
+      pointerId: event.pointerId,
+      startY: event.clientY,
     }
     event.currentTarget.setPointerCapture(event.pointerId)
-  }
+  },
 
-  const handleSheetDragMove = (event: PointerEvent<HTMLButtonElement>) => {
+   handleSheetDragMove = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = sheetDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
+    if (!drag || drag.pointerId !== event.pointerId) {return}
     drag.lastY = event.clientY
     if (Math.abs(drag.lastY - drag.startY) > 8) {
       drag.moved = true
     }
-  }
+  },
 
-  const finishSheetDrag = (event: PointerEvent<HTMLButtonElement>) => {
+   finishSheetDrag = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = sheetDragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    sheetDragRef.current = null
+    if (!drag || drag.pointerId !== event.pointerId) {return}
+    sheetDragRef.current = undefined
     event.currentTarget.releasePointerCapture(event.pointerId)
 
     const deltaY = drag.lastY - drag.startY
-    if (!drag.moved || Math.abs(deltaY) < 36) return
+    if (!drag.moved || Math.abs(deltaY) < 36) {return}
 
     setIsMobileSheetExpanded(deltaY < 0)
     sheetDragSuppressClickRef.current = true
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       sheetDragSuppressClickRef.current = false
     }, 0)
-  }
+  },
 
-  const cancelSheetDrag = (event: PointerEvent<HTMLButtonElement>) => {
+   cancelSheetDrag = (event: PointerEvent<HTMLButtonElement>) => {
     if (sheetDragRef.current?.pointerId === event.pointerId) {
-      sheetDragRef.current = null
+      sheetDragRef.current = undefined
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-  }
+  },
 
-  const handleQuickNav = (
+   handleQuickNav = (
     tab: "briefing" | "intelligence" | "sources",
     ref: RefObject<HTMLDivElement | null>,
   ) => {
     setSidebarTab(tab)
     scrollToSection(ref)
-  }
+  },
 
-  const heatLabel = intensityLabel(countryMetrics)
+   heatLabel = intensityLabel(countryMetrics)
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--news-bg-primary)]">
@@ -2113,7 +2103,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
         globalArticleCount={articles.length}
         focusLabel={focusLabel}
         localLensData={localLensData}
-        onResetFocus={() => handleCountrySelect(null)}
+        onResetFocus={() =>{  handleCountrySelect(undefined); }}
       />
 
       {/* Floating Bottom Left Intensity */}
@@ -2140,8 +2130,8 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
         lightingMode={earthLightingMode}
         onLightingChange={setEarthLightingMode}
         onSetSheetExpanded={setIsMobileSheetExpanded}
-        onResetFocus={() => handleCountrySelect(null)}
-        onExpandFocus={() => setIsFocusExpanded(true)}
+        onResetFocus={() =>{  handleCountrySelect(undefined); }}
+        onExpandFocus={() =>{  setIsFocusExpanded(true); }}
         onHandleClick={handleSheetHandleClick}
         onHandlePointerDown={handleSheetDragStart}
         onHandlePointerMove={handleSheetDragMove}
@@ -2153,7 +2143,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
         loading={loading}
         lensArticles={lensArticles}
         onArticleSelect={handleArticleSelect}
-        onLoadMore={() => setLensLimit((prev) => prev + 20)}
+        onLoadMore={() =>{  setLensLimit((prev) => prev + 20); }}
         sourceWorkspace={sourceWorkspace}
         sourceSummaryLength={sourceSummary.length}
         highPct={verificationStats.highPct}
@@ -2193,7 +2183,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
             <ExpandedTopNav
               sidebarTab={sidebarTab}
               onNavigate={handleQuickNav}
-              onClose={() => setIsFocusExpanded(false)}
+              onClose={() =>{  setIsFocusExpanded(false); }}
               lensBriefRef={lensBriefRef}
               trendingTopicsRef={trendingTopicsRef}
               sourceBreakdownRef={sourceBreakdownRef}
@@ -2260,7 +2250,7 @@ export function GlobeView({ articles, loading }: GlobeViewProps) {
         </div>
       </div>
 
-      <ArticleDetailModal isOpen={isArticleModalOpen} onClose={() => setIsArticleModalOpen(false)} article={selectedArticle} />
+      <ArticleDetailModal isOpen={isArticleModalOpen} onClose={() =>{  setIsArticleModalOpen(false); }} article={selectedArticle} />
     </div>
   )
 }

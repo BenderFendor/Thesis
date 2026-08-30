@@ -18,21 +18,21 @@ interface CredibilityBadgeProps {
 }
 
 export function CredibilityBadge({ domain, className = "", size = "md" }: CredibilityBadgeProps) {
-  const [showPanel, setShowPanel] = useState(false)
-  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [showPanel, setShowPanel] = useState(false),
+   [profile, setProfile] = useState<SourceCredibilityProfile | null>(undefined),
+   [loading, setLoading] = useState(false),
+   [error, setError] = useState<string | null>(undefined),
 
-  const dimensionalData = profile?.data_quality
-  const available = dimensionalData?.dimensions_available ?? 0
-  const total = dimensionalData?.dimensions_total ?? 6
+   dimensionalData = profile?.data_quality,
+   available = dimensionalData?.dimensions_available ?? 0,
+   total = dimensionalData?.dimensions_total ?? 6,
 
-  const iconSizes = { sm: "w-3 h-3", md: "w-3.5 h-3.5", lg: "w-4 h-4" }
-  const textSizes = { sm: "text-[10px]", md: "text-[11px]", lg: "text-xs" }
-  const iconSize = iconSizes[size]
-  const textSize = textSizes[size]
+   iconSizes = { lg: "w-4 h-4", md: "w-3.5 h-3.5", sm: "w-3 h-3" },
+   textSizes = { lg: "text-xs", md: "text-[11px]", sm: "text-[10px]" },
+   iconSize = iconSizes[size],
+   textSize = textSizes[size],
 
-  const handleClick = async () => {
+   handleClick = async () => {
     if (showPanel) {
       setShowPanel(false)
       return
@@ -42,10 +42,10 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
       return
     }
     setLoading(true)
-    setError(null)
+    setError(undefined)
     try {
-      const { fetchSourceCredibility } = await import("@/lib/api")
-      const data = await fetchSourceCredibility(domain)
+      const { fetchSourceCredibility } = await import("@/lib/api"),
+       data = await fetchSourceCredibility(domain)
       setProfile(data)
       setShowPanel(true)
     } catch {
@@ -54,29 +54,29 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
     } finally {
       setLoading(false)
     }
-  }
+  },
 
-  const dims = profile?.dimensions ?? {}
-  const dimensionEntries = Object.entries(dims) as [string, {
+   dims = profile?.dimensions ?? {},
+   dimensionEntries = Object.entries(dims) as [string, {
     score?: number | null
     confidence?: number
     explanation?: string
-    provenance?: Array<{ source: string; url: string }>
+    provenance?: { source: string; url: string }[]
     status?: string
     dimension?: string
-  }][]
+  }][],
 
-  const scoreToColor = (score: number | null | undefined): string => {
-    if (score == null) return "bg-muted"
-    if (score >= 70) return "bg-emerald-500"
-    if (score >= 40) return "bg-amber-500"
+   scoreToColor = (score: number | null | undefined): string => {
+    if (score == null) {return "bg-muted"}
+    if (score >= 70) {return "bg-emerald-500"}
+    if (score >= 40) {return "bg-amber-500"}
     return "bg-red-500"
-  }
+  },
 
-  const scoreToLabel = (score: number | null | undefined): string => {
-    if (score == null) return "No data"
-    if (score >= 70) return "Strong"
-    if (score >= 40) return "Moderate"
+   scoreToLabel = (score: number | null | undefined): string => {
+    if (score == null) {return "No data"}
+    if (score >= 70) {return "Strong"}
+    if (score >= 40) {return "Moderate"}
     return "Weak"
   }
 
@@ -110,7 +110,7 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowPanel(false)}
+            onClick={() =>{  setShowPanel(false); }}
           />
           <div className="relative z-10 w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl border border-white/10 bg-[var(--news-bg-secondary)] p-5 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
@@ -119,7 +119,7 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
               </h3>
               <button
                 type="button"
-                onClick={() => setShowPanel(false)}
+                onClick={() =>{  setShowPanel(false); }}
                 className="text-muted-foreground hover:text-foreground text-sm"
               >
                 Close
@@ -179,13 +179,13 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
                 </div>
 
                 {dimensionEntries.map(([key, dim]) => {
-                  const score = dim.score
-                  const isNil = score == null
+                  const {score} = dim,
+                   isNil = score == null
                   return (
                     <details key={key} className="group border border-white/5 rounded-lg p-3">
                       <summary className="cursor-pointer flex items-center justify-between gap-2">
                         <span className="text-xs font-mono text-foreground/80 capitalize">
-                          {key.replace(/_/g, " ")}
+                          {key.replaceAll('_', " ")}
                         </span>
                         <span className="text-[10px] font-mono text-muted-foreground">
                           {isNil ? "No data" : scoreToLabel(score)}
@@ -196,11 +196,11 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
                           <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${scoreToColor(score)}`}
-                              style={{ width: isNil ? "0%" : `${Math.min(100, score as number)}%` }}
+                              style={{ width: isNil ? "0%" : `${Math.min(100, score)}%` }}
                             />
                           </div>
                           <span className="text-[10px] font-mono text-muted-foreground min-w-[3ch]">
-                            {isNil ? "-" : `${Math.round(score as number)}`}
+                            {isNil ? "-" : `${Math.round(score)}`}
                           </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground/70">

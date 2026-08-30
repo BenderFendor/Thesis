@@ -21,16 +21,16 @@ export function RelatedArticles({
   className = "",
 }: RelatedArticlesProps) {
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ["related-articles", articleId, limit],
     queryFn: () => fetchRelatedArticles(articleId, limit, true),
+    queryKey: ["related-articles", articleId, limit],
     retry: 1,
-  });
-  const related: RelatedArticle[] = data?.related ?? [];
-  const errorMessage = error instanceof Error ? error.message : null;
+  }),
+   related: RelatedArticle[] = data?.related ?? [],
+   errorMessage = error instanceof Error ? error.message : null;
 
   if (loading) {
     return (
-      <div className={`${className}`}>
+      <div className={className}>
         <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
           <Loader2 className="w-3 h-3 animate-spin" />
           Finding related articles...
@@ -41,7 +41,7 @@ export function RelatedArticles({
 
   if (errorMessage) {
     return (
-      <div className={`${className}`}>
+      <div className={className}>
         <h4 className="text-sm font-medium text-muted-foreground mb-2">
           Related Articles
         </h4>
@@ -52,7 +52,7 @@ export function RelatedArticles({
 
   if (related.length === 0) {
     return (
-      <div className={`${className}`}>
+      <div className={className}>
         <h4 className="text-sm font-medium text-muted-foreground mb-2">
           Related Articles
         </h4>
@@ -66,7 +66,7 @@ export function RelatedArticles({
   const formatScore = (score: number) => `${Math.round(score * 100)}%`;
 
   return (
-    <div className={`${className}`}>
+    <div className={className}>
       <h4 className="text-sm font-medium text-muted-foreground mb-3">
         Related Articles
       </h4>

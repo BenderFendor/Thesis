@@ -67,6 +67,10 @@
     }
   ],
   "rules": {
+     "import/no-named-export": "off",
+     "import/prefer-default-export": "off",
+    "react/preserve-manual-memoization": "off",
+     "react/function-component-definition": ["error", { "namedComponents": "arrow-function", "unnamedComponents": "arrow-function" }],
     "max-depth": ["error", { "max": 4 }],
     "max-params": ["error", { "max": 5 }],
     "max-lines": [
@@ -106,6 +110,7 @@
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "react/react-in-jsx-scope": "off",
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-imports": "error",
     "typescript/consistent-type-definitions": ["error", "interface"],

@@ -10,18 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  fetchCacheStatus,
-  fetchSourceStats,
-  fetchWikiIndexStatus,
-  fetchWikiSource,
-  type WikiSourceProfile,
-} from "@/lib/api";
+import { fetchCacheStatus, fetchSourceStats, fetchWikiIndexStatus, fetchWikiSource } from '@/lib/api';
+import type { WikiSourceProfile } from '@/lib/api';
 import { SourceIntelligenceOperations } from "@/app/wiki/ownership/source-intelligence-operations";
-import {
-  WORKSPACE_TABS,
-  type WorkspaceTab,
-} from "@/app/wiki/ownership/source-intelligence-support";
+import workspaceSupport from "@/app/wiki/ownership/source-intelligence-support";
+
+type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];
+const WORKSPACE_TABS = workspaceSupport.tabs;
 
 interface AtlasOperationsSheetProps {
   open: boolean;
@@ -38,33 +33,33 @@ export function AtlasOperationsSheet({
   onTabChange,
   selectedSourceName,
 }: AtlasOperationsSheetProps) {
-  const queryClient = useQueryClient();
-  const sourceStatsQuery = useQuery({
-    queryKey: ["debug-source-stats-summary"],
+  const queryClient = useQueryClient(),
+   sourceStatsQuery = useQuery({
+    enabled: open,
     queryFn: fetchSourceStats,
-    enabled: open,
+    queryKey: ["debug-source-stats-summary"],
     retry: 1,
-  });
-  const cacheStatusQuery = useQuery({
-    queryKey: ["debug-cache-status-summary"],
+  }),
+   cacheStatusQuery = useQuery({
+    enabled: open,
     queryFn: fetchCacheStatus,
-    enabled: open,
+    queryKey: ["debug-cache-status-summary"],
     retry: 1,
-  });
-  const indexStatusQuery = useQuery({
-    queryKey: ["wiki-index-status"],
+  }),
+   indexStatusQuery = useQuery({
+    enabled: open,
     queryFn: fetchWikiIndexStatus,
-    enabled: open,
+    queryKey: ["wiki-index-status"],
     retry: 1,
-  });
-  const sourceProfileQuery = useQuery<WikiSourceProfile>({
-    queryKey: ["wiki-source-profile", selectedSourceName],
-    queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
+  }),
+   sourceProfileQuery = useQuery<WikiSourceProfile>({
     enabled: open && Boolean(selectedSourceName),
+    queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
+    queryKey: ["wiki-source-profile", selectedSourceName],
     retry: 1,
-  });
+  }),
 
-  const tabs = useMemo(() => [...WORKSPACE_TABS], []);
+   tabs = useMemo(() => [...WORKSPACE_TABS], []);
 
   async function refreshAll() {
     await Promise.allSettled([
@@ -102,7 +97,7 @@ export function AtlasOperationsSheet({
               void refreshAll();
             }}
             onSourceProfileRefresh={async () => {
-              if (!selectedSourceName) return;
+              if (!selectedSourceName) {return;}
               await sourceProfileQuery.refetch();
             }}
           />
