@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 244
-Files with hard violations: 113
+Hard violations: 239
+Files with hard violations: 110
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -29,14 +29,12 @@ Files with hard violations: 113
 | `backend/app/services/atlas_graph.py` | 3 | 15 | 20 |
 | `backend/app/services/wiki_indexer.py` | 3 | 15 | 21 |
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
-| `frontend/components/highlight-toolbar.tsx` | 2 | 34 | 24 |
 | `scripts/collect_debug_bundle.py` | 2 | 29 | 30 |
 | `frontend/features/intelligence-atlas/atlas-entity-list.tsx` | 2 | 27 | 21 |
 | `backend/scripts/import_unctad_commodities.py` | 2 | 24 | 36 |
 | `backend/app/api/routes/research.py` | 2 | 23 | 34 |
 | `backend/app/services/funding_bias_analysis.py` | 2 | 21 | 28 |
 | `backend/app/services/source_claims.py` | 2 | 21 | 24 |
-| `frontend/lib/feed-ranking.ts` | 2 | 21 | 46 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx` | 2 | 18 | 14 |
 | `frontend/components/grid-view.tsx` | 2 | 18 | 14 |
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts` | 2 | 18 | 17 |
@@ -68,7 +66,6 @@ Files with hard violations: 113
 | `frontend/features/intelligence-atlas/atlas-inspector.tsx` | 1 | 19 | 19 |
 | `frontend/__tests__/source-groups.test.ts` | 1 | 18 | 17 |
 | `frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx` | 1 | 18 | 27 |
-| `frontend/hooks/use-scroll-personalization.ts` | 1 | 18 | 23 |
 | `frontend/lib/highlight-utils.tsx` | 1 | 18 | 20 |
 | `frontend/__tests__/feed-ranking.test.ts` | 1 | 17 | 16 |
 | `frontend/app/wiki/organization/[id]/organization-wiki-view.tsx` | 1 | 17 | 17 |
@@ -374,13 +371,6 @@ Files with hard violations: 113
 | 1380 | `ReadingQueueSidebar` | 14 | 15 |
 | 613 | `ArticleDetailMain` | 11 | 5 |
 
-### `frontend/components/highlight-toolbar.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 156 | `handleSelection` | 34 | 24 |
-| 39 | `<anonymous>` | 12 | 9 |
-
 ### `scripts/collect_debug_bundle.py`
 
 | line | function | CC | cognitive |
@@ -422,13 +412,6 @@ Files with hard violations: 113
 |---:|---|---:|---:|
 | 109 | `build_source_claim_inputs` | 21 | 21 |
 | 318 | `sync_source_claims` | 12 | 24 |
-
-### `frontend/lib/feed-ranking.ts`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 172 | `buildInterestProfile` | 21 | 46 |
-| 266 | `scoreArticle` | 11 | 9 |
 
 ### `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx`
 
@@ -629,12 +612,6 @@ Files with hard violations: 113
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 20 | `FundingBiasAnalysisView` | 18 | 27 |
-
-### `frontend/hooks/use-scroll-personalization.ts`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 109 | `load` | 18 | 23 |
 
 ### `frontend/lib/highlight-utils.tsx`
 
