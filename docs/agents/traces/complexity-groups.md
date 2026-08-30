@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 247
-Files with hard violations: 115
+Hard violations: 245
+Files with hard violations: 114
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -37,7 +37,6 @@ Files with hard violations: 115
 | `backend/app/services/funding_bias_analysis.py` | 2 | 21 | 28 |
 | `backend/app/services/source_claims.py` | 2 | 21 | 24 |
 | `frontend/lib/feed-ranking.ts` | 2 | 21 | 46 |
-| `frontend/app/saved/page.tsx` | 2 | 20 | 25 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx` | 2 | 18 | 14 |
 | `frontend/components/grid-view.tsx` | 2 | 18 | 14 |
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts` | 2 | 18 | 17 |
@@ -431,13 +430,6 @@ Files with hard violations: 115
 |---:|---|---:|---:|
 | 172 | `buildInterestProfile` | 21 | 46 |
 | 266 | `scoreArticle` | 11 | 9 |
-
-### `frontend/app/saved/page.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 411 | `SavedArticlesPage` | 20 | 25 |
-| 244 | `ArticleCard` | 15 | 13 |
 
 ### `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx`
 
