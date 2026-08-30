@@ -1,0 +1,54 @@
+name: Quality hardening targeted checks
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - "frontend/app/saved/**"
+      - "frontend/lib/api.ts"
+      - ".github/workflows/quality-hardening-targeted.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: quality-hardening-targeted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install analyzers
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+      - name: Targeted Oxlint
+        continue-on-error: true
+        run: |
+          PATH="$PWD/frontend/node_modules/.bin:$PATH" \
+            frontend/node_modules/.bin/oxlint -c .oxlintrc.json \
+            frontend/app/saved/page.tsx \
+            frontend/app/saved/saved-workspace-model.ts \
+            frontend/app/saved/saved-workspace-view.tsx \
+            frontend/app/saved/use-saved-workspace-controller.ts \
+            frontend/lib/api.ts
+      - name: TypeScript
+        continue-on-error: true
+        run: npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+      - name: Maintainability
+        continue-on-error: true
+        run: |
+          npx code-multivitals \
+            'frontend/app/saved/**/*.{ts,tsx}' \
+            'frontend/lib/api.ts' \
+            --reporter console
