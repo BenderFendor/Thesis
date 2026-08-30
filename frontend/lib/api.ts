@@ -60,57 +60,59 @@ function isCloudflaredTunnelHostname(hostname: string): boolean {
 
 // Rewrites a localhost-style backend URL to the current browser hostname so
 // remote browsers on the LAN or a Cloudflare tunnel can reach this machine.
-const rewriteRemoteBackendUrl = (url: URL): string | null => {
+const rewriteRemoteBackendUrl = (url: URL): string | undefined => {
   const browserHostname = globalThis.location.hostname;
-
-  if (
-    PUBLIC_FRONTEND_DOMAIN &&
-    PUBLIC_API_FALLBACK &&
-    isLocalHostname(url.hostname) &&
+  const hasPublicFallback =
+    PUBLIC_FRONTEND_DOMAIN.length > 0 && PUBLIC_API_FALLBACK.length > 0;
+  const isPublicFrontend =
     isPublicFrontendHostname(browserHostname) &&
-    !browserHostname.startsWith("api.")
-  ) {
-    return PUBLIC_API_FALLBACK
+    !browserHostname.startsWith("api.");
+
+  if (hasPublicFallback && isLocalHostname(url.hostname) && isPublicFrontend) {
+    return PUBLIC_API_FALLBACK;
   }
 
   const shouldRewriteLocalHost =
     isLanHostname(browserHostname) ||
     isCloudflaredTunnelHostname(browserHostname);
-
-  if (!browserHostname || !isLocalHostname(url.hostname) || !shouldRewriteLocalHost) {
-    return undefined
+  const canRewrite =
+    browserHostname.length > 0 &&
+    isLocalHostname(url.hostname) &&
+    shouldRewriteLocalHost;
+  if (!canRewrite) {
+    return undefined;
   }
 
-  url.hostname = browserHostname
-  url.protocol = globalThis.location.protocol
-
-  if (globalThis.location.protocol === 'https:') {
-    url.port = ''
-  } else if (!url.port) {
-    url.port = DEFAULT_BACKEND_PORT
+  url.hostname = browserHostname;
+  url.protocol = globalThis.location.protocol;
+  if (globalThis.location.protocol === "https:") {
+    url.port = "";
+  } else if (url.port.length === 0) {
+    url.port = DEFAULT_BACKEND_PORT;
   }
-
-  return url.toString().replace(/\/+$/, "")
-}
+  return url.toString().replace(/\/+$/, "");
+};
 
 // Default to localhost backend when env var is not set. If the UI is opened from
 // another device on the LAN or Cloudflare tunnel, rewrite localhost-style backend
 // URLs to the current browser hostname so remote browsers can reach this machine.
-const resolveBaseUrl = (value?: string) => {
-  const raw = value && value.trim().length > 0 ? value : LOCAL_BACKEND_FALLBACK,
-normalized = raw.replace(/\/+$/, "");
-
+const resolveBaseUrl = (value?: string): string => {
+  const trimmedValue = value?.trim();
+  const raw =
+    trimmedValue !== undefined && trimmedValue.length > 0
+      ? trimmedValue
+      : LOCAL_BACKEND_FALLBACK;
+  const normalized = raw.replace(/\/+$/, "");
   if (typeof window === "undefined") {
-    return normalized
+    return normalized;
   }
-
   try {
     const url = new URL(normalized);
-    return rewriteRemoteBackendUrl(url) ?? normalized
+    return rewriteRemoteBackendUrl(url) ?? normalized;
   } catch {
-    return normalized
+    return normalized;
   }
-}
+};
 
 const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
@@ -161,15 +163,13 @@ const pruneOgImageCache = () => {
       ogImageCache.delete(key);
     }
   }
-
-  if (ogImageCache.size <= OG_IMAGE_MAX_CACHE_ENTRIES) {
+  const overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
+  if (overflow <= 0) {
     return;
   }
-
-  const keys = Array.from(ogImageCache.keys()),
-overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
-  for (let i = 0; i < overflow; i += 1) {
-    ogImageCache.delete(keys[i]!);
+  const expiredKeys = Array.from(ogImageCache.keys()).slice(0, overflow);
+  for (const key of expiredKeys) {
+    ogImageCache.delete(key);
   }
 };
 
@@ -287,23 +287,31 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 };
 
 function normalizeCountryCode(value?: string | null): string {
-  if (typeof value !== "string") return "International";
+  if (typeof value !== "string") {
+    return "International";
+  }
   const trimmed = value.trim();
-  if (!trimmed) return "International";
-  if (trimmed === "International") return trimmed;
-
+  if (trimmed.length === 0) {
+    return "International";
+  }
+  if (trimmed === "International") {
+    return trimmed;
+  }
   const compactUpper = trimmed.toUpperCase();
   if (/^[A-Z]{2}$/.test(compactUpper)) {
     return compactUpper;
   }
-
   const normalizedName = trimmed
     .toLowerCase()
     .replace(/[.]/gu, "")
     .replace(/\s+/gu, " ")
-    .trim(),
-noSpace = normalizedName.replace(/\s+/gu, "");
-  return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
+    .trim();
+  const noSpace = normalizedName.replace(/\s+/gu, "");
+  return (
+    COUNTRY_NAME_TO_CODE[normalizedName] ??
+    COUNTRY_NAME_TO_CODE[noSpace] ??
+    compactUpper
+  );
 }
 
 const BackendArticleSchema = z
@@ -386,7 +394,7 @@ export interface StreamOptions {
   useCache?: boolean;
   category?: string;
   onProgress?: (progress: StreamProgress) => void;
-  onSourceComplete?: (source: string, articles:readonly  NewsArticle[]) => void;
+  onSourceComplete?: (source: string, articles: readonly NewsArticle[]) => void;
   onError?: (error: string) => void;
   signal?: AbortSignal;
 }
@@ -426,89 +434,99 @@ interface StreamEvent {
 
 
 // API functions
-export async function fetchNews(params?:Readonly< {
-  limit?: number;
-  category?: string;
-  search?: string;
-}>): Promise<NewsArticle[]> {
+interface FetchNewsParams {
+  readonly limit?: number;
+  readonly category?: string;
+  readonly search?: string;
+}
+
+const buildNewsStreamUrl = (params?: Readonly<FetchNewsParams>): string => {
+  const searchParams = new URLSearchParams({ use_cache: "true" });
+  if (params?.limit !== undefined) {
+    searchParams.set("limit", params.limit.toString());
+  }
+  if (params?.category !== undefined && params.category.length > 0) {
+    searchParams.set("category", params.category);
+  }
+  return `${API_BASE_URL}/news/stream?${searchParams.toString()}`;
+};
+
+const parseBackendArticles = (payload: unknown): BackendArticle[] => {
+  const payloadSchema = z
+    .object({ articles: z.array(z.unknown()).default([]) })
+    .passthrough();
+  const payloadResult = payloadSchema.safeParse(payload);
+  if (!payloadResult.success) {
+    logger.warn("fetchNews received malformed response payload");
+    return [];
+  }
+  const articleResult = BackendArticleSchema.array().safeParse(
+    payloadResult.data.articles,
+  );
+  if (!articleResult.success) {
+    logger.warn(
+      "fetchNews received malformed article payload, dropping invalid entries",
+    );
+    return [];
+  }
+  return articleResult.data;
+};
+
+const filterNewsArticles = (
+  articles: readonly NewsArticle[],
+  params?: Readonly<FetchNewsParams>,
+): NewsArticle[] => {
+  let filteredArticles = [...articles];
+  const searchTerm = params?.search?.trim().toLowerCase();
+  if (searchTerm !== undefined && searchTerm.length > 0) {
+    const beforeFilterCount = filteredArticles.length;
+    filteredArticles = filteredArticles.filter(
+      (article) =>
+        article.title.toLowerCase().includes(searchTerm) ||
+        article.summary.toLowerCase().includes(searchTerm),
+    );
+    logger.debug(
+      `Search filter applied: ${beforeFilterCount} -> ${filteredArticles.length} articles (search: "${searchTerm}")`,
+    );
+  }
+  const category = params?.category?.trim().toLowerCase();
+  if (category !== undefined && category.length > 0) {
+    const beforeFilterCount = filteredArticles.length;
+    filteredArticles = filteredArticles.filter(
+      (article) => article.category.toLowerCase() === category,
+    );
+    logger.debug(
+      `Category filter applied: ${beforeFilterCount} -> ${filteredArticles.length} articles (category: "${category}")`,
+    );
+  }
+  return filteredArticles;
+};
+
+export async function fetchNews(
+  params?: Readonly<FetchNewsParams>,
+): Promise<NewsArticle[]> {
+  const url = buildNewsStreamUrl(params);
+  logger.debug(`Fetching news from unified endpoint: ${url}`);
   try {
-    const searchParams = new URLSearchParams();
-    searchParams.append("use_cache", "true"); // Use cache by default
-
-    if (params?.limit) searchParams.append("limit", params.limit.toString());
-    if (params?.category) searchParams.append("category", params.category);
-
-    const url = `${API_BASE_URL}/news/stream${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
-    logger.debug(`Fetching news from unified endpoint: ${url}`);
     const response = await fetch(url);
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
-    const data = (await response.json()) as { articles?: unknown[] };
-    logger.debug(`Backend response:`, data);
-
-    // Backend returns { articles: [...], total: number, sources: [...], stream_id: string }
-    const parsedArticles = BackendArticleSchema.array().safeParse(
-      data.articles ?? [],
-    ),
-backendArticles: BackendArticle[] = parsedArticles.success
-      ? parsedArticles.data
-      : [];
-    if (!parsedArticles.success) {
-      logger.warn(
-        "fetchNews received malformed article payload, dropping invalid entries",
-      );
-    }
-
-    if (backendArticles.length === 0) {
-      logger.debug(
-        `No articles received from backend. Full response:`,
-        JSON.stringify(data, null, 2),
-      );
-    } else {
-      logger.debug(
-        `Received ${backendArticles.length} articles from unified backend endpoint`,
-      );
-    }
-
-    // Convert backend format to frontend format
-    let articles = mapBackendArticles(backendArticles);
-
-    // Client-side search filtering if needed
-    if (params?.search) {
-      const searchTerm = params.search.toLowerCase(),
-beforeFilterCount = articles.length;
-      articles = articles.filter(
-        (article: NewsArticle) =>
-          article.title.toLowerCase().includes(searchTerm) ||
-          article.summary.toLowerCase().includes(searchTerm),
-      );
-      logger.debug(
-        `Search filter applied: ${beforeFilterCount} -> ${articles.length} articles (search: "${params.search}")`,
-      );
-    }
-
-    // Client-side category filtering if needed
-    if (params?.category) {
-      const beforeFilterCount = articles.length;
-      articles = articles.filter(
-        (article: NewsArticle) =>
-          article.category.toLowerCase() === params.category!.toLowerCase(),
-      );
-      logger.debug(
-        `Category filter applied: ${beforeFilterCount} -> ${articles.length} articles (category: "${params.category}")`,
-      );
-    }
-
+    const payload: unknown = await response.json();
+    const backendArticles = parseBackendArticles(payload);
+    logger.debug(
+      `Received ${backendArticles.length} articles from unified backend endpoint`,
+    );
+    const articles = filterNewsArticles(
+      mapBackendArticles(backendArticles),
+      params,
+    );
     if (articles.length === 0) {
-      logger.debug(`No articles to return after processing. Params:`, params);
+      logger.debug("No articles to return after processing.", params);
     }
-
     return articles;
-  } catch (error) {
-    console.error("Failed to fetch news from unified endpoint:", error);
+  } catch (error: unknown) {
+    logger.error("Failed to fetch news from unified endpoint", error);
     throw error;
   }
 }
@@ -1882,7 +1900,7 @@ interface StreamRuntime {
   settled: boolean;
   lastMessageTime: number;
   onProgress?: (progress: StreamProgress) => void;
-  onSourceComplete?: (source: string, articles:readonly  NewsArticle[]) => void;
+  onSourceComplete?: (source: string, articles: readonly NewsArticle[]) => void;
   onError?: (error: string) => void;
   clearTimers: () => void;
   abort: () => void;
