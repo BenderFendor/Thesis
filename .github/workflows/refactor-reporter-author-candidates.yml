@@ -213,4 +213,12 @@ jobs:
           git add backend/app/services/reporter_public_records.py backend/tests/test_reporter_public_records_author_candidates.py
           git diff --cached --quiet && exit 0
           git commit -m "refactor: simplify reporter author candidate extraction"
-          git push origin HEAD:quality/crap-mi-oxlint-hardening
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:quality/crap-mi-oxlint-hardening; then
+              exit 0
+            fi
+            echo "Branch advanced; rebasing verified reporter refactor (attempt $attempt)."
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          echo "Failed to persist verified reporter refactor after retries." >&2
+          exit 1
