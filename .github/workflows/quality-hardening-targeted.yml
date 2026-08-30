@@ -6,7 +6,9 @@ on:
     paths:
       - "frontend/app/saved/**"
       - "frontend/app/sources/[source]/debug/**"
+      - "frontend/components/highlight-toolbar.tsx"
       - "frontend/lib/api.ts"
+      - "frontend/lib/feed-ranking.ts"
       - ".github/workflows/quality-hardening-targeted.yml"
   workflow_dispatch:
 
@@ -44,7 +46,9 @@ jobs:
             frontend/app/saved/use-saved-workspace-controller.ts \
             'frontend/app/sources/[source]/debug/page.tsx' \
             'frontend/app/sources/[source]/debug/source-debug-view.tsx' \
-            frontend/lib/api.ts
+            frontend/components/highlight-toolbar.tsx \
+            frontend/lib/api.ts \
+            frontend/lib/feed-ranking.ts
       - name: TypeScript
         continue-on-error: true
         run: |
@@ -59,5 +63,7 @@ jobs:
           npx code-multivitals \
             'frontend/app/saved/**/*.{ts,tsx}' \
             'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
+            'frontend/components/highlight-toolbar.tsx' \
             'frontend/lib/api.ts' \
+            'frontend/lib/feed-ranking.ts' \
             --reporter console
