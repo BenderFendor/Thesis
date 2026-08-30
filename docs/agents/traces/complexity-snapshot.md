@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `39921e4eff4daaf67da9057e2e982c3118324415`
+Commit: `3b5578afbfc30a701975bce6a55e2c3ae3ad24db`
 
 Files: 568
-Functions: 7928
+Functions: 7940
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 384
+Hard violations: 383
 Warning-only: 185
 
 ## Hard violations
@@ -46,7 +46,6 @@ Warning-only: 185
 | `backend/scripts/verify_reporter_intelligence.py:132` | `_profile_issue_samples` | 25 | 38 |
 | `backend/app/services/atlas_evidence_projection.py:223` | `evidence_refs_for_claims` | 23 | 38 |
 | `backend/app/services/news_research.py:23` | `load_articles_for_research` | 25 | 37 |
-| `backend/app/services/source_ledger.py:63` | `build_source_ledger` | 25 | 29 |
 | `backend/scripts/reporter_source_verifier.py:153` | `validate_source_profile_async` | 25 | 24 |
 | `frontend/features/intelligence-atlas/atlas-graph.tsx:327` | `<anonymous>` | 25 | 24 |
 | `backend/app/data/rss_sources.py:18` | `get_rss_sources` | 15 | 37 |
