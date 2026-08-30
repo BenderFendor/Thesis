@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `eb372ae11ca7367e850d627e7473caeec5286e3c`
+Commit: `85873a22b52848ba3a95c96097eef4ad693a4ae9`
 
 Files: 579
-Functions: 8238
+Functions: 8248
 Parse errors: 45
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 220
-Warning-only: 224
+Hard violations: 219
+Warning-only: 225
 
 ## Hard violations
 
@@ -38,7 +38,6 @@ Warning-only: 224
 | `backend/app/services/evidence_policy.py:249` | `evaluate_acceptance` | 22 | 24 |
 | `frontend/components/cluster-detail-modal.tsx:1145` | `ClusterDetailModalContent` | 22 | 18 |
 | `frontend/app/search/page.tsx:2161` | `<anonymous>` | 22 | 15 |
-| `frontend/components/credibility-badge.tsx:20` | `CredibilityBadge` | 22 | 10 |
 | `frontend/features/intelligence-atlas/lib/atlas-force-layout.ts:114` | `step` | 21 | 31 |
 | `backend/app/services/funding_bias_analysis.py:106` | `collect_population` | 21 | 28 |
 | `backend/app/services/source_claims.py:109` | `build_source_claim_inputs` | 21 | 21 |
@@ -461,5 +460,6 @@ Warning-only: 224
 | `scripts/scoop.ts:767` | `<anonymous>` | 9 | 5 |
 | `frontend/__tests__/feed-ranking.test.ts:54` | `<anonymous>` | 9 | 4 |
 | `frontend/app/debug/page.tsx:1106` | `DriftSamplesCard` | 9 | 4 |
+| `frontend/components/credibility-badge.tsx:328` | `CredibilityBadge` | 9 | 4 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:147` | `<anonymous>` | 9 | 4 |
 | `frontend/app/wiki/reporters/page.tsx:27` | `leaningBadgeClass` | 10 | 1 |
