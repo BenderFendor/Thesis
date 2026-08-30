@@ -26,6 +26,7 @@ jobs:
       - name: Apply responsibility-based parser refactor
         run: |
           python - <<'PY'
+          import textwrap
           from pathlib import Path
 
           path = Path("backend/app/services/reporter_public_records.py")
@@ -39,7 +40,8 @@ jobs:
 
           start = text.index("def extract_article_author_candidates(")
           end = text.index("\n\nasync def _fetch_article_author_signals", start)
-          replacement = '''@dataclass(slots=True)
+          replacement = textwrap.dedent('''
+          @dataclass(slots=True)
           class _AuthorCandidateSignals:
               names: list[str] = field(default_factory=list)
               author_pages: list[str] = field(default_factory=list)
@@ -129,13 +131,13 @@ jobs:
                   if not href:
                       continue
                   absolute = urljoin(page_url, href)
-                  text = clean_author_name(raw_text)
-                  if not text:
+                  author_name = clean_author_name(raw_text)
+                  if not author_name:
                       continue
                   if "author" in attrs.get("rel", "").lower() or _AUTHOR_PATH_PATTERN.search(
                       urlparse(absolute).path
                   ):
-                      signals.names.append(text)
+                      signals.names.append(author_name)
                       signals.author_pages.append(absolute)
               return signals
 
@@ -178,8 +180,7 @@ jobs:
                   ]
               )
               return _candidate_signal_payload(signals)
-          '''
-          replacement = "\n".join(line[10:] if line.startswith("          ") else line for line in replacement.splitlines())
+          ''').lstrip()
           path.write_text(text[:start] + replacement + text[end:])
           PY
       - name: Install focused validation tools
