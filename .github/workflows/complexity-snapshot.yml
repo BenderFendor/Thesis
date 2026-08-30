@@ -4,8 +4,12 @@ on:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths-ignore:
       - "docs/agents/traces/complexity-snapshot.md"
+      - "docs/agents/traces/complexity-groups.md"
 permissions:
   contents: write
+concurrency:
+  group: complexity-snapshot-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   snapshot:
     runs-on: ubuntu-latest
@@ -52,4 +56,8 @@ jobs:
           git add docs/agents/traces/complexity-snapshot.md
           git diff --cached --quiet && exit 0
           git commit -m "chore: record complexity snapshot"
-          git push
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          exit 1
