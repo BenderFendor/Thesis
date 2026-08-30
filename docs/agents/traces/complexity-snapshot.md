@@ -1,20 +1,19 @@
 # Complexity Snapshot
 
-Commit: `2a9c09e8d5fdff099a006ede4f631fa0bdd3961e`
+Commit: `a4f36183cf79bcca516cff2a1563316609641fb9`
 
 Files: 579
-Functions: 8209
+Functions: 8218
 Parse errors: 45
-CC max/p95: 34 / 9
+CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 225
+Hard violations: 223
 Warning-only: 223
 
 ## Hard violations
 
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
-| `frontend/components/highlight-toolbar.tsx:156` | `handleSelection` | 34 | 24 |
 | `frontend/components/article-detail-modal.tsx:2035` | `ArticleDetailModalContent` | 33 | 13 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py:99` | `infer_ownership_label` | 30 | 47 |
@@ -194,7 +193,6 @@ Warning-only: 223
 | `frontend/components/article-detail-modal.tsx:1351` | `ModalFactCheckDialog` | 12 | 11 |
 | `frontend/app/debug/page.tsx:1212` | `RssParserCard` | 12 | 10 |
 | `frontend/lib/performance-logger.ts:285` | `logStreamEvent` | 12 | 10 |
-| `frontend/components/highlight-toolbar.tsx:39` | `<anonymous>` | 12 | 9 |
 | `scripts/codemod-lint-mechanical.mjs:199` | `visit` | 12 | 8 |
 | `frontend/app/debug/page.tsx:914` | `CacheDeltaCard` | 12 | 5 |
 | `frontend/app/search/page.tsx:1450` | `NewsResearchPageContent` | 12 | 5 |
