@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 from collections import Counter, OrderedDict
+from dataclasses import dataclass, field
 from html import unescape
 from typing import Any
 from collections.abc import Iterable
@@ -596,77 +597,145 @@ def _author_name_from_meta(html: str) -> str | None:
     return match.group(1).strip() or None
 
 
-def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any]:
-    """Extract possible author names/pages from an article page without a known name."""
-    names: list[str] = []
-    author_pages: list[str] = []
-    social_links: list[str] = []
-    structured_person_names: list[str] = []
-    microdata_author_names: list[str] = []
-    metadata_author_names: list[str] = []
-    publisher_names: list[str] = []
-    site_names: list[str] = []
+@dataclass(slots=True)
+class _AuthorCandidateSignals:
+    names: list[str] = field(default_factory=list)
+    author_pages: list[str] = field(default_factory=list)
+    social_links: list[str] = field(default_factory=list)
+    structured_person_names: list[str] = field(default_factory=list)
+    microdata_author_names: list[str] = field(default_factory=list)
+    metadata_author_names: list[str] = field(default_factory=list)
+    publisher_names: list[str] = field(default_factory=list)
+    site_names: list[str] = field(default_factory=list)
 
+
+def _author_types(author: dict[str, Any]) -> list[Any]:
+    raw_type = author.get("@type")
+    return raw_type if isinstance(raw_type, list) else [raw_type]
+
+
+def _extend_same_as(
+    signals: _AuthorCandidateSignals,
+    same_as: Any,
+    page_url: str,
+) -> None:
+    if isinstance(same_as, str):
+        signals.social_links.append(urljoin(page_url, same_as))
+        return
+    if isinstance(same_as, list):
+        signals.social_links.extend(
+            urljoin(page_url, value) for value in same_as if isinstance(value, str)
+        )
+
+
+def _collect_json_ld_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_json in _JSON_LD_PATTERN.findall(html):
         try:
             payload = json.loads(raw_json.strip())
         except json.JSONDecodeError:
             continue
-        publisher_names.extend(_collect_json_ld_publishers(payload))
+        signals.publisher_names.extend(_collect_json_ld_publishers(payload))
         for author in _collect_author_objects(payload):
             name = clean_author_name(author.get("name"))
             if name:
-                names.append(name)
-                raw_type = author.get("@type")
-                author_types = raw_type if isinstance(raw_type, list) else [raw_type]
-                if "Person" in author_types:
-                    structured_person_names.append(name)
-            if isinstance(author.get("url"), str):
-                author_pages.append(urljoin(page_url, author["url"]))
-            same_as = author.get("sameAs")
-            if isinstance(same_as, list):
-                social_links.extend(
-                    urljoin(page_url, value) for value in same_as if isinstance(value, str)
-                )
-            elif isinstance(same_as, str):
-                social_links.append(urljoin(page_url, same_as))
+                signals.names.append(name)
+                if "Person" in _author_types(author):
+                    signals.structured_person_names.append(name)
+            url = author.get("url")
+            if isinstance(url, str):
+                signals.author_pages.append(urljoin(page_url, url))
+            _extend_same_as(signals, author.get("sameAs"), page_url)
+    return signals
 
-    metadata_authors = _parse_metadata_author_data(html, page_url)
-    names.extend(metadata_authors["names"])
-    author_pages.extend(metadata_authors["author_pages"])
-    metadata_author_names.extend(metadata_authors["names"])
-    publisher_names.extend(metadata_authors["publisher_names"])
-    site_names.extend(metadata_authors["site_names"])
+
+def _collect_metadata_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    metadata = _parse_metadata_author_data(html, page_url)
+    return _AuthorCandidateSignals(
+        names=list(metadata["names"]),
+        author_pages=list(metadata["author_pages"]),
+        metadata_author_names=list(metadata["names"]),
+        publisher_names=list(metadata["publisher_names"]),
+        site_names=list(metadata["site_names"]),
+    )
+
+
+def _collect_microdata_candidate_signals(html: str) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_author in _ITEMPROP_AUTHOR_PATTERN.findall(html):
-        author_text = clean_author_name(raw_author)
-        if author_text:
-            names.append(author_text)
-            microdata_author_names.append(author_text)
+        author = clean_author_name(raw_author)
+        if author:
+            signals.names.append(author)
+            signals.microdata_author_names.append(author)
+    return signals
 
+
+def _collect_anchor_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_attrs, raw_text in _ANCHOR_PATTERN.findall(html):
         attrs = _parse_tag_attrs(raw_attrs)
         href = attrs.get("href")
         if not href:
             continue
         absolute = urljoin(page_url, href)
-        rel = attrs.get("rel", "")
-        text = clean_author_name(raw_text)
-        if not text:
+        author_name = clean_author_name(raw_text)
+        if not author_name:
             continue
-        if "author" in rel.lower() or _AUTHOR_PATH_PATTERN.search(urlparse(absolute).path):
-            names.append(text)
-            author_pages.append(absolute)
+        if "author" in attrs.get("rel", "").lower() or _AUTHOR_PATH_PATTERN.search(
+            urlparse(absolute).path
+        ):
+            signals.names.append(author_name)
+            signals.author_pages.append(absolute)
+    return signals
 
+
+def _merge_candidate_signals(groups: list[_AuthorCandidateSignals]) -> _AuthorCandidateSignals:
+    merged = _AuthorCandidateSignals()
+    for group in groups:
+        merged.names.extend(group.names)
+        merged.author_pages.extend(group.author_pages)
+        merged.social_links.extend(group.social_links)
+        merged.structured_person_names.extend(group.structured_person_names)
+        merged.microdata_author_names.extend(group.microdata_author_names)
+        merged.metadata_author_names.extend(group.metadata_author_names)
+        merged.publisher_names.extend(group.publisher_names)
+        merged.site_names.extend(group.site_names)
+    return merged
+
+
+def _candidate_signal_payload(signals: _AuthorCandidateSignals) -> dict[str, Any]:
     return {
-        "names": _ordered_unique(names),
-        "author_pages": _ordered_unique(author_pages),
-        "social_links": _ordered_unique(social_links),
-        "structured_person_names": _ordered_unique(structured_person_names),
-        "microdata_author_names": _ordered_unique(microdata_author_names),
-        "metadata_author_names": _ordered_unique(metadata_author_names),
-        "publisher_names": _ordered_unique(publisher_names),
-        "site_names": _ordered_unique(site_names),
+        "names": _ordered_unique(signals.names),
+        "author_pages": _ordered_unique(signals.author_pages),
+        "social_links": _ordered_unique(signals.social_links),
+        "structured_person_names": _ordered_unique(signals.structured_person_names),
+        "microdata_author_names": _ordered_unique(signals.microdata_author_names),
+        "metadata_author_names": _ordered_unique(signals.metadata_author_names),
+        "publisher_names": _ordered_unique(signals.publisher_names),
+        "site_names": _ordered_unique(signals.site_names),
     }
+
+
+def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any]:
+    """Extract possible author names/pages from an article page without a known name."""
+    signals = _merge_candidate_signals(
+        [
+            _collect_json_ld_candidate_signals(html, page_url),
+            _collect_metadata_candidate_signals(html, page_url),
+            _collect_microdata_candidate_signals(html),
+            _collect_anchor_candidate_signals(html, page_url),
+        ]
+    )
+    return _candidate_signal_payload(signals)
 
 
 async def _fetch_article_author_signals(

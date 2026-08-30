@@ -1,7 +1,9 @@
 from app.services.reporter_public_records import extract_article_author_candidates
 
 
-def test_extract_article_author_candidates_combines_structured_metadata_microdata_and_links() -> None:
+def test_extract_article_author_candidates_combines_structured_metadata_microdata_and_links() -> (
+    None
+):
     html = """
     <html><head>
       <script type="application/ld+json">
