@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `f0384c45cbc1cfd60b6e74d4545d650672da0826`
+Commit: `c9b49e8ef6ab252dc0bb98a25eb7db0d1f9c5faf`
 
-Files: 577
-Functions: 8199
+Files: 578
+Functions: 8191
 Parse errors: 45
 CC max/p95: 38 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 228
+Hard violations: 226
 Warning-only: 223
 
 ## Hard violations
@@ -52,7 +52,6 @@ Warning-only: 223
 | `frontend/components/article-detail-modal.tsx:2224` | `syncHighlights` | 17 | 30 |
 | `frontend/lib/highlight-store.ts:115` | `mergeHighlights` | 20 | 27 |
 | `backend/tests/test_atlas_phase2_projection.py:155` | `test_ownership_edges_populate_from_accepted_relationships` | 20 | 26 |
-| `frontend/app/saved/page.tsx:411` | `SavedArticlesPage` | 20 | 25 |
 | `backend/scripts/reporter_source_verifier.py:248` | `extract_reporter_from_article` | 20 | 24 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:55` | `SourceIntelligenceOperations` | 20 | 13 |
 | `frontend/components/article-inline-embed.tsx:31` | `buildNewsArticle` | 20 | 8 |
@@ -115,7 +114,6 @@ Warning-only: 223
 | `frontend/app/search/page.tsx:1688` | `<anonymous>` | 15 | 15 |
 | `frontend/features/intelligence-atlas/atlas-entity-list.tsx:255` | `<anonymous>` | 15 | 14 |
 | `frontend/app/page.tsx:367` | `HeaderBar` | 15 | 13 |
-| `frontend/app/saved/page.tsx:244` | `ArticleCard` | 15 | 13 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:166` | `SourceSidebar` | 15 | 13 |
 | `frontend/components/article-detail-modal.tsx:2327` | `handleKeyDown` | 15 | 12 |
 | `frontend/components/verification-panel.tsx:39` | `VerificationPanel` | 15 | 12 |
@@ -428,7 +426,7 @@ Warning-only: 223
 | `backend/scripts/verify_and_promote_reporters.py:408` | `_rss_item_record` | 9 | 8 |
 | `backend/scripts/verify_and_promote_reporters.py:549` | `_career_organization_matches` | 9 | 8 |
 | `backend/scripts/verify_reporter_intelligence.py:157` | `_local_byline_profile_issues` | 9 | 8 |
-| `frontend/app/saved/page.tsx:151` | `CardActionButtons` | 9 | 8 |
+| `frontend/app/saved/saved-workspace-view.tsx:297` | `CardActionButtons` | 9 | 8 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:524` | `LlmEntryCard` | 9 | 8 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:249` | `QuickFacts` | 9 | 8 |
 | `frontend/components/add-rss-dialog.tsx:34` | `handleValidate` | 10 | 7 |
