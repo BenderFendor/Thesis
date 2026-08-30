@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `faf9de29281cba0187873990a910993996e8ddef`
+Commit: `116719a993517ea7f33e81f0d88989be04e82c5f`
 
 Files: 569
-Functions: 7949
+Functions: 7956
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 382
+Hard violations: 381
 Warning-only: 186
 
 ## Hard violations
@@ -33,7 +33,6 @@ Warning-only: 186
 | `scripts/collect_debug_bundle.py:254` | `summarize` | 29 | 30 |
 | `frontend/app/debug/page.tsx:685` | `StorageSnapshotSection` | 29 | 16 |
 | `backend/tools/research_lab.py:144` | `_build_summary` | 26 | 43 |
-| `backend/app/services/chroma_sync.py:189` | `_run_recovery_scan` | 17 | 42 |
 | `backend/app/services/atlas_evidence_projection.py:311` | `_accepted_ownership_edges` | 26 | 41 |
 | `frontend/lib/api.ts:2054` | `pumpStreamEvents` | 16 | 41 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:65` | `IntelligenceAtlasWorkspace` | 27 | 24 |
@@ -287,7 +286,7 @@ Warning-only: 186
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:707` | `QuickFactsCard` | 13 | 6 |
 | `backend/app/services/reporter_public_records.py:390` | `_is_non_person_byline` | 13 | 4 |
 | `backend/app/services/reporter_indexer.py:1283` | `seed_reporters_from_wikidata` | 12 | 19 |
-| `backend/app/services/chroma_sync.py:110` | `chroma_sync_worker` | 11 | 19 |
+| `backend/app/services/chroma_sync.py:117` | `chroma_sync_worker` | 11 | 19 |
 | `backend/app/services/chroma_topics.py:156` | `_clusters_from_ids_batches` | 9 | 19 |
 | `backend/scripts/verify_and_promote_reporters.py:398` | `_split_creator` | 9 | 19 |
 | `backend/app/services/debug_logger.py:720` | `_generate_recommendations` | 12 | 18 |
