@@ -8,10 +8,12 @@ on:
       - "frontend/app/sources/[source]/debug/**"
       - "frontend/components/credibility-badge.tsx"
       - "frontend/components/highlight-toolbar.tsx"
+      - "frontend/components/reporter-profile.tsx"
       - "frontend/components/source-sidebar.tsx"
       - "frontend/features/intelligence-atlas/atlas-entity-list.tsx"
       - "frontend/features/intelligence-atlas/atlas-stage-shell.tsx"
       - "frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx"
+      - "frontend/features/intelligence-atlas/lib/atlas-force-layout.ts"
       - "frontend/hooks/use-scroll-personalization.ts"
       - "frontend/lib/api.ts"
       - "frontend/lib/feed-ranking.ts"
@@ -54,9 +56,12 @@ jobs:
             "frontend/app/sources/[source]/debug/source-debug-view.tsx"
             "frontend/components/credibility-badge.tsx"
             "frontend/components/highlight-toolbar.tsx"
+            "frontend/components/reporter-profile.tsx"
             "frontend/components/source-sidebar.tsx"
             "frontend/features/intelligence-atlas/atlas-entity-list.tsx"
             "frontend/features/intelligence-atlas/atlas-stage-shell.tsx"
+            "frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx"
+            "frontend/features/intelligence-atlas/lib/atlas-force-layout.ts"
             "frontend/hooks/use-scroll-personalization.ts"
             "frontend/lib/feed-ranking.ts"
           )
@@ -95,10 +100,12 @@ jobs:
             'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
             'frontend/components/credibility-badge.tsx' \
             'frontend/components/highlight-toolbar.tsx' \
+            'frontend/components/reporter-profile.tsx' \
             'frontend/components/source-sidebar.tsx' \
             'frontend/features/intelligence-atlas/atlas-entity-list.tsx' \
             'frontend/features/intelligence-atlas/atlas-stage-shell.tsx' \
             'frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx' \
+            'frontend/features/intelligence-atlas/lib/atlas-force-layout.ts' \
             'frontend/hooks/use-scroll-personalization.ts' \
             'frontend/lib/api.ts' \
             'frontend/lib/feed-ranking.ts' \
