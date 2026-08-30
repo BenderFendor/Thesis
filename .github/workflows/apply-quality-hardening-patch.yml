@@ -4,7 +4,7 @@ on:
   push:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths:
-      - ".github/quality-hardening-replacements.json"
+      - ".github/workflows/apply-quality-hardening-patch.yml"
   workflow_dispatch:
 
 concurrency:
@@ -23,33 +23,252 @@ jobs:
         with:
           ref: quality/crap-mi-oxlint-hardening
           fetch-depth: 0
-      - name: Apply exact replacements
+      - name: Apply checked API refactor
         shell: bash
         run: |
           set -euo pipefail
-          payload=.github/quality-hardening-replacements.json
-          if [[ ! -f "$payload" ]]; then
-            echo "No replacement payload present; nothing to apply."
-            exit 0
-          fi
           python - <<'PY'
-          import json
+          import re
           from pathlib import Path
 
-          payload_path = Path(".github/quality-hardening-replacements.json")
-          replacements = json.loads(payload_path.read_text())
-          for replacement in replacements:
-              path = Path(replacement["path"])
-              old = replacement["old"]
-              new = replacement["new"]
-              text = path.read_text()
-              count = text.count(old)
+          path = Path("frontend/lib/api.ts")
+          text = path.read_text()
+          if "interface FetchNewsParams" in text:
+              print("API hardening transform already applied.")
+              raise SystemExit(0)
+
+          def replace(pattern: str, replacement: str, label: str) -> None:
+              global text
+              text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
               if count != 1:
-                  raise SystemExit(
-                      f"Expected exactly one match in {path}, found {count}"
-                  )
-              path.write_text(text.replace(old, new, 1))
-          payload_path.unlink()
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+
+          replace(
+              r"const rewriteRemoteBackendUrl = .*?\n\}\n\nconst API_BASE_URL",
+              '''const rewriteRemoteBackendUrl = (url: URL): string | undefined => {
+            const browserHostname = globalThis.location.hostname;
+            const hasPublicFallback =
+              PUBLIC_FRONTEND_DOMAIN.length > 0 && PUBLIC_API_FALLBACK.length > 0;
+            const isPublicFrontend =
+              isPublicFrontendHostname(browserHostname) &&
+              !browserHostname.startsWith("api.");
+
+            if (hasPublicFallback && isLocalHostname(url.hostname) && isPublicFrontend) {
+              return PUBLIC_API_FALLBACK;
+            }
+
+            const shouldRewriteLocalHost =
+              isLanHostname(browserHostname) ||
+              isCloudflaredTunnelHostname(browserHostname);
+            const canRewrite =
+              browserHostname.length > 0 &&
+              isLocalHostname(url.hostname) &&
+              shouldRewriteLocalHost;
+            if (!canRewrite) {
+              return undefined;
+            }
+
+            url.hostname = browserHostname;
+            url.protocol = globalThis.location.protocol;
+            if (globalThis.location.protocol === "https:") {
+              url.port = "";
+            } else if (url.port.length === 0) {
+              url.port = DEFAULT_BACKEND_PORT;
+            }
+            return url.toString().replace(/\\/+$/, "");
+          };
+
+          // Default to localhost backend when env var is not set. If the UI is opened from
+          // another device on the LAN or Cloudflare tunnel, rewrite localhost-style backend
+          // URLs to the current browser hostname so remote browsers can reach this machine.
+          const resolveBaseUrl = (value?: string): string => {
+            const trimmedValue = value?.trim();
+            const raw =
+              trimmedValue !== undefined && trimmedValue.length > 0
+                ? trimmedValue
+                : LOCAL_BACKEND_FALLBACK;
+            const normalized = raw.replace(/\\/+$/, "");
+            if (typeof window === "undefined") {
+              return normalized;
+            }
+            try {
+              const url = new URL(normalized);
+              return rewriteRemoteBackendUrl(url) ?? normalized;
+            } catch {
+              return normalized;
+            }
+          };
+
+          const API_BASE_URL''',
+              "backend URL helpers",
+          )
+
+          replace(
+              r"const pruneOgImageCache = \(\) => \{.*?\n\};\n\n// --- Data Types ---",
+              '''const pruneOgImageCache = () => {
+            const now = Date.now();
+            for (const [key, entry] of ogImageCache.entries()) {
+              if (entry.expiresAt <= now) {
+                ogImageCache.delete(key);
+              }
+            }
+            const overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
+            if (overflow <= 0) {
+              return;
+            }
+            const expiredKeys = Array.from(ogImageCache.keys()).slice(0, overflow);
+            for (const key of expiredKeys) {
+              ogImageCache.delete(key);
+            }
+          };
+
+          // --- Data Types ---''',
+              "OG image cache pruning",
+          )
+
+          replace(
+              r"function normalizeCountryCode\(.*?\n\}\n\nconst BackendArticleSchema",
+              '''function normalizeCountryCode(value?: string | null): string {
+            if (typeof value !== "string") {
+              return "International";
+            }
+            const trimmed = value.trim();
+            if (trimmed.length === 0) {
+              return "International";
+            }
+            if (trimmed === "International") {
+              return trimmed;
+            }
+            const compactUpper = trimmed.toUpperCase();
+            if (/^[A-Z]{2}$/.test(compactUpper)) {
+              return compactUpper;
+            }
+            const normalizedName = trimmed
+              .toLowerCase()
+              .replace(/[.]/gu, "")
+              .replace(/\\s+/gu, " ")
+              .trim();
+            const noSpace = normalizedName.replace(/\\s+/gu, "");
+            return (
+              COUNTRY_NAME_TO_CODE[normalizedName] ??
+              COUNTRY_NAME_TO_CODE[noSpace] ??
+              compactUpper
+            );
+          }
+
+          const BackendArticleSchema''',
+              "country normalization",
+          )
+
+          text = text.replace(
+              "onSourceComplete?: (source: string, articles:readonly  NewsArticle[]) => void;",
+              "onSourceComplete?: (source: string, articles: readonly NewsArticle[]) => void;",
+          )
+
+          replace(
+              r"export async function fetchNews\(.*?\n\}\n\n// Helper functions to map source to metadata",
+              '''interface FetchNewsParams {
+            readonly limit?: number;
+            readonly category?: string;
+            readonly search?: string;
+          }
+
+          const buildNewsStreamUrl = (params?: Readonly<FetchNewsParams>): string => {
+            const searchParams = new URLSearchParams({ use_cache: "true" });
+            if (params?.limit !== undefined) {
+              searchParams.set("limit", params.limit.toString());
+            }
+            if (params?.category !== undefined && params.category.length > 0) {
+              searchParams.set("category", params.category);
+            }
+            return `${API_BASE_URL}/news/stream?${searchParams.toString()}`;
+          };
+
+          const parseBackendArticles = (payload: unknown): BackendArticle[] => {
+            const payloadSchema = z
+              .object({ articles: z.array(z.unknown()).default([]) })
+              .passthrough();
+            const payloadResult = payloadSchema.safeParse(payload);
+            if (!payloadResult.success) {
+              logger.warn("fetchNews received malformed response payload");
+              return [];
+            }
+            const articleResult = BackendArticleSchema.array().safeParse(
+              payloadResult.data.articles,
+            );
+            if (!articleResult.success) {
+              logger.warn(
+                "fetchNews received malformed article payload, dropping invalid entries",
+              );
+              return [];
+            }
+            return articleResult.data;
+          };
+
+          const filterNewsArticles = (
+            articles: readonly NewsArticle[],
+            params?: Readonly<FetchNewsParams>,
+          ): NewsArticle[] => {
+            let filteredArticles = [...articles];
+            const searchTerm = params?.search?.trim().toLowerCase();
+            if (searchTerm !== undefined && searchTerm.length > 0) {
+              const beforeFilterCount = filteredArticles.length;
+              filteredArticles = filteredArticles.filter(
+                (article) =>
+                  article.title.toLowerCase().includes(searchTerm) ||
+                  article.summary.toLowerCase().includes(searchTerm),
+              );
+              logger.debug(
+                `Search filter applied: ${beforeFilterCount} -> ${filteredArticles.length} articles (search: "${searchTerm}")`,
+              );
+            }
+            const category = params?.category?.trim().toLowerCase();
+            if (category !== undefined && category.length > 0) {
+              const beforeFilterCount = filteredArticles.length;
+              filteredArticles = filteredArticles.filter(
+                (article) => article.category.toLowerCase() === category,
+              );
+              logger.debug(
+                `Category filter applied: ${beforeFilterCount} -> ${filteredArticles.length} articles (category: "${category}")`,
+              );
+            }
+            return filteredArticles;
+          };
+
+          export async function fetchNews(
+            params?: Readonly<FetchNewsParams>,
+          ): Promise<NewsArticle[]> {
+            const url = buildNewsStreamUrl(params);
+            logger.debug(`Fetching news from unified endpoint: ${url}`);
+            try {
+              const response = await fetch(url);
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              const payload: unknown = await response.json();
+              const backendArticles = parseBackendArticles(payload);
+              logger.debug(
+                `Received ${backendArticles.length} articles from unified backend endpoint`,
+              );
+              const articles = filterNewsArticles(
+                mapBackendArticles(backendArticles),
+                params,
+              );
+              if (articles.length === 0) {
+                logger.debug("No articles to return after processing.", params);
+              }
+              return articles;
+            } catch (error: unknown) {
+              logger.error("Failed to fetch news from unified endpoint", error);
+              throw error;
+            }
+          }
+
+          // Helper functions to map source to metadata''',
+              "fetchNews",
+          )
+
+          path.write_text(text)
           PY
       - name: Commit applied refactor
         shell: bash
@@ -57,10 +276,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add frontend/lib/api.ts
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "refactor: apply quality hardening patch"
+          git commit -m "refactor: harden core news API paths"
           git push origin HEAD:quality/crap-mi-oxlint-hardening
