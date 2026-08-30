@@ -7,6 +7,7 @@ on:
       - "frontend/app/saved/**"
       - "frontend/app/sources/[source]/debug/**"
       - "frontend/components/highlight-toolbar.tsx"
+      - "frontend/hooks/use-scroll-personalization.ts"
       - "frontend/lib/api.ts"
       - "frontend/lib/feed-ranking.ts"
       - ".github/workflows/quality-hardening-targeted.yml"
@@ -47,6 +48,7 @@ jobs:
             'frontend/app/sources/[source]/debug/page.tsx' \
             'frontend/app/sources/[source]/debug/source-debug-view.tsx' \
             frontend/components/highlight-toolbar.tsx \
+            frontend/hooks/use-scroll-personalization.ts \
             frontend/lib/api.ts \
             frontend/lib/feed-ranking.ts
       - name: TypeScript
@@ -64,6 +66,7 @@ jobs:
             'frontend/app/saved/**/*.{ts,tsx}' \
             'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
             'frontend/components/highlight-toolbar.tsx' \
+            'frontend/hooks/use-scroll-personalization.ts' \
             'frontend/lib/api.ts' \
             'frontend/lib/feed-ranking.ts' \
             --reporter console
