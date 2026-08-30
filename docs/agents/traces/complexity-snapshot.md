@@ -3,12 +3,12 @@
 Commit: `faf9de29281cba0187873990a910993996e8ddef`
 
 Files: 569
-Functions: 7941
+Functions: 7949
 Parse errors: 0
 CC max/p95: 56 / 10
 Cognitive max/p95: 50 / 11
-Hard violations: 383
-Warning-only: 185
+Hard violations: 382
+Warning-only: 186
 
 ## Hard violations
 
@@ -33,7 +33,6 @@ Warning-only: 185
 | `scripts/collect_debug_bundle.py:254` | `summarize` | 29 | 30 |
 | `frontend/app/debug/page.tsx:685` | `StorageSnapshotSection` | 29 | 16 |
 | `backend/tools/research_lab.py:144` | `_build_summary` | 26 | 43 |
-| `backend/app/services/reporter_public_records.py:599` | `extract_article_author_candidates` | 19 | 43 |
 | `backend/app/services/chroma_sync.py:189` | `_run_recovery_scan` | 17 | 42 |
 | `backend/app/services/atlas_evidence_projection.py:311` | `_accepted_ownership_edges` | 26 | 41 |
 | `frontend/lib/api.ts:2054` | `pumpStreamEvents` | 16 | 41 |
@@ -117,7 +116,7 @@ Warning-only: 185
 | `backend/app/services/evidence_ingest.py:724` | `ingest_littlesis_ownership` | 18 | 22 |
 | `backend/app/services/blindspot_viewer.py:824` | `_load_embeddings_for_articles` | 18 | 21 |
 | `backend/app/services/reporter_indexer.py:796` | `_build_local_byline_profile` | 18 | 20 |
-| `backend/app/services/reporter_public_records.py:542` | `_parse_json_ld_author_data` | 11 | 27 |
+| `backend/app/services/reporter_public_records.py:543` | `_parse_json_ld_author_data` | 11 | 27 |
 | `frontend/lib/highlight-utils.tsx:8` | `getGlobalOffset` | 18 | 20 |
 | `frontend/__tests__/source-groups.test.ts:4` | `createArticle` | 18 | 17 |
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts:129` | `serializeAtlasQueryState` | 18 | 17 |
@@ -165,7 +164,7 @@ Warning-only: 185
 | `backend/app/services/mbfc_integration.py:198` | `attach_mbfc_to_reporters` | 11 | 24 |
 | `backend/app/services/source_research.py:55` | `_infer_website_from_feed_articles` | 16 | 19 |
 | `frontend/hooks/useNewsStream.ts:92` | `<anonymous>` | 16 | 19 |
-| `backend/app/services/reporter_public_records.py:510` | `_parse_metadata_author_data` | 10 | 24 |
+| `backend/app/services/reporter_public_records.py:511` | `_parse_metadata_author_data` | 10 | 24 |
 | `backend/scripts/wayback_verify_reporters.py:329` | `_wayback_verify_author_page` | 10 | 24 |
 | `backend/app/api/routes/entity_research.py:503` | `research_organization` | 16 | 16 |
 | `backend/app/services/entity_wiki_service.py:669` | `_score_reporter_candidate` | 16 | 16 |
@@ -180,12 +179,12 @@ Warning-only: 185
 | `backend/app/services/atlas_entity.py:421` | `_ownership_context` | 14 | 23 |
 | `backend/app/services/chroma_topics.py:515` | `get_bulk_article_topics` | 13 | 23 |
 | `backend/app/services/reporter_web_search.py:62` | `_parse_lite_html` | 13 | 23 |
-| `backend/app/services/reporter_public_records.py:433` | `_collect_author_objects` | 12 | 23 |
+| `backend/app/services/reporter_public_records.py:434` | `_collect_author_objects` | 12 | 23 |
 | `backend/app/services/wiki_indexer.py:339` | `index_source` | 15 | 21 |
 | `backend/scripts/wayback_verify_reporters.py:656` | `_process_reporter` | 15 | 21 |
 | `backend/app/services/atlas_graph.py:35` | `_apply_neighborhood` | 15 | 20 |
 | `backend/app/services/evidence_ingest.py:1215` | `ingest_ads_supply` | 15 | 20 |
-| `backend/app/services/reporter_public_records.py:706` | `_collect_activity_metrics` | 15 | 20 |
+| `backend/app/services/reporter_public_records.py:775` | `_collect_activity_metrics` | 15 | 20 |
 | `backend/scripts/plan_reporter_source_enrichment.py:621` | `main_async` | 15 | 20 |
 | `backend/tools/research_tui.py:424` | `_stream_research` | 15 | 20 |
 | `backend/app/services/gdelt_integration.py:290` | `_match_by_embedding` | 15 | 19 |
@@ -245,7 +244,7 @@ Warning-only: 185
 | `backend/app/services/reporter_directory.py:30` | `enumerate_instance_directory` | 12 | 20 |
 | `backend/app/services/reporter_indexer.py:917` | `index_unresolved_reporters` | 12 | 20 |
 | `backend/app/services/reporter_indexer.py:1044` | `index_source_reporters` | 12 | 20 |
-| `backend/app/services/reporter_public_records.py:458` | `_collect_json_ld_publishers` | 12 | 20 |
+| `backend/app/services/reporter_public_records.py:459` | `_collect_json_ld_publishers` | 12 | 20 |
 | `frontend/app/sources/[source]/debug/page.tsx:83` | `filterObject` | 12 | 20 |
 | `backend/app/services/article_comparison.py:338` | `find_common_and_unique` | 10 | 20 |
 | `backend/rss_parser_rust/src/country_mentions.rs:22` | `new` | 6 | 20 |
@@ -286,7 +285,7 @@ Warning-only: 185
 | `frontend/lib/api.ts:922` | `semanticSearch` | 13 | 7 |
 | `frontend/app/debug/page.tsx:1424` | `LlmSection` | 13 | 6 |
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:707` | `QuickFactsCard` | 13 | 6 |
-| `backend/app/services/reporter_public_records.py:389` | `_is_non_person_byline` | 13 | 4 |
+| `backend/app/services/reporter_public_records.py:390` | `_is_non_person_byline` | 13 | 4 |
 | `backend/app/services/reporter_indexer.py:1283` | `seed_reporters_from_wikidata` | 12 | 19 |
 | `backend/app/services/chroma_sync.py:110` | `chroma_sync_worker` | 11 | 19 |
 | `backend/app/services/chroma_topics.py:156` | `_clusters_from_ids_batches` | 9 | 19 |
@@ -303,7 +302,7 @@ Warning-only: 185
 | `backend/scripts/check_proof_suite_clean_room.py:195` | `scan_file` | 12 | 17 |
 | `backend/app/services/atlas_entity.py:1046` | `_build_index_facets` | 12 | 16 |
 | `backend/app/services/chroma_topics.py:1000` | `_build_trending_clusters` | 10 | 18 |
-| `backend/app/services/reporter_public_records.py:740` | `_fetch_activity_author_signals` | 10 | 18 |
+| `backend/app/services/reporter_public_records.py:809` | `_fetch_activity_author_signals` | 10 | 18 |
 | `backend/app/services/source_credibility.py:620` | `_store_scores` | 10 | 18 |
 | `backend/app/services/evidence_ingest.py:1027` | `_parse_exhibit_21` | 12 | 15 |
 | `backend/app/services/reporter_awards.py:104` | `_search_award_data` | 9 | 18 |
@@ -435,6 +434,7 @@ Warning-only: 185
 | `backend/app/services/evidence_ingest.py:553` | `_handle_person_property` | 9 | 13 |
 | `backend/app/services/mbfc_integration.py:251` | `get_rss_mbfc_crosswalk` | 9 | 13 |
 | `backend/app/services/reporter_indexer.py:1176` | `_fetch_wikidata_journalist_pairs` | 9 | 13 |
+| `backend/app/services/reporter_public_records.py:631` | `_collect_json_ld_candidate_signals` | 7 | 15 |
 | `backend/app/services/rss_ingestion.py:627` | `_preserve_incomplete_source_articles` | 10 | 12 |
 | `backend/app/services/source_url_guard.py:80` | `normalize_site_url` | 9 | 13 |
 | `backend/scripts/verify_and_promote_reporters.py:607` | `_apply_direct_cffi_match` | 10 | 12 |
@@ -475,7 +475,7 @@ Warning-only: 185
 | `backend/app/services/media_measurements.py:184` | `_original_vs_syndicated_trace` | 10 | 10 |
 | `backend/app/services/primary_source_adapters.py:1094` | `ingest_sellers_json_records` | 10 | 10 |
 | `backend/app/services/primary_source_adapters.py:1141` | `ingest_sponsorship_records` | 10 | 10 |
-| `backend/app/services/reporter_public_records.py:574` | `_parse_anchor_author_links` | 9 | 11 |
+| `backend/app/services/reporter_public_records.py:575` | `_parse_anchor_author_links` | 9 | 11 |
 | `backend/app/services/rss_ingestion.py:225` | `_get_source_activity_snapshot` | 9 | 11 |
 | `backend/app/services/source_claims.py:71` | `_base_evidence` | 9 | 11 |
 | `backend/app/services/source_credibility.py:846` | `calculate_claim_confidence` | 9 | 11 |
@@ -540,7 +540,7 @@ Warning-only: 185
 | `backend/app/services/funding_researcher.py:1418` | `_merge_wikipedia_data` | 9 | 8 |
 | `backend/app/services/gdelt_aggregates.py:29` | `build_article_gdelt_context` | 9 | 8 |
 | `backend/app/services/reading_queue.py:189` | `update_queue_item` | 9 | 8 |
-| `backend/app/services/reporter_public_records.py:770` | `build_reporter_activity_summary` | 9 | 8 |
+| `backend/app/services/reporter_public_records.py:839` | `build_reporter_activity_summary` | 9 | 8 |
 | `backend/app/services/source_analysis_scorer.py:103` | `_ownership_risks` | 9 | 8 |
 | `backend/app/services/source_credibility.py:346` | `_compute_source_network_diversity` | 9 | 8 |
 | `backend/rss_parser_rust/src/topics.rs:123` | `normalize_keyword` | 9 | 8 |
