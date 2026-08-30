@@ -63,7 +63,9 @@ def _policy_signal_count(meta: SourceMetadata | None) -> int:
 
 def _rss_health(source_config: dict[str, Any]) -> dict[str, Any]:
     explicit_status = str(source_config.get("status") or source_config.get("health") or "").strip()
-    last_success = source_config.get("last_successful_fetch_at") or source_config.get("last_success")
+    last_success = source_config.get("last_successful_fetch_at") or source_config.get(
+        "last_success"
+    )
     error = source_config.get("last_error") or source_config.get("error")
     if explicit_status:
         status = explicit_status
