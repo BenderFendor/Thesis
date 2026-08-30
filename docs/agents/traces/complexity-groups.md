@@ -1,6 +1,6 @@
 # Complexity groups
 
-Hard violations: 402
+Hard violations: 400
 Files with hard violations: 172
 
 | file | violations | max CC | max cognitive |
@@ -13,12 +13,12 @@ Files with hard violations: 172
 | `frontend/app/search/page.tsx` | 9 | 22 | 21 |
 | `backend/app/services/reporter_indexer.py` | 9 | 20 | 35 |
 | `backend/scripts/wayback_verify_reporters.py` | 9 | 17 | 48 |
-| `backend/app/services/reporter_public_records.py` | 8 | 19 | 43 |
 | `backend/app/services/atlas_entity.py` | 8 | 17 | 23 |
 | `backend/app/services/entity_wiki_service.py` | 8 | 16 | 18 |
 | `backend/scripts/verify_reporter_intelligence.py` | 7 | 30 | 49 |
 | `backend/scripts/reporter_source_verifier.py` | 7 | 29 | 39 |
 | `backend/app/services/blindspot_viewer.py` | 7 | 18 | 25 |
+| `backend/app/services/reporter_public_records.py` | 7 | 15 | 27 |
 | `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts` | 6 | 25 | 37 |
 | `backend/scripts/backfill_article_author_links.py` | 6 | 19 | 33 |
 | `backend/scripts/measure_wiki_profile_coverage.py` | 5 | 29 | 39 |
@@ -64,7 +64,6 @@ Files with hard violations: 172
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx` | 2 | 18 | 14 |
 | `frontend/components/grid-view.tsx` | 2 | 18 | 14 |
 | `frontend/features/intelligence-atlas/lib/atlas-query-state.ts` | 2 | 18 | 17 |
-| `backend/app/services/chroma_sync.py` | 2 | 17 | 42 |
 | `backend/app/services/og_image.py` | 2 | 17 | 31 |
 | `backend/app/services/reporter_wikipedia.py` | 2 | 17 | 18 |
 | `backend/scripts/verify_reporter_source_intelligence.py` | 2 | 17 | 23 |
@@ -154,6 +153,7 @@ Files with hard violations: 172
 | `frontend/tools/oxlint/anti-slop/shared/lexical-type-parameters.ts` | 1 | 12 | 15 |
 | `backend/app/core/file_trace_exporter.py` | 1 | 11 | 14 |
 | `backend/app/core/process_limits.py` | 1 | 11 | 18 |
+| `backend/app/services/chroma_sync.py` | 1 | 11 | 19 |
 | `backend/app/services/material_interest.py` | 1 | 11 | 16 |
 | `backend/app/services/reporter_confidence_scorer.py` | 1 | 11 | 11 |
 | `backend/app/services/reporter_profiler.py` | 1 | 11 | 17 |
@@ -302,19 +302,6 @@ Files with hard violations: 172
 | 456 | `_try_curl_cffi_article_signals` | 13 | 14 |
 | 388 | `_get_likely_reporters` | 11 | 12 |
 
-### `backend/app/services/reporter_public_records.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 599 | `extract_article_author_candidates` | 19 | 43 |
-| 542 | `_parse_json_ld_author_data` | 11 | 27 |
-| 510 | `_parse_metadata_author_data` | 10 | 24 |
-| 433 | `_collect_author_objects` | 12 | 23 |
-| 706 | `_collect_activity_metrics` | 15 | 20 |
-| 458 | `_collect_json_ld_publishers` | 12 | 20 |
-| 389 | `_is_non_person_byline` | 13 | 4 |
-| 740 | `_fetch_activity_author_signals` | 10 | 18 |
-
 ### `backend/app/services/atlas_entity.py`
 
 | line | function | CC | cognitive |
@@ -376,6 +363,18 @@ Files with hard violations: 172
 | 388 | `_geography_signal` | 11 | 18 |
 | 601 | `_select_preview_articles` | 11 | 15 |
 | 948 | `_build_semaxis_counts_by_cluster` | 11 | 13 |
+
+### `backend/app/services/reporter_public_records.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 543 | `_parse_json_ld_author_data` | 11 | 27 |
+| 511 | `_parse_metadata_author_data` | 10 | 24 |
+| 434 | `_collect_author_objects` | 12 | 23 |
+| 775 | `_collect_activity_metrics` | 15 | 20 |
+| 459 | `_collect_json_ld_publishers` | 12 | 20 |
+| 390 | `_is_non_person_byline` | 13 | 4 |
+| 809 | `_fetch_activity_author_signals` | 10 | 18 |
 
 ### `frontend/tools/oxlint/anti-slop/shared/dictionary-types.ts`
 
@@ -743,13 +742,6 @@ Files with hard violations: 172
 |---:|---|---:|---:|
 | 129 | `serializeAtlasQueryState` | 18 | 17 |
 | 95 | `parseAtlasQueryState` | 16 | 15 |
-
-### `backend/app/services/chroma_sync.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 189 | `_run_recovery_scan` | 17 | 42 |
-| 110 | `chroma_sync_worker` | 11 | 19 |
 
 ### `backend/app/services/og_image.py`
 
@@ -1303,6 +1295,12 @@ Files with hard violations: 172
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 74 | `exception_mentions_too_many_open_files` | 11 | 18 |
+
+### `backend/app/services/chroma_sync.py`
+
+| line | function | CC | cognitive |
+|---:|---|---:|---:|
+| 117 | `chroma_sync_worker` | 11 | 19 |
 
 ### `backend/app/services/material_interest.py`
 
