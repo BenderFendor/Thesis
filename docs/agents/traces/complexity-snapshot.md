@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `9327d905867b6fdbd1e49954422ca70dbbf09d8c`
+Commit: `47e3abbd70a1b70fb931e4da5c4add363531f920`
 
 Files: 579
-Functions: 8272
+Functions: 8296
 Parse errors: 43
 CC max/p95: 33 / 9
-Cognitive max/p95: 47 / 10
-Hard violations: 217
+Cognitive max/p95: 47 / 9
+Hard violations: 215
 Warning-only: 225
 
 ## Hard violations
@@ -21,7 +21,6 @@ Warning-only: 225
 | `frontend/app/debug/page.tsx:713` | `StorageSnapshotSection` | 29 | 16 |
 | `backend/tools/research_lab.py:144` | `_build_summary` | 26 | 43 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:50` | `IntelligenceAtlasWorkspace` | 27 | 24 |
-| `frontend/features/intelligence-atlas/atlas-entity-list.tsx:49` | `AtlasEntityList` | 27 | 21 |
 | `backend/app/services/evidence_ingest.py:612` | `ingest_wikidata_ownership_claims` | 18 | 39 |
 | `backend/scripts/reporter_source_verifier.py:153` | `validate_source_profile_async` | 25 | 24 |
 | `frontend/features/intelligence-atlas/atlas-graph.tsx:319` | `<anonymous>` | 25 | 24 |
@@ -105,7 +104,6 @@ Warning-only: 225
 | `backend/app/services/reporter_public_records.py:775` | `_collect_activity_metrics` | 15 | 20 |
 | `backend/scripts/plan_reporter_source_enrichment.py:621` | `main_async` | 15 | 20 |
 | `frontend/app/search/page.tsx:1688` | `<anonymous>` | 15 | 15 |
-| `frontend/features/intelligence-atlas/atlas-entity-list.tsx:255` | `<anonymous>` | 15 | 14 |
 | `frontend/app/page.tsx:367` | `HeaderBar` | 15 | 13 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:166` | `SourceSidebar` | 15 | 13 |
 | `frontend/components/article-detail-modal.tsx:2327` | `handleKeyDown` | 15 | 12 |
