@@ -166,7 +166,7 @@ export function AtlasTopbar({
           {indexing ? "Indexing" : `Indexed ${dateDistance(lastIndexed)}`}
         </div>
         <button type="button" className={styles.actionButton} data-active={focus} aria-label="Toggle focus mode" onClick={onToggleFocus}>
-          <Focus className="h-4 w-4" /> <span>Focus</supan>
+          <Focus className="h-4 w-4" /> <span>Focus</span>
         </button>
         <button type="button" className={styles.iconButton} aria-label="Copy investigation link" onClick={onCopy}>
           <Copy className="h-4 w-4" />

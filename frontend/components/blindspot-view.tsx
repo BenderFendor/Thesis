@@ -317,7 +317,7 @@ function StoryRow({
           </h4>
         </div>
         <div className="mt-1 hidden shrink-0 flex-col items-end gap-1 lg:flex">
-          <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</supan>
+          <span className="font-mono text-[10px] text-primary/60 tracking-wider">GAP SCORE</span>
           <span className="font-mono text-lg font-bold text-foreground/70">{Math.round(card.blindspot_score * 10) / 10}</span>
         </div>
       </div>
@@ -612,7 +612,7 @@ export function BlindspotView({
 
           <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
             <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</supan>
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
               <select
                 value={selectedLens}
                 onChange={(e) =>{  setSelectedLens(e.target.value as BlindspotLens["id"]); }}
@@ -627,7 +627,7 @@ export function BlindspotView({
             </div>
 
             <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</supan>
+              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</span>
               <select
                 value={sortMode}
                 onChange={(e) =>{  setSortMode(e.target.value as SortMode); }}

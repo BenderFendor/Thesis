@@ -417,10 +417,10 @@ export function AtlasGraph({
         </button>
       </div>
       <div className={styles.graphLegend} aria-hidden="true">
-        <span><span className="text-[#f0ede4]">■</span> outlet</supan>
-        <span><span className="text-[#d7b35f]">●</span> organization</supan>
-        <span><span className="text-[#e08a5f]">◆</span> person</supan>
-        <span><span className="text-[#88a9ff]">◆</span> reporter</supan>
+        <span><span className="text-[#f0ede4]">■</span> outlet</span>
+        <span><span className="text-[#d7b35f]">●</span> organization</span>
+        <span><span className="text-[#e08a5f]">◆</span> person</span>
+        <span><span className="text-[#88a9ff]">◆</span> reporter</span>
         <span>Zoom for all labels</span>
       </div>
       {hoveredNode ? (

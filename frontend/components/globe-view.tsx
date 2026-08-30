@@ -365,11 +365,11 @@ function CollapsedPanelHeader({
           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-foreground/80">{articleCount}</span> articles
-              <span className="text-white/20">•</supan>
+              <span className="text-white/20">•</span>
               <span className="font-medium text-foreground/80">{sourceCount}</span> sources
               {selectedCountry && (
                 <>
-                  <span className="text-white/20">•</supan>
+                  <span className="text-white/20">•</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1558,7 +1558,7 @@ function ExpandedBriefingTab({
            {articleCount} Articles
          </div>
          <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-           <span>Updated {latestTimestampLabel} <Radio size={12} className="inline ml-1"/></supan>
+           <span>Updated {latestTimestampLabel} <Radio size={12} className="inline ml-1"/></span>
            <button onClick={onCycleSort} className="flex items-center gap-1 hover:text-foreground transition-colors">{sortLabel} <ChevronDown size={12}/></button>
          </div>
       </div>
@@ -1761,7 +1761,7 @@ function ExpandedRightSidebar({
 
       <div className="flex justify-between items-end mb-3">
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Intensity</h3>
-        <span className="text-sm font-mono text-foreground">{intensityScore}/5</supan>
+        <span className="text-sm font-mono text-foreground">{intensityScore}/5</span>
       </div>
       <div className="flex gap-1 mb-6">
         {Array.from({length: 5}).map((_, i) => (
