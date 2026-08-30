@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 237
-Files with hard violations: 108
+Hard violations: 234
+Files with hard violations: 106
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -30,7 +30,6 @@ Files with hard violations: 108
 | `backend/app/services/wiki_indexer.py` | 3 | 15 | 21 |
 | `frontend/components/reading-queue-sidebar.tsx` | 3 | 14 | 15 |
 | `scripts/collect_debug_bundle.py` | 2 | 29 | 30 |
-| `frontend/features/intelligence-atlas/atlas-entity-list.tsx` | 2 | 27 | 21 |
 | `backend/scripts/import_unctad_commodities.py` | 2 | 24 | 36 |
 | `backend/app/api/routes/research.py` | 2 | 23 | 34 |
 | `backend/app/services/funding_bias_analysis.py` | 2 | 21 | 28 |
@@ -49,7 +48,6 @@ Files with hard violations: 108
 | `backend/scripts/measure_wiki_profile_coverage.py` | 2 | 13 | 20 |
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
-| `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
 | `backend/app/services/atlas_graph_helpers.py` | 1 | 23 | 26 |
@@ -376,13 +374,6 @@ Files with hard violations: 108
 | 254 | `summarize` | 29 | 30 |
 | 203 | `collect_logs` | 10 | 16 |
 
-### `frontend/features/intelligence-atlas/atlas-entity-list.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 49 | `AtlasEntityList` | 27 | 21 |
-| 255 | `<anonymous>` | 15 | 14 |
-
 ### `backend/scripts/import_unctad_commodities.py`
 
 | line | function | CC | cognitive |
@@ -508,12 +499,6 @@ Files with hard violations: 108
 |---:|---|---:|---:|
 | 181 | `logEvent` | 13 | 19 |
 | 285 | `logStreamEvent` | 12 | 10 |
-
-### `frontend/features/intelligence-atlas/atlas-stage-shell.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 67 | `AtlasStageShell` | 32 | 12 |
 
 ### `backend/scripts/backfill_rss_ownership_labels.py`
 
