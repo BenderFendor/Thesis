@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `6e93ae8cc8c2d7c0773612c4c81ee66e1bdca563`
+Commit: `7abc8076db81638d2dfcca3aaec6e8cf3ac2cb70`
 
 Files: 579
-Functions: 8336
+Functions: 8347
 Parse errors: 43
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 9
-Hard violations: 213
+Hard violations: 212
 Warning-only: 224
 
 ## Hard violations
@@ -38,7 +38,6 @@ Warning-only: 224
 | `backend/app/services/funding_bias_analysis.py:106` | `collect_population` | 21 | 28 |
 | `backend/app/services/source_claims.py:109` | `build_source_claim_inputs` | 21 | 21 |
 | `frontend/app/page.tsx:685` | `NewsPage` | 21 | 17 |
-| `frontend/components/reporter-profile.tsx:66` | `ReporterProfilePanel` | 21 | 17 |
 | `backend/scripts/reporter_source_verifier.py:207` | `extract_articles` | 20 | 31 |
 | `backend/tools/research_lab.py:327` | `run_once` | 20 | 27 |
 | `frontend/components/article-detail-modal.tsx:2224` | `syncHighlights` | 17 | 30 |
