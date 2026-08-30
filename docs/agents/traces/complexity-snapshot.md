@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `85873a22b52848ba3a95c96097eef4ad693a4ae9`
+Commit: `9327d905867b6fdbd1e49954422ca70dbbf09d8c`
 
 Files: 579
-Functions: 8248
-Parse errors: 45
+Functions: 8272
+Parse errors: 43
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 219
+Hard violations: 217
 Warning-only: 225
 
 ## Hard violations
@@ -15,7 +15,6 @@ Warning-only: 225
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
 | `frontend/components/article-detail-modal.tsx:2035` | `ArticleDetailModalContent` | 33 | 13 |
-| `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py:99` | `infer_ownership_label` | 30 | 47 |
 | `backend/scripts/reporter_source_verifier.py:410` | `validate_live_byline` | 29 | 39 |
 | `scripts/collect_debug_bundle.py:254` | `summarize` | 29 | 30 |
@@ -52,7 +51,6 @@ Warning-only: 225
 | `frontend/app/wiki/ownership/source-intelligence-operations.tsx:55` | `SourceIntelligenceOperations` | 20 | 13 |
 | `frontend/components/article-inline-embed.tsx:31` | `buildNewsArticle` | 20 | 8 |
 | `frontend/components/cluster-detail-modal.tsx:990` | `ComparisonTab` | 17 | 29 |
-| `frontend/components/source-sidebar.tsx:25` | `SourceSidebar` | 19 | 27 |
 | `frontend/features/intelligence-atlas/atlas-inspector.tsx:41` | `AtlasInspector` | 19 | 19 |
 | `scripts/scoop.ts:315` | `prepareRequest` | 19 | 19 |
 | `frontend/__tests__/globe-live-data.test.ts:10` | `makeArticle` | 19 | 18 |
