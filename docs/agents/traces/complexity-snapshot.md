@@ -1,20 +1,19 @@
 # Complexity Snapshot
 
-Commit: `d6a2126fde665495e7e8e2a4d2f1e65309c6d274`
+Commit: `2a9c09e8d5fdff099a006ede4f631fa0bdd3961e`
 
 Files: 579
-Functions: 8215
+Functions: 8209
 Parse errors: 45
-CC max/p95: 38 / 9
+CC max/p95: 34 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 226
+Hard violations: 225
 Warning-only: 223
 
 ## Hard violations
 
 | path:line | function | CC | cognitive |
 |---|---|---:|---:|
-| `frontend/app/sources/[source]/debug/page.tsx:54` | `SourceDebugPage` | 38 | 26 |
 | `frontend/components/highlight-toolbar.tsx:156` | `handleSelection` | 34 | 24 |
 | `frontend/components/article-detail-modal.tsx:2035` | `ArticleDetailModalContent` | 33 | 13 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
