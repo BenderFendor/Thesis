@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 234
-Files with hard violations: 106
+Hard violations: 233
+Files with hard violations: 105
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -49,7 +49,6 @@ Files with hard violations: 106
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
-| `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
 | `backend/app/services/atlas_graph_helpers.py` | 1 | 23 | 26 |
 | `frontend/app/wiki/reporter/[id]/reporter-wiki-view.tsx` | 1 | 23 | 12 |
 | `backend/app/services/evidence_policy.py` | 1 | 22 | 24 |
@@ -505,12 +504,6 @@ Files with hard violations: 106
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 99 | `infer_ownership_label` | 30 | 47 |
-
-### `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 50 | `IntelligenceAtlasWorkspace` | 27 | 24 |
 
 ### `backend/app/services/atlas_graph_helpers.py`
 
