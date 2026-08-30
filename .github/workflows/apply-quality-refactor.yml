@@ -30,7 +30,7 @@ jobs:
             exit 0
           fi
           cat "${parts[@]}" | base64 --decode > /tmp/quality-refactor.patch.gz
-          echo "cad801c448796d419b48d16f59c2bf6d1aa45e17549d94590d29af107e5a7bee  /tmp/quality-refactor.patch.gz" | sha256sum --check
+          echo "24b7f3912f233d472fb74c08cebfa208212e6ad049fddf10fb95ce01b143757e  /tmp/quality-refactor.patch.gz" | sha256sum --check
           gzip --decompress --stdout /tmp/quality-refactor.patch.gz > /tmp/quality-refactor.patch
           git apply --check /tmp/quality-refactor.patch
           git apply /tmp/quality-refactor.patch
@@ -38,7 +38,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix: repair malformed JSX span tags"
+          git commit -m "refactor: split atlas graph rendering"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:quality/crap-mi-oxlint-hardening; then
               exit 0
