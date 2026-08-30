@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 403
-Files with hard violations: 173
+Hard violations: 402
+Files with hard violations: 172
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -88,7 +88,6 @@ Files with hard violations: 173
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
 | `backend/scripts/rss_verify_reporters.py` | 1 | 26 | 44 |
-| `backend/app/services/source_ledger.py` | 1 | 25 | 29 |
 | `backend/app/services/reporter_name_splitter.py` | 1 | 24 | 39 |
 | `backend/scripts/promote_byline_verified.py` | 1 | 24 | 33 |
 | `backend/app/services/atlas_graph_helpers.py` | 1 | 23 | 26 |
@@ -908,12 +907,6 @@ Files with hard violations: 173
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 122 | `verify_source_rss` | 26 | 44 |
-
-### `backend/app/services/source_ledger.py`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 63 | `build_source_ledger` | 25 | 29 |
 
 ### `backend/app/services/reporter_name_splitter.py`
 
