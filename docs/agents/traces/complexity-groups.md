@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 238
-Files with hard violations: 109
+Hard violations: 237
+Files with hard violations: 108
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -61,7 +61,6 @@ Files with hard violations: 109
 | `frontend/components/article-inline-embed.tsx` | 1 | 20 | 8 |
 | `frontend/lib/highlight-store.ts` | 1 | 20 | 27 |
 | `frontend/__tests__/globe-live-data.test.ts` | 1 | 19 | 18 |
-| `frontend/components/source-sidebar.tsx` | 1 | 19 | 27 |
 | `frontend/features/intelligence-atlas/atlas-inspector.tsx` | 1 | 19 | 19 |
 | `frontend/__tests__/source-groups.test.ts` | 1 | 18 | 17 |
 | `frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx` | 1 | 18 | 27 |
@@ -581,12 +580,6 @@ Files with hard violations: 109
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 10 | `makeArticle` | 19 | 18 |
-
-### `frontend/components/source-sidebar.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 25 | `SourceSidebar` | 19 | 27 |
 
 ### `frontend/features/intelligence-atlas/atlas-inspector.tsx`
 
