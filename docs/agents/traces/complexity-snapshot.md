@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `02c074efd6fb7b66b4c26f4fe23a494b8aaf4bde`
+Commit: `6e93ae8cc8c2d7c0773612c4c81ee66e1bdca563`
 
 Files: 579
-Functions: 8318
+Functions: 8336
 Parse errors: 43
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 9
-Hard violations: 214
+Hard violations: 213
 Warning-only: 224
 
 ## Hard violations
@@ -35,7 +35,6 @@ Warning-only: 224
 | `backend/app/services/evidence_policy.py:249` | `evaluate_acceptance` | 22 | 24 |
 | `frontend/components/cluster-detail-modal.tsx:1145` | `ClusterDetailModalContent` | 22 | 18 |
 | `frontend/app/search/page.tsx:2161` | `<anonymous>` | 22 | 15 |
-| `frontend/features/intelligence-atlas/lib/atlas-force-layout.ts:114` | `step` | 21 | 31 |
 | `backend/app/services/funding_bias_analysis.py:106` | `collect_population` | 21 | 28 |
 | `backend/app/services/source_claims.py:109` | `build_source_claim_inputs` | 21 | 21 |
 | `frontend/app/page.tsx:685` | `NewsPage` | 21 | 17 |
