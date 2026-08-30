@@ -1,0 +1,56 @@
+name: Apply quality hardening patch
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - ".github/quality-hardening.patch"
+  workflow_dispatch:
+
+concurrency:
+  group: apply-quality-hardening-patch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+          fetch-depth: 0
+      - name: Apply checked patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file=.github/quality-hardening.patch
+          if [[ ! -f "$patch_file" ]]; then
+            echo "No patch payload present; nothing to apply."
+            exit 0
+          fi
+          git apply --check "$patch_file"
+          git apply "$patch_file"
+          rm "$patch_file"
+      - name: Commit applied refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- . ':!.github/quality-hardening.patch' && [[ ! -e .github/quality-hardening.patch ]]; then
+            if git diff --quiet --cached; then
+              echo "No changes to commit."
+              exit 0
+            fi
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "refactor: apply quality hardening patch"
+          git push origin HEAD:quality/crap-mi-oxlint-hardening
