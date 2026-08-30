@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `3119097c1b978803564c26dc14163416fc4b966e`
+Commit: `02c074efd6fb7b66b4c26f4fe23a494b8aaf4bde`
 
 Files: 579
-Functions: 8296
+Functions: 8318
 Parse errors: 43
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 9
-Hard violations: 215
-Warning-only: 225
+Hard violations: 214
+Warning-only: 224
 
 ## Hard violations
 
@@ -20,7 +20,6 @@ Warning-only: 225
 | `scripts/collect_debug_bundle.py:254` | `summarize` | 29 | 30 |
 | `frontend/app/debug/page.tsx:713` | `StorageSnapshotSection` | 29 | 16 |
 | `backend/tools/research_lab.py:144` | `_build_summary` | 26 | 43 |
-| `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:50` | `IntelligenceAtlasWorkspace` | 27 | 24 |
 | `backend/app/services/evidence_ingest.py:612` | `ingest_wikidata_ownership_claims` | 18 | 39 |
 | `backend/scripts/reporter_source_verifier.py:153` | `validate_source_profile_async` | 25 | 24 |
 | `frontend/features/intelligence-atlas/atlas-graph.tsx:319` | `<anonymous>` | 25 | 24 |
@@ -427,7 +426,6 @@ Warning-only: 225
 | `frontend/components/reading-queue-sidebar.tsx:519` | `ArticleDetailActionButtons` | 9 | 8 |
 | `frontend/components/stream-card.tsx:28` | `StreamCard` | 10 | 7 |
 | `frontend/components/trending-feed.tsx:91` | `<anonymous>` | 9 | 8 |
-| `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:157` | `handleGlobalKeyboard` | 9 | 8 |
 | `frontend/features/intelligence-atlas/lib/atlas-api.ts:77` | `fetchAtlasIndex` | 9 | 8 |
 | `frontend/hooks/use-live-news-preferences.ts:14` | `loadPreferences` | 10 | 7 |
 | `frontend/hooks/use-scroll-personalization.ts:268` | `<anonymous>` | 9 | 8 |
@@ -440,6 +438,7 @@ Warning-only: 225
 | `frontend/app/search/page.tsx:1636` | `handleDeleteChats` | 9 | 7 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:352` | `SourcePageBody` | 9 | 7 |
 | `frontend/components/interactive-globe.tsx:1170` | `<anonymous>` | 9 | 7 |
+| `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:298` | `handleGlobalKeyboard` | 9 | 7 |
 | `frontend/lib/feed-ranking.ts:392` | `scoreArticle` | 9 | 7 |
 | `frontend/lib/performance-logger.ts:522` | `flush` | 10 | 6 |
 | `scripts/scoop.ts:802` | `main` | 9 | 7 |
@@ -457,5 +456,4 @@ Warning-only: 225
 | `frontend/__tests__/feed-ranking.test.ts:54` | `<anonymous>` | 9 | 4 |
 | `frontend/app/debug/page.tsx:1106` | `DriftSamplesCard` | 9 | 4 |
 | `frontend/components/credibility-badge.tsx:328` | `CredibilityBadge` | 9 | 4 |
-| `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:147` | `<anonymous>` | 9 | 4 |
 | `frontend/app/wiki/reporters/page.tsx:27` | `leaningBadgeClass` | 10 | 1 |
