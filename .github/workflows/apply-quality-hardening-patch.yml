@@ -4,7 +4,7 @@ on:
   push:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths:
-      - ".github/quality-hardening.patch"
+      - ".github/quality-hardening-replacements.json"
   workflow_dispatch:
 
 concurrency:
@@ -23,28 +23,38 @@ jobs:
         with:
           ref: quality/crap-mi-oxlint-hardening
           fetch-depth: 0
-      - name: Apply checked patch
+      - name: Apply exact replacements
         shell: bash
         run: |
           set -euo pipefail
-          patch_file=.github/quality-hardening.patch
-          if [[ ! -f "$patch_file" ]]; then
-            echo "No patch payload present; nothing to apply."
+          payload=.github/quality-hardening-replacements.json
+          if [[ ! -f "$payload" ]]; then
+            echo "No replacement payload present; nothing to apply."
             exit 0
           fi
-          git apply --check "$patch_file"
-          git apply "$patch_file"
-          rm "$patch_file"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload_path = Path(".github/quality-hardening-replacements.json")
+          replacements = json.loads(payload_path.read_text())
+          for replacement in replacements:
+              path = Path(replacement["path"])
+              old = replacement["old"]
+              new = replacement["new"]
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"Expected exactly one match in {path}, found {count}"
+                  )
+              path.write_text(text.replace(old, new, 1))
+          payload_path.unlink()
+          PY
       - name: Commit applied refactor
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- . ':!.github/quality-hardening.patch' && [[ ! -e .github/quality-hardening.patch ]]; then
-            if git diff --quiet --cached; then
-              echo "No changes to commit."
-              exit 0
-            fi
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
