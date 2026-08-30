@@ -44,6 +44,7 @@ jobs:
       - name: Recent refactor Oxlint
         continue-on-error: true
         run: |
+          set +e
           files=(
             "frontend/app/saved/page.tsx"
             "frontend/app/saved/saved-workspace-model.ts"
