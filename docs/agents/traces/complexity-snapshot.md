@@ -1,14 +1,14 @@
 # Complexity Snapshot
 
-Commit: `278f47d4a4a665fe52e61e9873124bff1eb33758`
+Commit: `7e97b8cb4900fe0edfab3eaed6687130aced2d34`
 
 Files: 579
-Functions: 8218
+Functions: 8229
 Parse errors: 45
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 223
-Warning-only: 223
+Hard violations: 221
+Warning-only: 224
 
 ## Hard violations
 
@@ -17,7 +17,6 @@ Warning-only: 223
 | `frontend/components/article-detail-modal.tsx:2035` | `ArticleDetailModalContent` | 33 | 13 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx:67` | `AtlasStageShell` | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py:99` | `infer_ownership_label` | 30 | 47 |
-| `frontend/lib/feed-ranking.ts:172` | `buildInterestProfile` | 21 | 46 |
 | `backend/scripts/reporter_source_verifier.py:410` | `validate_live_byline` | 29 | 39 |
 | `scripts/collect_debug_bundle.py:254` | `summarize` | 29 | 30 |
 | `frontend/app/debug/page.tsx:713` | `StorageSnapshotSection` | 29 | 16 |
@@ -227,7 +226,6 @@ Warning-only: 223
 | `frontend/app/wiki/reporters/page.tsx:62` | `ReporterCard` | 11 | 9 |
 | `frontend/components/globe-view.tsx:1476` | `ExpandedBriefingTab` | 11 | 9 |
 | `frontend/components/source-credibility-panel.tsx:37` | `SourceCredibilityPanel` | 11 | 9 |
-| `frontend/lib/feed-ranking.ts:266` | `scoreArticle` | 11 | 9 |
 | `frontend/app/search/page.tsx:1237` | `WorkspaceHeader` | 11 | 8 |
 | `frontend/components/add-rss-dialog.tsx:22` | `AddRssDialog` | 11 | 8 |
 | `frontend/components/trending-feed.tsx:143` | `TrendingFeed` | 11 | 8 |
@@ -402,6 +400,7 @@ Warning-only: 223
 | `backend/scripts/verify_reporter_intelligence.py:104` | `_is_combined_byline_name` | 9 | 9 |
 | `backend/scripts/verify_reporter_intelligence.py:609` | `_audit_reporter_quality` | 9 | 9 |
 | `backend/scripts/wayback_verify_reporters.py:873` | `_print_report_row` | 9 | 9 |
+| `frontend/lib/feed-ranking.ts:273` | `applySeedSignals` | 9 | 9 |
 | `scripts/codemod-lint-mechanical.mjs:86` | `applyNoNullLocal` | 9 | 9 |
 | `backend/app/api/routes/news.py:186` | `_filter_cached_articles` | 9 | 8 |
 | `backend/app/api/routes/wiki.py:424` | `_build_source_card` | 9 | 8 |
@@ -446,6 +445,7 @@ Warning-only: 223
 | `frontend/app/search/page.tsx:1636` | `handleDeleteChats` | 9 | 7 |
 | `frontend/app/wiki/source/[sourceName]/source-wiki-view.tsx:352` | `SourcePageBody` | 9 | 7 |
 | `frontend/components/interactive-globe.tsx:1170` | `<anonymous>` | 9 | 7 |
+| `frontend/lib/feed-ranking.ts:392` | `scoreArticle` | 9 | 7 |
 | `frontend/lib/performance-logger.ts:522` | `flush` | 10 | 6 |
 | `scripts/scoop.ts:802` | `main` | 9 | 7 |
 | `backend/app/services/reporter_cms_crawl.py:145` | `_drupal_user_claims` | 9 | 6 |
@@ -453,7 +453,6 @@ Warning-only: 223
 | `backend/rss_parser_rust/src/feed_rank.rs:115` | `has_real_image` | 9 | 6 |
 | `frontend/app/search/page.tsx:612` | `MessageStepsToggle` | 10 | 5 |
 | `frontend/components/source-credibility-panel.tsx:149` | `<anonymous>` | 9 | 6 |
-| `frontend/lib/feed-ranking.ts:114` | `hasRealFeedImage` | 9 | 6 |
 | `backend/scripts/verify_reporter_intelligence.py:222` | `_eligible_reporter` | 9 | 5 |
 | `frontend/components/article-inline-embed.tsx:55` | `ArticleInlineEmbed` | 9 | 5 |
 | `frontend/components/feed-view.tsx:479` | `<anonymous>` | 9 | 5 |
