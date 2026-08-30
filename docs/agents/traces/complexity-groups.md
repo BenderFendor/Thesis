@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 232
-Files with hard violations: 104
+Hard violations: 231
+Files with hard violations: 103
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -52,7 +52,6 @@ Files with hard violations: 104
 | `backend/app/services/atlas_graph_helpers.py` | 1 | 23 | 26 |
 | `frontend/app/wiki/reporter/[id]/reporter-wiki-view.tsx` | 1 | 23 | 12 |
 | `backend/app/services/evidence_policy.py` | 1 | 22 | 24 |
-| `frontend/components/reporter-profile.tsx` | 1 | 21 | 17 |
 | `backend/tests/test_atlas_phase2_projection.py` | 1 | 20 | 26 |
 | `frontend/components/article-inline-embed.tsx` | 1 | 20 | 8 |
 | `frontend/lib/highlight-store.ts` | 1 | 20 | 27 |
@@ -521,12 +520,6 @@ Files with hard violations: 104
 | line | function | CC | cognitive |
 |---:|---|---:|---:|
 | 249 | `evaluate_acceptance` | 22 | 24 |
-
-### `frontend/components/reporter-profile.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 66 | `ReporterProfilePanel` | 21 | 17 |
 
 ### `backend/tests/test_atlas_phase2_projection.py`
 
