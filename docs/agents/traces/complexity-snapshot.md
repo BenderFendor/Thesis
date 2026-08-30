@@ -1,13 +1,13 @@
 # Complexity Snapshot
 
-Commit: `7e97b8cb4900fe0edfab3eaed6687130aced2d34`
+Commit: `0f3ee4e390f50536b6098d9f1d260690241aa321`
 
 Files: 579
-Functions: 8229
+Functions: 8238
 Parse errors: 45
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 10
-Hard violations: 221
+Hard violations: 220
 Warning-only: 224
 
 ## Hard violations
@@ -60,7 +60,6 @@ Warning-only: 224
 | `frontend/components/article-detail-modal.tsx:856` | `ModalActions` | 19 | 18 |
 | `frontend/components/globe-view.tsx:304` | `CollapsedPanelHeader` | 19 | 15 |
 | `frontend/app/wiki/analysis/funding-bias/funding-bias-analysis-view.tsx:20` | `FundingBiasAnalysisView` | 18 | 27 |
-| `frontend/hooks/use-scroll-personalization.ts:109` | `load` | 18 | 23 |
 | `backend/app/services/evidence_ingest.py:724` | `ingest_littlesis_ownership` | 18 | 22 |
 | `backend/app/services/reporter_public_records.py:543` | `_parse_json_ld_author_data` | 11 | 27 |
 | `frontend/lib/highlight-utils.tsx:8` | `getGlobalOffset` | 18 | 20 |
@@ -436,6 +435,7 @@ Warning-only: 224
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx:157` | `handleGlobalKeyboard` | 9 | 8 |
 | `frontend/features/intelligence-atlas/lib/atlas-api.ts:77` | `fetchAtlasIndex` | 9 | 8 |
 | `frontend/hooks/use-live-news-preferences.ts:14` | `loadPreferences` | 10 | 7 |
+| `frontend/hooks/use-scroll-personalization.ts:268` | `<anonymous>` | 9 | 8 |
 | `scripts/scoop.ts:522` | `runSchemaCommand` | 9 | 8 |
 | `backend/app/services/funding_researcher.py:1484` | `_merge_sec_data` | 9 | 7 |
 | `backend/app/services/primary_source_adapters.py:710` | `_corporate_record_fields` | 9 | 7 |
@@ -458,7 +458,6 @@ Warning-only: 224
 | `frontend/components/feed-view.tsx:479` | `<anonymous>` | 9 | 5 |
 | `frontend/components/inline-definition.tsx:16` | `InlineDefinitionPopover` | 9 | 5 |
 | `frontend/components/stream-card.tsx:94` | `<anonymous>` | 10 | 4 |
-| `frontend/hooks/use-scroll-personalization.ts:43` | `dedupeSeeds` | 9 | 5 |
 | `scripts/scoop.ts:767` | `<anonymous>` | 9 | 5 |
 | `frontend/__tests__/feed-ranking.test.ts:54` | `<anonymous>` | 9 | 4 |
 | `frontend/app/debug/page.tsx:1106` | `DriftSamplesCard` | 9 | 4 |
