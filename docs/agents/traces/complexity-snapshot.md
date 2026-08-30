@@ -1,10 +1,10 @@
 # Complexity Snapshot
 
-Commit: `26fca2f9aff45e78d798aa57157970dd6e6813f3`
+Commit: `1388a72551dd6e72b39f73e865300793c1a584d7`
 
 Files: 579
 Functions: 8347
-Parse errors: 43
+Parse errors: 31
 CC max/p95: 33 / 9
 Cognitive max/p95: 47 / 9
 Hard violations: 212
