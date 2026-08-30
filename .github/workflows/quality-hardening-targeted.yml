@@ -5,6 +5,7 @@ on:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths:
       - "frontend/app/saved/**"
+      - "frontend/app/sources/[source]/debug/**"
       - "frontend/lib/api.ts"
       - ".github/workflows/quality-hardening-targeted.yml"
   workflow_dispatch:
@@ -36,21 +37,27 @@ jobs:
         continue-on-error: true
         run: |
           PATH="$PWD/frontend/node_modules/.bin:$PATH" \
-            frontend/node_modules/.bin/oxlint -c .oxlintrc.json \
+            timeout 5m frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix \
             frontend/app/saved/page.tsx \
             frontend/app/saved/saved-workspace-model.ts \
             frontend/app/saved/saved-workspace-view.tsx \
             frontend/app/saved/use-saved-workspace-controller.ts \
+            'frontend/app/sources/[source]/debug/page.tsx' \
+            'frontend/app/sources/[source]/debug/source-debug-view.tsx' \
             frontend/lib/api.ts
       - name: TypeScript
         continue-on-error: true
-        run: npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+        run: |
+          rm -f frontend/tsconfig.tsbuildinfo
+          npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+      - name: Import resolution
+        continue-on-error: true
+        run: node scripts/check-imports.mjs
       - name: Maintainability
         continue-on-error: true
         run: |
           npx code-multivitals \
             'frontend/app/saved/**/*.{ts,tsx}' \
+            'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
             'frontend/lib/api.ts' \
             --reporter console
-
-# validation refresh after API transform
