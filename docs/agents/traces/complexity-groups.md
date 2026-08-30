@@ -1,7 +1,7 @@
 # Complexity groups
 
-Hard violations: 245
-Files with hard violations: 114
+Hard violations: 244
+Files with hard violations: 113
 
 | file | violations | max CC | max cognitive |
 |---|---:|---:|---:|
@@ -51,7 +51,6 @@ Files with hard violations: 114
 | `backend/scripts/measure_wiki_profile_coverage.py` | 2 | 13 | 20 |
 | `frontend/components/feed-view.tsx` | 2 | 13 | 12 |
 | `frontend/lib/performance-logger.ts` | 2 | 13 | 19 |
-| `frontend/app/sources/[source]/debug/page.tsx` | 1 | 38 | 26 |
 | `frontend/features/intelligence-atlas/atlas-stage-shell.tsx` | 1 | 32 | 12 |
 | `backend/scripts/backfill_rss_ownership_labels.py` | 1 | 30 | 47 |
 | `frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx` | 1 | 27 | 24 |
@@ -528,12 +527,6 @@ Files with hard violations: 114
 |---:|---|---:|---:|
 | 181 | `logEvent` | 13 | 19 |
 | 285 | `logStreamEvent` | 12 | 10 |
-
-### `frontend/app/sources/[source]/debug/page.tsx`
-
-| line | function | CC | cognitive |
-|---:|---|---:|---:|
-| 54 | `SourceDebugPage` | 38 | 26 |
 
 ### `frontend/features/intelligence-atlas/atlas-stage-shell.tsx`
 
