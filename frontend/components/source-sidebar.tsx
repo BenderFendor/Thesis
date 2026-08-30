@@ -1,469 +1,744 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  BookOpen,
+  ChevronDown,
+  GitBranch,
+  Search,
+  Star,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
+
+import { AddRssDialog } from "@/components/add-rss-dialog";
+import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { X, Star, Search, ChevronDown, AlertTriangle, BookOpen, GitBranch, Users } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useNewsLens } from "@/hooks/useNewsLens";
 import { useSourceFilter } from "@/hooks/use-source-filter";
 import type { NewsSource } from "@/lib/api";
 import { fetchSources } from "@/lib/api";
-import { getLensStats, NEWS_LENSES, type NewsLensId } from "@/lib/news-lens";
-import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
-import { AddRssDialog } from "@/components/add-rss-dialog";
+import { getLensStats, NEWS_LENSES } from "@/lib/news-lens";
+
+const SOURCE_QUERY_RETRY_COUNT = 1;
+const COVERAGE_COMPARISON_MIN_SOURCES = 2;
+const EMPTY_RECENCY = 0;
+
+type SidebarSection = "allSources" | "favorites";
 
 interface SourceSidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
-  sourceRecency?: Record<string, number>;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly sourceRecency?: Readonly<Record<string, number>>;
 }
 
-export function SourceSidebar({ isOpen, onClose, sourceRecency }: SourceSidebarProps) {
+interface SourceItemProps {
+  readonly favorite: boolean;
+  readonly onClose: () => void;
+  readonly onToggleFavorite: () => void;
+  readonly onToggleSelect: () => void;
+  readonly selected: boolean;
+  readonly source: Readonly<NewsSource>;
+}
+
+interface SourceListProps {
+  readonly emptyMessage: string;
+  readonly favoriteIds: (sourceId: string) => boolean;
+  readonly onClose: () => void;
+  readonly onToggleFavorite: (sourceId: string) => void;
+  readonly onToggleSource: (sourceId: string) => void;
+  readonly selectedIds: (sourceId: string) => boolean;
+  readonly sources: readonly NewsSource[];
+}
+
+interface SidebarContentProps {
+  readonly allExpanded: boolean;
+  readonly errorMessage?: string;
+  readonly favoriteExpanded: boolean;
+  readonly favoriteSources: readonly NewsSource[];
+  readonly filteredSources: readonly NewsSource[];
+  readonly isFavorite: (sourceId: string) => boolean;
+  readonly isLoading: boolean;
+  readonly isSelected: (sourceId: string) => boolean;
+  readonly onClearAll: () => void;
+  readonly onClose: () => void;
+  readonly onRetry: () => void;
+  readonly onSelectAll: () => void;
+  readonly onToggleFavorite: (sourceId: string) => void;
+  readonly onToggleSection: (section: SidebarSection) => void;
+  readonly onToggleSource: (sourceId: string) => void;
+  readonly searchQuery: string;
+  readonly sourceCount: number;
+}
+
+const sortSourcesByRecency = (
+  sources: readonly NewsSource[],
+  sourceRecency?: Readonly<Record<string, number>>,
+): NewsSource[] => {
+  const sorted = [...sources];
+  if (sourceRecency === undefined) {
+    return sorted;
+  }
+  return sorted.sort((left, right) => {
+    const leftFresh = sourceRecency[left.id] ?? EMPTY_RECENCY;
+    const rightFresh = sourceRecency[right.id] ?? EMPTY_RECENCY;
+    if (leftFresh !== rightFresh) {
+      return rightFresh - leftFresh;
+    }
+    return left.name.localeCompare(right.name);
+  });
+};
+
+const getFavoriteSources = (
+  sources: readonly NewsSource[],
+  isFavorite: (sourceId: string) => boolean,
+  sourceRecency?: Readonly<Record<string, number>>,
+): NewsSource[] =>
+  sortSourcesByRecency(
+    sources.filter((source) => isFavorite(source.id)),
+    sourceRecency,
+  );
+
+const getFilteredSources = (
+  sources: readonly NewsSource[],
+  searchQuery: string,
+  sourceRecency?: Readonly<Record<string, number>>,
+): NewsSource[] => {
+  const query = searchQuery.trim().toLowerCase();
+  const filtered = query.length === EMPTY_RECENCY
+    ? sources
+    : sources.filter((source) => {
+        const sourceName = source.name.toLowerCase();
+        const sourceCountry = source.country.toLowerCase();
+        return sourceName.includes(query) || sourceCountry.includes(query);
+      });
+  return sortSourcesByRecency(filtered, sourceRecency);
+};
+
+const buildSourceNameLookup = (
+  sources: readonly NewsSource[],
+): Readonly<Record<string, string>> => {
+  const lookup: Record<string, string> = {};
+  for (const source of sources) {
+    lookup[source.id] = source.name;
+    lookup[source.slug] = source.name;
+  }
+  return lookup;
+};
+
+const getSelectedSourceIds = (
+  selectedSources: ReadonlySet<string>,
+  sources: readonly NewsSource[],
+): string[] =>
+  sources
+    .filter(
+      (source) =>
+        selectedSources.has(source.id) || selectedSources.has(source.slug),
+    )
+    .map((source) => source.id);
+
+const getLoadErrorMessage = (error: unknown): string | undefined => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return undefined;
+};
+
+const SourceSidebarHeader = ({
+  onClose,
+  onSourceAdded,
+}: Readonly<{
+  onClose: () => void;
+  onSourceAdded: () => void;
+}>) => (
+  <div className="flex items-center justify-between border-b border-white/10 p-4">
+    <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">
+      Sources
+    </h2>
+    <div className="flex items-center gap-2">
+      <AddRssDialog onSourceAdded={onSourceAdded} />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onClose}
+        className="h-8 w-8 rounded-md"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+);
+
+const ActiveFilterBadge = ({
+  active,
+  label,
+  onClear,
+}: Readonly<{
+  active: boolean;
+  label: string;
+  onClear: () => void;
+}>) => {
+  if (!active) {
+    return undefined;
+  }
+  return (
+    <div className="px-4 pb-1 pt-2">
+      <Badge
+        variant="outline"
+        className="cursor-pointer border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em] text-foreground/80"
+        onClick={onClear}
+      >
+        {label}
+      </Badge>
+    </div>
+  );
+};
+
+const CoverageSection = ({
+  selectedSourceIds,
+  sourceNameLookup,
+}: Readonly<{
+  selectedSourceIds: readonly string[];
+  sourceNameLookup: Readonly<Record<string, string>>;
+}>) => {
+  if (selectedSourceIds.length < COVERAGE_COMPARISON_MIN_SOURCES) {
+    return undefined;
+  }
+  return (
+    <div className="border-b border-white/10 px-4 py-3">
+      <SourceCoverageComparison
+        sourceIds={[...selectedSourceIds]}
+        sourceNames={sourceNameLookup}
+      />
+    </div>
+  );
+};
+
+const SourceSearch = ({
+  onChange,
+  searchQuery,
+}: Readonly<{
+  onChange: (value: string) => void;
+  searchQuery: string;
+}>) => (
+  <div className="border-b border-white/10 px-4 py-3">
+    <div className="relative">
+      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+      <Input
+        placeholder="Search sources..."
+        value={searchQuery}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 rounded-md border-white/10 bg-[var(--news-bg-primary)] pl-8 text-foreground"
+      />
+    </div>
+  </div>
+);
+
+const LensSection = ({
+  lens,
+  onSetLens,
+}: Readonly<{
+  lens: (typeof NEWS_LENSES)[number]["id"];
+  onSetLens: (lens: (typeof NEWS_LENSES)[number]["id"]) => void;
+}>) => (
+  <div className="border-b border-white/10 px-4 py-3">
+    <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
+      News Lens
+    </div>
+    <div className="grid grid-cols-2 gap-1.5">
+      {NEWS_LENSES.map((preset) => (
+        <button
+          key={preset.id}
+          type="button"
+          onClick={() => onSetLens(preset.id)}
+          title={preset.description}
+          className={`rounded-md border px-2 py-2 text-left text-[10px] font-mono uppercase tracking-[0.16em] transition-colors ${
+            lens === preset.id
+              ? "border-primary/60 bg-primary/10 text-foreground"
+              : "border-white/10 bg-[var(--news-bg-primary)]/40 text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {preset.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const WikiLink = ({
+  href,
+  icon: Icon,
+  label,
+  onClose,
+}: Readonly<{
+  href: string;
+  icon: typeof BookOpen;
+  label: string;
+  onClose: () => void;
+}>) => (
+  <Link
+    href={href}
+    className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
+    onClick={onClose}
+  >
+    <span className="flex items-center gap-2">
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      {label}
+    </span>
+  </Link>
+);
+
+const WikiSection = ({ onClose }: Readonly<{ onClose: () => void }>) => (
+  <div className="border-b border-white/10 px-4 py-3">
+    <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
+      Wiki
+    </div>
+    <div className="space-y-2">
+      <WikiLink href="/wiki/ownership" icon={BookOpen} label="Source Wiki" onClose={onClose} />
+      <WikiLink href="/wiki/reporters" icon={Users} label="Reporter Wiki" onClose={onClose} />
+      <WikiLink href="/wiki/ownership" icon={GitBranch} label="Ownership Graph" onClose={onClose} />
+    </div>
+  </div>
+);
+
+const SourceItem = ({
+  favorite,
+  onClose,
+  onToggleFavorite,
+  onToggleSelect,
+  selected,
+  source,
+}: Readonly<SourceItemProps>) => (
+  <div
+    className={`flex items-center gap-2 rounded-md border p-2 transition-colors ${
+      selected
+        ? "border-white/20 bg-white/5"
+        : "border-white/10 hover:bg-[var(--news-bg-primary)]"
+    }`}
+  >
+    <input
+      type="checkbox"
+      checked={selected}
+      onChange={onToggleSelect}
+      className="h-4 w-4 cursor-pointer rounded border-white/20"
+    />
+    <Link
+      href={`/source/${encodeURIComponent(source.id)}`}
+      className="group min-w-0 flex-1"
+      onClick={onClose}
+    >
+      <p className="truncate text-sm font-medium transition-colors group-hover:text-primary">
+        {source.name}
+      </p>
+      <p className="truncate text-xs text-muted-foreground">{source.country}</p>
+    </Link>
+    <Link
+      href={`/wiki/source/${encodeURIComponent(source.name)}`}
+      className="flex-shrink-0 p-1 text-muted-foreground transition-colors hover:text-primary"
+      onClick={onClose}
+      title="Wiki profile"
+    >
+      <BookOpen className="h-3.5 w-3.5" />
+    </Link>
+    <button
+      type="button"
+      onClick={onToggleFavorite}
+      className="flex-shrink-0 rounded-md p-1 transition-colors hover:bg-[var(--news-bg-primary)]"
+      title={favorite ? "Remove favorite" : "Add to favorites"}
+    >
+      <Star
+        className={`h-4 w-4 transition-colors ${
+          favorite
+            ? "fill-current text-foreground"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      />
+    </button>
+  </div>
+);
+
+const SourceList = ({
+  emptyMessage,
+  favoriteIds,
+  onClose,
+  onToggleFavorite,
+  onToggleSource,
+  selectedIds,
+  sources,
+}: Readonly<SourceListProps>) => {
+  if (sources.length === EMPTY_RECENCY) {
+    return <div className="py-2 text-xs text-muted-foreground">{emptyMessage}</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {sources.map((source) => (
+        <SourceItem
+          key={source.id}
+          favorite={favoriteIds(source.id)}
+          onClose={onClose}
+          onToggleFavorite={() => onToggleFavorite(source.id)}
+          onToggleSelect={() => onToggleSource(source.id)}
+          selected={selectedIds(source.id)}
+          source={source}
+        />
+      ))}
+    </div>
+  );
+};
+
+const SectionToggle = ({
+  expanded,
+  label,
+  onToggle,
+  showStar = false,
+}: Readonly<{
+  expanded: boolean;
+  label: string;
+  onToggle: () => void;
+  showStar?: boolean;
+}>) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    className="flex w-full items-center gap-2 transition-opacity hover:opacity-70"
+  >
+    <ChevronDown
+      className={`h-4 w-4 transition-transform ${expanded ? "" : "-rotate-90"}`}
+    />
+    {showStar && <Star className="h-4 w-4 text-foreground" />}
+    <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
+      {label}
+    </span>
+  </button>
+);
+
+const FavoritesSection = ({
+  expanded,
+  favoriteSources,
+  isFavorite,
+  isSelected,
+  onClose,
+  onToggleFavorite,
+  onToggleSection,
+  onToggleSource,
+}: Readonly<Pick<
+  SidebarContentProps,
+  | "favoriteSources"
+  | "isFavorite"
+  | "isSelected"
+  | "onClose"
+  | "onToggleFavorite"
+  | "onToggleSection"
+  | "onToggleSource"
+> & { expanded: boolean }>) => {
+  if (favoriteSources.length === EMPTY_RECENCY) {
+    return undefined;
+  }
+  return (
+    <div className="p-4">
+      <div className="mb-3">
+        <SectionToggle
+          expanded={expanded}
+          label={`Favorites (${favoriteSources.length})`}
+          onToggle={() => onToggleSection("favorites")}
+          showStar
+        />
+      </div>
+      {expanded && (
+        <div className="ml-4">
+          <SourceList
+            emptyMessage="No favorite sources"
+            favoriteIds={isFavorite}
+            onClose={onClose}
+            onToggleFavorite={onToggleFavorite}
+            onToggleSource={onToggleSource}
+            selectedIds={isSelected}
+            sources={favoriteSources}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AllSourcesSection = ({
+  expanded,
+  filteredSources,
+  isFavorite,
+  isSelected,
+  onClearAll,
+  onClose,
+  onSelectAll,
+  onToggleFavorite,
+  onToggleSection,
+  onToggleSource,
+  searchQuery,
+  sourceCount,
+}: Readonly<Pick<
+  SidebarContentProps,
+  | "filteredSources"
+  | "isFavorite"
+  | "isSelected"
+  | "onClearAll"
+  | "onClose"
+  | "onSelectAll"
+  | "onToggleFavorite"
+  | "onToggleSection"
+  | "onToggleSource"
+  | "searchQuery"
+  | "sourceCount"
+> & { expanded: boolean }>) => {
+  const emptyMessage = searchQuery.trim().length > EMPTY_RECENCY
+    ? "No sources match this search"
+    : "No sources available";
+  return (
+    <div className="p-4">
+      <div className="mb-3">
+        <SectionToggle
+          expanded={expanded}
+          label={`All Sources (${sourceCount})`}
+          onToggle={() => onToggleSection("allSources")}
+        />
+      </div>
+      {expanded && (
+        <div className="mb-3 flex flex-wrap gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSelectAll}
+            className="h-8 rounded-md border-white/10 text-[10px] font-mono uppercase tracking-[0.2em]"
+          >
+            All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClearAll}
+            className="h-8 rounded-md border-white/10 text-[10px] font-mono uppercase tracking-[0.2em]"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+      {expanded && (
+        <div className="ml-2">
+          <SourceList
+            emptyMessage={emptyMessage}
+            favoriteIds={isFavorite}
+            onClose={onClose}
+            onToggleFavorite={onToggleFavorite}
+            onToggleSource={onToggleSource}
+            selectedIds={isSelected}
+            sources={filteredSources}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SourceLoadError = ({
+  errorMessage,
+  onRetry,
+}: Readonly<{
+  errorMessage: string;
+  onRetry: () => void;
+}>) => (
+  <div className="space-y-3 p-4">
+    <div className="flex items-start gap-3 rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 text-sm text-muted-foreground">
+      <AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />
+      <div>
+        <div className="font-medium text-foreground">Source catalog unavailable</div>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {errorMessage}
+        </p>
+      </div>
+    </div>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onRetry}
+      className="w-full rounded-md border-white/10"
+    >
+      Retry
+    </Button>
+  </div>
+);
+
+const SidebarContent = ({
+  allExpanded,
+  errorMessage,
+  favoriteExpanded,
+  favoriteSources,
+  filteredSources,
+  isFavorite,
+  isLoading,
+  isSelected,
+  onClearAll,
+  onClose,
+  onRetry,
+  onSelectAll,
+  onToggleFavorite,
+  onToggleSection,
+  onToggleSource,
+  searchQuery,
+  sourceCount,
+}: Readonly<SidebarContentProps>) => {
+  if (isLoading) {
+    return <div className="p-4 text-center text-muted-foreground">Loading sources...</div>;
+  }
+  if (errorMessage !== undefined) {
+    return <SourceLoadError errorMessage={errorMessage} onRetry={onRetry} />;
+  }
+  return (
+    <div className="divide-y divide-white/10">
+      <FavoritesSection
+        expanded={favoriteExpanded}
+        favoriteSources={favoriteSources}
+        isFavorite={isFavorite}
+        isSelected={isSelected}
+        onClose={onClose}
+        onToggleFavorite={onToggleFavorite}
+        onToggleSection={onToggleSection}
+        onToggleSource={onToggleSource}
+      />
+      <AllSourcesSection
+        expanded={allExpanded}
+        filteredSources={filteredSources}
+        isFavorite={isFavorite}
+        isSelected={isSelected}
+        onClearAll={onClearAll}
+        onClose={onClose}
+        onSelectAll={onSelectAll}
+        onToggleFavorite={onToggleFavorite}
+        onToggleSection={onToggleSection}
+        onToggleSource={onToggleSource}
+        searchQuery={searchQuery}
+        sourceCount={sourceCount}
+      />
+    </div>
+  );
+};
+
+export const SourceSidebar = ({
+  isOpen,
+  onClose,
+  sourceRecency,
+}: Readonly<SourceSidebarProps>) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
-    favorites: true,
     allSources: true,
+    favorites: true,
   });
-
-  const { toggleFavorite, isFavorite } = useFavorites();
-  const { lens, setLens, clearLens } = useNewsLens();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const { clearLens, lens, setLens } = useNewsLens();
   const {
-    selectedSources,
-    toggleSource,
-    isSelected,
-    selectAll,
     clearAll,
     getSelectionCount,
     isFilterActive,
+    isSelected,
+    selectAll,
+    selectedSources,
+    toggleSource,
   } = useSourceFilter();
   const {
     data: sources = [],
-    isLoading: loading,
     error,
+    isLoading,
     refetch,
   } = useQuery<NewsSource[]>({
-    queryKey: ["all-sources"],
-    queryFn: fetchSources,
     enabled: isOpen,
-    retry: 1,
+    queryFn: fetchSources,
+    queryKey: ["all-sources"],
+    retry: SOURCE_QUERY_RETRY_COUNT,
   });
-  const loadError = error instanceof Error ? error.message : null;
-
-  // Get favorite sources
-  const favoriteSources = useMemo(() => {
-    const favoritesList = sources.filter((source) => isFavorite(source.id));
-    if (!sourceRecency) {
-      return favoritesList;
-    }
-    return favoritesList.sort((a, b) => {
-      const aFresh = sourceRecency[a.id] ?? 0;
-      const bFresh = sourceRecency[b.id] ?? 0;
-      if (aFresh !== bFresh) return bFresh - aFresh;
-      return a.name.localeCompare(b.name);
-    });
-  }, [sources, isFavorite, sourceRecency]);
-
-  // Filter sources based on search query
-  const filteredSources = useMemo(() => {
-    const filtered = sources.filter((source) =>
-      source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      source.country.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    if (!sourceRecency) {
-      return filtered;
-    }
-    return filtered.sort((a, b) => {
-      const aFresh = sourceRecency[a.id] ?? 0;
-      const bFresh = sourceRecency[b.id] ?? 0;
-      if (aFresh !== bFresh) return bFresh - aFresh;
-      return a.name.localeCompare(b.name);
-    });
-  }, [sources, searchQuery, sourceRecency]);
-
-  // Create source name lookup for coverage comparison
-  const sourceNameLookup = useMemo(() => {
-    const lookup: Record<string, string> = {};
-    sources.forEach((source) => {
-      lookup[source.id] = source.name;
-      lookup[source.slug] = source.name;
-    });
-    return lookup;
-  }, [sources]);
-
-  const selectedSourceIds = useMemo(() => {
-    const ids = Array.from(selectedSources);
-    return sources
-      .filter(
-        (source) => ids.includes(source.id) || ids.includes(source.slug),
-      )
-      .map((source) => source.id);
-  }, [selectedSources, sources]);
+  const favoriteSources = useMemo(
+    () => getFavoriteSources(sources, isFavorite, sourceRecency),
+    [sources, isFavorite, sourceRecency],
+  );
+  const filteredSources = useMemo(
+    () => getFilteredSources(sources, searchQuery, sourceRecency),
+    [sources, searchQuery, sourceRecency],
+  );
+  const sourceNameLookup = useMemo(() => buildSourceNameLookup(sources), [sources]);
+  const selectedSourceIds = useMemo(
+    () => getSelectedSourceIds(selectedSources, sources),
+    [selectedSources, sources],
+  );
   const lensStats = useMemo(() => getLensStats(sources, lens), [lens, sources]);
+  const errorMessage = getLoadErrorMessage(error);
+  const filterActive = isFilterActive() || lens !== "all";
+  const filterLabel = lens === "all"
+    ? `${getSelectionCount()} selected`
+    : `${NEWS_LENSES.find((preset) => preset.id === lens)?.label ?? "Lens"}: ${lensStats.included} in / ${lensStats.excluded} out`;
 
-  const toggleSection = (section: "favorites" | "allSources") => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
+  const toggleSection = (section: SidebarSection) => {
+    setExpandedSections((previous) => ({
+      ...previous,
+      [section]: !previous[section],
     }));
   };
-
-  const handleSelectAll = () => {
-    selectAll(sources.map((s) => s.id));
-  };
-
-  const handleClearAll = () => {
+  const clearFilters = () => {
     clearAll();
+    clearLens();
+  };
+  const selectEverySource = () => {
+    selectAll(sources.map((source) => source.id));
+  };
+  const retry = () => {
+    void refetch();
   };
 
-  const handleFavoriteToggle = (e: React.MouseEvent, sourceId: string) => {
-    e.stopPropagation();
-    toggleFavorite(sourceId);
-  };
-
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return undefined;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      {/* Overlay */}
-      <div
+      <button
+        type="button"
+        aria-label="Close source sidebar"
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
-
-      {/* Sidebar */}
-      <div className="relative w-full max-w-[22rem] bg-[var(--news-bg-secondary)] border-r border-white/10 overflow-hidden flex flex-col sm:w-80">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-muted-foreground">Sources</h2>
-          <div className="flex items-center gap-2">
-            <AddRssDialog onSourceAdded={() => refetch()} />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8 rounded-md"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Filter Badge */}
-        {(isFilterActive() || lens !== "all") && (
-          <div className="px-4 pt-2 pb-1">
-            <Badge variant="outline" className="cursor-pointer border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em] text-foreground/80"
-              onClick={() => {
-                handleClearAll();
-                clearLens();
-              }}>
-              {lens === "all"
-                ? `${getSelectionCount()} selected`
-                : `${NEWS_LENSES.find((item) => item.id === lens)?.label ?? "Lens"}: ${lensStats.included} in / ${lensStats.excluded} out`}
-            </Badge>
-          </div>
-        )}
-
-        {/* Coverage Comparison - Show when 2+ sources are selected */}
-        {selectedSourceIds.length >= 2 && (
-          <div className="px-4 py-3 border-b border-white/10">
-            <SourceCoverageComparison
-              sourceIds={selectedSourceIds}
-              sourceNames={sourceNameLookup}
-            />
-          </div>
-        )}
-
-        {/* Search Bar */}
-        <div className="px-4 py-3 border-b border-white/10">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search sources..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-9 rounded-md border-white/10 bg-[var(--news-bg-primary)] text-foreground"
-            />
-          </div>
-        </div>
-
-        <div className="border-b border-white/10 px-4 py-3">
-          <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
-            News Lens
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {NEWS_LENSES.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => setLens(preset.id as NewsLensId)}
-                title={preset.description}
-                className={`rounded-md border px-2 py-2 text-left text-[10px] font-mono uppercase tracking-[0.16em] transition-colors ${
-                  lens === preset.id
-                    ? "border-primary/60 bg-primary/10 text-foreground"
-                    : "border-white/10 bg-[var(--news-bg-primary)]/40 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="border-b border-white/10 px-4 py-3">
-          <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
-            Wiki
-          </div>
-          <div className="space-y-2">
-            <Link
-              href="/wiki/ownership"
-              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
-              onClick={onClose}
-            >
-              <span className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-                Source Wiki
-              </span>
-            </Link>
-            <Link
-              href="/wiki/reporters"
-              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
-              onClick={onClose}
-            >
-              <span className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                Reporter Wiki
-              </span>
-            </Link>
-            <Link
-              href="/wiki/ownership"
-              className="flex items-center justify-between rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--news-bg-primary)]"
-              onClick={onClose}
-            >
-              <span className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-muted-foreground" />
-                Ownership Graph
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="p-4 text-center text-muted-foreground">
-              Loading sources...
-            </div>
-          ) : loadError ? (
-            <div className="space-y-3 p-4">
-              <div className="flex items-start gap-3 rounded-md border border-white/10 bg-[var(--news-bg-primary)]/40 p-4 text-sm text-muted-foreground">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />
-                <div>
-                  <div className="font-medium text-foreground">Source catalog unavailable</div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {loadError}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void refetch()}
-                className="w-full rounded-md border-white/10"
-              >
-                Retry
-              </Button>
-            </div>
-          ) : (
-            <div className="divide-y divide-white/10">
-              {/* Favorites Section */}
-              {favoriteSources.length > 0 && (
-                <div className="p-4">
-                  <button
-                    onClick={() => toggleSection("favorites")}
-                    className="flex items-center gap-2 w-full mb-3 hover:opacity-70 transition-opacity"
-                  >
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${
-                        !expandedSections.favorites ? "-rotate-90" : ""
-                      }`}
-                    />
-                    <Star className="h-4 w-4 text-foreground" />
-                    <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
-                      Favorites ({favoriteSources.length})
-                    </span>
-                  </button>
-
-                  {expandedSections.favorites && (
-                    <div className="space-y-2 ml-4">
-                      {favoriteSources.map((source) => (
-                        <SourceItem
-                          key={source.id}
-                          source={source}
-                          isFavorite={isFavorite(source.id)}
-                          isSelected={isSelected(source.id)}
-                          onToggleFavorite={(e) =>
-                            handleFavoriteToggle(e, source.id)
-                          }
-                          onToggleSelect={() => toggleSource(source.id)}
-                          onClose={onClose}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* All Sources Section */}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <button
-                    onClick={() => toggleSection("allSources")}
-                    className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity"
-                  >
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${
-                        !expandedSections.allSources ? "-rotate-90" : ""
-                      }`}
-                    />
-                    <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
-                      All Sources ({sources.length})
-                    </span>
-                  </button>
-                </div>
-
-                {expandedSections.allSources && (
-                  <div className="space-y-1 mb-3">
-                    <div className="flex gap-1 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSelectAll}
-                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-md"
-                      >
-                        All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleClearAll}
-                        className="h-8 text-[10px] font-mono uppercase tracking-[0.2em] border-white/10 rounded-md"
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {expandedSections.allSources && (
-                  <div className="space-y-2 ml-2">
-                    {filteredSources.length > 0 ? (
-                      filteredSources.map((source) => (
-                        <SourceItem
-                          key={source.id}
-                          source={source}
-                          isFavorite={isFavorite(source.id)}
-                          isSelected={isSelected(source.id)}
-                          onToggleFavorite={(e) =>
-                            handleFavoriteToggle(e, source.id)
-                          }
-                          onToggleSelect={() => toggleSource(source.id)}
-                          onClose={onClose}
-                        />
-                      ))
-                    ) : (
-                       <div className="text-xs text-muted-foreground py-2">
-                         {searchQuery.trim()
-                           ? "No sources match this search"
-                           : "No sources available"}
-                       </div>
-                     )}
-                   </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Individual source list item
- */
-function SourceItem({
-  source,
-  isFavorite,
-  isSelected,
-  onToggleFavorite,
-  onToggleSelect,
-  onClose,
-}: {
-  source: NewsSource;
-  isFavorite: boolean;
-  isSelected: boolean;
-  onToggleFavorite: (e: React.MouseEvent) => void;
-  onToggleSelect: () => void;
-  onClose?: () => void;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-2 p-2 rounded-md transition-colors border ${
-        isSelected
-          ? "bg-white/5 border-white/20"
-          : "hover:bg-[var(--news-bg-primary)] border-white/10"
-      }`}
-    >
-      {/* Checkbox */}
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={onToggleSelect}
-        className="h-4 w-4 cursor-pointer rounded border-white/20"
-      />
-
-      {/* Source Info - Clickable link to source page */}
-      <Link
-        href={`/source/${encodeURIComponent(source.id)}`}
-        className="flex-1 min-w-0 group"
-        onClick={onClose}
-      >
-        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-          {source.name}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">
-          {source.country}
-        </p>
-      </Link>
-
-      {/* Wiki link */}
-      <Link
-        href={`/wiki/source/${encodeURIComponent(source.name)}`}
-        className="flex-shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors"
-        onClick={onClose}
-        title="Wiki profile"
-      >
-        <BookOpen className="h-3.5 w-3.5" />
-      </Link>
-
-      {/* Favorite Button */}
-      <button
-        onClick={onToggleFavorite}
-        className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--news-bg-primary)] transition-colors"
-        title={isFavorite ? "Remove favorite" : "Add to favorites"}
-      >
-        <Star
-          className={`h-4 w-4 transition-colors ${
-            isFavorite
-              ? "fill-current text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+      <aside className="relative flex w-full max-w-[22rem] flex-col overflow-hidden border-r border-white/10 bg-[var(--news-bg-secondary)] sm:w-80">
+        <SourceSidebarHeader onClose={onClose} onSourceAdded={retry} />
+        <ActiveFilterBadge active={filterActive} label={filterLabel} onClear={clearFilters} />
+        <CoverageSection
+          selectedSourceIds={selectedSourceIds}
+          sourceNameLookup={sourceNameLookup}
         />
-      </button>
+        <SourceSearch onChange={setSearchQuery} searchQuery={searchQuery} />
+        <LensSection lens={lens} onSetLens={setLens} />
+        <WikiSection onClose={onClose} />
+        <div className="flex-1 overflow-y-auto">
+          <SidebarContent
+            allExpanded={expandedSections.allSources}
+            errorMessage={errorMessage}
+            favoriteExpanded={expandedSections.favorites}
+            favoriteSources={favoriteSources}
+            filteredSources={filteredSources}
+            isFavorite={isFavorite}
+            isLoading={isLoading}
+            isSelected={isSelected}
+            onClearAll={clearAll}
+            onClose={onClose}
+            onRetry={retry}
+            onSelectAll={selectEverySource}
+            onToggleFavorite={toggleFavorite}
+            onToggleSection={toggleSection}
+            onToggleSource={toggleSource}
+            searchQuery={searchQuery}
+            sourceCount={sources.length}
+          />
+        </div>
+      </aside>
     </div>
   );
-}
+};
