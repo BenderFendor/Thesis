@@ -227,9 +227,7 @@ async def _mark_recovery_articles(article_ids: list[int]) -> None:
     try:
         async with _get_session_factory()() as session:
             await session.execute(
-                update(Article)
-                .where(Article.id.in_(article_ids))
-                .values(embedding_generated=True)
+                update(Article).where(Article.id.in_(article_ids)).values(embedding_generated=True)
             )
             await session.commit()
     except Exception as exc:
