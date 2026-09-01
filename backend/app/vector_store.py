@@ -549,11 +549,15 @@ class VectorStore:
         text = f"{title}\n\n{summary}"
         if content and content.strip() and content.strip() != summary.strip():
             text += f"\n\n{content[:500]}"
-        metadata = _coerce_metadata({**article["metadata"], "title": title, "summary": summary[:200]})
+        metadata = _coerce_metadata(
+            {**article["metadata"], "title": title, "summary": summary[:200]}
+        )
         return text, metadata
 
     @classmethod
-    def _prepare_batch(cls, articles: list[BatchArticlePayload]) -> tuple[list[BatchArticlePayload], list[str], list[str], list[Metadata]]:
+    def _prepare_batch(
+        cls, articles: list[BatchArticlePayload]
+    ) -> tuple[list[BatchArticlePayload], list[str], list[str], list[Metadata]]:
         deduped = {article["chroma_id"]: article for article in articles}
         unique = list(deduped.values())
         ids: list[str] = []
@@ -588,13 +592,16 @@ class VectorStore:
             return len(unique)
         except Exception as exc:
             error_text = str(exc)
-            logger.error("Vector batch add failed: %d articles (%s)", len(unique), type(exc).__name__)
+            logger.error(
+                "Vector batch add failed: %d articles (%s)", len(unique), type(exc).__name__
+            )
             logger.info("Vector batch failure detail: %.4000s", error_text)
             if "connection refused" in error_text.lower() or "connect" in error_text.lower():
                 _vector_store = None
-                logger.warning("Cleared stale vector store after connection error in batch_add_articles")
+                logger.warning(
+                    "Cleared stale vector store after connection error in batch_add_articles"
+                )
             return 0
-
 
     def list_articles(self, limit: int = 50, offset: int = 0) -> dict[str, object]:
         """Return a window of Chroma documents for debugging purposes."""
@@ -726,13 +733,20 @@ class VectorStore:
         """Generate embedding for a text query (for search suggestions)."""
         return _embedding_to_list(self.embedding_model.encode(query))
 
-    def _hybrid_vector_results(self, query: str, limit: int, filter_metadata: Mapping[str, object] | None) -> list[SimilarArticleResult]:
+    def _hybrid_vector_results(
+        self, query: str, limit: int, filter_metadata: Mapping[str, object] | None
+    ) -> list[SimilarArticleResult]:
         return self.search_similar(query, limit=limit * 2, filter_metadata=filter_metadata)
 
     @staticmethod
-    def _bm25_fusion_scores(query: str, vector_results: Sequence[SimilarArticleResult]) -> dict[str, float]:
+    def _bm25_fusion_scores(
+        query: str, vector_results: Sequence[SimilarArticleResult]
+    ) -> dict[str, float]:
         vector_ids = [result["chroma_id"] for result in vector_results]
-        docs = [{"chroma_id": result["chroma_id"], "text": result["preview"]} for result in vector_results]
+        docs = [
+            {"chroma_id": result["chroma_id"], "text": result["preview"]}
+            for result in vector_results
+        ]
         try:
             search = _new_bm25_search()
             search.build_index(docs)
@@ -742,7 +756,12 @@ class VectorStore:
             return {}
 
     @staticmethod
-    def _fused_hybrid_scores(vector_scores: dict[str, float], bm25_scores: dict[str, float], bm25_weight: float, method: str) -> list[tuple[str, float]]:
+    def _fused_hybrid_scores(
+        vector_scores: dict[str, float],
+        bm25_scores: dict[str, float],
+        bm25_weight: float,
+        method: str,
+    ) -> list[tuple[str, float]]:
         reciprocal_rank_fusion, combine_scores = _get_hybrid_search_helpers()
         vector_ranking = sorted(vector_scores.items(), key=lambda item: item[1], reverse=True)
         bm25_ranking = sorted(bm25_scores.items(), key=lambda item: item[1], reverse=True)
@@ -752,23 +771,30 @@ class VectorStore:
         return sorted(combined.items(), key=lambda item: item[1], reverse=True)
 
     @staticmethod
-    def _format_hybrid_results(fused: Sequence[tuple[str, float]], vector_results: Sequence[SimilarArticleResult], bm25_scores: dict[str, float], limit: int) -> list[HybridSearchResult]:
+    def _format_hybrid_results(
+        fused: Sequence[tuple[str, float]],
+        vector_results: Sequence[SimilarArticleResult],
+        bm25_scores: dict[str, float],
+        limit: int,
+    ) -> list[HybridSearchResult]:
         by_id = {result["chroma_id"]: result for result in vector_results}
         results: list[HybridSearchResult] = []
         for chroma_id, fused_score in fused[:limit]:
             vector_result = by_id.get(chroma_id)
             if vector_result is None:
                 continue
-            results.append({
-                "chroma_id": chroma_id,
-                "article_id": int(chroma_id.replace("article_", "")),
-                "fused_score": round(fused_score, 4),
-                "bm25_score": round(bm25_scores.get(chroma_id, 0.0), 2),
-                "vector_score": round(vector_result["similarity_score"], 4),
-                "distance": vector_result["distance"],
-                "metadata": vector_result["metadata"],
-                "preview": vector_result["preview"][:200],
-            })
+            results.append(
+                {
+                    "chroma_id": chroma_id,
+                    "article_id": int(chroma_id.replace("article_", "")),
+                    "fused_score": round(fused_score, 4),
+                    "bm25_score": round(bm25_scores.get(chroma_id, 0.0), 2),
+                    "vector_score": round(vector_result["similarity_score"], 4),
+                    "distance": vector_result["distance"],
+                    "metadata": vector_result["metadata"],
+                    "preview": vector_result["preview"][:200],
+                }
+            )
         return results
 
     def search_hybrid(
@@ -785,18 +811,23 @@ class VectorStore:
             if not vector_results:
                 logger.info("No vector search results for hybrid search")
                 return []
-            vector_scores = {result["chroma_id"]: result["similarity_score"] for result in vector_results}
+            vector_scores = {
+                result["chroma_id"]: result["similarity_score"] for result in vector_results
+            }
             bm25_scores = self._bm25_fusion_scores(query, vector_results)
-            fused = self._fused_hybrid_scores(vector_scores, bm25_scores, bm25_weight, fusion_method)
+            fused = self._fused_hybrid_scores(
+                vector_scores, bm25_scores, bm25_weight, fusion_method
+            )
             results = self._format_hybrid_results(fused, vector_results, bm25_scores, limit)
-            logger.info("Hybrid search returned %d results for query: '%s...'", len(results), query[:50])
+            logger.info(
+                "Hybrid search returned %d results for query: '%s...'", len(results), query[:50]
+            )
             return results
         except ImportError as exc:
             logger.warning("Hybrid search dependencies not available: %s", exc)
         except Exception as exc:
             logger.error("Hybrid search failed: %s", exc)
         return self.search_similar(query, limit=limit, filter_metadata=filter_metadata)
-
 
     def find_nearest_cluster_labels(
         self,
@@ -901,7 +932,10 @@ def _record_vector_unreachable(startup_metrics: Any) -> None:
     if _should_log_connection_failure(10):
         logger.warning(
             "ChromaDB not reachable at %s:%d (attempt #%d, backoff %ds)",
-            CHROMA_HOST, CHROMA_PORT, _failed_attempts, int(_get_backoff_duration()),
+            CHROMA_HOST,
+            CHROMA_PORT,
+            _failed_attempts,
+            int(_get_backoff_duration()),
         )
     startup_metrics.add_note(
         "vector_store_status",
@@ -919,7 +953,9 @@ def _initialize_vector_store(startup_metrics: Any) -> VectorStore | None:
         if _should_log_connection_failure(5):
             logger.warning(
                 "ChromaDB initialization failed (attempt #%d, backoff %ds): %s",
-                _failed_attempts, int(_get_backoff_duration()), exc,
+                _failed_attempts,
+                int(_get_backoff_duration()),
+                exc,
             )
         startup_metrics.add_note(
             "vector_store_status",
@@ -927,6 +963,7 @@ def _initialize_vector_store(startup_metrics: Any) -> VectorStore | None:
         )
         _vector_store = None
     return _vector_store
+
 
 def get_vector_store() -> VectorStore | None:
     """Return the lazily initialized vector store when enabled and reachable."""
@@ -946,4 +983,3 @@ def get_vector_store() -> VectorStore | None:
         return None
     with _vector_store_lock:
         return _vector_store or _initialize_vector_store(startup_metrics)
-

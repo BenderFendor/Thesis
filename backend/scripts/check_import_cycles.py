@@ -80,7 +80,9 @@ def _from_import_candidates(node: ast.ImportFrom, module: str) -> list[str]:
         if alias.name == "*":
             continue
         first_segment = alias.name.split(".", 1)[0]
-        candidate = f"{base_name}.{first_segment}" if base_name else ".".join(anchor + [first_segment])
+        candidate = (
+            f"{base_name}.{first_segment}" if base_name else ".".join(anchor + [first_segment])
+        )
         candidates.append(candidate)
     return candidates
 

@@ -160,45 +160,60 @@ export function parseOptions(argv:readonly  string[]): CliOptions {
       options._.push(token);
       continue;
     }
-    const [rawKey, inlineValue] = token.slice(2).split(/=(.*)/su, 2);
-    if (BOOLEAN_OPTIONS[rawKey]) {
-      options[rawKey] = inlineValue === undefined ? true : inlineValue !== "false";
-      continue;
-    }
-    const value = inlineValue ?? argv[++index];
-    if (value === undefined) {fail(`Missing value for --${rawKey}`);}
-    if (REPEATABLE_OPTIONS[rawKey]) {
-      const current = options[rawKey];
-      options[rawKey] = [...(Array.isArray(current) ? current : []), value];
-    } else {
-      options[rawKey] = value;
-    }
+    index = parseOption(options, token, argv, index);
   }
   return options;
+}
+
+function parseOption(
+  options: CliOptions,
+  token: string,
+  argv: readonly string[],
+  index: number,
+): number {
+  const [rawKey, inlineValue] = token.slice(2).split(/=(.*)/su, 2);
+  if (BOOLEAN_OPTIONS[rawKey]) {
+    options[rawKey] = inlineValue === undefined ? true : inlineValue !== "false";
+    return index;
+  }
+  const value = inlineValue ?? argv[index + 1];
+  if (value === undefined) {fail(`Missing value for --${rawKey}`);}
+  if (REPEATABLE_OPTIONS[rawKey]) {
+    const current = options[rawKey];
+    options[rawKey] = [...(Array.isArray(current) ? current : []), value];
+  } else {
+    options[rawKey] = value;
+  }
+  return inlineValue === undefined ? index + 1 : index;
 }
 
 export function loadSpec(specPath = DEFAULT_SPEC): OpenApiSpec {
   return JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec;
 }
 
-export function listOperations(spec: OpenApiSpec): OperationDescriptor[] {
+function listPathOperations(path: string, pathItem: PathItemObject): OperationDescriptor[] {
   const operations: OperationDescriptor[] = [];
-  for (const [path, pathItem] of Object.entries(spec.paths ?? {})) {
-    for (const [method, value] of Object.entries(pathItem)) {
-      if (!HTTP_METHODS[method] || Array.isArray(value) || value === undefined) {continue;}
-      const operation = value;
-      if (!operation.operationId) {fail(`OpenAPI operation is missing operationId: ${method.toUpperCase()} ${path}`);}
-      operations.push({
-        method: method.toUpperCase(),
-        operation,
-        operationId: operation.operationId,
-        path,
-        pathParameters: pathItem.parameters ?? [],
-        summary: operation.summary ?? "",
-        tags: operation.tags ?? [],
-      });
-    }
+  for (const [method, value] of Object.entries(pathItem)) {
+    if (!HTTP_METHODS[method] || Array.isArray(value) || value === undefined) {continue;}
+    const operation = value;
+    if (!operation.operationId) {fail(`OpenAPI operation is missing operationId: ${method.toUpperCase()} ${path}`);}
+    operations.push({
+      method: method.toUpperCase(),
+      operation,
+      operationId: operation.operationId,
+      path,
+      pathParameters: pathItem.parameters ?? [],
+      summary: operation.summary ?? "",
+      tags: operation.tags ?? [],
+    });
   }
+  return operations;
+}
+
+export function listOperations(spec: OpenApiSpec): OperationDescriptor[] {
+  const operations = Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) =>
+    listPathOperations(path, pathItem),
+  );
   return operations.sort((left, right) => left.operationId.localeCompare(right.operationId));
 }
 
@@ -241,7 +256,7 @@ function coerceScalar(value: string, schema: SchemaObject, name: string): JsonVa
     fail(`Parameter ${name} must be true or false`);
   }
   if (type === "integer") {
-    if (!/^-?\d+$/.test(value)) {fail(`Parameter ${name} must be an integer`);}
+    if (!/^-?\d+$/u.test(value)) {fail(`Parameter ${name} must be an integer`);}
     return Number(value);
   }
   if (type === "number") {
@@ -312,25 +327,22 @@ function applyParameter(
   }
 }
 
-export function prepareRequest(
-  spec: OpenApiSpec,
+function validateParameters(
+  parameters:readonly  ParameterObject[],
+  supplied: Map<string, string[]>,
   operationId: string,
-  options: CliOptions = { _: [] },
-): PreparedRequest {
-  const descriptor = findOperation(spec, operationId),
-   supplied = assignments(options.param),
-   parameters = [...descriptor.pathParameters, ...(descriptor.operation.parameters ?? [])],
-   known = new Set(parameters.map((parameter) => parameter.name));
+): void {
+  const known = new Set(parameters.map((parameter) => parameter.name));
   for (const name of supplied.keys()) {
     if (!known.has(name)) {fail(`Unknown parameter for ${operationId}: ${name}`);}
   }
+}
 
-  const target: RequestTarget = {
-    cookies: [],
-    headers: new Headers({ Accept: "application/json" }),
-    path: descriptor.path,
-    query: new URLSearchParams(),
-  };
+function applyOperationParameters(
+  target: RequestTarget,
+  parameters:readonly  ParameterObject[],
+  supplied: Map<string, string[]>,
+): void {
   for (const parameter of parameters) {
     const values = supplied.get(parameter.name);
     if (!values?.length) {
@@ -339,20 +351,51 @@ export function prepareRequest(
     }
     applyParameter(target, parameter, serializeParameter(parameter, values));
   }
+}
 
+function applyRequestHeaders(target: RequestTarget, options: CliOptions): void {
   for (const item of options.header ?? []) {
     const [name, value] = splitAssignment(item, "Header");
     target.headers.set(name, value);
   }
   if (target.cookies.length > 0) {target.headers.set("Cookie", target.cookies.join("; "));}
+}
 
+function applyRequestBody(
+  target: RequestTarget,
+  descriptor: OperationDescriptor,
+  options: CliOptions,
+  operationId: string,
+): JsonValue | undefined {
   const body = requestBody(options.body);
   if (descriptor.operation.requestBody?.required === true && body === undefined) {
     fail(`Missing required --body for ${operationId}`);
   }
   if (body !== undefined) {target.headers.set("Content-Type", "application/json");}
+  return body;
+}
 
-  const baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
+export function prepareRequest(
+  spec: OpenApiSpec,
+  operationId: string,
+  options: CliOptions = { _: [] },
+): PreparedRequest {
+  const descriptor = findOperation(spec, operationId),
+   supplied = assignments(options.param),
+   parameters = [...descriptor.pathParameters, ...(descriptor.operation.parameters ?? [])];
+  validateParameters(parameters, supplied, operationId);
+
+  const target: RequestTarget = {
+    cookies: [],
+    headers: new Headers({ Accept: "application/json" }),
+    path: descriptor.path,
+    query: new URLSearchParams(),
+  };
+  applyOperationParameters(target, parameters, supplied);
+  applyRequestHeaders(target, options);
+  const body = applyRequestBody(target, descriptor, options, operationId),
+
+   baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
    queryString = target.query.toString();
   return {
     descriptor,
@@ -361,7 +404,7 @@ export function prepareRequest(
       headers: target.headers,
       method: descriptor.method,
     },
-    url: `${baseUrl.replace(/\/$/, "")}${target.path}${queryString ? `?${queryString}` : ""}`,
+    url: `${baseUrl.replace(/\/$/u, "")}${target.path}${queryString ? `?${queryString}` : ""}`,
   };
 }
 
@@ -477,7 +520,7 @@ async function listenWebSocket(
   );
   if (!descriptor) {fail(`Unknown WebSocket operation or path: ${operationIdOrPath}`);}
   const baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
-   socketUrl = `${baseUrl.replace(/^http/, "ws").replace(/\/$/, "")}${descriptor.path}`,
+   socketUrl = `${baseUrl.replace(/^http/u, "ws").replace(/\/$/u, "")}${descriptor.path}`,
    count = Number(options.count ?? 1),
    timeoutMs = Number(options.timeout ?? 30) * 1000,
 

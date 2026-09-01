@@ -101,12 +101,8 @@ async def search_wikidata(name: str, http_client: httpx.AsyncClient) -> list[dic
     return response.json().get("search") or []
 
 
-def _candidate_entry(
-    candidate: dict[str, Any], embed_source: Any | None
-) -> dict[str, Any]:
-    label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get(
-        "value", ""
-    )
+def _candidate_entry(candidate: dict[str, Any], embed_source: Any | None) -> dict[str, Any]:
+    label = candidate.get("label") or candidate.get("display", {}).get("label", {}).get("value", "")
     description = candidate.get("description") or ""
     qid = candidate.get("id") or ""
     url = candidate.get("concepturi") or f"https://www.wikidata.org/wiki/{qid}" if qid else ""

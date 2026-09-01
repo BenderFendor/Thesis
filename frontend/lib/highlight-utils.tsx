@@ -5,11 +5,38 @@ import { createHighlightFingerprint } from "./highlight-store"
 
 export type HighlightStableId = string
 
+function getDirectTextNodeOffset(
+  node: Node,
+  offset: number,
+  currentNode: Node,
+  globalOffset: number,
+): number | null {
+  if (node.nodeType !== Node.ELEMENT_NODE || node !== currentNode.parentNode) {
+    return null
+  }
+
+  const childOffset = Math.min(offset, node.childNodes.length)
+  let candidateOffset = globalOffset
+  for (let index = 0; index < childOffset; index += 1) {
+    const child = node.childNodes[index]
+    if (child === currentNode) {
+      return candidateOffset
+    }
+    candidateOffset += child?.textContent?.length ?? 0
+  }
+  return null
+}
+
 export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): number {
   if (!root.contains(node) && node !== root) {
     return -1
   }
 
+  const textOffset = findTextOffset(root, node, offset)
+  return textOffset ?? (node === root ? Math.min(offset, root.textContent?.length ?? 0) : -1)
+}
+
+function findTextOffset(root: HTMLElement, node: Node, offset: number): number | undefined {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let currentNode = walker.nextNode(),
    globalOffset = 0
@@ -19,23 +46,16 @@ export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): 
       return globalOffset + Math.min(offset, currentNode.textContent?.length ?? 0)
     }
 
-    if (node.nodeType === Node.ELEMENT_NODE && node === currentNode.parentNode) {
-      const parent = node as HTMLElement,
-       childOffset = Math.min(offset, parent.childNodes.length)
-      for (let i = 0; i < childOffset; i += 1) {
-        const child = parent.childNodes[i]
-        if (child === currentNode) {
-          return globalOffset
-        }
-        globalOffset += child!.textContent?.length ?? 0
-      }
+    const directTextOffset = getDirectTextNodeOffset(node, offset, currentNode, globalOffset)
+    if (directTextOffset !== null) {
+      return directTextOffset
     }
 
     globalOffset += currentNode.textContent?.length ?? 0
     currentNode = walker.nextNode()
   }
 
-  return node === root ? Math.min(offset, root.textContent?.length ?? 0) : -1
+  return undefined
 }
 
 export function highlightStableId(highlight: Highlight): HighlightStableId {
@@ -54,10 +74,11 @@ function getRenderableHighlights(textLength: number, highlights:readonly  Highli
 
   ;[...highlights]
     .filter((highlight) => highlight.character_end > highlight.character_start)
-    .map((highlight) => (Object.assign(highlight, {
-	character_end: Math.max(0, Math.min(highlight.character_end, textLength)),
-	character_start: Math.max(0, Math.min(highlight.character_start, textLength))
-})))
+    .map((highlight) => ({
+      ...highlight,
+      character_end: Math.max(0, Math.min(highlight.character_end, textLength)),
+      character_start: Math.max(0, Math.min(highlight.character_start, textLength)),
+    }))
     .filter((highlight) => highlight.character_end > highlight.character_start)
     .toSorted((a, b) => a.character_start - b.character_start)
     .forEach((highlight) => {
@@ -197,7 +218,7 @@ export function buildObsidianMarkdown(params:Readonly< {
     summary: string
   }
   fullArticleText?: string | null
-  highlights: Highlight[]
+  highlights: readonly Highlight[]
 }>) {
   const { article, fullArticleText, highlights } = params,
    lines: string[] = [

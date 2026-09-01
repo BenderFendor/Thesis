@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.core.config import SCOOP_USER_AGENT, settings
+from app.core.logging import get_session_dir
 from app.data.rss_sources import get_rss_sources
 from app.database import (
     Article,
@@ -23,16 +24,15 @@ from app.database import (
     fetch_articles_page,
 )
 from app.services.cache import news_cache
-from app.services.persistence import get_embedding_queue_depth
+from app.services.country_mentions import backfill_article_mentioned_countries
+from app.services.debug_logger import DEBUG_LOG_DIR, debug_logger
+from app.services.image_extraction import ImageErrorType
 from app.services.metrics import get_metrics
+from app.services.persistence import get_embedding_queue_depth
 from app.services.rss_parser_rust_bindings import parse_feeds_parallel
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
-from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
-from app.services.image_extraction import ImageErrorType
-from app.services.country_mentions import backfill_article_mentioned_countries
 from app.vector_store import get_vector_store
-from app.core.logging import get_session_dir
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -131,7 +131,6 @@ def _read_jsonl_tail(
     }
 
 
-
 def _source_rss_urls(source_info: dict[str, object]) -> tuple[str, list[str]]:
     configured = source_info["url"]
     urls = cast(list[str], configured) if isinstance(configured, list) else [cast(str, configured)]
@@ -158,7 +157,9 @@ def _entry_image_details(entry: dict[str, object]) -> tuple[list[dict[str, str]]
     return image_sources, html_images
 
 
-def _parsed_debug_entry(index: int, entry: dict[str, object]) -> tuple[dict[str, object], list[dict[str, object]]]:
+def _parsed_debug_entry(
+    index: int, entry: dict[str, object]
+) -> tuple[dict[str, object], list[dict[str, object]]]:
     image_sources, html_images = _entry_image_details(entry)
     parsed = {
         "index": index,
@@ -195,7 +196,9 @@ def _append_debug_entries(debug_data: dict[str, object], articles: list[dict[str
     image_analysis["entries_with_images"] = images_count
 
 
-async def _parse_source_feed(source_name: str, rss_url: str) -> tuple[list[dict[str, object]], dict[str, object]]:
+async def _parse_source_feed(
+    source_name: str, rss_url: str
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     rust_result = await run_in_threadpool(parse_feeds_parallel, [(source_name, [rss_url])], 8)
     articles = [
         article
@@ -207,9 +210,14 @@ async def _parse_source_feed(source_name: str, rss_url: str) -> tuple[list[dict[
 
 
 def _cached_source_data(source_name: str) -> tuple[list[dict[str, object]], object]:
-    articles = [article.dict() for article in news_cache.get_articles() if article.source == source_name]
-    stat = next((item for item in news_cache.get_source_stats() if item["name"] == source_name), None)
+    articles = [
+        article.dict() for article in news_cache.get_articles() if article.source == source_name
+    ]
+    stat = next(
+        (item for item in news_cache.get_source_stats() if item["name"] == source_name), None
+    )
     return articles, stat
+
 
 @router.get("/sources/{source_name}")
 async def get_source_debug_data(source_name: str) -> dict[str, object]:
@@ -229,8 +237,12 @@ async def get_source_debug_data(source_name: str) -> dict[str, object]:
         "rss_url": rss_url,
         "all_urls": all_urls,
         "feed_metadata": {
-            "title": source_name, "description": "", "link": rss_url,
-            "language": "N/A", "updated": "N/A", "generator": "rss_parser_rust",
+            "title": source_name,
+            "description": "",
+            "link": rss_url,
+            "language": "N/A",
+            "updated": "N/A",
+            "generator": "rss_parser_rust",
         },
         "feed_status": {
             "http_status": 200,
@@ -242,12 +254,15 @@ async def get_source_debug_data(source_name: str) -> dict[str, object]:
         "cached_articles": cached_articles,
         "source_statistics": source_stat,
         "debug_timestamp": datetime.now(UTC).isoformat(),
-        "image_analysis": {"total_entries": len(source_articles), "entries_with_images": 0, "image_sources": []},
+        "image_analysis": {
+            "total_entries": len(source_articles),
+            "entries_with_images": 0,
+            "image_sources": [],
+        },
         "raw_feed_preview": rss_text[:1000],
     }
     _append_debug_entries(debug_data, source_articles)
     return debug_data
-
 
 
 @router.get("/streams")
@@ -391,7 +406,6 @@ async def list_cached_articles(
     }
 
 
-
 def _cached_article_sample(source: str | None, offset: int, limit: int) -> tuple[int, list[str]]:
     cached = news_cache.get_articles()
     if source:
@@ -412,13 +426,28 @@ async def _database_url_sample(source: str | None, urls: list[str]) -> tuple[int
     return db_total, {row[0] for row in matched.all()}
 
 
-def _cache_delta_response(cache_total: int, urls: list[str], db_total: int, matched: set[str], source: str | None, offset: int, limit: int, preview_limit: int) -> dict[str, object]:
+def _cache_delta_response(
+    cache_total: int,
+    urls: list[str],
+    db_total: int,
+    matched: set[str],
+    source: str | None,
+    offset: int,
+    limit: int,
+    preview_limit: int,
+) -> dict[str, object]:
     missing = [url for url in urls if url not in matched]
     return {
-        "cache_total": cache_total, "cache_sampled": len(urls), "db_total": db_total,
-        "missing_in_db_count": len(missing), "missing_in_db_sample": missing[:preview_limit],
-        "source": source, "sample_offset": offset, "sample_limit": limit,
+        "cache_total": cache_total,
+        "cache_sampled": len(urls),
+        "db_total": db_total,
+        "missing_in_db_count": len(missing),
+        "missing_in_db_sample": missing[:preview_limit],
+        "source": source,
+        "sample_offset": offset,
+        "sample_limit": limit,
     }
+
 
 @router.get("/cache/delta")
 async def get_cache_db_delta(
@@ -432,15 +461,30 @@ async def get_cache_db_delta(
         raise HTTPException(status_code=503, detail="Database unavailable")
     cache_total, cache_urls = _cached_article_sample(source, sample_offset, sample_limit)
     if not cache_urls:
-        return {"cache_total": cache_total, "cache_sampled": 0, "db_total": 0,
-                "missing_in_db_count": 0, "missing_in_db_sample": [], "source": source}
+        return {
+            "cache_total": cache_total,
+            "cache_sampled": 0,
+            "db_total": 0,
+            "missing_in_db_count": 0,
+            "missing_in_db_sample": [],
+            "source": source,
+        }
     db_total, matched = await _database_url_sample(source, cache_urls)
-    return _cache_delta_response(cache_total, cache_urls, db_total, matched, source, sample_offset, sample_limit, sample_preview_limit)
+    return _cache_delta_response(
+        cache_total,
+        cache_urls,
+        db_total,
+        matched,
+        source,
+        sample_offset,
+        sample_limit,
+        sample_preview_limit,
+    )
 
 
-
-
-def _storage_drift_report(mappings: list[dict[str, Any]], chroma_ids: set[str], sample_limit: int) -> dict[str, object]:
+def _storage_drift_report(
+    mappings: list[dict[str, Any]], chroma_ids: set[str], sample_limit: int
+) -> dict[str, object]:
     db_chroma_ids = {m["chroma_id"] for m in mappings if m["chroma_id"]}
     missing_embedding = [m for m in mappings if not m["chroma_id"]]
     missing_chroma = [m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids]
@@ -456,6 +500,7 @@ def _storage_drift_report(mappings: list[dict[str, Any]], chroma_ids: set[str], 
         "dangling_in_chroma_count": len(dangling),
     }
 
+
 @router.get("/storage/drift")
 async def get_storage_drift(sample_limit: int = Query(50, ge=5, le=500)) -> dict[str, object]:
     """Compare database embedding mappings with the vector store."""
@@ -470,7 +515,6 @@ async def get_storage_drift(sample_limit: int = Query(50, ge=5, le=500)) -> dict
     return _storage_drift_report(mappings, chroma_ids, sample_limit)
 
 
-
 # --- Phase 3: Debug Page Consolidation - New Endpoints ---
 
 
@@ -481,8 +525,8 @@ async def get_system_status() -> dict[str, object]:
     Returns startup metrics, component health, and runtime info.
     """
     import os
-    import sys
     import platform
+    import sys
 
     startup_data = startup_metrics.to_dict()
     cache_stats = news_cache.get_source_stats()
@@ -662,11 +706,11 @@ async def test_rss_parser(
 
         return result
 
-    except Exception as e:
+    except (AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
         return {
             "url": url,
             "success": False,
-            "error": str(e),
+            "error": str(error),
             "parse_time_seconds": time.time() - start_time,
         }
 
@@ -718,7 +762,7 @@ async def list_active_jobs() -> dict[str, object]:
 @router.get("/updates/subscribers")
 async def get_updates_subscribers() -> dict[str, object]:
     """Get updates stream subscriber info."""
-    from app.api.routes.updates import _update_subscribers, _event_counter
+    from app.api.routes.updates import _event_counter, _update_subscribers
 
     return {
         "subscriber_count": len(_update_subscribers),
@@ -880,7 +924,6 @@ async def list_debug_log_files() -> dict[str, object]:
     }
 
 
-
 def _valid_debug_log_path(filename: str) -> Path:
     path = DEBUG_LOG_DIR / filename
     if not path.exists():
@@ -902,7 +945,9 @@ def _decode_log_event(line: str, event_type: str | None) -> dict[str, object] | 
     return cast(dict[str, object], event)
 
 
-def _read_debug_events(path: Path, offset: int, limit: int, event_type: str | None) -> tuple[int, list[dict[str, object]]]:
+def _read_debug_events(
+    path: Path, offset: int, limit: int, event_type: str | None
+) -> tuple[int, list[dict[str, object]]]:
     events: list[dict[str, object]] = []
     total_lines = 0
     with path.open() as handle:
@@ -917,6 +962,7 @@ def _read_debug_events(path: Path, offset: int, limit: int, event_type: str | No
                 events.append(event)
     return total_lines, events
 
+
 @router.get("/logs/file/{filename}")
 async def read_debug_log_file(
     filename: str,
@@ -928,13 +974,19 @@ async def read_debug_log_file(
     log_file = _valid_debug_log_path(filename)
     try:
         total_lines, events = _read_debug_events(log_file, offset, limit, event_type)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to read log file: {exc}") from exc
+    except (OSError, UnicodeError, ValueError) as error:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read log file: {error!s}"
+        ) from error
     return {
-        "filename": filename, "total_lines": total_lines, "offset": offset, "limit": limit,
-        "returned": len(events), "filter": event_type, "events": events,
+        "filename": filename,
+        "total_lines": total_lines,
+        "offset": offset,
+        "limit": limit,
+        "returned": len(events),
+        "filter": event_type,
+        "events": events,
     }
-
 
 
 @router.get("/logs/llm")
@@ -1011,8 +1063,8 @@ async def clear_old_log_files(
             size = log_file.stat().st_size
             log_file.unlink()
             deleted.append({"filename": log_file.name, "size_bytes": size})
-        except Exception as e:
-            deleted.append({"filename": log_file.name, "error": str(e)})
+        except OSError as error:
+            deleted.append({"filename": log_file.name, "error": str(error)})
 
     return {
         "message": f"Deleted {len(deleted)} old log files",

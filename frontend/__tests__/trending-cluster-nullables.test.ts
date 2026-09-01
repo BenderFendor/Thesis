@@ -29,10 +29,12 @@ describe("cluster payload nullables", () => {
   });
 
   function mockFetchJson(payload: unknown) {
-    global.fetch = jest.fn().mockResolvedValue({
+    // SAFETY: These API functions only read `ok` and `json` from the response fixture.
+    const response = {
       json: async () => payload,
       ok: true,
-    } as Response) as typeof fetch;
+    } as Response;
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(response);
   }
 
   it("parses trending clusters when image_url and summary are undefined", async () => {  expect.hasAssertions();

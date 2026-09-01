@@ -133,7 +133,7 @@ function cardToCluster(card: BlindspotCard): TrendingCluster {
 
 function geographySignalBadges(card: BlindspotCard) {
   if (!card.geography_signals || card.geography_signals.length === 0) {
-    return undefined
+    return
   }
 
   return (
@@ -154,7 +154,7 @@ function geographySignalBadges(card: BlindspotCard) {
 function articleSourceSummary(card: BlindspotCard): string | null {
   const uniqueSources = [...new Set(card.articles.map((article) => article.source))]
   if (uniqueSources.length === 0) {
-    return undefined
+    return null
   }
 
   const visibleSources = uniqueSources.slice(0, 3).join(" · "),
@@ -165,13 +165,46 @@ function articleSourceSummary(card: BlindspotCard): string | null {
 function paywallLabel(card: BlindspotCard): string | null {
   const paywall = card.paywall_concentration
   if (!paywall || paywall.total_articles === 0 || paywall.status === "low") {
-    return undefined
+    return null
   }
   return `${Math.round(paywall.paywall_share * 100)}% paywalled`
 }
 
 function displayPoleLabel(label: string): string {
   return label.replace(/^For the\s+/iu, "the ").replace(/^For\s+/iu, "")
+}
+
+interface LeadStoryMeta {
+  imageUrl?: string | null
+  isLackingPoleA: boolean
+  isLackingPoleB: boolean
+  blindspotLabel: string
+  blindspotValue: number
+  sourceSummary: string | null
+  paywallText: string | null
+}
+
+function getLeadStoryMeta(
+  card: BlindspotCard,
+  laneId: BlindspotLane["id"],
+  poleLabels: { pole_a: string; pole_b: string },
+): LeadStoryMeta {
+  const isLackingPoleA = laneId === "pole_b",
+    isLackingPoleB = laneId === "pole_a"
+
+  return {
+    blindspotLabel: isLackingPoleA
+      ? `Missed by ${poleLabels.pole_a}`
+      : (isLackingPoleB ? `Missed by ${poleLabels.pole_b}` : "Asymmetric"),
+    blindspotValue: isLackingPoleA
+      ? Math.round(card.coverage_shares.pole_a * 100)
+      : Math.round(card.coverage_shares.pole_b * 100),
+    imageUrl: card.representative_article?.image_url,
+    isLackingPoleA,
+    isLackingPoleB,
+    paywallText: paywallLabel(card),
+    sourceSummary: articleSourceSummary(card),
+  }
 }
 
 function LeadStory({
@@ -185,16 +218,7 @@ function LeadStory({
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
 }>) {
-  const imageUrl = card.representative_article?.image_url,
-   isLackingPoleA = laneId === "pole_b",
-   isLackingPoleB = laneId === "pole_a",
-  
-   blindspotLabel = isLackingPoleA ? `Missed by ${poleLabels.pole_a}` : (isLackingPoleB ? `Missed by ${poleLabels.pole_b}` : "Asymmetric"),
-   blindspotValue = isLackingPoleA 
-    ? Math.round(card.coverage_shares.pole_a * 100) 
-    : Math.round(card.coverage_shares.pole_b * 100),
-   sourceSummary = articleSourceSummary(card),
-   paywallText = paywallLabel(card)
+  const meta = getLeadStoryMeta(card, laneId, poleLabels)
 
   return (
     <button
@@ -202,82 +226,113 @@ function LeadStory({
       onClick={() =>{  onOpen(card); }}
       className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] text-left transition-all duration-500 ease-out hover:bg-white/[0.05] lg:rounded-2xl lg:border-0 lg:bg-black/20 lg:shadow-2xl lg:hover:bg-white/[0.03]"
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-white/5 lg:aspect-video">
-        {imageUrl ? (
-          <SafeImage
-            src={imageUrl}
-            alt={card.cluster_label}
-            fill
-            className="h-full w-full object-cover opacity-75 grayscale transition duration-700 group-hover:scale-105 group-hover:opacity-100 group-hover:grayscale-0"
-          />
-        ) : (
-          <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        
-        <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-2 lg:left-4 lg:top-4 lg:max-w-[calc(100%-2rem)]">
-          <span className={cn(
-            "truncate px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-white shadow-lg lg:px-2.5 lg:font-mono lg:text-[10px] lg:tracking-widest",
-            isLackingPoleA ? "bg-red-500/80" : (isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80")
-          )}>
-            {blindspotLabel}: {blindspotValue}%
-          </span>
-          {paywallText ? (
-            <span className="hidden shrink-0 bg-black/70 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-white shadow-lg lg:inline">
-              {paywallText}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="absolute bottom-2 left-2 right-2 lg:bottom-4 lg:left-4 lg:right-4">
-          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-medium text-white/70 lg:gap-3 lg:font-mono lg:text-[10px] lg:uppercase lg:tracking-[0.2em] lg:text-white/60">
-            <span>{card.source_count} sources</span>
-            <span className="h-1 w-1 rounded-full bg-white/40" />
-            <span>{formatDate(card.published_at)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col justify-between space-y-3 p-2.5 lg:space-y-6 lg:p-6">
-        <div className="space-y-1.5 lg:space-y-3">
-          <h3 className="line-clamp-3 font-serif text-base leading-tight text-foreground/90 transition-colors group-hover:text-white lg:text-3xl lg:leading-[1.15]">
-            {card.cluster_label}
-          </h3>
-          <p className="hidden text-sm italic leading-relaxed text-muted-foreground/60 lg:line-clamp-2">
-            {card.explanation}
-          </p>
-        </div>
-
-        <div className="space-y-2 lg:space-y-4">
-          <div className="hidden lg:block">{geographySignalBadges(card)}</div>
-          {sourceSummary ? (
-            <p className="line-clamp-2 text-[10px] font-medium leading-snug text-muted-foreground/55 lg:font-mono lg:uppercase lg:tracking-[0.16em] lg:text-muted-foreground/45">
-              Comparing {card.articles.length} sampled articles from {sourceSummary}
-            </p>
-          ) : null}
-          {paywallText ? (
-            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-amber-200/70">
-              {paywallText}; free alternatives from {card.paywall_concentration.best_free_sources.slice(0, 2).join(" · ") || "none detected"}
-            </p>
-          ) : null}
-          <div className="hidden grid-cols-3 gap-2 text-[8px] font-mono uppercase tracking-[0.12em] text-muted-foreground/40 lg:flex lg:items-center lg:justify-between lg:text-[9px] lg:tracking-[0.2em]">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-cyan-400" />
-              <span className="truncate">{poleLabels.pole_a} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-zinc-400" />
-              <span className="truncate">Balanced {Math.round(card.coverage_shares.shared * 100)}%</span>
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <span className="truncate">{poleLabels.pole_b} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-            </div>
-          </div>
-          {coverageBar(card)}
-        </div>
-      </div>
+      <LeadStoryMedia card={card} meta={meta} poleLabels={poleLabels} />
+      <LeadStoryDetails
+        card={card}
+        poleLabels={poleLabels}
+        paywallText={meta.paywallText}
+        sourceSummary={meta.sourceSummary}
+      />
     </button>
+  )
+}
+
+function LeadStoryMedia({
+  card,
+  meta,
+  poleLabels,
+}: Readonly<{
+  card: BlindspotCard
+  meta: LeadStoryMeta
+  poleLabels: { pole_a: string; pole_b: string }
+}>) {
+  return (
+    <div className="relative aspect-square w-full overflow-hidden bg-white/5 lg:aspect-video">
+      {meta.imageUrl ? (
+        <SafeImage
+          src={meta.imageUrl}
+          alt={card.cluster_label}
+          fill
+          className="h-full w-full object-cover opacity-75 grayscale transition duration-700 group-hover:scale-105 group-hover:opacity-100 group-hover:grayscale-0"
+        />
+      ) : (
+        <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_70%)]" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-2 lg:left-4 lg:top-4 lg:max-w-[calc(100%-2rem)]">
+        <span className={cn(
+          "truncate px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-white shadow-lg lg:px-2.5 lg:font-mono lg:text-[10px] lg:tracking-widest",
+          meta.isLackingPoleA ? "bg-red-500/80" : (meta.isLackingPoleB ? "bg-cyan-500/80" : "bg-primary/80")
+        )}>
+          {meta.blindspotLabel}: {meta.blindspotValue}%
+        </span>
+        {meta.paywallText ? (
+          <span className="hidden shrink-0 bg-black/70 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-white shadow-lg lg:inline">
+            {meta.paywallText}
+          </span>
+        ) : null}
+      </div>
+      <div className="absolute bottom-2 left-2 right-2 lg:bottom-4 lg:left-4 lg:right-4">
+        <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-medium text-white/70 lg:gap-3 lg:font-mono lg:text-[10px] lg:uppercase lg:tracking-[0.2em] lg:text-white/60">
+          <span>{card.source_count} sources</span>
+          <span className="h-1 w-1 rounded-full bg-white/40" />
+          <span>{formatDate(card.published_at)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeadStoryDetails({
+  card,
+  poleLabels,
+  paywallText,
+  sourceSummary,
+}: Readonly<{
+  card: BlindspotCard
+  poleLabels: { pole_a: string; pole_b: string }
+  paywallText: string | null
+  sourceSummary: string | null
+}>) {
+  return (
+    <div className="flex flex-1 flex-col justify-between space-y-3 p-2.5 lg:space-y-6 lg:p-6">
+      <div className="space-y-1.5 lg:space-y-3">
+        <h3 className="line-clamp-3 font-serif text-base leading-tight text-foreground/90 transition-colors group-hover:text-white lg:text-3xl lg:leading-[1.15]">
+          {card.cluster_label}
+        </h3>
+        <p className="hidden text-sm italic leading-relaxed text-muted-foreground/60 lg:line-clamp-2">
+          {card.explanation}
+        </p>
+      </div>
+      <div className="space-y-2 lg:space-y-4">
+        <div className="hidden lg:block">{geographySignalBadges(card)}</div>
+        {sourceSummary ? (
+          <p className="line-clamp-2 text-[10px] font-medium leading-snug text-muted-foreground/55 lg:font-mono lg:uppercase lg:tracking-[0.16em] lg:text-muted-foreground/45">
+            Comparing {card.articles.length} sampled articles from {sourceSummary}
+          </p>
+        ) : null}
+        {paywallText ? (
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-amber-200/70">
+            {paywallText}; free alternatives from {card.paywall_concentration.best_free_sources.slice(0, 2).join(" · ") || "none detected"}
+          </p>
+        ) : null}
+        <div className="hidden grid-cols-3 gap-2 text-[8px] font-mono uppercase tracking-[0.12em] text-muted-foreground/40 lg:flex lg:items-center lg:justify-between lg:text-[9px] lg:tracking-[0.2em]">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-cyan-400" />
+            <span className="truncate">{poleLabels.pole_a} {Math.round(card.coverage_shares.pole_a * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-zinc-400" />
+            <span className="truncate">Balanced {Math.round(card.coverage_shares.shared * 100)}%</span>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <span className="truncate">{poleLabels.pole_b} {Math.round(card.coverage_shares.pole_b * 100)}%</span>
+            <div className="h-2 w-2 rounded-full bg-red-500" />
+          </div>
+        </div>
+        {coverageBar(card)}
+      </div>
+    </div>
   )
 }
 
@@ -415,7 +470,7 @@ export function BlindspotView({
 }: BlindspotViewProps & { services?: BlindspotViewServices }) {
   const [selectedLens, setSelectedLens] = useState<BlindspotLens["id"]>(DEFAULT_LENS),
    [sortMode, setSortMode] = useState<SortMode>("asymmetry"),
-   [selectedCard, setSelectedCard] = useState<BlindspotCard | null>(undefined),
+   [selectedCard, setSelectedCard] = useState<BlindspotCard | null>(null),
    [expandedLanes, setExpandedLanes] = useState<Record<BlindspotLane["id"], boolean>>({
     pole_a: false,
     pole_b: false,
@@ -589,7 +644,7 @@ export function BlindspotView({
   }
 
   if (!data) {
-    return undefined
+    return
   }
 
   return (
@@ -612,7 +667,7 @@ export function BlindspotView({
 
           <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
             <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
+          <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
               <select
                 value={selectedLens}
                 onChange={(e) =>{  setSelectedLens(e.target.value as BlindspotLens["id"]); }}
@@ -725,7 +780,7 @@ export function BlindspotView({
         cluster={selectedCluster}
         isBreaking={false}
         isOpen={selectedCluster !== null}
-        onClose={() =>{  setSelectedCard(undefined); }}
+        onClose={() =>{  setSelectedCard(null); }}
       />
     </>
   )

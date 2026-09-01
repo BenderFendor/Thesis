@@ -19,7 +19,7 @@ export function InlineDefinitionPopover({
   setOpen,
   anchorPosition,
 }: InlineDefinitionPopoverProps) {
-  if (!open || !result) {return undefined;}
+  if (!open || !result) {return;}
 
   const x = anchorPosition?.x ?? 0,
    y = anchorPosition?.y ?? 0;

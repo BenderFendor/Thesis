@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Literal, TypedDict, cast
-from collections.abc import Callable, Mapping, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -634,6 +634,8 @@ def _select_preview_articles(
         return []
 
     selected = _unique_source_previews(articles, limit)
+    if len(selected) >= limit:
+        return selected
     for article in articles:
         preview = _article_preview(article)
         if any(existing["id"] == preview["id"] for existing in selected):
@@ -856,7 +858,15 @@ def _chroma_embeddings(
                 continue
             article_id = int(chroma_id.replace("article_", ""))
             embeddings[article_id] = vector
-    except Exception as exc:  # pragma: no cover - live Chroma boundary
+    except (
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live Chroma boundary
         logger.warning(
             "Blindspot SemAxis falling back to on-demand embeddings after Chroma get failed: %s",
             exc,
@@ -879,7 +889,14 @@ def _encode_missing_embeddings(
             convert_to_numpy=False,
         )
         encoded_rows = _coerce_embedding_rows(encoded)
-    except Exception as exc:  # pragma: no cover - live embedding boundary
+    except (
+        AttributeError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live embedding boundary
         logger.warning(
             "Blindspot SemAxis could not generate on-demand embeddings: %s",
             exc,
@@ -932,9 +949,7 @@ def _cluster_source_scores(
             if _has_text(source_id)
             else _slugify_source_name(_article_source_name(article))
         )
-        scores_by_source.setdefault(source_key, []).append(
-            _dot_product(normalized, axis_vector)
-        )
+        scores_by_source.setdefault(source_key, []).append(_dot_product(normalized, axis_vector))
     return scores_by_source
 
 
@@ -995,7 +1010,14 @@ async def _embed_pole_vectors(
             show_progress_bar=False,
             convert_to_numpy=False,
         )
-    except Exception as exc:  # pragma: no cover - live embedding boundary
+    except (
+        AttributeError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live embedding boundary
         logger.warning(
             "Blindspot SemAxis pole-word embedding generation failed: %s",
             exc,
@@ -1007,9 +1029,9 @@ async def _embed_pole_vectors(
     )
 
 
-async def _build_semaxis_counts_by_cluster(
+async def _load_semaxis_inputs(
     filtered_cluster_articles: Mapping[int, list[Any]],
-) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
+) -> tuple[dict[int, Any], dict[int, list[float]], list[float]] | str:
     all_articles = {
         int(article.id): article
         for articles in filtered_cluster_articles.values()
@@ -1017,24 +1039,33 @@ async def _build_semaxis_counts_by_cluster(
         if getattr(article, "id", None) is not None
     }
     if not all_articles:
-        return {}, "No articles were available for semantic scoring."
+        return "No articles were available for semantic scoring."
 
     embeddings_by_article = await _load_embeddings_for_articles(all_articles)
     if not embeddings_by_article:
-        return {}, "Stored embeddings were unavailable for the SemAxis lens."
+        return "Stored embeddings were unavailable for the SemAxis lens."
     vector_store = get_vector_store()
     if vector_store is None:
-        return {}, "Stored embeddings were unavailable for the SemAxis lens."
+        return "Stored embeddings were unavailable for the SemAxis lens."
 
     pole_vectors = await _embed_pole_vectors(vector_store)
     if pole_vectors is None:
-        return {}, "The SemAxis lens is temporarily unavailable."
+        return "The SemAxis lens is temporarily unavailable."
     positive_vectors, negative_vectors = pole_vectors
-
     rust_axis = build_semaxis_rust(positive_vectors, negative_vectors)
-    axis_vector: list[float] = rust_axis if rust_axis is not None else []
+    axis_vector = rust_axis if rust_axis is not None else []
     if not axis_vector:
-        return {}, "Semantic axis construction failed for the SemAxis lens."
+        return "Semantic axis construction failed for the SemAxis lens."
+    return all_articles, embeddings_by_article, axis_vector
+
+
+async def _build_semaxis_counts_by_cluster(
+    filtered_cluster_articles: Mapping[int, list[Any]],
+) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
+    inputs = await _load_semaxis_inputs(filtered_cluster_articles)
+    if isinstance(inputs, str):
+        return {}, inputs
+    _all_articles, embeddings_by_article, axis_vector = inputs
 
     source_scores_by_cluster, all_source_scores = _source_scores_by_cluster(
         filtered_cluster_articles,
@@ -1135,9 +1166,7 @@ def _article_needs_db_backfill(
         and _article_country_code(article) is None
     ):
         return True
-    if category is not None and not _has_text(_article_value(article, "category")):
-        return True
-    return False
+    return category is not None and not _has_text(_article_value(article, "category"))
 
 
 def _collect_snapshot_articles(
@@ -1208,8 +1237,7 @@ def _cluster_matching_articles(
 
 def _cluster_passes_minimums(matching_articles: list[Any]) -> bool:
     distinct_sources = {
-        _article_value(article, "source_id")
-        or _slugify_source_name(_article_source_name(article))
+        _article_value(article, "source_id") or _slugify_source_name(_article_source_name(article))
         for article in matching_articles
     }
     return (

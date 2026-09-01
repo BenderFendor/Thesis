@@ -90,7 +90,7 @@ export async function* streamVerification(
   request: VerificationRequest,
   signal?: AbortSignal
 ): AsyncGenerator<VerificationStreamEvent> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify/sutream`, {
+  const response = await fetch(`${API_BASE_URL}/api/verification/verify/stream`, {
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
     method: "POST",

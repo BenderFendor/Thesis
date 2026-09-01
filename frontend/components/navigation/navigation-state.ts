@@ -1,8 +1,8 @@
 import { isViewMode } from '@/components/navigation/navigation-config';
-import type { ViewMode } from '@/components/navigation/navigation-config';const 
+import type { ViewMode } from '@/components/navigation/navigation-config';
 
-export const SIDEBAR_EXPANDED_STORAGE_KEY = "scoop:sidebar-expanded",
-SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change";
+export const SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change",
+SIDEBAR_EXPANDED_STORAGE_KEY = "scoop:sidebar-expanded";
 let sidebarExpandedFallback = false
 
 export function buildViewHref(view: ViewMode): string {

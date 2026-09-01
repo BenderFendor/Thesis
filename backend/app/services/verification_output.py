@@ -49,9 +49,7 @@ def _claim_footnote_refs(
     return footnote_refs, footnote_counter
 
 
-def _sources_section(
-    sources: dict[str, SourceInfo], footnote_map: dict[str, int]
-) -> list[str]:
+def _sources_section(sources: dict[str, SourceInfo], footnote_map: dict[str, int]) -> list[str]:
     """Render the source footnote definitions sorted by footnote number."""
     lines = []
     for source_id, footnote_num in sorted(footnote_map.items(), key=lambda x: x[1]):
@@ -64,8 +62,7 @@ def _sources_section(
         cred_pct = f"{source.credibility_score:.0%}"
 
         lines.append(
-            f"[^{footnote_num}]: [{title}]({source.url}) "
-            f"({support_text}, credibility: {cred_pct})"
+            f"[^{footnote_num}]: [{title}]({source.url}) ({support_text}, credibility: {cred_pct})"
         )
     return lines
 

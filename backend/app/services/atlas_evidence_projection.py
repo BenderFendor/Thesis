@@ -59,7 +59,6 @@ from app.services.atlas_graph_helpers import _edge_id
 from app.services.evidence_spine import count_relationship_evidence_roots
 
 
-
 async def _fetch_rows_by_id(
     db: AsyncSession,
     entity_type: type[Any],
@@ -112,6 +111,7 @@ def _evidence_refs_for_observation(
         )
     ]
 
+
 def _refs_for_claim_observations(
     claim_id: str,
     observation_ids: list[str],
@@ -132,6 +132,7 @@ def _refs_for_claim_observations(
             )
         )
     return refs
+
 
 _ORGANIZATION_KINDS = (
     "legal_entity",
@@ -459,6 +460,7 @@ def _accepted_claim_evidence_refs(
         if claim_id in claim_by_id
     ]
 
+
 def _ownership_edge_endpoints(
     subject_entity: str,
     object_entity: str,
@@ -524,9 +526,7 @@ async def _accept_edge_for_relationship(
     if endpoints is None:
         return None
     source_node, target_node = endpoints
-    claim_ids_by_relationship = cast(
-        dict[str, list[str]], side_loads["claim_ids_by_relationship"]
-    )
+    claim_ids_by_relationship = cast(dict[str, list[str]], side_loads["claim_ids_by_relationship"])
     claim_ids = sorted(claim_ids_by_relationship.get(cast(str, relationship.id), []))
     evidence_refs = _accepted_claim_evidence_refs(
         claim_ids,
@@ -536,9 +536,9 @@ async def _accept_edge_for_relationship(
     )
     qualifiers = _ownership_qualifiers(cast(dict[str, Any], relationship.qualifiers or {}))
     ownership_percentage = _percentage_from_qualifiers(qualifiers)
-    trace = cast(
-        dict[str, CalculationTrace], side_loads["trace_by_relationship"]
-    ).get(cast(str, relationship.id))
+    trace = cast(dict[str, CalculationTrace], side_loads["trace_by_relationship"]).get(
+        cast(str, relationship.id)
+    )
     _merge_trace_pct_range(qualifiers, trace)
     evidence_root_count = await count_relationship_evidence_roots(db, claim_ids)
     return AtlasEdge(
@@ -934,4 +934,3 @@ async def load_evidence_atlas_projection(
     sibling_edges = _sibling_via_owner_edges(outlet_ids, edge_by_owned)
 
     return nodes, [*accepted_edges, *candidate_edges, *sibling_edges]
-

@@ -205,7 +205,7 @@ export function VirtualizedGrid({
   onArticleClick,
   totalCount,
 }: VirtualizedGridProps) {
-  const parentRef = useRef<HTMLDivElement>(undefined),
+  const parentRef = useRef<HTMLDivElement>(null),
    [columnCount, setColumnCount] = useState(4);
 
   // Calculate columns based on container width

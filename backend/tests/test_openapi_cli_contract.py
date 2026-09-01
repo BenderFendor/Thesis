@@ -29,9 +29,7 @@ def _backend_http_operations() -> set[tuple[str, str]]:
 
 
 def _documented_websocket_operations(schema: dict[str, Any]) -> set[tuple[str, str]]:
-    return {
-        (item["path"], item["operationId"]) for item in schema["x-scoop-websockets"]
-    }
+    return {(item["path"], item["operationId"]) for item in schema["x-scoop-websockets"]}
 
 
 def _backend_websocket_operations() -> set[tuple[str, str]]:

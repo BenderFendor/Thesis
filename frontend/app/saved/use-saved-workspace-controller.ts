@@ -88,23 +88,23 @@ export interface SavedWorkspaceController {
 }
 
 function useSavedLibraryState(): SavedLibraryState {
-  const [bookmarks, setBookmarks] = useState<readonly NewsArticle[]>([]);
-  const [likedArticles, setLikedArticles] = useState<readonly NewsArticle[]>([]);
-  const [highlightCount, setHighlightCount] = useState(0);
-  const [loadIssues, setLoadIssues] = useState<readonly string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { bookmarkIds, toggleBookmark } = useBookmarks();
-  const { likedIds, toggleLike } = useLikedArticles();
+  const [bookmarks, setBookmarks] = useState<readonly NewsArticle[]>([]),
+   [likedArticles, setLikedArticles] = useState<readonly NewsArticle[]>([]),
+   [highlightCount, setHighlightCount] = useState(0),
+   [loadIssues, setLoadIssues] = useState<readonly string[]>([]),
+   [loading, setLoading] = useState(true),
+   { bookmarkIds, toggleBookmark } = useBookmarks(),
+   { likedIds, toggleLike } = useLikedArticles(),
 
-  const reload = useCallback(async () => {
+   reload = useCallback(async () => {
     setLoading(true);
     const results = await Promise.allSettled([
       fetchBookmarks(),
       fetchLikedArticles(),
       getAllHighlights(),
-    ]);
-    const issues: string[] = [];
-    const [bookmarksResult, likedResult, highlightsResult] = results;
+    ]),
+     issues: string[] = [],
+     [bookmarksResult, likedResult, highlightsResult] = results;
 
     if (bookmarksResult.status === "fulfilled") {
       setBookmarks(bookmarksResult.value.map((entry) => entry.article));
@@ -144,22 +144,22 @@ function useSavedLibraryState(): SavedLibraryState {
 }
 
 function useShelfState(): ShelfState {
-  const [newShelfName, setNewShelfName] = useState("");
-  const queryClient = useQueryClient();
-  const shelvesQuery = useQuery({
+  const [newShelfName, setNewShelfName] = useState(""),
+   queryClient = useQueryClient(),
+   shelvesQuery = useQuery({
     queryFn: getReadingShelves,
     queryKey: ["reading-shelves"],
     retry: SHELF_QUERY_RETRY_COUNT,
-  });
-  const createShelfMutation = useMutation({
+  }),
+   createShelfMutation = useMutation({
     mutationFn: createReadingShelf,
     onSuccess: () => {
       setNewShelfName("");
       void queryClient.invalidateQueries({ queryKey: ["reading-shelves"] });
     },
-  });
+  }),
 
-  const createShelf = useCallback(() => {
+   createShelf = useCallback(() => {
     const name = newShelfName.trim();
     if (name.length === 0) {
       return;
@@ -178,11 +178,11 @@ function useShelfState(): ShelfState {
 }
 
 function useDigestState(queuedArticles: readonly NewsArticle[]): DigestState {
-  const [digest, setDigest] = useState<string>();
-  const [loading, setLoading] = useState(false);
-  const [showDigest, setShowDigest] = useState(false);
+  const [digest, setDigest] = useState<string>(),
+   [loading, setLoading] = useState(false),
+   [showDigest, setShowDigest] = useState(false),
 
-  const generateDigest = useCallback(async () => {
+   generateDigest = useCallback(async () => {
     if (queuedArticles.length === 0) {
       return;
     }
@@ -195,9 +195,9 @@ function useDigestState(queuedArticles: readonly NewsArticle[]): DigestState {
     } finally {
       setLoading(false);
     }
-  }, [queuedArticles]);
+  }, [queuedArticles]),
 
-  const hideDigest = useCallback(() => {
+   hideDigest = useCallback(() => {
     setShowDigest(false);
   }, []);
 
@@ -205,28 +205,28 @@ function useDigestState(queuedArticles: readonly NewsArticle[]): DigestState {
 }
 
 export function useSavedWorkspaceController(): SavedWorkspaceController {
-  const [activeTab, setActiveTab] = useState("all");
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
-  const [expandedArticleUrl, setExpandedArticleUrl] = useState<string>();
-  const library = useSavedLibraryState();
-  const shelf = useShelfState();
-  const queue = useReadingQueue();
-  const digest = useDigestState(queue.queuedArticles);
-  const allSavedArticles = useMemo(
+  const [activeTab, setActiveTab] = useState("all"),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [expandedArticleUrl, setExpandedArticleUrl] = useState<string>(),
+   library = useSavedLibraryState(),
+   shelf = useShelfState(),
+   queue = useReadingQueue(),
+   digest = useDigestState(queue.queuedArticles),
+   allSavedArticles = useMemo(
     () => mergeSavedArticles(library.bookmarks, library.likedArticles),
     [library.bookmarks, library.likedArticles],
-  );
+  ),
 
-  const openArticle = useCallback((article: Readonly<NewsArticle>) => {
+   openArticle = useCallback((article: Readonly<NewsArticle>) => {
     setSelectedArticle(article);
     setIsArticleModalOpen(true);
-  }, []);
-  const closeArticle = useCallback(() => {
+  }, []),
+   closeArticle = useCallback(() => {
     setIsArticleModalOpen(false);
     setSelectedArticle(null);
-  }, []);
-  const toggleQueue = useCallback(
+  }, []),
+   toggleQueue = useCallback(
     (article: Readonly<NewsArticle>) => {
       if (queue.isArticleInQueue(article.url)) {
         void queue.removeArticleFromQueue(article.url);

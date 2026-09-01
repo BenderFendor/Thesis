@@ -1,15 +1,15 @@
 interface LiveNewsSource {
-  id: string
-  label: string
-  channelId: string
-  thumbnailUrl: string
-  region: string
-  defaultMuted: boolean
-  enabled: boolean
-  priority: number
-}const 
+  readonly channelId: string
+  readonly defaultMuted: boolean
+  readonly enabled: boolean
+  readonly id: string
+  readonly label: string
+  readonly priority: number
+  readonly region: string
+  readonly thumbnailUrl: string
+}
 
-const DEFAULT_SOURCES: LiveNewsSource[] = [
+const DEFAULT_SOURCES: readonly LiveNewsSource[] = [
   {
     channelId: "UCNye-wNBqNL5ZzHSJj3l8Bg",
     defaultMuted: true,
@@ -19,7 +19,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 0,
     region: "middle-east",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_nRzT2KpNfB1H5W7-JxJhLJ8kGZ-YGqM9K3VxW3nQ=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_nRzT2KpNfB1H5W7-JxJhLJ8kGZ-YGqM9K3VxW3nQ=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UCmJb7lEQRZ1PfLB2W8qCEgQ",
@@ -30,7 +30,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 1,
     region: "europe",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_lMG1yYcDgVFByKJEXWN4DFH0KUb7EIXAEHnKJ4=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_lMG1yYcDgVFByKJEXWN4DFH0KUb7EIXAEHnKJ4=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UCknLrEdhRCp1aegoMqRaCZg",
@@ -41,7 +41,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 2,
     region: "europe",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_kKhKNlPiOmqHV-C0n3DzJYPLqFh4JLmhB7-JpF=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_kKhKNlPiOmqHV-C0n3DzJYPLqFh4JLmhB7-JpF=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UC7fBqVfpodFWv2uKJvhZpSQ",
@@ -52,7 +52,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 3,
     region: "asia",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_mUc0QKoN1Qe2-J6KqPQOvV7j9Jj5ch5-WqAQ=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_mUc0QKoN1Qe2-J6KqPQOvV7j9Jj5ch5-WqAQ=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UC16niRr50-MSBwiO3YDb3RA",
@@ -63,7 +63,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 4,
     region: "europe",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_nFp-JbRgPDB4qV1fY4ZfJYV7FgP5c1Jm3Yw=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_nFp-JbRgPDB4qV1fY4ZfJYV7FgP5c1Jm3Yw=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UCoMdKTg2e2qMk2WNKJrGN7A",
@@ -74,7 +74,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 5,
     region: "europe",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_mA1rPjPQJ-SLxJhQpz5L9JeR8GpGpH0q5dZA=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_mA1rPjPQJ-SLxJhQpz5L9JeR8GpGpH0q5dZA=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UC7fWeaHhqgM4Ry-RMpMGeSA",
@@ -85,7 +85,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 6,
     region: "middle-east",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_mG1ZCbb0TLo2RzDZn7uHw6uROHmNj0-WqnIw=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_mG1ZCbb0TLo2RzDZn7uHw6uROHmNj0-WqnIw=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UC7gFsm3o7jQEmGQjUJivwSA",
@@ -96,7 +96,7 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 7,
     region: "asia",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_mVcI0jq5DURBYOOpL2kJbJ5dV-_sK7SRJ0=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_mVcI0jq5DURBYOOpL2kJbJ5dV-_sK7SRJ0=s176-c-k-c0x00ffffff-no-rj",
   },
   {
     channelId: "UChqUTb7rEAej43Bv-ZJ5TPQ",
@@ -107,14 +107,15 @@ const DEFAULT_SOURCES: LiveNewsSource[] = [
     priority: 8,
     region: "global",
     thumbnailUrl:
-      "https://yt3.googleusercontent.com/yutc/AIdro_nT09mYXKWG_iXpMsdFrTJ6fI1U8AHk5W_-Uw=s176-c-k-c0x00ffffff-no-rj",
+      "https://yt3.googleusercontent.com/ytc/AIdro_nT09mYXKWG_iXpMsdFrTJ6fI1U8AHk5W_-Uw=s176-c-k-c0x00ffffff-no-rj",
   },
 ],
 getDefaultSources = (): LiveNewsSource[] =>
-  structuredClone(DEFAULT_SOURCES),
+  DEFAULT_SOURCES.map((source) => structuredClone(source)),
 getSourceById = (
   id: string,
   sources: readonly LiveNewsSource[],
 ): LiveNewsSource | undefined => sources.find((source) => source.id === id);
 
-export { LiveNewsSource, getDefaultSources, getSourceById }
+export { getDefaultSources, getSourceById }
+export type { LiveNewsSource }

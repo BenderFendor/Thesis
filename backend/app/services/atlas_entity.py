@@ -15,15 +15,16 @@ from app.data.rss_sources import get_rss_sources
 from app.database import (
     Organization,
     Reporter,
+    SourceAnalysisScore,
     SourceClaim,
     SourceClaimEvidence,
-    SourceAnalysisScore,
     SourceMetadata,
 )
 from app.models.atlas import (
     AtlasConnectionRecord,
     AtlasDossierSection,
     AtlasDossierStatement,
+    AtlasEdge,
     AtlasEntityRecord,
     AtlasEntityType,
     AtlasGraphFilters,
@@ -214,9 +215,7 @@ def _funding_statements(
     funding: list[AtlasConnectionRecord],
     funding_value: Any,
 ) -> list[AtlasDossierStatement]:
-    statements = _relationship_statements(
-        funding, "Funding relationship", include_qualifiers=True
-    )
+    statements = _relationship_statements(funding, "Funding relationship", include_qualifiers=True)
     if funding_value and not statements:
         statements = [
             AtlasDossierStatement(label="Funding model", answer=str(funding_value), state="known")
@@ -711,24 +710,12 @@ def _owner_edge_connections(
     node_by_id: dict[str, AtlasNode],
     connections: list[AtlasConnectionRecord],
 ) -> tuple[list[AtlasConnectionRecord], list[Any]]:
-    owner_ids = {
-        item.entity.id
-        for item in connections
-        if item.edge.accepted_fact
-        and item.edge.lifecycle_state == "current"
-        and item.edge.target_id == entity_id
-        and item.edge.predicate
-        in {"directly_owns", "owns_equity_in", "controls", "brand_of", "operated_by"}
-    }
+    owner_ids = _current_owner_ids(connections, entity_id)
     connected_edge_ids = {item.edge.id for item in connections}
     records: list[AtlasConnectionRecord] = []
     evidence: list[Any] = []
     for edge in graph.edges:
-        if (
-            edge.id in connected_edge_ids
-            or edge.lifecycle_state not in {"proposed", "pending", "disputed"}
-            or not ({edge.source_id, edge.target_id} & owner_ids)
-        ):
+        if not _is_pending_owner_edge(edge, connected_edge_ids, owner_ids):
             continue
         related_id = edge.target_id if edge.source_id in owner_ids else edge.source_id
         related = node_by_id.get(related_id)
@@ -737,6 +724,30 @@ def _owner_edge_connections(
         records.append(AtlasConnectionRecord(edge=edge, entity=related))
         evidence.extend(edge.evidence_preview)
     return records, evidence
+
+
+def _current_owner_ids(connections: list[AtlasConnectionRecord], entity_id: str) -> set[str]:
+    return {
+        item.entity.id
+        for item in connections
+        if item.edge.accepted_fact
+        and item.edge.lifecycle_state == "current"
+        and item.edge.target_id == entity_id
+        and item.edge.predicate
+        in {"directly_owns", "owns_equity_in", "controls", "brand_of", "operated_by"}
+    }
+
+
+def _is_pending_owner_edge(
+    edge: AtlasEdge,
+    connected_edge_ids: set[str],
+    owner_ids: set[str],
+) -> bool:
+    if edge.id in connected_edge_ids:
+        return False
+    if edge.lifecycle_state not in {"proposed", "pending", "disputed"}:
+        return False
+    return bool({edge.source_id, edge.target_id} & owner_ids)
 
 
 def _collect_connections(
@@ -900,7 +911,7 @@ async def _outlet_entity_details(
     resolved = await _outlet_source_details(db, entity_id)
     if resolved is None:
         return None
-    source_name, details, last_verified_at = resolved
+    _source_name, details, last_verified_at = resolved
     outlet_evidence_entity_id = await _outlet_evidence_entity_id(db, entity_id)
     entity_kind = None
     if outlet_evidence_entity_id:
@@ -980,9 +991,7 @@ async def _organization_entity_details(
             Counter(item.edge.raw_relation_type or item.edge.relation_type for item in connections)
         ),
     }
-    legacy_details, legacy_verified_at = await _resolve_legacy_organization(
-        db, evidence_entity_id
-    )
+    legacy_details, legacy_verified_at = await _resolve_legacy_organization(db, evidence_entity_id)
     if legacy_details is not None:
         details.update(legacy_details)
     last_verified_at = legacy_verified_at if legacy_verified_at is not None else entity.updated_at

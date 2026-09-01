@@ -403,9 +403,7 @@ async def _article_rows_for_reporter(
     return list((await session.execute(stmt)).all())
 
 
-def _record_barrier(
-    metrics: EnrichmentMetrics, barrier: str, url: str
-) -> None:
+def _record_barrier(metrics: EnrichmentMetrics, barrier: str, url: str) -> None:
     metrics.access_barriers[barrier] += 1
     if len(metrics.sample_barriers) < 10:
         metrics.sample_barriers.append(f"{barrier}: {url}")
@@ -514,16 +512,6 @@ async def _confirmed_author_page(
     )
 
 
-async def enrich_local_reporter_author_pages(
-    session: AsyncSession,
-    *,
-    apply: bool = False,
-    target_promotions: int = 100,
-    limit_reporters: int | None = None,
-    max_articles_per_reporter: int = 3,
-    source: str | None = None,
-    include_guessed_author_pages: bool = False,
-    max_guessed_author_pages: int = 10,
 async def _promote_reporter(
     session: AsyncSession,
     article_author: ArticleAuthor,

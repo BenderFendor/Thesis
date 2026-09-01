@@ -92,9 +92,7 @@ def _parse_lite_html(html: str, max_results: int = 5) -> list[dict[str, str]]:
     current: dict[str, str] = {}
 
     for line in html.split("\n"):
-        current, in_results, done = _advance_result(
-            results, current, in_results, line, max_results
-        )
+        current, in_results, done = _advance_result(results, current, in_results, line, max_results)
         if done:
             break
         if not in_results:

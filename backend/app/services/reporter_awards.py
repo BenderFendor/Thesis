@@ -113,10 +113,7 @@ def _search_award_dict(data: dict[Any, Any], name_lower: str, outlet: str | None
 
 def _search_award_list(data: list[Any], name_lower: str, outlet: str | None) -> bool:
     """Recursively search a list's items for the reporter name."""
-    for item in data:
-        if _search_award_data(item, name_lower, outlet):
-            return True
-    return False
+    return any(_search_award_data(item, name_lower, outlet) for item in data)
 
 
 def _search_award_data(data: Any, name_lower: str, outlet: str | None) -> bool:

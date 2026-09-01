@@ -26,7 +26,7 @@ from app.services.debug_logger import (
     log_stream_event,
     start_stream,
 )
-from app.services.rss_ingestion import _process_source_with_debug  # noqa: PLC2701
+from app.services.rss_ingestion import _process_source_with_debug
 from app.services.stream_manager import stream_manager
 
 router = APIRouter(prefix="/news", tags=["news-stream"])
@@ -109,9 +109,7 @@ def _error_response(message: str) -> StreamingResponse:
     return StreamingResponse(emit(), media_type="text/event-stream")
 
 
-def _filtered_articles(
-    articles: list[NewsArticle], category: str | None
-) -> list[NewsArticle]:
+def _filtered_articles(articles: list[NewsArticle], category: str | None) -> list[NewsArticle]:
     if not category:
         return articles
     return [article for article in articles if article.category == category]
@@ -146,22 +144,20 @@ def _cache_snapshot(context: _StreamContext) -> _CacheSnapshot:
             snapshot.age_seconds or 0,
         )
         return snapshot
-    except Exception as exc:
-        stream_logger.warning("Stream %s couldn't load cache: %s", context.stream_id, exc)
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as error:
+        stream_logger.warning("Stream %s couldn't load cache: %s", context.stream_id, error)
         debug_logger.log_event(
             EventType.CACHE_MISS,
             component="cache",
             operation="read_error",
-            message=f"Cache read failed: {exc}",
+            message=f"Cache read failed: {error!s}",
             stream_id=context.stream_id,
-            error=exc,
+            error=error,
         )
         return _CacheSnapshot()
 
 
-def _initial_cache_payload(
-    context: _StreamContext, snapshot: _CacheSnapshot
-) -> dict[str, object]:
+def _initial_cache_payload(context: _StreamContext, snapshot: _CacheSnapshot) -> dict[str, object]:
     return {
         "status": "initial",
         "stream_id": context.stream_id,
@@ -192,9 +188,7 @@ def _cache_is_fresh(context: _StreamContext, snapshot: _CacheSnapshot) -> bool:
     )
 
 
-def _cache_complete_payload(
-    context: _StreamContext, snapshot: _CacheSnapshot
-) -> dict[str, object]:
+def _cache_complete_payload(context: _StreamContext, snapshot: _CacheSnapshot) -> dict[str, object]:
     return {
         "status": "complete",
         "stream_id": context.stream_id,
@@ -368,14 +362,19 @@ async def _fresh_events(
                         total,
                     ),
                 )
-            except Exception as exc:  # pragma: no cover - defensive stream boundary
+            except (
+                AttributeError,
+                KeyError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as error:  # pragma: no cover - defensive stream boundary
                 source_name = task.get_name() if isinstance(task, asyncio.Task) else "unknown"
-                _record_source_error(context, aggregate, source_name, exc)
+                _record_source_error(context, aggregate, source_name, error)
                 yield context.event(
                     "source_error",
-                    _source_error_payload(
-                        context, source_name, exc, aggregate.completed, total
-                    ),
+                    _source_error_payload(context, source_name, error, aggregate.completed, total),
                 )
         yield context.event("complete", _fresh_complete_payload(context, aggregate, total))
         end_stream(context.stream_id, reason="complete")
@@ -386,8 +385,8 @@ async def _fresh_events(
 def _safe_sort_articles(articles: list[NewsArticle], stream_id: str) -> None:
     try:
         articles.sort(key=lambda article: article.published, reverse=True)
-    except Exception as exc:  # pragma: no cover - defensive logging
-        stream_logger.warning("Stream %s couldn't sort articles: %s", stream_id, exc)
+    except (AttributeError, TypeError, ValueError) as error:  # pragma: no cover - defensive logging
+        stream_logger.warning("Stream %s couldn't sort articles: %s", stream_id, error)
 
 
 def _fresh_complete_payload(
@@ -441,15 +440,22 @@ async def _event_generator(context: _StreamContext) -> AsyncIterator[str]:
     except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
         end_stream(context.stream_id, reason="cancelled")
         raise
-    except Exception as exc:  # pragma: no cover - defensive stream boundary
-        stream_logger.error("Stream %s unexpected error: %s", context.stream_id, exc)
-        end_stream(context.stream_id, reason="error", error=exc)
+    except (
+        AttributeError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as error:  # pragma: no cover - defensive stream boundary
+        stream_logger.error("Stream %s unexpected error: %s", context.stream_id, error)
+        end_stream(context.stream_id, reason="error", error=error)
         yield context.event(
             "error",
             {
                 "status": "error",
                 "stream_id": context.stream_id,
-                "error": str(exc),
+                "error": str(error),
                 "timestamp": _timestamp(),
             },
         )
@@ -471,9 +477,7 @@ async def stream_news(
     active_count = stream_manager.get_active_stream_count()
     if active_count >= 5:
         end_stream(context.stream_id, reason="rejected_too_many_streams")
-        return _error_response(
-            f"Too many active streams ({active_count}). Please try again later."
-        )
+        return _error_response(f"Too many active streams ({active_count}). Please try again later.")
 
     stream_manager.register_stream(context.stream_id)
     stream_manager.update_stream(context.stream_id, status="starting")

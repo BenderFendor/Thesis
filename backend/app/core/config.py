@@ -1,12 +1,12 @@
 """Config."""
 
+import logging
 import os
 from dataclasses import dataclass
-import logging
 
 from dotenv import load_dotenv
 from google import genai
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 load_dotenv()
 
@@ -155,8 +155,8 @@ def create_gemini_client(logger: logging.Logger) -> genai.Client | None:
         client = genai.Client(api_key=settings.gemini_api_key)
         logger.info("Gemini API configured successfully")
         return client
-    except Exception as e:
-        logger.error(f"Failed to initialize Gemini client: {e}")
+    except (RuntimeError, TypeError, ValueError) as error:
+        logger.error("Failed to initialize Gemini client: %s", error)
         # Fallback or return None to prevent crash
         return None
 
@@ -177,8 +177,8 @@ def create_openai_client(logger: logging.Logger) -> OpenAI | None:
             )
             logger.info("LLM backend: llama.cpp at %s", settings.llamacpp_base_url)
             return client
-        except Exception as e:
-            logger.error("Failed to initialize llama.cpp client: %s", e)
+        except (OpenAIError, RuntimeError, TypeError, ValueError) as error:
+            logger.error("Failed to initialize llama.cpp client: %s", error)
             return None
 
     if settings.llm_backend == "opencode":
@@ -196,8 +196,8 @@ def create_openai_client(logger: logging.Logger) -> OpenAI | None:
                 settings.opencode_model,
             )
             return client
-        except Exception as e:
-            logger.error("Failed to initialize OpenCode client: %s", e)
+        except (OpenAIError, RuntimeError, TypeError, ValueError) as error:
+            logger.error("Failed to initialize OpenCode client: %s", error)
             return None
 
     # Fall back to OpenRouter when llama.cpp is not selected.
@@ -212,8 +212,8 @@ def create_openai_client(logger: logging.Logger) -> OpenAI | None:
         )
         logger.info("LLM backend: OpenRouter")
         return client
-    except Exception as e:
-        logger.error("Failed to initialize OpenRouter client: %s", e)
+    except (OpenAIError, RuntimeError, TypeError, ValueError) as error:
+        logger.error("Failed to initialize OpenRouter client: %s", error)
         return None
 
 
@@ -250,7 +250,7 @@ def resolve_opencode_model(default: str) -> str:
 
 def _llamacpp_base_url() -> str:
     base = settings.llamacpp_base_url.rstrip("/")
-    return base[:-3] if base.endswith("/v1") else base
+    return base.removesuffix("/v1")
 
 
 def _check_llamacpp_health(base: str, logger: logging.Logger) -> None:
@@ -272,11 +272,11 @@ def _check_llamacpp_health(base: str, logger: logging.Logger) -> None:
         ) from exc
     except RuntimeError:
         raise
-    except Exception as exc:
+    except (OSError, ValueError) as error:
         raise RuntimeError(
-            f"LLM_BACKEND=llamacpp but server not reachable at {health_url}: {exc}. "
+            f"LLM_BACKEND=llamacpp but server not reachable at {health_url}: {error}. "
             "Start llama-server first: llama-server -m model.gguf --port 8080"
-        ) from exc
+        ) from error
 
 
 def _discover_llamacpp_from_models(base: str, logger: logging.Logger) -> str | None:
@@ -286,8 +286,8 @@ def _discover_llamacpp_from_models(base: str, logger: logging.Logger) -> str | N
     try:
         with urllib.request.urlopen(base + "/v1/models", timeout=5) as response:
             payload = json.loads(response.read().decode())
-    except Exception as exc:
-        logger.debug("Models endpoint discovery failed (%s)", exc)
+    except (OSError, UnicodeError, ValueError) as error:
+        logger.debug("Models endpoint discovery failed (%s)", error)
         return None
     data = payload.get("data") or []
     if data:
@@ -302,7 +302,9 @@ def _discover_llamacpp_from_sentinel(base: str, logger: logging.Logger) -> str |
     import json
     import urllib.request
 
-    body = json.dumps({"model": "", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}).encode()
+    body = json.dumps(
+        {"model": "", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+    ).encode()
     request = urllib.request.Request(
         base + "/v1/chat/completions",
         data=body,
@@ -312,8 +314,8 @@ def _discover_llamacpp_from_sentinel(base: str, logger: logging.Logger) -> str |
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode())
-    except Exception as exc:
-        logger.debug("Sentinel completion discovery failed (%s)", exc)
+    except (OSError, UnicodeError, ValueError) as error:
+        logger.debug("Sentinel completion discovery failed (%s)", error)
         return None
     model = payload.get("model")
     return str(model) if model else None
@@ -345,9 +347,10 @@ def _discover_llamacpp_from_processes(logger: logging.Logger) -> str | None:
             model = _llama_model_from_cmdline(parts)
             if model:
                 return model
-    except Exception as exc:
-        logger.debug("Process-arg discovery failed (%s)", exc)
+    except (OSError, RuntimeError) as error:
+        logger.debug("Process-arg discovery failed (%s)", error)
     return None
+
 
 def check_llamacpp_server(logger: logging.Logger) -> None:
     """Validate llama.cpp and resolve the model id used for requests."""
@@ -377,7 +380,6 @@ def check_llamacpp_server(logger: logging.Logger) -> None:
         "Could not discover llama.cpp model id; using '%s'. Set LLAMACPP_MODEL explicitly to avoid this.",
         settings.llamacpp_model,
     )
-
 
 
 _openai_client_instance: OpenAI | None = None

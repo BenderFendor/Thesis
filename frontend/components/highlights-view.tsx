@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export function HighlightsView() {
   const [highlights, setHighlights] = useState<Highlight[]>([]),
    [loading, setLoading] = useState(true),
-   [filterColor, setFilterColor] = useState<string | null>(undefined),
+   [filterColor, setFilterColor] = useState<string | null>(null),
    [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export function HighlightsView() {
         <Button
           variant={filterColor === null ? "default" : "outline"}
           size="sm"
-          onClick={() =>{  setFilterColor(undefined); }}
+          onClick={() =>{  setFilterColor(null); }}
         >
           All
         </Button>
@@ -133,7 +133,7 @@ export function HighlightsView() {
                       rel="noopener noreferrer"
                       className="text-blue-600 dark:text-blue-400 hover:underline truncate"
                     >
-                      {highlight.article_url.replace(/^https?:\/\//, "")}
+                      {highlight.article_url.replace(/^https?:\/\//u, "")}
                     </a>
                   </p>
                 </div>

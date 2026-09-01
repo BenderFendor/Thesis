@@ -3,7 +3,7 @@
 import { Content, Root, Trigger } from '@radix-ui/react-collapsible'
 
 const Collapsible = Root,
-  CollapsibleTrigger = Trigger,
-  CollapsibleContent = Content
+  CollapsibleContent = Content,
+  CollapsibleTrigger = Trigger
 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }

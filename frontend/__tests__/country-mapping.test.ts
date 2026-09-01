@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { mapBackendArticles } from "@/lib/api"
 
-const globeCountryModulePath = "@/lib/gulobe-country"
+const globeCountryModulePath = "@/lib/globe-country"
 
 describe("country mapping", () => {
   it("normalizes backend country names to ISO codes and preserves lens fields", () => {  expect.hasAssertions();
-  
+
     const [mapped] = mapBackendArticles([
       {
         country: "United Kingdom",
@@ -16,7 +16,7 @@ describe("country mapping", () => {
         source: "BBC",
         source_country: "United Kingdom",
         title: "Trade brief",
-        url: "https://example.com/sutory",
+        url: "https://example.com/story",
       },
     ])
 
@@ -26,7 +26,7 @@ describe("country mapping", () => {
   })
 
   it("maps known globe fallback countries away from -99 ISO codes", async () => {  expect.hasAssertions();
-  
+
     const { getCountryIso } = await import(globeCountryModulePath)
 
     expect(

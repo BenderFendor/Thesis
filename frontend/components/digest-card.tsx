@@ -18,22 +18,23 @@ interface DigestData {
 }
 
 interface DigestCardProps {
+  enabled?: boolean;
   onRefresh?: () => void;
 }
 
-export function DigestCard({ onRefresh }: DigestCardProps) {
+export function DigestCard({ enabled = ENABLE_DIGEST, onRefresh }: DigestCardProps) {
   void onRefresh;
   const [showSchedule, setShowSchedule] = useState(false),
    [scheduleTime, setScheduleTime] = useState("09:00"),
    { data: digest, isLoading } = useQuery<DigestData>({
-    enabled: ENABLE_DIGEST,
+    enabled,
     queryFn: getDailyDigest,
     queryKey: ["daily-digest"],
     retry: 1,
   });
 
-  if (!ENABLE_DIGEST) {
-    return undefined;
+  if (!enabled) {
+    return;
   }
 
   const handleSchedule = () => {
@@ -43,7 +44,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
   };
 
   if (isLoading || !digest) {
-    return undefined;
+    return;
   }
 
   return (

@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import statistics
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +64,7 @@ def _base_sources() -> dict[str, dict[str, Any]]:
 
 
 def _strip_leading_the(normalized: str) -> str:
-    return normalized[3:] if normalized.startswith("the") else normalized
+    return normalized.removeprefix("the")
 
 
 def _match_priority_source(
@@ -119,11 +120,7 @@ def _select_sources(limit: int) -> list[str]:
 
 def _field_key_score(fields: dict[str, Any]) -> float:
     return float(
-        sum(
-            1
-            for key in FIELD_KEYS
-            if isinstance(fields.get(key), list) and fields.get(key)
-        )
+        sum(1 for key in FIELD_KEYS if isinstance(fields.get(key), list) and fields.get(key))
     )
 
 
@@ -256,8 +253,20 @@ def _empty_source_result(source_name: str) -> dict[str, Any]:
     }
 
 
+def _source_url_quality_item_status(item: object) -> tuple[bool, str]:
+    if not isinstance(item, dict):
+        return False, "unknown"
+    if str(item.get("label") or "") != "Source URL quality":
+        return False, "unknown"
+    value = str(item.get("value") or "")
+    if "status=ok" in value:
+        return True, "ok"
+    if "status=mismatch" in value:
+        return True, "mismatch"
+    return True, "unknown"
+
+
 def _profile_url_guard_status(profile: dict[str, Any]) -> str:
-    status = "unknown"
     for section in profile.get("dossier_sections") or []:
         if not isinstance(section, dict):
             continue
@@ -265,17 +274,10 @@ def _profile_url_guard_status(profile: dict[str, Any]) -> str:
         if not isinstance(items, list):
             continue
         for item in items:
-            if not isinstance(item, dict):
-                continue
-            if str(item.get("label") or "") != "Source URL quality":
-                continue
-            value = str(item.get("value") or "")
-            if "status=ok" in value:
-                status = "ok"
-            elif "status=mismatch" in value:
-                status = "mismatch"
-            break
-    return status
+            matched, status = _source_url_quality_item_status(item)
+            if matched:
+                return status
+    return "unknown"
 
 
 def _url_guard_status(
@@ -337,8 +339,8 @@ async def _measure_source(source_name: str, force_refresh: bool) -> dict[str, An
 async def _measure_reporter_coverage() -> dict[str, Any]:
     from sqlalchemy import func, select
 
-    from app.database import AsyncSessionLocal
     from app.database import ArticleAuthor as ArticleAuthorModel
+    from app.database import AsyncSessionLocal
     from app.database import Reporter as ReporterModel
     from app.services.reporter_confidence_scorer import (
         has_verified_author_page_citation,
@@ -504,21 +506,33 @@ def _print_source_results(results: list[dict[str, Any]]) -> None:
     print(f"sources_measured={len(results)}")
 
 
+def _count_matching(
+    results: list[dict[str, Any]],
+    predicate: Callable[[dict[str, Any]], bool],
+) -> int:
+    return sum(predicate(row) for row in results)
+
+
+def _aggregate_counts(results: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "ads_txt_count": _count_matching(results, lambda row: bool(row.get("ads_txt"))),
+        "policy_signal_source_count": _count_matching(
+            results, lambda row: int(row.get("policy_signals") or 0) > 0
+        ),
+        "sellers_json_count": _count_matching(
+            results, lambda row: int(row.get("sellers_json_systems") or 0) > 0
+        ),
+        "url_guard_mismatch_count": _count_matching(
+            results, lambda row: row.get("url_guard") == "mismatch"
+        ),
+        "url_guard_ok_count": _count_matching(results, lambda row: row.get("url_guard") == "ok"),
+    }
+
+
 def _print_aggregate_counts(results: list[dict[str, Any]]) -> None:
-    url_guard_ok = sum(1 for row in results if row.get("url_guard") == "ok")
-    url_guard_mismatch = sum(1 for row in results if row.get("url_guard") == "mismatch")
-    ads_txt_count = sum(1 for row in results if row.get("ads_txt"))
-    sellers_json_count = sum(
-        1 for row in results if int(row.get("sellers_json_systems") or 0) > 0
-    )
-    policy_signal_sources = sum(
-        1 for row in results if int(row.get("policy_signals") or 0) > 0
-    )
-    print(f"url_guard_ok_count={url_guard_ok}")
-    print(f"url_guard_mismatch_count={url_guard_mismatch}")
-    print(f"ads_txt_count={ads_txt_count}")
-    print(f"sellers_json_count={sellers_json_count}")
-    print(f"policy_signal_source_count={policy_signal_sources}")
+    counts = _aggregate_counts(results)
+    for key, value in counts.items():
+        print(f"{key}={value}")
 
 
 def _print_reporter_summary(rc: dict[str, Any]) -> None:

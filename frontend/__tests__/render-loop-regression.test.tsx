@@ -2,106 +2,118 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { useFavorites } from "@/hooks/useFavorites";
+
+import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar";
+import { useFavorites } from "@/hooks/use-favorites";
 import { useNewsStream } from "@/hooks/useNewsStream";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useSourceFilter } from "@/hooks/use-source-filter";
-import type { NewsArticle } from '@/lib/api';
-import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar";
+import type { NewsArticle } from "@/lib/api";
 
-const mockStreamNews = jest.fn();
+interface FetchResponseFixture {
+  readonly body?: {
+    getReader: () => {
+      read: () => Promise<{
+        done: boolean;
+        value?: Uint8Array;
+      }>;
+    };
+  };
+  readonly json: () => Promise<unknown>;
+  readonly ok: boolean;
+  readonly status: number;
+  readonly statusText: string;
+}
 
-jest.mock<typeof import('@/hooks/useReadingQueue')>("@/hooks/useReadingQueue", () => ({
-  useReadingQueue: () => ({
-    isLoaded: true,
-    queuedArticles: [],
-    removeArticleFromQueue: jest.fn(),
-  }),
-}));
+type FetchBoundary = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<FetchResponseFixture>;
 
-jest.mock<typeof import('@/hooks/useBookmarks')>("@/hooks/useBookmarks", () => ({
-  useBookmarks: () => ({
-    isBookmarked: () => false,
-    isLoaded: true,
-    toggleBookmark: jest.fn(),
-  }),
-}));
+const fetchMock = jest.fn<FetchBoundary>(),
+  originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
 
-jest.mock<typeof import('@/hooks/use-liked-articles')>("@/hooks/use-liked-articles", () => ({
-  useLikedArticles: () => ({
-    error: null,
-    isLiked: () => false,
-    isLoaded: true,
-    toggleLike: jest.fn(),
-  }),
-}));
+ createStreamResponse = (): FetchResponseFixture => {
+  let delivered = false;
+  const data = [
+    `data: ${JSON.stringify({ articles: [], status: "initial" })}\n`,
+    `data: ${JSON.stringify({ status: "complete" })}\n`,
+  ].join(""),
+   value = new Uint8Array([...data].map((character) => character.charCodeAt(0)));
 
-jest.mock<typeof import('@/lib/api')>("@/lib/api", () => ({
-  API_BASE_URL: "http://localhost:8000",
-  analyzeArticle: jest.fn(),
-  fetchSourceDebugData: jest.fn(),
-  getSourceById: jest.fn(),
-  streamNews: (...args:readonly  unknown[]) => mockStreamNews(...args),
-}));
+  return {
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (delivered) {
+            return { done: true };
+          }
+          delivered = true;
+          return { done: false, value };
+        },
+      }),
+    },
+    json: async () => ({}),
+    ok: true,
+    status: 200,
+    statusText: "OK",
+  };
+},
 
-jest.mock<typeof import('@/components/article-detail-modal')>("@/components/article-detail-modal", () => ({
-  ArticleDetailModal: () => null,
-}));
+ installFetchBoundary = (): void => {
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.includes("/news/stream")) {
+      return createStreamResponse();
+    }
+    return {
+      json: async () => [],
+      ok: true,
+      status: 200,
+      statusText: "OK",
+    };
+  });
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: fetchMock,
+    writable: true,
+  });
+},
 
-jest.mock<typeof import('@/components/article-inline-embed')>("@/components/article-inline-embed", () => ({
-  ArticleInlineEmbed: () => null,
-}));
+ restoreFetchBoundary = (): void => {
+  if (originalFetchDescriptor === undefined) {
+    Reflect.deleteProperty(globalThis, "fetch");
+  } else {
+    Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
+  }
+},
 
-jest.mock<typeof import('@/components/novelty-badge')>("@/components/novelty-badge", () => ({
-  NoveltyBadge: () => null,
-}));
-
-jest.mock<typeof import('@/components/semantic-tags')>("@/components/semantic-tags", () => ({
-  SemanticTags: () => null,
-}));
-
-jest.mock<typeof import('@/lib/performance-logger')>("@/lib/performance-logger", () => ({
-  endStream: jest.fn(),
-  logStreamEvent: jest.fn(),
-  perfLogger: {
-    logEvent: jest.fn(),
-  },
-  startStream: jest.fn(),
-}));
-
-jest.mock<typeof import('react-markdown')>("react-markdown", () => ({
-  __esModule: true,
-  default: ({ children }:Readonly< { children?: ReactNode }>) => <>{children}</>,
-}));
-
-const LOOP_MESSAGES = [
+ LOOP_MESSAGES = [
   "Maximum update depth exceeded",
   "The result of getServerSnapshot should be cached",
 ];
 
 function installLoopGuard() {
   const errorSpy = jest
-    .spyOn(console, "error")
-    .mockImplementation((...args:readonly  unknown[]) => {
-      const message = args
-        .map((value) =>
-          value instanceof Error ? value.message : String(value)
-        )
-        .join(" ");
+      .spyOn(console, "error")
+      .mockImplementation((...args: readonly unknown[]) => {
+        const message = args
+          .map((value) => (value instanceof Error ? value.message : String(value)))
+          .join(" ");
 
-      if (LOOP_MESSAGES.some((needle) => message.includes(needle))) {
-        throw new Error(message);
-      }
-    }),
-
-   warnSpy = jest
-    .spyOn(console, "warn")
-    .mockImplementation((...args:readonly  unknown[]) => {
-      const message = args.map((value) => String(value)).join(" ");
-      if (LOOP_MESSAGES.some((needle) => message.includes(needle))) {
-        throw new Error(message);
-      }
-    });
+        if (LOOP_MESSAGES.some((needle) => message.includes(needle))) {
+          throw new Error(message);
+        }
+      }),
+    warnSpy = jest
+      .spyOn(console, "warn")
+      .mockImplementation((...args: readonly unknown[]) => {
+        const message = args.map((value) => String(value)).join(" ");
+        if (LOOP_MESSAGES.some((needle) => message.includes(needle))) {
+          throw new Error(message);
+        }
+      });
 
   return () => {
     errorSpy.mockRestore();
@@ -131,14 +143,14 @@ const sampleArticle: NewsArticle = {
 function ReadTrackingHarness({
   article,
   isOpen,
-}:Readonly< {
+}: Readonly<{
   article: NewsArticle | null;
   isOpen: boolean;
 }>) {
   const { history, markAsRead } = useReadingHistory(),
-   articleId = article?.id ?? null,
-   articleTitle = article?.title ?? null,
-   articleSource = article?.source ?? null;
+    articleId = article?.id ?? null,
+    articleTitle = article?.title ?? null,
+    articleSource = article?.source ?? null;
 
   useEffect(() => {
     if (isOpen && articleId !== null && articleTitle && articleSource) {
@@ -151,19 +163,19 @@ function ReadTrackingHarness({
 
 function StreamStartupHarness() {
   const [runs, setRuns] = useState(0),
-   onUpdate = useCallback(() => {}, []),
-   onComplete = useCallback(() => {}, []),
-   onError = useCallback(() => {}, []),
-   { abortStream, startStream } = useNewsStream({
-    onComplete,
-    onError,
-    onUpdate,
-  });
+    onUpdate = useCallback(() => {}, []),
+    onComplete = useCallback(() => {}, []),
+    onError = useCallback(() => {}, []),
+    { abortStream, startStream } = useNewsStream({
+      onComplete,
+      onError,
+      onUpdate,
+    });
 
   useEffect(() => {
     void (async () => {
       abortStream(true);
-      setRuns((prev) => prev + 1);
+      setRuns((previous) => previous + 1);
       await startStream({ category: "all" });
     })();
   }, [abortStream, startStream]);
@@ -174,35 +186,22 @@ function StreamStartupHarness() {
 describe("render loop regressions", () => {
   beforeEach(() => {
     globalThis.localStorage.clear();
-    mockStreamNews.mockReset();
-    mockStreamNews.mockReturnValue({
-      promise: Promise.resolve({
-        articles: [],
-        errors: [],
-        sources: [],
-        streamId: "stream-1",
-      }),
-      url: "http://localhost:8000/api/stream",
-    });
-
-    global.WebSocket = jest.fn(() => ({
-      close: jest.fn(),
-      onmessage: null,
-    })) as unknown as typeof WebSocket;
+    installFetchBoundary();
   });
 
   afterEach(() => {
+    restoreFetchBoundary();
     jest.restoreAllMocks();
   });
 
   it("lets storage-backed hooks update without triggering React loop errors", () => {  expect.hasAssertions();
-  
+
     const restoreConsole = installLoopGuard(),
-     { result } = renderHook(() => ({
-      favorites: useFavorites(),
-      readingHistory: useReadingHistory(),
-      sourceFilter: useSourceFilter(),
-    }));
+      { result } = renderHook(() => ({
+        favorites: useFavorites(),
+        readingHistory: useReadingHistory(),
+        sourceFilter: useSourceFilter(),
+      }));
 
     act(() => {
       result.current.favorites.addMultipleFavorites(["reuters"]);
@@ -214,45 +213,46 @@ describe("render loop regressions", () => {
     expect(result.current.favorites.isFavorite("reuters")).toBe(true);
     expect(result.current.sourceFilter.isSelected("ap")).toBe(true);
     expect(result.current.readingHistory.history).toHaveLength(1);
-
     restoreConsole();
   });
 
   it("keeps the article read-tracking effect stable across rerenders", () => {  expect.hasAssertions();
-  
+
     const restoreConsole = installLoopGuard(),
-     { rerender } = render(
-      <ReadTrackingHarness article={sampleArticle} isOpen />
-    );
+      { rerender } = render(<ReadTrackingHarness article={sampleArticle} isOpen />);
 
     rerender(<ReadTrackingHarness article={sampleArticle} isOpen />);
 
     const stored = globalThis.localStorage.getItem("thesis_reading_history");
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored ?? "[]")).toHaveLength(1);
-
     restoreConsole();
   });
 
-  it("renders the reading queue sidebar without React loop errors", () => {  expect.hasAssertions();
-  
+  it("renders the reading queue sidebar without React loop errors", async () => {  expect.hasAssertions();
+
     const restoreConsole = installLoopGuard();
 
-    render(<ReadingQueueSidebar />);
-
+    expect(() => render(<ReadingQueueSidebar />)).not.toThrow();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
     restoreConsole();
   });
 
   it("keeps stream startup effects stable when hook options are recreated", async () => {  expect.hasAssertions();
-  
+
     const restoreConsole = installLoopGuard();
 
     render(<StreamStartupHarness />);
 
     await waitFor(() => {
-      expect(mockStreamNews).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/news/stream"),
+        expect.objectContaining({ method: "GET" }),
+      );
     });
-
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     restoreConsole();
   });
 });

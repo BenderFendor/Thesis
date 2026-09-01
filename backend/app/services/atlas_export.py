@@ -80,8 +80,10 @@ def _nodes_export(graph: Any) -> tuple[str, str, bytes]:
         "confidence_tier",
         "updated_at",
     ]
-    return "atlas-entities.csv", "text/csv; charset=utf-8", _csv_bytes(
-        header, (_node_row(node) for node in graph.nodes)
+    return (
+        "atlas-entities.csv",
+        "text/csv; charset=utf-8",
+        _csv_bytes(header, (_node_row(node) for node in graph.nodes)),
     )
 
 
@@ -119,8 +121,10 @@ def _relationships_export(graph: Any) -> tuple[str, str, bytes]:
         "last_verified_at",
         "is_inferred",
     ]
-    return "atlas-relationships.csv", "text/csv; charset=utf-8", _csv_bytes(
-        header, (_relationship_row(edge) for edge in graph.edges)
+    return (
+        "atlas-relationships.csv",
+        "text/csv; charset=utf-8",
+        _csv_bytes(header, (_relationship_row(edge) for edge in graph.edges)),
     )
 
 
@@ -148,8 +152,10 @@ def _evidence_export(graph: Any) -> tuple[str, str, bytes]:
         "retrieved_at",
         "excerpt",
     ]
-    return "atlas-evidence.csv", "text/csv; charset=utf-8", _csv_bytes(
-        header, _evidence_rows(graph)
+    return (
+        "atlas-evidence.csv",
+        "text/csv; charset=utf-8",
+        _csv_bytes(header, _evidence_rows(graph)),
     )
 
 

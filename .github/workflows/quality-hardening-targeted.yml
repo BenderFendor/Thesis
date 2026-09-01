@@ -1,6 +1,8 @@
 name: Quality hardening targeted checks
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["quality/crap-mi-oxlint-hardening"]
     paths:
@@ -44,7 +46,6 @@ jobs:
           npm ci --no-audit --no-fund
           npm --prefix frontend ci --no-audit --no-fund
       - name: Recent refactor Oxlint
-        continue-on-error: true
         run: |
           set +e
           files=(
@@ -79,34 +80,17 @@ jobs:
           done
           exit "$status"
       - name: API Oxlint
-        continue-on-error: true
         run: |
           PATH="$PWD/frontend/node_modules/.bin:$PATH" \
             timeout 2m frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix \
             frontend/lib/api.ts
       - name: TypeScript
-        continue-on-error: true
         run: |
           rm -f frontend/tsconfig.tsbuildinfo
           npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
       - name: Import resolution
-        continue-on-error: true
         run: node scripts/check-imports.mjs
       - name: Maintainability
-        continue-on-error: true
-        run: |
-          npx code-multivitals \
-            'frontend/app/saved/**/*.{ts,tsx}' \
-            'frontend/app/sources/[source]/debug/**/*.{ts,tsx}' \
-            'frontend/components/credibility-badge.tsx' \
-            'frontend/components/highlight-toolbar.tsx' \
-            'frontend/components/reporter-profile.tsx' \
-            'frontend/components/source-sidebar.tsx' \
-            'frontend/features/intelligence-atlas/atlas-entity-list.tsx' \
-            'frontend/features/intelligence-atlas/atlas-stage-shell.tsx' \
-            'frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx' \
-            'frontend/features/intelligence-atlas/lib/atlas-force-layout.ts' \
-            'frontend/hooks/use-scroll-personalization.ts' \
-            'frontend/lib/api.ts' \
-            'frontend/lib/feed-ranking.ts' \
-            --reporter console
+        run: npm run quality:maintainability -- --strict
+      - name: CRAP
+        run: npm --prefix frontend run crap

@@ -398,13 +398,16 @@ def _prepare_startup_process() -> None:
     soft_nofile, hard_nofile = get_nofile_limits()
     logger.info(
         "Startup file-descriptor state: open_fds=%s soft_nofile=%s hard_nofile=%s",
-        get_open_file_descriptor_count(), soft_nofile, hard_nofile,
+        get_open_file_descriptor_count(),
+        soft_nofile,
+        hard_nofile,
     )
 
 
 def _configure_llm_backend() -> None:
     if settings.llm_backend == "llamacpp":
         from app.core.config import check_llamacpp_server
+
         check_llamacpp_server(logger)
     startup_metrics.add_note("llm_backend", settings.llm_backend)
 
@@ -429,7 +432,9 @@ def _remove_stale_leader_lock(path: Path) -> None:
         os.kill(int(old_pid_text), 0)
         return
     except (ValueError, ProcessLookupError, PermissionError) as exc:
-        logger.warning("Removing stale leader lock (PID %s no longer running): %s", old_pid_text, exc)
+        logger.warning(
+            "Removing stale leader lock (PID %s no longer running): %s", old_pid_text, exc
+        )
     with contextlib.suppress(FileNotFoundError):
         path.unlink()
 
@@ -464,7 +469,9 @@ def _register_named_task(coro: object, name: str, note: str | None = None) -> as
 
 def _start_rss_background_tasks() -> None:
     apply_saved_polling_state()
-    _register_named_task(periodic_rss_refresh(interval_seconds=600), "rss_refresh_scheduler", "rss_scheduler_task")
+    _register_named_task(
+        periodic_rss_refresh(interval_seconds=600), "rss_refresh_scheduler", "rss_scheduler_task"
+    )
     _register_named_task(_start_initial_rss_refresh(), "initial_rss_refresh")
 
 
@@ -479,16 +486,26 @@ def _start_persistence_background_tasks() -> None:
 
 def _start_database_schedulers() -> None:
     _register_named_task(_maybe_migrate_cached_articles(), "conditional_migration")
-    _register_named_task(periodic_wiki_refresh(interval_seconds=86400), "wiki_refresh_scheduler", "wiki_refresh_task")
+    _register_named_task(
+        periodic_wiki_refresh(interval_seconds=86400), "wiki_refresh_scheduler", "wiki_refresh_task"
+    )
     _register_named_task(_initial_reporter_index(), "initial_reporter_index")
     _register_named_task(_start_auto_ingest(), "auto_ingest_pipeline", "auto_ingest_task")
-    _register_named_task(run_credibility_scoring_scheduler(interval_seconds=86400), "credibility_scoring_scheduler", "credibility_scoring_task")
+    _register_named_task(
+        run_credibility_scoring_scheduler(interval_seconds=86400),
+        "credibility_scoring_scheduler",
+        "credibility_scoring_task",
+    )
 
 
 def _start_optional_blind_spots_scheduler() -> None:
     if not settings.enable_vector_store:
         return
-    _register_named_task(periodic_blind_spots_update(interval_seconds=86400), "blind_spots_scheduler", "blind_spots_task")
+    _register_named_task(
+        periodic_blind_spots_update(interval_seconds=86400),
+        "blind_spots_scheduler",
+        "blind_spots_task",
+    )
 
 
 def _start_leader_background_tasks() -> None:
@@ -505,7 +522,9 @@ async def on_startup() -> None:
     """Initialize worker-local state and leader-only background services."""
     startup_start = time.time()
     startup_metrics.mark_app_started()
-    startup_metrics.add_note("app_version", {"version": settings.app_version, "title": settings.app_title})
+    startup_metrics.add_note(
+        "app_version", {"version": settings.app_version, "title": settings.app_title}
+    )
     logger.info("Starting Global News Aggregation API...")
 
     _prepare_startup_process()
@@ -526,7 +545,6 @@ async def on_startup() -> None:
         len(news_cache.get_articles()),
     )
     startup_metrics.mark_app_completed()
-
 
 
 @app.on_event("shutdown")

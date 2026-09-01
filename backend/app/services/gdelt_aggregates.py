@@ -143,9 +143,7 @@ async def _tone_stats_for_domains(
     conditions = [GDELTEvent.published_at >= cutoff_naive]
     if domains is not None:
         conditions.append(GDELTEvent.source.in_(domains))
-    mean_result = await db_session.execute(
-        select(func.avg(GDELTEvent.tone)).where(*conditions)
-    )
+    mean_result = await db_session.execute(select(func.avg(GDELTEvent.tone)).where(*conditions))
     mean = mean_result.scalar()
     stddev_result = await db_session.execute(
         select(func.stddev_pop(GDELTEvent.tone)).where(*conditions)
@@ -196,12 +194,8 @@ async def compute_source_tone_deviation(
     cutoff_naive = cutoff.replace(tzinfo=None)
 
     language = await _source_language(db_session, source_domain)
-    source_mean_tone, _ = await _tone_stats_for_domains(
-        db_session, [source_domain], cutoff_naive
-    )
-    global_mean_tone, global_stddev = await _tone_stats_for_domains(
-        db_session, None, cutoff_naive
-    )
+    source_mean_tone, _ = await _tone_stats_for_domains(db_session, [source_domain], cutoff_naive)
+    global_mean_tone, global_stddev = await _tone_stats_for_domains(db_session, None, cutoff_naive)
 
     global_sigma = _source_deviation(source_mean_tone, global_mean_tone, global_stddev)
     language_sigma = global_sigma

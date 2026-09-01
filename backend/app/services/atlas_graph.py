@@ -1,6 +1,7 @@
 """Bounded graph queries and statistics for the Intelligence Atlas."""
 
 from __future__ import annotations
+
 import asyncio
 import hashlib
 import json
@@ -8,8 +9,10 @@ import time
 from collections import Counter, defaultdict, deque
 from datetime import UTC, datetime
 from typing import Any, cast
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.database import WikiIndexStatus
 from app.models.atlas import (
     AtlasCoverageMetric,
@@ -32,17 +35,19 @@ from app.services.atlas_graph_helpers import (
 from app.services.atlas_graph_projection import _load_graph_projection
 
 
-def _apply_neighborhood(
-    nodes: list[AtlasNode], edges: list[AtlasEdge], selected: str | None, neighbors: int
-) -> tuple[list[AtlasNode], list[AtlasEdge]]:
-    if not selected or neighbors <= 0:
-        return nodes, edges
-    if selected not in {node.id for node in nodes}:
-        return nodes, edges
+def _build_adjacency(edges: list[AtlasEdge]) -> dict[str, set[str]]:
     adjacency: dict[str, set[str]] = defaultdict(set)
     for edge in edges:
         adjacency[edge.source_id].add(edge.target_id)
         adjacency[edge.target_id].add(edge.source_id)
+    return adjacency
+
+
+def _collect_neighborhood(
+    selected: str,
+    neighbors: int,
+    adjacency: dict[str, set[str]],
+) -> set[str]:
     visible = {selected}
     queue: deque[tuple[str, int]] = deque([(selected, 0)])
     while queue:
@@ -53,6 +58,17 @@ def _apply_neighborhood(
             if related not in visible:
                 visible.add(related)
                 queue.append((related, depth + 1))
+    return visible
+
+
+def _apply_neighborhood(
+    nodes: list[AtlasNode], edges: list[AtlasEdge], selected: str | None, neighbors: int
+) -> tuple[list[AtlasNode], list[AtlasEdge]]:
+    if not selected or neighbors <= 0:
+        return nodes, edges
+    if selected not in {node.id for node in nodes}:
+        return nodes, edges
+    visible = _collect_neighborhood(selected, neighbors, _build_adjacency(edges))
     return [node for node in nodes if node.id in visible], [
         edge for edge in edges if edge.source_id in visible and edge.target_id in visible
     ]
@@ -116,6 +132,26 @@ def _node_signals(
         current_parent_id,
         pending_change,
     ) = _ownership_signals(edges, node_by_id)
+    evidence_counts, verified_at = _evidence_signals(edges)
+    _apply_pending_change_overrides(edges, node_by_id, current_parent_id, pending_change)
+    return {
+        node_id: _format_node_signals(
+            node_id,
+            node_by_id,
+            degree,
+            ownership_degree,
+            current_parent,
+            pending_change,
+            evidence_counts,
+            verified_at,
+        )
+        for node_id in node_by_id
+    }
+
+
+def _evidence_signals(
+    edges: list[AtlasEdge],
+) -> tuple[Counter[str], dict[str, datetime]]:
     evidence_counts = Counter[str]()
     verified_at: dict[str, datetime] = {}
     for edge in edges:
@@ -125,28 +161,35 @@ def _node_signals(
                 entity_id not in verified_at or edge.last_verified_at > verified_at[entity_id]
             ):
                 verified_at[entity_id] = edge.last_verified_at
-    _apply_pending_change_overrides(edges, node_by_id, current_parent_id, pending_change)
+    return evidence_counts, verified_at
+
+
+def _format_node_signals(
+    node_id: str,
+    node_by_id: dict[str, AtlasNode],
+    degree: Counter[str],
+    ownership_degree: Counter[str],
+    current_parent: dict[str, str],
+    pending_change: dict[str, str],
+    evidence_counts: Counter[str],
+    verified_at: dict[str, datetime],
+) -> dict[str, Any]:
+    evidence_count = evidence_counts[node_id]
+    node = node_by_id[node_id]
     return {
-        node_id: {
-            "connection_count": degree[node_id],
-            "ownership_connection_count": ownership_degree[node_id],
-            "current_parent": current_parent.get(node_id),
-            "pending_change": pending_change.get(node_id),
-            "evidence_coverage": (
-                f"{evidence_counts[node_id]} cited observations"
-                if evidence_counts[node_id]
-                else "not researched"
-            ),
-            "freshness": (
-                verified_at[node_id].isoformat() if node_id in verified_at else "unknown"
-            ),
-            "unresolved_gap": (
-                "chain incomplete"
-                if node_by_id[node_id].entity_type == "outlet" and node_id not in current_parent
-                else None
-            ),
-        }
-        for node_id in node_by_id
+        "connection_count": degree[node_id],
+        "ownership_connection_count": ownership_degree[node_id],
+        "current_parent": current_parent.get(node_id),
+        "pending_change": pending_change.get(node_id),
+        "evidence_coverage": (
+            f"{evidence_count} cited observations" if evidence_count else "not researched"
+        ),
+        "freshness": verified_at[node_id].isoformat() if node_id in verified_at else "unknown",
+        "unresolved_gap": (
+            "chain incomplete"
+            if node.entity_type == "outlet" and node_id not in current_parent
+            else None
+        ),
     }
 
 
@@ -365,6 +408,35 @@ async def build_atlas_graph(db: AsyncSession, filters: AtlasGraphFilters) -> Atl
     )
 
 
+def _index_status_summary(
+    index_rows: list[WikiIndexStatus],
+) -> tuple[Counter[str], datetime | None, bool]:
+    index_counts = Counter(cast(str, row.status) for row in index_rows)
+    last_indexed_at = max(
+        (row.last_indexed_at for row in index_rows if row.last_indexed_at), default=None
+    )
+    indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
+    return index_counts, last_indexed_at, indexing_active
+
+
+def _research_coverage(
+    graph: AtlasGraphResponse,
+) -> tuple[AtlasCoverageMetric, dict[str, AtlasCoverageMetric]]:
+    researched_nodes = [node for node in graph.nodes if node.evidence_coverage != "not researched"]
+    research_coverage = AtlasCoverageMetric(
+        numerator=len(researched_nodes), denominator=len(graph.nodes)
+    )
+    totals_by_type = Counter(node.entity_type for node in graph.nodes)
+    researched_by_type = Counter(node.entity_type for node in researched_nodes)
+    coverage_by_entity_type = {
+        entity_type: AtlasCoverageMetric(
+            numerator=researched_by_type.get(entity_type, 0), denominator=total
+        )
+        for entity_type, total in totals_by_type.items()
+    }
+    return research_coverage, coverage_by_entity_type
+
+
 async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
     """Return aggregate Atlas graph statistics without node/edge payloads."""
     graph = await build_atlas_graph(
@@ -378,29 +450,8 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
     )
     relation_counts = Counter(edge.relation_type for edge in graph.edges)
     index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
-    index_counts = Counter(cast(str, row.status) for row in index_rows)
-    last_indexed_at = max(
-        (row.last_indexed_at for row in index_rows if row.last_indexed_at), default=None
-    )
-    # "Researched" means the entity has at least one edge whose evidence_count
-    # is greater than zero touching it -- the same rule `_rank_nodes` uses to
-    # set `AtlasNode.evidence_coverage` to something other than "not
-    # researched". This is a strictly narrower bar than merely appearing in
-    # the graph: an entity with zero evidence-backed relationships (even if
-    # it has a resolved `current_parent` from an unevidenced accepted fact)
-    # still counts as not researched.
-    researched_nodes = [node for node in graph.nodes if node.evidence_coverage != "not researched"]
-    research_coverage = AtlasCoverageMetric(
-        numerator=len(researched_nodes), denominator=len(graph.nodes)
-    )
-    totals_by_type = Counter(node.entity_type for node in graph.nodes)
-    researched_by_type = Counter(node.entity_type for node in researched_nodes)
-    research_coverage_by_entity_type: dict[str, AtlasCoverageMetric] = {
-        entity_type: AtlasCoverageMetric(
-            numerator=researched_by_type.get(entity_type, 0), denominator=total
-        )
-        for entity_type, total in totals_by_type.items()
-    }
+    index_counts, last_indexed_at, indexing_active = _index_status_summary(index_rows)
+    research_coverage, coverage_by_entity_type = _research_coverage(graph)
     return AtlasStatsResponse(
         graph_version=graph.graph_version,
         generated_at=graph.generated_at,
@@ -414,9 +465,9 @@ async def build_atlas_stats(db: AsyncSession) -> AtlasStatsResponse:
         by_relation_type={str(key): value for key, value in relation_counts.items()},
         by_index_status=dict(index_counts),
         last_indexed_at=last_indexed_at,
-        indexing_active=any(cast(str, row.status) == "indexing" for row in index_rows),
+        indexing_active=indexing_active,
         research_coverage=research_coverage,
-        research_coverage_by_entity_type=research_coverage_by_entity_type,
+        research_coverage_by_entity_type=coverage_by_entity_type,
     )
 
 

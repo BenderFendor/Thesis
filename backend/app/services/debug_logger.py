@@ -738,8 +738,7 @@ class DebugLoggerService:
             comp = op.get("component", "unknown")
             by_component[comp] = by_component.get(comp, 0) + 1
         return [
-            f"Multiple slow {comp} operations detected ({count}). "
-            f"Consider optimizing {comp} layer."
+            f"Multiple slow {comp} operations detected ({count}). Consider optimizing {comp} layer."
             for comp, count in by_component.items()
         ]
 
@@ -750,8 +749,7 @@ class DebugLoggerService:
             return []
         error_types = set(e.error_type for e in recent_errors if e.error_type)
         return [
-            f"Recent errors detected: {', '.join(error_types)}. "
-            "Check stack traces in debug log."
+            f"Recent errors detected: {', '.join(error_types)}. Check stack traces in debug log."
         ]
 
     def _generate_recommendations(self) -> list[str]:

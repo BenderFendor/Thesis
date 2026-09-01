@@ -1,3 +1,4 @@
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { describe, expect, it } from '@jest/globals';
 import {
   dismissAllNotifications,
@@ -6,10 +7,26 @@ import {
   retainActiveDismissedNotifications,
   useDismissedNotifications,
 } from "@/lib/notification-state"
-import { act, renderHook, waitFor } from "@testing-library/react"
+
+interface NotificationItem {
+  readonly id: string
+}
+
+interface NotificationHookProps {
+  readonly items: readonly NotificationItem[]
+}
+
+const renderNotificationsHook = (items: readonly NotificationItem[]) =>
+  renderHook(
+    (props: Readonly<NotificationHookProps>) =>
+      useDismissedNotifications(props.items),
+    {
+      initialProps: { items },
+    },
+  )
 
 describe("notification state helpers", () => {
-  const notifications = [
+  const notifications: readonly NotificationItem[] = [
     { id: "a" },
     { id: "b" },
   ]
@@ -30,14 +47,7 @@ describe("notification state helpers", () => {
   })
 
   it("forgets stale dismissed ids so recurring notifications become visible again", async () => {expect.hasAssertions();
-    const { result, rerender } = renderHook(
-      ({ items }) => useDismissedNotifications(items),
-      {
-        initialProps: {
-          items: notifications,
-        },
-      },
-    )
+    const { result, rerender } = renderNotificationsHook(notifications)
 
     act(() => {
       result.current.dismissOne("a")
@@ -45,8 +55,8 @@ describe("notification state helpers", () => {
 
     await waitFor(() => {
       expect(result.current.dismissedIds.has("a")).toBe(true)
+      expect(result.current.visibleNotifications).toStrictEqual([{ id: "b" }])
     })
-    expect(result.current.visibleNotifications).toStrictEqual([{ id: "b" }])
 
     rerender({ items: [{ id: "b" }] })
 
@@ -60,5 +70,6 @@ describe("notification state helpers", () => {
     await waitFor(() => {
       expect(result.current.visibleNotifications).toStrictEqual(notifications)
     })
+    expect(result.current.visibleNotifications).toStrictEqual(notifications)
   })
 })

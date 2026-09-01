@@ -9,15 +9,15 @@ This agent analyzes material interests that may influence news coverage:
 Helps identify potential conflicts of interest in news coverage.
 """
 
+import asyncio
 import json
 import re
-import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.llm_client import get_llm_client
 from app.core.logging import get_logger
@@ -39,6 +39,14 @@ _CAMEO_CONFLICT_LO = 7
 _CAMEO_CONFLICT_HI = 13
 _CAMEO_ECONOMIC_LO = 14
 _CAMEO_ECONOMIC_HI = 20
+
+
+def _commodity_names(resources: dict[str, dict[str, Any]]) -> list[str]:
+    return [
+        str(resource)
+        for country_resources in resources.values()
+        for resource in country_resources.get("natural_resources", [])
+    ]
 
 
 def _extract_json(content: str) -> dict[str, Any] | None:
@@ -528,29 +536,9 @@ Return ONLY valid JSON:
                 self._get_source_owner_interests(article_source, session=session),
             )
 
-            trade_data: list[dict[str, Any]] = []
-            trade_tasks = []
-            for i, c1 in enumerate(all_countries):
-                for c2 in all_countries[i + 1 :]:
-                    trade_tasks.append(self._get_trade_flows(c1, c2, session=session))
-            trade_results = await asyncio.gather(*trade_tasks)
-            pair_index = 0
-            for i, c1 in enumerate(all_countries):
-                for _j, c2 in enumerate(all_countries[i + 1 :]):
-                    if pair_index < len(trade_results):
-                        trade_data.append(
-                            {
-                                "exporter": c1,
-                                "importer": c2,
-                                **trade_results[pair_index],
-                            }
-                        )
-                    pair_index += 1
+            trade_data = await self._build_trade_data(all_countries, session)
 
-            commodity_names: list[str] = []
-            for cr in resources.values():
-                for res in cr.get("natural_resources", []):
-                    commodity_names.append(str(res))
+            commodity_names = _commodity_names(resources)
             commodity_context = await self._get_commodity_context(
                 commodity_names[:10], session=session
             )
@@ -592,6 +580,25 @@ Return ONLY valid JSON:
             return result
         finally:
             await session.close()
+
+    async def _build_trade_data(
+        self, countries: list[str], session: AsyncSession
+    ) -> list[dict[str, Any]]:
+        country_pairs = [
+            (exporter, importer)
+            for index, exporter in enumerate(countries)
+            for importer in countries[index + 1 :]
+        ]
+        trade_results = await asyncio.gather(
+            *(
+                self._get_trade_flows(exporter, importer, session=session)
+                for exporter, importer in country_pairs
+            )
+        )
+        return [
+            {"exporter": exporter, "importer": importer, **trade}
+            for (exporter, importer), trade in zip(country_pairs, trade_results, strict=False)
+        ]
 
     async def get_country_economic_profile(self, country_code: str) -> dict[str, Any]:
         """Get Country Economic Profile."""

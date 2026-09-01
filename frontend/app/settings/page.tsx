@@ -9,32 +9,19 @@ import { GlobalNavigation } from "@/components/global-navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  APPEARANCE_RANGES,
-  getServerAppearanceSettings,
-  loadAppearanceSettings,
-  normalizeAppearanceSettings,
-  resetAppearanceSettings,
-  saveAppearanceSettings,
-  subscribeToAppearanceSettings,
-  type AppearanceColorTokens,
-  type AppearanceLayoutTokens,
-  type AppearanceMotionTokens,
-  type AppearanceSettings,
-  type AppearanceShadowTokens,
-  type AppearanceTypographyTokens,
-} from "@/lib/appearance-settings"
+import { APPEARANCE_RANGES, getServerAppearanceSettings, loadAppearanceSettings, normalizeAppearanceSettings, resetAppearanceSettings, saveAppearanceSettings, subscribeToAppearanceSettings } from '@/lib/appearance-settings';
+import type { AppearanceColorTokens, AppearanceLayoutTokens, AppearanceMotionTokens, AppearanceSettings, AppearanceShadowTokens, AppearanceTypographyTokens } from '@/lib/appearance-settings';
 
-const COLOR_FIELDS: Array<{ token: keyof AppearanceColorTokens; label: string }> = [
-  { token: "background", label: "Background" },
-  { token: "surface", label: "Surface" },
-  { token: "foreground", label: "Text" },
-  { token: "secondaryText", label: "Secondary text" },
-  { token: "accent", label: "Accent" },
-  { token: "border", label: "Border" },
-]
+const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [
+  { label: "Background", token: "background" },
+  { label: "Surface", token: "surface" },
+  { label: "Text", token: "foreground" },
+  { label: "Secondary text", token: "secondaryText" },
+  { label: "Accent", token: "accent" },
+  { label: "Border", token: "border" },
+],
 
-const DENSITY_OPTIONS = [
+ DENSITY_OPTIONS = [
   { label: "Compact", scale: 0.9 },
   { label: "Default", scale: 1 },
   { label: "Roomy", scale: 1.1 },
@@ -95,7 +82,7 @@ function SliderControl({ label, value, min, max, step, display, disabled, onChan
         step={step}
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onChange={(event) =>{  onChange(Number(event.target.value)); }}
         className="w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>
@@ -122,7 +109,7 @@ function ColorControl({ label, token, value, onChange }: ColorControlProps) {
           id={id}
           type="color"
           value={value}
-          onChange={(event) => onChange(token, event.target.value)}
+          onChange={(event) =>{  onChange(token, event.target.value); }}
           className="h-9 w-14 cursor-pointer rounded-sm border border-border bg-transparent p-1"
           aria-label={`${label} color`}
         />
@@ -133,7 +120,7 @@ function ColorControl({ label, token, value, onChange }: ColorControlProps) {
 
 interface SegmentedControlProps {
   label: string
-  options: Array<{ label: string; value: string }>
+  options: { label: string; value: string }[]
   value: string
   onChange: (value: string) => void
 }
@@ -150,7 +137,7 @@ function SegmentedControl({ label, options, value, onChange }: SegmentedControlP
             size="sm"
             variant={option.value === value ? "default" : "outline"}
             aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
+            onClick={() =>{  onChange(option.value); }}
           >
             {option.label}
           </Button>
@@ -165,63 +152,63 @@ export default function AppearanceSettingsPage() {
     subscribeToAppearanceSettings,
     loadAppearanceSettings,
     getServerAppearanceSettings,
-  )
-  const importInputRef = useRef<HTMLInputElement>(null)
+  ),
+   importInputRef = useRef<HTMLInputElement>(null),
 
-  const save = useCallback(
+   save = useCallback(
     (next: AppearanceSettings) => {
       saveAppearanceSettings(normalizeAppearanceSettings(next))
     },
     [],
-  )
+  ),
 
-  const updateColorField = useCallback(
+   updateColorField = useCallback(
     (token: keyof AppearanceColorTokens, value: string) => {
       save({ ...settings, colors: { ...settings.colors, [token]: value } })
     },
     [save, settings],
-  )
+  ),
 
-  const updateTypography = useCallback(
-    (patch: Partial<AppearanceTypographyTokens>) =>
-      save({ ...settings, typography: { ...settings.typography, ...patch } }),
+   updateTypography = useCallback(
+    (patch: Partial<AppearanceTypographyTokens>) =>{
+      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
     [save, settings],
-  )
+  ),
 
-  const updateLayout = useCallback(
-    (patch: Partial<AppearanceLayoutTokens>) =>
-      save({ ...settings, layout: { ...settings.layout, ...patch } }),
+   updateLayout = useCallback(
+    (patch: Partial<AppearanceLayoutTokens>) =>{
+      save({ ...settings, layout: { ...settings.layout, ...patch } }); },
     [save, settings],
-  )
+  ),
 
-  const updateShadows = useCallback(
-    (patch: Partial<AppearanceShadowTokens>) =>
-      save({ ...settings, shadows: { ...settings.shadows, ...patch } }),
+   updateShadows = useCallback(
+    (patch: Partial<AppearanceShadowTokens>) =>{
+      save({ ...settings, shadows: { ...settings.shadows, ...patch } }); },
     [save, settings],
-  )
+  ),
 
-  const updateMotion = useCallback(
-    (patch: Partial<AppearanceMotionTokens>) =>
-      save({ ...settings, motion: { ...settings.motion, ...patch } }),
+   updateMotion = useCallback(
+    (patch: Partial<AppearanceMotionTokens>) =>{
+      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
     [save, settings],
-  )
+  ),
 
-  const handleReset = useCallback(() => {
+   handleReset = useCallback(() => {
     resetAppearanceSettings()
     toast.success("Appearance restored to defaults")
-  }, [])
+  }, []),
 
-  const handleExport = useCallback(() => {
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement("a")
+   handleExport = useCallback(() => {
+    const blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
+     url = URL.createObjectURL(blob),
+     anchor = document.createElement("a")
     anchor.href = url
     anchor.download = "scoop-appearance-settings.json"
     anchor.click()
     URL.revokeObjectURL(url)
-  }, [settings])
+  }, [settings]),
 
-  const handleImportFile = useCallback(
+   handleImportFile = useCallback(
     async (file: File) => {
       try {
         const parsed = normalizeAppearanceSettings(JSON.parse(await file.text()))
@@ -235,9 +222,9 @@ export default function AppearanceSettingsPage() {
       }
     },
     [],
-  )
+  ),
 
-  const densityValue =
+   densityValue =
     DENSITY_OPTIONS.find((option) => option.scale === settings.layout.spaceScale)?.label ?? "Custom"
 
   return (
@@ -293,7 +280,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.textScale.max}
                   step={APPEARANCE_RANGES.textScale.step}
                   display={percent(settings.typography.textScale)}
-                  onChange={(textScale) => updateTypography({ textScale })}
+                  onChange={(textScale) =>{  updateTypography({ textScale }); }}
                 />
                 <SliderControl
                   label="Body weight"
@@ -302,7 +289,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.bodyWeight.max}
                   step={APPEARANCE_RANGES.bodyWeight.step}
                   display={String(settings.typography.bodyWeight)}
-                  onChange={(bodyWeight) => updateTypography({ bodyWeight })}
+                  onChange={(bodyWeight) =>{  updateTypography({ bodyWeight }); }}
                 />
                 <SliderControl
                   label="Heading weight"
@@ -311,7 +298,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.headingWeight.max}
                   step={APPEARANCE_RANGES.headingWeight.step}
                   display={String(settings.typography.headingWeight)}
-                  onChange={(headingWeight) => updateTypography({ headingWeight })}
+                  onChange={(headingWeight) =>{  updateTypography({ headingWeight }); }}
                 />
               </SettingsSection>
 
@@ -340,7 +327,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.spaceScale.max}
                   step={APPEARANCE_RANGES.spaceScale.step}
                   display={percent(settings.layout.spaceScale)}
-                  onChange={(spaceScale) => updateLayout({ spaceScale })}
+                  onChange={(spaceScale) =>{  updateLayout({ spaceScale }); }}
                 />
                 <SliderControl
                   label="Corner radius"
@@ -349,7 +336,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.cornerRadius.max}
                   step={APPEARANCE_RANGES.cornerRadius.step}
                   display={`${Math.round(settings.layout.cornerRadius)}px`}
-                  onChange={(cornerRadius) => updateLayout({ cornerRadius })}
+                  onChange={(cornerRadius) =>{  updateLayout({ cornerRadius }); }}
                 />
               </SettingsSection>
 
@@ -364,7 +351,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.shadowStrength.max}
                   step={APPEARANCE_RANGES.shadowStrength.step}
                   display={percent(settings.shadows.strength)}
-                  onChange={(strength) => updateShadows({ strength })}
+                  onChange={(strength) =>{  updateShadows({ strength }); }}
                 />
               </SettingsSection>
 
@@ -376,7 +363,7 @@ export default function AppearanceSettingsPage() {
                     { label: "Full", value: "on" },
                     { label: "Off", value: "off" },
                   ]}
-                  onChange={(selected) => updateMotion({ enabled: selected === "on" })}
+                  onChange={(selected) =>{  updateMotion({ enabled: selected === "on" }); }}
                 />
                 <SliderControl
                   label="Motion speed"
@@ -386,7 +373,7 @@ export default function AppearanceSettingsPage() {
                   step={APPEARANCE_RANGES.motionSpeed.step}
                   display={percent(settings.motion.speed)}
                   disabled={!settings.motion.enabled}
-                  onChange={(speed) => updateMotion({ speed })}
+                  onChange={(speed) =>{  updateMotion({ speed }); }}
                 />
               </SettingsSection>
 

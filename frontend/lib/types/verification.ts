@@ -87,7 +87,7 @@ type VerificationStreamEvent =
   | { type: "complete"; result: VerificationResult }
    | { type: "error"; content: string }
 
-export {
+export type {
   ConfidenceLevel,
   SourceType,
   SourceInfo,

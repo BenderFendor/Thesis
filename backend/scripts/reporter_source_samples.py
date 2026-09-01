@@ -21,8 +21,7 @@ def _resolve_source_config(
     base_matches = [
         (name, value)
         for name, value in all_sources.items()
-        if normalize_lookup_name(name.split(" - ", 1)[0])
-        == normalize_lookup_name(source_name)
+        if normalize_lookup_name(name.split(" - ", 1)[0]) == normalize_lookup_name(source_name)
     ]
     if base_matches:
         _, config = base_matches[0]
@@ -41,9 +40,7 @@ def select_sources(source_names: list[str]) -> dict[str, dict[str, Any]]:
 
 def _bucket_us(all_sources: dict[str, dict[str, Any]]) -> list[str]:
     return [
-        name
-        for name, cfg in all_sources.items()
-        if str(cfg.get("country") or "").upper() == "US"
+        name for name, cfg in all_sources.items() if str(cfg.get("country") or "").upper() == "US"
     ]
 
 
@@ -51,8 +48,7 @@ def _bucket_non_us(all_sources: dict[str, dict[str, Any]]) -> list[str]:
     return [
         name
         for name, cfg in all_sources.items()
-        if str(cfg.get("country") or "").upper()
-        and str(cfg.get("country") or "").upper() != "US"
+        if str(cfg.get("country") or "").upper() and str(cfg.get("country") or "").upper() != "US"
     ]
 
 

@@ -363,7 +363,10 @@ def _gdelt_fallback_args(args: dict[str, Any]) -> dict[str, Any] | None:
     query = _normalize_query(str(_first_nonempty(args.get("query"), args.get("keywords"))))
     if not query:
         return None
-    result: dict[str, Any] = {"query": query, "max_results": _coerce_positive_int(args.get("max_results"), 10)}
+    result: dict[str, Any] = {
+        "query": query,
+        "max_results": _coerce_positive_int(args.get("max_results"), 10),
+    }
     timespan = str(args.get("timespan") or "").strip()
     if timespan:
         result["timespan"] = timespan
@@ -393,7 +396,9 @@ def _next_fallback_call(
     tool_history: set[str],
     tool_calls_used: int,
 ) -> tuple[dict[str, Any] | None, int]:
-    for attempt, fallback_name in enumerate(AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()), start=1):
+    for attempt, fallback_name in enumerate(
+        AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()), start=1
+    ):
         candidate = _build_fallback_tool_call(call, fallback_name, attempt=attempt)
         if candidate is None:
             continue
@@ -420,12 +425,16 @@ def _internal_cache_matches(query_terms: list[str], top_k: int) -> list[dict[str
         (sum(term in _article_search_text(article) for term in query_terms), article)
         for article in _news_articles_cache
     ]
-    ranked = sorted((entry for entry in scored if entry[0]), key=lambda entry: entry[0], reverse=True)
+    ranked = sorted(
+        (entry for entry in scored if entry[0]), key=lambda entry: entry[0], reverse=True
+    )
     return [article for _score, article in ranked[:top_k]]
 
 
 def _article_search_text(article: dict[str, Any]) -> str:
-    return " ".join(str(article.get(field) or "") for field in ("title", "summary", "description", "content")).lower()
+    return " ".join(
+        str(article.get(field) or "") for field in ("title", "summary", "description", "content")
+    ).lower()
 
 
 def _internal_result_payload(article: dict[str, Any]) -> dict[str, Any]:
@@ -448,7 +457,11 @@ def _article_fetch_output(url: str, result: dict[str, Any]) -> str:
     fallback = _build_external_reference(
         url=url,
         title=str(result.get("title") or "Untitled"),
-        source=str(_first_nonempty(result.get("source"), result.get("publisher"), default="External source")),
+        source=str(
+            _first_nonempty(
+                result.get("source"), result.get("publisher"), default="External source"
+            )
+        ),
         summary=preview[:1200],
         published=str(result.get("publish_date") or ""),
         image=str(result.get("top_image") or "") or None,
@@ -472,10 +485,18 @@ def _index_rag_document(store: Any, document: dict[str, Any], index: int) -> int
     if not content:
         return 0
     metadata = document.get("metadata", {})
-    title = _first_nonempty(metadata.get("title"), document.get("title"), default="External Article")
-    unique_key = _first_nonempty(metadata.get("url"), default=f"rag_{int(datetime.now(UTC).timestamp())}_{index}")
+    title = _first_nonempty(
+        metadata.get("title"), document.get("title"), default="External Article"
+    )
+    unique_key = _first_nonempty(
+        metadata.get("url"), default=f"rag_{int(datetime.now(UTC).timestamp())}_{index}"
+    )
     success = store.add_article(
-        article_id=str(unique_key), title=title, summary=content[:500], content=content, metadata=metadata
+        article_id=str(unique_key),
+        title=title,
+        summary=content[:500],
+        content=content,
+        metadata=metadata,
     )
     return int(bool(success))
 
@@ -499,10 +520,15 @@ def _external_search_block_reason(
 
 def _tool_block_reason(
     call: dict[str, Any],
-    *, key: str,
-    tool_history: set[str], search_query_keys: set[str], tool_calls_used: int,
-    internal_search_done: bool, internal_search_succeeded: bool,
-    internal_fetch_calls_done: int, required_internal_fetches: int,
+    *,
+    key: str,
+    tool_history: set[str],
+    search_query_keys: set[str],
+    tool_calls_used: int,
+    internal_search_done: bool,
+    internal_search_succeeded: bool,
+    internal_fetch_calls_done: int,
+    required_internal_fetches: int,
 ) -> str | None:
     tool_name = str(call.get("name", "unknown_tool"))
     if key in tool_history:
@@ -513,7 +539,11 @@ def _tool_block_reason(
         logger.info("dedup_tool_node: similar query blocked tool=%s query=%s", tool_name, query)
         return f"A very similar search query was already run. Reuse prior search results in context instead of repeating {query}."
     if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
-        logger.warning("dedup_tool_node: session cap hit (%d), blocking call to %s", MAX_TOOL_CALLS_PER_SESSION, tool_name)
+        logger.warning(
+            "dedup_tool_node: session cap hit (%d), blocking call to %s",
+            MAX_TOOL_CALLS_PER_SESSION,
+            tool_name,
+        )
         return f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). Synthesize a final answer from the context already gathered."
     return _external_search_block_reason(
         tool_name,
@@ -532,10 +562,16 @@ def _tool_dedup_context(state: AgentState) -> dict[str, Any]:
         "tool_calls": getattr(last_msg, "tool_calls", None) or [],
         "tool_history": tool_history,
         "tool_calls_used": int(state.get("tool_calls_used", 0)),
-        "internal_search_done": any(key.startswith("search_internal_news:") for key in tool_history),
+        "internal_search_done": any(
+            key.startswith("search_internal_news:") for key in tool_history
+        ),
         "internal_search_succeeded": internal_succeeded,
         "internal_fetch_calls_done": _count_internal_fetches_done(tool_history),
-        "search_query_keys": {key.removeprefix("search_query:") for key in tool_history if key.startswith("search_query:")},
+        "search_query_keys": {
+            key.removeprefix("search_query:")
+            for key in tool_history
+            if key.startswith("search_query:")
+        },
         "required_internal_fetches": _required_internal_fetches_for_state(
             internal_search_succeeded=internal_succeeded, current_message_internal_hits=current_hits
         ),
@@ -545,8 +581,12 @@ def _tool_dedup_context(state: AgentState) -> dict[str, Any]:
 def _accept_tool_call(call: dict[str, Any], context: dict[str, Any]) -> ToolMessage | None:
     key = _tool_call_key(call)
     block = _dedup_block_message(
-        call, key=key, tool_history=context["tool_history"], search_query_keys=context["search_query_keys"],
-        tool_calls_used=context["tool_calls_used"], internal_search_done=context["internal_search_done"],
+        call,
+        key=key,
+        tool_history=context["tool_history"],
+        search_query_keys=context["search_query_keys"],
+        tool_calls_used=context["tool_calls_used"],
+        internal_search_done=context["internal_search_done"],
         internal_search_succeeded=context["internal_search_succeeded"],
         internal_fetch_calls_done=context["internal_fetch_calls_done"],
         required_internal_fetches=context["required_internal_fetches"],
@@ -571,7 +611,9 @@ def _execute_unique_tool_calls(
     for call in calls:
         if _is_stopped():
             break
-        messages, tool_calls_used = _execute_tool_call_with_fallbacks(state, call, tool_history, tool_calls_used)
+        messages, tool_calls_used = _execute_tool_call_with_fallbacks(
+            state, call, tool_history, tool_calls_used
+        )
         results.extend(messages)
     return results, tool_calls_used
 
@@ -582,40 +624,90 @@ def _base_model_result(state: AgentState) -> tuple[set[str], int]:
 
 def _cancelled_model_result(state: AgentState) -> dict[str, Any]:
     history, used = _base_model_result(state)
-    return {"messages": [AIMessage(content="Research cancelled.")], "iteration": state.get("iteration", 0), "mode": "final", "tool_history": history, "tool_calls_used": used}
+    return {
+        "messages": [AIMessage(content="Research cancelled.")],
+        "iteration": state.get("iteration", 0),
+        "mode": "final",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
 
 
 def _final_model_messages(state: AgentState) -> list[Any]:
     messages = list(state["messages"])
-    last_user = next((str(message.content) for message in reversed(messages) if isinstance(message, HumanMessage)), "")
+    last_user = next(
+        (
+            str(message.content)
+            for message in reversed(messages)
+            if isinstance(message, HumanMessage)
+        ),
+        "",
+    )
     snippets = [
-        _extract_text_from_message(message).strip() if isinstance(message, AIMessage) else str(message.content)
-        for message in messages if isinstance(message, (AIMessage, HumanMessage))
+        _extract_text_from_message(message).strip()
+        if isinstance(message, AIMessage)
+        else str(message.content)
+        for message in messages
+        if isinstance(message, (AIMessage, HumanMessage))
     ]
     context_blob = "\n\n".join(snippet for snippet in snippets[-6:] if snippet)
-    return [SystemMessage(content=_finalizer_system_prompt()), HumanMessage(content=("Return the final response with a section titled 'Answer'. Use the context provided.\n\n" f"Question: {last_user}\n\nContext:\n{context_blob}"))]
+    return [
+        SystemMessage(content=_finalizer_system_prompt()),
+        HumanMessage(
+            content=(
+                "Return the final response with a section titled 'Answer'. Use the context provided.\n\n"
+                f"Question: {last_user}\n\nContext:\n{context_blob}"
+            )
+        ),
+    ]
 
 
 def _call_final_model(state: AgentState) -> dict[str, Any]:
     history, used = _base_model_result(state)
-    response = _invoke_with_llamacpp_recovery(lambda payload: _get_llm().invoke(payload), _final_model_messages(state), "final mode invoke")
-    return {"messages": [response], "iteration": state.get("iteration", 0), "mode": "final", "tool_history": history, "tool_calls_used": used}
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_llm().invoke(payload),
+        _final_model_messages(state),
+        "final mode invoke",
+    )
+    return {
+        "messages": [response],
+        "iteration": state.get("iteration", 0),
+        "mode": "final",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
 
 
 def _call_tool_router(state: AgentState) -> dict[str, Any]:
     history, used = _base_model_result(state)
     messages = _replace_system_message(state["messages"], _tool_router_system_prompt())
-    response = _invoke_with_llamacpp_recovery(lambda payload: _get_tool_router().invoke(payload), messages, "tool router invoke")
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_tool_router().invoke(payload), messages, "tool router invoke"
+    )
     has_calls = isinstance(response, AIMessage) and bool(getattr(response, "tool_calls", None))
-    return {"messages": [response], "iteration": state.get("iteration", 0) + 1, "mode": "research" if has_calls else "final_pending", "tool_history": history, "tool_calls_used": used}
+    return {
+        "messages": [response],
+        "iteration": state.get("iteration", 0) + 1,
+        "mode": "research" if has_calls else "final_pending",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
 
 
 def _call_research_model(state: AgentState) -> dict[str, Any]:
     history, used = _base_model_result(state)
-    response = _invoke_with_llamacpp_recovery(lambda payload: _get_model().invoke(payload), state["messages"], "research invoke")
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_model().invoke(payload), state["messages"], "research invoke"
+    )
     iteration = state.get("iteration", 0) + 1
     mode = _next_research_mode(response, iteration)
-    return {"messages": [response], "iteration": iteration, "mode": mode, "tool_history": history, "tool_calls_used": used}
+    return {
+        "messages": [response],
+        "iteration": iteration,
+        "mode": mode,
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
 
 
 def _next_research_mode(response: Any, iteration: int) -> str:
@@ -624,22 +716,39 @@ def _next_research_mode(response: Any, iteration: int) -> str:
     if not isinstance(response, AIMessage):
         return "research"
     content = _extract_text_from_message(response)
-    return "tool_router" if _needs_final_answer(content) and not getattr(response, "tool_calls", None) else "research"
+    return (
+        "tool_router"
+        if _needs_final_answer(content) and not getattr(response, "tool_calls", None)
+        else "research"
+    )
 
 
 def _context_snippet_line(article: dict[str, Any]) -> str:
     title = _first_nonempty(article.get("title"), default="Untitled")
     source = _first_nonempty(article.get("source"), default="Unknown")
     url = _first_nonempty(article.get("url"), article.get("link"))
-    summary = _first_nonempty(article.get("context_snippet"), article.get("sentence"), article.get("summary"), article.get("description"))
+    summary = _first_nonempty(
+        article.get("context_snippet"),
+        article.get("sentence"),
+        article.get("summary"),
+        article.get("description"),
+    )
     published = article.get("published") or ""
     provider = article.get("provider") or ""
     provider_suffix = f" [{provider}]" if provider else ""
     return f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}"
 
 
-def _run_research_graph(query: str, chat_history: list[dict[str, str]] | None) -> tuple[str, list[dict[str, Any]], list[str]]:
-    initial_state: AgentState = {"messages": _build_initial_messages(query, chat_history), "iteration": 0, "mode": "research", "tool_history": set(), "tool_calls_used": 0}
+def _run_research_graph(
+    query: str, chat_history: list[dict[str, str]] | None
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    initial_state: AgentState = {
+        "messages": _build_initial_messages(query, chat_history),
+        "iteration": 0,
+        "mode": "research",
+        "tool_history": set(),
+        "tool_calls_used": 0,
+    }
     thinking_steps: list[dict[str, Any]] = []
     tool_snippets: list[str] = []
     logged_tool_calls: set[str] = set()
@@ -652,7 +761,9 @@ def _run_research_graph(query: str, chat_history: list[dict[str, str]] | None) -
     return final_answer, thinking_steps, tool_snippets
 
 
-def _research_update(update: dict[str, Any], logged: set[str], tool_snippets: list[str]) -> tuple[str | None, list[dict[str, Any]]]:
+def _research_update(
+    update: dict[str, Any], logged: set[str], tool_snippets: list[str]
+) -> tuple[str | None, list[dict[str, Any]]]:
     if "agent" in update:
         content, steps = _agent_update_steps(update, logged)
         return content, steps
@@ -666,18 +777,29 @@ def _resolve_referenced_articles(final_answer: str) -> list[dict[str, Any]]:
     return referenced or (_match_articles_in_text(final_answer) if final_answer else [])
 
 
-def _ensure_supported_final_answer(query: str, answer: str, referenced: list[dict[str, Any]], tool_snippets: list[str]) -> str:
-    should_finalize = _needs_final_answer(answer) or bool(referenced and _answer_denies_available_context(answer))
+def _ensure_supported_final_answer(
+    query: str, answer: str, referenced: list[dict[str, Any]], tool_snippets: list[str]
+) -> str:
+    should_finalize = _needs_final_answer(answer) or bool(
+        referenced and _answer_denies_available_context(answer)
+    )
     if not should_finalize:
         return answer
     synthesized = _finalize_answer(query, referenced, tool_snippets)
     return synthesized or answer
 
 
-def _structured_articles_block(query: str, referenced: list[dict[str, Any]], providers: list[str]) -> str:
+def _structured_articles_block(
+    query: str, referenced: list[dict[str, Any]], providers: list[str]
+) -> str:
     if not referenced:
         return ""
-    payload = {"articles": referenced, "total": len(referenced), "query": query, "source_providers": providers}
+    payload = {
+        "articles": referenced,
+        "total": len(referenced),
+        "query": query,
+        "source_providers": providers,
+    }
     return f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
 
 
@@ -1192,7 +1314,9 @@ def rag_index_documents(documents: list[dict[str, Any]]) -> str:
     store = get_vector_store()
     if not store:
         return "Vector store is disabled or unavailable."
-    added = sum(_index_rag_document(store, document, index) for index, document in enumerate(normalized))
+    added = sum(
+        _index_rag_document(store, document, index) for index, document in enumerate(normalized)
+    )
     return f"Successfully indexed {added} documents." if added else "No documents were indexed."
 
 
@@ -1770,7 +1894,9 @@ def research_news(
     set_news_articles(articles)
     final_answer, thinking_steps, tool_snippets = _run_research_graph(query, chat_history)
     referenced_articles = _resolve_referenced_articles(final_answer)
-    final_answer = _ensure_supported_final_answer(query, final_answer, referenced_articles, tool_snippets)
+    final_answer = _ensure_supported_final_answer(
+        query, final_answer, referenced_articles, tool_snippets
+    )
     final_answer = _sanitize_final_answer(final_answer)
     source_providers = sorted(_research_source_providers)
     structured_block = _structured_articles_block(query, referenced_articles, source_providers)

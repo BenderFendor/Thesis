@@ -275,7 +275,9 @@ def _ensure_profile_citation(
     reporter: Reporter, author_url: str, profile_name: str, evidence_source: str
 ) -> None:
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    if any(isinstance(item, dict) and str(item.get("url") or "") == author_url for item in citations):
+    if any(
+        isinstance(item, dict) and str(item.get("url") or "") == author_url for item in citations
+    ):
         return
     citations.insert(
         0,
@@ -395,14 +397,21 @@ class suppress_exception:
         return exc_type is not None
 
 
+def _split_creator_part(part: str) -> list[str]:
+    if not part:
+        return []
+    separator = next((candidate for candidate in (" and ", " & ") if candidate in part), None)
+    if separator is None:
+        return [part]
+    return [piece.strip() for piece in part.split(separator) if piece.strip()]
+
+
 def _split_creator(value: str) -> list[str]:
-    authors: list[str] = []
-    for part in (piece.strip() for piece in value.split(",")):
-        if not part:
-            continue
-        separator = " and " if " and " in part else " & " if " & " in part else None
-        authors.extend(piece.strip() for piece in part.split(separator) if piece.strip()) if separator else authors.append(part)
-    return authors
+    return [
+        author
+        for part in (piece.strip() for piece in value.split(","))
+        for author in _split_creator_part(part)
+    ]
 
 
 def _rss_item_record(item: ET.Element) -> tuple[str, list[str]] | None:
@@ -961,7 +970,9 @@ def main() -> int:
     parser.add_argument("--source", help="Process a single source (substring match)")
     parser.add_argument("--limit", type=int, help="Limit number of sources to process")
     parser.add_argument("--concurrency", type=int, default=6, help="Sources to process in parallel")
-    parser.add_argument("--dry-run", action="store_true", help="Discover and scrape without DB writes")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Discover and scrape without DB writes"
+    )
     return asyncio.run(main_async(parser.parse_args()))
 
 

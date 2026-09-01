@@ -21,19 +21,19 @@ export const KEYWORD_SCORE_CAP = 10;
 export const CATEGORY_SCORE_CAP = 4;
 export const SOURCE_SCORE_CAP = 2;
 
-const DEFAULT_BUCKET_RANK = 0;
-const IMAGE_BUCKET_RANK = 1;
-const FAVORITE_BUCKET_RANK = 2;
-const FAVORITE_IMAGE_BUCKET_RANK = 3;
-const NO_SCORE = 0;
-const MIN_TOKEN_LENGTH = 3;
-const TOP_KEYWORD_LIMIT = 8;
-const TOP_CLUSTER_LIMIT = 4;
-const MATCHED_KEYWORD_LIMIT = 6;
-const SCORE_DECIMAL_PLACES = 2;
-const PROFILE_COUNT_INCREMENT = 1;
+const DEFAULT_BUCKET_RANK = 0,
+ FAVORITE_BUCKET_RANK = 2,
+ FAVORITE_IMAGE_BUCKET_RANK = 3,
+ IMAGE_BUCKET_RANK = 1,
+ MATCHED_KEYWORD_LIMIT = 6,
+ MIN_TOKEN_LENGTH = 3,
+ NO_SCORE = 0,
+ PROFILE_COUNT_INCREMENT = 1,
+ SCORE_DECIMAL_PLACES = 2,
+ TOP_CLUSTER_LIMIT = 4,
+ TOP_KEYWORD_LIMIT = 8,
 
-const STOP_WORDS = new Set([
+ STOP_WORDS = new Set([
   "about",
   "after",
   "amid",
@@ -176,11 +176,11 @@ export const tokenizeArticle = (article: Readonly<NewsArticle>): string[] => {
     article.category,
     article.source,
     ...(article.tags ?? []),
-  ];
-  const tokens = parts
+  ],
+   tokens = parts
     .join(" ")
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/gu, " ")
+    .replaceAll(/[^a-z0-9\s]/gu, " ")
     .split(/\s+/u)
     .map(normalizeToken)
     .filter((token) => token.length >= MIN_TOKEN_LENGTH && !STOP_WORDS.has(token));
@@ -196,23 +196,23 @@ const addWeight = (
     return;
   }
   target[key] = (target[key] ?? NO_SCORE) + value;
-};
+},
 
-const collectTopicKeywords = (topics: readonly ArticleTopic[]): string[] => {
+ collectTopicKeywords = (topics: readonly ArticleTopic[]): string[] => {
   const keywords = topics.flatMap((topic) => topic.keywords ?? []);
   return [...new Set(keywords.map(normalizeToken).filter((keyword) => keyword.length > NO_SCORE))];
-};
+},
 
-const topEntries = (
+ topEntries = (
   weights: Readonly<Record<string, number>>,
   limit: number,
 ): string[] =>
   Object.entries(weights)
     .sort((left, right) => right[1] - left[1])
     .slice(NO_SCORE, limit)
-    .map(([key]) => key);
+    .map(([key]) => key),
 
-const topClusterEntries = (
+ topClusterEntries = (
   weights: Readonly<Record<number, number>>,
   labels: Readonly<Record<number, string>>,
   limit: number,
@@ -223,9 +223,9 @@ const topClusterEntries = (
     .map(([clusterId, weight]) => ({
       label: labels[Number(clusterId)] ?? `cluster ${clusterId}`,
       weight,
-    }));
+    })),
 
-const createProfileAccumulator = (): ProfileAccumulator => ({
+ createProfileAccumulator = (): ProfileAccumulator => ({
   bookmarkCount: NO_SCORE,
   categoryWeights: {},
   clusterLabels: {},
@@ -233,9 +233,9 @@ const createProfileAccumulator = (): ProfileAccumulator => ({
   keywordWeights: {},
   likeCount: NO_SCORE,
   sourceWeights: {},
-});
+}),
 
-const addLexicalSignal = (
+ addLexicalSignal = (
   accumulator: Readonly<ProfileAccumulator>,
   categoryKey: string,
   sourceKey: string,
@@ -243,41 +243,41 @@ const addLexicalSignal = (
   signal: "bookmark" | "like",
 ): void => {
   const categoryWeight =
-    signal === "bookmark" ? PROFILE_CATEGORY_BOOKMARK_WEIGHT : PROFILE_CATEGORY_LIKE_WEIGHT;
-  const sourceWeight =
-    signal === "bookmark" ? PROFILE_SOURCE_BOOKMARK_WEIGHT : PROFILE_SOURCE_LIKE_WEIGHT;
-  const keywordWeight =
+    signal === "bookmark" ? PROFILE_CATEGORY_BOOKMARK_WEIGHT : PROFILE_CATEGORY_LIKE_WEIGHT,
+   sourceWeight =
+    signal === "bookmark" ? PROFILE_SOURCE_BOOKMARK_WEIGHT : PROFILE_SOURCE_LIKE_WEIGHT,
+   keywordWeight =
     signal === "bookmark" ? PROFILE_KEYWORD_BOOKMARK_WEIGHT : PROFILE_KEYWORD_LIKE_WEIGHT;
   addWeight(accumulator.categoryWeights, categoryKey, categoryWeight);
   addWeight(accumulator.sourceWeights, sourceKey, sourceWeight);
   for (const keyword of keywords) {
     addWeight(accumulator.keywordWeights, keyword, keywordWeight);
   }
-};
+},
 
-const addTopicSignal = (
+ addTopicSignal = (
   accumulator: Readonly<ProfileAccumulator>,
   topic: Readonly<ArticleTopic>,
   signal: "bookmark" | "like",
 ): void => {
   const clusterWeight =
-    signal === "bookmark" ? PROFILE_CLUSTER_BOOKMARK_WEIGHT : PROFILE_CLUSTER_LIKE_WEIGHT;
-  const keywordWeight =
+    signal === "bookmark" ? PROFILE_CLUSTER_BOOKMARK_WEIGHT : PROFILE_CLUSTER_LIKE_WEIGHT,
+   keywordWeight =
     signal === "bookmark" ? PROFILE_KEYWORD_BOOKMARK_WEIGHT : PROFILE_KEYWORD_LIKE_WEIGHT;
   addWeight(accumulator.clusterWeights, topic.cluster_id, clusterWeight);
   for (const keyword of collectTopicKeywords([topic])) {
     addWeight(accumulator.keywordWeights, keyword, keywordWeight);
   }
-};
+},
 
-const applySeedSignals = (
+ applySeedSignals = (
   accumulator: ProfileAccumulator,
   seed: Readonly<PersonalizationSeed>,
   topics: readonly ArticleTopic[],
 ): void => {
-  const categoryKey = normalizeToken(seed.article.category ?? "");
-  const sourceKey = normalizeToken(seed.article.sourceId ?? seed.article.source ?? "");
-  const lexicalKeywords = tokenizeArticle(seed.article);
+  const categoryKey = normalizeToken(seed.article.category ?? ""),
+   sourceKey = normalizeToken(seed.article.sourceId ?? seed.article.source ?? ""),
+   lexicalKeywords = tokenizeArticle(seed.article);
   if (seed.bookmarked) {
     accumulator.bookmarkCount += PROFILE_COUNT_INCREMENT;
     addLexicalSignal(accumulator, categoryKey, sourceKey, lexicalKeywords, "bookmark");
@@ -295,9 +295,9 @@ const applySeedSignals = (
       addTopicSignal(accumulator, topic, "like");
     }
   }
-};
+},
 
-const finalizeInterestProfile = (
+ finalizeInterestProfile = (
   accumulator: Readonly<ProfileAccumulator>,
   seedArticleCount: number,
 ): InterestProfile => ({
@@ -335,8 +335,8 @@ const getBucket = (
   article: Readonly<NewsArticle>,
   isFavorite: (sourceId: string) => boolean,
 ): FeedBucket => {
-  const favorite = isFavorite(article.sourceId);
-  const hasImage = hasRealFeedImage(article.image);
+  const favorite = isFavorite(article.sourceId),
+   hasImage = hasRealFeedImage(article.image);
   if (favorite && hasImage) {
     return { label: "favorite source + image", rank: FAVORITE_IMAGE_BUCKET_RANK };
   }
@@ -347,17 +347,17 @@ const getBucket = (
     return { label: "image", rank: IMAGE_BUCKET_RANK };
   }
   return { label: "default", rank: DEFAULT_BUCKET_RANK };
-};
+},
 
-const clamp = (value: number, maximum: number): number => Math.min(value, maximum);
+ clamp = (value: number, maximum: number): number => Math.min(value, maximum),
 
-const getMatchedKeywords = (
+ getMatchedKeywords = (
   tokens: readonly string[],
   profile: Readonly<InterestProfile>,
 ): string[] =>
-  tokens.filter((token) => (profile.keywordWeights[token] ?? NO_SCORE) > NO_SCORE);
+  tokens.filter((token) => (profile.keywordWeights[token] ?? NO_SCORE) > NO_SCORE),
 
-const getKeywordScore = (
+ getKeywordScore = (
   matchedKeywords: readonly string[],
   profile: Readonly<InterestProfile>,
 ): number =>
@@ -367,11 +367,11 @@ const getKeywordScore = (
       NO_SCORE,
     ),
     KEYWORD_SCORE_CAP,
-  );
+  ),
 
-const roundScore = (score: number): number => Number(score.toFixed(SCORE_DECIMAL_PLACES));
+ roundScore = (score: number): number => Number(score.toFixed(SCORE_DECIMAL_PLACES)),
 
-const createBasicBreakdown = (
+ createBasicBreakdown = (
   article: Readonly<NewsArticle>,
   bucket: Readonly<FeedBucket>,
 ): FeedScoreBreakdown => ({
@@ -398,18 +398,18 @@ export const scoreArticle = (
   if (profile === undefined) {
     return createBasicBreakdown(article, bucket);
   }
-  const tokens = tokenizeArticle(article);
-  const normalizedCategory = normalizeToken(article.category ?? "");
-  const normalizedSource = normalizeToken(article.sourceId ?? article.source ?? "");
-  const matchedKeywords = getMatchedKeywords(tokens, profile);
-  const keywordScore = getKeywordScore(matchedKeywords, profile);
-  const categoryWeight = profile.categoryWeights[normalizedCategory] ?? NO_SCORE;
-  const categoryScore = clamp(categoryWeight, CATEGORY_SCORE_CAP);
-  const sourceWeight = profile.sourceWeights[normalizedSource] ?? NO_SCORE;
-  const sourceScore = clamp(sourceWeight, SOURCE_SCORE_CAP);
-  const personalizedScore = roundScore(keywordScore + categoryScore + sourceScore);
-  const matchedCategories = categoryWeight > NO_SCORE ? [normalizedCategory] : [];
-  const matchedSource = sourceWeight > NO_SCORE ? normalizedSource : undefined;
+  const tokens = tokenizeArticle(article),
+   normalizedCategory = normalizeToken(article.category ?? ""),
+   normalizedSource = normalizeToken(article.sourceId ?? article.source ?? ""),
+   matchedKeywords = getMatchedKeywords(tokens, profile),
+   keywordScore = getKeywordScore(matchedKeywords, profile),
+   categoryWeight = profile.categoryWeights[normalizedCategory] ?? NO_SCORE,
+   categoryScore = clamp(categoryWeight, CATEGORY_SCORE_CAP),
+   sourceWeight = profile.sourceWeights[normalizedSource] ?? NO_SCORE,
+   sourceScore = clamp(sourceWeight, SOURCE_SCORE_CAP),
+   personalizedScore = roundScore(keywordScore + categoryScore + sourceScore),
+   matchedCategories = categoryWeight > NO_SCORE ? [normalizedCategory] : [],
+   matchedSource = sourceWeight > NO_SCORE ? normalizedSource : undefined;
   return {
     articleId: article.id,
     bucketLabel: bucket.label,
@@ -444,8 +444,8 @@ export const rankFeedArticles = (
   profile: Readonly<InterestProfile> | undefined,
   isFavorite: (sourceId: string) => boolean,
 ): RankedFeedResult => {
-  const breakdowns: Record<number, FeedScoreBreakdown> = {};
-  const ranked = articles.map((article, originalIndex): RankedArticle => {
+  const breakdowns: Record<number, FeedScoreBreakdown> = {},
+   ranked = articles.map((article, originalIndex): RankedArticle => {
     const breakdown = scoreArticle(article, profile, isFavorite);
     breakdowns[article.id] = breakdown;
     return { article, breakdown, originalIndex };

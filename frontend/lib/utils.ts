@@ -38,8 +38,8 @@ const DEBUG_MODE_STORAGE_KEY = "thesis_debug_mode",
   };
 },
  debugState = { enabled: false },
- getDebugMode = (): boolean => {
-  if (globalThis.window !== undefined) {
+getDebugMode = (): boolean => {
+  if ("window" in globalThis) {
     const stored = globalThis.localStorage.getItem(DEBUG_MODE_STORAGE_KEY);
     if (stored !== null) {
       return stored === "true";
@@ -66,9 +66,9 @@ const DEBUG_MODE_STORAGE_KEY = "thesis_debug_mode",
   }
   return undefined;
 },
- setDebugMode = (enabled: boolean): void => {
+setDebugMode = (enabled: boolean): void => {
   debugState.enabled = enabled;
-  if (globalThis.window !== undefined) {
+  if ("window" in globalThis) {
     globalThis.localStorage.setItem(
       DEBUG_MODE_STORAGE_KEY,
       String(enabled),

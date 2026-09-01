@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 from collections.abc import Mapping, Sequence
 from datetime import datetime
@@ -11,6 +12,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -58,27 +60,38 @@ def _resolve_source_name(candidate: str) -> str:
     return exact.get(lowered, slugs.get(lowered, stripped))
 
 
-def _selected_sources(source: str | None, sources: str | None) -> list[str] | None:
-    if sources:
-        selected = [
-            resolved
-            for candidate in sources.split(",")
-            if (resolved := _resolve_source_name(candidate))
-        ]
-        if selected:
-            return list(dict.fromkeys(selected))
+def _selected_source_list(sources: str | None) -> list[str] | None:
+    if not sources:
+        return None
+    selected = [
+        resolved
+        for candidate in sources.split(",")
+        if (resolved := _resolve_source_name(candidate))
+    ]
+    return list(dict.fromkeys(selected)) if selected else None
+
+
+def _selected_source_value(source: str | None) -> list[str] | None:
     if source and (resolved := _resolve_source_name(source)):
         return [resolved]
     return None
 
 
+def _selected_sources(source: str | None, sources: str | None) -> list[str] | None:
+    return _selected_source_list(sources) or _selected_source_value(source)
+
+
 class CursorData(BaseModel):
+    """Decoded cursor values used for keyset pagination."""
+
     published_at: str
     id: int
     search_rank: float | None = None
 
 
 class PaginatedResponse(BaseModel):
+    """Article page and its pagination metadata."""
+
     articles: list[dict[str, Any]]
     total: int
     limit: int
@@ -88,6 +101,8 @@ class PaginatedResponse(BaseModel):
 
 
 class RecentPageResponse(BaseModel):
+    """Recent article page and its next cursor."""
+
     articles: list[dict[str, Any]]
     limit: int
     next_cursor: str | None = None
@@ -95,11 +110,15 @@ class RecentPageResponse(BaseModel):
 
 
 class BrowseIndexResponse(BaseModel):
+    """Lightweight browse-index response."""
+
     articles: list[dict[str, Any]]
     total: int
 
 
 class RankRequest(BaseModel):
+    """Article ranking inputs from the frontend."""
+
     articles: list[dict[str, Any]]
     liked_article_ids: list[int] = Field(default_factory=list)
     bookmarked_article_ids: list[int] = Field(default_factory=list)
@@ -107,6 +126,8 @@ class RankRequest(BaseModel):
 
 
 class RankResponse(BaseModel):
+    """Ranked article response."""
+
     articles: list[dict[str, Any]]
     total: int
 
@@ -121,14 +142,22 @@ def _compact_summary(summary: str | None, limit: int = 280) -> str | None:
     return f"{truncated}..."
 
 
-def _browse_article_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
+def _browse_default(row: Mapping[str, Any], key: str, default: Any) -> Any:
+    return row.get(key) or default
+
+
+def _browse_published_at(row: Mapping[str, Any]) -> str | None:
     published_at = row.get("published_at")
-    published = published_at.isoformat() if isinstance(published_at, datetime) else None
+    return published_at.isoformat() if isinstance(published_at, datetime) else None
+
+
+def _browse_article_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
     summary = _compact_summary(cast(str | None, row.get("summary")))
+    published = _browse_published_at(row)
     return {
         "id": row.get("id"),
-        "title": row.get("title") or "Untitled article",
-        "source": row.get("source") or "Unknown",
+        "title": _browse_default(row, "title", "Untitled article"),
+        "source": _browse_default(row, "source", "Unknown"),
         "source_id": row.get("source_id"),
         "country": row.get("country"),
         "credibility": row.get("credibility"),
@@ -139,12 +168,12 @@ def _browse_article_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "image_url": row.get("image_url"),
         "published": published,
         "published_at": published,
-        "category": row.get("category") or "general",
+        "category": _browse_default(row, "category", "general"),
         "url": row.get("url"),
         "link": row.get("url"),
         "author": row.get("author"),
-        "authors": row.get("authors") or [],
-        "author_urls": row.get("author_urls") or [],
+        "authors": _browse_default(row, "authors", []),
+        "author_urls": _browse_default(row, "author_urls", []),
     }
 
 
@@ -178,9 +207,10 @@ def _cached_article_to_dict(article: NewsArticle) -> dict[str, Any]:
 
 def _matches_cache_search(article: NewsArticle, search: str) -> bool:
     normalized = search.lower()
-    return normalized in (article.title or "").lower() or normalized in (
-        article.description or ""
-    ).lower()
+    return (
+        normalized in (article.title or "").lower()
+        or normalized in (article.description or "").lower()
+    )
 
 
 def _filter_cached_articles(
@@ -194,22 +224,61 @@ def _filter_cached_articles(
     return [
         article
         for article in news_cache.get_articles()
-        if (not category or article.category == category)
-        and (not selected or article.source in selected)
-        and (not search or _matches_cache_search(article, search))
+        if _matches_cached_article(article, category, selected, search)
     ]
+
+
+def _matches_cached_category(article: NewsArticle, category: str | None) -> bool:
+    if category is None:
+        return True
+    return article.category == category
+
+
+def _matches_cached_source(article: NewsArticle, selected: set[str]) -> bool:
+    if not selected:
+        return True
+    return article.source in selected
+
+
+def _matches_cached_query(article: NewsArticle, search: str | None) -> bool:
+    if search is None:
+        return True
+    return _matches_cache_search(article, search)
+
+
+def _matches_cached_article(
+    article: NewsArticle,
+    category: str | None,
+    selected: set[str],
+    search: str | None,
+) -> bool:
+    return all(
+        (
+            _matches_cached_category(article, category),
+            _matches_cached_source(article, selected),
+            _matches_cached_query(article, search),
+        )
+    )
+
+
+def _browse_search_term(search: str | None) -> str:
+    return " ".join((search or "").split()).strip().lower()
+
+
+def _is_single_search_term(term: str) -> bool:
+    return bool(term) and " " not in term
+
+
+def _matches_browse_country_code(code: str, term: str) -> bool:
+    return code.lower() == term or country_name(code).lower() == term
 
 
 def _browse_search_country_codes(search: str | None) -> list[str]:
-    normalized = " ".join((search or "").split()).strip().lower()
-    if not normalized or " " in normalized:
+    normalized = _browse_search_term(search)
+    if not _is_single_search_term(normalized):
         return []
     supported = ("US", "CN", "GB", "DE", "FR", "RU", "UA", "IL", "PS", "IR", "TW", "JP", "KR", "KP")
-    return [
-        code
-        for code in supported
-        if code.lower() == normalized or country_name(code).lower() == normalized
-    ]
+    return [code for code in supported if _matches_browse_country_code(code, normalized)]
 
 
 def _browse_text_match(row: Mapping[str, Any], term: str) -> bool:
@@ -267,9 +336,8 @@ _BROWSE_SELECT_COLUMNS = (
 )
 
 
-def encode_cursor(
-    published_at: datetime, article_id: int, search_rank: float | None = None
-) -> str:
+def encode_cursor(published_at: datetime, article_id: int, search_rank: float | None = None) -> str:
+    """Encode pagination values into a URL-safe cursor."""
     data = {
         "published_at": published_at.isoformat(),
         "id": article_id,
@@ -279,6 +347,7 @@ def encode_cursor(
 
 
 def decode_cursor(cursor: str) -> CursorData:
+    """Decode a URL-safe cursor or raise a client-facing validation error."""
     try:
         data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
         return CursorData(
@@ -286,8 +355,8 @@ def decode_cursor(cursor: str) -> CursorData:
             id=data["id"],
             search_rank=data.get("search_rank"),
         )
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid cursor: {exc}") from exc
+    except (binascii.Error, KeyError, TypeError, UnicodeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=f"Invalid cursor: {error!s}") from error
 
 
 def _base_filters(
@@ -304,8 +373,14 @@ def _base_filters(
 
 def _cursor_filter(cursor_data: CursorData, sort_order: str) -> ColumnElement[bool]:
     cursor_dt = datetime.fromisoformat(cursor_data.published_at)
-    comparison = Article.published_at < cursor_dt if sort_order == "desc" else Article.published_at > cursor_dt
-    id_comparison = Article.id < cursor_data.id if sort_order == "desc" else Article.id > cursor_data.id
+    comparison = (
+        Article.published_at < cursor_dt
+        if sort_order == "desc"
+        else Article.published_at > cursor_dt
+    )
+    id_comparison = (
+        Article.id < cursor_data.id if sort_order == "desc" else Article.id > cursor_data.id
+    )
     return or_(comparison, and_(Article.published_at == cursor_dt, id_comparison))
 
 
@@ -334,12 +409,33 @@ async def _search_page_rows(
 ) -> tuple[list[Article], list[float]]:
     normalized = " ".join(search.split())
     match_filter, rank, order_by = build_article_keyword_search(normalized, dialect)
-    search_filters = [*filters, match_filter]
     if rank is None:
-        rows = await search_article_records_by_keyword(
-            db, query=normalized, limit=limit + 1, filters=filters
-        )
-        return list(rows), []
+        return await _unranked_search_page_rows(db, normalized, filters, limit)
+    return await _ranked_search_page_rows(db, rank, order_by, filters, match_filter, cursor, limit)
+
+
+async def _unranked_search_page_rows(
+    db: AsyncSession,
+    normalized: str,
+    filters: list[ColumnElement[bool]],
+    limit: int,
+) -> tuple[list[Article], list[float]]:
+    rows = await search_article_records_by_keyword(
+        db, query=normalized, limit=limit + 1, filters=filters
+    )
+    return list(rows), []
+
+
+async def _ranked_search_page_rows(
+    db: AsyncSession,
+    rank: Any,
+    order_by: Sequence[Any],
+    filters: list[ColumnElement[bool]],
+    match_filter: ColumnElement[bool],
+    cursor: str | None,
+    limit: int,
+) -> tuple[list[Article], list[float]]:
+    search_filters = [*filters, match_filter]
     if cursor and (rank_cursor := _rank_cursor_filter(rank, decode_cursor(cursor))) is not None:
         search_filters.append(rank_cursor)
     statement = select(Article, rank).where(*search_filters).order_by(*order_by).limit(limit + 1)
@@ -378,18 +474,63 @@ async def _page_total(
     return int((await db.execute(statement)).scalar_one())
 
 
-def _trim_page(rows: list[Article], ranks: list[float], limit: int) -> tuple[list[Article], list[float], bool]:
+def _trim_page(
+    rows: list[Article], ranks: list[float], limit: int
+) -> tuple[list[Article], list[float], bool]:
     has_more = len(rows) > limit
     return rows[:limit], ranks[:limit], has_more
 
 
+def _last_cursorable_article(rows: list[Article], has_more: bool) -> Article | None:
+    if not has_more:
+        return None
+    last = next(reversed(rows), None)
+    if last is None or last.published_at is None or last.id is None:
+        return None
+    return last
+
+
+def _last_rank(ranks: list[float]) -> float | None:
+    return ranks[-1] if ranks else None
+
+
 def _next_page_cursor(rows: list[Article], ranks: list[float], has_more: bool) -> str | None:
-    if not has_more or not rows:
+    last = _last_cursorable_article(rows, has_more)
+    if last is None:
         return None
-    last = rows[-1]
-    if last.published_at is None or last.id is None:
-        return None
-    return encode_cursor(last.published_at, int(last.id), ranks[-1] if ranks else None)
+    return encode_cursor(last.published_at, int(last.id), _last_rank(ranks))
+
+
+def _page_dialect(db: AsyncSession, search: str | None) -> str:
+    return get_session_dialect_name(db) if search else ""
+
+
+def _page_filters(
+    category: str | None,
+    source: str | None,
+    sources: str | None,
+    cursor: str | None,
+    dialect: str,
+    sort_order: str,
+) -> list[ColumnElement[bool]]:
+    filters = _base_filters(category, source, sources)
+    if cursor and dialect != "postgresql":
+        filters.append(_cursor_filter(decode_cursor(cursor), sort_order))
+    return filters
+
+
+async def _fetch_page_rows(
+    db: AsyncSession,
+    search: str | None,
+    dialect: str,
+    filters: list[ColumnElement[bool]],
+    cursor: str | None,
+    sort_order: str,
+    limit: int,
+) -> tuple[list[Article], list[float]]:
+    if search:
+        return await _search_page_rows(db, search, dialect, filters, cursor, limit)
+    return await _plain_page_rows(db, filters, sort_order, limit), []
 
 
 @router.get("/page", response_model=PaginatedResponse)
@@ -399,7 +540,9 @@ async def get_news_paginated(
     cursor: str | None = Query(default=None),
     category: str | None = Query(default=None),
     source: str | None = Query(default=None),
-    sources: str | None = Query(default=None, description="Comma-separated source names for multi-select"),
+    sources: str | None = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: str | None = Query(default=None),
     sort_order: str = Query(default="desc"),
     db: AsyncSession = Depends(get_db),
@@ -407,15 +550,9 @@ async def get_news_paginated(
     """Return a cursor-paginated article page with optional source/search filters."""
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     response.headers["Vary"] = "Accept-Encoding"
-    dialect = get_session_dialect_name(db) if search else ""
-    filters = _base_filters(category, source, sources)
-    if cursor and dialect != "postgresql":
-        filters.append(_cursor_filter(decode_cursor(cursor), sort_order))
-    if search:
-        rows, ranks = await _search_page_rows(db, search, dialect, filters, cursor, limit)
-    else:
-        rows = await _plain_page_rows(db, filters, sort_order, limit)
-        ranks = []
+    dialect = _page_dialect(db, search)
+    filters = _page_filters(category, source, sources, cursor, dialect, sort_order)
+    rows, ranks = await _fetch_page_rows(db, search, dialect, filters, cursor, sort_order, limit)
     rows, ranks, has_more = _trim_page(rows, ranks, limit)
     return PaginatedResponse(
         articles=[article_record_to_dict(row) for row in rows],
@@ -432,10 +569,15 @@ async def get_cached_news_paginated(
     offset: int = Query(default=0, ge=0),
     category: str | None = Query(default=None),
     source: str | None = Query(default=None),
-    sources: str | None = Query(default=None, description="Comma-separated source names for multi-select"),
+    sources: str | None = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: str | None = Query(default=None),
 ) -> PaginatedResponse:
-    filtered = _filter_cached_articles(category=category, source=source, sources=sources, search=search)
+    """Return a filtered page from the in-memory news cache."""
+    filtered = _filter_cached_articles(
+        category=category, source=source, sources=sources, search=search
+    )
     total = len(filtered)
     paginated = filtered[offset : offset + limit]
     has_more = offset + limit < total
@@ -453,12 +595,17 @@ async def get_cached_browse_index(
     response: Response,
     category: str | None = Query(default=None),
     source: str | None = Query(default=None),
-    sources: str | None = Query(default=None, description="Comma-separated source names for multi-select"),
+    sources: str | None = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: str | None = Query(default=None),
 ) -> BrowseIndexResponse:
+    """Return a filtered lightweight index from the in-memory cache."""
     response.headers["Cache-Control"] = "public, max-age=5, stale-while-revalidate=15"
     response.headers["Vary"] = "Accept-Encoding"
-    articles = _filter_cached_articles(category=category, source=source, sources=sources, search=search)
+    articles = _filter_cached_articles(
+        category=category, source=source, sources=sources, search=search
+    )
     return BrowseIndexResponse(
         articles=[_cached_article_to_dict(article) for article in articles],
         total=len(articles),
@@ -483,23 +630,41 @@ async def _browse_rows(
     filters: list[ColumnElement[bool]],
     search: str | None,
 ) -> list[Mapping[str, Any]]:
-    if not search:
-        statement = select(*_BROWSE_SELECT_COLUMNS)
-        if filters:
-            statement = statement.where(*filters)
-        statement = statement.order_by(desc(Article.published_at), desc(Article.id))
-        return [cast(Mapping[str, Any], row) for row in (await db.execute(statement)).mappings().all()]
+    if search:
+        return await _browse_search_rows(db, filters, search)
+    return await _browse_unsearched_rows(db, filters)
 
+
+async def _browse_unsearched_rows(
+    db: AsyncSession,
+    filters: list[ColumnElement[bool]],
+) -> list[Mapping[str, Any]]:
+    statement = select(*_BROWSE_SELECT_COLUMNS)
+    if filters:
+        statement = statement.where(*filters)
+    statement = statement.order_by(desc(Article.published_at), desc(Article.id))
+    result = await db.execute(statement)
+    return [cast(Mapping[str, Any], row) for row in result.mappings().all()]
+
+
+async def _browse_search_rows(
+    db: AsyncSession,
+    filters: list[ColumnElement[bool]],
+    search: str,
+) -> list[Mapping[str, Any]]:
     normalized = " ".join(search.split())
     clauses, rank, order_by = _browse_search_clauses(
         filters, normalized, get_session_dialect_name(db)
     )
     columns = (*_BROWSE_SELECT_COLUMNS, rank) if rank is not None else _BROWSE_SELECT_COLUMNS
     statement = select(*columns).where(*clauses)
-    statement = statement.order_by(*order_by) if rank is not None else statement.order_by(
-        desc(Article.published_at), desc(Article.id)
+    statement = (
+        statement.order_by(*order_by)
+        if rank is not None
+        else statement.order_by(desc(Article.published_at), desc(Article.id))
     )
-    return [cast(Mapping[str, Any], row) for row in (await db.execute(statement)).mappings().all()]
+    result = await db.execute(statement)
+    return [cast(Mapping[str, Any], row) for row in result.mappings().all()]
 
 
 def _sort_country_browse_rows(rows: list[Mapping[str, Any]], search: str | None) -> None:
@@ -521,10 +686,13 @@ async def get_browse_index(
     response: Response,
     category: str | None = Query(default=None),
     source: str | None = Query(default=None),
-    sources: str | None = Query(default=None, description="Comma-separated source names for multi-select"),
+    sources: str | None = Query(
+        default=None, description="Comma-separated source names for multi-select"
+    ),
     search: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> BrowseIndexResponse:
+    """Return lightweight article cards from the persisted browse corpus."""
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     response.headers["Vary"] = "Accept-Encoding"
     rows = await _browse_rows(db, _base_filters(category, source, sources), search)
@@ -554,6 +722,7 @@ async def get_recent_news(
     source: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> RecentPageResponse:
+    """Return a cursor-paginated page of recent articles."""
     filters = _recent_filters(category, source, cursor)
     rows = await _plain_page_rows(db, filters, "desc", limit)
     rows, _, has_more = _trim_page(rows, [], limit)
@@ -591,20 +760,25 @@ def _ranked_results(request: RankRequest) -> list[dict[str, Any]]:
             bookmarked_article_ids=request.bookmarked_article_ids,
             favorite_source_ids=request.favorite_source_ids,
         )
-    except Exception:
+    except (RuntimeError, TypeError, ValueError):
         return _fallback_ranks(request.articles)
 
 
-def _rank_sort_key(article: dict[str, Any], rank_map: dict[Any, dict[str, Any]]) -> tuple[float, float]:
+def _rank_sort_key(
+    article: dict[str, Any], rank_map: dict[Any, dict[str, Any]]
+) -> tuple[float, float]:
     rank = rank_map.get(article.get("id"), {})
     return -float(rank.get("bucket_rank", 0)), -float(rank.get("total_score", 0))
 
 
 @router.post("/ranked", response_model=RankResponse)
 async def post_ranked_articles(request: RankRequest) -> RankResponse:
+    """Rank submitted articles with the Rust engine and return the sorted page."""
     ranked = _ranked_results(request)
     rank_map = {rank["article_id"]: rank for rank in ranked}
-    sorted_articles = sorted(request.articles, key=lambda article: _rank_sort_key(article, rank_map))
+    sorted_articles = sorted(
+        request.articles, key=lambda article: _rank_sort_key(article, rank_map)
+    )
     for article in sorted_articles:
         article_id = article.get("id")
         if article_id in rank_map:
@@ -614,6 +788,7 @@ async def post_ranked_articles(request: RankRequest) -> RankResponse:
 
 @router.get("/source/{source_name}", response_model=list[NewsArticle])
 async def get_news_by_source(source_name: str) -> list[NewsArticle]:
+    """Return cached articles for one configured source."""
     if source_name not in get_rss_sources():
         raise HTTPException(status_code=404, detail="Source not found")
     return [article for article in news_cache.get_articles() if article.source == source_name]
@@ -621,6 +796,7 @@ async def get_news_by_source(source_name: str) -> list[NewsArticle]:
 
 @router.get("/category/{category_name}", response_model=NewsResponse)
 async def get_news_by_category(category_name: str) -> NewsResponse:
+    """Return cached articles for one category."""
     articles = [
         article for article in news_cache.get_articles() if article.category == category_name
     ]
@@ -634,7 +810,7 @@ async def get_news_by_category(category_name: str) -> NewsResponse:
 async def _source_metadata_by_name(db: AsyncSession) -> dict[str, SourceMetadata]:
     try:
         entries = (await db.execute(select(SourceMetadata))).scalars().all()
-    except Exception:
+    except SQLAlchemyError:
         return {}
     return {
         source_name: entry
@@ -643,12 +819,22 @@ async def _source_metadata_by_name(db: AsyncSession) -> dict[str, SourceMetadata
     }
 
 
+def _configured_value(info: dict[str, Any]) -> Any:
+    value = info.get("site_url")
+    if value is None:
+        return info.get("url")
+    return value
+
+
 def _configured_url(info: dict[str, Any]) -> str:
-    value = info.get("site_url") or info.get("url")
+    value = _configured_value(info)
     if isinstance(value, str):
         return value
-    if isinstance(value, list) and value and isinstance(value[0], str):
-        return value[0]
+    if not isinstance(value, list):
+        return ""
+    first = next(iter(value), None)
+    if isinstance(first, str):
+        return first
     return ""
 
 
@@ -656,40 +842,53 @@ def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _metadata_credibility(metadata: SourceMetadata | None) -> float | None:
+    if metadata is None:
+        return None
+    score = metadata.credibility_score
+    return float(cast(float, score)) if score is not None else None
+
+
+def _metadata_factual_rating(metadata: SourceMetadata | None) -> str | None:
+    if metadata is None:
+        return None
+    return cast(str | None, getattr(metadata, "factual_rating", None))
+
+
+def _source_default(info: dict[str, Any], key: str, default: str) -> str:
+    return _optional_str(info.get(key)) or default
+
+
 def _source_info(name: str, info: dict[str, Any], metadata: SourceMetadata | None) -> SourceInfo:
-    credibility = (
-        float(cast(float, metadata.credibility_score))
-        if metadata is not None and metadata.credibility_score is not None
-        else None
-    )
     return SourceInfo(
         id=_source_slug(name),
         slug=_source_slug(name),
         name=name,
         url=_configured_url(info),
-        category=_optional_str(info.get("category")) or "general",
-        country=_optional_str(info.get("country")) or "US",
+        category=_source_default(info, "category", "general"),
+        country=_source_default(info, "country", "US"),
         funding_type=_optional_str(info.get("funding_type")),
         source_type=_optional_str(info.get("source_type")),
         is_paywalled=bool(info.get("is_paywalled")),
         bias_rating=_optional_str(info.get("bias_rating")),
         ownership_label=_optional_str(info.get("ownership_label")),
-        factual_rating=cast(str | None, getattr(metadata, "factual_rating", None)) if metadata else None,
-        credibility_score=credibility,
+        factual_rating=_metadata_factual_rating(metadata),
+        credibility_score=_metadata_credibility(metadata),
     )
 
 
 @router.get("/sources", response_model=list[SourceInfo])
 async def get_sources(db: AsyncSession = Depends(get_db)) -> list[SourceInfo]:
+    """Return configured sources with persisted credibility metadata."""
     metadata = await _source_metadata_by_name(db)
     return [
-        _source_info(name, info, metadata.get(name))
-        for name, info in get_rss_sources().items()
+        _source_info(name, info, metadata.get(name)) for name, info in get_rss_sources().items()
     ]
 
 
 @router.get("/categories")
 async def get_categories() -> dict[str, list[str]]:
+    """Return the distinct categories in the configured source catalog."""
     categories = {str(info.get("category") or "general") for info in get_rss_sources().values()}
     return {"categories": list(categories)}
 
@@ -712,6 +911,7 @@ def _pending_source_stat(source_name: str, source_info: dict[str, Any]) -> dict[
 
 @router.get("/sources/stats")
 async def get_source_stats() -> dict[str, object]:
+    """Return cache statistics for configured sources."""
     configured = get_rss_sources()
     stats_map = {
         name: stat
@@ -719,7 +919,6 @@ async def get_source_stats() -> dict[str, object]:
         if isinstance((name := stat.get("name")), str)
     }
     all_stats = [
-        stats_map.get(name, _pending_source_stat(name, info))
-        for name, info in configured.items()
+        stats_map.get(name, _pending_source_stat(name, info)) for name, info in configured.items()
     ]
     return {"sources": all_stats, "total_sources": len(all_stats)}

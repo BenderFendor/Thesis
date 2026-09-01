@@ -7,27 +7,32 @@ import {
   buildLocalLensFromArticles,
 } from "@/lib/globe-live-data"
 
+const DEFAULT_ARTICLE: NewsArticle = {
+  bias: "center",
+  category: "general",
+  country: "US",
+  credibility: "high",
+  id: 1,
+  image: "/placeholder.svg",
+  originalLanguage: "en",
+  publishedAt: "2026-04-09T00:00:00.000Z",
+  source: "Source",
+  sourceId: "source",
+  summary: "Summary",
+  tags: [],
+  title: "Article",
+  translated: false,
+  url: "https://example.com/1",
+};
+
 function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+  const publishedAt = overrides.publishedAt ?? DEFAULT_ARTICLE.publishedAt,
+   article = { ...DEFAULT_ARTICLE, ...overrides, publishedAt };
   return {
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(overrides.publishedAt ?? "2026-04-09T00:00:00.000Z"),
-    bias: overrides.bias ?? "center",
-    category: overrides.category ?? "general",
-    country: overrides.country ?? "US",
-    credibility: overrides.credibility ?? "high",
-    id: overrides.id ?? 1,
-    image: overrides.image ?? "/placeholder.svg",
-    mentioned_countries: overrides.mentioned_countries,
-    originalLanguage: overrides.originalLanguage ?? "en",
-    publishedAt: overrides.publishedAt ?? "2026-04-09T00:00:00.000Z",
-    source: overrides.source ?? "Source",
-    sourceId: overrides.sourceId ?? "source",
-    source_country: overrides.source_country,
-    summary: overrides.summary ?? "Summary",
-    tags: overrides.tags ?? [],
-    title: overrides.title ?? "Article",
-    translated: overrides.translated ?? false,
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-  }
+    ...article,
+    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(publishedAt),
+    url: overrides.url ?? `https://example.com/${article.id}`,
+  };
 }
 
 describe("globe live data", () => {
@@ -37,8 +42,8 @@ describe("globe live data", () => {
       country: fc.constantFrom("US", "GB", "DE", "International"),
       id: fc.integer({ max: 10_000, min: 1 }),
       mentioned_countries: fc.array(fc.constantFrom("US", "GB", "DE"), { maxLength: 4 }),
-      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/),
-      sourceId: fc.stringMatching(/^[a-z]{1,8}$/),
+      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/u),
+      sourceId: fc.stringMatching(/^[a-z]{1,8}$/u),
       source_country: fc.option(fc.constantFrom("US", "GB", "DE"), { nil: undefined }),
     })
 

@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import type { ReporterCareerTimeline } from "@/lib/api";
 
 function formatTimelineDate(value?: string | null): string | null {
-  if (!value) {return undefined;}
+  if (!value) {return null;}
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {return undefined;}
+  if (Number.isNaN(parsed.getTime())) {return null;}
   return parsed.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
@@ -19,7 +19,7 @@ function formatTimelineDate(value?: string | null): string | null {
  * deleted synthetic coauthor/shared_outlet reporter-graph edges.
  */
 export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline }>) {
-  if (data.timeline.length === 0) {return undefined;}
+  if (data.timeline.length === 0) {return;}
 
   return (
     <div className="space-y-3">
@@ -89,7 +89,7 @@ export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline
                   <div className="font-mono text-[10px] uppercase tracking-widest text-primary/80">{range}</div>
                   <div className="mt-1 flex items-center gap-2">
                     <Link
-                      href={`/wiki/suource/${encodeURIComponent(entry.outlet)}`}
+                      href={`/wiki/source/${encodeURIComponent(entry.outlet)}`}
                       className="truncate font-serif text-sm hover:text-white transition-colors"
                     >
                       {entry.outlet}

@@ -57,7 +57,7 @@ export function NotificationsPopup({
   onClose,
   anchorRef,
 }: NotificationsPopupProps) {
-  const popupRef = useRef<HTMLDivElement>(undefined),
+  const popupRef = useRef<HTMLDivElement>(null),
    unreadCount = notifications.filter(
     (item) => item.type === "error" || item.type === "warning",
   ).length,
@@ -100,7 +100,7 @@ export function NotificationsPopup({
     }
   }, [anchorRef, onClose])
 
-  if (typeof document === "undefined") {return undefined}
+  if (typeof document === "undefined") {return}
 
   return createPortal(
     <div

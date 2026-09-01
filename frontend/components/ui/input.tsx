@@ -1,27 +1,30 @@
-import type { ComponentProps } from 'react'
+import type { ComponentProps, FunctionComponent } from 'react'
 
 import { cn } from '@/lib/utils'
 
-type InputProps = Pick<
-  ComponentProps<'input'>,
-  | 'aria-label'
-  | 'className'
-  | 'disabled'
-  | 'onChange'
-  | 'placeholder'
-  | 'type'
-  | 'value'
->
+interface InputProps {
+  readonly 'aria-label'?: string
+  readonly className?: string
+  readonly disabled?: boolean
+  readonly onChange?: ComponentProps<'input'>['onChange']
+  readonly onKeyDown?: ComponentProps<'input'>['onKeyDown']
+  readonly placeholder?: string
+  readonly type?: string
+  readonly value?: number | readonly string[] | string
+}
 
-const Input = ({
-  className,
-  type,
-  'aria-label': ariaLabel,
-  disabled,
-  onChange,
-  placeholder,
-  value,
-}: Readonly<InputProps>) => {
+const Input: FunctionComponent<Readonly<InputProps>> = (props) => {
+  const {
+    className,
+    type,
+    'aria-label': ariaLabel,
+    disabled,
+    onChange,
+    onKeyDown,
+    placeholder,
+    value,
+  } = props;
+
   return (
     <input
       aria-label={ariaLabel}
@@ -34,11 +37,13 @@ const Input = ({
       data-slot="input"
       disabled={disabled}
       onChange={onChange}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       type={type}
       value={value}
     />
-  )
-}
+  );
+};
+
 
 export { Input }

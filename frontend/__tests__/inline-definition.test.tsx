@@ -12,7 +12,7 @@ describe("inlineDefinitionPopover", () => {
   it("renders nothing when closed", () => {  expect.hasAssertions();
   
     const { container } = render(
-      <InlineDefinitionPopover result={undefined} open={false} setOpen={jest.fn()} anchorPosition={undefined} />
+      <InlineDefinitionPopover result={null} open={false} setOpen={jest.fn()} anchorPosition={null} />
     );
     expect(container.firstChild).toBeNull();
   });
@@ -29,6 +29,6 @@ describe("inlineDefinitionPopover", () => {
     );
 
     expect(screen.getByText("Janet Yellen")).toBeInTheDocument();
-    expect(screen.getByText(/Former U.S. Treasury Secretary/)).toBeInTheDocument();
+    expect(screen.getByText(/Former U.S. Treasury Secretary/u)).toBeInTheDocument();
   });
 });

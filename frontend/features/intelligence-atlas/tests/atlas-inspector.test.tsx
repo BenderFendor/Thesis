@@ -1,10 +1,10 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import type { AtlasEntityRecord, AtlasMeasurementsResponse } from "../lib/atlas-schema";
+import { describe, expect, it } from '@jest/globals';
 import { render, screen } from "@testing-library/react";
 
 import { AtlasInspector } from "../atlas-inspector";
-import type { AtlasEntityRecord, AtlasMeasurementsResponse } from "../lib/atlas-schema";
 
-const record: AtlasEntityRecord = {
+const atlasRecord: AtlasEntityRecord = {
   confidence_tier: "verified",
   connections: [],
   details: {},
@@ -16,17 +16,17 @@ const record: AtlasEntityRecord = {
           answer: "Warner Bros. Discovery",
           evidence: [
             {
-              id: "evidence-1",
-              source_type: "official_company_record",
-              source_name: "WBD brand portfolio",
-              source_url: "https://www.wbd.com/our-brands/",
-              retrieved_at: "2026-07-21T12:00:00Z",
-              snapshot_sha256: "abc123",
-              locator: { section: "CNN" },
-              evidence_class: "own_site",
-              policy_version: "evidence-policy/1",
               acceptance_decision: "accepted",
               contradictions: [],
+              evidence_class: "own_site",
+              id: "evidence-1",
+              locator: { section: "CNN" },
+              policy_version: "evidence-policy/1",
+              retrieved_at: "2026-07-21T12:00:00Z",
+              snapshot_sha256: "abc123",
+              source_name: "WBD brand portfolio",
+              source_type: "official_company_record",
+              source_url: "https://www.wbd.com/our-brands/",
             },
           ],
           label: "Current owner or operator",
@@ -76,6 +76,7 @@ const record: AtlasEntityRecord = {
   status: "accepted",
 },
 
+ ignoreConnection = (_entityId: string): void => undefined,
  measurements: AtlasMeasurementsResponse = {
   measurements: [
     {
@@ -91,26 +92,37 @@ const record: AtlasEntityRecord = {
     },
   ],
   source_name: "CNN",
+},
+
+ renderInspector = (): void => {
+  render(
+    <AtlasInspector
+      record={atlasRecord}
+      loading={false}
+      // oxlint-disable-next-line unicorn/no-null -- null is the real no-error sentinel for this component.
+      error={null}
+      measurements={measurements}
+      onSelectConnection={ignoreConnection}
+    />,
+  );
 };
 
 describe("atlasInspector", () => {
-  it("separates current and proposed answers, exposes gaps, evidence, and traces", () => {  expect.hasAssertions();
-  
-    render(
-      <AtlasInspector
-        record={record}
-        loading={false}
-        error={undefined}
-        measurements={measurements}
-        onSelectConnection={jest.fn()}
-      />,
-    );
+  it("separates current and proposed answers and exposes evidence", () => {
+    expect.hasAssertions();
+    renderInspector();
 
     expect(screen.getByText("Warner Bros. Discovery")).toBeInTheDocument();
     expect(screen.getByText("Paramount Skydance")).toBeInTheDocument();
     expect(screen.getByText("The legal chain is incomplete.")).toBeInTheDocument();
     expect(screen.getByText("Open claim evidence (1)")).toBeInTheDocument();
     expect(screen.getByText("Publication Cadence")).toBeInTheDocument();
+  });
+
+  it("renders the stored measurement denominator", () => {
+    expect.hasAssertions();
+    renderInspector();
+
     expect(screen.getByText("Denominator: 12")).toBeInTheDocument();
   });
 });

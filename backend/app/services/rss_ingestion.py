@@ -325,9 +325,7 @@ def _replaceable_source_names(source_stats: list[dict[str, Any]]) -> set[str]:
 
 def _stats_by_name(source_stats: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {
-        name: stat
-        for stat in source_stats
-        if isinstance(name := stat.get("name"), str) and name
+        name: stat for stat in source_stats if isinstance(name := stat.get("name"), str) and name
     }
 
 
@@ -337,9 +335,7 @@ def _merge_partial_cache_update(
 ) -> None:
     replaceable_names = _replaceable_source_names(updated_source_stats)
     merged_articles = [
-        article
-        for article in news_cache.get_articles()
-        if article.source not in replaceable_names
+        article for article in news_cache.get_articles() if article.source not in replaceable_names
     ]
     merged_articles.extend(
         article for article in updated_articles if article.source in replaceable_names
@@ -503,10 +499,7 @@ async def refresh_news_cache_async(
 def _rust_sources_payload(
     rss_sources: dict[str, dict[str, Any]],
 ) -> list[tuple[str, list[str]]]:
-    return [
-        (name, list(_iter_source_urls(info.get("url"))))
-        for name, info in rss_sources.items()
-    ]
+    return [(name, list(_iter_source_urls(info.get("url")))) for name, info in rss_sources.items()]
 
 
 def _rss_fetch_timeout_ms(fetch_timeout_ms: int | None) -> int:
@@ -557,9 +550,7 @@ def _articles_from_rust_result(
     for articles in articles_by_source.values():
         articles.sort(key=lambda article: article.published, reverse=True)
     all_articles = [
-        article
-        for source_articles in articles_by_source.values()
-        for article in source_articles
+        article for source_articles in articles_by_source.values() for article in source_articles
     ]
     return articles_by_source, all_articles
 
@@ -632,20 +623,13 @@ def _preserve_incomplete_source_articles(
         str(stat["name"])
         for stat in source_stats
         if stat.get("name")
-        and (
-            stat.get("status") not in {"success", "warning"}
-            or _source_stat_timed_out(stat)
-        )
+        and (stat.get("status") not in {"success", "warning"} or _source_stat_timed_out(stat))
     }
     if not incomplete_sources:
         return all_articles
-    retained = [
-        article for article in all_articles if article.source not in incomplete_sources
-    ]
+    retained = [article for article in all_articles if article.source not in incomplete_sources]
     retained.extend(
-        article
-        for article in news_cache.get_articles()
-        if article.source in incomplete_sources
+        article for article in news_cache.get_articles() if article.source in incomplete_sources
     )
     return retained
 

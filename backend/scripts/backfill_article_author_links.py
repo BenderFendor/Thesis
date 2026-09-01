@@ -142,6 +142,7 @@ def _clean_author_names(value: str | None) -> list[str]:
         return names
     return _deduplicate_author_names(names)
 
+
 def _article_author_pairs(
     raw_author: str | None,
     raw_authors: Any,
@@ -614,9 +615,7 @@ def _invalid_local_byline_reporters(
     return invalid
 
 
-async def _pruned_link_count(
-    session: AsyncSession, reporter_ids: list[int]
-) -> int:
+async def _pruned_link_count(session: AsyncSession, reporter_ids: list[int]) -> int:
     """Count the ArticleAuthor rows attached to the pruned reporters."""
     if not reporter_ids:
         return 0

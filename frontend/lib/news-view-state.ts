@@ -5,7 +5,15 @@ export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-
 export function getSharedViewArticles(
   _view: UnifiedNewsView,
   articles:readonly  NewsArticle[],
-): NewsArticle[] {
+): NewsArticle[]
+export function getSharedViewArticles(
+  _view: UnifiedNewsView,
+  articles:readonly  NewsArticle[],
+): readonly NewsArticle[]
+export function getSharedViewArticles(
+  _view: UnifiedNewsView,
+  articles: readonly NewsArticle[],
+): readonly NewsArticle[] {
   return articles
 }
 

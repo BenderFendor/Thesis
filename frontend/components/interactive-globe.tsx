@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { geoCentroid } from "d3-geo"
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { RefObject } from "react"
+import type { ComponentType, MutableRefObject } from "react"
 import {
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -25,20 +25,31 @@ import {
   NormalBlending,
   Points,
   PointsMaterial,
-  RepeatWrapping,
   RGBAFormat,
+  RepeatWrapping,
+  SRGBColorSpace,
   ShaderMaterial,
   SphereGeometry,
-  SRGBColorSpace,
-  Texture,
   TextureLoader,
   Vector3,
 } from "three"
-import type { GlobeMethods } from "react-globe.gl"
+import type { IUniform ,
+  Light,
+  Material,
+  Object3D,
+  Scene,
+  Texture} from "three"
+import type { GlobeMethods, GlobeProps } from "react-globe.gl"
 import type { CountryArticleCounts, NewsArticle } from "@/lib/api"
 import { getCountryIso } from "@/lib/globe-country"
 import type { CountryFeature, CountryFeatureCollection } from "@/lib/globe-country"
 import { z } from "zod"
+
+export type EarthLightingMode = "all-lit" | "day-night"
+
+export type InteractiveGlobeComponent = ComponentType<
+  GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
+>
 
 const Globe = dynamic(() => import("react-globe.gl").then((mod) => mod.default), {
   loading: () => (
@@ -52,7 +63,8 @@ const Globe = dynamic(() => import("react-globe.gl").then((mod) => mod.default),
 interface InteractiveGlobeProps {
   articles: NewsArticle[]
   countryMetrics?: CountryArticleCounts
-  onCountrySelect: (countryCode: string | null | undefined, countryName?: string | null) => void
+  globeComponent?: InteractiveGlobeComponent
+  onCountrySelect: (countryCode: string | null, countryName?: string | null) => void
   selectedCountry: string | null
   lightingMode: EarthLightingMode
 }
@@ -63,6 +75,8 @@ interface CountryCenter {
 }
 
 interface GlobeUniforms {
+  [uniform: string]: IUniform
+  uBumpTexture: { value: Texture }
   uCloudOffset: { value: number }
   uCloudTexture: { value: Texture }
   uDayTexture: { value: Texture }
@@ -102,10 +116,8 @@ interface QualityTier {
   starCount: number
 }
 
-type CountryComponent = React.ComponentType<React.ComponentPropsWithRef<GlobeMethods>>
-
-const CountryFeatureSchema = z.custom<CountryFeature>()
-const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchema) }),
+const CountryFeatureSchema = z.custom<CountryFeature>(),
+ CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchema) }),
  ATMOSPHERE_FRAGMENT_SHADER = `
   uniform vec3 uSunDirection;
   uniform float uLightingMode;
@@ -356,7 +368,7 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   pixelRatioCap: 1.1,
   sphereSegments: 96,
   starCount: 1400,
- } as QualityTier,
+ },
  HOVER_ALPHA_BASE = 0.78,
  HOVER_ALPHA_STEP = 0.16,
  HOVER_ALTITUDE_BASE = 0.1,
@@ -392,15 +404,16 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   pixelRatioCap: 0.9,
   sphereSegments: 52,
   starCount: 700,
- } as QualityTier,
+ },
  MIDDLE_QUALITY_TIER = {
   anisotropyCap: 3,
   maxTextureSize: 1536,
   pixelRatioCap: 1,
   sphereSegments: 72,
   starCount: 1000,
- } as QualityTier,
+ },
  MIN_TEXTURE_EDGE = 1,
+ MOBILE_BREAKPOINT = 1024,
  MOBILE_CLICK_ALTITUDE = 2.25,
  MOBILE_FOCUS_ALTITUDE = 2.35,
  MOBILE_LAT_OFFSET = -18,
@@ -420,10 +433,10 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
  SELECTED_ALTITUDE_BASE = 0.055,
  SELECTED_ALTITUDE_STEP = 0.025,
  SIDE_ALPHA_BASE = 0.08,
+ SIDE_DEFAULT_COLOR = "rgba(255, 255, 255, 0.028)",
  SIDE_HOVER_EXTERNAL_COLOR = "rgba(150, 196, 224, 0.5)",
  SIDE_HOVER_SOURCE_COLOR = "rgba(255, 214, 138, 0.58)",
  SIDE_SELECTED_COLOR = "rgba(233, 118, 43, 0.42)",
- SIDE_DEFAULT_COLOR = "rgba(255, 255, 255, 0.028)",
  SOURCE_ALTITUDE_BASE = 0.01,
  SOURCE_ALTITUDE_STEP = 0.024,
  SOURCE_SIDE_ALPHA_STEP = 0.16,
@@ -548,14 +561,15 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
    placeholderMask = createPlaceholderTexture(MASK_PLACEHOLDER_COLOR, {}),
    placeholderClouds = createPlaceholderTexture(CLOUD_PLACEHOLDER_COLOR, {}),
    uniforms: GlobeUniforms = {
-    uCloudOffset: { value: ZERO_COUNT },
-    uCloudTexture: { value: placeholderClouds },
-    uDayTexture: { value: placeholderDay },
-    uLightingMode: { value: ZERO_COUNT },
-    uNightTexture: { value: placeholderNight },
-    uSunDirection: { value: SUN_LIGHT_DIRECTION },
-    uSurfaceMask: { value: placeholderMask },
-    uTime: { value: ZERO_COUNT },
+   uBumpTexture: { value: placeholderBump },
+   uCloudOffset: { value: ZERO_COUNT },
+   uCloudTexture: { value: placeholderClouds },
+   uDayTexture: { value: placeholderDay },
+   uLightingMode: { value: ZERO_COUNT },
+   uNightTexture: { value: placeholderNight },
+   uSunDirection: { value: SUN_LIGHT_DIRECTION },
+   uSurfaceMask: { value: placeholderMask },
+   uTime: { value: ZERO_COUNT },
    },
    material = new ShaderMaterial({
     fragmentShader: EARTH_FRAGMENT_SHADER,
@@ -575,7 +589,7 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   return texture
  },
 
- createSceneLights = (sunDirection: Vector3): readonly Light<{ [key: string]: unknown }>[] => {
+ createSceneLights = (sunDirection: Vector3): readonly Light[] => {
   const ambientLight = new AmbientLight(0x15_21_31, 0.16),
    hemisphereLight = new HemisphereLight(0x32_5D_87, 0x04_07_0D, 0.14),
    sunLight = new DirectionalLight(0xFF_F4_DB, 2.4)
@@ -583,13 +597,13 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   return [ambientLight, hemisphereLight, sunLight]
  },
 
- createStarField = (count: number, spread: number): Points => {
+ createStarField = (count: number, spread: number): Points<BufferGeometry, PointsMaterial> => {
   const positions = new Float32Array(count * 3),
    colors = new Float32Array(count * 3)
 
   for (let index = 0; index < count; index += 1) {
-    const cursor = index * 3
-    const brightness = 0.55 + Math.random() * 0.4,
+    const cursor = index * 3,
+     brightness = 0.55 + Math.random() * 0.4,
      warmth = Math.random() * 0.08
     positions[cursor] = (Math.random() - 0.5) * spread
     positions[cursor + 1] = (Math.random() - 0.5) * spread
@@ -656,7 +670,7 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   const coordinates = geometry?.coordinates
   if (!Array.isArray(coordinates)) { return undefined }
   const coords: [number, number][] = [],
-   collect = (input: ReadonlyArray<unknown>): void => {
+   collect = (input: readonly unknown[]): void => {
     if (isCoordinatePair(input)) {
       const [lng, lat] = input
       coords.push([lng, lat])
@@ -727,15 +741,15 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   return typeof first === "number" && typeof second === "number"
  },
 
- isUnknownArray = (value: Readonly<unknown>): value is ReadonlyArray<unknown> => Array.isArray(value),
+ isUnknownArray = (value: unknown): value is readonly unknown[] => Array.isArray(value),
 
  loadManagedTexture = async (textureLoader: TextureLoader, path: string, options: Readonly<{ anisotropy: number; color?: boolean; maxTextureSize: number }>): Promise<Texture> => {
   let texture = await textureLoader.loadAsync(path)
   const sourceImage: unknown = texture.image
 
   if (sourceImage instanceof HTMLImageElement || sourceImage instanceof HTMLCanvasElement || sourceImage instanceof ImageBitmap) {
-    const width = sourceImage.width,
-     height = sourceImage.height
+    const {width} = sourceImage,
+     {height} = sourceImage
     if (width > options.maxTextureSize || height > options.maxTextureSize) {
       const scale = Math.min(options.maxTextureSize / width, options.maxTextureSize / height),
        canvas = document.createElement("canvas")
@@ -765,7 +779,7 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   return { iso, mentionCount, ratio, sourceCount }
  },
 
- remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: ReadonlyArray<Readonly<CountryFeature>>): Record<string, number> => {
+ remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]): Record<string, number> => {
   const nameToIso = new Map<string, string>(),
    isoSet = new Set<string>()
 
@@ -811,9 +825,10 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
   return `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(COLOR_PRECISION)})`
  },
 
- toCountryFeature = (polygon: Readonly<CountryFeature> | null): CountryFeature | null => {
+ toCountryFeature = (polygon: object | null): CountryFeature | null => {
   if (polygon === null) { return null }
-  return polygon as CountryFeature
+  const parsed = CountryFeatureSchema.safeParse(polygon)
+  return parsed.success ? parsed.data : null
  },
 
  updateAnimationUniforms = (uniforms: GlobeUniforms, elapsed: number): void => {
@@ -827,16 +842,17 @@ const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchem
  MASK_PLACEHOLDER_COLOR = [0, 0, 0, 255] as const,
  STAR_BRIGHTNESS_BASE = 0.55,
  STAR_BRIGHTNESS_SPREAD = 0.4,
- STAR_WARMTH_RANGE = 0.08,
- STAR_WARMTH_SHIFT = 0.5,
+ STAR_FIELD_COUNT_FACTOR = 3,
  STAR_OPACITY = 0.72,
  STAR_SIZE = 1.15,
  STAR_VERTEX_STRIDE = 3,
- STAR_FIELD_COUNT_FACTOR = 3
+ STAR_WARMTH_RANGE = 0.08,
+ STAR_WARMTH_SHIFT = 0.5
 
 export const InteractiveGlobe = ({
   articles,
   countryMetrics,
+  globeComponent: GlobeComponent = Globe,
   onCountrySelect,
   selectedCountry,
   lightingMode,
@@ -845,10 +861,9 @@ export const InteractiveGlobe = ({
    [dimensions, setDimensions] = useState({ height: ZERO_COUNT, width: ZERO_COUNT }),
    [hoverD, setHoverD] = useState<CountryFeature | null>(null),
    [globeInstance, setGlobeInstance] = useState<GlobeMethods | null>(null),
-   globeRef = useMemo<RefObject<GlobeMethods | unknown>>(() => {
+   globeRef = useMemo<MutableRefObject<GlobeMethods | undefined>>(() => {
     let current: GlobeMethods | undefined
 
-    void current
     return {
       get current() {
         return current
@@ -893,23 +908,23 @@ export const InteractiveGlobe = ({
       counts[sourceCountry] = (counts[sourceCountry] ?? ZERO_COUNT) + 1
     })
     return counts
-  }, [articles])
+  }, [articles]),
 
-  const sourceOriginCounts =
+   sourceOriginCounts =
     countryMetrics?.source_counts && Object.keys(countryMetrics.source_counts).length > ZERO_COUNT
       ? countryMetrics.source_counts
-      : fallbackSourceCounts
-  const displayCounts = useMemo(
+      : fallbackSourceCounts,
+   displayCounts = useMemo(
     () => remapCountryCounts(sourceOriginCounts, visibleCountries),
     [sourceOriginCounts, visibleCountries],
-  )
-  const mentionCounts = useMemo(
+  ),
+   mentionCounts = useMemo(
     () => remapCountryCounts(countryMetrics?.counts ?? {}, visibleCountries),
     [countryMetrics?.counts, visibleCountries],
-  )
-  const maxCount = useMemo(() => maxValue(displayCounts), [displayCounts])
-  const maxMentionCount = useMemo(() => maxValue(mentionCounts), [mentionCounts])
-  const countryCenters = useMemo(() => {
+  ),
+   maxCount = useMemo(() => maxValue(displayCounts), [displayCounts]),
+   maxMentionCount = useMemo(() => maxValue(mentionCounts), [mentionCounts]),
+   countryCenters = useMemo(() => {
     const centers: Record<string, CountryCenter> = {}
     countries.features.forEach((feature) => {
       const iso = getCountryIso(feature)
@@ -936,8 +951,8 @@ export const InteractiveGlobe = ({
 
   useEffect(() => {
     if (globeInstance === null) { return }
-    const controls = globeInstance.controls()
-    const overviewAltitude = globalThis.innerWidth < 1024 ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_OVERVIEW_ALTITUDE
+    const controls = globeInstance.controls(),
+     overviewAltitude = globalThis.innerWidth < 1024 ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_OVERVIEW_ALTITUDE
     if (selectedCountry === null) {
       controls.autoRotate = true
       globeInstance.pointOfView({ altitude: overviewAltitude }, FOCUS_TRANSITION_MS)
@@ -1091,19 +1106,19 @@ export const InteractiveGlobe = ({
       const elapsed = clock.getElapsedTime()
       updateAnimationUniforms(globeUniforms, elapsed)
       animationFrameId = requestAnimationFrame(animate)
-    }
-    const startAnimation = (): void => {
+    },
+     startAnimation = (): void => {
       if (!animationFrameId && !disposed) {
         animationFrameId = requestAnimationFrame(animate)
       }
-    }
-    const stopAnimation = (): void => {
+    },
+     stopAnimation = (): void => {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
         animationFrameId = 0
       }
-    }
-    const handleVisibilityChange = (): void => {
+    },
+     handleVisibilityChange = (): void => {
       if (document.hidden) {
         stopAnimation()
         return
@@ -1157,24 +1172,24 @@ export const InteractiveGlobe = ({
   const polygonStyleContext = useMemo<Readonly<{ displayCounts: Record<string, number>; maxCount: number; maxMentionCount: number; mentionCounts: Record<string, number> }>>(
     () => ({ displayCounts, maxCount, maxMentionCount, mentionCounts }),
     [displayCounts, maxCount, maxMentionCount, mentionCounts],
-  )
+  ),
 
-  const handlePolygonHover = useMemo(
-    () => (polygon: Readonly<CountryFeature>): void => {
+   handlePolygonHover = useMemo(
+    () => (polygon: object | null): void => {
       setHoverD(toCountryFeature(polygon))
     },
     [],
-  )
+  ),
 
-  const handlePolygonClick = useMemo(
-    () => (polygon: Readonly<CountryFeature>): void => {
+   handlePolygonClick = useMemo(
+    () => (polygon: object): void => {
       const feature = toCountryFeature(polygon)
       if (feature === null) { return }
       const iso = getCountryIso(feature)
       if (iso === null) { return }
       const countryName = feature.properties.NAME
       if (selectedCountry === iso) {
-        onCountrySelect(undefined, undefined)
+        onCountrySelect(null, null)
         globeInstance?.pointOfView(
           { altitude: globalThis.innerWidth < MOBILE_BREAKPOINT ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_DESELECT_ALTITUDE },
           FOCUS_TRANSITION_MS,
@@ -1192,46 +1207,54 @@ export const InteractiveGlobe = ({
       globeInstance?.pointOfView({ altitude: zoomAltitude, lat: lat + latOffset, lng }, FOCUS_TRANSITION_MS)
     },
     [globeInstance, onCountrySelect, selectedCountry],
-  )
+  ),
 
-  const polygonAltitude = useMemo(
-    () => (polygon: Readonly<CountryFeature>): number => {
-      const heat = polygonStyleContext && computePolygonHeatFast(polygon, polygonStyleContext)
+   polygonAltitude = useMemo(
+    () => (polygon: object): number => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return DEFAULT_POLYGON_ALTITUDE }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
       if (heat === null) { return DEFAULT_POLYGON_ALTITUDE }
-      return computePolygonAltitude(polygon, heat, hoverD, selectedCountry)
+      return computePolygonAltitude(feature, heat, hoverD, selectedCountry)
     },
     [hoverD, polygonStyleContext, selectedCountry],
-  )
+  ),
 
-  const polygonCapColor = useMemo(
-    () => (polygon: Readonly<CountryFeature>): string => {
-      const heat = polygonStyleContext && computePolygonHeatFast(polygon, polygonStyleContext)
+   polygonCapColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return CAP_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
       if (heat === null) { return CAP_DEFAULT_COLOR }
-      return computeCapColor(polygon, heat, polygonStyleContext.maxCount, polygonStyleContext.maxMentionCount, hoverD, selectedCountry)
+      return computeCapColor(feature, heat, polygonStyleContext.maxCount, polygonStyleContext.maxMentionCount, hoverD, selectedCountry)
     },
     [hoverD, polygonStyleContext, selectedCountry],
-  )
+  ),
 
-  const polygonSideColor = useMemo(
-    () => (polygon: Readonly<CountryFeature>): string => {
-      const heat = polygonStyleContext && computePolygonHeatFast(polygon, polygonStyleContext)
+   polygonSideColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return SIDE_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
       if (heat === null) { return SIDE_DEFAULT_COLOR }
-      return computeSideColor(polygon, heat, hoverD, selectedCountry)
+      return computeSideColor(feature, heat, hoverD, selectedCountry)
     },
     [hoverD, polygonStyleContext, selectedCountry],
-  )
+  ),
 
-  const polygonStrokeColor = useMemo(
-    () => (polygon: Readonly<CountryFeature>): string => {
-      const heat = polygonStyleContext && computePolygonHeatFast(polygon, polygonStyleContext)
+   polygonStrokeColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return STROKE_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
       if (heat === null) { return STROKE_DEFAULT_COLOR }
-      return computeStrokeColor(polygon, heat, hoverD, selectedCountry)
+      return computeStrokeColor(feature, heat, hoverD, selectedCountry)
     },
     [hoverD, polygonStyleContext, selectedCountry],
-  )
+  ),
 
-  const polygonLabel = useMemo(
-    () => (polygon: Readonly<CountryFeature>): string => {
+   polygonLabel = useMemo(
+    () => (polygon: object): string => {
       const feature = toCountryFeature(polygon)
       if (feature === null) { return "" }
       const iso = getCountryIso(feature) ?? UNKNOWN_ISO_LABEL
@@ -1243,7 +1266,7 @@ export const InteractiveGlobe = ({
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[var(--news-bg-primary)]">
-      <Globe
+      <GlobeComponent
         ref={globeRef}
         globeMaterial={customGlobeMaterial}
         backgroundImageUrl={undefined}
@@ -1271,9 +1294,9 @@ const computePolygonHeatFast = (polygon: Readonly<CountryFeature>, context: Read
   const feature = toCountryFeature(polygon)
   if (feature === null) { return null }
   return polygonHeat(feature, context.displayCounts, context.mentionCounts, context.maxCount, context.maxMentionCount)
-}
+},
 
-const disposeSceneObject = (object: Object3D): void => {
+ disposeSceneObject = (object: Object3D): void => {
   object.parent?.remove(object)
   if (object instanceof Mesh) {
     object.geometry.dispose()
@@ -1282,16 +1305,16 @@ const disposeSceneObject = (object: Object3D): void => {
   if (object instanceof Points) {
     object.geometry.dispose()
   }
-}
+},
 
-const maxValue = (counts: Readonly<Record<string, number>>): number => {
+ maxValue = (counts: Readonly<Record<string, number>>): number => {
   const values = Object.values(counts)
   if (values.length === ZERO_COUNT) { return ZERO_COUNT }
   return Math.max(...values)
-}
+},
 
-const restorePlaceholderGlobeTextures = (uniforms: GlobeUniforms): void => {
+ restorePlaceholderGlobeTextures = (uniforms: GlobeUniforms): void => {
   void uniforms
-}
+},
 
-const countFeatures = (features: readonly CountryFeature[]): number => features.length
+ countFeatures = (features: readonly CountryFeature[]): number => features.length

@@ -3,10 +3,10 @@ import { z } from "zod";
 import { API_BASE_URL } from "@/lib/api";
 import type { NewsArticle } from "@/lib/api";
 
-const UNCATEGORIZED_LABEL = "Uncategorized";
-const STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu;
+const STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
+ UNCATEGORIZED_LABEL = "Uncategorized",
 
-const QueueDigestResponseSchema = z
+ QueueDigestResponseSchema = z
   .object({
     content: z.string().optional(),
     digest: z.string().optional(),
@@ -90,7 +90,7 @@ export function mergeSavedArticles(
     }
     articlesByUrl.set(article.url, { ...existing, type: "both" });
   }
-  return Array.from(articlesByUrl.values());
+  return [...articlesByUrl.values()];
 }
 
 export function stripStructuredArticleBlock(digest: string): string {
@@ -100,8 +100,8 @@ export function stripStructuredArticleBlock(digest: string): string {
 export async function requestQueueDigest(
   articles: readonly NewsArticle[],
 ): Promise<string> {
-  const summaries = articles.map(toQueueArticleSummary);
-  const response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
+  const summaries = articles.map(toQueueArticleSummary),
+   response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
     body: JSON.stringify({
       articles: summaries,
       grouped: groupArticleSummaries(summaries),
@@ -113,8 +113,8 @@ export async function requestQueueDigest(
     throw new Error(`Queue digest failed with status ${response.status}`);
   }
 
-  const payload: unknown = await response.json();
-  const parsed = QueueDigestResponseSchema.safeParse(payload);
+  const payload: unknown = await response.json(),
+   parsed = QueueDigestResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new Error("Queue digest returned an invalid payload");
   }

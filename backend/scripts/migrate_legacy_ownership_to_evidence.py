@@ -34,33 +34,48 @@ def entity_id(kind: str, name: str) -> str:
     return f"legacy_{digest}"
 
 
+def _parent_candidate(
+    row: Organization,
+    by_id: dict[int, Organization],
+) -> CandidateRelation | None:
+    if not row.parent_org_id or int(row.parent_org_id) not in by_id:
+        return None
+    return CandidateRelation(
+        cast(str, row.name),
+        "owned_by",
+        cast(str, by_id[int(row.parent_org_id)].name),
+        "Organization.parent_org_id",
+        {"pct_raw": row.ownership_percentage},
+    )
+
+
+def _field_candidates(row: Organization) -> list[CandidateRelation]:
+    child = cast(str, row.name)
+    candidates: list[CandidateRelation] = []
+    for field_name, predicate, values in (
+        ("Organization.owned_by", "owned_by", row.owned_by or []),
+        ("Organization.parent_orgs", "parent_org", row.parent_orgs or []),
+        ("Organization.part_of", "part_of", row.part_of or []),
+    ):
+        if not isinstance(values, list):
+            continue
+        candidates.extend(
+            CandidateRelation(child, predicate, value.strip(), field_name, {})
+            for value in values
+            if isinstance(value, str) and value.strip()
+        )
+    return candidates
+
+
 def plan_organization_candidates(organizations: Iterable[Organization]) -> list[CandidateRelation]:
     rows = list(organizations)
     by_id = {int(row.id): row for row in rows if row.id is not None}
-    planned = []
+    planned: list[CandidateRelation] = []
     for row in rows:
-        child = cast(str, row.name)
-        if row.parent_org_id and int(row.parent_org_id) in by_id:
-            planned.append(
-                CandidateRelation(
-                    child,
-                    "owned_by",
-                    cast(str, by_id[int(row.parent_org_id)].name),
-                    "Organization.parent_org_id",
-                    {"pct_raw": row.ownership_percentage},
-                )
-            )
-        for field_name, predicate, values in (
-            ("Organization.owned_by", "owned_by", row.owned_by or []),
-            ("Organization.parent_orgs", "parent_org", row.parent_orgs or []),
-            ("Organization.part_of", "part_of", row.part_of or []),
-        ):
-            if isinstance(values, list):
-                for value in values:
-                    if isinstance(value, str) and value.strip():
-                        planned.append(
-                            CandidateRelation(child, predicate, value.strip(), field_name, {})
-                        )
+        parent_candidate = _parent_candidate(row, by_id)
+        if parent_candidate is not None:
+            planned.append(parent_candidate)
+        planned.extend(_field_candidates(row))
     return planned
 
 
@@ -77,6 +92,22 @@ def contradiction_report(candidates: Iterable[CandidateRelation]) -> list[dict[s
 
 
 async def _load_candidates(db: AsyncSession) -> list[CandidateRelation]:
+    organizations, metadata, source_claims = await _load_legacy_rows(db)
+    candidates = plan_organization_candidates(organizations)
+    candidates.extend(_metadata_candidates(metadata))
+    candidates.extend(_source_claim_candidates(source_claims))
+    unique = {
+        canonical_json(asdict(candidate)): candidate
+        for candidate in candidates
+        if normalize_entity_label(candidate.subject_name)
+        and normalize_entity_label(candidate.object_name)
+    }
+    return [unique[key] for key in sorted(unique)]
+
+
+async def _load_legacy_rows(
+    db: AsyncSession,
+) -> tuple[list[Organization], list[SourceMetadata], list[SourceClaim]]:
     organizations = list((await db.execute(select(Organization))).scalars().all())
     metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
     source_claims = list(
@@ -93,18 +124,29 @@ async def _load_candidates(db: AsyncSession) -> list[CandidateRelation]:
         .scalars()
         .all()
     )
-    candidates = plan_organization_candidates(organizations)
-    for row in metadata:
-        if row.parent_company:
-            candidates.append(
-                CandidateRelation(
-                    cast(str, row.source_name),
-                    "owned_by",
-                    cast(str, row.parent_company),
-                    "SourceMetadata.parent_company",
-                    {},
-                )
-            )
+    return organizations, metadata, source_claims
+
+
+def _metadata_candidates(
+    metadata: Iterable[SourceMetadata],
+) -> list[CandidateRelation]:
+    return [
+        CandidateRelation(
+            cast(str, row.source_name),
+            "owned_by",
+            cast(str, row.parent_company),
+            "SourceMetadata.parent_company",
+            {},
+        )
+        for row in metadata
+        if row.parent_company
+    ]
+
+
+def _source_claim_candidates(
+    source_claims: Iterable[SourceClaim],
+) -> list[CandidateRelation]:
+    candidates: list[CandidateRelation] = []
     for row in source_claims:
         value = row.claim_value if isinstance(row.claim_value, dict) else {}
         object_name = next(
@@ -125,13 +167,7 @@ async def _load_candidates(db: AsyncSession) -> list[CandidateRelation]:
                     {"legacy_claim_id": row.id},
                 )
             )
-    unique = {
-        canonical_json(asdict(candidate)): candidate
-        for candidate in candidates
-        if normalize_entity_label(candidate.subject_name)
-        and normalize_entity_label(candidate.object_name)
-    }
-    return [unique[key] for key in sorted(unique)]
+    return candidates
 
 
 async def _upsert_entity(db: AsyncSession, name: str, kind: str) -> EvidenceEntity:

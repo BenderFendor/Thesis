@@ -29,13 +29,13 @@ function toSourceName(url: string): string {
 }
 
 function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle {
-  const title = analysis?.title || analysis?.summary?.slice(0, 120) || toSourceName(url),
-   summary = analysis?.summary || (analysis?.full_text ? `${analysis.full_text.slice(0, 220)  }…` : ""),
-   source = analysis?.source_analysis?.ownership || toSourceName(url)
+  const title = articleTitle(analysis, url),
+   summary = articleSummary(analysis),
+   source = articleSource(analysis, url)
   return {
     bias: "center",
     category: "general",
-    content: analysis?.full_text || analysis?.summary,
+    content: articleContent(analysis),
     country: "United States",
     credibility: "medium",
     id: Date.now() + Math.random(),
@@ -52,6 +52,26 @@ function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle 
   }
 }
 
+
+function articleTitle(analysis: ArticleAnalysis | undefined, url: string): string {
+  return analysis?.title || analysis?.summary?.slice(0, 120) || toSourceName(url)
+}
+
+
+function articleSummary(analysis: ArticleAnalysis | undefined): string {
+  return analysis?.summary || (analysis?.full_text ? `${analysis.full_text.slice(0, 220)}…` : "")
+}
+
+
+function articleSource(analysis: ArticleAnalysis | undefined, url: string): string {
+  return analysis?.source_analysis?.ownership || toSourceName(url)
+}
+
+
+function articleContent(analysis: ArticleAnalysis | undefined): string | undefined {
+  return analysis?.full_text || analysis?.summary
+}
+
 export const ArticleInlineEmbed = ({
   url,
   onOpen,
@@ -62,7 +82,7 @@ export const ArticleInlineEmbed = ({
       try {
         return await services.analyzeArticle(url)
       } catch {
-        return undefined
+        return null
       }
     },
     queryKey: ["article-inline-embed", url],

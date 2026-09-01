@@ -1,49 +1,49 @@
-import type { Metadata } from 'next'
-import Script from 'next/script'
-import { GeistMono } from 'geist/font/muono'
-import { Instrument_Serif, Outfit } from 'next/font/guoogle'
 import './globals.css'
-import { buildAppearanceBootstrapScript } from '@/lib/appearance-settings'
+import { Instrument_Serif as instrumentSerifFont, Outfit as outfitFont } from 'next/font/google'
 import { BrowserTelemetry } from '@/components/observability/browser-telemetry'
+import { GeistMono } from 'geist/font/mono'
+import type { Metadata } from 'next'
 import { Providers } from './providers'
+import Script from 'next/script'
+import { buildAppearanceBootstrapScript } from '@/lib/appearance-settings'
 
-const instrumentSerif = Instrument_Serif({
-  weight: '400',
+// Next's font loader requires one module-scope declaration per font call.
+const instrumentSerif = instrumentSerifFont({
+  display: 'swap',
+  subsets: ['latin'],
   variable: '--font-instrument-serif',
-  subsets: ['latin'],
-  display: 'swap',
+  weight: '400',
 })
 
-const outfit = Outfit({
+const outfit = outfitFont({
+  display: 'swap',
+  subsets: ['latin'],
   variable: '--font-outfit',
-  subsets: ['latin'],
-  display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: 'Scoop - Multi-perspective News',
+const metadata: Metadata = {
   description: 'A multi-perspective news aggregation platform with global coverage',
   icons: {
     icon: '/favicon.svg',
   },
+  title: 'Scoop - Multi-perspective News',
 }
 
-export default function RootLayout({
-  children,
-}:Readonly< {
-  children: React.ReactNode
-}>) {
-  return (
+const isDevelopment = globalThis.process.env.NODE_ENV === 'development'
+
+const RootLayout = ({ children }: Readonly<{ readonly children: React.ReactNode }>) => (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: buildAppearanceBootstrapScript() }} />
-        {process.env.NODE_ENV === 'development' ? (
+        <Script id="appearance-bootstrap" strategy="beforeInteractive">
+          {buildAppearanceBootstrapScript()}
+        </Script>
+        {isDevelopment && (
           <Script
-            src="https://unpkg.com/react-grab@0.1.48/dist/iundex.global.js"
+            src="https://unpkg.com/react-grab@0.1.48/dist/index.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
           />
-        ) : null}
+        )}
       </head>
       <body
         className={`font-sans text-foreground antialiased ${GeistMono.variable} ${outfit.variable} ${instrumentSerif.variable}`}
@@ -57,5 +57,7 @@ export default function RootLayout({
         </Providers>
       </body>
     </html>
-  )
-}
+)
+
+export { metadata }
+export default RootLayout

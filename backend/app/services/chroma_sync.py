@@ -22,10 +22,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.database import AsyncSessionLocal, Article
+from app.database import Article, AsyncSessionLocal
 from app.vector_store import (
     BatchArticlePayload,
     VectorStore,
@@ -34,6 +35,17 @@ from app.vector_store import (
 )
 
 logger = get_logger("chroma_sync")
+
+_RECOVERABLE_SYNC_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    SQLAlchemyError,
+    TypeError,
+    ValueError,
+)
 
 # Set once the initial backfill pass finishes (or Chroma was already in sync).
 # The cluster computation worker awaits this before its first run.
@@ -79,7 +91,7 @@ async def _detect_and_fix_chroma_drift(vs: VectorStore) -> bool:
 
     try:
         chroma_count: int = await asyncio.to_thread(vs.collection.count)
-    except Exception as exc:
+    except _RECOVERABLE_SYNC_ERRORS as exc:
         logger.warning("Could not count Chroma documents: %s", exc)
         return False
 
@@ -112,6 +124,31 @@ async def _detect_and_fix_chroma_drift(vs: VectorStore) -> bool:
         logger.info("Chroma has %d documents; cluster worker unblocked.", chroma_count)
 
     return True
+
+
+async def _run_normal_sync_batch(
+    vs: VectorStore,
+    batch_size: int,
+    interval_seconds: int,
+) -> None:
+    async with _get_session_factory()() as session:
+        result = await session.execute(
+            select(Article)
+            .where(Article.embedding_generated.is_(False) | Article.embedding_generated.is_(None))
+            .where(Article.content.isnot(None))
+            .order_by(Article.published_at.desc())
+            .limit(batch_size)
+        )
+        articles = result.scalars().all()
+
+    if not articles:
+        if not sync_caught_up.is_set():
+            logger.info("Chroma sync caught up; signalling cluster computation worker.")
+            sync_caught_up.set()
+        await asyncio.sleep(interval_seconds * 6)
+        return
+
+    await _embed_and_mark(vs, articles, interval_seconds)
 
 
 async def chroma_sync_worker(
@@ -151,29 +188,9 @@ async def chroma_sync_worker(
                 logger.info("Drift recovery scan complete; switching to normal mode.")
                 continue
 
-            async with _get_session_factory()() as session:
-                result = await session.execute(
-                    select(Article)
-                    .where(
-                        Article.embedding_generated.is_(False)
-                        | Article.embedding_generated.is_(None)
-                    )
-                    .where(Article.content.isnot(None))
-                    .order_by(Article.published_at.desc())
-                    .limit(batch_size)
-                )
-                articles = result.scalars().all()
+            await _run_normal_sync_batch(vs, batch_size, interval_seconds)
 
-            if not articles:
-                if not sync_caught_up.is_set():
-                    logger.info("Chroma sync caught up; signalling cluster computation worker.")
-                    sync_caught_up.set()
-                await asyncio.sleep(interval_seconds * 6)
-                continue
-
-            await _embed_and_mark(vs, articles, interval_seconds)
-
-        except Exception as exc:
+        except _RECOVERABLE_SYNC_ERRORS as exc:
             logger.error("Chroma sync worker error: %s", exc)
             await asyncio.sleep(interval_seconds)
 
@@ -198,7 +215,7 @@ async def _fetch_recovery_batch(
                 .limit(batch_size)
             )
             return list(result.scalars().all())
-    except Exception as exc:
+    except _RECOVERABLE_SYNC_ERRORS as exc:
         logger.warning("Recovery scan: DB fetch failed (%s); retrying.", exc)
         return None
 
@@ -210,7 +227,7 @@ async def _existing_recovery_ids(
     chroma_ids = [f"article_{article.id}" for article in articles]
     try:
         existing = await asyncio.to_thread(vs.collection.get, chroma_ids, include=[])
-    except Exception as exc:
+    except _RECOVERABLE_SYNC_ERRORS as exc:
         logger.warning("Recovery scan: Chroma get failed (%s); skipping batch.", exc)
         return None
     return set(existing["ids"])
@@ -230,7 +247,7 @@ async def _mark_recovery_articles(article_ids: list[int]) -> None:
                 update(Article).where(Article.id.in_(article_ids)).values(embedding_generated=True)
             )
             await session.commit()
-    except Exception as exc:
+    except _RECOVERABLE_SYNC_ERRORS as exc:
         logger.warning(
             "Recovery scan: could not mark %d articles as embedded: %s",
             len(article_ids),
@@ -249,7 +266,7 @@ async def _embed_recovery_articles(
     payloads = [_build_batch_payload(article) for article in missing]
     try:
         added = await asyncio.to_thread(vs.batch_add_articles, payloads)
-    except Exception as exc:
+    except _RECOVERABLE_SYNC_ERRORS as exc:
         logger.warning("Recovery scan: Chroma batch add failed (%s); skipping batch.", exc)
         return 0
 

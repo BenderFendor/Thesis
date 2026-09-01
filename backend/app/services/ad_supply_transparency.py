@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, cast
 from collections.abc import Iterable, Sequence
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -86,6 +86,64 @@ def _parse_ads_txt_record(line: str) -> dict[str, str] | None:
     }
 
 
+def _parse_ads_txt_line(
+    raw_line: str,
+) -> tuple[str, dict[str, str] | tuple[str, str] | None]:
+    line = raw_line.strip()
+    if not line or line.startswith("#"):
+        return "skip", None
+    line_without_comment = line.split("#", 1)[0].strip()
+    if not line_without_comment:
+        return "skip", None
+    if _is_ads_txt_variable(line_without_comment):
+        return "variable", _parse_ads_txt_variable(line_without_comment)
+    return "record", _parse_ads_txt_record(line_without_comment)
+
+
+def _consume_variable(
+    parsed: dict[str, str] | tuple[str, str] | None,
+    variables: dict[str, list[str]],
+) -> bool:
+    if parsed is None:
+        return False
+    key, value = cast(tuple[str, str], parsed)
+    variables.setdefault(key, []).append(value)
+    return True
+
+
+def _consume_record(
+    parsed: dict[str, str] | tuple[str, str] | None,
+    records: list[dict[str, str]],
+    seen_records: set[tuple[str, str, str]],
+) -> tuple[bool, bool]:
+    record = cast(dict[str, str] | None, parsed)
+    if record is None:
+        return True, False
+    record_key = (
+        record["ad_system_domain"],
+        record["publisher_account_id"],
+        record["relationship"],
+    )
+    duplicate = record_key in seen_records
+    seen_records.add(record_key)
+    records.append(record)
+    return False, duplicate
+
+
+def _consume_ads_txt_line(
+    kind: str,
+    parsed: dict[str, str] | tuple[str, str] | None,
+    records: list[dict[str, str]],
+    variables: dict[str, list[str]],
+    seen_records: set[tuple[str, str, str]],
+) -> tuple[bool, bool]:
+    if kind == "skip":
+        return False, False
+    if kind == "variable":
+        return (not _consume_variable(parsed, variables)), False
+    return _consume_record(parsed, records, seen_records)
+
+
 def parse_ads_txt(text: str) -> dict[str, Any]:
     """Parse ads.txt text into seller records and transparency variables."""
     records: list[dict[str, str]] = []
@@ -95,37 +153,12 @@ def parse_ads_txt(text: str) -> dict[str, Any]:
     seen_records: set[tuple[str, str, str]] = set()
 
     for raw_line in text.replace("\ufeff", "").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        line_without_comment = line.split("#", 1)[0].strip()
-        if not line_without_comment:
-            continue
-
-        if _is_ads_txt_variable(line_without_comment):
-            variable = _parse_ads_txt_variable(line_without_comment)
-            if variable is None:
-                invalid_lines += 1
-            else:
-                key, value = variable
-                variables.setdefault(key, []).append(value)
-            continue
-
-        record = _parse_ads_txt_record(line_without_comment)
-        if record is None:
-            invalid_lines += 1
-            continue
-
-        record_key = (
-            record["ad_system_domain"],
-            record["publisher_account_id"],
-            record["relationship"],
+        kind, parsed = _parse_ads_txt_line(raw_line)
+        is_invalid, is_duplicate = _consume_ads_txt_line(
+            kind, parsed, records, variables, seen_records
         )
-        if record_key in seen_records:
-            duplicate_records += 1
-        seen_records.add(record_key)
-        records.append(record)
+        invalid_lines += int(is_invalid)
+        duplicate_records += int(is_duplicate)
 
     direct_sellers = sum(1 for record in records if record["relationship"] == "DIRECT")
     resellers = sum(1 for record in records if record["relationship"] == "RESELLER")
@@ -235,7 +268,7 @@ async def fetch_ads_txt(
             headers={"User-Agent": SCOOP_BROWSER_UA, "Accept": "text/plain,*/*;q=0.8"},
             follow_redirects=True,
         )
-    except Exception:
+    except httpx.HTTPError:
         return None
     if response.status_code != 200:
         return None
@@ -274,7 +307,7 @@ async def _fetch_sellers_json(
             headers={"User-Agent": SCOOP_BROWSER_UA, "Accept": "application/json,*/*;q=0.8"},
             follow_redirects=True,
         )
-    except Exception:
+    except httpx.HTTPError:
         return None
     if response.status_code != 200:
         return None
@@ -379,6 +412,29 @@ async def _summarize_ad_system(
     )
 
 
+async def _summarize_ad_systems(
+    http_client: httpx.AsyncClient,
+    records: list[dict[str, str]],
+    owner_domains: list[str],
+    manager_domains: list[str],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    checked_systems: list[dict[str, Any]] = []
+    totals = _empty_system_totals()
+    for domain in _top_ad_system_domains(records):
+        domain_records = [record for record in records if record.get("ad_system_domain") == domain]
+        system, system_totals = await _summarize_ad_system(
+            http_client,
+            domain,
+            domain_records,
+            owner_domains,
+            manager_domains,
+        )
+        checked_systems.append(system)
+        for key, value in system_totals.items():
+            totals[key] += value
+    return checked_systems, totals
+
+
 async def build_sellers_json_summary(
     http_client: httpx.AsyncClient, ads_txt: dict[str, Any] | None
 ) -> dict[str, Any] | None:
@@ -391,24 +447,9 @@ async def build_sellers_json_summary(
 
     owner_domains = cast(list[str], ads_txt.get("owner_domains") or [])
     manager_domains = cast(list[str], ads_txt.get("manager_domains") or [])
-    ad_system_domains = _top_ad_system_domains(records)
-
-    checked_systems: list[dict[str, Any]] = []
-    totals = _empty_system_totals()
-    for domain in ad_system_domains:
-        domain_records = [
-            record for record in records if record.get("ad_system_domain") == domain
-        ]
-        system, system_totals = await _summarize_ad_system(
-            http_client,
-            domain,
-            domain_records,
-            owner_domains,
-            manager_domains,
-        )
-        checked_systems.append(system)
-        for key, value in system_totals.items():
-            totals[key] += value
+    checked_systems, totals = await _summarize_ad_systems(
+        http_client, records, owner_domains, manager_domains
+    )
 
     available_systems = [system for system in checked_systems if system["status"] == "available"]
     if not checked_systems:

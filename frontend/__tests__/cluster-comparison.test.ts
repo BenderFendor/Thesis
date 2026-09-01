@@ -15,7 +15,7 @@ describe("cluster comparison helpers", () => {
           maxLength: 10,
           minLength: 2,
         }),
-        fc.uniqueArray(fc.stringMatching(/^[A-Za-z]{1,12}$/), {
+        fc.uniqueArray(fc.stringMatching(/^[A-Za-z]{1,12}$/u), {
           maxLength: 5,
           minLength: 2,
         }),
@@ -48,7 +48,7 @@ describe("cluster comparison helpers", () => {
           maxLength: 10,
           minLength: 2,
         }),
-        fc.stringMatching(/^[A-Za-z]{1,12}$/),
+        fc.stringMatching(/^[A-Za-z]{1,12}$/u),
         (ids, source) => {
           const articles = ids.map((id) => ({ id, source })),
 

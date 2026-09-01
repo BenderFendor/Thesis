@@ -5,24 +5,30 @@ import { buildInterestProfile, rankFeedArticles } from '@/lib/feed-ranking';
 import type { PersonalizationSeed } from '@/lib/feed-ranking';
 import type { ArticleTopic, NewsArticle } from "@/lib/api"
 
+const DEFAULT_ARTICLE: NewsArticle = {
+  bias: "center",
+  category: "politics",
+  country: "US",
+  credibility: "high",
+  id: 1,
+  image: "https://images.example.com/photo.jpg",
+  originalLanguage: "en",
+  publishedAt: "2026-04-23T12:00:00.000Z",
+  source: "Reuters",
+  sourceId: "reuters",
+  summary: "Markets react to trade policy changes.",
+  tags: ["politics", "trade"],
+  title: "Trade policy update",
+  translated: false,
+  url: "https://example.com/1",
+};
+
 function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+  const article = { ...DEFAULT_ARTICLE, ...overrides };
   return {
-    bias: overrides.bias ?? "center",
-    category: overrides.category ?? "politics",
-    country: overrides.country ?? "US",
-    credibility: overrides.credibility ?? "high",
-    id: overrides.id ?? 1,
-    image: overrides.image ?? "https://images.example.com/photo.jpg",
-    originalLanguage: overrides.originalLanguage ?? "en",
-    publishedAt: overrides.publishedAt ?? new Date().toISOString(),
-    source: overrides.source ?? "Reuters",
-    sourceId: overrides.sourceId ?? "reuters",
-    summary: overrides.summary ?? "Markets react to trade policy changes.",
-    tags: overrides.tags ?? ["politics", "trade"],
-    title: overrides.title ?? "Trade policy update",
-    translated: overrides.translated ?? false,
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-  }
+    ...article,
+    url: overrides.url ?? `https://example.com/${article.id}`,
+  };
 }
 
 describe("feed ranking", () => {

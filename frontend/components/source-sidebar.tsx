@@ -19,16 +19,16 @@ import { SourceCoverageComparison } from "@/components/source-coverage-compariso
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useFavorites } from "@/hooks/useFavorites";
-import { useNewsLens } from "@/hooks/useNewsLens";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useNewsLens } from "@/hooks/use-news-lens";
 import { useSourceFilter } from "@/hooks/use-source-filter";
 import type { NewsSource } from "@/lib/api";
 import { fetchSources } from "@/lib/api";
-import { getLensStats, NEWS_LENSES } from "@/lib/news-lens";
+import { NEWS_LENSES, getLensStats } from "@/lib/news-lens";
 
-const SOURCE_QUERY_RETRY_COUNT = 1;
-const COVERAGE_COMPARISON_MIN_SOURCES = 2;
-const EMPTY_RECENCY = 0;
+const COVERAGE_COMPARISON_MIN_SOURCES = 2,
+ EMPTY_RECENCY = 0,
+ SOURCE_QUERY_RETRY_COUNT = 1;
 
 type SidebarSection = "allSources" | "favorites";
 
@@ -86,16 +86,16 @@ const sortSourcesByRecency = (
     return sorted;
   }
   return sorted.sort((left, right) => {
-    const leftFresh = sourceRecency[left.id] ?? EMPTY_RECENCY;
-    const rightFresh = sourceRecency[right.id] ?? EMPTY_RECENCY;
+    const leftFresh = sourceRecency[left.id] ?? EMPTY_RECENCY,
+     rightFresh = sourceRecency[right.id] ?? EMPTY_RECENCY;
     if (leftFresh !== rightFresh) {
       return rightFresh - leftFresh;
     }
     return left.name.localeCompare(right.name);
   });
-};
+},
 
-const getFavoriteSources = (
+ getFavoriteSources = (
   sources: readonly NewsSource[],
   isFavorite: (sourceId: string) => boolean,
   sourceRecency?: Readonly<Record<string, number>>,
@@ -103,25 +103,25 @@ const getFavoriteSources = (
   sortSourcesByRecency(
     sources.filter((source) => isFavorite(source.id)),
     sourceRecency,
-  );
+  ),
 
-const getFilteredSources = (
+ getFilteredSources = (
   sources: readonly NewsSource[],
   searchQuery: string,
   sourceRecency?: Readonly<Record<string, number>>,
 ): NewsSource[] => {
-  const query = searchQuery.trim().toLowerCase();
-  const filtered = query.length === EMPTY_RECENCY
+  const query = searchQuery.trim().toLowerCase(),
+   filtered = query.length === EMPTY_RECENCY
     ? sources
     : sources.filter((source) => {
-        const sourceName = source.name.toLowerCase();
-        const sourceCountry = source.country.toLowerCase();
+        const sourceName = source.name.toLowerCase(),
+         sourceCountry = source.country.toLowerCase();
         return sourceName.includes(query) || sourceCountry.includes(query);
       });
   return sortSourcesByRecency(filtered, sourceRecency);
-};
+},
 
-const buildSourceNameLookup = (
+ buildSourceNameLookup = (
   sources: readonly NewsSource[],
 ): Readonly<Record<string, string>> => {
   const lookup: Record<string, string> = {};
@@ -130,9 +130,9 @@ const buildSourceNameLookup = (
     lookup[source.slug] = source.name;
   }
   return lookup;
-};
+},
 
-const getSelectedSourceIds = (
+ getSelectedSourceIds = (
   selectedSources: ReadonlySet<string>,
   sources: readonly NewsSource[],
 ): string[] =>
@@ -141,16 +141,16 @@ const getSelectedSourceIds = (
       (source) =>
         selectedSources.has(source.id) || selectedSources.has(source.slug),
     )
-    .map((source) => source.id);
+    .map((source) => source.id),
 
-const getLoadErrorMessage = (error: unknown): string | undefined => {
+ getLoadErrorMessage = (error: unknown): string | undefined => {
   if (error instanceof Error) {
     return error.message;
   }
   return undefined;
-};
+},
 
-const SourceSidebarHeader = ({
+ SourceSidebarHeader = ({
   onClose,
   onSourceAdded,
 }: Readonly<{
@@ -173,9 +173,9 @@ const SourceSidebarHeader = ({
       </Button>
     </div>
   </div>
-);
+),
 
-const ActiveFilterBadge = ({
+ ActiveFilterBadge = ({
   active,
   label,
   onClear,
@@ -185,7 +185,7 @@ const ActiveFilterBadge = ({
   onClear: () => void;
 }>) => {
   if (!active) {
-    return undefined;
+    return;
   }
   return (
     <div className="px-4 pb-1 pt-2">
@@ -198,9 +198,9 @@ const ActiveFilterBadge = ({
       </Badge>
     </div>
   );
-};
+},
 
-const CoverageSection = ({
+ CoverageSection = ({
   selectedSourceIds,
   sourceNameLookup,
 }: Readonly<{
@@ -208,7 +208,7 @@ const CoverageSection = ({
   sourceNameLookup: Readonly<Record<string, string>>;
 }>) => {
   if (selectedSourceIds.length < COVERAGE_COMPARISON_MIN_SOURCES) {
-    return undefined;
+    return;
   }
   return (
     <div className="border-b border-white/10 px-4 py-3">
@@ -218,9 +218,9 @@ const CoverageSection = ({
       />
     </div>
   );
-};
+},
 
-const SourceSearch = ({
+ SourceSearch = ({
   onChange,
   searchQuery,
 }: Readonly<{
@@ -233,14 +233,14 @@ const SourceSearch = ({
       <Input
         placeholder="Search sources..."
         value={searchQuery}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) =>{  onChange(event.target.value); }}
         className="h-9 rounded-md border-white/10 bg-[var(--news-bg-primary)] pl-8 text-foreground"
       />
     </div>
   </div>
-);
+),
 
-const LensSection = ({
+ LensSection = ({
   lens,
   onSetLens,
 }: Readonly<{
@@ -256,7 +256,7 @@ const LensSection = ({
         <button
           key={preset.id}
           type="button"
-          onClick={() => onSetLens(preset.id)}
+          onClick={() =>{  onSetLens(preset.id); }}
           title={preset.description}
           className={`rounded-md border px-2 py-2 text-left text-[10px] font-mono uppercase tracking-[0.16em] transition-colors ${
             lens === preset.id
@@ -269,9 +269,9 @@ const LensSection = ({
       ))}
     </div>
   </div>
-);
+),
 
-const WikiLink = ({
+ WikiLink = ({
   href,
   icon: Icon,
   label,
@@ -292,9 +292,9 @@ const WikiLink = ({
       {label}
     </span>
   </Link>
-);
+),
 
-const WikiSection = ({ onClose }: Readonly<{ onClose: () => void }>) => (
+ WikiSection = ({ onClose }: Readonly<{ onClose: () => void }>) => (
   <div className="border-b border-white/10 px-4 py-3">
     <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
       Wiki
@@ -305,9 +305,9 @@ const WikiSection = ({ onClose }: Readonly<{ onClose: () => void }>) => (
       <WikiLink href="/wiki/ownership" icon={GitBranch} label="Ownership Graph" onClose={onClose} />
     </div>
   </div>
-);
+),
 
-const SourceItem = ({
+ SourceItem = ({
   favorite,
   onClose,
   onToggleFavorite,
@@ -361,9 +361,9 @@ const SourceItem = ({
       />
     </button>
   </div>
-);
+),
 
-const SourceList = ({
+ SourceList = ({
   emptyMessage,
   favoriteIds,
   onClose,
@@ -382,17 +382,17 @@ const SourceList = ({
           key={source.id}
           favorite={favoriteIds(source.id)}
           onClose={onClose}
-          onToggleFavorite={() => onToggleFavorite(source.id)}
-          onToggleSelect={() => onToggleSource(source.id)}
+          onToggleFavorite={() =>{  onToggleFavorite(source.id); }}
+          onToggleSelect={() =>{  onToggleSource(source.id); }}
           selected={selectedIds(source.id)}
           source={source}
         />
       ))}
     </div>
   );
-};
+},
 
-const SectionToggle = ({
+ SectionToggle = ({
   expanded,
   label,
   onToggle,
@@ -416,9 +416,9 @@ const SectionToggle = ({
       {label}
     </span>
   </button>
-);
+),
 
-const FavoritesSection = ({
+ FavoritesSection = ({
   expanded,
   favoriteSources,
   isFavorite,
@@ -438,7 +438,7 @@ const FavoritesSection = ({
   | "onToggleSource"
 > & { expanded: boolean }>) => {
   if (favoriteSources.length === EMPTY_RECENCY) {
-    return undefined;
+    return;
   }
   return (
     <div className="p-4">
@@ -446,7 +446,7 @@ const FavoritesSection = ({
         <SectionToggle
           expanded={expanded}
           label={`Favorites (${favoriteSources.length})`}
-          onToggle={() => onToggleSection("favorites")}
+          onToggle={() =>{  onToggleSection("favorites"); }}
           showStar
         />
       </div>
@@ -465,9 +465,9 @@ const FavoritesSection = ({
       )}
     </div>
   );
-};
+},
 
-const AllSourcesSection = ({
+ AllSourcesSection = ({
   expanded,
   filteredSources,
   isFavorite,
@@ -503,7 +503,7 @@ const AllSourcesSection = ({
         <SectionToggle
           expanded={expanded}
           label={`All Sources (${sourceCount})`}
-          onToggle={() => onToggleSection("allSources")}
+          onToggle={() =>{  onToggleSection("allSources"); }}
         />
       </div>
       {expanded && (
@@ -541,9 +541,9 @@ const AllSourcesSection = ({
       )}
     </div>
   );
-};
+},
 
-const SourceLoadError = ({
+ SourceLoadError = ({
   errorMessage,
   onRetry,
 }: Readonly<{
@@ -569,9 +569,9 @@ const SourceLoadError = ({
       Retry
     </Button>
   </div>
-);
+),
 
-const SidebarContent = ({
+ SidebarContent = ({
   allExpanded,
   errorMessage,
   favoriteExpanded,
@@ -631,14 +631,14 @@ export const SourceSidebar = ({
   onClose,
   sourceRecency,
 }: Readonly<SourceSidebarProps>) => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [expandedSections, setExpandedSections] = useState({
+  const [searchQuery, setSearchQuery] = useState(""),
+   [expandedSections, setExpandedSections] = useState({
     allSources: true,
     favorites: true,
-  });
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const { clearLens, lens, setLens } = useNewsLens();
-  const {
+  }),
+   { isFavorite, toggleFavorite } = useFavorites(),
+   { clearLens, lens, setLens } = useNewsLens(),
+   {
     clearAll,
     getSelectionCount,
     isFilterActive,
@@ -646,8 +646,8 @@ export const SourceSidebar = ({
     selectAll,
     selectedSources,
     toggleSource,
-  } = useSourceFilter();
-  const {
+  } = useSourceFilter(),
+   {
     data: sources = [],
     error,
     isLoading,
@@ -657,46 +657,46 @@ export const SourceSidebar = ({
     queryFn: fetchSources,
     queryKey: ["all-sources"],
     retry: SOURCE_QUERY_RETRY_COUNT,
-  });
-  const favoriteSources = useMemo(
+  }),
+   favoriteSources = useMemo(
     () => getFavoriteSources(sources, isFavorite, sourceRecency),
     [sources, isFavorite, sourceRecency],
-  );
-  const filteredSources = useMemo(
+  ),
+   filteredSources = useMemo(
     () => getFilteredSources(sources, searchQuery, sourceRecency),
     [sources, searchQuery, sourceRecency],
-  );
-  const sourceNameLookup = useMemo(() => buildSourceNameLookup(sources), [sources]);
-  const selectedSourceIds = useMemo(
+  ),
+   sourceNameLookup = useMemo(() => buildSourceNameLookup(sources), [sources]),
+   selectedSourceIds = useMemo(
     () => getSelectedSourceIds(selectedSources, sources),
     [selectedSources, sources],
-  );
-  const lensStats = useMemo(() => getLensStats(sources, lens), [lens, sources]);
-  const errorMessage = getLoadErrorMessage(error);
-  const filterActive = isFilterActive() || lens !== "all";
-  const filterLabel = lens === "all"
+  ),
+   lensStats = useMemo(() => getLensStats(sources, lens), [lens, sources]),
+   errorMessage = getLoadErrorMessage(error),
+   filterActive = isFilterActive() || lens !== "all",
+   filterLabel = lens === "all"
     ? `${getSelectionCount()} selected`
-    : `${NEWS_LENSES.find((preset) => preset.id === lens)?.label ?? "Lens"}: ${lensStats.included} in / ${lensStats.excluded} out`;
+    : `${NEWS_LENSES.find((preset) => preset.id === lens)?.label ?? "Lens"}: ${lensStats.included} in / ${lensStats.excluded} out`,
 
-  const toggleSection = (section: SidebarSection) => {
+   toggleSection = (section: SidebarSection) => {
     setExpandedSections((previous) => ({
       ...previous,
       [section]: !previous[section],
     }));
-  };
-  const clearFilters = () => {
+  },
+   clearFilters = () => {
     clearAll();
     clearLens();
-  };
-  const selectEverySource = () => {
+  },
+   selectEverySource = () => {
     selectAll(sources.map((source) => source.id));
-  };
-  const retry = () => {
+  },
+   retry = () => {
     void refetch();
   };
 
   if (!isOpen) {
-    return undefined;
+    return;
   }
 
   return (

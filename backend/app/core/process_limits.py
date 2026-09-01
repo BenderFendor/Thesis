@@ -9,7 +9,6 @@ import resource
 from collections.abc import Iterable
 from pathlib import Path
 
-
 DEFAULT_SOFT_NOFILE_TARGET = int(os.getenv("TARGET_NOFILE_SOFT_LIMIT", "65535"))
 
 
@@ -71,6 +70,18 @@ def raise_nofile_soft_limit(
     return desired_soft_limit, hard_limit
 
 
+def _is_open_file_exception(exc: BaseException) -> bool:
+    if getattr(exc, "errno", None) == errno.EMFILE:
+        return True
+    message_parts: Iterable[object] = getattr(exc, "args", ()) or (exc,)
+    message = " ".join(str(part) for part in message_parts if part is not None)
+    return "too many open files" in message.lower()
+
+
+def _related_exceptions(exc: BaseException) -> tuple[BaseException, ...]:
+    return tuple(related for related in (exc.__cause__, exc.__context__) if related is not None)
+
+
 def exception_mentions_too_many_open_files(exc: BaseException | None) -> bool:
     """Exception Mentions Too Many Open Files."""
     if exc is None:
@@ -86,19 +97,8 @@ def exception_mentions_too_many_open_files(exc: BaseException | None) -> bool:
             continue
         seen.add(marker)
 
-        if getattr(current, "errno", None) == errno.EMFILE:
+        if _is_open_file_exception(current):
             return True
-
-        message_parts: Iterable[object] = getattr(current, "args", ()) or (current,)
-        message = " ".join(str(part) for part in message_parts if part is not None)
-        if "too many open files" in message.lower():
-            return True
-
-        cause = current.__cause__
-        context = current.__context__
-        if cause is not None:
-            pending.append(cause)
-        if context is not None:
-            pending.append(context)
+        pending.extend(_related_exceptions(current))
 
     return False

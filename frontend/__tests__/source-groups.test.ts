@@ -2,34 +2,31 @@ import { describe, expect, it } from '@jest/globals';
 import { buildSourceGroups, compareSourceGroupsForGrid } from "@/lib/source-groups"
 import type { NewsArticle } from "@/lib/api"
 
+const DEFAULT_ARTICLE: NewsArticle = {
+  bias: "center",
+  category: "general",
+  country: "US",
+  credibility: "high",
+  id: 1,
+  image: "none",
+  originalLanguage: "en",
+  publishedAt: "2026-04-23T12:00:00Z",
+  source: "Example News",
+  sourceId: "example-news",
+  summary: "Summary",
+  tags: [],
+  title: "Test article",
+  translated: false,
+  url: "https://example.com/1",
+};
+
 function createArticle(overrides: Partial<NewsArticle>): NewsArticle {
+  const article = { ...DEFAULT_ARTICLE, ...overrides };
   return {
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse("2026-04-23T12:00:00Z"),
-    _queueData: overrides._queueData,
-    author: overrides.author,
-    authors: overrides.authors,
-    bias: overrides.bias ?? "center",
-    category: overrides.category ?? "general",
-    content: overrides.content,
-    country: overrides.country ?? "US",
-    credibility: overrides.credibility ?? "high",
-    geo_signal: overrides.geo_signal,
-    hasFullContent: overrides.hasFullContent,
-    id: overrides.id ?? 1,
-    image: overrides.image ?? "none",
-    isPersisted: overrides.isPersisted,
-    mentioned_countries: overrides.mentioned_countries,
-    originalLanguage: overrides.originalLanguage ?? "en",
-    publishedAt: overrides.publishedAt ?? "2026-04-23T12:00:00Z",
-    source: overrides.source ?? "Example News",
-    sourceId: overrides.sourceId ?? "example-news",
-    source_country: overrides.source_country,
-    summary: overrides.summary ?? "Summary",
-    tags: overrides.tags ?? [],
-    title: overrides.title ?? "Test article",
-    translated: overrides.translated ?? false,
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-  }
+    ...article,
+    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(article.publishedAt),
+    url: overrides.url ?? `https://example.com/${article.id}`,
+  };
 }
 
 describe("source group ordering", () => {

@@ -5,7 +5,7 @@ import { Loader2, Search, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SearchSuggestion } from "@/lib/api";
 import { fetchSearchSuggestions } from "@/lib/api";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface SearchSuggestionsProps {
   query: string;
@@ -37,7 +37,7 @@ export function SearchSuggestions({
    error = suggestionsQuery.error instanceof Error ? suggestionsQuery.error.message : null;
 
   if (query.length < minQueryLength) {
-    return undefined;
+    return;
   }
 
   if (loading) {
@@ -50,7 +50,7 @@ export function SearchSuggestions({
   }
 
   if (error || suggestions.length === 0) {
-    return undefined;
+    return;
   }
 
   return (

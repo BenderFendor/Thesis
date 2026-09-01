@@ -203,26 +203,28 @@ def filter_jsonl(source: Path, destination: Path, since: datetime) -> dict[str, 
 def collect_logs(
     root: Path, runtime_dir: Path, bundle_dir: Path, since: datetime
 ) -> list[dict[str, object]]:
-    candidates: set[Path] = set()
-    if runtime_dir.exists():
-        candidates.update(
-            path for path in runtime_dir.rglob("*.jsonl") if path.is_file()
-        )
-    legacy_dir = Path(os.environ.get("DEBUG_LOG_DIR", "/tmp/scoop_debug_logs"))
-    if legacy_dir.exists() and legacy_dir.resolve() != runtime_dir.resolve():
-        candidates.update(
-            path for path in legacy_dir.rglob("*.jsonl") if path.is_file()
-        )
+    candidates = _log_candidates(runtime_dir)
 
     results: list[dict[str, object]] = []
     for source in sorted(candidates):
-        try:
-            relative = source.relative_to(runtime_dir)
-        except ValueError:
-            relative = Path("legacy") / source.name
-        destination = bundle_dir / "logs" / relative
-        results.append(filter_jsonl(source, destination, since))
+        results.append(filter_jsonl(source, _log_destination(source, runtime_dir, bundle_dir), since))
     return results
+
+
+def _log_candidates(runtime_dir: Path) -> set[Path]:
+    candidates = set(runtime_dir.rglob("*.jsonl")) if runtime_dir.exists() else set()
+    legacy_dir = Path(os.environ.get("DEBUG_LOG_DIR", "/tmp/scoop_debug_logs"))
+    if legacy_dir.exists() and legacy_dir.resolve() != runtime_dir.resolve():
+        candidates.update(legacy_dir.rglob("*.jsonl"))
+    return {path for path in candidates if path.is_file()}
+
+
+def _log_destination(source: Path, runtime_dir: Path, bundle_dir: Path) -> Path:
+    try:
+        relative = source.relative_to(runtime_dir)
+    except ValueError:
+        relative = Path("legacy") / source.name
+    return bundle_dir / "logs" / relative
 
 
 def write_json(path: Path, value: object) -> None:
@@ -251,56 +253,50 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def summarize(bundle_dir: Path, manifest: dict[str, Any]) -> str:
+def read_bundle_records(bundle_dir: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for path in (
         (bundle_dir / "logs").rglob("*.jsonl") if (bundle_dir / "logs").exists() else []
     ):
         records.extend(read_jsonl(path))
+    return records
 
-    errors = [
-        record
-        for record in records
-        if record.get("error")
+
+def is_error_record(record: dict[str, Any]) -> bool:
+    return bool(
+        record.get("error")
         or str(record.get("event_type", "")).endswith("_error")
         or record.get("result") == "error"
         or str(record.get("level", "")).lower() in {"error", "critical"}
-    ]
-    slow = [
-        record
-        for record in records
-        if record.get("is_slow")
-        or record.get("kind") == "operation"
-        and (record.get("duration_ms") or 0) >= 1000
-    ]
-    samples = [record for record in records if record.get("kind") == "resource_sample"]
+    )
 
-    max_process_cpu = max(
-        (
-            float(record.get("process", {}).get("cpu_percent") or 0)
-            for record in samples
-        ),
-        default=0.0,
-    )
-    max_memory_percent = max(
-        (
-            float(record.get("system", {}).get("memory_used_percent") or 0)
-            for record in samples
-        ),
-        default=0.0,
-    )
-    max_disk_percent = max(
-        (float(record.get("disk", {}).get("used_percent") or 0) for record in samples),
-        default=0.0,
-    )
-    max_event_loop_lag = max(
-        (
-            float(record.get("process", {}).get("event_loop_lag_ms") or 0)
-            for record in samples
-        ),
+
+def is_slow_record(record: dict[str, Any]) -> bool:
+    duration = record.get("duration_ms") or 0
+    return bool(record.get("is_slow") or record.get("kind") == "operation" and duration >= 1000)
+
+
+def read_nested_number(record: dict[str, Any], section: str, key: str) -> float:
+    section_value = record.get(section)
+    if not isinstance(section_value, dict):
+        return 0.0
+    value = section_value.get(key)
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def max_resource_metric(
+    samples: list[dict[str, Any]], section: str, key: str
+) -> float:
+    return max(
+        (read_nested_number(record, section, key) for record in samples),
         default=0.0,
     )
 
+
+def build_evidence_summary(samples: list[dict[str, Any]], errors: list[dict[str, Any]], slow: list[dict[str, Any]]) -> list[str]:
     evidence: list[str] = []
     if errors:
         evidence.append(f"- {len(errors)} error-bearing event(s) were captured.")
@@ -311,16 +307,26 @@ def summarize(bundle_dir: Path, manifest: dict[str, Any]) -> str:
     if samples:
         evidence.extend(
             [
-                f"- Peak sampled process CPU: {max_process_cpu:.1f}%.",
-                f"- Peak sampled system memory use: {max_memory_percent:.1f}%.",
-                f"- Peak sampled disk use: {max_disk_percent:.1f}%.",
-                f"- Peak sampled event-loop lag: {max_event_loop_lag:.1f} ms.",
+                f"- Peak sampled process CPU: {max_resource_metric(samples, 'process', 'cpu_percent'):.1f}%.",
+                f"- Peak sampled system memory use: {max_resource_metric(samples, 'system', 'memory_used_percent'):.1f}%.",
+                f"- Peak sampled disk use: {max_resource_metric(samples, 'disk', 'used_percent'):.1f}%.",
+                f"- Peak sampled event-loop lag: {max_resource_metric(samples, 'process', 'event_loop_lag_ms'):.1f} ms.",
             ]
         )
     if not evidence:
         evidence.append(
             "- No structured events were available in the selected time window."
         )
+    return evidence
+
+
+def summarize(bundle_dir: Path, manifest: dict[str, Any]) -> str:
+    records = read_bundle_records(bundle_dir)
+
+    errors = [record for record in records if is_error_record(record)]
+    slow = [record for record in records if is_slow_record(record)]
+    samples = [record for record in records if record.get("kind") == "resource_sample"]
+    evidence = build_evidence_summary(samples, errors, slow)
 
     revision = manifest.get("git", {}).get("revision", {})
     commit = "unknown"

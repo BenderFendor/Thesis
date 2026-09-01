@@ -1,84 +1,132 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
+import { fetchSources, mapBackendArticles, removeDuplicateArticles } from '@/lib/api';
+import type { ReadonlyBackendArticle } from '@/lib/api';
 import fc from "fast-check";
-import { mapBackendArticles, removeDuplicateArticles } from '@/lib/api';
-import type { BackendArticle } from '@/lib/api';
 
-const shortStringArb = fc.string({ maxLength: 120 }),
- isoDateArb = fc
+interface SourcePayload {
+  readonly bias_rating: string;
+  readonly category: string;
+  readonly country: string;
+  readonly factual_rating: string;
+  readonly funding_type: string;
+  readonly is_paywalled: boolean;
+  readonly name: string;
+  readonly ownership_label: string;
+  readonly source_type: string;
+  readonly url: string;
+}
+
+interface SourceResponse {
+  readonly json: () => Promise<readonly SourcePayload[]>;
+  readonly ok: boolean;
+  readonly status: number;
+}
+
+const articleStringArb = fc.string({ maxLength: 120 }),
+ dateValueArb = fc
   .integer({
     max: Date.parse("2100-12-31T23:59:59.999Z"),
     min: Date.parse("2000-01-01T00:00:00.000Z"),
   })
   .map((timestampMs) => new Date(timestampMs).toISOString()),
 
- backendArticleArb: fc.Arbitrary<BackendArticle> = fc.record({
+ recordArticleArb: fc.Arbitrary<ReadonlyBackendArticle> = fc.record({
   article_id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), {
     nil: undefined,
   }),
-  article_url: fc.option(shortStringArb, { nil: undefined }),
-  author: fc.option(shortStringArb, { nil: undefined }),
-  authors: fc.option(fc.array(shortStringArb, { maxLength: 3 }), {
+  article_url: fc.option(articleStringArb, { nil: undefined }),
+  author: fc.option(articleStringArb, { nil: undefined }),
+  authors: fc.option(fc.array(articleStringArb, { maxLength: 3 }), {
     nil: undefined,
   }),
-  bias: fc.option(shortStringArb, { nil: undefined }),
-  category: fc.option(shortStringArb, { nil: undefined }),
-  content: fc.option(shortStringArb, { nil: undefined }),
-  country: fc.option(shortStringArb, { nil: undefined }),
-  credibility: fc.option(shortStringArb, { nil: undefined }),
-  description: fc.option(shortStringArb, { nil: undefined }),
+  bias: fc.option(articleStringArb, { nil: undefined }),
+  category: fc.option(articleStringArb, { nil: undefined }),
+  content: fc.option(articleStringArb, { nil: undefined }),
+  country: fc.option(articleStringArb, { nil: undefined }),
+  credibility: fc.option(articleStringArb, { nil: undefined }),
+  description: fc.option(articleStringArb, { nil: undefined }),
   id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), { nil: undefined }),
-  image: fc.option(shortStringArb, { nil: undefined }),
-  image_url: fc.option(shortStringArb, { nil: undefined }),
+  image: fc.option(articleStringArb, { nil: undefined }),
+  image_url: fc.option(articleStringArb, { nil: undefined }),
   is_persisted: fc.option(fc.boolean(), { nil: undefined }),
-  link: fc.option(shortStringArb, { nil: undefined }),
+  link: fc.option(articleStringArb, { nil: undefined }),
   original_language: fc.option(fc.string({ maxLength: 5, minLength: 2 }), {
     nil: undefined,
   }),
-  original_url: fc.option(shortStringArb, { nil: undefined }),
-  published: fc.option(isoDateArb, { nil: undefined }),
-  publishedAt: fc.option(isoDateArb, { nil: undefined }),
-  published_at: fc.option(isoDateArb, { nil: undefined }),
-  source: fc.option(shortStringArb, { nil: undefined }),
-  source_id: fc.option(shortStringArb, { nil: undefined }),
-  source_name: fc.option(shortStringArb, { nil: undefined }),
-  summary: fc.option(shortStringArb, { nil: undefined }),
-  title: fc.option(shortStringArb, { nil: undefined }),
+  original_url: fc.option(articleStringArb, { nil: undefined }),
+  published: fc.option(dateValueArb, { nil: undefined }),
+  publishedAt: fc.option(dateValueArb, { nil: undefined }),
+  published_at: fc.option(dateValueArb, { nil: undefined }),
+  source: fc.option(articleStringArb, { nil: undefined }),
+  source_id: fc.option(articleStringArb, { nil: undefined }),
+  source_name: fc.option(articleStringArb, { nil: undefined }),
+  summary: fc.option(articleStringArb, { nil: undefined }),
+  title: fc.option(articleStringArb, { nil: undefined }),
   translated: fc.option(fc.boolean(), { nil: undefined }),
-  url: fc.option(shortStringArb, { nil: undefined }),
-});
+  url: fc.option(articleStringArb, { nil: undefined }),
+}),
 
-describe("api mapping property tests", () => {
+ // SAFETY: fetchSources only reads ok, status, and json from this response boundary.
+ sourceResponse: SourceResponse = {
+   json: () => Promise.resolve([
+     {
+       bias_rating: "left-leaning",
+       category: "world",
+       country: "GB",
+       factual_rating: "high",
+       funding_type: "public",
+       is_paywalled: true,
+       name: "Example News",
+       ownership_label: "Example Trust",
+       source_type: "newspaper",
+       url: "https://example.com",
+     },
+   ]),
+   ok: true,
+   status: 200,
+ };
+
+describe("api image mapping property", () => {
   it("maps explicit none image marker to placeholder", () => {expect.hasAssertions();
-    fc.assert(
-      fc.property(backendArticleArb, (article) => {
+    const checkResult = fc.check(
+      fc.property(recordArticleArb, (article: ReadonlyBackendArticle) => {
         const [mapped] = mapBackendArticles([
           { ...article, image: "none", image_url: undefined },
         ]);
-        expect(mapped!.image).toBe("/placeholder.svg");
+        expect(mapped).toStrictEqual(expect.objectContaining({ image: "/placeholder.svg" }));
       }),
     );
+    expect(checkResult.failed).toBe(false);
   });
+});
 
+describe("api deduplication property", () => {
   it("deduplicates by title-source key", () => {expect.hasAssertions();
-    fc.assert(
+    const checkResult = fc.check(
       fc.property(
-        fc.array(backendArticleArb, { maxLength: 40, minLength: 1 }),
-        (backendArticles) => {
-          const mapped = mapBackendArticles(backendArticles),
-           deduped = removeDuplicateArticles(mapped);
+        fc.array(recordArticleArb, { maxLength: 40, minLength: 1 }),
+        (backendArticles: readonly ReadonlyBackendArticle[]) => {
+          const articleKeys = new Set<string>(),
+            sourceArticles = mapBackendArticles(backendArticles),
+            uniqueArticles = removeDuplicateArticles(sourceArticles);
 
-          expect(deduped.length).toBeLessThanOrEqual(mapped.length);
+          expect(uniqueArticles.length).toBeLessThanOrEqual(sourceArticles.length);
 
-          const keys = deduped.map((article) => `${article.title}-${article.source}`);
-          expect(new Set(keys).size).toBe(keys.length);
+          for (const article of uniqueArticles) {
+            articleKeys.add(`${article.title}-${article.source}`);
+          }
+          expect(articleKeys.size).toStrictEqual(uniqueArticles.length);
         },
       ),
     );
+    expect(checkResult.failed).toBe(false);
   });
+});
 
+describe("api persistence property", () => {
   it("keeps rows without backend ids non-persisted even when a stable fallback id is synthesized", () => {expect.hasAssertions();
-    fc.assert(
-      fc.property(backendArticleArb, (article) => {
+    const checkResult = fc.check(
+      fc.property(recordArticleArb, (article: ReadonlyBackendArticle) => {
         const [mapped] = mapBackendArticles([
           {
             ...article,
@@ -88,9 +136,53 @@ describe("api mapping property tests", () => {
           },
         ]);
 
-        expect(mapped!.id).toStrictEqual(expect.any(Number));
-        expect(mapped!.isPersisted).toBe(false);
+          expect(mapped).toStrictEqual(expect.objectContaining({
+            id: expect.any(Number),
+            isPersisted: false,
+          }));
       }),
     );
+    expect(checkResult.failed).toBe(false);
+  });
+});
+
+describe("api source contract", () => {
+  const originalFetch = globalThis.fetch;
+
+  it("maps source metadata into the UI source contract", async () => { expect.hasAssertions();
+      const fetchMock = jest.fn<(url: string) => Promise<SourceResponse>>().mockResolvedValue(sourceResponse);
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+      writable: true,
+    });
+    try {
+      await expect(fetchSources()).resolves.toStrictEqual([
+        {
+          bias: "left",
+          category: ["world"],
+          country: "GB",
+          credibility: "high",
+          credibilityScore: undefined,
+          factualRating: "high",
+          funding: ["public"],
+          id: "example-news",
+          isPaywalled: true,
+          language: "en",
+          name: "Example News",
+          rssUrl: "https://example.com",
+          slug: "example-news",
+          sourceType: "newspaper",
+          url: "https://example.com",
+        },
+      ]);
+    } finally {
+      Object.defineProperty(globalThis, "fetch", {
+        configurable: true,
+        value: originalFetch,
+        writable: true,
+      });
+    }
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/news/sources"));
   });
 });

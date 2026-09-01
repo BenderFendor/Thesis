@@ -101,9 +101,7 @@ def _wordpress_user_claims(
             )
         )
 
-    author_url = user.get("link") or (
-        f"{base_url.rstrip('/')}/author/{slug}" if slug else None
-    )
+    author_url = user.get("link") or (f"{base_url.rstrip('/')}/author/{slug}" if slug else None)
     if author_url:
         claims.append(
             _cms_claim(
@@ -136,9 +134,7 @@ async def _try_wordpress_api(
     claims = []
     name_lower = reporter_name.lower()
     for user in users if isinstance(users, list) else []:
-        claims.extend(
-            _wordpress_user_claims(user, search_url, base_url, reporter_name, name_lower)
-        )
+        claims.extend(_wordpress_user_claims(user, search_url, base_url, reporter_name, name_lower))
     return claims
 
 

@@ -1,15 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { HighlightNotePopover } from "@/components/highlight-note-popover";
 import type { Highlight } from "@/lib/api";
-
-jest.mock<typeof import('@/components/ui/button')>("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
-}));
 
 describe("highlightNotePopover", () => {
   it("saves notes for client-only highlights", async () => {expect.hasAssertions();
@@ -30,7 +23,7 @@ describe("highlightNotePopover", () => {
     });
 
     const highlight: Highlight = {
-      article_url: "https://example.com/sutory",
+      article_url: "https://example.com/story",
       character_end: 28,
       character_start: 10,
       client_id: "client-123",
@@ -38,7 +31,9 @@ describe("highlightNotePopover", () => {
       highlighted_text: "Important sentence",
       note: "",
     },
-     onSave = jest.fn(async () => {});
+     onSave = jest.fn(async (..._args: [string, string]): Promise<void> => {
+      await Promise.resolve()
+    });
 
     render(
       <HighlightNotePopover
@@ -83,7 +78,7 @@ describe("highlightNotePopover", () => {
       <HighlightNotePopover
         open
         highlight={{
-          article_url: "https://example.com/sutory",
+          article_url: "https://example.com/story",
           character_end: 31,
           character_start: 4,
           client_id: "client-456",

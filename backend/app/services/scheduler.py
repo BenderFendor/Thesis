@@ -18,6 +18,19 @@ logger = get_logger("scheduler")
 EMFILE_BACKOFF_SECONDS = int(os.getenv("RSS_EMFILE_BACKOFF_SECONDS", "300"))
 
 
+def _parse_next_check_at(value: object) -> datetime | None:
+    """Parse a cached refresh deadline into an aware UTC datetime."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def _classify_source_due(
     source_name: str,
     stats_map: dict[str, dict[str, object]],

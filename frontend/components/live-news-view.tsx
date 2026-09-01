@@ -19,7 +19,7 @@ const MAX_LOADED_IFRAMES = 3,
 export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNewsViewProps) {
   const [prefs, updatePrefs, resetToDefaults] = useLiveNewsPreferences(),
    [loadedSources, setLoadedSources] = useState<Set<string>>(new Set()),
-   [fullscreenId, setFullscreenId] = useState<string | null>(undefined),
+   [fullscreenId, setFullscreenId] = useState<string | null>(null),
    [sourcePickerOpen, setSourcePickerOpen] = useState(false),
    [isDesktop, setIsDesktop] = useState(true),
 
@@ -39,7 +39,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {setFullscreenId(undefined)}
+      if (e.key === "Escape") {setFullscreenId(null)}
     }
     globalThis.addEventListener("keydown", handleKey)
     return () =>{  globalThis.removeEventListener("keydown", handleKey); }
@@ -82,7 +82,7 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
     (sourceId: string) => {
       const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
       updatePrefs({ activeSourceIds: nextIds })
-      if (fullscreenId === sourceId) {setFullscreenId(undefined)}
+      if (fullscreenId === sourceId) {setFullscreenId(null)}
     },
     [prefs.activeSourceIds, fullscreenId, updatePrefs],
   ),

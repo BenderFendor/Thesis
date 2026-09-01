@@ -25,7 +25,7 @@ export function NoveltyBadge({
   });
 
   if (readingHistory.length === 0) {
-    return undefined;
+    return;
   }
 
   if (loading) {
@@ -38,7 +38,7 @@ export function NoveltyBadge({
   }
 
   if (error || !novelty) {
-    return undefined;
+    return;
   }
 
   const score = novelty.novelty_score,

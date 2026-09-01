@@ -31,6 +31,272 @@ interface ChatSidebarProps {
   onToggle?: () => void;
 }
 
+interface ChatListItemProps {
+  chat: ChatSummary;
+  index: number;
+  activeId?: string | null;
+  editingId: string | null;
+  draftTitle: string;
+  isSelectionMode: boolean;
+  selectedIds: ReadonlySet<string>;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  onDraftTitleChange: (title: string) => void;
+  startRename: (chat: ChatSummary) => void;
+  cancelRename: () => void;
+  commitRename: () => void;
+  toggleSelection: (id: string) => void;
+}
+
+function chatItemClassName(isSelectionMode: boolean, isSelected: boolean, isActive: boolean): string {
+  if (isSelectionMode) {
+    return isSelected
+      ? "border-primary/40 bg-primary/10"
+      : "border-border/30 bg-card/30 hover:bg-card/50";
+  }
+  return isActive
+    ? "border-primary/40 bg-card shadow-lg shadow-black/20"
+    : "border-border/30 bg-card/30 hover:bg-card/50";
+}
+
+interface ChatListItemSelectionProps {
+  isSelectionMode: boolean;
+  isSelected: boolean;
+}
+
+function ChatListItemSelection({
+  isSelectionMode,
+  isSelected,
+}: ChatListItemSelectionProps): React.JSX.Element | null {
+  if (!isSelectionMode) {return null;}
+  return (
+    <div
+      className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${
+        isSelected
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/50 bg-transparent"
+      }`}
+    >
+      {isSelected && <CheckSquare className="h-3 w-3" />}
+    </div>
+  );
+}
+
+interface ChatListItemBodyProps {
+  chat: ChatSummary;
+  isEditing: boolean;
+  isSelectionMode: boolean;
+  draftTitle: string;
+  onSelect: (id: string) => void;
+  onDraftTitleChange: (title: string) => void;
+  cancelRename: () => void;
+  commitRename: () => void;
+  toggleSelection: (id: string) => void;
+}
+
+function ChatListItemBody({
+  chat,
+  isEditing,
+  isSelectionMode,
+  draftTitle,
+  onSelect,
+  onDraftTitleChange,
+  cancelRename,
+  commitRename,
+  toggleSelection,
+}: ChatListItemBodyProps): React.JSX.Element {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          Thread
+        </span>
+        {chat.updatedAt && (
+          <span className="text-xs text-muted-foreground">
+            {new Date(chat.updatedAt).toLocaleDateString("en-US", {
+              day: "numeric",
+              month: "short",
+            })}
+          </span>
+        )}
+      </div>
+
+      {isEditing ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            commitRename();
+          }}
+          onClick={(event) =>{  event.stopPropagation(); }}
+        >
+          <input
+            value={draftTitle}
+            onChange={(event) =>{  onDraftTitleChange(event.target.value); }}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                cancelRename();
+              }
+            }}
+            autoFocus
+            className="w-full rounded-2xl border border-primary/40 bg-background/60 px-3 py-2 text-sm font-serif text-foreground focus:outline-none"
+          />
+        </form>
+      ) : (
+        <button
+          onClick={(event) => {
+            if (isSelectionMode) {
+              event.preventDefault();
+              toggleSelection(chat.id);
+            } else {
+              onSelect(chat.id);
+            }
+          }}
+          className="w-full text-left"
+          aria-label={`Open chat ${chat.title}`}
+          disabled={isSelectionMode}
+        >
+          <div className="font-serif text-base text-foreground line-clamp-2">
+            {chat.title}
+          </div>
+          {chat.lastMessage && (
+            <div className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+              {chat.lastMessage}
+            </div>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface ChatListItemActionsProps {
+  chat: ChatSummary;
+  isEditing: boolean;
+  isSelectionMode: boolean;
+  onDelete: (id: string) => void;
+  startRename: (chat: ChatSummary) => void;
+  commitRename: () => void;
+}
+
+function ChatListItemActions({
+  chat,
+  isEditing,
+  isSelectionMode,
+  onDelete,
+  startRename,
+  commitRename,
+}: ChatListItemActionsProps): React.JSX.Element | null {
+  if (isSelectionMode) {return null;}
+  return (
+    <div className="flex flex-col gap-2 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isEditing) {
+            commitRename();
+          } else {
+            startRename(chat);
+          }
+        }}
+        className="rounded-full border border-border/40 bg-background/50 p-2 text-muted-foreground transition-all duration-300 ease-out hover:bg-card hover:text-foreground active:scale-95"
+        aria-label="Rename chat"
+      >
+        <PenLine className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (
+            globalThis.confirm(
+              "Delete this chat? This action cannot be undone.",
+            )
+          ) {
+            onDelete(chat.id);
+          }
+        }}
+        className="rounded-full border border-border/40 bg-background/50 p-2 text-destructive transition-all duration-300 ease-out hover:bg-card active:scale-95"
+        aria-label="Delete chat"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function ChatListItemCard(props: ChatListItemProps): React.JSX.Element {
+  const {
+    chat,
+    activeId,
+    editingId,
+    draftTitle,
+    isSelectionMode,
+    selectedIds,
+    onSelect,
+    onDelete,
+    onDraftTitleChange,
+    startRename,
+    cancelRename,
+    commitRename,
+    toggleSelection,
+  } = props,
+   isActive = activeId === chat.id,
+   isEditing = editingId === chat.id,
+   isSelected = selectedIds.has(chat.id);
+
+  return (
+    <div
+      className={`group rounded-3xl border p-4 transition-all duration-300 ease-out ${chatItemClassName(isSelectionMode, isSelected, isActive)}`}
+      onClick={() => {
+        if (isSelectionMode) {
+          toggleSelection(chat.id);
+        }
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <ChatListItemSelection isSelectionMode={isSelectionMode} isSelected={isSelected} />
+        <ChatListItemBody
+          chat={chat}
+          isEditing={isEditing}
+          isSelectionMode={isSelectionMode}
+          draftTitle={draftTitle}
+          onSelect={onSelect}
+          onDraftTitleChange={onDraftTitleChange}
+          cancelRename={cancelRename}
+          commitRename={commitRename}
+          toggleSelection={toggleSelection}
+        />
+        <ChatListItemActions
+          chat={chat}
+          isEditing={isEditing}
+          isSelectionMode={isSelectionMode}
+          onDelete={onDelete}
+          startRename={startRename}
+          commitRename={commitRename}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ChatListItem({ chat, index, ...props }: ChatListItemProps): React.JSX.Element {
+  return (
+    <motion.li
+      key={chat.id}
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ delay: index * 0.02, duration: 0.2, ease: "easeOut" }}
+    >
+      <ChatListItemCard chat={chat} index={index} {...props} />
+    </motion.li>
+  );
+}
+
 export function ChatSidebar({
   chats,
   onSelect,
@@ -43,7 +309,7 @@ export function ChatSidebar({
   onToggle,
 }: ChatSidebarProps) {
   const [searchTerm, setSearchTerm] = useState(""),
-   [editingId, setEditingId] = useState<string | null>(undefined),
+   [editingId, setEditingId] = useState<string | null>(null),
    [draftTitle, setDraftTitle] = useState(""),
    [isSelectionMode, setIsSelectionMode] = useState(false),
    [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
@@ -68,7 +334,7 @@ export function ChatSidebar({
   },
 
    cancelRename = () => {
-    setEditingId(undefined);
+    setEditingId(null);
     setDraftTitle("");
   },
 
@@ -84,7 +350,7 @@ export function ChatSidebar({
    toggleSelectionMode = () => {
     setIsSelectionMode((prev) => !prev);
     setSelectedIds(new Set());
-    setEditingId(undefined);
+    setEditingId(null);
   },
 
    toggleSelection = (id: string) => {
@@ -297,153 +563,25 @@ export function ChatSidebar({
         ) : (
           <ul className="space-y-2">
             <AnimatePresence initial={false}>
-              {filteredChats.map((chat, index) => {
-                const isActive = activeId === chat.id,
-                 isEditing = editingId === chat.id,
-                 isSelected = selectedIds.has(chat.id);
-
-                return (
-                  <motion.li
-                    key={chat.id}
-                    layout
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ delay: index * 0.02, duration: 0.2, ease: "easeOut" }}
-                  >
-                    <div
-                      className={`group rounded-3xl border p-4 transition-all duration-300 ease-out ${
-                        isSelectionMode
-                          ? (isSelected
-                            ? "border-primary/40 bg-primary/10"
-                            : "border-border/30 bg-card/30 hover:bg-card/50")
-                          : (isActive
-                            ? "border-primary/40 bg-card shadow-lg shadow-black/20"
-                            : "border-border/30 bg-card/30 hover:bg-card/50")
-                      }`}
-                      onClick={() => {
-                        if (isSelectionMode) {
-                          toggleSelection(chat.id);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start gap-3">
-                        {isSelectionMode && (
-                          <div
-                            className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${
-                              isSelected
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border/50 bg-transparent"
-                            }`}
-                          >
-                            {isSelected && <CheckSquare className="h-3 w-3" />}
-                          </div>
-                        )}
-
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                              Thread
-                            </span>
-                            {chat.updatedAt && (
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(chat.updatedAt).toLocaleDateString("en-US", {
-                                  day: "numeric",
-                                  month: "short",
-                                })}
-                              </span>
-                            )}
-                          </div>
-
-                          {isEditing ? (
-                            <form
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                commitRename();
-                              }}
-                              onClick={(event) =>{  event.stopPropagation(); }}
-                            >
-                              <input
-                                value={draftTitle}
-                                onChange={(event) =>{  setDraftTitle(event.target.value); }}
-                                onBlur={commitRename}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Escape") {
-                                    event.preventDefault();
-                                    cancelRename();
-                                  }
-                                }}
-                                autoFocus
-                                className="w-full rounded-2xl border border-primary/40 bg-background/60 px-3 py-2 text-sm font-serif text-foreground focus:outline-none"
-                              />
-                            </form>
-                          ) : (
-                            <button
-                              onClick={(event) => {
-                                if (isSelectionMode) {
-                                  event.preventDefault();
-                                  toggleSelection(chat.id);
-                                } else {
-                                  onSelect(chat.id);
-                                }
-                              }}
-                              className="w-full text-left"
-                              aria-label={`Open chat ${chat.title}`}
-                              disabled={isSelectionMode}
-                            >
-                              <div className="font-serif text-base text-foreground line-clamp-2">
-                                {chat.title}
-                              </div>
-                              {chat.lastMessage && (
-                                <div className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                                  {chat.lastMessage}
-                                </div>
-                              )}
-                            </button>
-                          )}
-                        </div>
-
-                        {!isSelectionMode && (
-                          <div className="flex flex-col gap-2 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (isEditing) {
-                                  commitRename();
-                                } else {
-                                  startRename(chat);
-                                }
-                              }}
-                              className="rounded-full border border-border/40 bg-background/50 p-2 text-muted-foreground transition-all duration-300 ease-out hover:bg-card hover:text-foreground active:scale-95"
-                              aria-label="Rename chat"
-                            >
-                              <PenLine className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (
-                                  globalThis.confirm(
-                                    "Delete this chat? This action cannot be undone.",
-                                  )
-                                ) {
-                                  onDelete(chat.id);
-                                }
-                              }}
-                              className="rounded-full border border-border/40 bg-background/50 p-2 text-destructive transition-all duration-300 ease-out hover:bg-card active:scale-95"
-                              aria-label="Delete chat"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.li>
-                );
-              })}
+              {filteredChats.map((chat, index) => (
+                <ChatListItem
+                  key={chat.id}
+                  chat={chat}
+                  index={index}
+                  activeId={activeId}
+                  editingId={editingId}
+                  draftTitle={draftTitle}
+                  isSelectionMode={isSelectionMode}
+                  selectedIds={selectedIds}
+                  onSelect={onSelect}
+                  onDelete={onDelete}
+                  onDraftTitleChange={setDraftTitle}
+                  startRename={startRename}
+                  cancelRename={cancelRename}
+                  commitRename={commitRename}
+                  toggleSelection={toggleSelection}
+                />
+              ))}
             </AnimatePresence>
           </ul>
         )}

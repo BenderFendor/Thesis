@@ -232,9 +232,7 @@ async def _run_adapter(db: Any, case: dict[str, Any], corpus: Path) -> Any:
         payload = CapturedPayload(
             source_url=str(capture["source_url"]),
             body=(corpus / str(capture["path"])).read_bytes(),
-            retrieved_at=datetime.fromisoformat(
-                str(capture["retrieved_at"]).replace("Z", "+00:00")
-            ).replace(tzinfo=None),
+            retrieved_at=datetime.fromisoformat(str(capture["retrieved_at"])).replace(tzinfo=None),
             http_status=int(capture.get("http_status", 200)),
             content_type=str(capture.get("content_type", "application/json")),
         )
@@ -434,11 +432,7 @@ def _matching_claims(
     expectation: dict[str, Any],
     entity_names: dict[str, str],
 ) -> list[Any]:
-    return [
-        claim
-        for claim in claim_rows
-        if _expectation_matches(claim, expectation, entity_names)
-    ]
+    return [claim for claim in claim_rows if _expectation_matches(claim, expectation, entity_names)]
 
 
 def _actual_claim_rows(
@@ -466,12 +460,8 @@ def _assert_forbidden_shortcut(
     if not (forbidden_subject and forbidden_object):
         return
     if any(
-        _expected_entity_matches(
-            claim, "subject_entity_id", str(forbidden_subject), entity_names
-        )
-        and _expected_entity_matches(
-            claim, "object_entity_id", str(forbidden_object), entity_names
-        )
+        _expected_entity_matches(claim, "subject_entity_id", str(forbidden_subject), entity_names)
+        and _expected_entity_matches(claim, "object_entity_id", str(forbidden_object), entity_names)
         for claim in claim_rows
     ):
         raise CorpusReplayError(f"{case_id}: forbidden entity shortcut present")
@@ -575,7 +565,8 @@ def _assert_cnn_wbd_ownership(summary: Any, ownership: Any, dossier: Any) -> Non
 async def _assert_dossier_projection(db: Any) -> bool:
     from sqlalchemy import select
 
-    from app.services.atlas_entity_resolution import outlet_node_ids
+    from app.models.evidence import EvidenceEntity
+    from app.services.atlas_entity import get_atlas_entity
 
     first_entity = (
         await db.execute(select(EvidenceEntity).where(EvidenceEntity.canonical_name == "CNN"))

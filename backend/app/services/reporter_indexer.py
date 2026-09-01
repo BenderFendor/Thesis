@@ -216,11 +216,18 @@ async def _article_author_link_exists(
     return existing.scalar_one_or_none() is not None
 
 
-+    reporter_id = reporter.id
-+    if reporter_id is None:
-+        # Unflushed reporter row; there is no id to link against.
-+        return
-    from sqlalchemy import select
+async def _create_article_author_links(
+    session: AsyncSession,
+    reporter: Reporter,
+    author_name: str,
+    source_name: str | None = None,
+    confidence: float = 0.8,
+) -> None:
+    """Create ArticleAuthor junction records linking reporter to their articles."""
+    reporter_id = reporter.id
+    if reporter_id is None:
+        # Unflushed reporter row; there is no id to link against.
+        return
     from sqlalchemy import select
 
     stmt = select(Article.id, Article.authors, Article.author_urls).where(
@@ -254,7 +261,7 @@ async def _article_author_link_exists(
 async def _store_wayback_evidence(
     session: AsyncSession,
     reporter_id: int,
-        wayback_url: str | None,
+    wayback_url: str | None,
     http_client: httpx.AsyncClient,
 ) -> None:
     """Store Wayback snapshot claims when an author page URL is known."""
@@ -325,9 +332,7 @@ async def _store_identity_edges(
         )
 
 
-def _merge_leaning_sources(
-    reporter: Reporter, leaning_sources: list[str] | None
-) -> None:
+def _merge_leaning_sources(reporter: Reporter, leaning_sources: list[str] | None) -> None:
     """Merge derived leaning sources into the reporter's existing list."""
     if not leaning_sources:
         return
@@ -369,12 +374,8 @@ async def _index_reporter_articles(
     if enrichment_claims:
         await bulk_store_claims(session, reporter_id, enrichment_claims)
 
-    await _store_wayback_evidence(
-        session, reporter_id, profile.get("author_page_url"), http_client
-    )
-    await _store_openalex_evidence(
-        session, reporter_id, author_name, source_name, http_client
-    )
+    await _store_wayback_evidence(session, reporter_id, profile.get("author_page_url"), http_client)
+    await _store_openalex_evidence(session, reporter_id, author_name, source_name, http_client)
     await _store_identity_edges(session, reporter_id, profile)
     _apply_political_leaning(profile, reporter)
 
@@ -1123,14 +1124,10 @@ async def _process_byline_author(
             )
             return "resolved"
 
-        local_profile = await _build_local_byline_profile(
-            session, author_name, source_name
-        )
+        local_profile = await _build_local_byline_profile(session, author_name, source_name)
         await upsert_reporter_profile(session, local_profile)
         reporter = await session.execute(
-            select(Reporter).where(
-                Reporter.resolver_key == local_profile.get("resolver_key")
-            )
+            select(Reporter).where(Reporter.resolver_key == local_profile.get("resolver_key"))
         )
         reporter_obj = reporter.scalar_one_or_none()
         if reporter_obj:
@@ -1155,9 +1152,7 @@ async def _process_byline_author(
     except Exception as exc:
         await session.rollback()
         if error_context:
-            logger.error(
-                "Failed to index reporter %s for %s: %s", author_name, error_context, exc
-            )
+            logger.error("Failed to index reporter %s for %s: %s", author_name, error_context, exc)
         else:
             logger.error("Failed to index reporter %s: %s", author_name, exc)
         await _upsert_index_status(
@@ -1425,9 +1420,7 @@ async def seed_reporters_from_wikidata(
     in the RSS catalog, then resolves full dossiers for each.
     """
     sources = get_rss_sources()
-    employer_names = sorted(
-        name for name in _unique_source_entries(sources) if len(name) > 2
-    )
+    employer_names = sorted(name for name in _unique_source_entries(sources) if len(name) > 2)
 
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=30.0)

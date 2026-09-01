@@ -52,18 +52,14 @@ def _trim_to_feed_document(body: bytes) -> bytes:
     """Keep the first complete RSS/Atom document when a feed appends junk."""
     lowered = body.lower()
     endings = [
-        end + len(tag)
-        for tag in (b"</rss>", b"</feed>")
-        if (end := lowered.rfind(tag)) != -1
+        end + len(tag) for tag in (b"</rss>", b"</feed>") if (end := lowered.rfind(tag)) != -1
     ]
     return body[: max(endings)] if endings else body
 
 
 def _strip_invalid_xml_bytes(body: bytes) -> bytes:
     return bytes(
-        byte
-        for byte in body
-        if byte in (0x09, 0x0A, 0x0D) or 0x20 <= byte <= 0x7E or byte >= 0x80
+        byte for byte in body if byte in (0x09, 0x0A, 0x0D) or 0x20 <= byte <= 0x7E or byte >= 0x80
     )
 
 
@@ -251,11 +247,7 @@ def _print_guard(source_name: str, source_info: dict[str, Any], urls: list[str])
 def _selected_source_entries(
     data: dict[str, Any], only_names: set[str] | None
 ) -> list[tuple[str, Any]]:
-    return [
-        (name, info)
-        for name, info in data.items()
-        if only_names is None or name in only_names
-    ]
+    return [(name, info) for name, info in data.items() if only_names is None or name in only_names]
 
 
 def _source_urls(source_name: str, source_info: Any) -> tuple[list[str], int]:

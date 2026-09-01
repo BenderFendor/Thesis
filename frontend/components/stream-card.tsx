@@ -36,11 +36,11 @@ export function StreamCard({
   onBecameVisible,
   onBecameHidden,
 }: StreamCardProps) {
-  const containerRef = useRef<HTMLDivElement>(undefined),
-   iframeRef = useRef<HTMLIFrameElement>(undefined),
+  const containerRef = useRef<HTMLDivElement>(null),
+   iframeRef = useRef<HTMLIFrameElement>(null),
    [hovering, setHovering] = useState(false),
    [embedError, setEmbedError] = useState(false),
-   observeRef = useRef<IntersectionObserver | null>(undefined),
+   observeRef = useRef<IntersectionObserver | null>(null),
 
    embedUrl = buildEmbedUrl(source.channelId, muted),
 

@@ -41,7 +41,7 @@ interface AtlasTopbarProps {
   inputRef: RefObject<HTMLInputElement | null>;
   searchText: string;
   searchOpen: boolean;
-  searchItems: AtlasSearchItem[];
+  searchItems: readonly AtlasSearchItem[];
   activeSearchIndex: number;
   searching: boolean;
   focus: boolean;
@@ -117,7 +117,7 @@ export function AtlasTopbar({
             ) : (searchItems.length > 0 ? (
               (["outlet", "organization", "person", "reporter"] as const).map((type) => {
                 const items = searchItems.filter((item) => item.entity_type === type);
-                if (items.length === 0) {return undefined;}
+                if (items.length === 0) {return;}
                 return (
                   <div key={type} className={styles.searchGroup}>
                     <div className={`${styles.microLabel} px-2 pb-2`}>{pluralGroupLabel(type)}</div>

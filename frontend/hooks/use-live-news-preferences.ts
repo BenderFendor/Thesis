@@ -12,10 +12,10 @@ export interface LiveNewsPreferences {
 const STORAGE_KEY = "scoop_live_news_prefs"
 
 function loadPreferences(): LiveNewsPreferences | null {
-  if (typeof window === "undefined") {return undefined}
+  if (typeof window === "undefined") {return null}
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {return undefined}
+    if (!raw) {return null}
     const parsed = JSON.parse(raw)
     if (
       Array.isArray(parsed.activeSourceIds) &&
@@ -27,9 +27,9 @@ function loadPreferences(): LiveNewsPreferences | null {
     ) {
       return parsed as LiveNewsPreferences
     }
-    return undefined
+    return null
   } catch {
-    return undefined
+    return null
   }
 }
 

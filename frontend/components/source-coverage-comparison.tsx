@@ -68,7 +68,7 @@ export function SourceCoverageComparison({
   }
 
   if (!coverage?.sources) {
-    return undefined;
+    return;
   }
 
   const sources = Object.entries(coverage.sources).sort(

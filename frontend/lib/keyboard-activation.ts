@@ -1,14 +1,12 @@
-import type { KeyboardEvent } from "react"
+interface KeyDownEvent {
+  readonly currentTarget: Readonly<EventTarget>
+  readonly key: string
+  readonly target: Readonly<EventTarget> | null
+}
 
-type KeyDownEvent = Pick<KeyboardEvent<HTMLElement>, "key" | "target" | "currentTarget">
-type KeyDownActivationEvent = Readonly<
-  Pick<KeyboardEvent<HTMLElement>, "key" | "target" | "currentTarget" | "preventDefault">
->
-
-const isActivationKey = (key: string): boolean => key === "Enter" || key === " "
-
-const shouldActivateCardFromKeyDown = (event: Readonly<KeyDownEvent>): boolean =>
-  event.target === event.currentTarget && isActivationKey(event.key)
+interface KeyDownActivationEvent extends KeyDownEvent {
+  readonly preventDefault: () => void
+}
 
 const activateCardFromKeyDown = (
   event: Readonly<KeyDownActivationEvent>,
@@ -19,6 +17,9 @@ const activateCardFromKeyDown = (
   }
   event.preventDefault()
   onActivate()
-}
+},
+  isActivationKey = (key: string): boolean => key === "Enter" || key === " ",
+  shouldActivateCardFromKeyDown = (event: Readonly<KeyDownEvent>): boolean =>
+  event.target === event.currentTarget && isActivationKey(event.key);
 
 export { activateCardFromKeyDown, isActivationKey, shouldActivateCardFromKeyDown }

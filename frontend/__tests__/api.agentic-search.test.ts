@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { performAgenticSearch } from "@/lib/api";
 
 describe("performAgenticSearch", () => {
+  const originalFetch = global.fetch;
+
   afterEach(() => {
+    global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
   it("uses the supported news research endpoint and normalizes the response", async () => {  expect.hasAssertions();
-  
-    const fetcher = jest.fn(async (_input: string, _init: RequestInit) => ({
+
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
       json: async () => ({
         answer: "Current evidence summary",
         query: "fact check this",
@@ -17,12 +20,11 @@ describe("performAgenticSearch", () => {
         thinking_steps: [{ content: "checked sources", timestamp: "2026-04-23T12:00:00Z", type: "thought" }],
       }),
       ok: true,
-      status: 200,
-    })),
+    } as Response);
 
-     result = await performAgenticSearch("fact check this", 10, fetcher);
+    const result = await performAgenticSearch("fact check this", 10);
 
-    expect(fetcher).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledWith(
       "http://localhost:8000/api/news/research",
       {
         body: JSON.stringify({

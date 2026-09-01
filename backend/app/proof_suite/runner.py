@@ -139,15 +139,24 @@ def assert_snapshot_pinned_truth(truth: dict[str, Any]) -> list[AssertionResult]
 
     checks: dict[str, tuple[bool, str]] = {
         "exact_snapshot_hashes": (
-            all(isinstance(edge.get("snapshot_sha256"), str) and len(edge["snapshot_sha256"]) == 64 for edge in relationships),
+            all(
+                isinstance(edge.get("snapshot_sha256"), str) and len(edge["snapshot_sha256"]) == 64
+                for edge in relationships
+            ),
             "every expected edge must cite a SHA-256 snapshot",
         ),
         "valid_locators": (
-            all(isinstance(edge.get("locator"), dict) and bool(edge["locator"]) for edge in relationships),
+            all(
+                isinstance(edge.get("locator"), dict) and bool(edge["locator"])
+                for edge in relationships
+            ),
             "every expected edge must cite a locator",
         ),
         "supporting_claims_resolve": (
-            all(isinstance(edge.get("claim_ids"), list) and bool(edge["claim_ids"]) for edge in relationships),
+            all(
+                isinstance(edge.get("claim_ids"), list) and bool(edge["claim_ids"])
+                for edge in relationships
+            ),
             "every expected edge must cite claim IDs",
         ),
     }
@@ -331,7 +340,9 @@ async def _record_conflict_status(
         )
     )
     subject_id = relationship.subject_entity_id
-    has_subject_conflict = any(subject_id in (item.entity_ids or []) for item in result.scalars().all())
+    has_subject_conflict = any(
+        subject_id in (item.entity_ids or []) for item in result.scalars().all()
+    )
     accumulator.record("no_forbidden_relationship", not has_subject_conflict)
 
 

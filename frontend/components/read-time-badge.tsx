@@ -14,7 +14,7 @@ export function ReadTimeBadge({
   compact = false,
 }: ReadTimeBadgeProps) {
   if (!estimatedMinutes && !wordCount) {
-    return undefined;
+    return;
   }
 
   if (compact) {

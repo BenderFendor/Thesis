@@ -30,7 +30,7 @@ export function QueueOverviewCard() {
   }
 
   if (error || !overview) {
-    return undefined;
+    return;
   }
 
   return (

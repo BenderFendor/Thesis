@@ -163,9 +163,7 @@ async def _reporters_for_source(
     return reporters
 
 
-def _match_rss_reporter(
-    rss_name: str, reporters: dict[str, Reporter]
-) -> Reporter | None:
+def _match_rss_reporter(rss_name: str, reporters: dict[str, Reporter]) -> Reporter | None:
     reporter = reporters.get(rss_name)
     if reporter is not None:
         return reporter

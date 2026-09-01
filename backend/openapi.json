@@ -222,7 +222,7 @@
           "news"
         ],
         "summary": "Get News Paginated",
-        "description": "Paginated article endpoint with cursor-based navigation.\n\nCursor pagination is more efficient than offset for large datasets:\n- Consistent performance regardless of page number\n- No \"skipping\" issues when new data is inserted\n- Better index utilization\n\nSupports filtering by:\n- category: Single category filter\n- source: Single source filter (legacy)\n- sources: Comma-separated list for multi-source filtering\n- search: Text search in title and summary\n\nReturns:\n    PaginatedResponse with articles, cursors, and metadata",
+        "description": "Return a cursor-paginated article page with optional source/search filters.",
         "operationId": "get_news_paginated_news_page_get",
         "parameters": [
           {
@@ -360,7 +360,7 @@
           "news"
         ],
         "summary": "Get Cached News Paginated",
-        "description": "Paginated endpoint using in-memory cache (faster for frequently accessed data).\n\nUses offset pagination since cache is in-memory array.\n\nBest for:\n- Initial page loads\n- Common category filters\n- Real-time updates",
+        "description": "Return a filtered page from the in-memory news cache.",
         "operationId": "get_cached_news_paginated_news_page_cached_get",
         "parameters": [
           {
@@ -483,7 +483,7 @@
           "news"
         ],
         "summary": "Get Cached Browse Index",
-        "description": "Return lightweight article cards for the current in-memory RSS cache.",
+        "description": "Return a filtered lightweight index from the in-memory cache.",
         "operationId": "get_cached_browse_index_news_index_cached_get",
         "parameters": [
           {
@@ -583,7 +583,7 @@
           "news"
         ],
         "summary": "Get Browse Index",
-        "description": "Return lightweight article cards for the full browse corpus.",
+        "description": "Return lightweight article cards from the persisted browse corpus.",
         "operationId": "get_browse_index_news_index_get",
         "parameters": [
           {
@@ -683,7 +683,7 @@
           "news"
         ],
         "summary": "Get Recent News",
-        "description": "Lightweight recent articles endpoint for historical paging.\n\nUses keyset pagination and avoids total counts for faster queries.",
+        "description": "Return a cursor-paginated page of recent articles.",
         "operationId": "get_recent_news_news_recent_get",
         "parameters": [
           {
@@ -777,7 +777,7 @@
           "news"
         ],
         "summary": "Post Ranked Articles",
-        "description": "Rank articles using the Rust backend ranking engine.\n\nAccepts article metadata, liked/bookmarked article IDs, and favorite\nsource IDs. Returns articles sorted by personalized ranking including\nscore breakdowns.",
+        "description": "Rank submitted articles with the Rust engine and return the sorted page.",
         "operationId": "post_ranked_articles_news_ranked_post",
         "requestBody": {
           "content": {
@@ -819,7 +819,7 @@
           "news"
         ],
         "summary": "Get News By Source",
-        "description": "Get News By Source.",
+        "description": "Return cached articles for one configured source.",
         "operationId": "get_news_by_source_news_source__source_name__get",
         "parameters": [
           {
@@ -866,7 +866,7 @@
           "news"
         ],
         "summary": "Get News By Category",
-        "description": "Get News By Category.",
+        "description": "Return cached articles for one category.",
         "operationId": "get_news_by_category_news_category__category_name__get",
         "parameters": [
           {
@@ -909,7 +909,7 @@
           "news"
         ],
         "summary": "Get Sources",
-        "description": "Get Sources.",
+        "description": "Return configured sources with persisted credibility metadata.",
         "operationId": "get_sources_news_sources_get",
         "responses": {
           "200": {
@@ -935,7 +935,7 @@
           "news"
         ],
         "summary": "Get Categories",
-        "description": "Get Categories.",
+        "description": "Return the distinct categories in the configured source catalog.",
         "operationId": "get_categories_news_categories_get",
         "responses": {
           "200": {
@@ -964,7 +964,7 @@
           "news"
         ],
         "summary": "Get Source Stats",
-        "description": "Return stats for all configured sources.",
+        "description": "Return cache statistics for configured sources.",
         "operationId": "get_source_stats_news_sources_stats_get",
         "responses": {
           "200": {
@@ -1012,7 +1012,7 @@
           "news-by-country"
         ],
         "summary": "Get Article Counts By Country",
-        "description": "Get Article Counts By Country.",
+        "description": "Return recent country-mention and source-origin article counts.",
         "operationId": "get_article_counts_by_country_news_by_country_get",
         "parameters": [
           {
@@ -1251,7 +1251,7 @@
           "news-stream"
         ],
         "summary": "Stream News",
-        "description": "Stream News.",
+        "description": "Stream cached news immediately, then source-by-source fresh updates.",
         "operationId": "stream_news_news_stream_get",
         "parameters": [
           {
@@ -1697,7 +1697,7 @@
           "debug"
         ],
         "summary": "Get Cache Db Delta",
-        "description": "Get Cache Db Delta.",
+        "description": "Compare a cache sample with persisted article URLs.",
         "operationId": "get_cache_db_delta_debug_cache_delta_get",
         "parameters": [
           {
@@ -1786,7 +1786,7 @@
           "debug"
         ],
         "summary": "Get Storage Drift",
-        "description": "Get Storage Drift.",
+        "description": "Compare database embedding mappings with the vector store.",
         "operationId": "get_storage_drift_debug_storage_drift_get",
         "parameters": [
           {
@@ -2385,7 +2385,7 @@
           "debug"
         ],
         "summary": "Read Debug Log File",
-        "description": "Read events from a specific debug log file.\n\nSupports pagination and filtering by event type.",
+        "description": "Read paginated events from one debug JSONL file.",
         "operationId": "read_debug_log_file_debug_logs_file__filename__get",
         "parameters": [
           {
@@ -3986,7 +3986,7 @@
           "entity-research"
         ],
         "summary": "Get Reporter",
-        "description": "Get a reporter by ID.",
+        "description": "Get a reporter by ID.\n\nA soft-retired (merged, see audit rec 3) id serves its winner's profile\ninstead of 404ing, so old bookmarks/links keep working. Follows at most\na few hops in case of a chained merge, then falls back to whatever row\nit last reached rather than looping forever on bad data.",
         "operationId": "get_reporter_research_entity_reporter__reporter_id__get",
         "parameters": [
           {
@@ -11710,7 +11710,7 @@
           "total"
         ],
         "title": "BrowseIndexResponse",
-        "description": "Lightweight full-corpus response for browse views."
+        "description": "Lightweight browse-index response."
       },
       "ClusterArticle": {
         "properties": {
@@ -14773,7 +14773,7 @@
           "limit"
         ],
         "title": "PaginatedResponse",
-        "description": "Response model for paginated article lists."
+        "description": "Article page and its pagination metadata."
       },
       "PaywallConcentrationResponse": {
         "properties": {
@@ -15028,24 +15028,21 @@
               "type": "integer"
             },
             "type": "array",
-            "title": "Liked Article Ids",
-            "default": []
+            "title": "Liked Article Ids"
           },
           "bookmarked_article_ids": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Bookmarked Article Ids",
-            "default": []
+            "title": "Bookmarked Article Ids"
           },
           "favorite_source_ids": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Favorite Source Ids",
-            "default": []
+            "title": "Favorite Source Ids"
           }
         },
         "type": "object",
@@ -15053,7 +15050,7 @@
           "articles"
         ],
         "title": "RankRequest",
-        "description": "Request model for the ranked feed endpoint."
+        "description": "Article ranking inputs from the frontend."
       },
       "RankResponse": {
         "properties": {
@@ -15076,7 +15073,7 @@
           "total"
         ],
         "title": "RankResponse",
-        "description": "Response model for the ranked feed endpoint."
+        "description": "Ranked article response."
       },
       "ReadingQueueItem": {
         "properties": {
@@ -15372,7 +15369,7 @@
           "limit"
         ],
         "title": "RecentPageResponse",
-        "description": "Lightweight response for recent articles without total counts."
+        "description": "Recent article page and its next cursor."
       },
       "RelationshipQueryResponse": {
         "properties": {
@@ -16017,6 +16014,17 @@
               }
             ],
             "title": "Id"
+          },
+          "redirected_from_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirected From Id"
           },
           "name": {
             "type": "string",

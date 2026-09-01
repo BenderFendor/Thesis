@@ -172,12 +172,8 @@ def _outlet_node(
         id=node_id,
         entity_type="outlet",
         label=source_name,
-        subtitle=cast(
-            str | None, _outlet_meta_or_config(meta, "source_type", config, "category")
-        ),
-        country_code=cast(
-            str | None, _outlet_meta_or_config(meta, "country", config, "country")
-        ),
+        subtitle=cast(str | None, _outlet_meta_or_config(meta, "source_type", config, "category")),
+        country_code=cast(str | None, _outlet_meta_or_config(meta, "country", config, "country")),
         funding_type=cast(
             str | None,
             _outlet_meta_or_config(meta, "funding_type", config, "funding_type"),
@@ -387,44 +383,7 @@ async def _load_graph_projection(
     filters: AtlasGraphFilters,
 ) -> tuple[list[AtlasNode], list[AtlasEdge], dict[str, int], datetime | None, bool]:
     catalog = _catalog_sources()
-    metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
-    score_rows = list((await db.execute(select(SourceAnalysisScore))).scalars().all())
-
-    article_counts = {
-        cast(str, source): int(count)
-        for source, count in (
-            await db.execute(
-                select(Article.source, func.count(Article.id)).group_by(Article.source)
-            )
-        ).all()
-    }
-
-    index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
-    index_by_key = {
-        (
-            cast(str, row.entity_type),
-            normalize_entity_label(cast(str, row.entity_name)),
-        ): row
-        for row in index_rows
-    }
-    index_counts = Counter(cast(str, row.status) for row in index_rows)
-    last_indexed_at = max(
-        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
-        default=None,
-    )
-    indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
-
-    metadata_by_source = {
-        normalize_entity_label(cast(str, row.source_name)): row for row in metadata
-    }
-    scores_by_source: dict[str, dict[str, int]] = defaultdict(dict)
-    for score_row in score_rows:
-        scores_by_source[normalize_entity_label(cast(str, score_row.source_name))][
-            cast(str, score_row.axis_name)
-        ] = cast(int, score_row.score)
-
-    nodes: list[AtlasNode] = []
-    edges: list[AtlasEdge] = []
+    lookups, index_counts, last_indexed_at, indexing_active = await _load_graph_lookups(db)
     reporters = await _reporters(db, filters)
 
     survivors = await entity_survivor_map(db)
@@ -433,18 +392,9 @@ async def _load_graph_projection(
     ]
     outlet_id_by_entity = await outlet_node_ids(db, publications)
 
-    lookups: _OutletLookups = {
-        "metadata_by_source": metadata_by_source,
-        "index_by_key": index_by_key,
-        "article_counts": article_counts,
-        "scores_by_source": scores_by_source,
-    }
-    if publications:
-        nodes = _outlet_nodes(publications, outlet_id_by_entity, catalog, lookups)
-    else:
-        nodes = _catalog_outlet_nodes(catalog, lookups)
-
-    nodes.extend(_reporter_node(reporter, index_by_key) for reporter in reporters)
+    nodes = _project_outlet_nodes(publications, outlet_id_by_entity, catalog, lookups)
+    edges: list[AtlasEdge] = []
+    nodes.extend(_reporter_node(reporter, lookups["index_by_key"]) for reporter in reporters)
 
     if reporters:
         edges.extend(
@@ -464,6 +414,62 @@ async def _load_graph_projection(
         last_indexed_at,
         indexing_active,
     )
+
+
+async def _load_graph_lookups(
+    db: AsyncSession,
+) -> tuple[_OutletLookups, Counter[str], datetime | None, bool]:
+    metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
+    score_rows = list((await db.execute(select(SourceAnalysisScore))).scalars().all())
+    article_counts = {
+        cast(str, source): int(count)
+        for source, count in (
+            await db.execute(
+                select(Article.source, func.count(Article.id)).group_by(Article.source)
+            )
+        ).all()
+    }
+    index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
+    index_by_key = {
+        (cast(str, row.entity_type), normalize_entity_label(cast(str, row.entity_name))): row
+        for row in index_rows
+    }
+    index_counts = Counter(cast(str, row.status) for row in index_rows)
+    last_indexed_at = max(
+        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
+        default=None,
+    )
+    indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
+    metadata_by_source = {
+        normalize_entity_label(cast(str, row.source_name)): row for row in metadata
+    }
+    scores_by_source: dict[str, dict[str, int]] = defaultdict(dict)
+    for score_row in score_rows:
+        scores_by_source[normalize_entity_label(cast(str, score_row.source_name))][
+            cast(str, score_row.axis_name)
+        ] = cast(int, score_row.score)
+    return (
+        {
+            "metadata_by_source": metadata_by_source,
+            "index_by_key": index_by_key,
+            "article_counts": article_counts,
+            "scores_by_source": scores_by_source,
+        },
+        index_counts,
+        last_indexed_at,
+        indexing_active,
+    )
+
+
+def _project_outlet_nodes(
+    publications: list[EvSpineEntity],
+    outlet_id_by_entity: dict[str, str],
+    catalog: dict[str, dict[str, Any]],
+    lookups: _OutletLookups,
+) -> list[AtlasNode]:
+    if publications:
+        return _outlet_nodes(publications, outlet_id_by_entity, catalog, lookups)
+    return _catalog_outlet_nodes(catalog, lookups)
 
 
 def _outlet_nodes(

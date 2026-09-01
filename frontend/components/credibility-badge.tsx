@@ -15,11 +15,11 @@ import type {
   SourceCredibilityProfile,
 } from "@/lib/api";
 
-const DEFAULT_DIMENSION_COUNT = 6;
-const STRONG_SCORE_THRESHOLD = 70;
-const MODERATE_SCORE_THRESHOLD = 40;
-const SCORE_PERCENT_MIN = 0;
-const SCORE_PERCENT_MAX = 100;
+const DEFAULT_DIMENSION_COUNT = 6,
+ MODERATE_SCORE_THRESHOLD = 40,
+ SCORE_PERCENT_MAX = 100,
+ SCORE_PERCENT_MIN = 0,
+ STRONG_SCORE_THRESHOLD = 70;
 type BadgeSize = "lg" | "md" | "sm";
 
 const SKELETON_IDS: readonly string[] = [
@@ -29,15 +29,15 @@ const SKELETON_IDS: readonly string[] = [
   "funding",
   "reporting",
   "history",
-];
+],
 
-const ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+ ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
   lg: "h-4 w-4",
   md: "h-3.5 w-3.5",
   sm: "h-3 w-3",
-};
+},
 
-const TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+ TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
   lg: "text-xs",
   md: "text-[11px]",
   sm: "text-[10px]",
@@ -66,9 +66,9 @@ interface DimensionRowProps {
 }
 
 const hasScore = (score: CredibilityDimension["score"]): score is number =>
-  typeof score === "number";
+  typeof score === "number",
 
-const scoreToColor = (score: CredibilityDimension["score"]): string => {
+ scoreToColor = (score: CredibilityDimension["score"]): string => {
   if (!hasScore(score)) {
     return "bg-muted";
   }
@@ -79,9 +79,9 @@ const scoreToColor = (score: CredibilityDimension["score"]): string => {
     return "bg-amber-500";
   }
   return "bg-red-500";
-};
+},
 
-const scoreToLabel = (score: CredibilityDimension["score"]): string => {
+ scoreToLabel = (score: CredibilityDimension["score"]): string => {
   if (!hasScore(score)) {
     return "No data";
   }
@@ -92,9 +92,9 @@ const scoreToLabel = (score: CredibilityDimension["score"]): string => {
     return "Moderate";
   }
   return "Weak";
-};
+},
 
-const scoreToWidth = (score: CredibilityDimension["score"]): string => {
+ scoreToWidth = (score: CredibilityDimension["score"]): string => {
   if (!hasScore(score)) {
     return "0%";
   }
@@ -103,13 +103,13 @@ const scoreToWidth = (score: CredibilityDimension["score"]): string => {
     Math.min(SCORE_PERCENT_MAX, score),
   );
   return `${bounded}%`;
-};
+},
 
-const getProvenanceKey = (
+ getProvenanceKey = (
   provenance: Readonly<CredibilityDimension["provenance"][number]>,
-): string => `${provenance.source}:${provenance.url}`;
+): string => `${provenance.source}:${provenance.url}`,
 
-const DimensionProvenance = ({
+ DimensionProvenance = ({
   dimension,
 }: Readonly<{ dimension: Readonly<CredibilityDimension> }>) => (
   <div className="space-y-1">
@@ -136,13 +136,13 @@ const DimensionProvenance = ({
       </div>
     ))}
   </div>
-);
+),
 
-const DimensionRow = ({
+ DimensionRow = ({
   dimension,
   name,
 }: Readonly<DimensionRowProps>) => {
-  const score = dimension.score;
+  const {score} = dimension;
   return (
     <details className="group rounded-lg border border-white/5 p-3">
       <summary className="flex cursor-pointer items-center justify-between gap-2">
@@ -174,9 +174,9 @@ const DimensionRow = ({
       </div>
     </details>
   );
-};
+},
 
-const CredibilitySkeleton = () => (
+ CredibilitySkeleton = () => (
   <div className="space-y-3 py-4">
     {SKELETON_IDS.map((skeletonId) => (
       <div key={skeletonId} className="space-y-1">
@@ -185,9 +185,9 @@ const CredibilitySkeleton = () => (
       </div>
     ))}
   </div>
-);
+),
 
-const CredibilitySummary = ({
+ CredibilitySummary = ({
   available,
   domain,
   profile,
@@ -224,9 +224,9 @@ const CredibilitySummary = ({
       </span>
     </div>
   </div>
-);
+),
 
-const CredibilityPanelBody = ({
+ CredibilityPanelBody = ({
   available,
   dimensions,
   domain,
@@ -265,9 +265,9 @@ const CredibilityPanelBody = ({
       ))}
     </div>
   );
-};
+},
 
-const CredibilityPanel = ({
+ CredibilityPanel = ({
   available,
   dimensions,
   domain,
@@ -316,9 +316,9 @@ const CredibilityPanel = ({
       />
     </div>
   </div>
-);
+),
 
-const loadCredibilityProfile = async (
+ loadCredibilityProfile = async (
   domain: string,
 ): Promise<SourceCredibilityProfile> => {
   const { fetchSourceCredibility } = await import("@/lib/api");
@@ -330,22 +330,22 @@ export const CredibilityBadge = ({
   domain,
   size = "md",
 }: Readonly<CredibilityBadgeProps>) => {
-  const [showPanel, setShowPanel] = useState(false);
-  const [profile, setProfile] = useState<SourceCredibilityProfile>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-  const dimensionalData = profile?.data_quality;
-  const available = dimensionalData?.dimensions_available ?? SCORE_PERCENT_MIN;
-  const total = dimensionalData?.dimensions_total ?? DEFAULT_DIMENSION_COUNT;
-  const dimensions = Object.entries(profile?.dimensions ?? {});
-  const iconSize = ICON_SIZE_CLASSES[size];
-  const textSize = TEXT_SIZE_CLASSES[size];
+  const [showPanel, setShowPanel] = useState(false),
+   [profile, setProfile] = useState<SourceCredibilityProfile>(),
+   [loading, setLoading] = useState(false),
+   [error, setError] = useState<string>(),
+   dimensionalData = profile?.data_quality,
+   available = dimensionalData?.dimensions_available ?? SCORE_PERCENT_MIN,
+   total = dimensionalData?.dimensions_total ?? DEFAULT_DIMENSION_COUNT,
+   dimensions = Object.entries(profile?.dimensions ?? {}),
+   iconSize = ICON_SIZE_CLASSES[size],
+   textSize = TEXT_SIZE_CLASSES[size],
 
-  const closePanel = () => {
+   closePanel = () => {
     setShowPanel(false);
-  };
+  },
 
-  const openPanel = async () => {
+   openPanel = async () => {
     if (showPanel) {
       closePanel();
       return;
@@ -365,9 +365,9 @@ export const CredibilityBadge = ({
       setLoading(false);
       setShowPanel(true);
     }
-  };
+  },
 
-  const requestOpenPanel = () => {
+   requestOpenPanel = () => {
     void openPanel();
   };
 

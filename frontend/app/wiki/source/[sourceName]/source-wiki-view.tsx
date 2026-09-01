@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -38,8 +38,46 @@ const ANALYSIS_META: Record<string, { label: string; description: string }> = {
   "framing_omission",
 ] as const;
 
+function useEmbeddedFlag(): boolean {
+  const [embedded, setEmbedded] = useState(false)
+  useEffect(() => {
+    if (typeof window === "undefined") {return}
+    setEmbedded(new URLSearchParams(globalThis.location.search).get("embedded") === "1")
+  }, [])
+  return embedded
+}
+
+const getOwnershipChain = (entity: { details: Record<string, unknown> } | undefined) =>
+  entity ? parseOwnershipChain(entity.details) : [],
+
+ getFundingAndBias = (entity: { details: Record<string, unknown> } | undefined) =>
+  entity ? parseFundingAndBias(entity.details) : null,
+
+ getAverageScore = (axes: readonly WikiAnalysisAxis[] | undefined): number | null => {
+  if (!axes?.length) {return null}
+  return axes.reduce((sum, axis) => sum + axis.score, 0) / axes.length
+},
+
+ runWikiIndex = async ({
+  sourceName,
+  setIndexing,
+  refetch,
+}: {
+  sourceName: string
+  setIndexing: (value: boolean) => void
+  refetch: () => Promise<unknown>
+}): Promise<void> => {
+  setIndexing(true)
+  try {
+    await triggerWikiIndex(sourceName)
+    await refetch()
+  } finally {
+    setIndexing(false)
+  }
+}
+
 export function SourceWikiView({ sourceName }:Readonly< { sourceName: string }>) {
-  const [embedded, setEmbedded] = useState(false),
+  const embedded = useEmbeddedFlag(),
    [indexing, setIndexing] = useState(false),
    {
     data,
@@ -67,99 +105,67 @@ export function SourceWikiView({ sourceName }:Readonly< { sourceName: string }>)
     queryKey: ["wiki-source-atlas-entity", outletEntityId],
     retry: 1,
   }),
-   ownershipChain = useMemo(
-    () => (outletAtlasEntity ? parseOwnershipChain(outletAtlasEntity.details) : []),
-    [outletAtlasEntity],
-  ),
-   fundingAndBias = useMemo(
-    () => (outletAtlasEntity ? parseFundingAndBias(outletAtlasEntity.details) : null),
-    [outletAtlasEntity],
-  ),
+   ownershipChain = getOwnershipChain(outletAtlasEntity),
+   fundingAndBias = getFundingAndBias(outletAtlasEntity),
+   avgScore = getAverageScore(data?.analysis_axes);
 
-   avgScore = useMemo(() => {
-    if (!data?.analysis_axes?.length) {return undefined;}
-    return (
-      data.analysis_axes.reduce((sum, axis) => sum + axis.score, 0) /
-      data.analysis_axes.length
-    );
-  }, [data?.analysis_axes]);
+  return renderSourceWikiContent({
+    avgScore,
+    data,
+    embedded,
+    error,
+    fundingAndBias,
+    isLoading,
+    indexing,
+    outletEntityId,
+    onIndex: () => void runWikiIndex({ refetch, setIndexing, sourceName }),
+    ownershipChain,
+  });
+}
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(globalThis.location.search);
-      setEmbedded(params.get("embedded") === "1");
-    }
-  }, []);
-
-  async function handleTriggerIndex() {
-    setIndexing(true);
-    try {
-      await triggerWikiIndex(sourceName);
-      await refetch();
-    } finally {
-      setIndexing(false);
-    }
-  }
-
+function renderSourceWikiContent({
+  avgScore,
+  data,
+  embedded,
+  error,
+  fundingAndBias,
+  indexing,
+  isLoading,
+  onIndex,
+  outletEntityId,
+  ownershipChain,
+}: Readonly<{
+  avgScore: number | null;
+  data: WikiSourceProfile | undefined;
+  embedded: boolean;
+  error: unknown;
+  fundingAndBias: ReturnType<typeof parseFundingAndBias>;
+  indexing: boolean;
+  isLoading: boolean;
+  onIndex: () => void;
+  outletEntityId?: string;
+  ownershipChain: ReturnType<typeof parseOwnershipChain>;
+}>) {
   if (isLoading) {
-    return (
-      <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-        {!embedded && <GlobalNavigation />}
-        <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex items-center justify-center">
-          <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
+    return <SourceWikiLoading embedded={embedded} />;
   }
 
   if (error || !data) {
     const message = error instanceof Error ? error.message : "Source not found";
-    return (
-      <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-        {!embedded && <GlobalNavigation />}
-        <div className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}>
-          <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-          {!embedded && (
-            <Link href="/wiki/ownership" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="h-4 w-4" />
-              <span className="font-mono text-[10px] tracking-widest uppercase">Back to source wiki</span>
-            </Link>
-          )}
-          <div className="mt-16 text-center text-red-400 font-mono">{message}</div>
-        </div>
-      </div>
-    );
+    return <SourceWikiError embedded={embedded} message={message} />;
   }
 
   return (
-    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
-      {!embedded && <GlobalNavigation />}
-      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
-        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
-        <main className={`mx-auto grid gap-5 p-4 ${embedded ? "max-w-none lg:grid-cols-[280px_minmax(0,1fr)]" : "max-w-[1500px] lg:grid-cols-[300px_minmax(0,1fr)]"}`}>
-          <aside className={`rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 p-4 ${embedded ? "lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" : "lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto"}`}>
-            <SourceSidebar
-              data={data}
-              embedded={embedded}
-              outletEntityId={outletEntityId}
-              avgScore={avgScore}
-              indexing={indexing}
-              onIndex={handleTriggerIndex}
-            />
-          </aside>
-
-          <section className="space-y-5">
-            <SourcePageBody
-              data={data}
-              outletEntityId={outletEntityId}
-              ownershipChain={ownershipChain}
-              fundingAndBias={fundingAndBias}
-            />
-          </section>
-        </main>
-      </div>
-    </div>
+    <SourceWikiLayout
+      avgScore={avgScore}
+      data={data}
+      embedded={embedded}
+      fundingAndBias={fundingAndBias}
+      indexing={indexing}
+      onIndex={onIndex}
+      outletEntityId={outletEntityId}
+      ownershipChain={ownershipChain}
+    />
   );
 }
 
@@ -192,21 +198,8 @@ function SourceSidebar({
           Source
         </div>
         <h1 className="mt-1 font-serif text-3xl">{data.name}</h1>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {data.country && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.country}</Badge>}
-          {data.bias_rating && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.bias_rating}</Badge>}
-          {data.funding_type && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.funding_type}</Badge>}
-          {data.is_state_media && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">State media</Badge>}
-        </div>
-        {outletEntityId ? (
-          <Link
-            href={buildAtlasNeighborhoodHref(outletEntityId)}
-            className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Network className="h-3 w-3" />
-            Explore neighborhood
-          </Link>
-        ) : null}
+        <SourceIdentityBadges data={data} />
+        <SourceNeighborhoodLink outletEntityId={outletEntityId} />
       </div>
 
       <SidebarCard title="Quick Facts">
@@ -218,32 +211,73 @@ function SourceSidebar({
       </SidebarCard>
 
       <SidebarCard title="Links">
-        <div className="space-y-2 text-sm">
-          {data.website && <SidebarLink href={data.website} label="Official site" />}
-          {data.wikidata_url && <SidebarLink href={data.wikidata_url} label="Wikidata" />}
-          {data.wikipedia_url && <SidebarLink href={data.wikipedia_url} label="Wikipedia fallback" />}
-          {data.search_links?.source_search && (
-            <SidebarLink href={data.search_links.source_search} label="Search the web" />
-          )}
-        </div>
+        <SourceSidebarLinks data={data} />
       </SidebarCard>
 
       <SidebarCard title="People And Ownership">
         <PeopleAndOwnership data={data} />
       </SidebarCard>
 
-      {data.index_status !== "complete" && (
-        <button
-          onClick={onIndex}
-          disabled={indexing}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10 disabled:opacity-50 font-mono text-[10px] tracking-widest uppercase"
-        >
-          <RefreshCw className={`h-4 w-4 ${indexing ? "animate-spin" : ""}`} />
-          {indexing ? "Indexing..." : "Index source"}
-        </button>
-      )}
+      <SourceIndexButton data={data} indexing={indexing} onIndex={onIndex} />
     </>
   );
+}
+
+function SourceIdentityBadges({ data }: { data: WikiSourceProfile }) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {data.country && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.country}</Badge>}
+      {data.bias_rating && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.bias_rating}</Badge>}
+      {data.funding_type && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">{data.funding_type}</Badge>}
+      {data.is_state_media && <Badge variant="outline" className="font-mono text-[10px] tracking-widest">State media</Badge>}
+    </div>
+  )
+}
+
+function SourceNeighborhoodLink({ outletEntityId }: { outletEntityId?: string }) {
+  if (!outletEntityId) {return null}
+  return (
+    <Link
+      href={buildAtlasNeighborhoodHref(outletEntityId)}
+      className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <Network className="h-3 w-3" />
+      Explore neighborhood
+    </Link>
+  )
+}
+
+function SourceSidebarLinks({ data }: { data: WikiSourceProfile }) {
+  return (
+    <div className="space-y-2 text-sm">
+      {data.website && <SidebarLink href={data.website} label="Official site" />}
+      {data.wikidata_url && <SidebarLink href={data.wikidata_url} label="Wikidata" />}
+      {data.wikipedia_url && <SidebarLink href={data.wikipedia_url} label="Wikipedia fallback" />}
+      {data.search_links?.source_search && <SidebarLink href={data.search_links.source_search} label="Search the web" />}
+    </div>
+  )
+}
+
+function SourceIndexButton({
+  data,
+  indexing,
+  onIndex,
+}: {
+  data: WikiSourceProfile
+  indexing: boolean
+  onIndex: () => void
+}) {
+  if (data.index_status === "complete") {return null}
+  return (
+    <button
+      onClick={onIndex}
+      disabled={indexing}
+      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10 disabled:opacity-50 font-mono text-[10px] tracking-widest uppercase"
+    >
+      <RefreshCw className={`h-4 w-4 ${indexing ? "animate-spin" : ""}`} />
+      {indexing ? "Indexing..." : "Index source"}
+    </button>
+  )
 }
 
 function QuickFacts({ data, avgScore }:Readonly< { data: WikiSourceProfile; avgScore: number | null }>) {
@@ -386,6 +420,99 @@ function SourcePageBody({
       {data.analysis_axes.length > 0 && <StoredAnalysisPanel axes={data.analysis_axes} />}
       {data.citations.length > 0 && <CitationsPanel citations={data.citations} />}
     </>
+  );
+}
+
+function SourceWikiLoading({ embedded }: Readonly<{ embedded: boolean }>) {
+  return (
+    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
+      {!embedded && <GlobalNavigation />}
+      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex items-center justify-center">
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function SourceWikiError({
+  embedded,
+  message,
+}: Readonly<{ embedded: boolean; message: string }>) {
+  return (
+    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
+      {!embedded && <GlobalNavigation />}
+      <div
+        className={`flex-1 overflow-y-auto relative z-10 custom-scrollbar ${embedded ? "p-4" : "p-6"}`}
+      >
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
+        {!embedded && (
+          <Link
+            href="/wiki/ownership"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="font-mono text-[10px] tracking-widest uppercase">
+              Back to source wiki
+            </span>
+          </Link>
+        )}
+        <div className="mt-16 text-center text-red-400 font-mono">{message}</div>
+      </div>
+    </div>
+  );
+}
+
+function SourceWikiLayout({
+  data,
+  embedded,
+  outletEntityId,
+  avgScore,
+  indexing,
+  onIndex,
+  ownershipChain,
+  fundingAndBias,
+}: Readonly<{
+  data: WikiSourceProfile;
+  embedded: boolean;
+  outletEntityId?: string;
+  avgScore: number | null;
+  indexing: boolean;
+  onIndex: () => void;
+  ownershipChain: ReturnType<typeof parseOwnershipChain>;
+  fundingAndBias: ReturnType<typeof parseFundingAndBias>;
+}>) {
+  return (
+    <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
+      {!embedded && <GlobalNavigation />}
+      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-[-1]" />
+        <main
+          className={`mx-auto grid gap-5 p-4 ${embedded ? "max-w-none lg:grid-cols-[280px_minmax(0,1fr)]" : "max-w-[1500px] lg:grid-cols-[300px_minmax(0,1fr)]"}`}
+        >
+          <aside
+            className={`rounded-2xl bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 p-4 ${embedded ? "lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" : "lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto"}`}
+          >
+            <SourceSidebar
+              data={data}
+              embedded={embedded}
+              outletEntityId={outletEntityId}
+              avgScore={avgScore}
+              indexing={indexing}
+              onIndex={onIndex}
+            />
+          </aside>
+          <section className="space-y-5">
+            <SourcePageBody
+              data={data}
+              outletEntityId={outletEntityId}
+              ownershipChain={ownershipChain}
+              fundingAndBias={fundingAndBias}
+            />
+          </section>
+        </main>
+      </div>
+    </div>
   );
 }
 

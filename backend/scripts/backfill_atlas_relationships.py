@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import (
     AsyncSessionLocal,
@@ -178,38 +179,59 @@ async def run_backfill(*, dry_run: bool, source_only: str | None, audit_path: Pa
         audits: list[AuditRow] = []
         created = 0
         for row in metadata:
-            source_name = cast(str, row.source_name)
-            if source_only and normalize_entity_label(source_name) != normalize_entity_label(
-                source_only
-            ):
+            processed = await _process_metadata_row(session, row, source_only, aliases, dry_run)
+            if processed is None:
                 continue
-            parent_company = cast(str | None, row.parent_company)
-            audit, org = await _resolve_backfill_row(
-                session, source_name, parent_company, aliases
-            )
+            audit, row_created = processed
             audits.append(audit)
-            if org is not None and parent_company is not None and not dry_run:
-                await _persist_backfill_claim(session, source_name, parent_company, org)
-                created += 1
+            created += row_created
 
         if not dry_run:
             await session.commit()
-        audit_path.parent.mkdir(parents=True, exist_ok=True)
-        audit_path.write_text(
-            json.dumps(
-                {
-                    "dry_run": dry_run,
-                    "created": created,
-                    "counts": {
-                        result: sum(item.result == result for item in audits)
-                        for result in {item.result for item in audits}
-                    },
-                    "rows": [asdict(item) for item in audits],
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        _write_audit(audit_path, dry_run, created, audits)
+
+
+async def _process_metadata_row(
+    session: AsyncSession,
+    row: SourceMetadata,
+    source_only: str | None,
+    aliases: dict[str, list[Organization]],
+    dry_run: bool,
+) -> tuple[AuditRow, int] | None:
+    source_name = cast(str, row.source_name)
+    if source_only and normalize_entity_label(source_name) != normalize_entity_label(source_only):
+        return None
+    parent_company = cast(str | None, row.parent_company)
+    audit, org = await _resolve_backfill_row(session, source_name, parent_company, aliases)
+    if org is None or parent_company is None or dry_run:
+        return audit, 0
+    await _persist_backfill_claim(session, source_name, parent_company, org)
+    return audit, 1
+
+
+def _write_audit(
+    audit_path: Path,
+    dry_run: bool,
+    created: int,
+    audits: list[AuditRow],
+) -> None:
+    counts = {
+        result: sum(item.result == result for item in audits)
+        for result in {item.result for item in audits}
+    }
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "dry_run": dry_run,
+                "created": created,
+                "counts": counts,
+                "rows": [asdict(item) for item in audits],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def main() -> None:

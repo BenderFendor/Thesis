@@ -170,9 +170,7 @@ async def collect_source_documents(
         planner, source_name, website, extra_queries, use_llm_planner
     )
     candidate_urls.update(
-        await _search_candidate_urls(
-            searcher, search_queries, official_domain, normalized_name
-        )
+        await _search_candidate_urls(searcher, search_queries, official_domain, normalized_name)
     )
 
     prioritized = _prioritize_urls(candidate_urls, official_domain)

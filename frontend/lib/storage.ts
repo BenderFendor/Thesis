@@ -83,9 +83,9 @@ const STORAGE_CHANGE_EVENT = "thesis-storage-change",
 },
  isBrowser = globalThis.window !== undefined,
  /** Check whether an event is one of this module's storage change events */
- isStorageChangeEvent = (event: Readonly<Event>): event is Readonly<CustomEvent<{ key?: string }>> => {
-  return event instanceof CustomEvent;
-},
+ isStorageChangeEvent = (event: Readonly<Event>): event is Readonly<CustomEvent<{ key?: string }>> =>
+  event instanceof CustomEvent
+,
  /**
   * Parse a stored JSON string into an unvalidated JSON value.
   * @param {string} raw - Raw JSON text

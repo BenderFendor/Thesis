@@ -403,9 +403,17 @@ pub fn deduplicate_article_groups<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let threshold = threshold.unwrap_or(0.85);
     let num_hashes = num_hashes.unwrap_or(DEFAULT_NUM_HASHES).max(1);
+    let (mut groups, representatives) = collect_identical_groups(articles);
+    let signatures = build_signatures(representatives, num_hashes);
+    merge_duplicate_groups(&mut groups, find_duplicate_pairs(&signatures, threshold));
+    groups_to_pydict(py, groups)
+}
+
+fn collect_identical_groups(
+    articles: Vec<(String, String)>,
+) -> (HashMap<String, HashSet<String>>, Vec<DocumentInput>) {
     let mut text_to_ids: HashMap<String, Vec<String>> = HashMap::new();
     let mut text_by_hash: HashMap<String, String> = HashMap::new();
-
     for (doc_id, text) in articles {
         if doc_id.trim().is_empty() || text.trim().is_empty() {
             continue;
@@ -416,23 +424,23 @@ pub fn deduplicate_article_groups<'py>(
     }
 
     let mut representatives = Vec::new();
-    let mut groups: HashMap<String, HashSet<String>> = HashMap::new();
-    for (text_hash, ids) in &text_to_ids {
-        if ids.is_empty() {
-            continue;
+    let mut groups = HashMap::new();
+    for (text_hash, ids) in text_to_ids {
+        if let Some(representative) = ids.first() {
+            groups.insert(representative.clone(), ids.iter().cloned().collect());
+            representatives.push(DocumentInput {
+                doc_id: representative.clone(),
+                text: text_by_hash.get(&text_hash).cloned().unwrap_or_default(),
+            });
         }
-        let representative = ids[0].clone();
-        groups.insert(representative.clone(), ids.iter().cloned().collect());
-        let representative_text = text_by_hash.get(text_hash).cloned().unwrap_or_default();
-        representatives.push(DocumentInput {
-            doc_id: representative,
-            text: representative_text,
-        });
     }
+    (groups, representatives)
+}
 
-    let signatures = build_signatures(representatives, num_hashes);
-    let duplicates = find_duplicate_pairs(&signatures, threshold);
-
+fn merge_duplicate_groups(
+    groups: &mut HashMap<String, HashSet<String>>,
+    duplicates: Vec<DuplicatePair>,
+) {
     for pair in duplicates {
         let target_rep = groups
             .iter()
@@ -442,14 +450,19 @@ pub fn deduplicate_article_groups<'py>(
             if let Some(group) = groups.get_mut(&rep) {
                 group.insert(pair.doc_id_2);
             }
-        } else {
-            groups.insert(
-                pair.doc_id_1.clone(),
-                HashSet::from([pair.doc_id_1, pair.doc_id_2]),
-            );
+            continue;
         }
+        groups.insert(
+            pair.doc_id_1.clone(),
+            HashSet::from([pair.doc_id_1, pair.doc_id_2]),
+        );
     }
+}
 
+fn groups_to_pydict<'py>(
+    py: Python<'py>,
+    groups: HashMap<String, HashSet<String>>,
+) -> PyResult<Bound<'py, PyDict>> {
     let result = PyDict::new_bound(py);
     for (representative, group) in groups {
         let members = PyList::empty_bound(py);

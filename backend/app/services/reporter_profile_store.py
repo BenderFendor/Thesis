@@ -137,7 +137,6 @@ def _profile_strings(profile: dict[str, Any], key: str) -> list[str]:
     return []
 
 
-
 def _apply_institutional_affiliations(reporter: Reporter, profile: dict[str, Any]) -> None:
     """Set institutional affiliations from explicit or wikidata-derived values."""
     existing_institutional = profile.get("institutional_affiliations")
@@ -175,6 +174,7 @@ def _apply_political_leaning(
                 if source not in existing_sources:
                     existing_sources.append(source)
             reporter.leaning_sources = existing_sources
+
 
 async def upsert_reporter_profile(
     session: AsyncSession,

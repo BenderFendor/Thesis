@@ -22,66 +22,63 @@ function subscribeToQueueChanges(listener: QueueListener) {
   return () => queueListeners.delete(listener);
 }
 
+function areQueueArticlesEqual(
+  left: readonly NewsArticle[],
+  right: readonly NewsArticle[],
+) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+async function preloadFullText(article: NewsArticle): Promise<string | undefined> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
+    );
+    if (!response.ok) {return;}
+    const data = await response.json();
+    return data.text || data.full_text || undefined;
+  } catch (error) {
+    console.error("Failed to preload full text:", error);
+    return;
+  }
+}
+
+async function preloadAiAnalysis(article: NewsArticle): Promise<Awaited<ReturnType<typeof analyzeArticle>> | undefined> {
+  try {
+    return await analyzeArticle(article.url, article.source);
+  } catch (error) {
+    console.error("Failed to preload AI analysis:", error);
+    return undefined;
+  }
+}
+
 async function preloadArticleData(
   article: NewsArticle,
   options:Readonly< { includeAiAnalysis?: boolean }> = {}
 ): Promise<NewsArticle> {
-  // Preload full text and optionally AI analysis for an article.
-  // By default, skip AI analysis to avoid rate limiting during bulk preloads.
-  const { includeAiAnalysis = false } = options;
-
-  try {
-    const enhancedArticle = { ...article };
-
-    // Preload full text (fast, no rate limits)
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
-      );
-      if (response.ok) {
-        const data = await response.json(),
-         fullText = data.text || data.full_text || null;
-        if (fullText) {
-          // Calculate reading time (230 WPM average)
-          const wordCount = fullText.trim().split(/\s+/).length,
-           readingTimeMinutes = Math.ceil(wordCount / 230);
-
-          if (!enhancedArticle._queueData) {
-            enhancedArticle._queueData = {};
-          }
-          enhancedArticle._queueData.fullText = fullText;
-          enhancedArticle._queueData.readingTimeMinutes = readingTimeMinutes;
-        }
-      }
-    } catch (error) {
-      console.error("Failed to preload full text:", error);
-    }
-
-    // Only preload AI analysis if explicitly requested (to avoid rate limiting)
-    if (includeAiAnalysis) {
-      try {
-        const analysis = await analyzeArticle(article.url, article.source);
-        if (analysis) {
-          if (!enhancedArticle._queueData) {
-            enhancedArticle._queueData = {};
-          }
-          enhancedArticle._queueData.aiAnalysis = analysis;
-        }
-      } catch (error) {
-        console.error("Failed to preload AI analysis:", error);
-      }
-    }
-
-    // Mark preload timestamp
-    if (enhancedArticle._queueData) {
-      enhancedArticle._queueData.preloadedAt = Date.now();
-    }
-
-    return enhancedArticle;
-  } catch (error) {
-    console.error("Error preloading article data:", error);
-    return article;
+  const { includeAiAnalysis = false } = options,
+   enhancedArticle = { ...article },
+   fullText = await preloadFullText(article);
+  if (fullText) {
+    const wordCount = fullText.trim().split(/\s+/u).length,
+     readingTimeMinutes = Math.ceil(wordCount / 230);
+    enhancedArticle._queueData ??= {};
+    enhancedArticle._queueData.fullText = fullText;
+    enhancedArticle._queueData.readingTimeMinutes = readingTimeMinutes;
   }
+
+  if (includeAiAnalysis) {
+    const analysis = await preloadAiAnalysis(article);
+    if (analysis) {
+      enhancedArticle._queueData ??= {};
+      enhancedArticle._queueData.aiAnalysis = analysis;
+    }
+  }
+
+  if (enhancedArticle._queueData) {
+    enhancedArticle._queueData.preloadedAt = Date.now();
+  }
+  return enhancedArticle;
 }
 
 export function useReadingQueue() {
@@ -121,7 +118,9 @@ export function useReadingQueue() {
 
       // Subscribe to our own event emitter for same-tab updates
        unsubscribe = subscribeToQueueChanges((articles) => {
-        setQueuedArticles(articles);
+        setQueuedArticles((current) =>
+          areQueueArticlesEqual(current, articles) ? current : [...articles],
+        );
       });
 
       globalThis.addEventListener("storage", handleStorageChange);
@@ -219,7 +218,7 @@ export function useReadingQueue() {
     (currentIndex: number) => {
       const nextIndex = currentIndex + 1;
       if (nextIndex >= queuedArticles.length) {
-        return undefined; // No next article
+        return; // No next article
       }
       return queuedArticles[nextIndex];
     },
@@ -230,7 +229,7 @@ export function useReadingQueue() {
     (currentIndex: number) => {
       const prevIndex = currentIndex - 1;
       if (prevIndex < 0) {
-        return undefined; // No previous article
+        return; // No previous article
       }
       return queuedArticles[prevIndex];
     },

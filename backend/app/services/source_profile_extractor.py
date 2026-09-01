@@ -55,12 +55,8 @@ def build_fields_from_documents(
             continue
         source_label = _source_label(document.url)
 
-        _collect_field_values(
-            fields, "funding", source_label, _extract_funding_values(text)
-        )
-        _collect_field_values(
-            fields, "ownership", source_label, _extract_ownership_values(text)
-        )
+        _collect_field_values(fields, "funding", source_label, _extract_funding_values(text))
+        _collect_field_values(fields, "ownership", source_label, _extract_ownership_values(text))
         _collect_field_values(
             fields,
             "editorial_stance",
@@ -99,9 +95,7 @@ def build_fields_from_documents(
             source_label,
             _extract_reach_traffic_values(text),
         )
-        _collect_field_values(
-            fields, "affiliations", source_label, _extract_affiliations(text)
-        )
+        _collect_field_values(fields, "affiliations", source_label, _extract_affiliations(text))
 
     return fields
 

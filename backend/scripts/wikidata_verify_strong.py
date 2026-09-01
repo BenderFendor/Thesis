@@ -7,7 +7,6 @@ import asyncio
 import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
 
 REPO_BACKEND = Path(__file__).resolve().parents[1]
 if str(REPO_BACKEND) not in sys.path:
@@ -86,14 +85,23 @@ def _catalog_names() -> dict[str, str]:
     return names
 
 
+def _career_entry_employer(entry: object) -> str | None:
+    if not isinstance(entry, dict):
+        return None
+    employer = str(entry.get("organization") or "").strip()
+    return employer or None
+
+
+def _career_entries(reporter: Reporter) -> list[object]:
+    return reporter.career_history if isinstance(reporter.career_history, list) else []
+
+
 def _wikidata_employers(reporter: Reporter) -> list[str]:
-    career = reporter.career_history if isinstance(reporter.career_history, list) else []
+    career = _career_entries(reporter)
     employers = [
-        str(entry.get("organization") or "").strip()
-        for entry in career
-        if isinstance(entry, dict)
+        employer for entry in career if (employer := _career_entry_employer(entry)) is not None
     ]
-    return list(dict.fromkeys(employer for employer in employers if employer))
+    return list(dict.fromkeys(employers))
 
 
 def _first_employer_source_match(
@@ -126,31 +134,33 @@ def _matched_employer_source(
 
 
 def _wikidata_url(reporter: Reporter) -> str:
-    return str(
-        reporter.wikidata_url
-        or f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
-    )
+    return str(reporter.wikidata_url or f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}")
 
 
-def _append_employer_citation(
-    reporter: Reporter, employer: str, source: str
-) -> None:
-    url = _wikidata_url(reporter)
+def _citation_matches(citation: object, url: str) -> bool:
+    return isinstance(citation, dict) and str(citation.get("url") or "") == url
+
+
+def _employer_citations(
+    reporter: Reporter, employer: str, source: str, url: str
+) -> list[dict[str, object]]:
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    duplicate = any(
-        isinstance(citation, dict) and str(citation.get("url") or "") == url
-        for citation in citations
-    )
-    if not duplicate:
-        citations.append(
-            {
-                "label": "Wikidata employer match",
-                "url": url,
-                "source_type": "wikidata_employer_match",
-                "note": f"Wikidata employer '{employer}' matches source '{source}'.",
-            }
-        )
-    reporter.citations = citations
+    if any(_citation_matches(citation, url) for citation in citations):
+        return citations
+    return [
+        *citations,
+        {
+            "label": "Wikidata employer match",
+            "url": url,
+            "source_type": "wikidata_employer_match",
+            "note": f"Wikidata employer '{employer}' matches source '{source}'.",
+        },
+    ]
+
+
+def _append_employer_citation(reporter: Reporter, employer: str, source: str) -> None:
+    url = _wikidata_url(reporter)
+    reporter.citations = _employer_citations(reporter, employer, source, url)
     reporter.research_sources = sorted(
         set((reporter.research_sources or []) + ["wikidata_employer_match"])
     )
@@ -201,9 +211,7 @@ async def _verify_reporter(
     if match is None:
         return "no_match"
     employer, source = match
-    updated = await _persist_employer_evidence(
-        session, reporter, employer, source, dry_run=dry_run
-    )
+    updated = await _persist_employer_evidence(session, reporter, employer, source, dry_run=dry_run)
     return "updated" if updated else "dry_run_match"
 
 

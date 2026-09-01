@@ -3,19 +3,15 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { GlobalNavigation } from "@/components/global-navigation"
+import type { GlobalNavigationServices } from "@/components/global-navigation"
 
 const push = jest.fn(),
- replace = jest.fn()
-let pathname = "/"
-
-jest.mock<typeof import('next/navigation')>("next/navigation", () => ({
+ replace = jest.fn(),
+ navigationServices: GlobalNavigationServices = {
   usePathname: () => pathname,
   useRouter: () => ({ push, replace }),
-}))
-
-jest.mock<typeof import('@/components/safe-image')>("@/components/safe-image", () => ({
-  SafeImage: ({ alt = "" }:Readonly< { alt?: string }>) => <span role="img" aria-label={alt || "brand mark"} />,
-}))
+ }
+let pathname = "/"
 
 describe("globalNavigation", () => {
   beforeEach(() => {
@@ -27,11 +23,18 @@ describe("globalNavigation", () => {
   })
 
   it("changes the home view and writes a shareable URL", async () => {  expect.hasAssertions();
+
   
     const user = userEvent.setup(),
      onViewChange = jest.fn()
 
-    render(<GlobalNavigation currentView="grid" onViewChange={onViewChange} />)
+    render(
+      <GlobalNavigation
+        currentView="grid"
+        navigationServices={navigationServices}
+        onViewChange={onViewChange}
+      />,
+    )
     await user.click(screen.getByRole("button", { name: "Globe" }))
 
     expect(onViewChange).toHaveBeenCalledWith("globe")
@@ -39,31 +42,40 @@ describe("globalNavigation", () => {
   })
 
   it("restores a requested view when arriving from another route", async () => {  expect.hasAssertions();
+
   
     globalThis.history.replaceState({}, "", "/?view=blindspot")
     const onViewChange = jest.fn()
 
-    render(<GlobalNavigation currentView="grid" onViewChange={onViewChange} />)
+    render(
+      <GlobalNavigation
+        currentView="grid"
+        navigationServices={navigationServices}
+        onViewChange={onViewChange}
+      />,
+    )
 
     await waitFor(() =>{  expect(onViewChange).toHaveBeenCalledWith("blindspot"); })
   })
 
   it("routes view choices back to the matching home URL from another page", async () => {  expect.hasAssertions();
+
   
     pathname = "/wiki"
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Live" }))
 
     expect(push).toHaveBeenCalledWith("/?view=live-news")
   })
 
   it("expands into an accessible search form and submits encoded queries", async () => {  expect.hasAssertions();
+
   
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Open workspace search" }))
 
     const input = screen.getByRole("searchbox", { name: "Search the workspace" })
@@ -74,10 +86,11 @@ describe("globalNavigation", () => {
   })
 
   it("persists explicit sidebar expansion", async () => {  expect.hasAssertions();
+
   
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Expand navigation" }))
 
     expect(globalThis.localStorage.getItem("scoop:sidebar-expanded")).toBe("true")
@@ -88,19 +101,21 @@ describe("globalNavigation", () => {
   })
 
   it("marks library routes as active", () => {  expect.hasAssertions();
+
   
     pathname = "/sources"
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
 
     expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("aria-current", "page")
   })
 
   it("exposes the Atlas as the only media intelligence workspace", () => {  expect.hasAssertions();
+
   
     pathname = "/wiki/ownership"
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
 
     expect(screen.getByRole("link", { name: "Intelligence Atlas" })).toHaveAttribute(
       "aria-current",

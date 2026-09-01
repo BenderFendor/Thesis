@@ -96,6 +96,55 @@ PRIVATE_NEWSPAPER_KEYWORDS = (
 MAGAZINE_KEYWORDS = ("magazine", "review", "affairs", "economist")
 
 
+def _label_public(normalized_name: str) -> str:
+    return "public news agency" if "agency" in normalized_name else "public broadcaster"
+
+
+def _label_state_funded(normalized_name: str) -> str:
+    if "agency" in normalized_name or "press agency" in normalized_name:
+        return "state-owned news agency"
+    if "radio" in normalized_name or "tv" in normalized_name:
+        return "state broadcaster"
+    return "state-funded outlet"
+
+
+def _label_state_affiliated(normalized_name: str) -> str:
+    if "agency" in normalized_name:
+        return "state-affiliated news agency"
+    if "channel" in normalized_name or "newsasia" in normalized_name:
+        return "state-affiliated broadcaster"
+    return "state-affiliated outlet"
+
+
+def _label_nonprofit(normalized_name: str) -> str:
+    ngo_tokens = ("rights", "amnesty", "doctors without borders", "monitor")
+    if any(token in normalized_name for token in ngo_tokens):
+        return "NGO-owned nonprofit organization"
+    if "syndicate" in normalized_name:
+        return "nonprofit commentary network"
+    return "nonprofit media organization"
+
+
+def _label_independent(normalized_name: str, category: str) -> str:
+    if any(token in normalized_name for token in MAGAZINE_KEYWORDS):
+        return "independent magazine"
+    if category in {"politics", "technology", "business"}:
+        return "independent digital outlet"
+    return "independent outlet"
+
+
+def _label_commercial(normalized_name: str) -> str:
+    if "agency" in normalized_name:
+        return "private news agency"
+    if any(token in normalized_name for token in ("radio", "tv", "newsnation")):
+        return "private broadcaster"
+    if any(token in normalized_name for token in MAGAZINE_KEYWORDS):
+        return "private magazine publisher"
+    if any(token in normalized_name for token in PRIVATE_NEWSPAPER_KEYWORDS):
+        return "private newspaper"
+    return "private media company"
+
+
 def infer_ownership_label(source_name: str, source_info: dict[str, Any]) -> str:
     specific = SPECIFIC_LABELS.get(source_name)
     if specific:
@@ -104,58 +153,19 @@ def infer_ownership_label(source_name: str, source_info: dict[str, Any]) -> str:
     funding_type = str(source_info.get("funding_type", "")).strip().lower()
     category = str(source_info.get("category", "")).strip().lower()
     normalized_name = source_name.lower()
-
     if funding_type == "trust-owned":
         return "trust-owned publication"
 
-    if funding_type == "public":
-        if "agency" in normalized_name:
-            return "public news agency"
-        return "public broadcaster"
-
-    if funding_type == "state-funded":
-        if "agency" in normalized_name or "press agency" in normalized_name:
-            return "state-owned news agency"
-        if "radio" in normalized_name or "tv" in normalized_name:
-            return "state broadcaster"
-        return "state-funded outlet"
-
-    if funding_type == "state-affiliated":
-        if "agency" in normalized_name:
-            return "state-affiliated news agency"
-        if "channel" in normalized_name or "newsasia" in normalized_name:
-            return "state-affiliated broadcaster"
-        return "state-affiliated outlet"
-
-    if funding_type == "non-profit":
-        if any(
-            token in normalized_name
-            for token in ("rights", "amnesty", "doctors without borders", "monitor")
-        ):
-            return "NGO-owned nonprofit organization"
-        if "syndicate" in normalized_name:
-            return "nonprofit commentary network"
-        return "nonprofit media organization"
-
-    if funding_type == "independent":
-        if any(token in normalized_name for token in MAGAZINE_KEYWORDS):
-            return "independent magazine"
-        if category in {"politics", "technology", "business"}:
-            return "independent digital outlet"
-        return "independent outlet"
-
-    if funding_type == "commercial":
-        if "agency" in normalized_name:
-            return "private news agency"
-        if any(token in normalized_name for token in ("radio", "tv", "newsnation")):
-            return "private broadcaster"
-        if any(token in normalized_name for token in MAGAZINE_KEYWORDS):
-            return "private magazine publisher"
-        if any(token in normalized_name for token in PRIVATE_NEWSPAPER_KEYWORDS):
-            return "private newspaper"
-        return "private media company"
-
-    return "media outlet"
+    handlers = {
+        "public": lambda: _label_public(normalized_name),
+        "state-funded": lambda: _label_state_funded(normalized_name),
+        "state-affiliated": lambda: _label_state_affiliated(normalized_name),
+        "non-profit": lambda: _label_nonprofit(normalized_name),
+        "independent": lambda: _label_independent(normalized_name, category),
+        "commercial": lambda: _label_commercial(normalized_name),
+    }
+    handler = handlers.get(funding_type)
+    return handler() if handler else "media outlet"
 
 
 def backfill_ownership_labels(path: Path, write: bool) -> tuple[int, int]:

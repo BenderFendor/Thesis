@@ -181,8 +181,10 @@ def _wayback_original_url(value: str) -> str | None:
     if _normalized_host(parsed.netloc) != "web.archive.org":
         return None
     path = unquote(parsed.path or "")
-    marker_positions = [position for marker in ("http://", "https://") if (position := path.find(marker)) >= 0]
-    return path[min(marker_positions):] if marker_positions else None
+    marker_positions = [
+        position for marker in ("http://", "https://") if (position := path.find(marker)) >= 0
+    ]
+    return path[min(marker_positions) :] if marker_positions else None
 
 
 def is_public_author_url(value: str | None) -> bool:
@@ -238,7 +240,9 @@ def _citation_verifies_url(citation: object, valid_urls: set[str]) -> bool:
         return False
     label = str(citation.get("label") or "")
     source_type = str(citation.get("source_type") or "")
-    return label in _VERIFIED_AUTHOR_PAGE_LABELS or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
+    return (
+        label in _VERIFIED_AUTHOR_PAGE_LABELS or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
+    )
 
 
 def has_verified_author_page_citation(reporter: Reporter) -> bool:
@@ -249,7 +253,9 @@ def has_verified_author_page_citation(reporter: Reporter) -> bool:
         if is_author_profile_url(url)
     }
     citations = reporter.citations if isinstance(reporter.citations, list) else []
-    return bool(valid_urls) and any(_citation_verifies_url(citation, valid_urls) for citation in citations)
+    return bool(valid_urls) and any(
+        _citation_verifies_url(citation, valid_urls) for citation in citations
+    )
 
 
 def has_person_like_reporter_name(reporter: Reporter) -> bool:
@@ -257,7 +263,9 @@ def has_person_like_reporter_name(reporter: Reporter) -> bool:
     if not _has_clean_local_byline_identity(reporter):
         return False
     names = (str(reporter.canonical_name or ""), str(reporter.name or ""))
-    return any(clean_author_name(name) and not _looks_like_combined_byline_name(name) for name in names)
+    return any(
+        clean_author_name(name) and not _looks_like_combined_byline_name(name) for name in names
+    )
 
 
 def has_journalism_profile_evidence(reporter: Reporter) -> bool:
@@ -297,18 +305,17 @@ def _identity_flags(reporter: Reporter) -> dict[str, bool]:
         "has_person_name": has_person_name,
         "has_canonical": has_person_name and is_author_profile_url(reporter.canonical_author_url),
         "has_author_page": has_person_name and is_author_profile_url(reporter.author_page_url),
-        "has_author_page_evidence": has_person_name
-        and has_verified_author_page_citation(reporter),
+        "has_author_page_evidence": has_person_name and has_verified_author_page_citation(reporter),
         "has_byline_evidence": has_person_name and has_supporting_byline_evidence(reporter),
         "has_journalism_evidence": has_journalism_evidence,
-        "has_wikidata": has_person_name
-        and has_journalism_evidence
-        and bool(reporter.wikidata_qid),
+        "has_wikidata": has_person_name and has_journalism_evidence and bool(reporter.wikidata_qid),
     }
 
 
 async def _load_confidence_context(session: AsyncSession, reporter: Reporter) -> _ConfidenceContext:
-    edges_result = await session.execute(select(IdentityEdge).where(IdentityEdge.reporter_id == reporter.id))
+    edges_result = await session.execute(
+        select(IdentityEdge).where(IdentityEdge.reporter_id == reporter.id)
+    )
     edges = list(edges_result.scalars().all())
     claims_result = await session.execute(
         select(ReporterClaim)
@@ -427,7 +434,12 @@ def _diverse_claims(context: _ConfidenceContext) -> _ConfidenceDecision | None:
         return _ConfidenceDecision(
             CONFIDENCE_STRONG,
             0.75,
-            {"multiple_claims": {"count": context.claims_count, "source_types": context.source_type_count}},
+            {
+                "multiple_claims": {
+                    "count": context.claims_count,
+                    "source_types": context.source_type_count,
+                }
+            },
         )
     return None
 
@@ -467,9 +479,7 @@ def _article_observations(context: _ConfidenceContext) -> _ConfidenceDecision | 
     return None
 
 
-_DECISION_RULES: tuple[
-    Callable[[_ConfidenceContext], _ConfidenceDecision | None], ...
-] = (
+_DECISION_RULES: tuple[Callable[[_ConfidenceContext], _ConfidenceDecision | None], ...] = (
     _publisher_confirmed,
     _wikidata_multisource,
     _multisource_claims,

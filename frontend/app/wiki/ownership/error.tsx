@@ -8,6 +8,8 @@ interface IntelligenceAtlasErrorProps {
 }
 
 const IntelligenceAtlasError = (props: IntelligenceAtlasErrorProps) => {
+  const handleReset = props.reset;
+
   useEffect(() => {
     console.error("Intelligence Atlas route error", props.error);
   }, [props.error]);
@@ -19,7 +21,7 @@ const IntelligenceAtlasError = (props: IntelligenceAtlasErrorProps) => {
         <p className="mt-3 text-sm leading-relaxed">{props.error.message || "The route failed before the bounded graph could be rendered."}</p>
         <button
           type="button"
-          onClick={props.reset}
+          onClick={handleReset}
           className="mt-6 rounded-full border border-white/15 px-5 py-2 text-sm text-[#f0ede4] hover:border-[#d7b35f]/50"
         >
           Retry route

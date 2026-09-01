@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import gc
 import os
+import statistics
 import threading
 import time
-import statistics
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from functools import wraps
 from types import TracebackType
 from typing import Any, cast
@@ -54,10 +54,8 @@ class EndpointMetrics:
         self.call_count += 1
         self.total_time_ms += duration_ms
         self.times_ms.append(duration_ms)
-        if duration_ms < self.min_time_ms:
-            self.min_time_ms = duration_ms
-        if duration_ms > self.max_time_ms:
-            self.max_time_ms = duration_ms
+        self.min_time_ms = min(self.min_time_ms, duration_ms)
+        self.max_time_ms = max(self.max_time_ms, duration_ms)
         self.last_called = time.time()
         if not success:
             self.errors += 1
@@ -298,7 +296,9 @@ class ProfilingSession:
         }
 
     @classmethod
-    def _external_summary(cls, key: tuple[str, str], metrics: ExternalCallMetrics) -> dict[str, Any]:
+    def _external_summary(
+        cls, key: tuple[str, str], metrics: ExternalCallMetrics
+    ) -> dict[str, Any]:
         service, operation = key
         return {
             "service": service,
@@ -325,20 +325,25 @@ class ProfilingSession:
 
     def get_summary(self) -> dict[str, Any]:
         """Return normalized endpoint, query, external-call, and memory metrics."""
-        endpoint_stats = [self._endpoint_summary(key, metrics) for key, metrics in self.endpoints.items()]
+        endpoint_stats = [
+            self._endpoint_summary(key, metrics) for key, metrics in self.endpoints.items()
+        ]
         query_stats = [self._query_summary(key, metrics) for key, metrics in self.queries.items()]
-        external_stats = [self._external_summary(key, metrics) for key, metrics in self.external_calls.items()]
+        external_stats = [
+            self._external_summary(key, metrics) for key, metrics in self.external_calls.items()
+        ]
         return {
             "session_name": self.name,
             "duration_seconds": round(self.duration_seconds, 2),
             "endpoints": sorted(endpoint_stats, key=lambda item: item["avg_time_ms"], reverse=True),
             "queries": sorted(query_stats, key=lambda item: item["avg_time_ms"], reverse=True),
-            "external_calls": sorted(external_stats, key=lambda item: item["avg_time_ms"], reverse=True),
+            "external_calls": sorted(
+                external_stats, key=lambda item: item["avg_time_ms"], reverse=True
+            ),
             "memory": self._memory_summary(),
             "total_requests": sum(item["call_count"] for item in endpoint_stats),
             "total_errors": sum(item["errors"] for item in endpoint_stats),
         }
-
 
 
 _profiling_session: ProfilingSession | None = None
@@ -472,8 +477,10 @@ def _endpoint_bottleneck(endpoint: dict[str, Any]) -> dict[str, Any] | None:
     if endpoint["p95_ms"] <= 1000:
         return None
     return {
-        "type": "high_latency_endpoint", "target": endpoint["endpoint"],
-        "p95_ms": endpoint["p95_ms"], "call_count": endpoint["call_count"],
+        "type": "high_latency_endpoint",
+        "target": endpoint["endpoint"],
+        "p95_ms": endpoint["p95_ms"],
+        "call_count": endpoint["call_count"],
         "severity": "critical" if endpoint["p95_ms"] > 5000 else "warning",
     }
 
@@ -483,8 +490,11 @@ def _query_bottleneck(query: dict[str, Any]) -> dict[str, Any] | None:
     if avg_ms <= 100:
         return None
     return {
-        "type": "slow_query", "target": query["query"][:100], "avg_ms": avg_ms,
-        "call_count": query["call_count"], "severity": "critical" if avg_ms > 500 else "warning",
+        "type": "slow_query",
+        "target": query["query"][:100],
+        "avg_ms": avg_ms,
+        "call_count": query["call_count"],
+        "severity": "critical" if avg_ms > 500 else "warning",
     }
 
 
@@ -493,14 +503,17 @@ def _external_bottleneck(call: dict[str, Any]) -> dict[str, Any] | None:
     if avg_ms <= 1000 and call["timeouts"] <= 0:
         return None
     return {
-        "type": "slow_external_call", "target": f"{call['service']}:{call['operation']}",
-        "avg_ms": avg_ms, "timeouts": call["timeouts"],
+        "type": "slow_external_call",
+        "target": f"{call['service']}:{call['operation']}",
+        "avg_ms": avg_ms,
+        "timeouts": call["timeouts"],
         "severity": "critical" if call["timeouts"] > 0 else "warning",
     }
 
 
 def _bottleneck_sort_value(item: dict[str, Any]) -> float:
     return float(item.get("p95_ms", item.get("avg_ms", 0)))
+
 
 def get_bottleneck_summary() -> dict[str, Any]:
     """Generate a summary of performance bottlenecks."""
@@ -516,4 +529,3 @@ def get_bottleneck_summary() -> dict[str, Any]:
         "bottleneck_count": len(bottlenecks),
         "bottlenecks": sorted(bottlenecks, key=_bottleneck_sort_value, reverse=True),
     }
-

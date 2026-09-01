@@ -406,8 +406,13 @@ def _string_value(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
-def _first_matching_nonprofit(name: str, organizations: list[dict[str, Any]], matches: Any) -> dict[str, Any] | None:
-    return next((candidate for candidate in organizations if matches(name, candidate.get("name") or "")), None)
+def _first_matching_nonprofit(
+    name: str, organizations: list[dict[str, Any]], matches: Any
+) -> dict[str, Any] | None:
+    return next(
+        (candidate for candidate in organizations if matches(name, candidate.get("name") or "")),
+        None,
+    )
 
 
 def _propublica_summary(org: dict[str, Any], ein: str) -> dict[str, Any]:
@@ -418,7 +423,17 @@ def _propublica_filing_payload(data: dict[str, Any], ein: str) -> dict[str, Any]
     info = data.get("organization", {})
     filings = data.get("filings_with_data", [])
     latest = filings[0] if filings else {}
-    return {"source": "propublica", "ein": ein, "name": info.get("name"), "funding_type": "non-profit", "annual_revenue": str(latest.get("totrevenue", "")), "total_assets": str(latest.get("totassetsend", "")), "tax_period": latest.get("tax_prd_yr"), "subsection": info.get("subsection_code"), "confidence": "high"}
+    return {
+        "source": "propublica",
+        "ein": ein,
+        "name": info.get("name"),
+        "funding_type": "non-profit",
+        "annual_revenue": str(latest.get("totrevenue", "")),
+        "total_assets": str(latest.get("totassetsend", "")),
+        "tax_period": latest.get("tax_prd_yr"),
+        "subsection": info.get("subsection_code"),
+        "confidence": "high",
+    }
 
 
 def _latest_sec_fact_value(us_gaap: dict[str, Any], tag: str) -> str | None:
@@ -427,7 +442,9 @@ def _latest_sec_fact_value(us_gaap: dict[str, Any], tag: str) -> str | None:
         return None
     annual = [entry for entry in entries if entry.get("form") == "10-K"] or entries
     candidates = [entry for entry in annual if entry.get("end")] or annual
-    latest = max(candidates, key=lambda entry: (str(entry.get("end") or ""), str(entry.get("filed") or "")))
+    latest = max(
+        candidates, key=lambda entry: (str(entry.get("end") or ""), str(entry.get("filed") or ""))
+    )
     return _string_value(latest.get("val"))
 
 
@@ -435,43 +452,88 @@ def _first_sec_fact(us_gaap: dict[str, Any], tags: tuple[str, ...]) -> str | Non
     return next((value for tag in tags if (value := _latest_sec_fact_value(us_gaap, tag))), None)
 
 
-_CONFLICT_KEYWORDS = ("oil", "gas", "petroleum", "defense", "military", "pharma", "pharmaceutical", "bank", "finance", "telecom", "media", "insurance", "healthcare", "tech", "technology", "real estate", "retail")
+_CONFLICT_KEYWORDS = (
+    "oil",
+    "gas",
+    "petroleum",
+    "defense",
+    "military",
+    "pharma",
+    "pharmaceutical",
+    "bank",
+    "finance",
+    "telecom",
+    "media",
+    "insurance",
+    "healthcare",
+    "tech",
+    "technology",
+    "real estate",
+    "retail",
+)
 
 
 def _business_interest_labels(parent_data: dict[str, Any], parent_org: str) -> set[str]:
-    values = list(parent_data.get("owned_by") or []) + list(parent_data.get("parent_orgs") or []) + [parent_org]
+    values = (
+        list(parent_data.get("owned_by") or [])
+        + list(parent_data.get("parent_orgs") or [])
+        + [parent_org]
+    )
     return {value.lower() for value in values if isinstance(value, str)}
 
 
 def _first_topic_conflict(topic: str, interests: set[str]) -> dict[str, Any] | None:
     topic_lower = topic.lower()
-    match = next(((interest, keyword) for interest in interests for keyword in _CONFLICT_KEYWORDS if keyword in interest and keyword in topic_lower), None)
+    match = next(
+        (
+            (interest, keyword)
+            for interest in interests
+            for keyword in _CONFLICT_KEYWORDS
+            if keyword in interest and keyword in topic_lower
+        ),
+        None,
+    )
     if match is None:
         return None
     interest, _keyword = match
-    return {"topic": topic, "business_interest": interest, "severity": "high", "evidence": f"Source covers '{topic}' and parent '{interest}' operates in the same sector."}
+    return {
+        "topic": topic,
+        "business_interest": interest,
+        "severity": "high",
+        "evidence": f"Source covers '{topic}' and parent '{interest}' operates in the same sector.",
+    }
 
 
-_MISSING_ORG_FIELDS = ("org_type", "parent_org", "ownership_percentage", "funding_type", "annual_revenue", "media_bias_rating", "factual_reporting")
+_MISSING_ORG_FIELDS = (
+    "org_type",
+    "parent_org",
+    "ownership_percentage",
+    "funding_type",
+    "annual_revenue",
+    "media_bias_rating",
+    "factual_reporting",
+)
 
 
 def _missing_org_fields(org: dict[str, Any]) -> list[str]:
     return [field for field in _MISSING_ORG_FIELDS if not org.get(field)]
 
 
-def _org_enrichment_prompt(org: dict[str, Any], missing_fields: list[str], staleness_flags: list[str]) -> str:
+def _org_enrichment_prompt(
+    org: dict[str, Any], missing_fields: list[str], staleness_flags: list[str]
+) -> str:
     missing_desc = ", ".join(missing_fields) or "staleness validation"
     staleness_note = " ".join(staleness_flags)
     return f"""You are a media research assistant analyzing a news organization.
 
-Organization: {org['name']}
+Organization: {org["name"]}
 Known Data:
-- Funding Type: {org.get('funding_type', 'Unknown')}
-- Parent Organization: {org.get('parent_org', 'Unknown')}
-- Bias Rating: {org.get('media_bias_rating', 'Unknown')}
-- Factual Reporting: {org.get('factual_reporting', 'Unknown')}
-- Annual Revenue: {org.get('annual_revenue', 'Unknown')}
-- Current Source Description: {org.get('description', 'Unknown')}
+- Funding Type: {org.get("funding_type", "Unknown")}
+- Parent Organization: {org.get("parent_org", "Unknown")}
+- Bias Rating: {org.get("media_bias_rating", "Unknown")}
+- Factual Reporting: {org.get("factual_reporting", "Unknown")}
+- Annual Revenue: {org.get("annual_revenue", "Unknown")}
+- Current Source Description: {org.get("description", "Unknown")}
 
 {staleness_note}
 
@@ -502,7 +564,14 @@ def _wikidata_item_proportion(claim: dict[str, Any]) -> tuple[str, str | None] |
     if not isinstance(value, dict) or not value.get("id"):
         return None
     qualifiers = (claim.get("qualifiers") or {}).get("P1107", [])
-    proportion = next((_format_wikidata_proportion(raw) for qualifier in qualifiers if (raw := _qualifier_value(qualifier)) is not None), None)
+    proportion = next(
+        (
+            _format_wikidata_proportion(raw)
+            for qualifier in qualifiers
+            if (raw := _qualifier_value(qualifier)) is not None
+        ),
+        None,
+    )
     return str(value["id"]), proportion
 
 
@@ -511,7 +580,13 @@ def _qualifier_value(qualifier: dict[str, Any]) -> Any:
     return value.get("amount") if isinstance(value, dict) else value
 
 
-def _fill_missing_from(org: dict[str, Any], source: dict[str, Any], fields: tuple[str, ...], *, source_aliases: dict[str, str] | None = None) -> None:
+def _fill_missing_from(
+    org: dict[str, Any],
+    source: dict[str, Any],
+    fields: tuple[str, ...],
+    *,
+    source_aliases: dict[str, str] | None = None,
+) -> None:
     aliases = source_aliases or {}
     for field in fields:
         source_field = aliases.get(field, field)
@@ -519,13 +594,22 @@ def _fill_missing_from(org: dict[str, Any], source: dict[str, Any], fields: tupl
             org[field] = source[source_field]
 
 
-def _copy_present_from(org: dict[str, Any], source: dict[str, Any], fields: tuple[str, ...]) -> None:
+def _copy_present_from(
+    org: dict[str, Any], source: dict[str, Any], fields: tuple[str, ...]
+) -> None:
     for field in fields:
         if source.get(field):
             org[field] = source[field]
 
 
-def _copy_fields(org: dict[str, Any], source: dict[str, Any], fields: tuple[str, ...], *, source_aliases: dict[str, str] | None = None, default_lists: set[str] | None = None) -> None:
+def _copy_fields(
+    org: dict[str, Any],
+    source: dict[str, Any],
+    fields: tuple[str, ...],
+    *,
+    source_aliases: dict[str, str] | None = None,
+    default_lists: set[str] | None = None,
+) -> None:
     aliases = source_aliases or {}
     list_fields = default_lists or set()
     for field in fields:
@@ -538,7 +622,9 @@ def _first_value(values: Any) -> Any:
 
 
 def _first_proportion(data: dict[str, Any]) -> str | None:
-    pairs = list(data.get("owned_with_proportion") or []) + list(data.get("parent_with_proportion") or [])
+    pairs = list(data.get("owned_with_proportion") or []) + list(
+        data.get("parent_with_proportion") or []
+    )
     return next((percentage for _owner, percentage in pairs if percentage is not None), None)
 
 
@@ -803,10 +889,14 @@ class FundingResearcher:
         try:
             search_url = f"{self.propublica_base}/search.json"
             async with _external_semaphore:
-                response = await self.http_client.get(search_url, params=httpx.QueryParams({"q": name}))
+                response = await self.http_client.get(
+                    search_url, params=httpx.QueryParams({"q": name})
+                )
             if response.status_code != 200:
                 return {}
-            org = _first_matching_nonprofit(name, response.json().get("organizations", []), self._propublica_name_matches)
+            org = _first_matching_nonprofit(
+                name, response.json().get("organizations", []), self._propublica_name_matches
+            )
             if org is None:
                 logger.debug("ProPublica: no name match for '%s'", name)
                 return {}
@@ -1034,7 +1124,13 @@ class FundingResearcher:
         if response.status_code != 200:
             return
         submissions = response.json()
-        sec_data.update(ein=submissions.get("ein"), sic_description=submissions.get("sicDescription"), tickers=submissions.get("tickers") or [], exchanges=submissions.get("exchanges") or [], confidence="high")
+        sec_data.update(
+            ein=submissions.get("ein"),
+            sic_description=submissions.get("sicDescription"),
+            tickers=submissions.get("tickers") or [],
+            exchanges=submissions.get("exchanges") or [],
+            confidence="high",
+        )
 
     async def _merge_sec_company_facts(self, cik: str, sec_data: dict[str, Any]) -> None:
         facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
@@ -1043,7 +1139,10 @@ class FundingResearcher:
         if response.status_code != 200:
             return
         us_gaap = response.json().get("facts", {}).get("us-gaap", {})
-        sec_data["revenue"] = _first_sec_fact(us_gaap, ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"))
+        sec_data["revenue"] = _first_sec_fact(
+            us_gaap,
+            ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+        )
         sec_data["total_assets"] = _latest_sec_fact_value(us_gaap, "Assets")
         sec_data["confidence"] = "high"
 
@@ -1069,9 +1168,20 @@ class FundingResearcher:
             return {}
 
     async def _search_wikidata_org_qid(self, name: str) -> str | None:
-        params = httpx.QueryParams({"action": "wbsearchentities", "search": name, "language": "en", "format": "json", "limit": 3, "type": "item"})
+        params = httpx.QueryParams(
+            {
+                "action": "wbsearchentities",
+                "search": name,
+                "language": "en",
+                "format": "json",
+                "limit": 3,
+                "type": "item",
+            }
+        )
         async with _external_semaphore:
-            response = await self.http_client.get("https://www.wikidata.org/w/api.php", params=params)
+            response = await self.http_client.get(
+                "https://www.wikidata.org/w/api.php", params=params
+            )
         if response.status_code != 200:
             return None
         normalized_name = self._normalize_name(name)
@@ -1082,7 +1192,17 @@ class FundingResearcher:
         return None
 
     async def _sparql_wikidata_org_qid(self, name: str) -> str | None:
-        types_clause = " ".join(("wd:Q11032", "wd:Q192283", "wd:Q5296", "wd:Q35127", "wd:Q5633421", "wd:Q16735862", "wd:Q43229"))
+        types_clause = " ".join(
+            (
+                "wd:Q11032",
+                "wd:Q192283",
+                "wd:Q5296",
+                "wd:Q35127",
+                "wd:Q5633421",
+                "wd:Q16735862",
+                "wd:Q43229",
+            )
+        )
         query = f"""
         SELECT ?item ?itemLabel WHERE {{
           SERVICE wikibase:mwapi {{
@@ -1099,7 +1219,10 @@ class FundingResearcher:
         LIMIT 5
         """
         async with _external_semaphore:
-            response = await self.http_client.get("https://query.wikidata.org/sparql", params=httpx.QueryParams({"format": "json", "query": query}))
+            response = await self.http_client.get(
+                "https://query.wikidata.org/sparql",
+                params=httpx.QueryParams({"format": "json", "query": query}),
+            )
         if response.status_code != 200:
             return None
         bindings = response.json().get("results", {}).get("bindings", [])
@@ -1176,15 +1299,23 @@ class FundingResearcher:
         if not self.client:
             return org
         org_name = org["name"]
-        staleness_flags = _collect_staleness_flags(self.client, org_name, self._normalize_name(org_name))
+        staleness_flags = _collect_staleness_flags(
+            self.client, org_name, self._normalize_name(org_name)
+        )
         missing_fields = _missing_org_fields(org)
         if not missing_fields and not staleness_flags:
             return org
         prompt = _org_enrichment_prompt(org, missing_fields, staleness_flags)
         try:
             response = self.client.chat.completions.create(
-                model=(get_llamacpp_model() if settings.llm_backend == "llamacpp" else resolve_opencode_model(settings.open_router_model)),
-                messages=cast(Iterable[ChatCompletionMessageParam], [{"role": "user", "content": prompt}]),
+                model=(
+                    get_llamacpp_model()
+                    if settings.llm_backend == "llamacpp"
+                    else resolve_opencode_model(settings.open_router_model)
+                ),
+                messages=cast(
+                    Iterable[ChatCompletionMessageParam], [{"role": "user", "content": prompt}]
+                ),
                 max_tokens=1200,
                 temperature=0.1,
                 response_format={"type": "json_object"},
@@ -1315,7 +1446,11 @@ def _extract_wikidata_items_with_proportion(
     claims: dict[str, Any], prop: str
 ) -> list[tuple[str, str | None]]:
     """Extract item ids and ownership proportions from Wikidata claims."""
-    return [pair for claim in claims.get(prop, []) if (pair := _wikidata_item_proportion(claim)) is not None]
+    return [
+        pair
+        for claim in claims.get(prop, [])
+        if (pair := _wikidata_item_proportion(claim)) is not None
+    ]
 
 
 def _collect_wikidata_relations(
@@ -1404,7 +1539,13 @@ def _merge_known_data(org: dict[str, Any], known: dict[str, Any]) -> None:
     """Merge KNOWN_ORGS data (highest priority for major outlets)."""
     if not known:
         return
-    preferred = {"funding_type": "funding_type", "parent_org": "parent", "description": "description", "org_type": "org_type", "cik": "cik"}
+    preferred = {
+        "funding_type": "funding_type",
+        "parent_org": "parent",
+        "description": "description",
+        "org_type": "org_type",
+        "cik": "cik",
+    }
     for destination, source in preferred.items():
         org[destination] = known.get(source) or org[destination]
     _fill_missing_from(org, known, ("annual_revenue", "ownership_percentage", "funding_sources"))
@@ -1437,9 +1578,27 @@ def _merge_wikidata_data(org: dict[str, Any], wikidata: dict[str, Any]) -> None:
     """Merge Wikidata data from English Wikipedia title lookup."""
     if not wikidata:
         return
-    _copy_fields(org, wikidata, ("wikidata_url", "wikidata_qid", "owned_by", "parent_orgs", "part_of", "headquarters", "subsidiaries", "inception", "official_website"), source_aliases={"wikidata_qid": "qid"}, default_lists={"owned_by", "parent_orgs", "part_of", "headquarters", "subsidiaries"})
+    _copy_fields(
+        org,
+        wikidata,
+        (
+            "wikidata_url",
+            "wikidata_qid",
+            "owned_by",
+            "parent_orgs",
+            "part_of",
+            "headquarters",
+            "subsidiaries",
+            "inception",
+            "official_website",
+        ),
+        source_aliases={"wikidata_qid": "qid"},
+        default_lists={"owned_by", "parent_orgs", "part_of", "headquarters", "subsidiaries"},
+    )
     if not org["org_type"]:
-        org["org_type"] = _select_organization_type(cast(list[str], wikidata.get("org_types") or []))
+        org["org_type"] = _select_organization_type(
+            cast(list[str], wikidata.get("org_types") or [])
+        )
     org["parent_org"] = org["parent_org"] or _first_value(org["parent_orgs"])
     org["website"] = org["website"] or org["official_website"]
     org["ownership_percentage"] = org.get("ownership_percentage") or _first_proportion(wikidata)
@@ -1452,12 +1611,31 @@ def _merge_wikidata_sparql_data(
     """Merge the Wikidata SPARQL fallback for organizations without Wikipedia."""
     if not wikidata_sparql:
         return
-    _fill_missing_from(org, wikidata_sparql, ("wikidata_qid", "wikidata_url"), source_aliases={"wikidata_qid": "qid"})
-    _copy_present_from(org, wikidata_sparql, ("owned_by", "part_of", "headquarters", "subsidiaries", "parent_orgs", "inception", "official_website"))
+    _fill_missing_from(
+        org,
+        wikidata_sparql,
+        ("wikidata_qid", "wikidata_url"),
+        source_aliases={"wikidata_qid": "qid"},
+    )
+    _copy_present_from(
+        org,
+        wikidata_sparql,
+        (
+            "owned_by",
+            "part_of",
+            "headquarters",
+            "subsidiaries",
+            "parent_orgs",
+            "inception",
+            "official_website",
+        ),
+    )
     if not org["parent_org"]:
         org["parent_org"] = _first_value(org.get("parent_orgs"))
     if not org["org_type"]:
-        org["org_type"] = _select_organization_type(cast(list[str], wikidata_sparql.get("org_types") or []))
+        org["org_type"] = _select_organization_type(
+            cast(list[str], wikidata_sparql.get("org_types") or [])
+        )
     org["ownership_percentage"] = org["ownership_percentage"] or _first_proportion(wikidata_sparql)
     _record_research_source(org, "wikidata_sparql", "medium")
 

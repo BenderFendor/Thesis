@@ -20,35 +20,35 @@ interface ReporterProfilePanelProps {
   readonly compact?: boolean
 }
 
-const PROFILE_STALE_MS = 60 * 60 * 1000
-const DOSSIER_ITEM_LIMIT = 4
-const CITATION_LIMIT = 4
+const PROFILE_STALE_MS = 60 * 60 * 1000,
+ CITATION_LIMIT = 4,
+ DOSSIER_ITEM_LIMIT = 4,
 
-const statusBadgeClass: Readonly<Record<string, string>> = {
+ statusBadgeClass: Readonly<Record<string, string>> = {
   ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   none: "border-white/10 bg-muted/20 text-muted-foreground",
-}
+},
 
-const normalizeStatusLabel = (status?: string): string => {
-  if (status === "matched") return "verified"
-  if (status === "ambiguous") return "ambiguous"
+ normalizeStatusLabel = (status?: string): string => {
+  if (status === "matched") {return "verified"}
+  if (status === "ambiguous") {return "ambiguous"}
   return "no match"
-}
+},
 
-const hasUsefulData = (profile: ReporterProfile): boolean => {
-  if (profile.match_status === "matched") return true
-  if (profile.overview !== null && profile.overview !== undefined && profile.overview.length > 0) return true
+ hasUsefulData = (profile: ReporterProfile): boolean => {
+  if (profile.match_status === "matched") {return true}
+  if (profile.overview !== null && profile.overview !== undefined && profile.overview.length > 0) {return true}
   return profile.dossier_sections?.some((section) => section.items.length > 0) === true
-}
+},
 
-const profileSearchUrl = (profile: ReporterProfile): string => {
+ profileSearchUrl = (profile: ReporterProfile): string => {
   const wikipedia = profile.search_links?.wikipedia
-  if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) return wikipedia
+  if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) {return wikipedia}
   return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
-}
+},
 
-const LoadingProfile = () => (
+ LoadingProfile = () => (
   <Card className="w-full max-w-md">
     <CardHeader className="py-3">
       <div className="flex items-center gap-2">
@@ -70,7 +70,7 @@ interface ErrorProfileProps {
 }
 
 const ErrorProfile = ({ compact, onRetry }: ErrorProfileProps) => {
-  if (compact) return undefined
+  if (compact) {return}
   return (
     <Card className="w-full max-w-md border-red-500/30">
       <CardContent className="pt-6">
@@ -93,7 +93,7 @@ interface DossierSectionProps {
 
 const DossierSection = ({ profile, sectionId }: DossierSectionProps) => {
   const section = profile.dossier_sections?.find((entry) => entry.id === sectionId)
-  if (section === undefined) return undefined
+  if (section === undefined) {return}
   if (section.items.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-muted/20 px-3 py-3 opacity-70 grayscale">
@@ -127,8 +127,8 @@ interface ProfileHeaderProps {
 }
 
 const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: ProfileHeaderProps) => {
-  const statusClass = statusBadgeClass[profile.match_status || "none"] ?? statusBadgeClass.none
-  const showClose = onClose !== undefined && !compact
+  const statusClass = statusBadgeClass[profile.match_status || "none"] ?? statusBadgeClass.none,
+   showClose = onClose !== undefined && !compact
   return (
     <CardHeader className="pb-3">
       <div className="flex items-start justify-between gap-3">
@@ -156,31 +156,31 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
       </div>
     </CardHeader>
   )
-}
+},
 
-const Overview = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.overview === null || profile.overview === undefined || profile.overview.length === 0) return undefined
+ Overview = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
+  if (profile.overview === null || profile.overview === undefined || profile.overview.length === 0) {return}
   return (
     <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Overview</p>
       <p className="mt-2 text-sm leading-relaxed text-foreground/90">{profile.overview}</p>
     </div>
   )
-}
+},
 
-const MatchExplanation = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
+ MatchExplanation = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
   const explanation = profile.match_explanation
-  if (explanation === null || explanation === undefined || explanation.length === 0) return undefined
+  if (explanation === null || explanation === undefined || explanation.length === 0) {return}
   return (
     <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Match</p>
       <p className="mt-1 text-xs text-muted-foreground">{explanation}</p>
     </div>
   )
-}
+},
 
-const EmptyProfile = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (hasUsefulData(profile)) return undefined
+ EmptyProfile = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
+  if (hasUsefulData(profile)) {return}
   return (
     <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
       <User className="mx-auto h-6 w-6 text-muted-foreground" />
@@ -190,10 +190,10 @@ const EmptyProfile = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
       </p>
     </div>
   )
-}
+},
 
-const ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; label: string }>) => {
-  if (href === null || href === undefined || href.length === 0) return undefined
+ ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; label: string }>) => {
+  if (href === null || href === undefined || href.length === 0) {return}
   return (
     <a
       href={href}
@@ -205,9 +205,9 @@ const ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; l
       {label}
     </a>
   )
-}
+},
 
-const ProfileLinks = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
+ ProfileLinks = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
   <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
     <ExternalProfileLink href={profile.wikipedia_url} label="Wikipedia" />
     <ExternalProfileLink href={profile.wikidata_url} label="Wikidata" />
@@ -223,10 +223,10 @@ const ProfileLinks = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
       </a>
     </Button>
   </div>
-)
+),
 
-const Citations = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.citations === null || profile.citations === undefined || profile.citations.length === 0) return undefined
+ Citations = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
+  if (profile.citations === null || profile.citations === undefined || profile.citations.length === 0) {return}
   return (
     <div className="border-t border-border pt-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Sources</p>
@@ -244,9 +244,9 @@ const Citations = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
       </div>
     </div>
   )
-}
+},
 
-const ProfileBody = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
+ ProfileBody = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
   <CardContent className="space-y-4">
     <Overview profile={profile} />
     <MatchExplanation profile={profile} />
@@ -267,21 +267,21 @@ export const ReporterProfilePanel = ({
   onClose,
   compact = false,
 }: ReporterProfilePanelProps) => {
-  const [forceRefresh, setForceRefresh] = useState(false)
-  const profileQuery = useQuery({
+  const [forceRefresh, setForceRefresh] = useState(false),
+   profileQuery = useQuery({
     queryFn: () => profileReporter(reporterName, organization, articleContext, forceRefresh),
     queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
     retry: 1,
     staleTime: PROFILE_STALE_MS,
-  })
-  const handleRefresh = () => {
+  }),
+   handleRefresh = () => {
     setForceRefresh(true)
     void profileQuery.refetch()
   }
 
-  if (profileQuery.isLoading) return <LoadingProfile />
-  if (profileQuery.error !== null) return <ErrorProfile compact={compact} onRetry={() => void profileQuery.refetch()} />
-  if (profileQuery.data === undefined) return undefined
+  if (profileQuery.isLoading) {return <LoadingProfile />}
+  if (profileQuery.error !== null) {return <ErrorProfile compact={compact} onRetry={() => void profileQuery.refetch()} />}
+  if (profileQuery.data === undefined) {return}
 
   return (
     <Card className="w-full max-w-md">

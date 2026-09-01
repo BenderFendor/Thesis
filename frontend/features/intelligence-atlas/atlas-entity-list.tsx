@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useInfiniteQuery } from "@tanstack/react-query"
+import type { InfiniteData } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownAZ, Loader2, Search } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 
 import { fetchAtlasIndex } from "./lib/atlas-api"
-import type { AtlasEntityType, AtlasNode } from "./lib/atlas-schema"
+import type { AtlasEntityType, AtlasIndexResponse, AtlasNode } from "./lib/atlas-schema"
 import styles from "./atlas.module.css"
 
 type EntityTypeTab = "all" | AtlasEntityType
@@ -38,65 +39,65 @@ interface TypeTab {
   readonly types: readonly AtlasEntityType[]
 }
 
-const INITIAL_CURSOR: string | null = null
-const PAGE_SIZE = 80
-const ROW_ESTIMATE = 66
-const LOAD_AHEAD_ROWS = 8
-const VIRTUAL_OVERSCAN = 8
+const INITIAL_CURSOR: string | null = null,
+ LOAD_AHEAD_ROWS = 8,
+ PAGE_SIZE = 80,
+ ROW_ESTIMATE = 66,
+ VIRTUAL_OVERSCAN = 8,
 
-const TYPE_TABS: readonly TypeTab[] = [
+ TYPE_TABS: readonly TypeTab[] = [
   { key: "all", label: "All", types: [] },
   { key: "outlet", label: "Outlets", types: ["outlet"] },
   { key: "organization", label: "Organizations", types: ["organization"] },
   { key: "person", label: "People", types: ["person", "reporter"] },
   { key: "reporter", label: "Reporters", types: ["reporter"] },
-]
+],
 
-const humanizeKind = (value: string): string => (
+ humanizeKind = (value: string): string => (
   value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase())
-)
+),
 
-const effectiveEntityTypes = (
+ effectiveEntityTypes = (
   type: EntityTypeTab,
   entityTypes: readonly AtlasEntityType[],
 ): readonly AtlasEntityType[] => {
-  if (type === "all") return entityTypes
+  if (type === "all") {return entityTypes}
   return TYPE_TABS.find((tab) => tab.key === type)?.types ?? []
-}
+},
 
-const toggleString = (values: readonly string[], value: string): string[] => (
+ toggleString = (values: readonly string[], value: string): string[] => (
   values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
-)
+),
 
-const singleFilterValue = (values: readonly string[]): string => values[0] ?? "all"
+ singleFilterValue = (values: readonly string[]): string => values[0] ?? "all",
 
-const toSingleFilter = (value: string): string[] => (value === "all" ? [] : [value])
+ toSingleFilter = (value: string): string[] => (value === "all" ? [] : [value]),
 
-const isResearchedNode = (node: AtlasNode): boolean => (
+ isResearchedNode = (node: AtlasNode): boolean => (
   node.current_parent !== null && node.current_parent !== undefined
   || node.connection_count > 0
   || node.evidence_coverage !== "not researched"
   || Object.keys(node.analysis_scores).length > 0
-)
+),
 
-const analysisSummary = (node: AtlasNode): string => {
+ analysisSummary = (node: AtlasNode): string => {
   const count = Object.keys(node.analysis_scores).length
   return count > 0 ? ` · ${count} analysis scores` : ""
-}
+},
 
-const ownershipSummary = (node: AtlasNode): string => (
+ ownershipSummary = (node: AtlasNode): string => (
   node.current_parent !== null && node.current_parent !== undefined
     ? `Owned by ${node.current_parent}`
     : node.evidence_coverage
-)
+),
 
-const pendingSummary = (node: AtlasNode): string => (
+ pendingSummary = (node: AtlasNode): string => (
   node.pending_change === null || node.pending_change === undefined || node.pending_change.length === 0
     ? ""
     : ` · ${node.pending_change}`
-)
+),
 
-const connectionSummary = (count: number): string => (count > 0 ? `${count} links` : "—")
+ connectionSummary = (count: number): string => (count > 0 ? `${count} links` : "—")
 
 interface DirectoryHeaderProps {
   readonly variant: AtlasEntityListVariant
@@ -137,9 +138,9 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
       {total.toLocaleString()} matching records. Results are server-filtered and rendered virtually.
     </p>
   )
-}
+},
 
-const SearchAndFacets = ({
+ SearchAndFacets = ({
   query,
   sort,
   country,
@@ -170,7 +171,7 @@ const SearchAndFacets = ({
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#77736a]" />
       <Input
         value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
+        onChange={(event) =>{  onQueryChange(event.target.value); }}
         placeholder="Search the entity index"
         aria-label="Search the entity index"
         className="border-white/10 bg-black/20 pl-9"
@@ -180,7 +181,7 @@ const SearchAndFacets = ({
       <ArrowDownAZ className="h-4 w-4 text-[#77736a]" />
       <select
         value={sort}
-        onChange={(event) => onSortChange(event.target.value)}
+        onChange={(event) =>{  onSortChange(event.target.value); }}
         className="h-10 bg-transparent text-sm text-[#c9c3b6] outline-none"
         aria-label="Sort entity index"
       >
@@ -195,24 +196,24 @@ const SearchAndFacets = ({
       label="Country"
       value={singleFilterValue(country)}
       values={countryOptions}
-      onChange={(value) => onFiltersChange({ country: toSingleFilter(value) })}
+      onChange={(value) =>{  onFiltersChange({ country: toSingleFilter(value) }); }}
     />
     <FacetSelect
       label="Funding"
       value={singleFilterValue(funding)}
       values={fundingOptions}
-      onChange={(value) => onFiltersChange({ funding: toSingleFilter(value) })}
+      onChange={(value) =>{  onFiltersChange({ funding: toSingleFilter(value) }); }}
     />
     <FacetSelect
       label="Bias"
       value={singleFilterValue(bias)}
       values={biasOptions}
-      onChange={(value) => onFiltersChange({ bias: toSingleFilter(value) })}
+      onChange={(value) =>{  onFiltersChange({ bias: toSingleFilter(value) }); }}
     />
   </div>
-)
+),
 
-const TypeTabs = ({
+ TypeTabs = ({
   type,
   onTypeChange,
 }: Readonly<{ type: EntityTypeTab; onTypeChange: (value: EntityTypeTab) => void }>) => (
@@ -223,15 +224,15 @@ const TypeTabs = ({
         type="button"
         className={styles.pillButton}
         data-active={type === tab.key}
-        onClick={() => onTypeChange(tab.key)}
+        onClick={() =>{  onTypeChange(tab.key); }}
       >
         {tab.label}
       </button>
     ))}
   </div>
-)
+),
 
-const KindFilters = ({
+ KindFilters = ({
   kind,
   options,
   onClear,
@@ -242,7 +243,7 @@ const KindFilters = ({
   onClear: () => void
   onChange: (value: string) => void
 }>) => {
-  if (options.length === 0) return undefined
+  if (options.length === 0) {return}
 
   return (
     <div className="mt-2 flex flex-wrap gap-2 overflow-x-auto" aria-label="Filter by entity kind">
@@ -260,16 +261,16 @@ const KindFilters = ({
           type="button"
           className={styles.pillButton}
           data-active={kind.includes(option)}
-          onClick={() => onChange(option)}
+          onClick={() =>{  onChange(option); }}
         >
           {humanizeKind(option)}
         </button>
       ))}
     </div>
   )
-}
+},
 
-const DirectoryHeader = (props: DirectoryHeaderProps) => {
+ DirectoryHeader = (props: DirectoryHeaderProps) => {
   const {
     variant,
     total,
@@ -279,8 +280,8 @@ const DirectoryHeader = (props: DirectoryHeaderProps) => {
     onTypeChange,
     onKindChange,
     onClearKinds,
-  } = props
-  const paddingClass = variant === "page" ? "border-b border-white/10 p-5 pr-5" : "border-b border-white/10 p-5 pr-14"
+  } = props,
+   paddingClass = variant === "page" ? "border-b border-white/10 p-5 pr-5" : "border-b border-white/10 p-5 pr-14"
 
   return (
     <div className={paddingClass}>
@@ -292,9 +293,9 @@ const DirectoryHeader = (props: DirectoryHeaderProps) => {
       <KindFilters kind={kind} options={kindOptions} onClear={onClearKinds} onChange={onKindChange} />
     </div>
   )
-}
+},
 
-const IndexHeaderRow = () => (
+ IndexHeaderRow = () => (
   <div className={styles.indexHeaderRow} aria-hidden="true">
     <span />
     <span>Name</span>
@@ -320,7 +321,7 @@ const EntityRow = ({ node, height, start, onSelect }: EntityRowProps) => {
       type="button"
       className={styles.indexCard}
       style={{ height, transform: `translateY(${start}px)` }}
-      onClick={() => onSelect(node)}
+      onClick={() =>{  onSelect(node); }}
     >
       <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
         {node.entity_type.slice(0, 2).toUpperCase()}
@@ -363,7 +364,7 @@ const EntityRows = ({ items, virtualItems, totalSize, onSelect }: EntityRowsProp
     <div style={{ height: totalSize, position: "relative" }}>
       {virtualItems.map((row) => {
         const node = items[row.index]
-        if (node === undefined) return undefined
+        if (node === undefined) {return}
         return <EntityRow key={node.id} node={node} height={row.size} start={row.start} onSelect={onSelect} />
       })}
     </div>
@@ -411,10 +412,10 @@ const IndexViewportContent = ({
   }
 
   return <EntityRows items={items} virtualItems={virtualItems} totalSize={totalSize} onSelect={onSelect} />
-}
+},
 
-const LoadingMore = ({ active }: Readonly<{ active: boolean }>) => {
-  if (!active) return undefined
+ LoadingMore = ({ active }: Readonly<{ active: boolean }>) => {
+  if (!active) {return}
   return (
     <div className="flex items-center justify-center gap-2 border-t border-white/10 p-3 text-xs text-[#77736a]">
       <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more records
@@ -432,14 +433,20 @@ export const AtlasEntityList = ({
   variant = "page",
   active = true,
 }: AtlasEntityListProps) => {
-  const [type, setType] = useState<EntityTypeTab>("all")
-  const [kind, setKind] = useState<string[]>([])
-  const [query, setQuery] = useState("")
-  const [sort, setSort] = useState("most_connected")
-  const viewportRef = useRef<HTMLDivElement>(undefined)
-  const effectiveTypes = effectiveEntityTypes(type, entityTypes)
+  const [type, setType] = useState<EntityTypeTab>("all"),
+   [kind, setKind] = useState<string[]>([]),
+   [query, setQuery] = useState(""),
+   [sort, setSort] = useState("most_connected"),
+   viewportRef = useRef<HTMLDivElement>(null),
+   effectiveTypes = effectiveEntityTypes(type, entityTypes),
 
-  const indexQuery = useInfiniteQuery({
+   indexQuery = useInfiniteQuery<
+    AtlasIndexResponse,
+    Error,
+    InfiniteData<AtlasIndexResponse, string | null>,
+    readonly unknown[],
+    string | null
+  >({
     enabled: active,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
     initialPageParam: INITIAL_CURSOR,
@@ -456,44 +463,44 @@ export const AtlasEntityList = ({
     }, signal),
     queryKey: ["atlas", "index", effectiveTypes, query, country, funding, bias, kind, sort],
     staleTime: 60_000,
-  })
+  }),
 
-  const items = useMemo(
+   items = useMemo(
     () => indexQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [indexQuery.data],
-  )
-  const firstPage = indexQuery.data?.pages[0]
-  const total = firstPage?.total ?? 0
-  const facets = firstPage?.facets
-  const kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).sort(), [facets])
-  const countryOptions = useMemo(() => Object.keys(facets?.country ?? {}).sort(), [facets])
-  const fundingOptions = useMemo(() => Object.keys(facets?.funding ?? {}).sort(), [facets])
-  const biasOptions = useMemo(() => Object.keys(facets?.bias ?? {}).sort(), [facets])
+  ),
+   firstPage = indexQuery.data?.pages[0],
+   total = firstPage?.total ?? 0,
+   facets = firstPage?.facets,
+   kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).sort(), [facets]),
+   countryOptions = useMemo(() => Object.keys(facets?.country ?? {}).sort(), [facets]),
+   fundingOptions = useMemo(() => Object.keys(facets?.funding ?? {}).sort(), [facets]),
+   biasOptions = useMemo(() => Object.keys(facets?.bias ?? {}).sort(), [facets]),
 
-  const virtualizer = useVirtualizer({
+   virtualizer = useVirtualizer({
     count: items.length,
     estimateSize: () => ROW_ESTIMATE,
     getScrollElement: () => viewportRef.current,
     overscan: VIRTUAL_OVERSCAN,
-  })
-  const virtualItems = virtualizer.getVirtualItems()
+  }),
+   virtualItems = virtualizer.getVirtualItems()
 
   useEffect(() => {
-    if (!active) return
+    if (!active) {return}
     const last = virtualItems.at(-1)
-    if (last === undefined) return
-    if (last.index < items.length - LOAD_AHEAD_ROWS) return
-    if (indexQuery.hasNextPage !== true || indexQuery.isFetchingNextPage) return
+    if (last === undefined) {return}
+    if (last.index < items.length - LOAD_AHEAD_ROWS) {return}
+    if (!indexQuery.hasNextPage || indexQuery.isFetchingNextPage) {return}
     void indexQuery.fetchNextPage()
   }, [active, indexQuery, items.length, virtualItems])
 
   const changeType = (nextType: EntityTypeTab) => {
     setType(nextType)
     setKind([])
-  }
-  const changeKind = (value: string) => setKind((current) => toggleString(current, value))
-  const rootClass = variant === "page" ? "flex min-h-0 flex-1 flex-col" : undefined
-  const viewportClass = variant === "page" ? "relative min-h-0 flex-1 overflow-auto" : styles.indexViewport
+  },
+   changeKind = (value: string) =>{  setKind((current) => toggleString(current, value)); },
+   rootClass = variant === "page" ? "flex min-h-0 flex-1 flex-col" : undefined,
+   viewportClass = variant === "page" ? "relative min-h-0 flex-1 overflow-auto" : styles.indexViewport
 
   return (
     <div className={rootClass}>
@@ -515,7 +522,7 @@ export const AtlasEntityList = ({
         onSortChange={setSort}
         onTypeChange={changeType}
         onKindChange={changeKind}
-        onClearKinds={() => setKind([])}
+        onClearKinds={() =>{  setKind([]); }}
         onFiltersChange={onFiltersChange}
       />
       <div ref={viewportRef} className={viewportClass}>
@@ -545,7 +552,7 @@ const FacetSelect = ({ label, value, values, onChange }: FacetSelectProps) => (
     <span className="sr-only">{label}</span>
     <select
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) =>{  onChange(event.target.value); }}
       className="h-10 max-w-36 bg-transparent text-sm text-[#c9c3b6] outline-none"
       aria-label={`Filter by ${label.toLowerCase()}`}
     >

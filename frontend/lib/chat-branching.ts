@@ -35,7 +35,7 @@ function getResolvedParentMap<T extends BranchableChatMessage>(
   messages:readonly  T[],
 ): Map<string, string | null> {
   const resolvedParents = new Map<string, string | null>();
-  let previousVisibleMessageId: string | null = undefined;
+  let previousVisibleMessageId: string | null = null;
 
   getVisibleMessages(messages).forEach((message) => {
     const parentId = message.parentMessageId ?? previousVisibleMessageId;
@@ -85,7 +85,7 @@ export function getVisibleConversationMessages<T extends BranchableChatMessage>(
 ): T[] {
   const { branchGroups } = getBranchGroupMap(messages),
    path: T[] = [];
-  let parentId: string | null = undefined;
+  let parentId: string | null = null;
 
   while (true) {
     const childGroups = branchGroups.get(parentId);
@@ -120,7 +120,7 @@ export function getMessageVersionInfo<T extends BranchableChatMessage>(
   );
 
   if (!targetMessage) {
-    return undefined;
+    return null;
   }
 
   const parentId = resolvedParents.get(targetMessage.id) ?? null,
@@ -128,7 +128,7 @@ export function getMessageVersionInfo<T extends BranchableChatMessage>(
    versions = branchGroups.get(parentId)?.get(groupId);
 
   if (!versions || versions.length <= 1) {
-    return undefined;
+    return null;
   }
 
   const activeVersion = resolveActiveVersion(

@@ -8,10 +8,11 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import httpx
 from rich.text import Text
@@ -85,6 +86,7 @@ class ResearchSession:
             ),
         )
 
+
 @dataclass
 class _StreamState:
     """Mutable state accumulated while streaming research events."""
@@ -99,23 +101,49 @@ class _StreamState:
 def _apply_stream_event(state: _StreamState, event: dict[str, Any]) -> bool:
     """Fold one streamed event into CLI state; True when the stream is done."""
     event_type = event.get("type")
-    if event_type == "tool_start":
-        state.tool_calls += 1
-        tool = event.get("tool", "unknown")
-        args = event.get("args", {})
-        state.tool_log.append(f"> {tool} {json.dumps(args)}")
-    elif event_type == "tool_result":
-        content = event.get("content", "")
-        snippet = str(content)[:400].replace("\n", " ")
-        state.tool_log.append(f"< {snippet}")
-    elif event_type == "referenced_articles":
-        state.referenced_articles = event.get("articles", []) or []
-    elif event_type == "thinking":
-        state.assistant_content = event.get("content", "")
-    elif event_type == "complete":
-        result = event.get("result", {})
-        state.assistant_content = result.get("answer", state.assistant_content)
-    return event_type in {"complete", "error"}
+
+    if isinstance(event_type, str):
+        handler = _STREAM_STATE_HANDLERS.get(event_type)
+        if handler is not None:
+            handler(state, event)
+        return event_type in {"complete", "error"}
+    return False
+
+
+def _apply_tool_start(state: _StreamState, event: dict[str, Any]) -> None:
+    state.tool_calls += 1
+    tool = event.get("tool", "unknown")
+    args = event.get("args", {})
+    state.tool_log.append(f"> {tool} {json.dumps(args)}")
+
+
+def _apply_tool_result(state: _StreamState, event: dict[str, Any]) -> None:
+    content = event.get("content", "")
+    snippet = str(content)[:400].replace("\n", " ")
+    state.tool_log.append(f"< {snippet}")
+
+
+def _apply_referenced_articles(state: _StreamState, event: dict[str, Any]) -> None:
+    state.referenced_articles = event.get("articles", []) or []
+
+
+def _apply_thinking(state: _StreamState, event: dict[str, Any]) -> None:
+    state.assistant_content = event.get("content", "")
+
+
+def _apply_complete(state: _StreamState, event: dict[str, Any]) -> None:
+    result = event.get("result", {})
+    state.assistant_content = result.get("answer", state.assistant_content)
+
+
+_STREAM_STATE_HANDLERS: dict[str, Callable[[_StreamState, dict[str, Any]], None]] = {
+    "tool_start": _apply_tool_start,
+    "tool_result": _apply_tool_result,
+    "referenced_articles": _apply_referenced_articles,
+    "thinking": _apply_thinking,
+    "complete": _apply_complete,
+}
+
 
 def _parse_stream_event(line: str) -> dict[str, Any] | None:
     """Parse one SSE data line into an event dict, or None when malformed."""
@@ -130,27 +158,77 @@ def _parse_stream_event(line: str) -> dict[str, Any] | None:
         return None
 
 
+def _stream_params(query: str, messages: list[dict[str, Any]]) -> dict[str, str]:
+    params = {
+        "query": query,
+        "include_thinking": "true",
+    }
+    history_payload = _build_history_payload(messages)
+    if history_payload:
+        params["history"] = json.dumps(history_payload)
+    return params
+
+
+def _new_assistant_message() -> dict[str, Any]:
+    return {
+        "id": str(uuid.uuid4()),
+        "type": "assistant",
+        "content": "",
+        "timestamp": _utc_now(),
+        "thinking_steps": [],
+        "tool_log": [],
+        "referenced_articles": [],
+    }
+
+
+def _emit_json_stream_event(event_type: object, event: dict[str, Any]) -> None:
+    if event_type in {
+        "status",
+        "thinking",
+        "tool_start",
+        "tool_result",
+        "complete",
+        "error",
+    }:
+        print(json.dumps(event))
+
+
+def _emit_status_event(_state: _StreamState, event: dict[str, Any]) -> None:
+    print(f"[status] {event.get('message', '')}")
+
+
+def _emit_tool_event(state: _StreamState, _event: dict[str, Any]) -> None:
+    print(state.tool_log[-1])
+
+
+def _emit_complete_event(state: _StreamState, _event: dict[str, Any]) -> None:
+    print("\n" + (state.assistant_content or ""))
+
+
+def _emit_error_event(_state: _StreamState, event: dict[str, Any]) -> None:
+    print(f"[error] {event.get('message', '')}")
+
+
+_TEXT_STREAM_HANDLERS: dict[str, Callable[[_StreamState, dict[str, Any]], None]] = {
+    "status": _emit_status_event,
+    "tool_start": _emit_tool_event,
+    "tool_result": _emit_tool_event,
+    "complete": _emit_complete_event,
+    "error": _emit_error_event,
+}
+
+
 def _emit_stream_event(state: _StreamState, event: dict[str, Any], output_format: str) -> None:
     """Print one streamed event in the requested output format."""
     event_type = event.get("type")
     if output_format == "json":
-        if event_type in {
-            "status",
-            "thinking",
-            "tool_start",
-            "tool_result",
-            "complete",
-            "error",
-        }:
-            print(json.dumps(event))
-    elif event_type == "status":
-        print(f"[status] {event.get('message', '')}")
-    elif event_type in {"tool_start", "tool_result"}:
-        print(state.tool_log[-1])
-    elif event_type == "complete":
-        print("\n" + (state.assistant_content or ""))
-    elif event_type == "error":
-        print(f"[error] {event.get('message', '')}")
+        _emit_json_stream_event(event_type, event)
+        return
+    if not isinstance(event_type, str):
+        return
+    handler = _TEXT_STREAM_HANDLERS.get(event_type)
+    if handler is not None:
+        handler(state, event)
 
 
 def _print_stream_error(exc: httpx.HTTPError, output_format: str) -> None:
@@ -244,15 +322,22 @@ def _save_sessions(sessions: list[ResearchSession]) -> None:
     SESSION_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _history_item(message: dict[str, Any]) -> dict[str, str] | None:
+    message_type = message.get("type")
+    if message_type not in {"user", "assistant"}:
+        return None
+    if message.get("tool_type"):
+        return None
+    content = message.get("content", "")
+    if not isinstance(content, str):
+        return None
+    if not content:
+        return None
+    return {"type": str(message_type), "content": content}
+
+
 def _build_history_payload(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    payload: list[dict[str, str]] = []
-    for message in messages:
-        message_type = message.get("type")
-        if message_type in {"user", "assistant"} and not message.get("tool_type"):
-            content = message.get("content", "")
-            if content and isinstance(content, str):
-                payload.append({"type": str(message_type), "content": content})
-    return payload
+    return [item for message in messages if (item := _history_item(message)) is not None]
 
 
 class SessionManager:
@@ -560,51 +645,47 @@ class ResearchTUI(App):
 
         await self._stream_research(query, session)
 
+    async def _consume_research_stream(
+        self,
+        client: httpx.AsyncClient,
+        params: dict[str, str],
+        assistant_message: dict[str, Any],
+        start_time: float,
+    ) -> float | None:
+        first_event_time: float | None = None
+        async with client.stream(
+            "GET",
+            f"{self.api_base}/api/news/research/stream",
+            params=params,
+            headers={"Accept": "text/event-stream"},
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                event = _parse_stream_event(line)
+                if event is None:
+                    continue
+                if first_event_time is None:
+                    first_event_time = time.time()
+                    self.update_latency(f"TTF: {first_event_time - start_time:.2f}s")
+                await self._handle_event(event, assistant_message)
+                self._update_stream_latency(start_time, first_event_time)
+                if event.get("type") in {"complete", "error"}:
+                    break
+        return first_event_time
+
     async def _stream_research(self, query: str, session: ResearchSession) -> None:
         start_time = time.time()
-        first_event_time: float | None = None
-        assistant_message = {
-            "id": str(uuid.uuid4()),
-            "type": "assistant",
-            "content": "",
-            "timestamp": _utc_now(),
-            "thinking_steps": [],
-            "tool_log": [],
-            "referenced_articles": [],
-        }
-
+        assistant_message = _new_assistant_message()
         self.current_tool_calls = 0
         self.update_latency("TTF: --")
         self.update_status("Connecting to research stream...")
-
-        history_payload = _build_history_payload(session.messages)
-        params = {
-            "query": query,
-            "include_thinking": "true",
-        }
-        if history_payload:
-            params["history"] = json.dumps(history_payload)
-
+        params = _stream_params(query, session.messages)
+        first_event_time: float | None = None
         async with httpx.AsyncClient(timeout=None) as client:
             try:
-                async with client.stream(
-                    "GET",
-                    f"{self.api_base}/api/news/research/stream",
-                    params=params,
-                    headers={"Accept": "text/event-stream"},
-                ) as response:
-                    response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        event = _parse_stream_event(line)
-                        if event is None:
-                            continue
-                        if first_event_time is None:
-                            first_event_time = time.time()
-                            self.update_latency(f"TTF: {first_event_time - start_time:.2f}s")
-                        await self._handle_event(event, assistant_message)
-                        self._update_stream_latency(start_time, first_event_time)
-                        if event.get("type") in {"complete", "error"}:
-                            break
+                first_event_time = await self._consume_research_stream(
+                    client, params, assistant_message, start_time
+                )
             except httpx.HTTPStatusError as exc:
                 self.update_status(f"HTTP {exc.response.status_code} for {exc.request.url}")
             except httpx.HTTPError as exc:
@@ -655,8 +736,8 @@ class ResearchTUI(App):
         """Roll the running average duration into the session stats."""
         total = session.stats.total_requests
         session.stats.avg_duration_seconds = (
-            ((session.stats.avg_duration_seconds * (total - 1)) + duration) / total
-        )
+            (session.stats.avg_duration_seconds * (total - 1)) + duration
+        ) / total
 
     async def _handle_event(self, event: dict[str, Any], assistant_message: dict[str, Any]) -> None:
         handler = self._EVENT_HANDLERS.get(str(event.get("type")))
@@ -682,7 +763,9 @@ class ResearchTUI(App):
             self.answer_widget.update(self._render_answer())
             self.update_status("Streaming answer...")
 
-    def _handle_thinking_step(self, event: dict[str, Any], assistant_message: dict[str, Any]) -> None:
+    def _handle_thinking_step(
+        self, event: dict[str, Any], assistant_message: dict[str, Any]
+    ) -> None:
         """Handle one thinking step."""
         step = event.get("step", {})
         assistant_message["thinking_steps"].append(step)
@@ -704,11 +787,15 @@ class ResearchTUI(App):
         snippet = str(content)[:400].replace("\n", " ")
         self._record_change(assistant_message, f"< {snippet}")
 
-    def _handle_articles_json(self, event: dict[str, Any], assistant_message: dict[str, Any]) -> None:
+    def _handle_articles_json(
+        self, event: dict[str, Any], assistant_message: dict[str, Any]
+    ) -> None:
         """Handle an articles payload marker."""
         self._record_change(assistant_message, "< articles_json received")
 
-    def _handle_referenced_articles(self, event: dict[str, Any], assistant_message: dict[str, Any]) -> None:
+    def _handle_referenced_articles(
+        self, event: dict[str, Any], assistant_message: dict[str, Any]
+    ) -> None:
         """Handle a referenced articles payload."""
         self.referenced_articles = event.get("articles", []) or []
         assistant_message["referenced_articles"] = self.referenced_articles
@@ -723,9 +810,7 @@ class ResearchTUI(App):
         """Finalize the answer UI after a complete or error event."""
         assistant_message["content"] = content
         self.draft_answer = None
-        self.research_buffer = self._render_session_messages(
-            self.session_manager.active_session()
-        )
+        self.research_buffer = self._render_session_messages(self.session_manager.active_session())
         self.answer_widget.update(self._render_answer())
         self.update_status(status)
 
@@ -778,32 +863,13 @@ async def run_cli_query(
     save_session: bool,
 ) -> int:
     """Run Cli Query."""
-    params = {
-        "query": query,
-        "include_thinking": "true",
-    }
+    params = _stream_params(query, [])
     start_time = time.time()
     state = _StreamState()
 
     async with httpx.AsyncClient(timeout=None) as client:
         try:
-            async with client.stream(
-                "GET",
-                f"{api_base}/api/news/research/stream",
-                params=params,
-                headers={"Accept": "text/event-stream"},
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    event = _parse_stream_event(line)
-                    if event is None:
-                        continue
-                    if state.first_event_time is None:
-                        state.first_event_time = time.time()
-                    done = _apply_stream_event(state, event)
-                    _emit_stream_event(state, event, output_format)
-                    if done:
-                        break
+            await _consume_cli_stream(client, api_base, params, state, output_format)
         except (httpx.HTTPStatusError, httpx.HTTPError) as exc:
             _print_stream_error(exc, output_format)
             return 1
@@ -816,6 +882,33 @@ async def run_cli_query(
         _save_cli_session(query, state, elapsed, ttf)
 
     return 0
+
+
+async def _consume_cli_stream(
+    client: httpx.AsyncClient,
+    api_base: str,
+    params: dict[str, str],
+    state: _StreamState,
+    output_format: str,
+) -> None:
+    async with client.stream(
+        "GET",
+        f"{api_base}/api/news/research/stream",
+        params=params,
+        headers={"Accept": "text/event-stream"},
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            event = _parse_stream_event(line)
+            if event is None:
+                continue
+            if state.first_event_time is None:
+                state.first_event_time = time.time()
+            done = _apply_stream_event(state, event)
+            _emit_stream_event(state, event, output_format)
+            if done:
+                break
+
 
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build Arg Parser."""

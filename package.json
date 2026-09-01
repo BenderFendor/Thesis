@@ -5,7 +5,7 @@
     "openapi:types": "npm --prefix frontend run openapi:types",
     "openapi:refresh": "npm run openapi:export && npm run openapi:types",
     "cli": "./scripts/scoop",
-    "cli:test": "node --test scripts/tests/scoop.test.ts",
+    "cli:test": "node --test scripts/tests/*.test.ts scripts/tests/*.test.mjs",
     "cli:typecheck": "frontend/node_modules/.bin/tsc -p scripts/tsconfig.json",
     "cli:schema:check": "./scripts/scoop schema check",
     "deps:cycles": "bash ./scripts/check-cycles",

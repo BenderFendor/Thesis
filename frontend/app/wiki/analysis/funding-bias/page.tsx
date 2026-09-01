@@ -2,6 +2,6 @@
 
 import { FundingBiasAnalysisView } from "./funding-bias-analysis-view";
 
-export default function FundingBiasAnalysisPage() {
-  return <FundingBiasAnalysisView />;
-}
+const FundingBiasAnalysisPage = () => <FundingBiasAnalysisView />;
+
+export default FundingBiasAnalysisPage;

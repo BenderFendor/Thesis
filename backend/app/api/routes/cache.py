@@ -8,7 +8,7 @@ import queue
 import threading
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter
@@ -110,9 +110,7 @@ async def stream_cache_refresh() -> StreamingResponse:
             "message": f"Cache refresh completed: {len(articles)} total articles",
             "total_articles": len(articles),
             "total_sources_processed": len(source_stats),
-            "successful_sources": len(
-                [s for s in source_stats if s.get("status") == "success"]
-            ),
+            "successful_sources": len([s for s in source_stats if s.get("status") == "success"]),
             "failed_sources": len([s for s in source_stats if s.get("status") == "error"]),
             "warning_sources": len([s for s in source_stats if s.get("status") == "warning"]),
             "timestamp": event["timestamp"],
@@ -149,10 +147,10 @@ async def stream_cache_refresh() -> StreamingResponse:
                 if complete_event is not None:
                     yield f"data: {json.dumps(complete_event)}\n\n"
 
-        except Exception as e:
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
             error_event = {
                 "status": "error",
-                "message": f"Error during cache refresh: {str(e)}",
+                "message": f"Error during cache refresh: {error!s}",
                 "timestamp": datetime.now(UTC).isoformat(),
             }
             yield f"data: {json.dumps(error_event)}\n\n"

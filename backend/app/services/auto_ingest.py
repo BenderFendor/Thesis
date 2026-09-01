@@ -30,9 +30,12 @@ Design:
   touching call sites. Test fixtures also clear FastAPI's startup handlers
   entirely (see tests/conftest.py), so this never runs during the default
   test suite regardless of the flag.
-- Every stage is independently wrapped: a network failure (offline
-  Wikidata/EDGAR/LittleSis/MBFC) or any other exception logs a warning and
-  the orchestrator moves on to the next stage. Pipeline idempotency
+- Every stage is independently wrapped: stage failures log a warning and the
+  orchestrator moves on to the next stage. Within the evidence stage, expected
+  transport, persistence, parsing, and payload-shape failures are recorded per
+  source so later sources still run; unexpected programming errors reach the
+  stage boundary instead of being silently classified as source failures.
+  Pipeline idempotency
   (dedupe by claim_hash / deterministic ids / locked preregistration) is
   guaranteed by the pipelines themselves -- see `app.services.entity_backfill`,
   `app.services.evidence_ingest`, and `app.services.funding_bias_analysis`.
@@ -40,22 +43,25 @@ Design:
 
 from __future__ import annotations
 
-import time
 import os
-from uuid import uuid4
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, cast
+from uuid import uuid4
 
+import httpx
 from sqlalchemy import desc, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, WikiIndexStatus, get_utc_now
-from app.models.evidence import EvidenceIngestRun
 from app.models.atlas import AtlasIngestStatusResponse, EvidenceIngestRunRecord
+from app.models.evidence import EvidenceIngestRun
+from app.scripts.ingest_reporter_bylines import ingest_reporter_bylines
 from app.services.entity_backfill import run_backfill
 from app.services.evidence_ingest import (
     METHOD_VERSION,
@@ -73,7 +79,6 @@ from app.services.reporter_merge import merge_duplicate_reporters
 from app.services.reporter_name_cleanup import cleanup_dirty_reporter_names
 from app.services.reporter_outlet_repair import repair_feedburner_collision
 from app.services.reporter_split_backfill import split_composite_reporters
-from app.scripts.ingest_reporter_bylines import ingest_reporter_bylines
 
 logger = get_logger("auto_ingest")
 
@@ -277,7 +282,7 @@ async def _record_evidence_source_failure(
 
 
 async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
-    """Run every evidence-ingestion source; one source's failure doesn't skip the rest."""
+    """Run evidence sources; expected source failures do not skip later sources."""
     await _block_missing_credential_adapters(db)
     results: dict[str, IngestReport] = {}
     failures: dict[str, str] = {}
@@ -288,7 +293,15 @@ async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
             report = await run_source()
             results[source_name] = report
             await _record_evidence_source_success(db, run_id, report, source_name, failures)
-        except Exception as exc:
+        except (
+            httpx.HTTPError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            SQLAlchemyError,
+        ) as exc:
             await _record_evidence_source_failure(db, run_id, source_name, exc, failures)
     if failures:
         summary = "; ".join(f"{name}: {failure}" for name, failure in failures.items())
@@ -394,6 +407,20 @@ def _freshness_label(
     return "stale"
 
 
+def _ingest_status_summary(
+    rows: list[EvidenceIngestRun],
+) -> tuple[list[EvidenceIngestRunRecord], datetime | None, bool, bool, list[str]]:
+    records = [EvidenceIngestRunRecord.model_validate(row, from_attributes=True) for row in rows]
+    successes = [row.completed_at for row in rows if row.status == "success" and row.completed_at]
+    last_success = max(successes, default=None)
+    active = any(row.status == "running" for row in rows)
+    incomplete = any(row.status in {"partial", "failed", "blocked"} for row in rows)
+    missing_credentials = sorted(
+        {credential for row in rows for credential in (row.missing_credentials or [])}
+    )
+    return records, last_success, active, incomplete, missing_credentials
+
+
 async def get_ingest_status(db: AsyncSession, *, limit: int = 40) -> AtlasIngestStatusResponse:
     """Return persisted adapter freshness and exact failures for the Atlas UI."""
     rows = list(
@@ -405,19 +432,13 @@ async def get_ingest_status(db: AsyncSession, *, limit: int = 40) -> AtlasIngest
         .scalars()
         .all()
     )
-    records = [EvidenceIngestRunRecord.model_validate(row, from_attributes=True) for row in rows]
-    successes = [row.completed_at for row in rows if row.status == "success" and row.completed_at]
-    last_success = max(successes, default=None)
-    active = any(row.status == "running" for row in rows)
-    incomplete = any(row.status in {"partial", "failed", "blocked"} for row in rows)
+    records, last_success, active, incomplete, missing_credentials = _ingest_status_summary(rows)
     freshness = _freshness_label(active, incomplete, last_success, rows[0].status if rows else None)
     return AtlasIngestStatusResponse(
         freshness=cast(Any, freshness),
         last_success_at=last_success,
         has_retryable_failures=any(row.retryable for row in rows),
-        missing_credentials=sorted(
-            {credential for row in rows for credential in (row.missing_credentials or [])}
-        ),
+        missing_credentials=missing_credentials,
         runs=records,
     )
 

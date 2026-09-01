@@ -25,6 +25,7 @@ against an unchanged DB is a no-op.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import cast
 
 from sqlalchemy import func, select

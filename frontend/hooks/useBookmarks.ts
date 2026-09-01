@@ -47,7 +47,7 @@ export const bookmarkListeners = new Set<BookmarkListener>(),
     return { current, wasBookmarked }
   },
   notifyBookmarkListeners = (ids: ReadonlySet<number>) => {
-    bookmarkListeners.forEach((listener) => listener(new Set(ids)))
+    bookmarkListeners.forEach((listener) =>{  listener(new Set(ids)); })
   },
   useBookmarks = () => {
     const [bookmarkIds, setBookmarkIds] = useState<Set<number>>(
@@ -64,7 +64,7 @@ export const bookmarkListeners = new Set<BookmarkListener>(),
       }
       bookmarkListeners.add(listener)
 
-      if (bookmarkLoaded !== true) {
+      if (!bookmarkLoaded) {
         void loadBookmarksFromApi()
       }
 

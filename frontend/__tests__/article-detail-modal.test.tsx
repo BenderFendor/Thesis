@@ -1,34 +1,13 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import type { ArticleDetailServices } from "@/components/article-detail-modal";
 import type { NewsArticle } from "@/lib/api";
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
+import userEvent from "@testing-library/user-event";
 
-const mockedApi = {
-  analyzeArticle: jest.fn<ArticleDetailServices["analyzeArticle"]>(() => ({ article_url: "", success: false })),
-  createHighlight: jest.fn<ArticleDetailServices["createHighlight"]>((highlight) => highlight),
-  deleteHighlight: jest.fn<ArticleDetailServices["deleteHighlight"]>(async () => {}),
-  fetchLanguageDiagnostics: jest.fn<ArticleDetailServices["fetchLanguageDiagnostics"]>(() => ({
-    article_url: "",
-    sentence_count: 0,
-    success: true,
-    word_count: 0,
-  })),
-  fetchSourceDebugData: jest.fn<ArticleDetailServices["fetchSourceDebugData"]>(() => {
-    throw new Error("Source debugging is not expected in this test");
-  }),
-  getHighlightsForArticle: jest.fn<ArticleDetailServices["getHighlightsForArticle"]>(() => []),
-  getSourceById: jest.fn<ArticleDetailServices["getSourceById"]>(async () => {}),
-  performAgenticSearch: jest.fn<ArticleDetailServices["performAgenticSearch"]>(() => ({ answer: "", success: false })),
-  updateHighlight: jest.fn<ArticleDetailServices["updateHighlight"]>(() => {
-    throw new Error("Highlight updates are not expected in this test");
-  }),
-} satisfies ArticleDetailServices,
-
- baseArticle: NewsArticle = {
+const baseArticle: NewsArticle = {
   bias: "center",
   category: "Politics",
   content: "Content",
@@ -45,7 +24,134 @@ const mockedApi = {
   title: "Test article",
   translated: false,
   url: "article-1",
-};
+},
+
+ mockedApi = {
+  analyzeArticle: jest.fn<ArticleDetailServices["analyzeArticle"]>(async () => ({ article_url: "", success: false })),
+  createHighlight: jest.fn<ArticleDetailServices["createHighlight"]>(async (highlight) => highlight),
+  deleteHighlight: jest.fn<ArticleDetailServices["deleteHighlight"]>(async () => {}),
+  fetchLanguageDiagnostics: jest.fn<ArticleDetailServices["fetchLanguageDiagnostics"]>(async () => ({
+    article_url: "",
+    sentence_count: 0,
+    success: true,
+    word_count: 0,
+  })),
+  fetchSourceDebugData: jest.fn<ArticleDetailServices["fetchSourceDebugData"]>(() => {
+    throw new Error("Source debugging is not expected in this test");
+  }),
+  getHighlightsForArticle: jest.fn<ArticleDetailServices["getHighlightsForArticle"]>(async () => []),
+  getSourceById: jest.fn<ArticleDetailServices["getSourceById"]>(() => Promise.resolve(undefined)),
+  performAgenticSearch: jest.fn<ArticleDetailServices["performAgenticSearch"]>(async () => ({ answer: "", success: false })),
+  updateHighlight: jest.fn<ArticleDetailServices["updateHighlight"]>(async () => {
+    throw new Error("Highlight updates are not expected in this test");
+  }),
+} satisfies ArticleDetailServices;
+
+function getArticleDetailScrollRegion(): HTMLDivElement {
+  const scrollRegion = document.querySelector<HTMLDivElement>("#article-detail-scroll-region");
+  if (!scrollRegion) {
+    throw new Error("Article detail scroll region was not rendered");
+  }
+  return scrollRegion;
+}
+
+function renderArticleWithScrollControls() {
+  const onNavigate = jest.fn(),
+   scrollBy = jest.fn();
+
+  renderWithQueryClient(
+    <ArticleDetailModal
+      article={{ ...baseArticle, id: 4, url: "article-4" }}
+      isOpen
+      onClose={jest.fn()}
+      services={mockedApi}
+      onNavigate={onNavigate}
+    />
+  );
+
+  {
+    const scrollRegion = getArticleDetailScrollRegion();
+    Object.defineProperty(scrollRegion, "clientHeight", {
+      configurable: true,
+      value: 600,
+    });
+    Object.defineProperty(scrollRegion, "scrollBy", {
+      configurable: true,
+      value: scrollBy,
+    });
+  }
+  return { onNavigate, scrollBy };
+}
+
+function configureProgressRail(scrollTo: (options: { behavior: "auto"; top: number }) => void) {
+  const pointerDownEvent = new Event("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+    }),
+    progressRail = screen.getByRole("scrollbar", { name: "Article reading progress" }),
+    scrollRegion = getArticleDetailScrollRegion();
+
+  Object.defineProperty(scrollRegion, "clientHeight", {
+    configurable: true,
+    get: () => 400,
+  });
+  Object.defineProperty(scrollRegion, "scrollHeight", {
+    configurable: true,
+    get: () => 1400,
+  });
+  Object.defineProperty(scrollRegion, "scrollTo", {
+    configurable: true,
+    value: scrollTo,
+  });
+  Object.defineProperty(progressRail, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      bottom: 300,
+      height: 200,
+      left: 0,
+      right: 12,
+      toJSON: () => ({}),
+      top: 100,
+      width: 12,
+      x: 0,
+      y: 100,
+    }),
+  });
+
+  return { pointerDownEvent, progressRail };
+}
+
+function prepareAnalysisTest() {
+  mockedApi.analyzeArticle.mockResolvedValueOnce({
+    article_url: "article-6",
+    bias_analysis: {
+      framing_bias: "Centers the policy conflict",
+      overall_bias_score: "6",
+      selection_bias: "Focuses on the policy dispute",
+      source_diversity: "Uses several relevant sources",
+      tone_bias: "Measured but skeptical",
+    },
+    fact_check_results: [
+      {
+        claim: "A disputed claim from the article",
+        confidence: "low",
+        evidence: "No confirming public record was provided.",
+        sources: [],
+        verification_status: "unverified",
+      },
+    ],
+    source_analysis: {
+      credibility_assessment: "medium",
+      funding_model: "subscriber supported",
+      ownership: "independent",
+      political_leaning: "left",
+      reputation: "established outlet",
+    },
+    success: true,
+    summary: "A concise summary for the selected article.",
+  });
+  return userEvent.setup();
+}
 
 describe("articleDetailModal", () => {
   beforeEach(() => {
@@ -124,37 +230,14 @@ describe("articleDetailModal", () => {
   });
 
   it("uses vertical keys to scroll the popup instead of changing the article", async () => {expect.hasAssertions();
-    const onNavigate = jest.fn(),
-     scrollBy = jest.fn();
-
-    renderWithQueryClient(
-      <ArticleDetailModal
-        article={{ ...baseArticle, id: 4, url: "article-4" }}
-        isOpen
-        onClose={jest.fn()}
-        services={mockedApi}
-        onNavigate={onNavigate}
-      />
-    );
-
-    const scrollRegion = document.querySelector("#article-detail-scroll-region") as HTMLDivElement;
-    expect(scrollRegion).not.toBeNull();
-
-    Object.defineProperty(scrollRegion, "clientHeight", {
-      configurable: true,
-      value: 600,
-    });
-    Object.defineProperty(scrollRegion, "scrollBy", {
-      configurable: true,
-      value: scrollBy,
-    });
+    const { onNavigate, scrollBy } = renderArticleWithScrollControls();
 
     await waitFor(() => {
       expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-4");
     });
 
-    fireEvent.keyDown(globalThis, { key: "ArrowDown" });
-    fireEvent.keyDown(globalThis, { key: "PageDown" });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "PageDown" });
 
     expect(scrollBy).toHaveBeenNthCalledWith(1, { behavior: "smooth", top: 72 });
     expect(scrollBy).toHaveBeenNthCalledWith(2, { behavior: "smooth", top: 540 });
@@ -162,8 +245,6 @@ describe("articleDetailModal", () => {
   });
 
   it("lets the progress rail control the popup scroll position", async () => {expect.hasAssertions();
-    const scrollTo = jest.fn();
-
     renderWithQueryClient(
       <ArticleDetailModal
         article={{ ...baseArticle, id: 5, url: "article-5" }}
@@ -173,44 +254,13 @@ describe("articleDetailModal", () => {
       />
     );
 
-    const scrollRegion = document.querySelector("#article-detail-scroll-region") as HTMLDivElement,
-     progressRail = screen.getByRole("scrollbar", { name: "Article reading progress" });
-
-    Object.defineProperty(scrollRegion, "clientHeight", {
-      configurable: true,
-      get: () => 400,
-    });
-    Object.defineProperty(scrollRegion, "scrollHeight", {
-      configurable: true,
-      get: () => 1400,
-    });
-    Object.defineProperty(scrollRegion, "scrollTo", {
-      configurable: true,
-      value: scrollTo,
-    });
-    Object.defineProperty(progressRail, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        bottom: 300,
-        height: 200,
-        left: 0,
-        right: 12,
-        toJSON: () => ({}),
-        top: 100,
-        width: 12,
-        x: 0,
-        y: 100,
-      }),
-    });
+    const scrollTo = jest.fn(),
+      { pointerDownEvent, progressRail } = configureProgressRail(scrollTo);
 
     await waitFor(() => {
       expect(mockedApi.getHighlightsForArticle).toHaveBeenCalledWith("article-5");
     });
 
-    const pointerDownEvent = new Event("pointerdown", {
-      bubbles: true,
-      cancelable: true,
-    }) as PointerEvent;
     Object.defineProperty(pointerDownEvent, "clientY", {
       configurable: true,
       value: 250,
@@ -222,35 +272,7 @@ describe("articleDetailModal", () => {
   });
 
   it("renders AI analysis results after the analysis action runs", async () => {expect.hasAssertions();
-    const user = userEvent.setup();
-    mockedApi.analyzeArticle.mockResolvedValueOnce({
-      article_url: "article-6",
-      bias_analysis: {
-        framing_bias: "Centers the policy conflict",
-        overall_bias_score: "6",
-        selection_bias: "Focuses on the policy dispute",
-        source_diversity: "Uses several relevant sources",
-        tone_bias: "Measured but skeptical",
-      },
-      fact_check_results: [
-        {
-          claim: "A disputed claim from the article",
-          confidence: "low",
-          evidence: "No confirming public record was provided.",
-          sources: [],
-          verification_status: "unverified",
-        },
-      ],
-      source_analysis: {
-        credibility_assessment: "medium",
-        funding_model: "subscriber supported",
-        ownership: "independent",
-        political_leaning: "left",
-        reputation: "established outlet",
-      },
-      success: true,
-      summary: "A concise summary for the selected article.",
-    });
+    const user = prepareAnalysisTest();
 
     renderWithQueryClient(
       <ArticleDetailModal
@@ -264,8 +286,10 @@ describe("articleDetailModal", () => {
     await user.click(screen.getByRole("button", { name: /run ai analysis/iu }));
 
     await expect(screen.findByText("AI Summary")).resolves.toBeInTheDocument();
-    expect(screen.getByText("A concise summary for the selected article.")).toBeInTheDocument();
-    expect(screen.getByText("1 claim ready for verification review")).toBeInTheDocument();
+    expect([
+      screen.getByText("A concise summary for the selected article."),
+      screen.getByText("1 claim ready for verification review"),
+    ]).toHaveLength(2);
 
     await user.click(screen.getByRole("button", { name: /expand for full ai analysis/iu }));
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, cast
 
 from openai import OpenAI
@@ -52,6 +52,7 @@ class AnalysisAxisScore:
         empirical_basis: str,
         scored_by: str = "llm",
     ):
+        """Initialize one scored source-analysis axis."""
         self.axis_name = axis_name
         self.score = max(1, min(5, score))
         self.confidence = confidence
@@ -61,6 +62,7 @@ class AnalysisAxisScore:
         self.scored_by = scored_by
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the axis score for API responses and persistence."""
         return {
             "axis_name": self.axis_name,
             "score": self.score,
@@ -80,6 +82,7 @@ class SourceAnalysisResult:
         scores: list[AnalysisAxisScore],
         org_updates: dict[str, Any] | None = None,
     ):
+        """Initialize a complete source-analysis result."""
         self.scores = scores
         self.org_updates = org_updates
 
@@ -103,38 +106,81 @@ def _wikipedia_citations(org: dict[str, Any], title: str) -> list[dict[str, str]
 def _ownership_risks(org: dict[str, Any]) -> tuple[list[str], list[Any], list[Any]]:
     parents = org.get("parent_orgs") or []
     owners = org.get("owned_by") or []
-    risks: list[str] = []
-    if len(parents) == 1 or len(owners) == 1:
-        risks.append("single concentrated owner")
-    elif len(parents) >= 3 or len(owners) >= 3:
-        risks.append("complex multi-owner structure")
+    return _ownership_structure_risks(parents, owners), parents, owners
+
+
+def _ownership_structure_risks(parents: list[Any], owners: list[Any]) -> list[str]:
+    return _owner_count_risks((len(parents), len(owners))) + _vertical_integration_risks(
+        parents, owners
+    )
+
+
+def _owner_count_risks(owner_counts: tuple[int, int]) -> list[str]:
+    if 1 in owner_counts:
+        return ["single concentrated owner"]
+    if any(count >= 3 for count in owner_counts):
+        return ["complex multi-owner structure"]
+    return []
+
+
+def _vertical_integration_risks(parents: list[Any], owners: list[Any]) -> list[str]:
     if parents and owners:
-        risks.append("vertical integration detected")
-    return risks, parents, owners
+        return ["vertical integration detected"]
+    return []
 
 
-def _funding_model_adjustment(
-    funding_type: str, org: dict[str, Any]
+def _disclosure_adjustment(
+    values: Any,
+    disclosed: tuple[int, list[str]],
+    undisclosed: tuple[int, list[str]],
 ) -> tuple[int, list[str]]:
-    if funding_type in {"state-funded", "state"}:
-        return 4, ["state-linked funding with uncertain transparency"]
-    if funding_type in {"commercial", "corporate"}:
-        advertisers = org.get("major_advertisers") or []
-        return (
-            (3, ["commercial with disclosed advertisers"])
-            if advertisers
-            else (4, ["commercial but undisclosed advertisers"])
-        )
-    if funding_type in {"non-profit", "nonprofit", "independent"}:
-        donors = org.get("top_donors") or []
-        return (
-            (2, ["nonprofit with disclosed donors"])
-            if donors
-            else (3, ["nonprofit with undisclosed donors"])
-        )
-    if funding_type in {"public", "public broadcaster"}:
-        return 3, ["public funding model"]
+    return disclosed if values else undisclosed
+
+
+def _state_funding_adjustment(_org: dict[str, Any]) -> tuple[int, list[str]]:
+    return 4, ["state-linked funding with uncertain transparency"]
+
+
+def _public_funding_adjustment(_org: dict[str, Any]) -> tuple[int, list[str]]:
+    return 3, ["public funding model"]
+
+
+def _commercial_funding_adjustment(org: dict[str, Any]) -> tuple[int, list[str]]:
+    return _disclosure_adjustment(
+        org.get("major_advertisers") or [],
+        (3, ["commercial with disclosed advertisers"]),
+        (4, ["commercial but undisclosed advertisers"]),
+    )
+
+
+def _nonprofit_funding_adjustment(org: dict[str, Any]) -> tuple[int, list[str]]:
+    return _disclosure_adjustment(
+        org.get("top_donors") or [],
+        (2, ["nonprofit with disclosed donors"]),
+        (3, ["nonprofit with undisclosed donors"]),
+    )
+
+
+def _default_funding_adjustment(_org: dict[str, Any]) -> tuple[int, list[str]]:
     return 3, []
+
+
+_FUNDING_MODEL_ADJUSTMENTS: dict[str, Callable[[dict[str, Any]], tuple[int, list[str]]]] = {
+    "state-funded": _state_funding_adjustment,
+    "state": _state_funding_adjustment,
+    "public": _public_funding_adjustment,
+    "public broadcaster": _public_funding_adjustment,
+    "commercial": _commercial_funding_adjustment,
+    "corporate": _commercial_funding_adjustment,
+    "non-profit": _nonprofit_funding_adjustment,
+    "nonprofit": _nonprofit_funding_adjustment,
+    "independent": _nonprofit_funding_adjustment,
+}
+
+
+def _funding_model_adjustment(funding_type: str, org: dict[str, Any]) -> tuple[int, list[str]]:
+    adjustment = _FUNDING_MODEL_ADJUSTMENTS.get(funding_type, _default_funding_adjustment)
+    return adjustment(org)
 
 
 def _transparency_adjustment(
@@ -173,6 +219,20 @@ def _credibility_numeric_score(value: float) -> int:
     return next((score for threshold, score in thresholds if value >= threshold), 5)
 
 
+def _normalise_context_value(primary: Any, fallback: Any = "") -> str:
+    return str(primary or fallback or "").lower()
+
+
+def _labelled_context_parts(
+    context: dict[str, Any], fields: tuple[tuple[str, str], ...]
+) -> list[str]:
+    return [f"{label}: {context[key]}" for key, label in fields if context.get(key)]
+
+
+def _list_context_part(label: str, values: Any) -> list[str]:
+    return [f"{label}: {', '.join(map(str, values[:5]))}"] if values else []
+
+
 def _org_prompt_sections(
     source_name: str, context: dict[str, Any], include: bool
 ) -> tuple[str, str]:
@@ -184,10 +244,10 @@ ADDITIONAL TASK - ORGANIZATION METADATA:
 The following organization fields are incomplete. Based on your knowledge
 of {source_name}, provide best-effort values for any missing fields.
 Currently known:
-- Funding type: {org.get('funding_type', 'Unknown')}
-- Parent organization: {org.get('parent_org', 'Unknown')}
-- Media bias rating: {org.get('media_bias_rating', 'Unknown')}
-- Factual reporting: {org.get('factual_reporting', 'Unknown')}
+- Funding type: {org.get("funding_type", "Unknown")}
+- Parent organization: {org.get("parent_org", "Unknown")}
+- Media bias rating: {org.get("media_bias_rating", "Unknown")}
+- Factual reporting: {org.get("factual_reporting", "Unknown")}
 """
     schema = """,
   "organization": {
@@ -257,10 +317,40 @@ def _axis_from_llm(axis_name: str, data: dict[str, Any]) -> AnalysisAxisScore | 
     )
 
 
+def _parsed_axis_scores(payload: dict[str, Any]) -> dict[str, AnalysisAxisScore]:
+    return {
+        axis: parsed for axis in _LLM_AXES if (parsed := _axis_from_llm(axis, payload)) is not None
+    }
+
+
+def _parsed_org_updates(
+    payload: dict[str, Any], include_org_metadata: bool
+) -> dict[str, Any] | None:
+    organization = payload.get("organization")
+    if include_org_metadata and isinstance(organization, dict):
+        return organization
+    return None
+
+
+def _funding_score_details(
+    score: int,
+    parents: list[Any],
+    owners: list[Any],
+    risks: list[str],
+    advertisers: Any,
+) -> tuple[int, str, int]:
+    if parents and owners:
+        score = max(score, 4)
+    summary = "; ".join(risks) if risks else "minimal funding data available"
+    advertiser_count = len(advertisers) if isinstance(advertisers, list) else 0
+    return score, summary, advertiser_count
+
+
 class SourceAnalysisScorer:
     """Score sources on funding, network, bias, credibility, and framing risk."""
 
     def __init__(self) -> None:
+        """Initialize the scorer with the configured OpenAI client."""
         self.client: OpenAI | None = get_openai_client()
 
     async def score_source(
@@ -270,6 +360,7 @@ class SourceAnalysisScorer:
         source_metadata: dict[str, Any] | None = None,
         article_corpus_stats: dict[str, Any] | None = None,
     ) -> SourceAnalysisResult:
+        """Score a source from organization, source, and corpus context."""
         context = self._build_context(source_name, org_data, source_metadata, article_corpus_stats)
         needs_org_enhancement = bool(
             org_data is not None and org_data.get("research_confidence") != "high"
@@ -303,15 +394,20 @@ class SourceAnalysisScorer:
         """Score funding transparency and structural concentration, not funding ideology."""
         org = context.get("org_data", {})
         metadata = context.get("source_metadata", {})
-        funding_type = str(org.get("funding_type") or metadata.get("funding_type") or "").lower()
-        transparency = str(org.get("funding_transparency") or "").lower()
+        funding_type = _normalise_context_value(
+            org.get("funding_type"), metadata.get("funding_type")
+        )
+        transparency = _normalise_context_value(org.get("funding_transparency"))
         ownership_risks, parents, owners = _ownership_risks(org)
         score, transparency_risks = _transparency_adjustment(transparency, funding_type, org)
         risks = ownership_risks + transparency_risks + _advertiser_risks(org)
-        if parents and owners:
-            score = max(score, 4)
-        advertisers = org.get("major_advertisers") or []
-        summary = "; ".join(risks) if risks else "minimal funding data available"
+        score, summary, advertiser_count = _funding_score_details(
+            score,
+            parents,
+            owners,
+            risks,
+            org.get("major_advertisers"),
+        )
         return AnalysisAxisScore(
             axis_name="funding",
             score=score,
@@ -324,7 +420,7 @@ class SourceAnalysisScorer:
             empirical_basis=(
                 f"Funding transparency={transparency or 'missing'}, funding_type={funding_type or 'missing'}, "
                 f"observed parent_orgs={len(parents)}, disclosed advertisers="
-                f"{len(advertisers) if isinstance(advertisers, list) else 0}."
+                f"{advertiser_count}."
             ),
             scored_by="data",
         )
@@ -397,15 +493,11 @@ class SourceAnalysisScorer:
         if payload is None:
             logger.error("No valid JSON found in LLM response for %s", source_name)
             return {"scores": {}}
-        scores = {
-            axis: parsed
-            for axis in _LLM_AXES
-            if (parsed := _axis_from_llm(axis, payload)) is not None
-        }
+        scores = _parsed_axis_scores(payload)
         output: dict[str, Any] = {"scores": scores}
-        organization = payload.get("organization")
-        if include_org_metadata and isinstance(organization, dict):
-            output["org_updates"] = organization
+        org_updates = _parsed_org_updates(payload, include_org_metadata)
+        if org_updates is not None:
+            output["org_updates"] = org_updates
         return output
 
     async def _llm_score_axes(
@@ -417,9 +509,7 @@ class SourceAnalysisScorer:
         if not self.client:
             logger.warning("No LLM client available; skipping LLM-scored axes")
             return {"scores": {}}
-        org_metadata, org_schema = _org_prompt_sections(
-            source_name, context, include_org_metadata
-        )
+        org_metadata, org_schema = _org_prompt_sections(source_name, context, include_org_metadata)
         prompt = _llm_prompt(
             source_name,
             self._format_context_for_llm(source_name, context),
@@ -444,14 +534,11 @@ class SourceAnalysisScorer:
             ("factual_reporting", "Factual reporting"),
             ("parent_org", "Parent organization"),
         )
-        parts = [f"{label}: {org[key]}" for key, label in scalar_fields if org.get(key)]
-        advertisers = org.get("major_advertisers") or []
-        funding_sources = org.get("funding_sources") or []
-        if advertisers:
-            parts.append(f"Major advertisers: {', '.join(map(str, advertisers[:5]))}")
-        if funding_sources:
-            parts.append(f"Funding sources: {', '.join(map(str, funding_sources[:5]))}")
-        return parts
+        return (
+            _labelled_context_parts(org, scalar_fields)
+            + _list_context_part("Major advertisers", org.get("major_advertisers"))
+            + _list_context_part("Funding sources", org.get("funding_sources"))
+        )
 
     @staticmethod
     def _metadata_context_parts(metadata: dict[str, Any]) -> list[str]:

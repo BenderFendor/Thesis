@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, UTC
-from sqlalchemy import select, desc
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.database import ReadingQueueItem, ReadingShelf
-from app.models.reading_queue import ReadingQueueItem as ReadingQueueItemSchema
 from app.models.reading_queue import (
     AddToQueueRequest,
     CreateShelfRequest,
     QueueOverviewResponse,
-    ReadingShelf as ReadingShelfSchema,
-    UpdateShelfRequest,
     UpdateQueueItemRequest,
+    UpdateShelfRequest,
 )
-from app.core.logging import get_logger
+from app.models.reading_queue import ReadingQueueItem as ReadingQueueItemSchema
+from app.models.reading_queue import (
+    ReadingShelf as ReadingShelfSchema,
+)
 
 logger = get_logger("reading_queue_service")
 
@@ -53,16 +56,54 @@ def get_word_count(text: str | None) -> int | None:
     return len(text.split())
 
 
+async def _update_existing_item(
+    session: AsyncSession,
+    item: ReadingQueueItem,
+    request: AddToQueueRequest,
+) -> ReadingQueueItemSchema:
+    if request.why_saved is not None:
+        item.why_saved = request.why_saved
+    if request.unresolved_question is not None:
+        item.unresolved_question = request.unresolved_question
+    if request.shelf_id is not None:
+        item.shelf_id = request.shelf_id
+    if any(
+        value is not None
+        for value in (request.why_saved, request.unresolved_question, request.shelf_id)
+    ):
+        item.updated_at = _naive_utc_now()
+        await session.commit()
+        await session.refresh(item)
+    return ReadingQueueItemSchema.from_attributes(item)
+
+
+async def _extract_queue_metrics(
+    article_url: str,
+) -> tuple[str | None, int | None, int | None]:
+    from app.services.article_extraction import (
+        calculate_read_time_minutes,
+        calculate_word_count,
+        extract_article_full_text,
+    )
+
+    try:
+        extraction_result = await extract_article_full_text(article_url)
+        if not extraction_result.get("success"):
+            return None, None, None
+        full_text = extraction_result.get("text")
+        word_count = calculate_word_count(full_text)
+        estimated_read_time = calculate_read_time_minutes(full_text)
+        logger.info("Extracted %d words from %s", word_count or 0, article_url)
+        return full_text, word_count, estimated_read_time
+    except Exception as exc:
+        logger.warning("Could not extract full text from %s: %s", article_url, exc)
+        return None, None, None
+
+
 async def add_to_queue(
     session: AsyncSession, request: AddToQueueRequest, user_id: int = 1
 ) -> ReadingQueueItemSchema:
     """Add an article to the reading queue."""
-    from app.services.article_extraction import (
-        extract_article_full_text,
-        calculate_word_count,
-        calculate_read_time_minutes,
-    )
-
     # Check if article already exists in queue
     existing = await session.execute(
         select(ReadingQueueItem).where(ReadingQueueItem.article_url == request.article_url)
@@ -71,21 +112,7 @@ async def add_to_queue(
 
     if existing_item:
         logger.info("Article %s already in queue, skipping duplicate", request.article_url)
-        if request.why_saved is not None:
-            existing_item.why_saved = request.why_saved
-        if request.unresolved_question is not None:
-            existing_item.unresolved_question = request.unresolved_question
-        if request.shelf_id is not None:
-            existing_item.shelf_id = request.shelf_id
-        if (
-            request.why_saved is not None
-            or request.unresolved_question is not None
-            or request.shelf_id is not None
-        ):
-            existing_item.updated_at = _naive_utc_now()
-            await session.commit()
-            await session.refresh(existing_item)
-        return ReadingQueueItemSchema.from_attributes(existing_item)
+        return await _update_existing_item(session, existing_item, request)
 
     # Get max position for new items (add to top)
     max_pos = await session.execute(
@@ -94,28 +121,7 @@ async def add_to_queue(
     max_position_item = max_pos.scalar_one_or_none()
     new_position = ((max_position_item.position or 0) + 1) if max_position_item else 0
 
-    # Extract full text and calculate metrics
-    full_text = None
-    word_count = None
-    estimated_read_time = None
-
-    try:
-        extraction_result = await extract_article_full_text(request.article_url)
-        if extraction_result.get("success"):
-            full_text = extraction_result.get("text")
-            word_count = calculate_word_count(full_text)
-            estimated_read_time = calculate_read_time_minutes(full_text)
-            logger.info(
-                "Extracted %d words from %s",
-                word_count or 0,
-                request.article_url,
-            )
-    except Exception as e:
-        logger.warning(
-            "Could not extract full text from %s: %s",
-            request.article_url,
-            e,
-        )
+    full_text, word_count, estimated_read_time = await _extract_queue_metrics(request.article_url)
 
     queue_item = ReadingQueueItem(
         user_id=user_id,
@@ -291,34 +297,39 @@ async def remove_by_url(session: AsyncSession, article_url: str) -> bool:
     return True
 
 
+def _queue_overview_counts(items: list[ReadingQueueItem]) -> dict[str, int]:
+    counts = {
+        "total_items": 0,
+        "daily_items": 0,
+        "permanent_items": 0,
+        "unread_count": 0,
+        "reading_count": 0,
+        "completed_count": 0,
+        "estimated_total_read_time_minutes": 0,
+    }
+    for item in items:
+        counts["total_items"] += 1
+        if item.queue_type == "daily":
+            counts["daily_items"] += 1
+        elif item.queue_type == "permanent":
+            counts["permanent_items"] += 1
+        if item.read_status == "unread":
+            counts["unread_count"] += 1
+            counts["estimated_total_read_time_minutes"] += item.estimated_read_time_minutes or 0
+        elif item.read_status == "reading":
+            counts["reading_count"] += 1
+        elif item.read_status == "completed":
+            counts["completed_count"] += 1
+    return counts
+
+
 async def get_queue_overview(session: AsyncSession, user_id: int = 1) -> QueueOverviewResponse:
     """Get queue statistics and overview."""
     result = await session.execute(
         select(ReadingQueueItem).where(ReadingQueueItem.user_id == user_id)
     )
     items = result.scalars().all()
-
-    total_items = len(items)
-    daily_items = sum(1 for item in items if item.queue_type == "daily")
-    permanent_items = sum(1 for item in items if item.queue_type == "permanent")
-    unread_count = sum(1 for item in items if item.read_status == "unread")
-    reading_count = sum(1 for item in items if item.read_status == "reading")
-    completed_count = sum(1 for item in items if item.read_status == "completed")
-
-    # Calculate total estimated read time from items that have it
-    total_read_time = sum(
-        (item.estimated_read_time_minutes or 0) for item in items if item.read_status == "unread"
-    )
-
-    return QueueOverviewResponse(
-        total_items=total_items,
-        daily_items=daily_items,
-        permanent_items=permanent_items,
-        unread_count=unread_count,
-        reading_count=reading_count,
-        completed_count=completed_count,
-        estimated_total_read_time_minutes=total_read_time,
-    )
+    return QueueOverviewResponse(**_queue_overview_counts(items))
 
 
 async def get_queue_item_by_id(

@@ -33,7 +33,7 @@ export function SemanticTags({
   }
 
   if (error || topics.length === 0) {
-    return undefined;
+    return;
   }
 
   return (

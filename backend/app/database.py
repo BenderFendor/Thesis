@@ -1,28 +1,42 @@
 """Database."""
 
+import asyncio
+import logging
+import os
+import re
+import threading
+import time
+from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime
+from importlib import import_module
+from typing import Any, Protocol, cast
+
 from sqlalchemy import (
-    and_,
-    cast as sa_cast,
+    JSON,
+    Boolean,
     Column,
-    ForeignKey,
+    DateTime,
     Float,
+    ForeignKey,
     Index,
     Integer,
     String,
     Text,
-    DateTime,
-    Boolean,
-    JSON,
-    select,
-    or_,
+    and_,
     func,
     inspect,
+    or_,
+    select,
+)
+from sqlalchemy import (
+    cast as sa_cast,
+)
+from sqlalchemy import (
     text as sqlalchemy_text,
 )
-from importlib import import_module
-import re
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Connection, Dialect
+from sqlalchemy.exc import CompileError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -31,16 +45,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.types import TypeDecorator, JSON as JsonType, TypeEngine
-import asyncio
-import time
-from datetime import datetime, UTC
-import os
-import logging
-import threading
-from typing import Any, Protocol, cast
-from collections.abc import AsyncGenerator, Iterator
+from sqlalchemy.types import JSON as JsonType
+from sqlalchemy.types import TypeDecorator, TypeEngine
+
+from app.models.evidence_tables import EVIDENCE_SPINE_TABLES
 
 
 class _DatabaseSettings(Protocol):
@@ -1177,11 +1185,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 def _alembic_managed_table_names() -> frozenset[str]:
     """Tables owned by an Alembic revision, not by ad hoc create_all.
 
-    Imported lazily (not at module scope) to avoid a circular import: the
-    evidence models import ``Base`` from this module.
+    The table-name metadata is kept in a dependency-free module so this
+    function does not need to import SQLAlchemy models during startup.
     """
-    from app.models.evidence import EVIDENCE_SPINE_TABLES
-
     return frozenset(EVIDENCE_SPINE_TABLES)
 
 
@@ -1190,8 +1196,7 @@ async def init_db() -> None:
 
     Tables owned by an Alembic revision (see `_alembic_managed_table_names`)
     are deliberately skipped here. Alembic must be the sole authority that
-    creates or alters those tables -- see the comment on
-    `EVIDENCE_SPINE_TABLES` in app/models/evidence.py for why.
+    creates or alters those tables; see `app.models.evidence_tables` for why.
     """
     db_engine = get_engine()
     if db_engine is None:
@@ -1238,7 +1243,7 @@ async def init_db() -> None:
                     try:
                         cols = insp.get_columns(table.name, schema="public")
                         result[table.name] = {c["name"] for c in cols}
-                    except Exception:
+                    except SQLAlchemyError:
                         result[table.name] = set()
                 return result
 
@@ -1256,7 +1261,7 @@ async def init_db() -> None:
                         continue
                     try:
                         pg_type = col.type.compile(dialect=c.dialect)
-                    except Exception:
+                    except CompileError:
                         col_type_str = str(col.type).upper().split("(")[0]
                         sa_type_to_pg = {
                             "INTEGER": "INTEGER",
@@ -1355,7 +1360,10 @@ async def init_db() -> None:
         for err in _iter_exception_chain(exc):
             if isinstance(err, OperationalError):
                 return True
-            if err.__class__.__module__.startswith("asyncpg") and err.__class__.__name__ in transient_asyncpg:
+            if (
+                err.__class__.__module__.startswith("asyncpg")
+                and err.__class__.__name__ in transient_asyncpg
+            ):
                 return True
             message = str(err).lower()
             if any(marker in message for marker in message_markers):
@@ -1420,13 +1428,16 @@ async def init_db() -> None:
                 await _recover_existing_objects()
                 return
             if _startup_retry_exhausted(exc):
-                logger.error("Failed to initialize database: %s", exc, exc_info=True)
+                logger.exception("Failed to initialize database")
                 raise
             attempt += 1
             remaining = max(0.0, deadline - time.monotonic())
             logger.warning(
                 "Database not ready yet (attempt %d). Retrying in %.2fs (%.1fs left): %s",
-                attempt, delay_seconds, remaining, exc,
+                attempt,
+                delay_seconds,
+                remaining,
+                exc,
             )
             await asyncio.sleep(delay_seconds)
             delay_seconds = min(delay_seconds * 1.5, 5.0)
@@ -1471,7 +1482,6 @@ def article_record_to_dict(record: Article) -> dict[str, Any]:
         "source_country": record.country,
         "mentioned_countries": record.mentioned_countries or [],
     }
-
 
 
 def _normalize_search_query(query: str) -> str:
@@ -1720,7 +1730,9 @@ def _article_page_filters(
     if source:
         filters.append(Article.source == source)
     if missing_embeddings_only:
-        filters.append(or_(Article.embedding_generated.is_(False), Article.embedding_generated.is_(None)))
+        filters.append(
+            or_(Article.embedding_generated.is_(False), Article.embedding_generated.is_(None))
+        )
     if published_before:
         filters.append(Article.published_at <= published_before)
     if published_after:
@@ -1735,7 +1747,9 @@ async def _filtered_article_count(session: AsyncSession, filters: list[Any]) -> 
     return int((await session.execute(stmt)).scalar_one())
 
 
-async def _article_date_range(session: AsyncSession, filters: list[Any]) -> tuple[datetime | None, datetime | None]:
+async def _article_date_range(
+    session: AsyncSession, filters: list[Any]
+) -> tuple[datetime | None, datetime | None]:
     stmt = select(func.min(Article.published_at), func.max(Article.published_at))
     if filters:
         stmt = stmt.where(*filters)
@@ -1753,8 +1767,14 @@ async def fetch_articles_page(
     published_after: datetime | None = None,
 ) -> dict[str, Any]:
     """Paginate through article rows for debugging and inspection."""
-    order_clause = Article.published_at.asc() if sort_direction.lower() == "asc" else Article.published_at.desc()
-    filters = _article_page_filters(source, missing_embeddings_only, published_before, published_after)
+    order_clause = (
+        Article.published_at.asc()
+        if sort_direction.lower() == "asc"
+        else Article.published_at.desc()
+    )
+    filters = _article_page_filters(
+        source, missing_embeddings_only, published_before, published_after
+    )
     stmt = select(Article).order_by(order_clause, Article.id.desc()).limit(limit).offset(offset)
     if filters:
         stmt = stmt.where(*filters)
@@ -1769,7 +1789,6 @@ async def fetch_articles_page(
         "oldest_published": _isoformat_optional(oldest),
         "newest_published": _isoformat_optional(newest),
     }
-
 
 
 async def fetch_article_chroma_mappings(session: AsyncSession) -> list[dict[str, Any]]:

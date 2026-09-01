@@ -191,9 +191,24 @@ async def fetch_html_document(
     preserved as blocked, and fallback output is returned only as another fetch result.
     Callers must still validate source host, author name, and evidence type.
     """
+    direct = await _fetch_direct_html_document(http_client, url, timeout_seconds)
+    if (
+        not use_cloudscraper
+        or _redirected_to_site_root(url, direct.url)
+        or not _should_try_cloudscraper(direct)
+    ):
+        return direct
+    return await _fetch_cloudscraper_document(url, timeout_seconds, direct)
+
+
+async def _fetch_direct_html_document(
+    http_client: httpx.AsyncClient,
+    url: str,
+    timeout_seconds: float,
+) -> FetchOutcome:
     try:
         response = await http_client.get(url, follow_redirects=True, timeout=timeout_seconds)
-        direct = FetchOutcome(
+        return FetchOutcome(
             url=str(response.url),
             status_code=response.status_code,
             headers={str(key).lower(): str(value) for key, value in response.headers.items()},
@@ -202,14 +217,14 @@ async def fetch_html_document(
         )
     except Exception as exc:
         logger.debug("Direct fetch failed for %s: %s", url, exc)
-        direct = FetchOutcome(url=url, access_path="direct", error=str(exc))
+        return FetchOutcome(url=url, access_path="direct", error=str(exc))
 
-    if (
-        not use_cloudscraper
-        or _redirected_to_site_root(url, direct.url)
-        or not _should_try_cloudscraper(direct)
-    ):
-        return direct
+
+async def _fetch_cloudscraper_document(
+    url: str,
+    timeout_seconds: float,
+    direct: FetchOutcome,
+) -> FetchOutcome:
 
     hard_timeout = float(
         os.getenv("THESIS_CLOUDSCRAPER_HARD_TIMEOUT_SECONDS", str(timeout_seconds + 8.0))

@@ -82,9 +82,7 @@ def _row_outlet_name(row: dict[str, str]) -> str:
     return _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
 
 
-def _attach_factuality_row(
-    lookup: dict[str, dict[str, str]], row: dict[str, str]
-) -> None:
+def _attach_factuality_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> None:
     name = _row_outlet_name(row)
     factuality = row.get("factuality", row.get("factual_reporting", "")).strip().lower()
     if not name or not factuality:
@@ -106,9 +104,7 @@ def _attach_bias_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> 
     entry["provenance"] = "mbfc_dataset_v1"
 
 
-def _attach_ownership_row(
-    lookup: dict[str, dict[str, str]], row: dict[str, str]
-) -> None:
+def _attach_ownership_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> None:
     name = _row_outlet_name(row)
     ownership = row.get("ownership", "").strip()
     country = row.get("country", "").strip()
@@ -234,9 +230,7 @@ def _mbfc_enrichment_for_employers(
     return {}
 
 
-def _apply_mbfc_leaning(
-    reporter: dict[str, Any], enrichment: dict[str, Any]
-) -> dict[str, Any]:
+def _apply_mbfc_leaning(reporter: dict[str, Any], enrichment: dict[str, Any]) -> dict[str, Any]:
     """Add MBFC data to a reporter copy, attaching a leaning label when applicable."""
     enriched_reporter = dict(reporter)
     enriched_reporter["mbfc_data"] = enrichment
@@ -271,9 +265,7 @@ def attach_mbfc_to_reporters(
 
     enriched: list[dict[str, Any]] = []
     for reporter in reporters:
-        enrichment = _mbfc_enrichment_for_employers(
-            reporter.get("id"), employer_map, mbfc_lookup
-        )
+        enrichment = _mbfc_enrichment_for_employers(reporter.get("id"), employer_map, mbfc_lookup)
         if not enrichment:
             enriched.append(reporter)
             continue

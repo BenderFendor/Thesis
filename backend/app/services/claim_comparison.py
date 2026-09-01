@@ -71,9 +71,7 @@ def _ranges_overlap(left: tuple[Decimal, Decimal], right: tuple[Decimal, Decimal
     return max(left[0], right[0]) <= min(left[1], right[1])
 
 
-def _normalized_dimensions(
-    left: ComparableClaim, right: ComparableClaim
-) -> dict[str, Any]:
+def _normalized_dimensions(left: ComparableClaim, right: ComparableClaim) -> dict[str, Any]:
     """Build the normalized dimension view for both claims."""
     return {"left": _dimension_view(left), "right": _dimension_view(right)}
 
@@ -154,9 +152,7 @@ def _status_mismatch(
 def _same_object_comparison(
     left: ComparableClaim, right: ComparableClaim, normalized: dict[str, Any]
 ) -> ClaimComparison:
-    left_object = (
-        left.object_entity_id if left.object_entity_id is not None else left.object_value
-    )
+    left_object = left.object_entity_id if left.object_entity_id is not None else left.object_value
     right_object = (
         right.object_entity_id if right.object_entity_id is not None else right.object_value
     )

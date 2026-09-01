@@ -8,23 +8,23 @@ import {
 type LikedListener = (ids: Set<number>) => void
 type ErrorListener = (error: string | null) => void
 
-let likedCache: Set<number> | null = null
-let likedLoaded = false
-let likedLoading = false
-let likedError: string | null = null
-const likedListeners = new Set<LikedListener>()
-const errorListeners = new Set<ErrorListener>()
+let likedCache: Set<number> | null = null,
+ likedError: string | null = null,
+ likedLoaded = false,
+ likedLoading = false
+const likedListeners = new Set<LikedListener>(),
+ errorListeners = new Set<ErrorListener>(),
 
-const notifyLikedListeners = (ids: Set<number>) => {
-  likedListeners.forEach((listener) => listener(new Set(ids)))
-}
+ notifyLikedListeners = (ids: Set<number>) => {
+  likedListeners.forEach((listener) =>{  listener(new Set(ids)); })
+},
 
-const notifyErrorListeners = (error: string | null) => {
-  errorListeners.forEach((listener) => listener(error))
-}
+ notifyErrorListeners = (error: string | null) => {
+  errorListeners.forEach((listener) =>{  listener(error); })
+},
 
-const loadLikedFromApi = async () => {
-  if (likedLoading) return
+ loadLikedFromApi = async () => {
+  if (likedLoading) {return}
   likedLoading = true
   likedError = null
   notifyErrorListeners(null)
@@ -37,7 +37,7 @@ const loadLikedFromApi = async () => {
   } catch (error) {
     likedError = error instanceof Error ? error.message : "Failed to load liked articles"
     notifyErrorListeners(likedError)
-    return undefined
+    return
   } finally {
     likedLoading = false
   }
@@ -46,16 +46,16 @@ const loadLikedFromApi = async () => {
 export function useLikedArticles() {
   const [likedIds, setLikedIds] = useState<Set<number>>(
     likedCache ? new Set(likedCache) : new Set()
-  )
-  const [isLoaded, setIsLoaded] = useState(likedLoaded)
-  const [error, setError] = useState<string | null>(likedError)
+  ),
+   [isLoaded, setIsLoaded] = useState(likedLoaded),
+   [error, setError] = useState<string | null>(likedError)
 
   useEffect(() => {
     const likedListener = (ids: Set<number>) => {
       setLikedIds(ids)
       setIsLoaded(true)
-    }
-    const errListener = (err: string | null) => setError(err)
+    },
+     errListener = (err: string | null) =>{  setError(err); }
 
     likedListeners.add(likedListener)
     errorListeners.add(errListener)
@@ -70,23 +70,23 @@ export function useLikedArticles() {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
-    return loadLikedFromApi()
-  }, [])
+  const refresh = useCallback(async () =>
+    loadLikedFromApi()
+  , []),
 
-  const isLiked = useCallback(
-    (articleId: number) => {
-      return likedIds.has(articleId)
-    },
+   isLiked = useCallback(
+    (articleId: number) =>
+      likedIds.has(articleId)
+    ,
     [likedIds]
-  )
+  ),
 
-  const toggleLike = useCallback(
+   toggleLike = useCallback(
     async (articleId: number) => {
-      if (!articleId) return
-      const current = likedCache ?? likedIds
-      const next = new Set(current)
-      const wasLiked = next.has(articleId)
+      if (!articleId) {return}
+      const current = likedCache ?? likedIds,
+       next = new Set(current),
+       wasLiked = next.has(articleId)
 
       if (wasLiked) {
         next.delete(articleId)
@@ -113,11 +113,11 @@ export function useLikedArticles() {
   )
 
   return {
-    likedIds,
-    isLiked,
-    toggleLike,
-    refresh,
-    isLoaded,
     error,
+    isLiked,
+    isLoaded,
+    likedIds,
+    refresh,
+    toggleLike,
   }
 }

@@ -11,7 +11,6 @@ Provides endpoints for:
 from __future__ import annotations
 
 from collections.abc import Sequence
-
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,17 +26,17 @@ from app.database import (
     ArticleAuthor,
     Organization,
     Reporter,
+    SourceAnalysisScore,
     SourceClaim,
     SourceClaimEvidence,
-    SourceAnalysisScore,
     SourceMetadata,
     WikiIndexStatus,
     get_db,
 )
-from app.services.source_research import get_source_profile
 from app.services.reporter_career_timeline import build_reporter_career_timeline
 from app.services.reporter_public_records import build_reporter_activity_summary
 from app.services.source_ledger import build_source_ledger
+from app.services.source_research import get_source_profile
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
 logger = get_logger("wiki_routes")
@@ -65,9 +64,7 @@ def _overview_part(label: str, value: str) -> str | None:
     return f"{label}: {value}."
 
 
-def _source_overview_parts(
-    source_config: dict[str, Any], meta: SourceMetadata | None
-) -> list[str]:
+def _source_overview_parts(source_config: dict[str, Any], meta: SourceMetadata | None) -> list[str]:
     """Build the catalog-based overview sentences for a source."""
     return [
         part
@@ -78,7 +75,9 @@ def _source_overview_parts(
             _overview_part(
                 "Parent organization", str((meta.parent_company if meta else "") or "").strip()
             ),
-            _overview_part("Catalog bias label", str(source_config.get("bias_rating") or "").strip()),
+            _overview_part(
+                "Catalog bias label", str(source_config.get("bias_rating") or "").strip()
+            ),
         )
         if part
     ]
@@ -644,7 +643,7 @@ async def _load_source_profile(
                 force_refresh=False,
                 cache_only=True,
             )
-        except Exception:
+        except (OSError, TypeError, ValueError):
             source_profile = None
         if source_profile is not None:
             return source_profile
@@ -1232,12 +1231,12 @@ async def trigger_reporter_index(
     mode=unresolved: Only index unresolved article authors.
     mode=sparql: Only run Wikidata SPARQL seed.
     """
+    import httpx
+
     from app.services.reporter_indexer import (
         index_unresolved_reporters,
         seed_reporters_from_wikidata,
     )
-
-    import httpx
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         if mode in ("all", "sparql"):

@@ -1,4 +1,4 @@
-import type { ComponentProps, CSSProperties } from "react";
+import type { CSSProperties, ComponentProps } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -32,13 +32,13 @@ import { hasRealImage } from "@/app/saved/saved-workspace-model";
 import type { SavedArticle } from "@/app/saved/saved-workspace-model";
 import type { SavedWorkspaceController } from "@/app/saved/use-saved-workspace-controller";
 
-const CARD_OFFSET_STEP_PX = 4;
-const CARD_OFFSET_LIMIT_PX = 16;
-const CARD_OVERLAP_PX = -8;
-const LIST_POSITION_OFFSET = 1;
-const QUEUE_PREVIEW_LIMIT = 5;
-const ARTICLE_THUMBNAIL_SIZE = 64;
-const QUEUE_THUMBNAIL_SIZE = 80;
+const CARD_OFFSET_LIMIT_PX = 16,
+ CARD_OFFSET_STEP_PX = 4,
+ CARD_OVERLAP_PX = -8,
+ ARTICLE_THUMBNAIL_SIZE = 64,
+ LIST_POSITION_OFFSET = 1,
+ QUEUE_PREVIEW_LIMIT = 5,
+ QUEUE_THUMBNAIL_SIZE = 80;
 
 interface EmptyStateCardProps {
   readonly cardClassName?: string;
@@ -105,9 +105,9 @@ const getCardFrameStyle = (isExpanded: boolean): CSSProperties => {
     outlineOffset: "0px",
     outlineWidth: "0px",
   };
-};
+},
 
-const getArticleStackStyle = (index?: number): CSSProperties => {
+ getArticleStackStyle = (index?: number): CSSProperties => {
   if (index === undefined) {
     return {};
   }
@@ -115,12 +115,12 @@ const getArticleStackStyle = (index?: number): CSSProperties => {
     marginLeft: `${Math.min(index * CARD_OFFSET_STEP_PX, CARD_OFFSET_LIMIT_PX)}px`,
     marginTop: index > 0 ? `${CARD_OVERLAP_PX}px` : "0px",
   };
-};
+},
 
-const articleKey = (article: Readonly<NewsArticle>): string =>
-  `${article.id}:${article.url}`;
+ articleKey = (article: Readonly<NewsArticle>): string =>
+  `${article.id}:${article.url}`,
 
-const EmptyStateCard = ({
+ EmptyStateCard = ({
   cardClassName = "",
   description,
   icon: Icon,
@@ -141,9 +141,9 @@ const EmptyStateCard = ({
       )}
     </CardContent>
   </Card>
-);
+),
 
-const ShelfList = ({
+ ShelfList = ({
   shelves,
   loading,
 }: Readonly<{
@@ -175,9 +175,9 @@ const ShelfList = ({
       ))}
     </div>
   );
-};
+},
 
-const ResearchShelvesCard = ({
+ ResearchShelvesCard = ({
   isPending,
   newShelfName,
   onCreateShelf,
@@ -187,8 +187,8 @@ const ResearchShelvesCard = ({
 }: Readonly<ResearchShelvesCardProps>) => {
   const handleChange: NonNullable<ComponentProps<"input">["onChange"]> = (event) => {
     onNewShelfNameChange(event.target.value);
-  };
-  const handleKeyDown: NonNullable<ComponentProps<"input">["onKeyDown"]> = (event) => {
+  },
+   handleKeyDown: NonNullable<ComponentProps<"input">["onKeyDown"]> = (event) => {
     if (event.key === "Enter") {
       onCreateShelf();
     }
@@ -221,31 +221,31 @@ const ResearchShelvesCard = ({
       </CardContent>
     </Card>
   );
-};
+},
 
-const ArticleKindIcon = ({ kind }: Readonly<{ kind: SavedArticle["type"] }>) => {
+ ArticleKindIcon = ({ kind }: Readonly<{ kind: SavedArticle["type"] }>) => {
   if (kind === "liked") {
     return <Heart className="h-3.5 w-3.5 fill-current" />;
   }
   return <Bookmark className="h-3.5 w-3.5 fill-current" />;
-};
+},
 
-const ExpandIndicator = ({ expanded }: Readonly<{ expanded: boolean }>) => {
+ ExpandIndicator = ({ expanded }: Readonly<{ expanded: boolean }>) => {
   if (expanded) {
     return <ChevronDown className="h-5 w-5 text-muted-foreground" />;
   }
   return <ChevronRight className="h-5 w-5 text-muted-foreground" />;
-};
+},
 
-const ArticleCardHeader = ({
+ ArticleCardHeader = ({
   article,
   isExpanded,
 }: Readonly<{
   article: Readonly<SavedArticle>;
   isExpanded: boolean;
 }>) => {
-  const showImage = hasRealImage(article.image);
-  const readTime = article._queueData?.readingTimeMinutes;
+  const showImage = hasRealImage(article.image),
+   readTime = article._queueData?.readingTimeMinutes;
   return (
     <div className="flex items-start gap-3">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
@@ -292,9 +292,9 @@ const ArticleCardHeader = ({
       </div>
     </div>
   );
-};
+},
 
-const CardActionButtons = ({
+ CardActionButtons = ({
   article,
   bookmarkIds,
   inQueue,
@@ -304,12 +304,12 @@ const CardActionButtons = ({
   onRead,
   onToggleQueue,
 }: Readonly<ArticleActionProps>) => {
-  const isLiked = likedIds.has(article.id);
-  const isBookmarked = bookmarkIds.has(article.id);
-  const handleRead = () => onRead(article);
-  const handleQueue = () => onToggleQueue(article);
-  const handleLike = () => void onLike(article.id);
-  const handleBookmark = () => void onBookmark(article.id);
+  const isLiked = likedIds.has(article.id),
+   isBookmarked = bookmarkIds.has(article.id),
+   handleRead = () =>{  onRead(article); },
+   handleQueue = () =>{  onToggleQueue(article); },
+   handleLike = () => void onLike(article.id),
+   handleBookmark = () => void onBookmark(article.id);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" onClick={handleRead}>Read Article</Button>
@@ -342,9 +342,9 @@ const CardActionButtons = ({
       </Button>
     </div>
   );
-};
+},
 
-const ExpandedArticleContent = ({
+ ExpandedArticleContent = ({
   article,
   bookmarkIds,
   inQueue,
@@ -356,7 +356,7 @@ const ExpandedArticleContent = ({
   onToggleQueue,
 }: Readonly<ArticleActionProps & { isExpanded: boolean }>) => {
   if (!isExpanded) {
-    return undefined;
+    return;
   }
   return (
     <div className="mt-4 border-t border-border/50 pt-4">
@@ -387,9 +387,9 @@ const ExpandedArticleContent = ({
       />
     </div>
   );
-};
+},
 
-const ArticleCard = ({
+ ArticleCard = ({
   article,
   bookmarkIds,
   inQueue,
@@ -404,7 +404,7 @@ const ArticleCard = ({
 }: Readonly<ArticleCardProps>) => {
   const handleToggleExpanded = () => {
     if (isExpanded) {
-      onToggleExpanded(undefined);
+      onToggleExpanded(void 0);
       return;
     }
     onToggleExpanded(article.url);
@@ -436,9 +436,9 @@ const ArticleCard = ({
       </div>
     </div>
   );
-};
+},
 
-const ArticleList = ({ articles, controller }: Readonly<ArticleListProps>) => (
+ ArticleList = ({ articles, controller }: Readonly<ArticleListProps>) => (
   <div className="space-y-3">
     {articles.map((article, index) => (
       <ArticleCard
@@ -457,18 +457,18 @@ const ArticleList = ({ articles, controller }: Readonly<ArticleListProps>) => (
       />
     ))}
   </div>
-);
+),
 
-const LoadingState = ({ label }: Readonly<{ label: string }>) => (
+ LoadingState = ({ label }: Readonly<{ label: string }>) => (
   <div className="flex items-center justify-center py-12">
     <Loader2 className="mr-3 h-8 w-8 animate-spin" />
     <span className="text-muted-foreground">{label}</span>
   </div>
-);
+),
 
-const DigestPanel = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ DigestPanel = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   if (!controller.showDigest || controller.digest === undefined) {
-    return undefined;
+    return;
   }
   return (
     <div className="mb-6">
@@ -485,9 +485,9 @@ const DigestPanel = ({ controller }: Readonly<{ controller: SavedWorkspaceContro
       </Card>
     </div>
   );
-};
+},
 
-const QueuePreview = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ QueuePreview = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   if (controller.queuedArticles.length === 0) {
     return (
       <p className="py-4 text-center text-sm text-muted-foreground">
@@ -512,9 +512,9 @@ const QueuePreview = ({ controller }: Readonly<{ controller: SavedWorkspaceContr
       )}
     </div>
   );
-};
+},
 
-const QueuePreviewItem = ({
+ QueuePreviewItem = ({
   article,
   controller,
   position,
@@ -523,8 +523,8 @@ const QueuePreviewItem = ({
   controller: SavedWorkspaceController;
   position: number;
 }>) => {
-  const handleOpen = () => controller.openArticle(article);
-  const handleRemove = () => controller.toggleQueue(article);
+  const handleOpen = () =>{  controller.openArticle(article); },
+   handleRemove = () =>{  controller.toggleQueue(article); };
   return (
     <div className="flex items-center gap-2 rounded-lg bg-[var(--news-bg-primary)]/50 p-2">
       <span className="w-5 text-xs font-bold text-primary">{position}</span>
@@ -540,9 +540,9 @@ const QueuePreviewItem = ({
       </Button>
     </div>
   );
-};
+},
 
-const ReadingQueueCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ ReadingQueueCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   const handleGenerate = () => void controller.generateDigest();
   return (
     <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
@@ -568,9 +568,9 @@ const ReadingQueueCard = ({ controller }: Readonly<{ controller: SavedWorkspaceC
       </CardContent>
     </Card>
   );
-};
+},
 
-const LibraryStatsCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
+ LibraryStatsCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
   <Card className="border border-white/10 bg-[var(--news-bg-secondary)]">
     <CardContent className="p-4">
       <h3 className="mb-4 font-serif text-lg font-bold">Your Library</h3>
@@ -588,9 +588,9 @@ const LibraryStatsCard = ({ controller }: Readonly<{ controller: SavedWorkspaceC
       </div>
     </CardContent>
   </Card>
-);
+),
 
-const LibraryStat = ({
+ LibraryStat = ({
   icon: Icon,
   label,
   value,
@@ -601,9 +601,9 @@ const LibraryStat = ({
     </span>
     <Badge variant="secondary">{value}</Badge>
   </div>
-);
+),
 
-const SavedSidebar = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
+ SavedSidebar = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
   <div className="space-y-6">
     <ReadingQueueCard controller={controller} />
     <ResearchShelvesCard
@@ -616,9 +616,9 @@ const SavedSidebar = ({ controller }: Readonly<{ controller: SavedWorkspaceContr
     />
     <LibraryStatsCard controller={controller} />
   </div>
-);
+),
 
-const AllSavedTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ AllSavedTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   if (controller.loading) {
     return <LoadingState label="Loading saved articles..." />;
   }
@@ -651,9 +651,9 @@ const AllSavedTab = ({ controller }: Readonly<{ controller: SavedWorkspaceContro
       <SavedSidebar controller={controller} />
     </div>
   );
-};
+},
 
-const SavedTab = ({
+ SavedTab = ({
   articles,
   controller,
   description,
@@ -676,9 +676,9 @@ const SavedTab = ({
   }
   const savedArticles = articles.map((article) => ({ ...article, type: kind }));
   return <ArticleList articles={savedArticles} controller={controller} />;
-};
+},
 
-const QueueArticle = ({
+ QueueArticle = ({
   article,
   controller,
   index,
@@ -687,8 +687,8 @@ const QueueArticle = ({
   controller: SavedWorkspaceController;
   index: number;
 }>) => {
-  const handleRead = () => controller.openArticle(article);
-  const handleRemove = () => controller.toggleQueue(article);
+  const handleRead = () =>{  controller.openArticle(article); },
+   handleRemove = () =>{  controller.toggleQueue(article); };
   return (
     <div
       className="group relative rounded-2xl border border-white/10 bg-[var(--news-bg-secondary)] p-4 transition-all hover:border-primary/50"
@@ -729,9 +729,9 @@ const QueueArticle = ({
       </div>
     </div>
   );
-};
+},
 
-const QueueTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ QueueTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   const handleGenerate = () => void controller.generateDigest();
   return (
     <div className="space-y-6">
@@ -778,9 +778,9 @@ const QueueTab = ({ controller }: Readonly<{ controller: SavedWorkspaceControlle
       )}
     </div>
   );
-};
+},
 
-const HighlightsTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
+ HighlightsTab = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
   <div className="space-y-6">
     <div className="flex items-center justify-between gap-3">
       <div>
@@ -795,11 +795,11 @@ const HighlightsTab = ({ controller }: Readonly<{ controller: SavedWorkspaceCont
       <CardContent className="p-6"><HighlightsView /></CardContent>
     </Card>
   </div>
-);
+),
 
-const LoadIssuesCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ LoadIssuesCard = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   if (controller.loadIssues.length === 0) {
-    return undefined;
+    return;
   }
   const handleRetry = () => void controller.reload();
   return (
@@ -813,9 +813,9 @@ const LoadIssuesCard = ({ controller }: Readonly<{ controller: SavedWorkspaceCon
       </CardContent>
     </Card>
   );
-};
+},
 
-const WorkspaceHeader = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
+ WorkspaceHeader = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => {
   const handleReload = () => void controller.reload();
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[var(--news-bg-secondary)]/60 backdrop-blur-sm">
@@ -836,9 +836,9 @@ const WorkspaceHeader = ({ controller }: Readonly<{ controller: SavedWorkspaceCo
       </div>
     </header>
   );
-};
+},
 
-const WorkspaceTabs = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
+ WorkspaceTabs = ({ controller }: Readonly<{ controller: SavedWorkspaceController }>) => (
   <Tabs value={controller.activeTab} onValueChange={controller.setActiveTab} className="w-full">
     <TabsList className="mb-6 border border-white/10 bg-[var(--news-bg-secondary)]">
       <TabsTrigger value="all" className="gap-2"><Newspaper className="h-4 w-4" />All Saved<Badge variant="secondary">{controller.allSavedArticles.length}</Badge></TabsTrigger>

@@ -10,13 +10,13 @@ import { useState } from "react"
 const AppearanceSettingsSync = dynamic(
   () => import("@/components/appearance-settings-sync").then((mod) => mod.AppearanceSettingsSync),
   { ssr: false },
-)
+),
 
-const ReadingQueueSidebar = dynamic(
+ ReadingQueueSidebar = dynamic(
   () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),
   {
-    ssr: false,
     loading: () => null,
+    ssr: false,
   },
 )
 
@@ -25,22 +25,17 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // Create query client with optimized defaults
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Data considered fresh for 30 seconds
-            staleTime: 30 * 1000,
-            // Keep unused data in cache for 5 minutes
             gcTime: 5 * 60 * 1000,
-            // Retry failed requests 3 times with exponential backoff
+            refetchOnWindowFocus: false,
             retry: 3,
             retryDelay: (attemptIndex) =>
-              Math.min(1000 * 2 ** attemptIndex, 30000),
-            // Don't refetch on window focus (user controls refresh)
-            refetchOnWindowFocus: false,
+              Math.min(1000 * 2 ** attemptIndex, 30_000),
+            staleTime: 30 * 1000,
           },
         },
       })
@@ -54,10 +49,12 @@ export function Providers({ children }: ProvidersProps) {
         enableSystem
         disableTransitionOnChange
       >
-        {children}
-        <Toaster />
-        <ReadingQueueSidebar />
-        <AppearanceSettingsSync />
+        <>
+          {children}
+          <Toaster />
+          <ReadingQueueSidebar />
+          <AppearanceSettingsSync />
+        </>
       </ThemeProvider>
     </QueryClientProvider>
   )

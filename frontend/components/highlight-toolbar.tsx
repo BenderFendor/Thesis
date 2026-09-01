@@ -11,17 +11,17 @@ import type { Highlight } from "@/lib/api";
 import { createHighlightFingerprint } from "@/lib/highlight-store";
 import { getGlobalOffset } from "@/lib/highlight-utils";
 
-const FIRST_RANGE_INDEX = 0;
-const EMPTY_RANGE_COUNT = 0;
-const INVALID_OFFSET = -1;
-const TEXT_PREVIEW_START = 0;
-const TEXT_PREVIEW_LENGTH = 80;
-const SELECTION_RESET_DELAY_MS = 120;
-const TOOLBAR_VERTICAL_OFFSET_PX = 50;
-const TOOLBAR_HORIZONTAL_FALLBACK_PX = 100;
-const TOOLBAR_MIN_POSITION_PX = 8;
-const HALF_DIVISOR = 2;
-const HIGHLIGHT_DEBUG = true;
+const EMPTY_RANGE_COUNT = 0,
+ FIRST_RANGE_INDEX = 0,
+ INVALID_OFFSET = -1,
+ HALF_DIVISOR = 2,
+ HIGHLIGHT_DEBUG = true,
+ SELECTION_RESET_DELAY_MS = 120,
+ TEXT_PREVIEW_LENGTH = 80,
+ TEXT_PREVIEW_START = 0,
+ TOOLBAR_HORIZONTAL_FALLBACK_PX = 100,
+ TOOLBAR_MIN_POSITION_PX = 8,
+ TOOLBAR_VERTICAL_OFFSET_PX = 50;
 
 interface HighlightRange {
   readonly end: number;
@@ -66,13 +66,13 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   if (toolbar !== null) {
     toolbar.style.display = "none";
   }
-};
+},
 
-const clearBrowserSelection = (): void => {
+ clearBrowserSelection = (): void => {
   globalThis.getSelection()?.removeAllRanges();
-};
+},
 
-const getSelectionSnapshot = (): SelectionSnapshot | undefined => {
+ getSelectionSnapshot = (): SelectionSnapshot | undefined => {
   const selection = globalThis.getSelection();
   if (selection === null || selection.rangeCount === EMPTY_RANGE_COUNT) {
     return undefined;
@@ -86,21 +86,21 @@ const getSelectionSnapshot = (): SelectionSnapshot | undefined => {
     selection,
     text,
   };
-};
+},
 
-const selectionInsideContainer = (
+ selectionInsideContainer = (
   container: HTMLElement,
   snapshot: Readonly<SelectionSnapshot>,
 ): boolean => {
-  const anchor = snapshot.selection.anchorNode;
-  const focus = snapshot.selection.focusNode;
-  const anchorInside = anchor !== null && container.contains(anchor);
-  const focusInside = focus !== null && container.contains(focus);
-  const commonInside = container.contains(snapshot.range.commonAncestorContainer);
+  const anchor = snapshot.selection.anchorNode,
+   focus = snapshot.selection.focusNode,
+   anchorInside = anchor !== null && container.contains(anchor),
+   focusInside = focus !== null && container.contains(focus),
+   commonInside = container.contains(snapshot.range.commonAncestorContainer);
   return anchorInside || focusInside || commonInside;
-};
+},
 
-const resolveSelectionOffsets = (
+ resolveSelectionOffsets = (
   container: HTMLElement,
   snapshot: Readonly<SelectionSnapshot>,
 ): OffsetResult => {
@@ -108,8 +108,8 @@ const resolveSelectionOffsets = (
     container,
     snapshot.range.startContainer,
     snapshot.range.startOffset,
-  );
-  const endOffset = getGlobalOffset(
+  ),
+   endOffset = getGlobalOffset(
     container,
     snapshot.range.endContainer,
     snapshot.range.endOffset,
@@ -124,18 +124,18 @@ const resolveSelectionOffsets = (
   if (startOffset === INVALID_OFFSET || endOffset === INVALID_OFFSET) {
     return { message: "Selection outside of article content", ok: false };
   }
-  const start = Math.min(startOffset, endOffset);
-  const end = Math.max(startOffset, endOffset);
+  const start = Math.min(startOffset, endOffset),
+   end = Math.max(startOffset, endOffset);
   if (start === end) {
     return { message: "Empty selection", ok: false };
   }
   return { offsets: { end, start }, ok: true };
-};
+},
 
-const isDeletedHighlight = (highlight: Readonly<Highlight>): boolean =>
-  "deleted" in highlight && highlight.deleted === true;
+ isDeletedHighlight = (highlight: Readonly<Highlight>): boolean =>
+  "deleted" in highlight && highlight.deleted === true,
 
-const hasExactDuplicate = (
+ hasExactDuplicate = (
   highlights: readonly Highlight[],
   highlightedText: string,
   offsets: Readonly<SelectionOffsets>,
@@ -157,23 +157,23 @@ const hasExactDuplicate = (
       }) === fingerprint
     );
   });
-};
+},
 
-const getRangeRect = (range: Range): DOMRect | undefined => {
+ getRangeRect = (range: Range): DOMRect | undefined => {
   try {
     return range.getBoundingClientRect();
   } catch {
     return undefined;
   }
-};
+},
 
-const positionToolbar = (
+ positionToolbar = (
   toolbar: HTMLDivElement,
   range: Range,
   container: HTMLElement,
 ): void => {
-  const rect = getRangeRect(range);
-  const containerRect = container.getBoundingClientRect();
+  const rect = getRangeRect(range),
+   containerRect = container.getBoundingClientRect();
   if (HIGHLIGHT_DEBUG) {
     console.debug("[HighlightToolbar] positioning", {
       containerClientHeight: container.clientHeight,
@@ -184,8 +184,8 @@ const positionToolbar = (
       rectTop: rect?.top,
     });
   }
-  let top = globalThis.innerHeight / HALF_DIVISOR;
-  let left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX;
+  let top = globalThis.innerHeight / HALF_DIVISOR,
+   left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX;
   if (rect !== undefined) {
     top = rect.top - TOOLBAR_VERTICAL_OFFSET_PX;
     left = rect.left;
@@ -193,9 +193,9 @@ const positionToolbar = (
   toolbar.style.top = `${Math.max(TOOLBAR_MIN_POSITION_PX, top)}px`;
   toolbar.style.left = `${Math.max(TOOLBAR_MIN_POSITION_PX, left)}px`;
   toolbar.style.display = "flex";
-};
+},
 
-const logOutsideSelection = (
+ logOutsideSelection = (
   container: HTMLElement,
   snapshot: Readonly<SelectionSnapshot>,
 ): void => {
@@ -209,9 +209,9 @@ const logOutsideSelection = (
     focusNode: snapshot.selection.focusNode?.nodeName,
     selectionText: snapshot.text.slice(TEXT_PREVIEW_START, TEXT_PREVIEW_LENGTH),
   });
-};
+},
 
-const logInsideSelection = (snapshot: Readonly<SelectionSnapshot>): void => {
+ logInsideSelection = (snapshot: Readonly<SelectionSnapshot>): void => {
   if (!HIGHLIGHT_DEBUG) {
     return;
   }
@@ -229,17 +229,17 @@ export const HighlightToolbar = ({
   highlights,
   onCreate,
 }: Readonly<HighlightToolbarProps>) => {
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const selectionHandledRef = useRef(false);
+  const toolbarRef = useRef<HTMLDivElement>(null),
+   selectionHandledRef = useRef(false),
 
-  const closeToolbar = useCallback(() => {
+   closeToolbar = useCallback(() => {
     hideToolbar(toolbarRef.current);
     clearBrowserSelection();
-  }, []);
+  }, []),
 
-  const handleCreateHighlight = useCallback(async () => {
-    const container = containerRef.current;
-    const snapshot = getSelectionSnapshot();
+   handleCreateHighlight = useCallback(async () => {
+    const container = containerRef.current,
+     snapshot = getSelectionSnapshot();
     if (container === null || snapshot === undefined) {
       toast.error("No text selected");
       return;
@@ -287,8 +287,8 @@ export const HighlightToolbar = ({
       if (HIGHLIGHT_DEBUG) {
         console.debug("[HighlightToolbar] handleSelection fired");
       }
-      const snapshot = getSelectionSnapshot();
-      const container = containerRef.current;
+      const snapshot = getSelectionSnapshot(),
+       container = containerRef.current;
       if (snapshot === undefined || container === null) {
         hideToolbar(toolbarRef.current);
         return;
@@ -308,9 +308,9 @@ export const HighlightToolbar = ({
       if (toolbar !== null) {
         positionToolbar(toolbar, snapshot.range, container);
       }
-    };
+    },
 
-    const handleSelectionChange = () => {
+     handleSelectionChange = () => {
       if (HIGHLIGHT_DEBUG) {
         console.debug("[HighlightToolbar] selectionchange event");
       }

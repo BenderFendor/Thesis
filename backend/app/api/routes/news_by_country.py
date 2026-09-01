@@ -1,10 +1,11 @@
 """News by country endpoints for globe visualization and Local Lens feature."""
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import any_, func, literal, select, text as sql_text
+from sqlalchemy import any_, func, literal, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -174,14 +175,8 @@ async def get_countries_geo_data_route() -> dict[str, object]:
     }
 
 
-@router.get("/by-country")
-async def get_article_counts_by_country(
-    hours: int = Query(24, ge=1, le=720),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, object]:
-    """Get Article Counts By Country."""
-    since = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours)
-
+async def _source_country_counts(db: AsyncSession, since: datetime) -> dict[str, int]:
+    """Count recent articles by their source-country attribution."""
     source_stmt = (
         select(Article.country, func.count(Article.id).label("count"))
         .where(Article.published_at >= since)
@@ -191,13 +186,50 @@ async def get_article_counts_by_country(
         .order_by(func.count(Article.id).desc())
     )
     source_rows = (await db.execute(source_stmt)).all()
-
-    source_counts: dict[str, int] = {}
+    counts: dict[str, int] = {}
     for row in source_rows:
         country = row._mapping["country"]
         count = row._mapping["count"]
         if isinstance(country, str) and isinstance(count, int):
-            source_counts[country] = count
+            counts[country] = count
+    return counts
+
+
+@router.get("/by-country")
+async def get_article_counts_by_country(
+    hours: int = Query(24, ge=1, le=720),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Return recent country-mention and source-origin article counts."""
+    since = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=hours)
+    source_counts = await _source_country_counts(db, since)
+    counts, covered_article_count = await _mentioned_country_counts(db, since)
+    total_stmt = select(func.count(Article.id)).where(Article.published_at >= since)
+    total = int((await db.execute(total_stmt)).scalar_one())
+    return {
+        "counts": counts,
+        "source_counts": source_counts,
+        "geo_signals": [
+            _geo_signal_payload(
+                signal_id="country_mentions",
+                label="Country mentions",
+                country_counts=counts,
+                article_count=covered_article_count,
+            ),
+            _geo_signal_payload(
+                signal_id="source_origin",
+                label="Source origin",
+                country_counts=source_counts,
+                article_count=sum(source_counts.values()),
+            ),
+        ],
+        "total_articles": total,
+        "articles_with_country": covered_article_count,
+        "articles_without_country": total - covered_article_count,
+        "country_count": len(counts),
+        "window_hours": hours,
+    }
+
 
 async def _mentioned_country_counts(
     db: AsyncSession, since: datetime
@@ -246,11 +278,9 @@ async def _postgresql_mentioned_country_counts(
         """
     )
     result = await db.execute(unnest_stmt, {"since": since})
-    for row in result.all():
-        country = row[0]
-        cnt = row[1]
-        if isinstance(country, str) and isinstance(cnt, int):
-            counts[country] = cnt
+    for country, count in result.all():
+        if isinstance(country, str) and isinstance(count, int):
+            counts[country] = count
 
     covered_stmt = select(func.count(Article.id)).where(
         Article.published_at >= since,
@@ -259,34 +289,6 @@ async def _postgresql_mentioned_country_counts(
     )
     covered_article_count = int((await db.execute(covered_stmt)).scalar_one())
     return counts, covered_article_count
-
-
-    total_stmt = select(func.count(Article.id)).where(Article.published_at >= since)
-    total = int((await db.execute(total_stmt)).scalar_one())
-
-    return {
-        "counts": counts,
-        "source_counts": source_counts,
-        "geo_signals": [
-            _geo_signal_payload(
-                signal_id="country_mentions",
-                label="Country mentions",
-                country_counts=counts,
-                article_count=covered_article_count,
-            ),
-            _geo_signal_payload(
-                signal_id="source_origin",
-                label="Source origin",
-                country_counts=source_counts,
-                article_count=sum(source_counts.values()),
-            ),
-        ],
-        "total_articles": total,
-        "articles_with_country": covered_article_count,
-        "articles_without_country": total - covered_article_count,
-        "country_count": len(counts),
-        "window_hours": hours,
-    }
 
 
 @router.get("/country/{code}")

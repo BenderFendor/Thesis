@@ -109,8 +109,9 @@ after(async () => {
   server.close((error) =>{ error ? reject(error) : resolve(); });
   await promise;
 });
-test("OpenAPI and WebSocket inventories expose the backend contract", () => {  expect.hasAssertions();
-  
+test("OpenAPI and WebSocket inventories expose the backend contract", () => {
+
+
   const operations = listOperations(SPEC).map(({ operationId, method, path }) => ({
     method,
     operationId,
@@ -131,8 +132,9 @@ test("OpenAPI and WebSocket inventories expose the backend contract", () => {  e
   ]);
 });
 
-test("request preparation follows OpenAPI parameter locations and types", () => {  expect.hasAssertions();
-  
+test("request preparation follows OpenAPI parameter locations and types", () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -154,8 +156,9 @@ test("request preparation follows OpenAPI parameter locations and types", () => 
   assert.equal(request.init.body, '{"active":true}');
 });
 
-test("real HTTP call and smoke assertions use the same operation", async () => {  expect.hasAssertions();
-  
+test("real HTTP call and smoke assertions use the same operation", async () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -180,11 +183,12 @@ test("real HTTP call and smoke assertions use the same operation", async () => {
   assert.equal(report.checks.length, 3);
 });
 
-test("required OpenAPI inputs fail before network access", () => {  expect.hasAssertions();
-  
+test("required OpenAPI inputs fail before network access", () => {
+
+
   assert.throws(
     () => prepareRequest(SPEC, "update_item", parseOptions(["--body", "{}"])),
-    /Missing required parameter: item_id/,
+    /Missing required parameter: item_id/u,
   );
   assert.throws(
     () =>
@@ -193,12 +197,13 @@ test("required OpenAPI inputs fail before network access", () => {  expect.hasAs
         "update_item",
         parseOptions(["--param", "item_id=1", "--body", "{}", "--param", "unknown=x"]),
       ),
-    /Unknown parameter for update_item: unknown/,
+    /Unknown parameter for update_item: unknown/u,
   );
 });
 
-test("investigate organization operation resolves from spec and sends name in POST body", async () => {  expect.hasAssertions();
-  
+test("investigate organization operation resolves from spec and sends name in POST body", async () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -215,11 +220,12 @@ test("investigate organization operation resolves from spec and sends name in PO
   assert.equal(result.response.status, 200);
   assert.equal(echo.body.name, "BBC News");
   assert.equal(echo.method, "POST");
-  assert.match(echo.url, /\/research\/entity\/organization\/research/);
+  assert.match(echo.url, /\/research\/entity\/organization\/research/u);
 });
 
-test("investigate source operation resolves from spec with name and website in POST body", async () => {  expect.hasAssertions();
-  
+test("investigate source operation resolves from spec with name and website in POST body", async () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -238,8 +244,9 @@ test("investigate source operation resolves from spec with name and website in P
   assert.equal(echo.body.website, "https://www.aljazeera.com");
 });
 
-test("investigate reporter operation resolves from spec with organization and refresh", async () => {  expect.hasAssertions();
-  
+test("investigate reporter operation resolves from spec with organization and refresh", async () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -258,11 +265,12 @@ test("investigate reporter operation resolves from spec with organization and re
   assert.equal(result.response.status, 200);
   assert.equal(echo.body.name, "Moscow Times");
   assert.equal(echo.body.organization, "The Moscow Times");
-  assert.match(echo.url, /force_refresh=true/);
+  assert.match(echo.url, /force_refresh=true/u);
 });
 
-test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {  expect.hasAssertions();
-  
+test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {
+
+
   const options = parseOptions([
     "--base-url",
     baseUrl,
@@ -279,12 +287,13 @@ test("investigate ownership operation resolves from spec and encodes org_name as
   assert.equal(result.response.status, 200);
   assert.match(
     echo.url,
-    /\/research\/entity\/organization\/Sinclair%20Broadcast%20Group\/ownership-chain/,
+    /\/research\/entity\/organization\/Sinclair%20Broadcast%20Group\/ownership-chain/u,
   );
 });
 
-test("curated organization workflow uses generated operation parameters", async () => {  expect.hasAssertions();
-  
+test("curated organization workflow uses generated operation parameters", async () => {
+
+
   let requestedBody = "",
    requestedUrl = "";
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -308,15 +317,16 @@ test("curated organization workflow uses generated operation parameters", async 
   );
 
   assert.equal(exitCode, 0);
-  assert.match(requestedUrl, /force_refresh=true/);
+  assert.match(requestedUrl, /force_refresh=true/u);
   assert.deepEqual(JSON.parse(requestedBody), {
     name: "Arbitrary Media Cooperative",
     website: "https://arbitrary.example",
   });
 });
 
-test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {  expect.hasAssertions();
-  
+test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {
+
+
   let requestedUrl = "";
   const fetchImpl: typeof fetch = async (input) => {
     requestedUrl = String(input);
@@ -334,6 +344,6 @@ test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () 
   assert.equal(exitCode, 0);
   assert.match(
     requestedUrl,
-    /Independent%20Holding%20Company\/ownership-chain\?max_depth=7$/,
+    /Independent%20Holding%20Company\/ownership-chain\?max_depth=7$/u,
   );
 });

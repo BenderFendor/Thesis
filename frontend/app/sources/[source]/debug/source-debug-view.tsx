@@ -21,9 +21,9 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { SourceDebugData } from "@/lib/api";
 
-const JSON_COLLAPSE_DEPTH = 2;
-const PARSED_ENTRY_LIMIT = 5;
-const PERCENT_SCALE = 100;
+const JSON_COLLAPSE_DEPTH = 2,
+ PARSED_ENTRY_LIMIT = 5,
+ PERCENT_SCALE = 100;
 
 interface SourceDebugViewProps {
   readonly debugData: Readonly<SourceDebugData>;
@@ -52,9 +52,9 @@ type DebugRecord = Record<string, unknown>;
 type DebugJsonValue = DebugRecord | readonly unknown[];
 
 const isDebugRecord = (value: unknown): value is DebugRecord =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+  typeof value === "object" && value !== null && !Array.isArray(value),
 
-const hasFilteredContent = (value: unknown): boolean => {
+ hasFilteredContent = (value: unknown): boolean => {
   if (value === undefined || value === null) {
     return false;
   }
@@ -65,13 +65,13 @@ const hasFilteredContent = (value: unknown): boolean => {
     return Object.keys(value).length > 0;
   }
   return true;
-};
+},
 
-const filterDebugRecord = (record: Readonly<DebugRecord>, query: string): DebugRecord | undefined => {
+ filterDebugRecord = (record: Readonly<DebugRecord>, query: string): DebugRecord | undefined => {
   const filtered: DebugRecord = {};
   for (const [key, value] of Object.entries(record)) {
-    const keyMatches = key.toLowerCase().includes(query);
-    const valueMatches =
+    const keyMatches = key.toLowerCase().includes(query),
+     valueMatches =
       typeof value === "string" && value.toLowerCase().includes(query);
     if (keyMatches || valueMatches) {
       filtered[key] = value;
@@ -86,21 +86,21 @@ const filterDebugRecord = (record: Readonly<DebugRecord>, query: string): DebugR
     return undefined;
   }
   return filtered;
-};
+},
 
-const filterDebugValue = (value: unknown, query: string): unknown => {
+ filterDebugValue = (value: unknown, query: string): unknown => {
   if (Array.isArray(value)) {
     return value
       .map((item) => filterDebugValue(item, query))
       .filter(hasFilteredContent);
   }
   if (!isDebugRecord(value)) {
-    return undefined;
+    return null;
   }
   return filterDebugRecord(value, query);
-};
+},
 
-const filterSourceDebugData = (
+ filterSourceDebugData = (
   debugData: Readonly<SourceDebugData>,
   searchQuery: string,
 ): DebugJsonValue => {
@@ -115,25 +115,25 @@ const filterSourceDebugData = (
     return filtered;
   }
   return {};
-};
+},
 
-const getDebugModeLabel = (debugMode: boolean): string => {
+ getDebugModeLabel = (debugMode: boolean): string => {
   if (debugMode) {
     return "On";
   }
   return "Off";
-};
+},
 
-const getSubFeedBadgeVariant = (
+ getSubFeedBadgeVariant = (
   status: "success" | "warning" | "error",
 ): ComponentProps<typeof Badge>["variant"] => {
   if (status === "success") {
     return "default";
   }
   return "secondary";
-};
+},
 
-const getImagePercentage = (debugData: Readonly<SourceDebugData>): number => {
+ getImagePercentage = (debugData: Readonly<SourceDebugData>): number => {
   const totalEntries = debugData.image_analysis.total_entries;
   if (totalEntries <= 0) {
     return 0;
@@ -141,9 +141,9 @@ const getImagePercentage = (debugData: Readonly<SourceDebugData>): number => {
   return Math.round(
     (debugData.image_analysis.entries_with_images / totalEntries) * PERCENT_SCALE,
   );
-};
+},
 
-const SectionHeader = ({
+ SectionHeader = ({
   icon: Icon,
   title,
 }: Readonly<{
@@ -158,11 +158,11 @@ const SectionHeader = ({
       </CardTitle>
     </CardHeader>
   </summary>
-);
+),
 
-const FeedIssue = ({ debugData }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
-  const hasBozoError = debugData.feed_status.bozo;
-  const processingError = debugData.error;
+ FeedIssue = ({ debugData }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
+  const hasBozoError = debugData.feed_status.bozo,
+   processingError = debugData.error;
   if (!hasBozoError && (processingError === undefined || processingError.length === 0)) {
     return null;
   }
@@ -188,9 +188,9 @@ const FeedIssue = ({ debugData }: Readonly<{ debugData: Readonly<SourceDebugData
       </div>
     </div>
   );
-};
+},
 
-const FeedOverviewSection = ({
+ FeedOverviewSection = ({
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => (
   <details open>
@@ -219,13 +219,13 @@ const FeedOverviewSection = ({
       <FeedIssue debugData={debugData} />
     </CardContent>
   </details>
-);
+),
 
-const SubFeedsSection = ({
+ SubFeedsSection = ({
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
-  const statistics = debugData.source_statistics;
-  const subFeeds = statistics?.sub_feeds;
+  const statistics = debugData.source_statistics,
+   subFeeds = statistics?.sub_feeds;
   if (
     statistics?.is_consolidated !== true ||
     subFeeds === undefined ||
@@ -265,13 +265,13 @@ const SubFeedsSection = ({
       </CardContent>
     </details>
   );
-};
+},
 
-const ImageAnalysisSection = ({
+ ImageAnalysisSection = ({
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
-  const percentage = getImagePercentage(debugData);
-  const analysis = debugData.image_analysis;
+  const percentage = getImagePercentage(debugData),
+   analysis = debugData.image_analysis;
   return (
     <details>
       <SectionHeader icon={ImageIcon} title="Image Parsing Analysis" />
@@ -296,13 +296,13 @@ const ImageAnalysisSection = ({
       </CardContent>
     </details>
   );
-};
+},
 
-const EntryImageBadges = ({
+ EntryImageBadges = ({
   entry,
 }: Readonly<{ entry: Readonly<SourceDebugData["parsed_entries"][number]> }>) => {
   if (!entry.has_images) {
-    return null;
+    return;
   }
   return (
     <div className="mt-3 border-t border-muted pt-3">
@@ -322,9 +322,9 @@ const EntryImageBadges = ({
       </div>
     </div>
   );
-};
+},
 
-const ParsedEntryCard = ({
+ ParsedEntryCard = ({
   entry,
 }: Readonly<{ entry: Readonly<SourceDebugData["parsed_entries"][number]> }>) => (
   <div className="rounded-lg border border-muted p-4">
@@ -350,13 +350,13 @@ const ParsedEntryCard = ({
     </div>
     <EntryImageBadges entry={entry} />
   </div>
-);
+),
 
-const ParsedEntriesSection = ({
+ ParsedEntriesSection = ({
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
   if (debugData.parsed_entries.length === 0) {
-    return null;
+    return;
   }
   return (
     <details>
@@ -370,9 +370,9 @@ const ParsedEntriesSection = ({
       </CardContent>
     </details>
   );
-};
+},
 
-const DebugJsonSection = ({
+ DebugJsonSection = ({
   debugData,
   onSearchQueryChange,
   searchQuery,
@@ -381,8 +381,8 @@ const DebugJsonSection = ({
     event,
   ) => {
     onSearchQueryChange(event.target.value);
-  };
-  const filteredData = filterSourceDebugData(debugData, searchQuery);
+  },
+   filteredData = filterSourceDebugData(debugData, searchQuery);
   return (
     <details open>
       <SectionHeader icon={Code} title="Complete Debug JSON" />
@@ -405,9 +405,9 @@ const DebugJsonSection = ({
       </CardContent>
     </details>
   );
-};
+},
 
-const SourceDebugHeader = ({
+ SourceDebugHeader = ({
   debugData,
   debugMode,
   onRefresh,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { requestInlineDefinition } from "../lib/api";
 
 export interface InlineDefinitionResult {
@@ -9,12 +10,89 @@ export interface InlineDefinitionResult {
   error?: string | null;
 }
 
+interface AnchorPosition {
+  x: number;
+  y: number;
+}
+
+function getSelectionAnchorPosition(selection: Selection, event: MouseEvent): AnchorPosition {
+  try {
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2 + globalThis.scrollX,
+      y: rect.top + globalThis.scrollY,
+    };
+  } catch {
+    return {
+      x: event.clientX + globalThis.scrollX,
+      y: event.clientY + globalThis.scrollY,
+    };
+  }
+}
+
+interface InlineDefinitionRequestState {
+  abortRef: MutableRefObject<AbortController | null>
+  lastRequestAtRef: MutableRefObject<number>
+  lastTermRef: MutableRefObject<string | null>
+  setAnchorPosition: (position: AnchorPosition) => void
+  setOpen: (open: boolean) => void
+  setResult: Dispatch<SetStateAction<InlineDefinitionResult | null>>
+}
+
+function selectedDefinitionTerm(event: MouseEvent): string | undefined {
+  if (!event.altKey) {return undefined;}
+  const selection = globalThis.getSelection();
+  if (!selection) {return undefined;}
+  const text = selection.toString().trim();
+  return text || undefined;
+}
+
+async function requestInlineDefinitionForTerm(
+  text: string,
+  event: MouseEvent,
+  state: InlineDefinitionRequestState,
+): Promise<void> {
+  const selection = globalThis.getSelection();
+  if (!selection) {return;}
+  state.setAnchorPosition(getSelectionAnchorPosition(selection, event));
+
+  const now = Date.now(),
+   normalized = text.toLowerCase(),
+   recentlyRequested =
+    state.lastTermRef.current === normalized && now - state.lastRequestAtRef.current < 4000;
+  if (recentlyRequested) {
+    state.setOpen(true);
+    return;
+  }
+
+  state.lastTermRef.current = normalized;
+  state.lastRequestAtRef.current = now;
+  state.abortRef.current?.abort();
+  state.abortRef.current = new AbortController();
+  state.setResult({ definition: "Loading...", term: text });
+  state.setOpen(true);
+
+  try {
+    const response = await requestInlineDefinition(text);
+    state.setResult(
+      response.success
+        ? { definition: response.definition, term: text }
+        : { error: response.error, term: text },
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {return;}
+    console.error("Inline definition error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    state.setResult((result) => (result ? { ...result, error: message } : null));
+  }
+}
+
 export function useInlineDefinition() {
-  const [result, setResult] = useState<InlineDefinitionResult | null>(undefined),
+  const [result, setResult] = useState<InlineDefinitionResult | null>(null),
    [open, setOpen] = useState(false),
    [anchorPosition, setAnchorPosition] = useState<{ x: number; y: number } | null>(null),
-   abortRef = useRef<AbortController | null>(undefined),
-   lastTermRef = useRef<string | null>(undefined),
+   abortRef = useRef<AbortController | null>(null),
+   lastTermRef = useRef<string | null>(null),
    lastRequestAtRef = useRef<number>(0);
 
   useEffect(() => {
@@ -23,69 +101,17 @@ export function useInlineDefinition() {
     if (typeof navigator !== "undefined" && navigator.userAgent.includes("jsdom")) {
       return;
     }
-    const onMouseUp = async (e: MouseEvent) => {
-      try {
-        if (!e.altKey) {return;}
-
-        const selection = globalThis.getSelection();
-        if (!selection) {return;}
-        const text = selection.toString().trim();
-        if (!text) {return;}
-
-        // Position the popover near the selection
-        const range = selection.getRangeAt(0);
-        let rect: DOMRect | null = undefined;
-        try {
-          rect = range.getBoundingClientRect();
-        } catch {
-          rect = undefined;
-        }
-
-        if (rect) {
-          setAnchorPosition({
-            x: rect.left + rect.width / 2 + globalThis.scrollX,
-            y: rect.top + globalThis.scrollY,
-          });
-        } else {
-          setAnchorPosition({
-            x: e.clientX + globalThis.scrollX,
-            y: e.clientY + globalThis.scrollY,
-          });
-        }
-
-        const now = Date.now(),
-         normalized = text.toLowerCase(),
-         recentlyRequested =
-          lastTermRef.current === normalized && now - lastRequestAtRef.current < 4000;
-
-        if (recentlyRequested) {
-          setOpen(true);
-          return;
-        }
-
-        lastTermRef.current = normalized;
-        lastRequestAtRef.current = now;
-
-        // Cancel previous
-        if (abortRef.current) {abortRef.current.abort();}
-        abortRef.current = new AbortController();
-
-        setResult({ definition: "Loading...", term: text });
-        setOpen(true);
-
-        const resp = await requestInlineDefinition(text);
-        if (resp.success) {
-          setResult({ definition: resp.definition, term: text });
-        } else {
-          setResult({ error: resp.error, term: text });
-        }
-      } catch (error) {
-        // Ignore aborts and others
-        if (error instanceof DOMException && error.name === "AbortError") {return;}
-        console.error("Inline definition error:", error);
-        const message = error instanceof Error ? error.message : String(error);
-        setResult((r) => (r ? { ...r, error: message } : null));
-      }
+    const onMouseUp = async (event: MouseEvent) => {
+      const text = selectedDefinitionTerm(event);
+      if (!text) {return;}
+      await requestInlineDefinitionForTerm(text, event, {
+        abortRef,
+        lastRequestAtRef,
+        lastTermRef,
+        setAnchorPosition,
+        setOpen,
+        setResult,
+      });
     },
 
      onKey = (e: KeyboardEvent) => {

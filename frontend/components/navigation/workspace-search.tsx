@@ -12,7 +12,7 @@ interface WorkspaceSearchProps {
 
 export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearchProps) {
   const [query, setQuery] = useState(""),
-   inputRef = useRef<HTMLInputElement | null>(undefined),
+   inputRef = useRef<HTMLInputElement | null>(null),
    shouldFocusRef = useRef(false)
 
   useEffect(() => {

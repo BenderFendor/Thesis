@@ -20,8 +20,8 @@ import type {
   RankedFeedResult,
 } from "@/lib/feed-ranking";
 import {
-  buildInterestProfile,
   MAX_PERSONALIZATION_SEEDS,
+  buildInterestProfile,
   rankFeedArticles,
 } from "@/lib/feed-ranking";
 
@@ -61,18 +61,18 @@ interface PersonalizationSetters {
   readonly setTopicsLoaded: (value: number) => void;
 }
 
-const NO_ITEMS = 0;
-const REQUEST_VERSION_INCREMENT = 1;
-const topicCache = new Map<number, readonly ArticleTopic[]>();
+const NO_ITEMS = 0,
+ REQUEST_VERSION_INCREMENT = 1,
+ topicCache = new Map<number, readonly ArticleTopic[]>(),
 
-const getSeedTimestamp = (seed: Readonly<PersonalizationSeed>): number => {
+ getSeedTimestamp = (seed: Readonly<PersonalizationSeed>): number => {
   if (seed.createdAt === undefined) {
     return NO_ITEMS;
   }
   return new Date(seed.createdAt).getTime();
-};
+},
 
-const mergeBookmarkSeed = (
+ mergeBookmarkSeed = (
   merged: Map<number, PersonalizationSeed>,
   bookmark: Readonly<BookmarkEntry>,
 ): void => {
@@ -83,9 +83,9 @@ const mergeBookmarkSeed = (
     createdAt: bookmark.createdAt,
     liked: existing?.liked ?? false,
   });
-};
+},
 
-const mergeLikedSeed = (
+ mergeLikedSeed = (
   merged: Map<number, PersonalizationSeed>,
   liked: Readonly<LikedEntry>,
 ): void => {
@@ -96,9 +96,9 @@ const mergeLikedSeed = (
     createdAt: existing?.createdAt ?? liked.createdAt,
     liked: true,
   });
-};
+},
 
-const dedupeSeeds = (
+ dedupeSeeds = (
   bookmarks: readonly BookmarkEntry[],
   likes: readonly LikedEntry[],
 ): PersonalizationSeed[] => {
@@ -112,9 +112,9 @@ const dedupeSeeds = (
   return [...merged.values()]
     .sort((left, right) => getSeedTimestamp(right) - getSeedTimestamp(left))
     .slice(NO_ITEMS, MAX_PERSONALIZATION_SEEDS);
-};
+},
 
-const getArticleIds = (
+ getArticleIds = (
   articles: readonly NewsArticle[],
   seeds: readonly PersonalizationSeed[],
 ): number[] => [
@@ -122,9 +122,9 @@ const getArticleIds = (
     ...articles.map((article) => article.id),
     ...seeds.map((seed) => seed.article.id),
   ]),
-];
+],
 
-const buildTopicMap = (
+ buildTopicMap = (
   articleIds: readonly number[],
 ): Record<number, readonly ArticleTopic[]> => {
   const topicMap: Record<number, readonly ArticleTopic[]> = {};
@@ -135,9 +135,9 @@ const buildTopicMap = (
     }
   }
   return topicMap;
-};
+},
 
-const hydrateMissingTopics = async (articleIds: readonly number[]): Promise<boolean> => {
+ hydrateMissingTopics = async (articleIds: readonly number[]): Promise<boolean> => {
   const missingIds = articleIds.filter((articleId) => !topicCache.has(articleId));
   if (missingIds.length === NO_ITEMS) {
     return true;
@@ -145,8 +145,8 @@ const hydrateMissingTopics = async (articleIds: readonly number[]): Promise<bool
   try {
     const response = await fetchBulkArticleTopics(missingIds);
     for (const articleIdText of Object.keys(response.articles)) {
-      const articleId = Number(articleIdText);
-      const topics = response.articles[articleId];
+      const articleId = Number(articleIdText),
+       topics = response.articles[articleId];
       if (topics !== undefined) {
         topicCache.set(articleId, topics);
       }
@@ -155,26 +155,26 @@ const hydrateMissingTopics = async (articleIds: readonly number[]): Promise<bool
   } catch {
     return false;
   }
-};
+},
 
-const createBasicResult = (seedCount = NO_ITEMS): PersonalizationLoadResult => ({
+ createBasicResult = (seedCount = NO_ITEMS): PersonalizationLoadResult => ({
   seedCount,
   status: "basic",
   topicsLoaded: topicCache.size,
-});
+}),
 
-const createFallbackResult = (seedCount = NO_ITEMS): PersonalizationLoadResult => ({
+ createFallbackResult = (seedCount = NO_ITEMS): PersonalizationLoadResult => ({
   seedCount,
   status: "fallback",
   topicsLoaded: topicCache.size,
-});
+}),
 
-const loadPersonalization = async (
+ loadPersonalization = async (
   articles: readonly NewsArticle[],
   isFavorite: (sourceId: string) => boolean,
 ): Promise<PersonalizationLoadResult> => {
-  let bookmarks: BookmarkEntry[];
-  let likes: LikedEntry[];
+  let bookmarks: BookmarkEntry[],
+   likes: LikedEntry[];
   try {
     [bookmarks, likes] = await Promise.all([fetchBookmarks(), fetchLikedArticles()]);
   } catch {
@@ -184,13 +184,13 @@ const loadPersonalization = async (
   if (seeds.length === NO_ITEMS) {
     return createBasicResult();
   }
-  const articleIds = getArticleIds(articles, seeds);
-  const topicsAvailable = await hydrateMissingTopics(articleIds);
+  const articleIds = getArticleIds(articles, seeds),
+   topicsAvailable = await hydrateMissingTopics(articleIds);
   if (!topicsAvailable) {
     return createFallbackResult(seeds.length);
   }
-  const topicMap = buildTopicMap(articleIds);
-  const profile = buildInterestProfile(seeds, topicMap);
+  const topicMap = buildTopicMap(articleIds),
+   profile = buildInterestProfile(seeds, topicMap);
   if (profile === undefined) {
     return createBasicResult(seeds.length);
   }
@@ -201,9 +201,9 @@ const loadPersonalization = async (
     status: "ready",
     topicsLoaded: Object.keys(topicMap).length,
   };
-};
+},
 
-const applyLoadResult = (
+ applyLoadResult = (
   result: Readonly<PersonalizationLoadResult>,
   setters: Readonly<PersonalizationSetters>,
 ): void => {
@@ -223,22 +223,22 @@ export const useScrollPersonalization = ({
   const basicRanking = useMemo(
     () => rankFeedArticles(articles, undefined, isFavorite),
     [articles, isFavorite],
-  );
-  const [status, setStatus] = useState<PersonalizationStatus>("basic");
-  const [profile, setProfile] = useState<Readonly<InterestProfile>>();
-  const [personalizedBreakdowns, setPersonalizedBreakdowns] =
-    useState<Readonly<Record<number, FeedScoreBreakdown>>>();
-  const [personalizedArticles, setPersonalizedArticles] =
-    useState<readonly NewsArticle[]>();
-  const [topicsLoaded, setTopicsLoaded] = useState(NO_ITEMS);
-  const [seedCount, setSeedCount] = useState(NO_ITEMS);
-  const requestVersionRef = useRef(NO_ITEMS);
+  ),
+   [status, setStatus] = useState<PersonalizationStatus>("basic"),
+   [profile, setProfile] = useState<Readonly<InterestProfile>>(),
+   [personalizedBreakdowns, setPersonalizedBreakdowns] =
+    useState<Readonly<Record<number, FeedScoreBreakdown>>>(),
+   [personalizedArticles, setPersonalizedArticles] =
+    useState<readonly NewsArticle[]>(),
+   [topicsLoaded, setTopicsLoaded] = useState(NO_ITEMS),
+   [seedCount, setSeedCount] = useState(NO_ITEMS),
+   requestVersionRef = useRef(NO_ITEMS);
 
   useEffect(() => {
     requestVersionRef.current += REQUEST_VERSION_INCREMENT;
     const requestVersion = requestVersionRef.current;
     if (!enabled) {
-      return undefined;
+      return;
     }
     let cancelled = false;
     globalThis.queueMicrotask(() => {

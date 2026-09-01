@@ -253,9 +253,7 @@ def extract_image_from_entry(
         _link_candidates,
     )
     candidates = [
-        candidate
-        for extractor in extractors
-        for candidate in extractor(entry, html_base_url)
+        candidate for extractor in extractors for candidate in extractor(entry, html_base_url)
     ]
     return _result_from_candidates(candidates)
 
@@ -273,18 +271,18 @@ def _extract_images_from_html(html: str) -> list[str]:
         return []
 
     attribute_patterns = (
-        r'<img[^>]+src=["\']([^"\']+)["\']',
-        r'<img[^>]+data-src=["\']([^"\']+)["\']',
-        r'<img[^>]+data-original=["\']([^"\']+)["\']',
-        r'<img[^>]+data-lazy-src=["\']([^"\']+)["\']',
-        r'<img[^>]+data-srcset=["\']([^"\']+)["\']',
+        r'<img[^>]*\ssrc=["\']([^"\']+)["\']',
+        r'<img[^>]*\sdata-src=["\']([^"\']+)["\']',
+        r'<img[^>]*\sdata-original=["\']([^"\']+)["\']',
+        r'<img[^>]*\sdata-lazy-src=["\']([^"\']+)["\']',
+        r'<img[^>]*\sdata-srcset=["\']([^"\']+)["\']',
     )
     urls = [
         match
         for pattern in attribute_patterns
         for match in re.findall(pattern, html, re.IGNORECASE)
     ]
-    srcsets = re.findall(r'<img[^>]+srcset=["\']([^"\']+)["\']', html, re.IGNORECASE)
+    srcsets = re.findall(r'<img[^>]*\ssrcset=["\']([^"\']+)["\']', html, re.IGNORECASE)
     urls.extend(url for srcset in srcsets if (url := _first_srcset_url(srcset)))
     return [normalized for value in urls if (normalized := _first_srcset_url(value))]
 

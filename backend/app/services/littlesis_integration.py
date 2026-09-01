@@ -251,7 +251,9 @@ def load_littlesis_entities(filepath: str | None = None) -> list[dict[str, Any]]
             if _is_media_entity(entity):
                 entities.append(entity)
             if record_num % 50000 == 0:
-                logger.debug("Parsed %d records, %d media entities found", record_num, len(entities))
+                logger.debug(
+                    "Parsed %d records, %d media entities found", record_num, len(entities)
+                )
     logger.info("Loaded %d media-related entities from %d total records", len(entities), record_num)
     return entities
 
@@ -520,7 +522,9 @@ def get_littlesis_affiliations_for_reporter(
     wikidata_qid: str | None = None,
 ) -> dict[str, Any]:
     """Look up a reporter in cached LittleSis bulk data and return affiliations."""
-    del wikidata_qid  # Reserved for a future explicit QID bridge; name matching remains authoritative.
+    del (
+        wikidata_qid
+    )  # Reserved for a future explicit QID bridge; name matching remains authoritative.
     result = _default_reporter_lookup_result()
     entities_path = str(Path(_ensure_data_dir()) / LITTLESIS_ENTITIES_FILE)
     if not Path(entities_path).exists():

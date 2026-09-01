@@ -498,9 +498,7 @@ def _accepted_lifecycle(qualifiers: dict[str, Any]) -> str:
     return lifecycle_state
 
 
-async def _find_existing_relationship(
-    db: AsyncSession, digest: str
-) -> AcceptedRelationship | None:
+async def _find_existing_relationship(db: AsyncSession, digest: str) -> AcceptedRelationship | None:
     """Return the active relationship already materialized for this digest."""
     return (
         await db.execute(
@@ -516,9 +514,7 @@ async def _attach_supporting_relationship_link(
     db: AsyncSession, existing: AcceptedRelationship, claim_id: str
 ) -> None:
     """Idempotently link a supporting claim to its already-materialized relationship."""
-    link = await db.get(
-        RelationshipClaim, {"relationship_id": existing.id, "claim_id": claim_id}
-    )
+    link = await db.get(RelationshipClaim, {"relationship_id": existing.id, "claim_id": claim_id})
     if link is None:
         db.add(
             RelationshipClaim(

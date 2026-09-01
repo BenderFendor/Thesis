@@ -124,6 +124,12 @@
       }
     ],
     "import/no-cycle": "error",
+    "no-duplicate-imports": [
+      "error",
+      {
+        "allowSeparateTypeImports": true
+      }
+    ],
     "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "react/set-state-in-effect": "error",
@@ -136,6 +142,33 @@
     "thesis/require-dialog-title": "error"
   },
   "overrides": [
+    {
+      "files": [
+        "frontend/**/*.{js,jsx,ts,tsx}"
+      ],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": [
+        "frontend/app/layout.tsx"
+      ],
+      "rules": {
+        "one-var": "off",
+        "import/no-unassigned-import": "off",
+        "react/jsx-max-depth": "off",
+        "typescript/prefer-readonly-parameter-types": "off"
+      }
+    },
+    {
+      "files": [
+        "frontend/hooks/use-debug-mode.ts"
+      ],
+      "globals": {
+        "process": "readonly"
+      }
+    },
     {
       "files": [
         "frontend/app/search/page.tsx",
@@ -166,6 +199,9 @@
       ],
       "env": {
         "node": true
+      },
+      "rules": {
+        "import/no-unassigned-import": "off"
       }
     }
   ]

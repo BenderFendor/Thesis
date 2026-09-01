@@ -8,13 +8,14 @@
     "lint": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json frontend scripts",
     "start": "next start",
     "test": "jest",
+    "test:oxlint-rules": "vitest run --config vitest.config.mts",
     "test:watch": "jest --watch",
     "test:property": "jest --testPathPatterns=property",
     "openapi:types": "openapi-typescript ../backend/openapi.json -o lib/generated/openapi.ts",
     "openapi:refresh": "curl -sS http://localhost:8000/openapi.json -o ../backend/openapi.json && npm run openapi:types",
     "lint:fix": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend scripts",
     "deadcode": "knip --config knip.json",
-    "crap": "crap-typescript --threshold 30 --agent"
+    "crap": "node ../scripts/check-crap.mjs"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "1.1.2",
@@ -70,6 +71,7 @@
     "postcss-load-config": "^6.0.1",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

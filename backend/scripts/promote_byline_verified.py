@@ -105,19 +105,7 @@ async def _apply_byline_evidence(
 ) -> bool:
     """Record in-memory byline evidence; when not dry-run, persist and return whether upgraded."""
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    citation = {
-        "label": "Consistent byline attribution",
-        "url": evidence_url,
-        "source_type": "byline_frequency",
-        "note": (f"Name appears as article author {obs_count} times for {source_name}."),
-    }
-    if not any(
-        isinstance(c, dict)
-        and c.get("label") == citation["label"]
-        and c.get("url") == citation["url"]
-        for c in citations
-    ):
-        citations.append(citation)
+    citations = _with_byline_citation(citations, evidence_url, obs_count, source_name)
     reporter.citations = citations
     reporter.research_sources = sorted(
         set((reporter.research_sources or []) + ["byline_frequency"])
@@ -126,6 +114,38 @@ async def _apply_byline_evidence(
 
     if dry_run:
         return False
+    return await _persist_byline_evidence(session, reporter, obs_count, source_name)
+
+
+def _with_byline_citation(
+    citations: list[Any],
+    evidence_url: str,
+    obs_count: int,
+    source_name: str,
+) -> list[Any]:
+    citation = {
+        "label": "Consistent byline attribution",
+        "url": evidence_url,
+        "source_type": "byline_frequency",
+        "note": (f"Name appears as article author {obs_count} times for {source_name}."),
+    }
+    already_present = any(
+        isinstance(citation_item, dict)
+        and citation_item.get("label") == citation["label"]
+        and citation_item.get("url") == citation["url"]
+        for citation_item in citations
+    )
+    if not already_present:
+        citations.append(citation)
+    return citations
+
+
+async def _persist_byline_evidence(
+    session: AsyncSession,
+    reporter: Reporter,
+    obs_count: int,
+    source_name: str,
+) -> bool:
     await session.commit()
     await update_reporter_confidence(session, int(reporter.id or 0))
     await session.refresh(reporter)

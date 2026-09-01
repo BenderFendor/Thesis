@@ -28,10 +28,14 @@ export function selectSourceResearchData<T>(
   return researchData ?? cachedData
 }
 
-export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
+function useSourceResearchController({
+  sourceName,
+  website,
+  autoRun,
+}: SourceResearchPanelProps) {
   const [runFullResearch, setRunFullResearch] = useState(autoRun),
    [refreshCounter, setRefreshCounter] = useState(0),
-   sourceWikiHref = `/wiki/suource/${encodeURIComponent(sourceName)}`,
+   sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`,
    sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`,
 
    { data: cachedData, isFetching: isCheckingCache } = useQuery({
@@ -54,62 +58,175 @@ export function SourceResearchPanel({ sourceName, website, autoRun = false }: So
    isFetching = isCheckingCache || isResearching,
    hasData = Boolean(data),
 
-   handleRun = () =>{  setRunFullResearch(true); },
+   handleRun = () => { setRunFullResearch(true); },
    handleRefresh = () => {
     setRunFullResearch(true)
     setRefreshCounter((count) => count + 1)
   }
 
+  return {
+    data,
+    error,
+    handleRefresh,
+    handleRun,
+    hasData,
+    isFetching,
+    sourceSearchUrl,
+    sourceWikiHref,
+  }
+}
+
+export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
+  const {
+    data,
+    error,
+    hasData,
+    isFetching,
+    handleRefresh,
+    handleRun,
+    sourceSearchUrl,
+    sourceWikiHref,
+  } = useSourceResearchController({ autoRun, sourceName, website })
+
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-white/10 p-4 shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Wiki Preview</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Deterministic public-source facts and record links.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2">
-              <Link href={sourceWikiHref}>
-                <ExternalLink className="mr-1 h-3 w-3" />
-                Full wiki
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={hasData ? handleRefresh : handleRun}
-              className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
-            >
-              {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RefreshCw className="mr-1 h-3 w-3" />{hasData ? "Refresh" : "Run"}</>}
-            </Button>
-          </div>
+      <SourceResearchPanelHeader
+        hasData={hasData}
+        isFetching={isFetching}
+        onRefresh={handleRefresh}
+        onRun={handleRun}
+        sourceWikiHref={sourceWikiHref}
+      />
+
+      <SourceResearchPanelContent
+        data={data}
+        error={error}
+        hasData={hasData}
+        isFetching={isFetching}
+        sourceSearchUrl={sourceSearchUrl}
+      />
+    </div>
+  )
+}
+
+interface SourceResearchPanelHeaderProps {
+  readonly hasData: boolean;
+  readonly isFetching: boolean;
+  readonly onRefresh: () => void;
+  readonly onRun: () => void;
+  readonly sourceWikiHref: string;
+}
+
+function SourceResearchPanelHeader({
+  hasData,
+  isFetching,
+  onRefresh,
+  onRun,
+  sourceWikiHref,
+}: Readonly<SourceResearchPanelHeaderProps>) {
+  return (
+    <div className="border-b border-white/10 p-4 shrink-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Wiki Preview</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Deterministic public-source facts and record links.</p>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4">
-        {!hasData && !isFetching && !error && (
-          <p className="border-l-2 border-primary/30 pl-2 text-[11px] text-muted-foreground">
-            Run research to fetch verified ownership, funding, and public records.
-          </p>
-        )}
-
-        {isFetching && !hasData && (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-[10px] font-mono text-muted-foreground animate-pulse">
-            Running source dossier lookup...
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-[10px] font-mono text-red-400">
-            Research failed. Retry.
-          </div>
-        )}
-
-        {data && <ResearchProfileContent data={data} sourceSearchUrl={sourceSearchUrl} />}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2">
+            <Link href={sourceWikiHref}>
+              <ExternalLink className="mr-1 h-3 w-3" />
+              Full wiki
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={hasData ? onRefresh : onRun}
+            className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+          >
+            {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RefreshCw className="mr-1 h-3 w-3" />{hasData ? "Refresh" : "Run"}</>}
+          </Button>
+        </div>
       </div>
     </div>
   )
+}
+
+interface SourceResearchPanelContentProps {
+  readonly data: SourceResearchProfile | null | undefined;
+  readonly error: Error | null;
+  readonly hasData: boolean;
+  readonly isFetching: boolean;
+  readonly sourceSearchUrl: string;
+}
+
+function SourceResearchPanelContent({
+  data,
+  error,
+  hasData,
+  isFetching,
+  sourceSearchUrl,
+}: Readonly<SourceResearchPanelContentProps>) {
+  return (
+    <div className="flex-1 overflow-y-auto p-4">
+      <SourceResearchEmptyState visible={!hasData && !isFetching && error === null} />
+      <SourceResearchLoadingState visible={isFetching && !hasData} />
+      <SourceResearchErrorState visible={error !== null} />
+      <SourceResearchProfileState data={data} sourceSearchUrl={sourceSearchUrl} />
+    </div>
+  )
+}
+
+interface SourceResearchVisibilityProps {
+  readonly visible: boolean;
+}
+
+function SourceResearchEmptyState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+  if (!visible) {
+    return <></>
+  }
+  return (
+    <p className="border-l-2 border-primary/30 pl-2 text-[11px] text-muted-foreground">
+      Run research to fetch verified ownership, funding, and public records.
+    </p>
+  )
+}
+
+function SourceResearchLoadingState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+  if (!visible) {
+    return <></>
+  }
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-[10px] font-mono text-muted-foreground animate-pulse">
+      Running source dossier lookup...
+    </div>
+  )
+}
+
+function SourceResearchErrorState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+  if (!visible) {
+    return <></>
+  }
+  return (
+    <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-[10px] font-mono text-red-400">
+      Research failed. Retry.
+    </div>
+  )
+}
+
+interface SourceResearchProfileStateProps {
+  readonly data: SourceResearchProfile | null | undefined;
+  readonly sourceSearchUrl: string;
+}
+
+function SourceResearchProfileState({
+  data,
+  sourceSearchUrl,
+}: Readonly<SourceResearchProfileStateProps>) {
+  if (data === undefined || data === null) {
+    return <></>
+  }
+  return <ResearchProfileContent data={data} sourceSearchUrl={sourceSearchUrl} />
 }
 
 type ResearchSection = NonNullable<SourceResearchProfile["dossier_sections"]>[number]

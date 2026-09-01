@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from '@jest/globals';
 import {
   getStorageSnapshot,
   removeFromStorage,
@@ -6,11 +6,8 @@ import {
 } from "@/lib/storage";
 
 describe("getStorageSnapshot", () => {
-  beforeEach(() => {
-    globalThis.localStorage.clear();
-  });
-
   it("reuses the fallback reference when storage is empty", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
     const fallback: string[] = [],
 
      firstSnapshot = getStorageSnapshot("missing-key", fallback),
@@ -22,6 +19,7 @@ describe("getStorageSnapshot", () => {
   });
 
   it("reuses the parsed snapshot while the stored value is unchanged", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
     saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
 
     const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []),
@@ -32,23 +30,27 @@ describe("getStorageSnapshot", () => {
   });
 
   it("returns a new snapshot after the stored value changes", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
     saveToStorage("favoriteSourceIds", ["bbc"]);
-    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
-
-    saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
-    const secondSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
+    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []),
+      secondSnapshot = (() => {
+        saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
+        return getStorageSnapshot<string[]>("favoriteSourceIds", []);
+      })();
 
     expect(secondSnapshot).not.toBe(firstSnapshot);
     expect(secondSnapshot).toStrictEqual(["bbc", "reuters"]);
   });
 
   it("returns the fallback after the key is removed", () => {expect.hasAssertions();
-    const fallback: string[] = [];
-    saveToStorage("favoriteSourceIds", ["bbc"]);
-    getStorageSnapshot<string[]>("favoriteSourceIds", fallback);
-
-    removeFromStorage("favoriteSourceIds");
-    const nextSnapshot = getStorageSnapshot("favoriteSourceIds", fallback);
+    globalThis.localStorage.clear();
+    const fallback: string[] = [],
+      nextSnapshot = (() => {
+        saveToStorage("favoriteSourceIds", ["bbc"]);
+        getStorageSnapshot<string[]>("favoriteSourceIds", fallback);
+        removeFromStorage("favoriteSourceIds");
+        return getStorageSnapshot("favoriteSourceIds", fallback);
+      })();
 
     expect(nextSnapshot).toBe(fallback);
   });

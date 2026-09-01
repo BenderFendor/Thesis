@@ -44,8 +44,8 @@ export function VerificationPanel({
 }: VerificationPanelProps) {
   const [isOpen, setIsOpen] = useState(false),
    [isLoading, setIsLoading] = useState(false),
-   [result, setResult] = useState<VerificationResult | null>(undefined),
-   [error, setError] = useState<string | null>(undefined),
+   [result, setResult] = useState<VerificationResult | null>(null),
+   [error, setError] = useState<string | null>(null),
    [expandedClaims, setExpandedClaims] = useState<Set<string>>(new Set()),
 
    runVerification = useCallback(async () => {
@@ -54,7 +54,7 @@ export function VerificationPanel({
     }
 
     setIsLoading(true);
-    setError(undefined);
+    setError(null);
 
     try {
       const verificationResult = await verifyResearch({
@@ -122,89 +122,124 @@ export function VerificationPanel({
             )}
           </Button>
         </CollapsibleTrigger>
-
-        <CollapsibleContent>
-          <div className="px-4 pb-4 space-y-4">
-            {!result && !isLoading && !error && (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground mb-3">
-                  Verify claims in the research response
-                </p>
-                <Button
-                  onClick={runVerification}
-                  disabled={!mainAnswer || mainAnswer.length < 50}
-                  size="sm"
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Run Verification
-                </Button>
-              </div>
-            )}
-
-            {isLoading && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">
-                  Verifying claims...
-                </span>
-              </div>
-            )}
-
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-md text-destructive text-sm">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {hasContent && (
-              <>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Overall Confidence</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={runVerification}
-                      disabled={isLoading}
-                    >
-                      <RefreshCw className={`w-3 h-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
-                      Refresh
-                    </Button>
-                  </div>
-                  <ConfidenceBar
-                    confidence={result.overall_confidence}
-                    level={result.overall_confidence_level}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {result.verified_claims.length} claim
-                    {result.verified_claims.length === 1 ? "" : "s"} verified from{" "}
-                    {Object.keys(result.sources).length} source
-                    {Object.keys(result.sources).length === 1 ? "" : "s"} in{" "}
-                    {result.duration_ms}ms
-                  </p>
-                </div>
-
-                <ScrollArea className="max-h-[400px]">
-                  <div className="space-y-2">
-                    {result.verified_claims.map((claim) => (
-                      <ClaimCard
-                        key={claim.id}
-                        claim={claim}
-                        sources={result.sources}
-                        isExpanded={expandedClaims.has(claim.id)}
-                        onToggle={() =>{  toggleClaim(claim.id); }}
-                      />
-                    ))}
-                  </div>
-                </ScrollArea>
-              </>
-            )}
-          </div>
-        </CollapsibleContent>
+        <VerificationPanelContent
+          error={error}
+          expandedClaims={expandedClaims}
+          isLoading={isLoading}
+          mainAnswer={mainAnswer}
+          onRunVerification={runVerification}
+          onToggleClaim={toggleClaim}
+          result={result}
+        />
       </Collapsible>
     </div>
   );
+}
+
+interface VerificationPanelContentProps {
+  readonly error: string | null
+  readonly expandedClaims: Set<string>
+  readonly isLoading: boolean
+  readonly mainAnswer: string
+  readonly onRunVerification: () => void
+  readonly onToggleClaim: (claimId: string) => void
+  readonly result: VerificationResult | null
+}
+
+function VerificationPanelContent({
+  error,
+  expandedClaims,
+  isLoading,
+  mainAnswer,
+  onRunVerification,
+  onToggleClaim,
+  result,
+}: VerificationPanelContentProps) {
+  const hasContent = result !== null && result.verified_claims.length > 0
+  return (
+    <CollapsibleContent>
+      <div className="px-4 pb-4 space-y-4">
+        {!result && !isLoading && !error && (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground mb-3">Verify claims in the research response</p>
+            <Button onClick={onRunVerification} disabled={!mainAnswer || mainAnswer.length < 50} size="sm">
+              <Shield className="w-4 h-4 mr-2" />
+              Run Verification
+            </Button>
+          </div>
+        )}
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Verifying claims...</span>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-md text-destructive text-sm">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        {hasContent && result && (
+          <VerificationResults
+            expandedClaims={expandedClaims}
+            isLoading={isLoading}
+            onRunVerification={onRunVerification}
+            onToggleClaim={onToggleClaim}
+            result={result}
+          />
+        )}
+      </div>
+    </CollapsibleContent>
+  )
+}
+
+function VerificationResults({
+  expandedClaims,
+  isLoading,
+  onRunVerification,
+  onToggleClaim,
+  result,
+}: {
+  readonly expandedClaims: Set<string>
+  readonly isLoading: boolean
+  readonly onRunVerification: () => void
+  readonly onToggleClaim: (claimId: string) => void
+  readonly result: VerificationResult
+}) {
+  const claimCount = result.verified_claims.length,
+   sourceCount = Object.keys(result.sources).length
+  return (
+    <>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Overall Confidence</span>
+          <Button variant="ghost" size="sm" onClick={onRunVerification} disabled={isLoading}>
+            <RefreshCw className={`w-3 h-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+        <ConfidenceBar confidence={result.overall_confidence} level={result.overall_confidence_level} />
+        <p className="text-xs text-muted-foreground">
+          {claimCount} claim{claimCount === 1 ? "" : "s"} verified from {sourceCount} source
+          {sourceCount === 1 ? "" : "s"} in {result.duration_ms}ms
+        </p>
+      </div>
+      <ScrollArea className="max-h-[400px]">
+        <div className="space-y-2">
+          {result.verified_claims.map((claim) => (
+            <ClaimCard
+              key={claim.id}
+              claim={claim}
+              sources={result.sources}
+              isExpanded={expandedClaims.has(claim.id)}
+              onToggle={() =>{  onToggleClaim(claim.id); }}
+            />
+          ))}
+        </div>
+      </ScrollArea>
+    </>
+  )
 }
 
 interface ClaimCardProps {
