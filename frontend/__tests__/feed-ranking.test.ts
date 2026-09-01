@@ -1,46 +1,51 @@
+import { describe, expect, it } from '@jest/globals';
 import fc from "fast-check"
 
-import {
-  buildInterestProfile,
-  rankFeedArticles,
-  type PersonalizationSeed,
-} from "@/lib/feed-ranking"
+import { buildInterestProfile, rankFeedArticles } from '@/lib/feed-ranking';
+import type { PersonalizationSeed } from '@/lib/feed-ranking';
 import type { ArticleTopic, NewsArticle } from "@/lib/api"
 
+const DEFAULT_ARTICLE: NewsArticle = {
+  bias: "center",
+  category: "politics",
+  country: "US",
+  credibility: "high",
+  id: 1,
+  image: "https://images.example.com/photo.jpg",
+  originalLanguage: "en",
+  publishedAt: "2026-04-23T12:00:00.000Z",
+  source: "Reuters",
+  sourceId: "reuters",
+  summary: "Markets react to trade policy changes.",
+  tags: ["politics", "trade"],
+  title: "Trade policy update",
+  translated: false,
+  url: "https://example.com/1",
+};
+
 function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+  const article = { ...DEFAULT_ARTICLE, ...overrides };
   return {
-    id: overrides.id ?? 1,
-    title: overrides.title ?? "Trade policy update",
-    source: overrides.source ?? "Reuters",
-    sourceId: overrides.sourceId ?? "reuters",
-    country: overrides.country ?? "US",
-    credibility: overrides.credibility ?? "high",
-    bias: overrides.bias ?? "center",
-    summary: overrides.summary ?? "Markets react to trade policy changes.",
-    image: overrides.image ?? "https://images.example.com/photo.jpg",
-    publishedAt: overrides.publishedAt ?? new Date().toISOString(),
-    category: overrides.category ?? "politics",
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-    tags: overrides.tags ?? ["politics", "trade"],
-    originalLanguage: overrides.originalLanguage ?? "en",
-    translated: overrides.translated ?? false,
-  }
+    ...article,
+    url: overrides.url ?? `https://example.com/${article.id}`,
+  };
 }
 
 describe("feed ranking", () => {
-  it("keeps favorite source bucket ahead of a non-favorite with higher personalization", () => {
-    const favoriteArticle = makeArticle({ id: 1, sourceId: "fav-source", source: "Fav Source", image: "" })
-    const personalizedArticle = makeArticle({ id: 2, sourceId: "other-source", source: "Other Source", image: "", title: "Trade trade trade" })
+  it("keeps favorite source bucket ahead of a non-favorite with higher personalization", () => {  expect.hasAssertions();
+  
+    const favoriteArticle = makeArticle({ id: 1, image: "", source: "Fav Source", sourceId: "fav-source" }),
+     personalizedArticle = makeArticle({ id: 2, image: "", source: "Other Source", sourceId: "other-source", title: "Trade trade trade" }),
 
-    const seedArticle = makeArticle({ id: 10, title: "Trade talks", tags: ["trade"] })
-    const seeds: PersonalizationSeed[] = [
-      { article: seedArticle, liked: true, bookmarked: true, createdAt: new Date().toISOString() },
-    ]
-    const topicsByArticleId: Record<number, ArticleTopic[]> = {
-      10: [{ cluster_id: 3, label: "Trade", similarity: 0.91, keywords: ["trade"] }],
-    }
-    const profile = buildInterestProfile(seeds, topicsByArticleId)
-    const ranked = rankFeedArticles(
+     seedArticle = makeArticle({ id: 10, tags: ["trade"], title: "Trade talks" }),
+     seeds: PersonalizationSeed[] = [
+      { article: seedArticle, bookmarked: true, createdAt: new Date().toISOString(), liked: true },
+    ],
+     topicsByArticleId: Record<number, ArticleTopic[]> = {
+      10: [{ cluster_id: 3, keywords: ["trade"], label: "Trade", similarity: 0.91 }],
+    },
+     profile = buildInterestProfile(seeds, topicsByArticleId),
+     ranked = rankFeedArticles(
       [personalizedArticle, favoriteArticle],
       profile,
       (sourceId) => sourceId === "fav-source",
@@ -49,37 +54,39 @@ describe("feed ranking", () => {
     expect(ranked.articles[0]!.id).toBe(1)
   })
 
-  it("gives bookmark signals at least as much weight as likes for the same topic", () => {
+  it("gives bookmark signals at least as much weight as likes for the same topic", () => {  expect.hasAssertions();
+  
     fc.assert(
-      fc.property(fc.integer({ min: 1, max: 9999 }), (articleId) => {
-        const seedArticle = makeArticle({ id: articleId, title: "Election briefing", category: "politics", sourceId: "newswire" })
-        const topicsByArticleId: Record<number, ArticleTopic[]> = {
-          [articleId]: [{ cluster_id: 8, label: "Election", similarity: 0.9, keywords: ["election", "vote"] }],
-        }
+      fc.property(fc.integer({ max: 9999, min: 1 }), (articleId) => {
+        const seedArticle = makeArticle({ category: "politics", id: articleId, sourceId: "newswire", title: "Election briefing" }),
+         topicsByArticleId: Record<number, ArticleTopic[]> = {
+          [articleId]: [{ cluster_id: 8, keywords: ["election", "vote"], label: "Election", similarity: 0.9 }],
+        },
 
-        const likedProfile = buildInterestProfile(
-          [{ article: seedArticle, liked: true, bookmarked: false, createdAt: new Date().toISOString() }],
+         likedProfile = buildInterestProfile(
+          [{ article: seedArticle, bookmarked: false, createdAt: new Date().toISOString(), liked: true }],
+          topicsByArticleId,
+        ),
+         bookmarkedProfile = buildInterestProfile(
+          [{ article: seedArticle, bookmarked: true, createdAt: new Date().toISOString(), liked: false }],
           topicsByArticleId,
         )
-        const bookmarkedProfile = buildInterestProfile(
-          [{ article: seedArticle, liked: false, bookmarked: true, createdAt: new Date().toISOString() }],
-          topicsByArticleId,
-        )
 
-        expect((bookmarkedProfile?.clusterWeights[8] || 0) >= (likedProfile?.clusterWeights[8] || 0)).toBe(true)
-        expect((bookmarkedProfile?.keywordWeights.election || 0) >= (likedProfile?.keywordWeights.election || 0)).toBe(true)
+        expect(bookmarkedProfile?.clusterWeights[8] || 0).toBeGreaterThanOrEqual(likedProfile?.clusterWeights[8] || 0)
+        expect(bookmarkedProfile?.keywordWeights.election || 0).toBeGreaterThanOrEqual(likedProfile?.keywordWeights.election || 0)
       }),
     )
   })
 
-  it("preserves original order for ties", () => {
+  it("preserves original order for ties", () => {  expect.hasAssertions();
+  
     const articles = [
       makeArticle({ id: 1, image: "", sourceId: "same-source" }),
       makeArticle({ id: 2, image: "", sourceId: "same-source" }),
       makeArticle({ id: 3, image: "", sourceId: "same-source" }),
-    ]
+    ],
 
-    const ranked = rankFeedArticles(articles, null, () => false)
-    expect(ranked.articles.map((article) => article.id)).toEqual([1, 2, 3])
+     ranked = rankFeedArticles(articles, undefined, () => false)
+    expect(ranked.articles.map((article) => article.id)).toStrictEqual([1, 2, 3])
   })
 })

@@ -13,12 +13,13 @@ to the user.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
-from typing import Any, cast
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -39,6 +40,17 @@ from app.vector_store import (
 )
 
 logger = get_logger("chroma_topics")
+
+_RECOVERABLE_TOPIC_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    SQLAlchemyError,
+    TypeError,
+    ValueError,
+)
 
 SIMILARITY_THRESHOLD = 0.82
 MIN_CLUSTER_SIZE = 2
@@ -119,6 +131,27 @@ class ClusterCandidate:
     similarities: dict[int, float]
 
 
+class _ArticleUnionFind:
+    def __init__(self, article_ids: Iterable[int]) -> None:
+        self.parent = {article_id: article_id for article_id in article_ids}
+
+    def find(self, article_id: int) -> int:
+        root = article_id
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[article_id] != article_id:
+            next_id = self.parent[article_id]
+            self.parent[article_id] = root
+            article_id = next_id
+        return root
+
+    def union(self, first: int, second: int) -> None:
+        root_first = self.find(first)
+        root_second = self.find(second)
+        if root_first != root_second:
+            self.parent[root_second] = root_first
+
+
 def _window_start(window: str) -> datetime:
     now = get_utc_now()
     if window == "1w":
@@ -165,20 +198,7 @@ def _clusters_from_ids_batches(
         distance_batches,
         strict=False,
     ):
-        member_ids: list[int] = []
-        similarities: dict[int, float] = {}
-        for member_chroma_id, distance in zip(ids_batch, distances_batch, strict=False):
-            if not member_chroma_id.startswith("article_"):
-                continue
-            try:
-                member_id = int(member_chroma_id.replace("article_", ""))
-            except ValueError:
-                continue
-            similarity = 1 - distance if distance is not None else 0.0
-            if similarity < SIMILARITY_THRESHOLD:
-                continue
-            member_ids.append(member_id)
-            similarities[member_id] = similarity
+        member_ids, similarities = _cluster_members(ids_batch, distances_batch)
 
         if article_id not in member_ids:
             member_ids.insert(0, article_id)
@@ -195,6 +215,27 @@ def _clusters_from_ids_batches(
     return clusters
 
 
+def _cluster_members(
+    ids_batch: Sequence[str],
+    distances_batch: Sequence[float | None],
+) -> tuple[list[int], dict[int, float]]:
+    member_ids: list[int] = []
+    similarities: dict[int, float] = {}
+    for member_chroma_id, distance in zip(ids_batch, distances_batch, strict=False):
+        if not member_chroma_id.startswith("article_"):
+            continue
+        try:
+            member_id = int(member_chroma_id.removeprefix("article_"))
+        except ValueError:
+            continue
+        similarity = 1 - distance if distance is not None else 0.0
+        if similarity < SIMILARITY_THRESHOLD:
+            continue
+        member_ids.append(member_id)
+        similarities[member_id] = similarity
+    return member_ids, similarities
+
+
 def _embedding_for_article(embedded: Any) -> list[float] | None:
     embeddings = embedded.get("embeddings") if embedded else None
     if embeddings is None or len(embeddings) == 0:
@@ -209,67 +250,48 @@ def _embedding_for_article(embedded: Any) -> list[float] | None:
     return list(query_embedding_raw)
 
 
+def _select_cluster_anchor(
+    members: set[int],
+    candidate_by_anchor: dict[int, ClusterCandidate],
+) -> tuple[int, dict[int, float]]:
+    anchors = [anchor_id for anchor_id in members if anchor_id in candidate_by_anchor]
+    if not anchors:
+        return min(members), {}
+
+    best_anchor = anchors[0]
+    best_score = (-1, -1.0)
+    for anchor_id in anchors:
+        candidate = candidate_by_anchor[anchor_id]
+        size_score = len(candidate.member_ids)
+        sim_total = sum(candidate.similarities.values())
+        sim_avg = sim_total / max(len(candidate.similarities), 1)
+        score = (size_score, sim_avg)
+        if score > best_score:
+            best_score = score
+            best_anchor = anchor_id
+    return best_anchor, candidate_by_anchor[best_anchor].similarities
+
+
 def _merge_candidate_clusters(
     candidates: Sequence[ClusterCandidate],
     candidate_by_anchor: dict[int, ClusterCandidate],
 ) -> list[ClusterCandidate]:
-    all_ids: set[int] = set()
+    all_ids = {article_id for cluster in candidates for article_id in cluster.member_ids}
+    union_find = _ArticleUnionFind(all_ids)
     for cluster in candidates:
-        all_ids.update(cluster.member_ids)
-
-    parent: dict[int, int] = {article_id: article_id for article_id in all_ids}
-
-    def find(article_id: int) -> int:
-        """Find."""
-        root = article_id
-        while parent[root] != root:
-            root = parent[root]
-        while parent[article_id] != article_id:
-            next_id = parent[article_id]
-            parent[article_id] = root
-            article_id = next_id
-        return root
-
-    def union(a: int, b: int) -> None:
-        """Union."""
-        root_a = find(a)
-        root_b = find(b)
-        if root_a != root_b:
-            parent[root_b] = root_a
-
-    for cluster in candidates:
-        anchor_id = cluster.anchor_id
         for member_id in cluster.member_ids:
-            union(anchor_id, member_id)
+            union_find.union(cluster.anchor_id, member_id)
 
     components: dict[int, set[int]] = {}
-    for article_id in parent:
-        root = find(article_id)
+    for article_id in union_find.parent:
+        root = union_find.find(article_id)
         components.setdefault(root, set()).add(article_id)
 
-    clusters: list[ClusterCandidate] = []
+    clusters = []
     for members in components.values():
         if len(members) < MIN_CLUSTER_SIZE:
             continue
-        anchors = [anchor_id for anchor_id in members if anchor_id in candidate_by_anchor]
-        if not anchors:
-            anchor_id = min(members)
-            similarities: dict[int, float] = {}
-        else:
-            best_anchor = anchors[0]
-            best_score = (-1, -1.0)
-            for anchor_id in anchors:
-                candidate = candidate_by_anchor[anchor_id]
-                size_score = len(candidate.member_ids)
-                sim_total = sum(candidate.similarities.values())
-                sim_avg = sim_total / max(len(candidate.similarities), 1)
-                score = (size_score, sim_avg)
-                if score > best_score:
-                    best_score = score
-                    best_anchor = anchor_id
-            anchor_id = best_anchor
-            similarities = candidate_by_anchor[anchor_id].similarities
-
+        anchor_id, similarities = _select_cluster_anchor(members, candidate_by_anchor)
         clusters.append(
             ClusterCandidate(
                 anchor_id=anchor_id,
@@ -277,7 +299,6 @@ def _merge_candidate_clusters(
                 similarities=similarities,
             )
         )
-
     return clusters
 
 
@@ -310,12 +331,158 @@ def _attach_article_gdelt_context(
     return article
 
 
+def _set_cluster_gdelt_context(
+    payload: dict[str, Any], cluster_context: dict[str, Any] | None
+) -> None:
+    if cluster_context is not None:
+        payload["gdelt_context"] = cluster_context
+    else:
+        payload.setdefault("gdelt_context", None)
+
+
+def _attach_payload_article_context(
+    payload: dict[str, Any],
+    events_by_article: dict[int, list[dict[str, Any]]],
+    tone_baseline_avg: float | None,
+) -> None:
+    representative = payload.get("representative_article")
+    if isinstance(representative, dict):
+        payload["representative_article"] = _attach_article_gdelt_context(
+            representative, events_by_article, tone_baseline_avg
+        )
+
+    payload["articles"] = [
+        _attach_article_gdelt_context(article, events_by_article, tone_baseline_avg)
+        for article in cast(list[dict[str, Any]], payload.get("articles") or [])
+        if isinstance(article, dict)
+    ]
+
+
+def _cluster_gdelt_events(
+    article_ids: Sequence[int], events_by_article: dict[int, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    return [event for article_id in article_ids for event in events_by_article.get(article_id, [])]
+
+
+def _cluster_tone_baseline(cluster_context: dict[str, Any] | None) -> float | None:
+    return cluster_context.get("tone_avg") if cluster_context is not None else None
+
+
+def _should_fallback_after_chroma_probe(
+    index: int, candidates: Sequence[ClusterCandidate], article_count: int
+) -> bool:
+    return index + 1 >= CHROMA_PROBE_LIMIT and not candidates and article_count > CHROMA_PROBE_LIMIT
+
+
+def _payload_articles(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates = [
+        payload.get("representative_article"),
+        *cast(list[dict[str, Any]], payload.get("articles") or []),
+    ]
+    return [
+        article
+        for article in candidates
+        if isinstance(article, dict) and article.get("id") is not None
+    ]
+
+
+def _payload_article_ids(articles: Sequence[dict[str, Any]]) -> list[int]:
+    return list(dict.fromkeys(int(article["id"]) for article in articles))
+
+
+def _title_length_score(length: int) -> float:
+    if 40 <= length <= 100:
+        return 10.0
+    if 30 <= length < 40:
+        return 7.0
+    if 100 < length <= 140:
+        return 6.0
+    if length < 30:
+        return 3.0
+    return 1.0
+
+
+def _title_credibility_score(credibility: str | None) -> float:
+    return {"high": 5.0, "medium": 2.0}.get(credibility, 0.0)
+
+
+def _title_recency_score(published_at: datetime | None) -> float:
+    if not published_at:
+        return 0.0
+    age_hours = (get_utc_now() - published_at).total_seconds() / 3600
+    if age_hours < 6:
+        return 3.0
+    if age_hours < 24:
+        return 2.0
+    if age_hours < 72:
+        return 1.0
+    return 0.0
+
+
+def _title_generic_term_penalty(title: str) -> float:
+    generic_terms = ("breaking", "update", "news alert", "developing")
+    return -5.0 * sum(term in title.lower() for term in generic_terms)
+
+
+def _title_capitalization_score(title: str) -> float:
+    capitalized = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", title)
+    return min(len(capitalized) * 1.5, 8.0)
+
+
+def _limit_cluster_articles(articles: Sequence[Article]) -> list[Article]:
+    article_window = list(articles[:LEXICAL_MAX_ARTICLES])
+    if len(article_window) < len(articles):
+        logger.info(
+            "Clustering capped to %d newest articles (from %d)",
+            len(article_window),
+            len(articles),
+        )
+    return article_window
+
+
+def _query_anchor_embeddings(
+    vector_store: Any,
+    article_ids: Sequence[int],
+) -> tuple[list[int], dict[str, Any]] | None:
+    chroma_ids = [f"article_{article_id}" for article_id in article_ids]
+    try:
+        embedded = vector_store.collection.get(
+            ids=chroma_ids,
+            include=_get_chroma_include("embeddings"),
+        )
+        embedded_ids = cast(list[str], embedded.get("ids") or [])
+        embedding_rows = _get_embedding_rows(embedded)
+        if not embedded_ids or not embedding_rows:
+            return None
+
+        resolved_article_ids, query_embeddings = _resolve_query_embeddings(
+            embedded_ids, embedding_rows
+        )
+        if not resolved_article_ids:
+            return None
+        result = vector_store.collection.query(
+            query_embeddings=cast(
+                "list[Sequence[float] | Sequence[int]]",
+                query_embeddings,
+            ),
+            n_results=TRENDING_EXPANSION,
+            include=_get_chroma_include("distances", "metadatas"),
+        )
+    except _RECOVERABLE_TOPIC_ERRORS as exc:
+        logger.warning(
+            "Failed to batch query article topics for %d anchors: %s",
+            len(article_ids),
+            exc,
+        )
+        return None
+    return resolved_article_ids, result
+
+
 class ChromaTopicService:
     """Chroma Topic Service."""
 
     def __init__(self) -> None:
         """Initialize."""
-        pass
 
     @property
     def vector_store(self) -> VectorStore | None:
@@ -369,46 +536,26 @@ class ChromaTopicService:
         session: AsyncSession,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        articles = [
-            article
-            for article in [
-                payload.get("representative_article"),
-                *cast(list[dict[str, Any]], payload.get("articles") or []),
-            ]
-            if isinstance(article, dict) and article.get("id") is not None
-        ]
+        articles = _payload_articles(payload)
         if not articles:
             payload.setdefault("gdelt_context", None)
             return payload
 
-        article_ids = list(
-            dict.fromkeys(
-                int(article["id"]) for article in articles if article.get("id") is not None
-            )
-        )
+        return await self._attach_gdelt_context_to_articles(session, payload, articles)
+
+    async def _attach_gdelt_context_to_articles(
+        self,
+        session: AsyncSession,
+        payload: dict[str, Any],
+        articles: Sequence[dict[str, Any]],
+    ) -> dict[str, Any]:
+        article_ids = _payload_article_ids(articles)
         events_by_article = await self._fetch_article_gdelt_events(session, article_ids)
-        cluster_events = [
-            event for article_id in article_ids for event in events_by_article.get(article_id, [])
-        ]
+        cluster_events = _cluster_gdelt_events(article_ids, events_by_article)
         cluster_context = build_article_gdelt_context(cluster_events)
-        tone_baseline_avg = cluster_context.get("tone_avg") if cluster_context is not None else None
-
-        if cluster_context is not None:
-            payload["gdelt_context"] = cluster_context
-        else:
-            payload.setdefault("gdelt_context", None)
-
-        representative = payload.get("representative_article")
-        if isinstance(representative, dict):
-            payload["representative_article"] = _attach_article_gdelt_context(
-                representative, events_by_article, tone_baseline_avg
-            )
-
-        payload["articles"] = [
-            _attach_article_gdelt_context(article, events_by_article, tone_baseline_avg)
-            for article in cast(list[dict[str, Any]], payload.get("articles") or [])
-            if isinstance(article, dict)
-        ]
+        tone_baseline_avg = _cluster_tone_baseline(cluster_context)
+        _set_cluster_gdelt_context(payload, cluster_context)
+        _attach_payload_article_context(payload, events_by_article, tone_baseline_avg)
         return payload
 
     @staticmethod
@@ -532,43 +679,63 @@ class ChromaTopicService:
 
         articles_by_id = await self._fetch_articles(session, list(all_member_ids))
         cluster_payload_cache: dict[tuple[int, ...], tuple[str, list[str]]] = {}
-        topics: dict[int, list[dict[str, Any]]] = {}
+        return {
+            article_id: self._bulk_topic_entry(
+                article_id,
+                clusters,
+                articles_by_id,
+                cluster_payload_cache,
+            )
+            for article_id in ordered_article_ids
+        }
 
-        for article_id in ordered_article_ids:
-            article_cluster: ClusterCandidate | None = clusters.get(article_id)
-            if not article_cluster:
-                topics[article_id] = []
-                continue
+    def _cluster_topic_payload(
+        self,
+        cluster: ClusterCandidate,
+        articles_by_id: dict[int, Article],
+        cache: dict[tuple[int, ...], tuple[str, list[str]]],
+    ) -> tuple[str, list[str]] | None:
+        cluster_key = tuple(sorted(cluster.member_ids))
+        cached = cache.get(cluster_key)
+        if cached is not None:
+            return cached
+        cluster_articles = {
+            member_id: article
+            for member_id, article in articles_by_id.items()
+            if member_id in cluster.member_ids
+        }
+        if not cluster_articles:
+            return None
+        payload = (
+            self._generate_cluster_label(cluster_articles),
+            self._extract_keywords_from_articles(list(cluster_articles.values())),
+        )
+        cache[cluster_key] = payload
+        return payload
 
-            cluster_key = tuple(sorted(article_cluster.member_ids))
-            payload = cluster_payload_cache.get(cluster_key)
-            if payload is None:
-                cluster_articles = {
-                    member_id: article
-                    for member_id, article in articles_by_id.items()
-                    if member_id in article_cluster.member_ids
-                }
-                if not cluster_articles:
-                    topics[article_id] = []
-                    continue
-                payload = (
-                    self._generate_cluster_label(cluster_articles),
-                    self._extract_keywords_from_articles(list(cluster_articles.values())),
-                )
-                cluster_payload_cache[cluster_key] = payload
-
-            label, keywords = payload
-            similarity = article_cluster.similarities.get(article_id, 1.0)
-            topics[article_id] = [
-                {
-                    "cluster_id": article_cluster.anchor_id,
-                    "label": label,
-                    "similarity": round(similarity, 3),
-                    "keywords": keywords,
-                }
-            ]
-
-        return topics
+    def _bulk_topic_entry(
+        self,
+        article_id: int,
+        clusters: dict[int, ClusterCandidate],
+        articles_by_id: dict[int, Article],
+        cache: dict[tuple[int, ...], tuple[str, list[str]]],
+    ) -> list[dict[str, Any]]:
+        article_cluster = clusters.get(article_id)
+        if article_cluster is None:
+            return []
+        payload = self._cluster_topic_payload(article_cluster, articles_by_id, cache)
+        if payload is None:
+            return []
+        label, keywords = payload
+        similarity = article_cluster.similarities.get(article_id, 1.0)
+        return [
+            {
+                "cluster_id": article_cluster.anchor_id,
+                "label": label,
+                "similarity": round(similarity, 3),
+                "keywords": keywords,
+            }
+        ]
 
     async def _build_clusters_from_anchors(
         self, article_ids: Sequence[int]
@@ -576,40 +743,10 @@ class ChromaTopicService:
         vector_store = self._get_vector_store()
         if not vector_store or not article_ids:
             return {}
-
-        chroma_ids = [f"article_{article_id}" for article_id in article_ids]
-        try:
-            embedded = vector_store.collection.get(
-                ids=chroma_ids,
-                include=_get_chroma_include("embeddings"),
-            )
-            embedded_ids = cast(list[str], embedded.get("ids") or [])
-            embedding_rows = _get_embedding_rows(embedded)
-            if not embedded_ids or not embedding_rows:
-                return {}
-
-            resolved_article_ids, query_embeddings = _resolve_query_embeddings(
-                embedded_ids, embedding_rows
-            )
-            if not resolved_article_ids:
-                return {}
-
-            result = vector_store.collection.query(
-                query_embeddings=cast(
-                    "list[Sequence[float] | Sequence[int]]",
-                    query_embeddings,
-                ),
-                n_results=TRENDING_EXPANSION,
-                include=_get_chroma_include("distances", "metadatas"),
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to batch query article topics for %d anchors: %s",
-                len(article_ids),
-                exc,
-            )
+        query_result = _query_anchor_embeddings(vector_store, article_ids)
+        if query_result is None:
             return {}
-
+        resolved_article_ids, result = query_result
         ids_batches = cast(list[list[str]], result.get("ids") or [])
         distance_batches = cast(list[list[float | None]], result.get("distances") or [])
         return _clusters_from_ids_batches(resolved_article_ids, ids_batches, distance_batches)
@@ -665,7 +802,7 @@ class ChromaTopicService:
         )
         return result.scalar() or 0
 
-    async def _get_cluster_detail_from_snapshot(
+    async def _find_best_snapshot_cluster(
         self, session: AsyncSession, cluster_id: int
     ) -> dict[str, Any] | None:
         from app.services.cluster_cache import get_latest_snapshot
@@ -683,26 +820,32 @@ class ChromaTopicService:
                     "article_count", 0
                 ):
                     best_match = cluster
+        return best_match
 
-        if best_match is None:
-            return None
-
-        articles = _normalize_snapshot_articles(best_match.get("articles") or [])
+    def _snapshot_cluster_payload(self, cluster_id: int, cluster: dict[str, Any]) -> dict[str, Any]:
+        articles = _normalize_snapshot_articles(cluster.get("articles") or [])
         published_dates = sorted(
             article["published_at"] for article in articles if article.get("published_at")
         )
-
         return {
             "id": cluster_id,
-            "label": best_match.get("label") or "Topic",
-            "keywords": best_match.get("keywords") or [],
-            "article_count": best_match.get("article_count", len(articles)),
+            "label": cluster.get("label") or "Topic",
+            "keywords": cluster.get("keywords") or [],
+            "article_count": cluster.get("article_count", len(articles)),
             "first_seen": published_dates[0] if published_dates else None,
             "last_seen": published_dates[-1] if published_dates else None,
             "is_active": True,
-            "gdelt_context": best_match.get("gdelt_context"),
+            "gdelt_context": cluster.get("gdelt_context"),
             "articles": articles,
         }
+
+    async def _get_cluster_detail_from_snapshot(
+        self, session: AsyncSession, cluster_id: int
+    ) -> dict[str, Any] | None:
+        best_match = await self._find_best_snapshot_cluster(session, cluster_id)
+        return (
+            None if best_match is None else self._snapshot_cluster_payload(cluster_id, best_match)
+        )
 
     async def _get_cluster_detail_from_recent_windows(
         self, session: AsyncSession, cluster_id: int
@@ -808,7 +951,7 @@ class ChromaTopicService:
                     window,
                     len(cluster_dicts),
                 )
-            except Exception as exc:
+            except _RECOVERABLE_TOPIC_ERRORS as exc:
                 logger.error("Cluster computation failed for window=%s: %s", window, exc)
         return counts
 
@@ -830,17 +973,16 @@ class ChromaTopicService:
     async def _cluster_articles(self, articles: Sequence[Article]) -> list[ClusterCandidate]:
         if not articles:
             return []
-        article_window = list(articles[:LEXICAL_MAX_ARTICLES])
-        if len(article_window) < len(articles):
-            logger.info(
-                "Clustering capped to %d newest articles (from %d)",
-                len(article_window),
-                len(articles),
-            )
+        article_window = _limit_cluster_articles(articles)
 
         if not USE_CHROMA_CLUSTER_QUERY:
             return self._cluster_articles_lexical(article_window)
 
+        return await self._cluster_articles_chroma(article_window)
+
+    async def _cluster_articles_chroma(
+        self, article_window: Sequence[Article]
+    ) -> list[ClusterCandidate]:
         if not is_chroma_reachable():
             logger.warning(
                 "ChromaDB not reachable; using lexical clustering fallback for %d articles",
@@ -848,29 +990,32 @@ class ChromaTopicService:
             )
             return self._cluster_articles_lexical(article_window)
 
-        candidates: list[ClusterCandidate] = []
-        candidate_by_anchor: dict[int, ClusterCandidate] = {}
-        for index, article in enumerate(article_window):
-            cluster = await self._build_cluster_from_anchor(article_id=self._article_id(article))
-            if not cluster or len(cluster.member_ids) < MIN_CLUSTER_SIZE:
-                if (
-                    index + 1 >= CHROMA_PROBE_LIMIT
-                    and not candidates
-                    and len(article_window) > CHROMA_PROBE_LIMIT
-                ):
-                    logger.warning(
-                        "Chroma clustering probe produced no candidates; using lexical fallback"
-                    )
-                    return self._cluster_articles_lexical(article_window)
-                continue
-            candidates.append(cluster)
-            candidate_by_anchor[cluster.anchor_id] = cluster
+        collected = await self._collect_chroma_candidates(article_window)
+        if collected is None:
+            logger.warning("Chroma clustering probe produced no candidates; using lexical fallback")
+            return self._cluster_articles_lexical(article_window)
 
+        candidates, candidate_by_anchor = collected
         if not candidates:
             logger.warning("No Chroma cluster candidates found; using lexical fallback")
             return self._cluster_articles_lexical(article_window)
 
         return _merge_candidate_clusters(candidates, candidate_by_anchor)
+
+    async def _collect_chroma_candidates(
+        self, article_window: Sequence[Article]
+    ) -> tuple[list[ClusterCandidate], dict[int, ClusterCandidate]] | None:
+        candidates: list[ClusterCandidate] = []
+        candidate_by_anchor: dict[int, ClusterCandidate] = {}
+        for index, article in enumerate(article_window):
+            cluster = await self._build_cluster_from_anchor(article_id=self._article_id(article))
+            if not cluster or len(cluster.member_ids) < MIN_CLUSTER_SIZE:
+                if _should_fallback_after_chroma_probe(index, candidates, len(article_window)):
+                    return None
+                continue
+            candidates.append(cluster)
+            candidate_by_anchor[cluster.anchor_id] = cluster
+        return candidates, candidate_by_anchor
 
     def _article_keyword_set(self, article: Article) -> set[str]:
         return {keyword.lower() for keyword in self._extract_keywords(article)}
@@ -957,7 +1102,7 @@ class ChromaTopicService:
                 n_results=TRENDING_EXPANSION,
                 include=_get_chroma_include("distances", "metadatas"),
             )
-        except Exception as exc:
+        except _RECOVERABLE_TOPIC_ERRORS as exc:
             logger.warning("Failed to query cluster for %s: %s", article_id, exc)
             return None
 
@@ -965,28 +1110,7 @@ class ChromaTopicService:
         distance_batches = result.get("distances") if result else None
         ids = ids_batches[0] if ids_batches else []
         distances = distance_batches[0] if distance_batches else []
-        member_ids: list[int] = []
-        similarities: dict[int, float] = {}
-        for chroma_id, distance in zip(ids, distances, strict=False):
-            if not chroma_id or not chroma_id.startswith("article_"):
-                continue
-            try:
-                member_id = int(chroma_id.replace("article_", ""))
-            except ValueError:
-                continue
-            similarity = 1 - distance if distance is not None else 0.0
-            if similarity < SIMILARITY_THRESHOLD:
-                continue
-            member_ids.append(member_id)
-            similarities[member_id] = similarity
-        if article_id not in member_ids:
-            member_ids.insert(0, article_id)
-            similarities[article_id] = similarities.get(article_id, 1.0)
-        if len(member_ids) < MIN_CLUSTER_SIZE:
-            return None
-        return ClusterCandidate(
-            anchor_id=article_id, member_ids=member_ids, similarities=similarities
-        )
+        return _clusters_from_ids_batches([article_id], [ids], [distances]).get(article_id)
 
     async def _fetch_articles(
         self, session: AsyncSession, article_ids: Sequence[int]
@@ -1006,48 +1130,105 @@ class ChromaTopicService:
     ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         for cluster in clusters:
-            cluster_articles = await self._fetch_articles(session, cluster.member_ids)
-            if not cluster_articles:
+            result = await self._build_trending_cluster(session, cluster, window_start)
+            if result is None:
                 continue
-            representative = cluster_articles.get(cluster.anchor_id)
-            if not representative:
-                continue
-            window_count = len(
-                [
-                    a
-                    for a in cluster_articles.values()
-                    if a.published_at and a.published_at >= window_start
-                ]
-            )
-            source_diversity = len({a.source for a in cluster_articles.values() if a.source})
-            external_count = await self.get_cluster_external_count(session, cluster.member_ids)
-            velocity = float(window_count)
-            recency_bonus = self._recency_bonus(representative.published_at)
-            external_bonus = 1 + (external_count * 0.05)
-            trending_score = (
-                velocity * (1 + source_diversity * 0.1) * recency_bonus * external_bonus
-            )
-            results.append(
-                {
-                    "cluster_id": cluster.anchor_id,
-                    "label": self._generate_cluster_label(cluster_articles),
-                    "keywords": self._extract_keywords_from_articles(
-                        list(cluster_articles.values())
-                    ),
-                    "article_count": len(cluster.member_ids),
-                    "window_count": window_count,
-                    "source_diversity": source_diversity,
-                    "trending_score": round(trending_score, 2),
-                    "velocity": round(velocity, 2),
-                    "representative_article": self._serialize_article(representative),
-                    "articles": self._serialize_recent_articles(cluster_articles),
-                }
-            )
-            results[-1] = await self._attach_gdelt_context(session, results[-1])
+            results.append(result)
             if len(results) >= limit:
                 break
         results.sort(key=lambda x: x["trending_score"], reverse=True)
         return results[:limit]
+
+    async def _build_trending_cluster(
+        self,
+        session: AsyncSession,
+        cluster: ClusterCandidate,
+        window_start: datetime,
+    ) -> dict[str, Any] | None:
+        cluster_articles = await self._fetch_articles(session, cluster.member_ids)
+        if not cluster_articles:
+            return None
+        representative = cluster_articles.get(cluster.anchor_id)
+        if not representative:
+            return None
+        window_count = sum(
+            1
+            for article in cluster_articles.values()
+            if article.published_at and article.published_at >= window_start
+        )
+        source_diversity = len(
+            {article.source for article in cluster_articles.values() if article.source}
+        )
+        external_count = await self.get_cluster_external_count(session, cluster.member_ids)
+        velocity = float(window_count)
+        recency_bonus = self._recency_bonus(representative.published_at)
+        external_bonus = 1 + (external_count * 0.05)
+        trending_score = velocity * (1 + source_diversity * 0.1) * recency_bonus * external_bonus
+        result = {
+            "cluster_id": cluster.anchor_id,
+            "label": self._generate_cluster_label(cluster_articles),
+            "keywords": self._extract_keywords_from_articles(list(cluster_articles.values())),
+            "article_count": len(cluster.member_ids),
+            "window_count": window_count,
+            "source_diversity": source_diversity,
+            "trending_score": round(trending_score, 2),
+            "velocity": round(velocity, 2),
+            "representative_article": self._serialize_article(representative),
+            "articles": self._serialize_recent_articles(cluster_articles),
+        }
+        return await self._attach_gdelt_context(session, result)
+
+    def _breaking_cluster_stats(
+        self,
+        cluster: ClusterCandidate,
+        cluster_articles: dict[int, Article],
+        now: datetime,
+        window_start: datetime,
+    ) -> tuple[Article, int, float, bool] | None:
+        representative = cluster_articles.get(cluster.anchor_id)
+        if not representative:
+            return None
+        window_count = sum(
+            1
+            for article in cluster_articles.values()
+            if article.published_at and article.published_at >= window_start
+        )
+        if window_count == 0:
+            return None
+        baseline = max(len(cluster.member_ids) / 7.0, 1.0)
+        spike_magnitude = window_count / baseline
+        if spike_magnitude < BREAKING_SPIKE_THRESHOLD:
+            return None
+        age_hours = (
+            (now - representative.published_at).total_seconds() / 3600
+            if representative.published_at
+            else None
+        )
+        return (
+            representative,
+            window_count,
+            spike_magnitude,
+            bool(age_hours is not None and age_hours < 6),
+        )
+
+    def _serialize_breaking_cluster(
+        self,
+        cluster: ClusterCandidate,
+        cluster_articles: dict[int, Article],
+        stats: tuple[Article, int, float, bool],
+    ) -> dict[str, Any]:
+        representative, window_count, spike_magnitude, is_new_story = stats
+        return {
+            "cluster_id": cluster.anchor_id,
+            "label": self._generate_cluster_label(cluster_articles),
+            "keywords": self._extract_keywords_from_articles(list(cluster_articles.values())),
+            "article_count_3h": window_count,
+            "source_count_3h": len({a.source for a in cluster_articles.values() if a.source}),
+            "spike_magnitude": round(spike_magnitude, 2),
+            "is_new_story": is_new_story,
+            "representative_article": self._serialize_article(representative),
+            "articles": self._serialize_recent_articles(cluster_articles),
+        }
 
     async def _build_breaking_clusters(
         self,
@@ -1062,44 +1243,11 @@ class ChromaTopicService:
             cluster_articles = await self._fetch_articles(session, cluster.member_ids)
             if not cluster_articles:
                 continue
-            representative = cluster_articles.get(cluster.anchor_id)
-            if not representative:
+            stats = self._breaking_cluster_stats(cluster, cluster_articles, now, window_start)
+            if stats is None:
                 continue
-            window_count = len(
-                [
-                    a
-                    for a in cluster_articles.values()
-                    if a.published_at and a.published_at >= window_start
-                ]
-            )
-            if window_count == 0:
-                continue
-            baseline = max(len(cluster.member_ids) / 7.0, 1.0)
-            spike_magnitude = window_count / baseline
-            if spike_magnitude < BREAKING_SPIKE_THRESHOLD:
-                continue
-            is_new_story = False
-            if representative.published_at:
-                age_hours = (now - representative.published_at).total_seconds() / 3600
-                is_new_story = age_hours < 6
-            results.append(
-                {
-                    "cluster_id": cluster.anchor_id,
-                    "label": self._generate_cluster_label(cluster_articles),
-                    "keywords": self._extract_keywords_from_articles(
-                        list(cluster_articles.values())
-                    ),
-                    "article_count_3h": window_count,
-                    "source_count_3h": len(
-                        {a.source for a in cluster_articles.values() if a.source}
-                    ),
-                    "spike_magnitude": round(spike_magnitude, 2),
-                    "is_new_story": is_new_story,
-                    "representative_article": self._serialize_article(representative),
-                    "articles": self._serialize_recent_articles(cluster_articles),
-                }
-            )
-            results[-1] = await self._attach_gdelt_context(session, results[-1])
+            result = self._serialize_breaking_cluster(cluster, cluster_articles, stats)
+            results.append(await self._attach_gdelt_context(session, result))
         results.sort(key=lambda x: x["spike_magnitude"], reverse=True)
         return results[:limit]
 
@@ -1147,44 +1295,13 @@ class ChromaTopicService:
             return 0.0
 
         title = article.title.strip()
-        score = 0.0
-
-        length = len(title)
-        if 40 <= length <= 100:
-            score += 10.0
-        elif 30 <= length < 40:
-            score += 7.0
-        elif 100 < length <= 140:
-            score += 6.0
-        elif length < 30:
-            score += 3.0
-        else:
-            score += 1.0
-
-        if article.credibility == "high":
-            score += 5.0
-        elif article.credibility == "medium":
-            score += 2.0
-
-        if article.published_at:
-            age_hours = (get_utc_now() - article.published_at).total_seconds() / 3600
-            if age_hours < 6:
-                score += 3.0
-            elif age_hours < 24:
-                score += 2.0
-            elif age_hours < 72:
-                score += 1.0
-
-        title_lower = title.lower()
-        generic_terms = ["breaking", "update", "news alert", "developing"]
-        for term in generic_terms:
-            if term in title_lower:
-                score -= 5.0
-
-        capitalized = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", title)
-        score += min(len(capitalized) * 1.5, 8.0)
-
-        return score
+        return (
+            _title_length_score(len(title))
+            + _title_credibility_score(article.credibility)
+            + _title_recency_score(article.published_at)
+            + _title_generic_term_penalty(title)
+            + _title_capitalization_score(title)
+        )
 
     def _extract_keywords(self, article: Article) -> list[str]:
         return extract_keywords_rust(article.title or "")
@@ -1232,6 +1349,7 @@ async def cluster_computation_worker(
     remains available to the API.
     """
     import asyncio
+
     from app.core.config import settings
     from app.database import AsyncSessionLocal
     from app.services.chroma_sync import sync_caught_up
@@ -1266,7 +1384,7 @@ async def cluster_computation_worker(
                     counts = await service.compute_and_save_clusters(session)
                     if counts:
                         logger.info("Cluster snapshots saved: %s", counts)
-        except Exception as exc:
+        except _RECOVERABLE_TOPIC_ERRORS as exc:
             logger.error("Cluster computation worker error: %s", exc)
 
         await asyncio.sleep(interval_seconds)

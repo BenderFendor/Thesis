@@ -29,8 +29,8 @@ interface ConfidenceBadgeProps {
 
 const confidenceIcons = {
   high: ShieldCheck,
-  medium: Shield,
   low: ShieldAlert,
+  medium: Shield,
   very_low: ShieldQuestion,
 } satisfies Record<ConfidenceLevel, typeof Shield>;
 
@@ -43,40 +43,40 @@ export function ConfidenceBadge({
   showLabel = true,
   size = "md",
 }: ConfidenceBadgeProps) {
-  const colorClass = getConfidenceColor(level);
-  const bgClass = getConfidenceBgColor(level);
-  const label = getConfidenceLabel(level);
-  const percentage = formatConfidence(confidence);
+  const colorClass = getConfidenceColor(level),
+   bgClass = getConfidenceBgColor(level),
+   label = getConfidenceLabel(level),
+   percentage = formatConfidence(confidence),
 
-  const iconSizes = {
-    sm: "w-3 h-3",
-    md: "w-4 h-4",
+   iconSizes = {
     lg: "w-5 h-5",
-  };
+    md: "w-4 h-4",
+    sm: "w-3 h-3",
+  },
 
-  const textSizes = {
-    sm: "text-[10px]",
-    md: "text-xs",
+   textSizes = {
     lg: "text-sm",
-  };
+    md: "text-xs",
+    sm: "text-[10px]",
+  },
 
-  const Icon = confidenceIcons[level];
-  const iconSize = iconSizes[size];
-  const textSize = textSizes[size];
+   Icon = confidenceIcons[level],
+   iconSize = iconSizes[size],
+   textSize = textSizes[size],
 
-  const tooltipContent = (
+   tooltipContent = (
     <div className="text-xs space-y-1">
       <div className="font-medium">
         Verification Confidence: {percentage}
       </div>
       {claimCount !== undefined && (
         <div className="text-muted-foreground">
-          {claimCount} claim{claimCount !== 1 ? "s" : ""} verified
+          {claimCount} claim{claimCount === 1 ? "" : "s"} verified
         </div>
       )}
       {sourceCount !== undefined && (
         <div className="text-muted-foreground">
-          {sourceCount} source{sourceCount !== 1 ? "s" : ""} checked
+          {sourceCount} source{sourceCount === 1 ? "" : "s"} checked
         </div>
       )}
     </div>
@@ -117,13 +117,13 @@ export function ConfidenceBar({
   className = "",
   showPercentage = true,
 }: ConfidenceBarProps) {
-  const colorClass = getConfidenceColor(level);
-  const percentage = Math.round(confidence * 100);
+  const colorClass = getConfidenceColor(level),
+   percentage = Math.round(confidence * 100),
 
-  const barColor = {
+   barColor = {
     high: "bg-green-500",
-    medium: "bg-yellow-500",
     low: "bg-orange-500",
+    medium: "bg-yellow-500",
     very_low: "bg-red-500",
   }[level] || "bg-gray-500";
 

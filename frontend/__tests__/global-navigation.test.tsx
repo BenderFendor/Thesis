@@ -1,64 +1,81 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { GlobalNavigation } from "@/components/global-navigation"
+import type { GlobalNavigationServices } from "@/components/global-navigation"
 
-const push = jest.fn()
-const replace = jest.fn()
-let pathname = "/"
-
-jest.mock("next/navigation", () => ({
+const push = jest.fn(),
+ replace = jest.fn(),
+ navigationServices: GlobalNavigationServices = {
   usePathname: () => pathname,
   useRouter: () => ({ push, replace }),
-}))
+ }
+let pathname = "/"
 
-jest.mock("@/components/safe-image", () => ({
-  SafeImage: ({ alt = "" }: { alt?: string }) => <span role="img" aria-label={alt || "brand mark"} />,
-}))
-
-describe("GlobalNavigation", () => {
+describe("globalNavigation", () => {
   beforeEach(() => {
     pathname = "/"
     push.mockReset()
     replace.mockReset()
-    window.localStorage.clear()
-    window.history.replaceState({}, "", "/")
+    globalThis.localStorage.clear()
+    globalThis.history.replaceState({}, "", "/")
   })
 
-  it("changes the home view and writes a shareable URL", async () => {
-    const user = userEvent.setup()
-    const onViewChange = jest.fn()
+  it("changes the home view and writes a shareable URL", async () => {  expect.hasAssertions();
 
-    render(<GlobalNavigation currentView="grid" onViewChange={onViewChange} />)
+  
+    const user = userEvent.setup(),
+     onViewChange = jest.fn()
+
+    render(
+      <GlobalNavigation
+        currentView="grid"
+        navigationServices={navigationServices}
+        onViewChange={onViewChange}
+      />,
+    )
     await user.click(screen.getByRole("button", { name: "Globe" }))
 
     expect(onViewChange).toHaveBeenCalledWith("globe")
     expect(replace).toHaveBeenCalledWith("/?view=globe", { scroll: false })
   })
 
-  it("restores a requested view when arriving from another route", async () => {
-    window.history.replaceState({}, "", "/?view=blindspot")
+  it("restores a requested view when arriving from another route", async () => {  expect.hasAssertions();
+
+  
+    globalThis.history.replaceState({}, "", "/?view=blindspot")
     const onViewChange = jest.fn()
 
-    render(<GlobalNavigation currentView="grid" onViewChange={onViewChange} />)
+    render(
+      <GlobalNavigation
+        currentView="grid"
+        navigationServices={navigationServices}
+        onViewChange={onViewChange}
+      />,
+    )
 
-    await waitFor(() => expect(onViewChange).toHaveBeenCalledWith("blindspot"))
+    await waitFor(() =>{  expect(onViewChange).toHaveBeenCalledWith("blindspot"); })
   })
 
-  it("routes view choices back to the matching home URL from another page", async () => {
+  it("routes view choices back to the matching home URL from another page", async () => {  expect.hasAssertions();
+
+  
     pathname = "/wiki"
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Live" }))
 
     expect(push).toHaveBeenCalledWith("/?view=live-news")
   })
 
-  it("expands into an accessible search form and submits encoded queries", async () => {
+  it("expands into an accessible search form and submits encoded queries", async () => {  expect.hasAssertions();
+
+  
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Open workspace search" }))
 
     const input = screen.getByRole("searchbox", { name: "Search the workspace" })
@@ -68,31 +85,37 @@ describe("GlobalNavigation", () => {
     expect(push).toHaveBeenCalledWith("/search?query=public%20media%20ownership")
   })
 
-  it("persists explicit sidebar expansion", async () => {
+  it("persists explicit sidebar expansion", async () => {  expect.hasAssertions();
+
+  
     const user = userEvent.setup()
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
     await user.click(screen.getByRole("button", { name: "Expand navigation" }))
 
-    expect(window.localStorage.getItem("scoop:sidebar-expanded")).toBe("true")
+    expect(globalThis.localStorage.getItem("scoop:sidebar-expanded")).toBe("true")
     expect(screen.getByRole("complementary", { name: "Primary workspace navigation" })).toHaveAttribute(
       "data-expanded",
       "true",
     )
   })
 
-  it("marks library routes as active", () => {
+  it("marks library routes as active", () => {  expect.hasAssertions();
+
+  
     pathname = "/sources"
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
 
     expect(screen.getByRole("link", { name: "Sources" })).toHaveAttribute("aria-current", "page")
   })
 
-  it("exposes the Atlas as the only media intelligence workspace", () => {
+  it("exposes the Atlas as the only media intelligence workspace", () => {  expect.hasAssertions();
+
+  
     pathname = "/wiki/ownership"
 
-    render(<GlobalNavigation />)
+    render(<GlobalNavigation navigationServices={navigationServices} />)
 
     expect(screen.getByRole("link", { name: "Intelligence Atlas" })).toHaveAttribute(
       "aria-current",

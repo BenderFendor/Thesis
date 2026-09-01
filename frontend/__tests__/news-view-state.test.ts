@@ -1,29 +1,25 @@
+import { describe, expect, it } from '@jest/globals';
 import type { CacheStatus, NewsArticle } from "@/lib/api"
-import {
-  getSharedArticleCount,
-  getSharedSourceCount,
-  getSharedViewArticles,
-  getSharedViewLoading,
-  type UnifiedNewsView,
-} from "@/lib/news-view-state"
+import { getSharedArticleCount, getSharedSourceCount, getSharedViewArticles, getSharedViewLoading } from '@/lib/news-view-state';
+import type { UnifiedNewsView } from '@/lib/news-view-state';
 
 const sampleArticles: NewsArticle[] = [
   {
-    id: 1,
-    title: "Article A",
-    source: "Test News",
-    sourceId: "test-news",
+    bias: "center",
+    category: "general",
     country: "US",
     credibility: "high",
-    bias: "center",
-    summary: "Summary",
+    id: 1,
     image: "/placeholder.svg",
-    publishedAt: "2026-04-09T00:00:00.000Z",
-    category: "general",
-    url: "https://example.com/a",
-    tags: [],
     originalLanguage: "en",
+    publishedAt: "2026-04-09T00:00:00.000Z",
+    source: "Test News",
+    sourceId: "test-news",
+    summary: "Summary",
+    tags: [],
+    title: "Article A",
     translated: false,
+    url: "https://example.com/a",
   },
 ]
 
@@ -35,58 +31,62 @@ describe("news view state", () => {
     },
   )
 
-  it("uses the current dataset total once the live index has resolved", () => {
+  it("uses the current dataset total once the live index has resolved", () => {  expect.hasAssertions();
+
     const cacheStatus: CacheStatus = {
+      cache_age_seconds: 0,
+      category_breakdown: {},
       last_updated: "2026-04-09T00:00:00.000Z",
-      update_in_progress: false,
-      total_articles: 3000,
-      total_sources: 205,
-      sources_working: 205,
       sources_with_errors: 0,
       sources_with_warnings: 0,
-      category_breakdown: {},
-      cache_age_seconds: 0,
+      sources_working: 205,
+      total_articles: 3000,
+      total_sources: 205,
+      update_in_progress: false,
     }
 
     expect(getSharedArticleCount(cacheStatus, 1200, sampleArticles, false)).toBe(1200)
   })
 
-  it("falls back to cache totals only while the live index is still loading", () => {
+  it("falls back to cache totals only while the live index is still loading", () => {  expect.hasAssertions();
+
     const cacheStatus: CacheStatus = {
+      cache_age_seconds: 0,
+      category_breakdown: {},
       last_updated: "2026-04-09T00:00:00.000Z",
-      update_in_progress: false,
-      total_articles: 3000,
-      total_sources: 205,
-      sources_working: 205,
       sources_with_errors: 0,
       sources_with_warnings: 0,
-      category_breakdown: {},
-      cache_age_seconds: 0,
+      sources_working: 205,
+      total_articles: 3000,
+      total_sources: 205,
+      update_in_progress: false,
     }
 
     expect(getSharedArticleCount(cacheStatus, 0, [], true)).toBe(3000)
-    expect(getSharedArticleCount(null, 1200, sampleArticles, false)).toBe(1200)
-    expect(getSharedArticleCount(null, 0, [], false)).toBe(0)
+    expect(getSharedArticleCount(undefined, 1200, sampleArticles, false)).toBe(1200)
+    expect(getSharedArticleCount(undefined, 0, [], false)).toBe(0)
   })
 
-  it("counts live sources from the current dataset after loading", () => {
+  it("counts live sources from the current dataset after loading", () => {  expect.hasAssertions();
+
     const cacheStatus: CacheStatus = {
+      cache_age_seconds: 0,
+      category_breakdown: {},
       last_updated: "2026-04-09T00:00:00.000Z",
-      update_in_progress: false,
-      total_articles: 3000,
-      total_sources: 205,
-      sources_working: 205,
       sources_with_errors: 0,
       sources_with_warnings: 0,
-      category_breakdown: {},
-      cache_age_seconds: 0,
+      sources_working: 205,
+      total_articles: 3000,
+      total_sources: 205,
+      update_in_progress: false,
     }
 
     expect(getSharedSourceCount(cacheStatus, sampleArticles, false)).toBe(1)
     expect(getSharedSourceCount(cacheStatus, [], true)).toBe(205)
   })
 
-  it("shares the same loading state across views", () => {
+  it("shares the same loading state across views", () => {  expect.hasAssertions();
+
     expect(getSharedViewLoading(true)).toBe(true)
     expect(getSharedViewLoading(false)).toBe(false)
   })

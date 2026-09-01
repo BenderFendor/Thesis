@@ -307,25 +307,25 @@ def _candidate_author_pages(
     return _dedupe_urls(candidates)
 
 
-def _barrier_from_result(result: dict[str, Any]) -> str | None:
-    access_barrier = result.get("access_barrier")
-    if isinstance(access_barrier, str) and access_barrier:
-        return access_barrier
-    error = str(result.get("error") or "").lower()
-    url = str(result.get("url") or "")
-    if not error:
-        return None
-    if "http 403" in error:
-        return "http_403"
-    if "http 401" in error:
-        return "http_401"
-    if "http 429" in error:
-        return "http_429"
+def _barrier_from_error(error: str, url: str) -> str | None:
+    for status in ("403", "401", "429"):
+        if f"http {status}" in error:
+            return f"http_{status}"
     if "cloudflare" in error or "/cdn-cgi/" in url:
         return "cloudflare"
     if "datadome" in error:
         return "datadome"
     return None
+
+
+def _barrier_from_result(result: dict[str, Any]) -> str | None:
+    access_barrier = result.get("access_barrier")
+    if isinstance(access_barrier, str) and access_barrier:
+        return access_barrier
+    error = str(result.get("error") or "").lower()
+    if not error:
+        return None
+    return _barrier_from_error(error, str(result.get("url") or ""))
 
 
 def _evidence_type_with_access_path(
@@ -403,6 +403,72 @@ async def _article_rows_for_reporter(
     return list((await session.execute(stmt)).all())
 
 
+def _record_barrier(metrics: EnrichmentMetrics, barrier: str, url: str) -> None:
+    metrics.access_barriers[barrier] += 1
+    if len(metrics.sample_barriers) < 10:
+        metrics.sample_barriers.append(f"{barrier}: {url}")
+
+
+def _reject_author_page(
+    metrics: EnrichmentMetrics,
+    author_page: str,
+    reporter_name: str,
+    reason: str,
+) -> None:
+    metrics.author_pages_rejected += 1
+    if len(metrics.sample_rejected) < 10:
+        metrics.sample_rejected.append(f"{reason}: {reporter_name} -> {author_page}")
+
+
+def _guessed_candidate_count(candidates: list[tuple[str, str]]) -> int:
+    return sum(
+        1 for _url, evidence_type in candidates if evidence_type == "guessed_profile_name_match"
+    )
+
+
+async def _scan_author_page_candidates(
+    client: httpx.AsyncClient,
+    reporter_name: str,
+    article_url: str,
+    article_access_path: str | None,
+    candidates: list[tuple[str, str]],
+    metrics: EnrichmentMetrics,
+) -> tuple[str | None, str | None, str | None]:
+    """Scan candidates on the publisher host for a confirmed author page."""
+    for author_page, evidence_type in candidates:
+        if not _same_publisher_host(article_url, author_page):
+            _reject_author_page(metrics, author_page, reporter_name, "cross_host")
+            continue
+
+        metrics.profile_pages_checked += 1
+        profile = await scrape_author_profile(client, author_page)
+        barrier = _barrier_from_result(profile)
+        if barrier:
+            _record_barrier(metrics, barrier, author_page)
+            _reject_author_page(metrics, author_page, reporter_name, barrier)
+            continue
+
+        full_name = profile.get("full_name")
+        profile_name = clean_author_name(full_name) if isinstance(full_name, str) else None
+        if profile_name and _profile_name_matches_reporter(profile_name, reporter_name):
+            metrics.profile_name_matches += 1
+            return (
+                author_page,
+                _evidence_type_with_access_path(
+                    evidence_type,
+                    article_access_path=article_access_path,
+                    profile_access_path=(
+                        profile.get("access_path")
+                        if isinstance(profile.get("access_path"), str)
+                        else None
+                    ),
+                ),
+                profile_name,
+            )
+        _reject_author_page(metrics, author_page, reporter_name, "profile_name_mismatch")
+    return None, None, None
+
+
 async def _confirmed_author_page(
     client: httpx.AsyncClient,
     reporter_name: str,
@@ -416,9 +482,7 @@ async def _confirmed_author_page(
     signals = await _fetch_article_author_signals(client, reporter_name, article_url)
     signal_barrier = signals.get("access_barrier")
     if isinstance(signal_barrier, str) and signal_barrier:
-        metrics.access_barriers[signal_barrier] += 1
-        if len(metrics.sample_barriers) < 10:
-            metrics.sample_barriers.append(f"{signal_barrier}: {article_url}")
+        _record_barrier(metrics, signal_barrier, article_url)
     author_pages = [url for url in signals.get("author_pages", []) if isinstance(url, str)]
     metrics.author_pages_found += len(author_pages)
     candidates = _candidate_author_pages(
@@ -428,63 +492,93 @@ async def _confirmed_author_page(
         include_guessed=include_guessed,
         max_guessed_pages=max_guessed_pages,
     )
-    metrics.author_pages_guessed += sum(
-        1 for _url, evidence_type in candidates if evidence_type == "guessed_profile_name_match"
-    )
+    metrics.author_pages_guessed += _guessed_candidate_count(candidates)
 
     if not candidates:
         if not signal_barrier:
             barrier = await _fetch_barrier_type(client, article_url)
             if barrier:
-                metrics.access_barriers[barrier] += 1
-                if len(metrics.sample_barriers) < 10:
-                    metrics.sample_barriers.append(f"{barrier}: {article_url}")
+                _record_barrier(metrics, barrier, article_url)
         return None, None, None
 
     article_access_path = signals.get("access_path") if isinstance(signals, dict) else None
-    for author_page, evidence_type in candidates:
-        if not _same_publisher_host(article_url, author_page):
-            metrics.author_pages_rejected += 1
-            if len(metrics.sample_rejected) < 10:
-                metrics.sample_rejected.append(f"cross_host: {reporter_name} -> {author_page}")
+    return await _scan_author_page_candidates(
+        client,
+        reporter_name,
+        article_url,
+        article_access_path,
+        candidates,
+        metrics,
+    )
+
+
+async def _promote_reporter(
+    session: AsyncSession,
+    article_author: ArticleAuthor,
+    reporter: Reporter,
+    author_url: str,
+    evidence_type: str,
+    profile_name: str | None,
+    reporter_name: str,
+) -> None:
+    reporter.canonical_name = profile_name or reporter_name
+    reporter.author_page_url = author_url
+    reporter.canonical_author_url = author_url
+    reporter.last_researched_at = get_utc_now()
+    reporter.research_confidence = "high"
+    reporter.research_sources = sorted(
+        set((reporter.research_sources or []) + ["official_author_page"])
+    )
+    _set_author_page_citation(reporter, author_url)
+    article_author.author_url_raw = author_url
+    article_author.observation_source = evidence_type
+    await session.flush()
+    await update_reporter_confidence(session, int(reporter.id))
+
+
+async def _promote_from_article_rows(
+    session: AsyncSession,
+    client: httpx.AsyncClient,
+    reporter: Reporter,
+    reporter_name: str,
+    metrics: EnrichmentMetrics,
+    article_rows: list[tuple[ArticleAuthor, Article]],
+    *,
+    apply: bool,
+    include_guessed: bool,
+    max_guessed_pages: int,
+) -> bool:
+    """Promote via the first confirmed author page; True when promoted."""
+    for article_author, article in article_rows:
+        if not article.url:
+            continue
+        author_url, evidence_type, profile_name = await _confirmed_author_page(
+            client,
+            reporter_name,
+            str(article.url),
+            metrics,
+            include_guessed=include_guessed,
+            max_guessed_pages=max_guessed_pages,
+        )
+        if not author_url:
             continue
 
-        metrics.profile_pages_checked += 1
-        profile = await scrape_author_profile(client, author_page)
-        barrier = _barrier_from_result(profile)
-        if barrier:
-            metrics.access_barriers[barrier] += 1
-            if len(metrics.sample_barriers) < 10:
-                metrics.sample_barriers.append(f"{barrier}: {author_page}")
-            metrics.author_pages_rejected += 1
-            if len(metrics.sample_rejected) < 10:
-                metrics.sample_rejected.append(f"{barrier}: {reporter_name} -> {author_page}")
-            continue
-
-        full_name = profile.get("full_name")
-        profile_name = clean_author_name(full_name) if isinstance(full_name, str) else None
-        if profile_name and _profile_name_matches_reporter(profile_name, reporter_name):
-            metrics.profile_name_matches += 1
-            return (
-                author_page,
-                _evidence_type_with_access_path(
-                    evidence_type,
-                    article_access_path=(
-                        article_access_path if isinstance(article_access_path, str) else None
-                    ),
-                    profile_access_path=profile.get("access_path")
-                    if isinstance(profile.get("access_path"), str)
-                    else None,
-                ),
+        if apply:
+            await _promote_reporter(
+                session,
+                article_author,
+                reporter,
+                author_url,
+                evidence_type,
                 profile_name,
-            )
-        metrics.author_pages_rejected += 1
-        if len(metrics.sample_rejected) < 10:
-            metrics.sample_rejected.append(
-                f"profile_name_mismatch: {reporter_name} -> {author_page}"
+                reporter_name,
             )
 
-    return None, None, None
+        metrics.reporters_promoted += 1
+        if len(metrics.sample_promoted) < 10:
+            metrics.sample_promoted.append(f"{reporter_name}: {author_url}")
+        return True
+    return False
 
 
 async def enrich_local_reporter_author_pages(
@@ -525,39 +619,17 @@ async def enrich_local_reporter_author_pages(
                 int(reporter.id),
                 max_articles=max_articles_per_reporter,
             )
-            for article_author, article in article_rows:
-                if not article.url:
-                    continue
-                author_url, evidence_type, profile_name = await _confirmed_author_page(
-                    client,
-                    reporter_name,
-                    str(article.url),
-                    metrics,
-                    include_guessed=include_guessed_author_pages,
-                    max_guessed_pages=max_guessed_author_pages,
-                )
-                if not author_url:
-                    continue
-
-                if apply:
-                    reporter.canonical_name = profile_name or reporter_name
-                    reporter.author_page_url = author_url
-                    reporter.canonical_author_url = author_url
-                    reporter.last_researched_at = get_utc_now()
-                    reporter.research_confidence = "high"
-                    reporter.research_sources = sorted(
-                        set((reporter.research_sources or []) + ["official_author_page"])
-                    )
-                    _set_author_page_citation(reporter, author_url)
-                    article_author.author_url_raw = author_url
-                    article_author.observation_source = evidence_type
-                    await session.flush()
-                    await update_reporter_confidence(session, int(reporter.id))
-
-                metrics.reporters_promoted += 1
-                if len(metrics.sample_promoted) < 10:
-                    metrics.sample_promoted.append(f"{reporter_name}: {author_url}")
-                break
+            await _promote_from_article_rows(
+                session,
+                client,
+                reporter,
+                reporter_name,
+                metrics,
+                article_rows,
+                apply=apply,
+                include_guessed=include_guessed_author_pages,
+                max_guessed_pages=max_guessed_author_pages,
+            )
 
     if apply:
         await session.commit()

@@ -2,7 +2,8 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
-import { fetchLiveBrowseIndex, type NewsArticle } from "@/lib/api"
+import { fetchLiveBrowseIndex } from '@/lib/api';
+import type { NewsArticle } from '@/lib/api';
 import { serializeSources } from "@/lib/utils"
 
 interface UseLiveBrowseIndexOptions {
@@ -31,50 +32,50 @@ export function useLiveBrowseIndex(
     sources,
     search,
     enabled = true,
-  } = options
+  } = options,
 
-  const queryClient = useQueryClient()
-  const serializedSources = useMemo(() => serializeSources(sources), [sources])
+   queryClient = useQueryClient(),
+   serializedSources = useMemo(() => serializeSources(sources), [sources]),
 
-  const queryKey = useMemo(
+   queryKey = useMemo(
     () => [
       "news",
       "live-browse-index",
       {
         category: category || null,
+        search: search || null,
         source: source || null,
         sources: serializedSources,
-        search: search || null,
       },
     ],
     [category, source, serializedSources, search],
-  )
+  ),
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey,
+   { data, isLoading, error, refetch } = useQuery({
+    enabled,
+    gcTime: 5 * 60 * 1000,
     queryFn: async () =>
       fetchLiveBrowseIndex({
         category,
+        search,
         source,
         sources: serializedSources || undefined,
-        search,
       }),
-    staleTime: 5 * 1000,
-    gcTime: 5 * 60 * 1000,
+    queryKey,
     refetchOnWindowFocus: false,
-    enabled,
-  })
+    staleTime: 5 * 1000,
+  }),
 
-  const invalidate = useCallback(() => {
+   invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["news", "live-browse-index"] })
   }, [queryClient])
 
   return {
     articles: data?.articles ?? [],
-    totalCount: data?.total ?? 0,
-    isLoading,
     error: error ?? null,
-    refetch,
     invalidate,
+    isLoading,
+    refetch,
+    totalCount: data?.total ?? 0,
   }
 }

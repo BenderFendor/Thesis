@@ -8,7 +8,7 @@ import queue
 import threading
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter
@@ -78,6 +78,44 @@ async def stream_cache_refresh() -> StreamingResponse:
     refresh_thread = threading.Thread(target=refresh_thread_func, daemon=True)
     refresh_thread.start()
 
+    def _source_complete_progress(
+        event: dict[str, Any], processed_sources: int, failed_sources: int
+    ) -> tuple[dict[str, Any] | None, int, int]:
+        """Map a source-complete queue event to an SSE payload and updated counts."""
+        if event["type"] != "source_complete":
+            return None, processed_sources, failed_sources
+        processed_sources += 1
+        source_stat = event["source_stat"]
+        if source_stat.get("status") == "error":
+            failed_sources += 1
+        progress_event = {
+            "status": "source_complete",
+            "source": event["source"],
+            "articles_from_source": event["article_count"],
+            "total_sources_processed": processed_sources,
+            "failed_sources": failed_sources,
+            "source_stat": source_stat,
+            "timestamp": event["timestamp"],
+        }
+        return progress_event, processed_sources, failed_sources
+
+    def _complete_progress(event: dict[str, Any]) -> dict[str, Any] | None:
+        """Map a completion queue event to the final SSE summary payload."""
+        if event["type"] != "complete":
+            return None
+        articles = news_cache.get_articles()
+        source_stats = news_cache.get_source_stats()
+        return {
+            "status": "complete",
+            "message": f"Cache refresh completed: {len(articles)} total articles",
+            "total_articles": len(articles),
+            "total_sources_processed": len(source_stats),
+            "successful_sources": len([s for s in source_stats if s.get("status") == "success"]),
+            "failed_sources": len([s for s in source_stats if s.get("status") == "error"]),
+            "warning_sources": len([s for s in source_stats if s.get("status") == "warning"]),
+            "timestamp": event["timestamp"],
+        }
+
     async def event_generator() -> AsyncIterator[str]:
         """Generate SSE events for cache refresh progress."""
         try:
@@ -91,60 +129,28 @@ async def stream_cache_refresh() -> StreamingResponse:
             while not refresh_complete.is_set() or not progress_queue.empty():
                 try:
                     event = progress_queue.get(timeout=1)
-
-                    if event["type"] == "source_complete":
-                        processed_sources += 1
-                        source_stat = event["source_stat"]
-
-                        # Count failures
-                        if source_stat.get("status") == "error":
-                            failed_sources += 1
-
-                        progress_event = {
-                            "status": "source_complete",
-                            "source": event["source"],
-                            "articles_from_source": event["article_count"],
-                            "total_sources_processed": processed_sources,
-                            "failed_sources": failed_sources,
-                            "source_stat": source_stat,
-                            "timestamp": event["timestamp"],
-                        }
-                        yield f"data: {json.dumps(progress_event)}\n\n"
-
-                    elif event["type"] == "complete":
-                        # Send final completion event with summary
-                        articles = news_cache.get_articles()
-                        source_stats = news_cache.get_source_stats()
-
-                        complete_event = {
-                            "status": "complete",
-                            "message": f"Cache refresh completed: {len(articles)} total articles",
-                            "total_articles": len(articles),
-                            "total_sources_processed": len(source_stats),
-                            "successful_sources": len(
-                                [s for s in source_stats if s.get("status") == "success"]
-                            ),
-                            "failed_sources": len(
-                                [s for s in source_stats if s.get("status") == "error"]
-                            ),
-                            "warning_sources": len(
-                                [s for s in source_stats if s.get("status") == "warning"]
-                            ),
-                            "timestamp": event["timestamp"],
-                        }
-                        yield f"data: {json.dumps(complete_event)}\n\n"
-
                 except queue.Empty:
                     # Timeout waiting for event - check if complete
                     if refresh_complete.is_set() and progress_queue.empty():
                         break
-                    # Otherwise continue waiting
                     await asyncio.sleep(0.1)
+                    continue
 
-        except Exception as e:
+                progress_event, processed_sources, failed_sources = _source_complete_progress(
+                    event, processed_sources, failed_sources
+                )
+                if progress_event is not None:
+                    yield f"data: {json.dumps(progress_event)}\n\n"
+                    continue
+
+                complete_event = _complete_progress(event)
+                if complete_event is not None:
+                    yield f"data: {json.dumps(complete_event)}\n\n"
+
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
             error_event = {
                 "status": "error",
-                "message": f"Error during cache refresh: {str(e)}",
+                "message": f"Error during cache refresh: {error!s}",
                 "timestamp": datetime.now(UTC).isoformat(),
             }
             yield f"data: {json.dumps(error_event)}\n\n"

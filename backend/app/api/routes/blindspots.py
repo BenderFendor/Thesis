@@ -281,6 +281,40 @@ async def update_coverage_stats(
         raise HTTPException(status_code=500, detail=f"Failed to update coverage stats: {str(e)}")
 
 
+def _severity_counts(topic_blind_spots: list[dict[str, Any]]) -> tuple[int, int]:
+    high = sum(1 for b in topic_blind_spots if b["severity"] == "high")
+    medium = sum(1 for b in topic_blind_spots if b["severity"] == "medium")
+    return high, medium
+
+
+def _coverage_distribution(source_rankings: list[dict[str, Any]]) -> dict[str, int]:
+    excellent = len([s for s in source_rankings if s["coverage_ratio"] >= 0.8])
+    good = len([s for s in source_rankings if 0.6 <= s["coverage_ratio"] < 0.8])
+    fair = len([s for s in source_rankings if 0.4 <= s["coverage_ratio"] < 0.6])
+    poor = len([s for s in source_rankings if s["coverage_ratio"] < 0.4])
+    return {"excellent": excellent, "good": good, "fair": fair, "poor": poor}
+
+
+def _dashboard_payload(
+    report: dict[str, Any],
+    topic_blind_spots: list[dict[str, Any]],
+) -> dict[str, Any]:
+    high_severity, medium_severity = _severity_counts(topic_blind_spots)
+    return {
+        "summary": {
+            "total_sources": report["total_sources"],
+            "average_coverage": round(report["average_coverage_ratio"] * 100, 1),
+            "high_severity_blind_spots": high_severity,
+            "medium_severity_blind_spots": medium_severity,
+            "underperforming_sources": len(report["underperforming_sources"]),
+        },
+        "coverage_distribution": _coverage_distribution(report["source_rankings"]),
+        "top_blind_spots": topic_blind_spots[:5],
+        "underperforming_sources": report["underperforming_sources"][:5],
+        "last_updated": datetime.now(UTC).isoformat(),
+    }
+
+
 @router.get("/dashboard")
 async def get_blind_spots_dashboard(
     session: AsyncSession = Depends(get_db),
@@ -294,36 +328,9 @@ async def get_blind_spots_dashboard(
     """
     try:
         analyzer = get_blind_spots_analyzer()
-
-        # Get quick summary stats
         report = await analyzer.generate_source_coverage_report(session, days=7)
         topic_blind_spots = await analyzer.identify_topic_blind_spots(session, min_sources=4)
-
-        # Calculate dashboard metrics
-        high_severity = [b for b in topic_blind_spots if b["severity"] == "high"]
-        medium_severity = [b for b in topic_blind_spots if b["severity"] == "medium"]
-
-        # Source coverage distribution
-        coverage_ranges = {
-            "excellent": len([s for s in report["source_rankings"] if s["coverage_ratio"] >= 0.8]),
-            "good": len([s for s in report["source_rankings"] if 0.6 <= s["coverage_ratio"] < 0.8]),
-            "fair": len([s for s in report["source_rankings"] if 0.4 <= s["coverage_ratio"] < 0.6]),
-            "poor": len([s for s in report["source_rankings"] if s["coverage_ratio"] < 0.4]),
-        }
-
-        return {
-            "summary": {
-                "total_sources": report["total_sources"],
-                "average_coverage": round(report["average_coverage_ratio"] * 100, 1),
-                "high_severity_blind_spots": len(high_severity),
-                "medium_severity_blind_spots": len(medium_severity),
-                "underperforming_sources": len(report["underperforming_sources"]),
-            },
-            "coverage_distribution": coverage_ranges,
-            "top_blind_spots": topic_blind_spots[:5],
-            "underperforming_sources": report["underperforming_sources"][:5],
-            "last_updated": datetime.now(UTC).isoformat(),
-        }
+        return _dashboard_payload(report, topic_blind_spots)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate dashboard: {str(e)}")
 

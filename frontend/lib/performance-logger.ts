@@ -5,16 +5,17 @@
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import { sendFrontendDebugReport, type FrontendDebugReportPayload } from "./api";
+import { sendFrontendDebugReport } from './api';
+import type { FrontendDebugReportPayload } from './api';
 
 // Configuration
-const MAX_EVENTS = 500;
-const FLUSH_INTERVAL_MS = 30000; // 30 seconds
-const SLOW_THRESHOLD_MS = 3000; // 3 seconds
-const ENABLE_AGENTIC_LOGGING =
+const FLUSH_INTERVAL_MS = 30_000,
+ MAX_EVENTS = 500, // 30 seconds
+ SLOW_THRESHOLD_MS = 3000, // 3 seconds
+ ENABLE_AGENTIC_LOGGING =
   process.env.NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING === "true" ||
-  process.env.NODE_ENV === "development";
-const IGNORED_ERROR_MESSAGES = [
+  process.env.NODE_ENV === "development",
+ IGNORED_ERROR_MESSAGES = [
   "ResizeObserver loop completed with undelivered notifications.",
   "ResizeObserver loop limit exceeded",
 ];
@@ -63,12 +64,12 @@ export interface StreamMetrics {
   lastEventTime: number;
   endTime?: number;
   totalDurationMs?: number;
-  events: Array<{
+  events: {
     type: string;
     timestamp: number;
     articleCount?: number;
     source?: string;
-  }>;
+  }[];
 }
 
 export interface PerformanceSummary {
@@ -89,13 +90,150 @@ export interface PerformanceSummary {
   >;
 }
 
+interface LogEventOptions {
+  message?: string;
+  durationMs?: number;
+  details?: Record<string, unknown>;
+  error?: Error | string;
+  streamId?: string;
+  requestId?: string;
+}
+
+interface StreamEventOptions {
+  articleCount?: number;
+  source?: string;
+  isError?: boolean;
+  details?: Record<string, unknown>;
+}
+
+function applyEventError(event: PerformanceEvent, error: Error | string | undefined): void {
+  if (error instanceof Error) {
+    event.error = error.message;
+    event.stackTrace = error.stack;
+    return;
+  }
+  if (error) {
+    event.error = String(error);
+  }
+}
+
+function recordComponentTiming(
+  componentTimings: Map<string, number[]>,
+  component: string,
+  durationMs: number | undefined,
+): void {
+  if (!durationMs) {return;}
+  const timings = componentTimings.get(component) || [];
+  timings.push(durationMs);
+  if (timings.length > 100) {timings.shift();}
+  componentTimings.set(component, timings);
+}
+
+function logDevelopmentEvent(event: PerformanceEvent): void {
+  if (process.env.NODE_ENV !== "development") {return;}
+  const logFn = event.error ? console.error : (event.isSlow ? console.warn : console.debug);
+  logFn(`[PerfLog] ${event.eventType} ${event.component}/${event.operation}`, {
+    duration: event.durationMs ? `${event.durationMs}ms` : undefined,
+    ...event.details,
+    error: event.error,
+  });
+}
+
+function updateStreamMetrics(
+  metrics: StreamMetrics,
+  eventName: string,
+  options: StreamEventOptions,
+  now: number,
+): void {
+  if (!metrics.firstEventTime && eventName !== "start") {
+    metrics.firstEventTime = now;
+    metrics.timeToFirstEvent = now - metrics.startTime;
+  }
+  metrics.eventCount += 1;
+  metrics.lastEventTime = now;
+  if (options.articleCount) {metrics.articleCount += options.articleCount;}
+  if (options.source) {metrics.sourceCount += 1;}
+  if (options.isError) {metrics.errorCount += 1;}
+  metrics.events.push({
+    articleCount: options.articleCount,
+    source: options.source,
+    timestamp: now,
+    type: eventName,
+  });
+  if (metrics.events.length > 50) {metrics.events.shift();}
+}
+
+function streamEventDetails(
+  metrics: StreamMetrics,
+  options: StreamEventOptions,
+  now: number,
+): Record<string, unknown> {
+  const previousEvent = metrics.events.at(-2);
+  return {
+    ...options.details,
+    articleCount: options.articleCount,
+    eventGapMs: previousEvent ? now - previousEvent.timestamp : 0,
+    source: options.source,
+    totalArticles: metrics.articleCount,
+    totalSources: metrics.sourceCount,
+  };
+}
+
+function logFlushSummary(sessionId: string, eventCount: number): void {
+  if (process.env.NODE_ENV !== "development" || eventCount === 0) {
+    return;
+  }
+  console.debug(
+    `[PerfLog] Session ${sessionId}: ${eventCount} events captured`,
+  );
+}
+
+function canFlushFrontendDebugEvents(): boolean {
+  return ENABLE_AGENTIC_LOGGING && typeof window !== "undefined";
+}
+
+function buildFrontendDebugReport(
+  summary: Readonly<PerformanceSummary>,
+  recentEvents:readonly PerformanceEvent[],
+  slowOperations:readonly PerformanceEvent[],
+  errors:readonly PerformanceEvent[],
+): FrontendDebugReportPayload {
+  return {
+    dom_stats: {
+      body_text_length: document.body?.textContent?.length ?? 0,
+      node_count: document.querySelectorAll("*").length,
+      title: document.title,
+      viewport: {
+        height: globalThis.innerHeight,
+        width: globalThis.innerWidth,
+      },
+    },
+    errors,
+    generated_at: new Date().toISOString(),
+    location: globalThis.location?.pathname,
+    recent_events: recentEvents,
+    session_id: summary.sessionId,
+    slow_operations: slowOperations,
+    summary: {
+      componentStats: summary.componentStats,
+      errorCount: summary.errorCount,
+      sessionId: summary.sessionId,
+      slowOperationsCount: summary.slowOperationsCount,
+      startTime: summary.startTime,
+      streamMetrics: summary.streamMetrics,
+      totalEvents: summary.totalEvents,
+    },
+    user_agent: navigator.userAgent,
+  };
+}
+
 class FrontendPerformanceLogger {
-  private events: PerformanceEvent[] = [];
+  private readonly events: PerformanceEvent[] = [];
   private eventCounter = 0;
-  private sessionId: string;
-  private activeStreams: Map<string, StreamMetrics> = new Map();
-  private componentTimings: Map<string, number[]> = new Map();
-  private flushInterval: NodeJS.Timeout | null = null;
+  private readonly sessionId: string;
+  private readonly activeStreams = new Map<string, StreamMetrics>();
+  private readonly componentTimings = new Map<string, number[]>();
+  private readonly flushInterval: NodeJS.Timeout | undefined;
   private lastFlushedEventIndex = 0;
 
   constructor() {
@@ -103,21 +241,21 @@ class FrontendPerformanceLogger {
 
     // Set up periodic flush
     if (typeof window !== "undefined") {
-      this.flushInterval = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
+      this.flushInterval = setInterval(() =>{  this.flush(); }, FLUSH_INTERVAL_MS);
 
       // Log page load
       if (document.readyState === "complete") {
         this.logPageLoad();
       } else {
-        window.addEventListener("load", () => this.logPageLoad());
+        globalThis.addEventListener("load", () =>{  this.logPageLoad(); });
       }
 
       // Capture unhandled errors
-      window.addEventListener("error", (event) => {
+      globalThis.addEventListener("error", (event) => {
         this.logError("window", "unhandled_error", event.error || event.message);
       });
 
-      window.addEventListener("unhandledrejection", (event) => {
+      globalThis.addEventListener("unhandledrejection", (event) => {
         this.logError("promise", "unhandled_rejection", event.reason);
       });
     }
@@ -129,20 +267,27 @@ class FrontendPerformanceLogger {
   }
 
   private logPageLoad(): void {
-    if (typeof window === "undefined" || !window.performance) return;
+    if (typeof window === "undefined" || !globalThis.performance) {return;}
 
-    const navigationEntry = performance
-      .getEntriesByType("navigation")
-      .find(
-        (entry): entry is PerformanceNavigationTiming =>
-          entry instanceof PerformanceNavigationTiming,
-      );
+    const performanceRuntime = globalThis.performance,
+     navigationEntries =
+      typeof performanceRuntime.getEntriesByType === "function"
+        ? performanceRuntime.getEntriesByType("navigation")
+        : [],
 
-    let loadTime = 0;
-    let domReady = 0;
-    let ttfb = 0;
-    let domComplete = 0;
-    let resourceLoadTime = 0;
+     navigationEntry =
+      typeof PerformanceNavigationTiming === "undefined"
+        ? undefined
+        : navigationEntries.find(
+            (entry): entry is PerformanceNavigationTiming =>
+              entry instanceof PerformanceNavigationTiming,
+          );
+
+    let domComplete = 0,
+     domReady = 0,
+     loadTime = 0,
+     resourceLoadTime = 0,
+     ttfb = 0;
 
     if (navigationEntry) {
       loadTime = Math.round(navigationEntry.loadEventEnd);
@@ -151,7 +296,8 @@ class FrontendPerformanceLogger {
       domComplete = Math.round(navigationEntry.domComplete);
       resourceLoadTime = Math.max(0, Math.round(loadTime - domReady));
     } else {
-      const timing = performance.timing;
+      const {timing} = performanceRuntime;
+      if (!timing) {return;}
       loadTime = Math.max(0, timing.loadEventEnd - timing.navigationStart);
       domReady = Math.max(
         0,
@@ -166,15 +312,15 @@ class FrontendPerformanceLogger {
     }
 
     this.logEvent("page_load", "page", "load", {
-      message: `Page loaded in ${loadTime}ms`,
-      durationMs: loadTime,
       details: {
-        domReady,
-        ttfb,
         domComplete,
+        domReady,
         resourceLoadTime,
-        url: window.location.pathname,
+        ttfb,
+        url: globalThis.location.pathname,
       },
+      durationMs: loadTime,
+      message: `Page loaded in ${loadTime}ms`,
     });
   }
 
@@ -182,36 +328,22 @@ class FrontendPerformanceLogger {
     eventType: EventType,
     component: string,
     operation: string,
-    options: {
-      message?: string;
-      durationMs?: number;
-      details?: Record<string, unknown>;
-      error?: Error | string;
-      streamId?: string;
-      requestId?: string;
-    } = {}
+    options: LogEventOptions = {}
   ): PerformanceEvent {
     const event: PerformanceEvent = {
+      component,
+      details: options.details,
+      durationMs: options.durationMs,
       eventId: this.generateEventId(),
       eventType,
-      timestamp: new Date().toISOString(),
-      component,
-      operation,
       message: options.message,
-      durationMs: options.durationMs,
-      details: options.details,
-      streamId: options.streamId,
+      operation,
       requestId: options.requestId,
+      streamId: options.streamId,
+      timestamp: new Date().toISOString(),
     };
 
-    if (options.error) {
-      if (options.error instanceof Error) {
-        event.error = options.error.message;
-        event.stackTrace = options.error.stack;
-      } else {
-        event.error = String(options.error);
-      }
-    }
+    applyEventError(event, options.error)
 
     // Check for slow operations
     if (options.durationMs && options.durationMs > SLOW_THRESHOLD_MS) {
@@ -219,12 +351,7 @@ class FrontendPerformanceLogger {
     }
 
     // Track component timing
-    if (options.durationMs) {
-      const timings = this.componentTimings.get(component) || [];
-      timings.push(options.durationMs);
-      if (timings.length > 100) timings.shift();
-      this.componentTimings.set(component, timings);
-    }
+    recordComponentTiming(this.componentTimings, component, options.durationMs)
 
     // Store event
     this.events.push(event);
@@ -233,14 +360,7 @@ class FrontendPerformanceLogger {
     }
 
     // Log to console in development
-    if (process.env.NODE_ENV === "development") {
-      const logFn = event.error ? console.error : event.isSlow ? console.warn : console.debug;
-      logFn(`[PerfLog] ${event.eventType} ${component}/${operation}`, {
-        duration: event.durationMs ? `${event.durationMs}ms` : undefined,
-        ...event.details,
-        error: event.error,
-      });
-    }
+    logDevelopmentEvent(event)
 
     return event;
   }
@@ -249,8 +369,8 @@ class FrontendPerformanceLogger {
     const message = error instanceof Error ? error.message : String(error);
     if (this.shouldIgnoreError(message)) {
       return this.logEvent("performance_warning", component, operation, {
-        message: "Ignored noisy browser error",
         details: { error: message },
+        message: "Ignored noisy browser error",
       });
     }
     return this.logEvent("error", component, operation, { error });
@@ -264,14 +384,14 @@ class FrontendPerformanceLogger {
 
   startStream(streamId: string): void {
     const metrics: StreamMetrics = {
-      streamId,
-      startTime: Date.now(),
-      eventCount: 0,
       articleCount: 0,
-      sourceCount: 0,
       errorCount: 0,
-      lastEventTime: Date.now(),
+      eventCount: 0,
       events: [],
+      lastEventTime: Date.now(),
+      sourceCount: 0,
+      startTime: Date.now(),
+      streamId,
     };
 
     this.activeStreams.set(streamId, metrics);
@@ -285,63 +405,21 @@ class FrontendPerformanceLogger {
   logStreamEvent(
     streamId: string,
     eventName: string,
-    options: {
-      articleCount?: number;
-      source?: string;
-      isError?: boolean;
-      details?: Record<string, unknown>;
-    } = {}
+    options: StreamEventOptions = {}
   ): void {
     const metrics = this.activeStreams.get(streamId);
-    if (!metrics) return;
+    if (!metrics) {return;}
 
     const now = Date.now();
-
-    // Track time to first event
-    if (!metrics.firstEventTime && eventName !== "start") {
-      metrics.firstEventTime = now;
-      metrics.timeToFirstEvent = now - metrics.startTime;
-    }
-
-    metrics.eventCount += 1;
-    metrics.lastEventTime = now;
-
-    if (options.articleCount) {
-      metrics.articleCount += options.articleCount;
-    }
-
-    if (options.source) {
-      metrics.sourceCount += 1;
-    }
-
-    if (options.isError) {
-      metrics.errorCount += 1;
-    }
-
-    metrics.events.push({
-      type: eventName,
-      timestamp: now,
-      articleCount: options.articleCount,
-      source: options.source,
-    });
-
-    // Keep only last 50 events per stream
-    if (metrics.events.length > 50) {
-      metrics.events.shift();
-    }
+    updateStreamMetrics(metrics, eventName, options, now)
 
     const eventType: EventType = options.isError ? "stream_error" : "stream_event";
 
     this.logEvent(eventType, "stream", eventName, {
-      streamId,
       details: {
-        ...options.details,
-        articleCount: options.articleCount,
-        source: options.source,
-        eventGapMs: metrics.events.length > 1 ? now - (metrics.events[metrics.events.length - 2]?.timestamp || now) : 0,
-        totalArticles: metrics.articleCount,
-        totalSources: metrics.sourceCount,
+        ...streamEventDetails(metrics, options, now),
       },
+      streamId,
     });
   }
 
@@ -350,7 +428,7 @@ class FrontendPerformanceLogger {
     reason: "complete" | "error" | "timeout" | "cancelled" = "complete"
   ): StreamMetrics | undefined {
     const metrics = this.activeStreams.get(streamId);
-    if (!metrics) return undefined;
+    if (!metrics) {return undefined;}
 
     const now = Date.now();
     metrics.endTime = now;
@@ -359,20 +437,20 @@ class FrontendPerformanceLogger {
     this.activeStreams.delete(streamId);
 
     const eventType: EventType =
-      reason === "error" ? "stream_error" : reason === "timeout" ? "stream_timeout" : "stream_end";
+      reason === "error" ? "stream_error" : (reason === "timeout" ? "stream_timeout" : "stream_end");
 
     this.logEvent(eventType, "stream", "end", {
-      message: `Stream ${streamId} ended: ${reason}`,
-      streamId,
-      durationMs: metrics.totalDurationMs,
       details: {
+        errorCount: metrics.errorCount,
         reason,
         timeToFirstEvent: metrics.timeToFirstEvent,
-        totalEvents: metrics.eventCount,
         totalArticles: metrics.articleCount,
+        totalEvents: metrics.eventCount,
         totalSources: metrics.sourceCount,
-        errorCount: metrics.errorCount,
       },
+      durationMs: metrics.totalDurationMs,
+      message: `Stream ${streamId} ended: ${reason}`,
+      streamId,
     });
 
     return metrics;
@@ -385,31 +463,31 @@ class FrontendPerformanceLogger {
     url: string,
     requestFn: () => Promise<T>
   ): Promise<T> {
-    const startTime = Date.now();
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const startTime = Date.now(),
+     requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     this.logEvent("api_request_start", "api", operation, {
-      requestId,
       details: { url },
+      requestId,
     });
 
     return requestFn()
       .then((result) => {
         const durationMs = Date.now() - startTime;
         this.logEvent("api_request_end", "api", operation, {
-          requestId,
+          details: { success: true, url },
           durationMs,
-          details: { url, success: true },
+          requestId,
         });
         return result;
       })
       .catch((error) => {
         const durationMs = Date.now() - startTime;
         this.logEvent("api_request_error", "api", operation, {
-          requestId,
+          details: { success: false, url },
           durationMs,
           error,
-          details: { url, success: false },
+          requestId,
         });
         throw error;
       });
@@ -426,19 +504,19 @@ class FrontendPerformanceLogger {
     this.logEvent("render_start", "render", componentName, {});
 
     try {
-      const result = renderFn();
-      const durationMs = Date.now() - startTime;
+      const result = renderFn(),
+       durationMs = Date.now() - startTime;
       this.logEvent("render_end", "render", componentName, {
-        durationMs,
         details: { success: true },
+        durationMs,
       });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
       this.logEvent("render_end", "render", componentName, {
+        details: { success: false },
         durationMs,
         error: error as Error,
-        details: { success: false },
       });
       throw error;
     }
@@ -448,8 +526,8 @@ class FrontendPerformanceLogger {
 
   logUserAction(action: string, details?: Record<string, unknown>): void {
     this.logEvent("user_action", "user", action, {
-      message: `User action: ${action}`,
       details,
+      message: `User action: ${action}`,
     });
   }
 
@@ -459,29 +537,29 @@ class FrontendPerformanceLogger {
     const componentStats: PerformanceSummary["componentStats"] = {};
 
     for (const [component, timings] of this.componentTimings.entries()) {
-      if (timings.length === 0) continue;
-      const avg = timings.reduce((a, b) => a + b, 0) / timings.length;
-      const max = Math.max(...timings);
-      const errors = this.events.filter(
+      if (timings.length === 0) {continue;}
+      const avg = timings.reduce((a, b) => a + b, 0) / timings.length,
+       max = Math.max(...timings),
+       errors = this.events.filter(
         (e) => e.component === component && e.error
       ).length;
 
       componentStats[component] = {
-        count: timings.length,
         avgDurationMs: Math.round(avg),
-        maxDurationMs: max,
+        count: timings.length,
         errorCount: errors,
+        maxDurationMs: max,
       };
     }
 
     return {
-      sessionId: this.sessionId,
-      startTime: this.events[0]?.timestamp || new Date().toISOString(),
-      totalEvents: this.events.length,
-      slowOperationsCount: this.events.filter((e) => e.isSlow).length,
-      errorCount: this.events.filter((e) => e.error).length,
-      streamMetrics: Array.from(this.activeStreams.values()),
       componentStats,
+      errorCount: this.events.filter((e) => e.error).length,
+      sessionId: this.sessionId,
+      slowOperationsCount: this.events.filter((e) => e.isSlow).length,
+      startTime: this.events[0]?.timestamp || new Date().toISOString(),
+      streamMetrics: [...this.activeStreams.values()],
+      totalEvents: this.events.length,
     };
   }
 
@@ -510,69 +588,50 @@ class FrontendPerformanceLogger {
     activeStreams: StreamMetrics[];
   } {
     return {
-      summary: this.getSummary(),
+      activeStreams: [...this.activeStreams.values()],
+      errors: this.getErrors(),
       recentEvents: this.getRecentEvents(100),
       slowOperations: this.getSlowOperations(),
-      errors: this.getErrors(),
-      activeStreams: Array.from(this.activeStreams.values()),
+      summary: this.getSummary(),
     };
   }
 
   // Flush events (could send to backend in the future)
   private flush(): void {
-    if (process.env.NODE_ENV === "development" && this.events.length > 0) {
-      console.debug(
-        `[PerfLog] Session ${this.sessionId}: ${this.events.length} events captured`
-      );
-    }
-
-    if (!ENABLE_AGENTIC_LOGGING || typeof window === "undefined") {
+    logFlushSummary(this.sessionId, this.events.length);
+    const recentEvents = this.getFlushEvents();
+    if (recentEvents === undefined) {
       return;
     }
 
+    void sendFrontendDebugReport(
+      buildFrontendDebugReport(
+        this.getSummary(),
+        recentEvents,
+        this.getSlowOperations(),
+        this.getErrors(),
+      ),
+    );
+  }
+
+  private getFlushEvents(): PerformanceEvent[] | undefined {
+    if (!canFlushFrontendDebugEvents()) {
+      return undefined;
+    }
+    const recentEvents = this.getUnflushedEvents();
+    if (recentEvents.length === 0) {
+      return undefined;
+    }
+    return recentEvents;
+  }
+
+  private getUnflushedEvents(): PerformanceEvent[] {
     const startIndex = Math.min(
       this.lastFlushedEventIndex,
-      this.events.length
+      this.events.length,
     );
-    const recentEvents = this.events.slice(startIndex);
     this.lastFlushedEventIndex = this.events.length;
-
-    if (recentEvents.length === 0) {
-      return;
-    }
-
-    const summary = this.getSummary()
-    const slowOperations = this.getSlowOperations()
-    const errors = this.getErrors()
-    const report: FrontendDebugReportPayload = {
-      session_id: summary.sessionId,
-      summary: {
-        sessionId: summary.sessionId,
-        startTime: summary.startTime,
-        totalEvents: summary.totalEvents,
-        slowOperationsCount: summary.slowOperationsCount,
-        errorCount: summary.errorCount,
-        streamMetrics: summary.streamMetrics,
-        componentStats: summary.componentStats,
-      },
-      recent_events: recentEvents,
-      slow_operations: slowOperations,
-      errors: errors,
-      dom_stats: {
-        node_count: document.querySelectorAll("*").length,
-        body_text_length: document.body?.innerText?.length ?? 0,
-        viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        },
-        title: document.title,
-      },
-      location: window.location?.pathname,
-      user_agent: navigator.userAgent,
-      generated_at: new Date().toISOString(),
-    };
-
-    sendFrontendDebugReport(report);
+    return this.events.slice(startIndex);
   }
 
   // Cleanup
@@ -606,6 +665,6 @@ declare global {
 
 // Make available globally for debugging in console
 if (typeof window !== "undefined") {
-  window.perfLogger = perfLogger;
-  window.exportDebugData = exportDebugData;
+  globalThis.window.perfLogger = perfLogger;
+  globalThis.window.exportDebugData = exportDebugData;
 }

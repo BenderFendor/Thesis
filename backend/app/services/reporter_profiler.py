@@ -110,41 +110,51 @@ def build_deep_dossier(
     schema["article_count"] = len(articles)
 
     if wikidata_employers:
-        schema["revolving_door"]["history"].extend(
-            {
-                "role": "employer",
-                "organization": employer,
-                "org_type": "media",
-                "period": None,
-                "verified": True,
-                "source": "wikidata",
-            }
-            for employer in wikidata_employers
-            if employer
-        )
-        if wikidata_employers:
-            schema["revolving_door"]["confidence"] = "medium"
+        _add_wikidata_employers(schema, wikidata_employers)
 
     if littlesis_affiliations:
-        affiliations: list[dict[str, Any]] = [
-            {
-                "organization": aff.get("organization", ""),
-                "role": aff.get("category", "affiliation"),
-                "period": (
-                    f"{aff.get('start_date', '')} - {aff.get('end_date', '')}"
-                    if aff.get("start_date") or aff.get("end_date")
-                    else None
-                ),
-                "org_type": aff.get("org_type", ""),
-                "source": "littlesis",
-                "littlesis_url": aff.get("littlesis_url"),
-            }
-            for aff in littlesis_affiliations
-        ]
-        schema["institutional_affiliations"] = affiliations
-        schema["revolving_door"]["confidence"] = "high"
+        _add_littlesis_affiliations(schema, littlesis_affiliations)
 
     return schema
+
+
+def _add_wikidata_employers(schema: dict[str, Any], employers: list[str]) -> None:
+    schema["revolving_door"]["history"].extend(
+        {
+            "role": "employer",
+            "organization": employer,
+            "org_type": "media",
+            "period": None,
+            "verified": True,
+            "source": "wikidata",
+        }
+        for employer in employers
+        if employer
+    )
+    schema["revolving_door"]["confidence"] = "medium"
+
+
+def _add_littlesis_affiliations(schema: dict[str, Any], affiliations: list[dict[str, Any]]) -> None:
+    schema["institutional_affiliations"] = [
+        {
+            "organization": affiliation.get("organization", ""),
+            "role": affiliation.get("category", "affiliation"),
+            "period": _affiliation_period(affiliation),
+            "org_type": affiliation.get("org_type", ""),
+            "source": "littlesis",
+            "littlesis_url": affiliation.get("littlesis_url"),
+        }
+        for affiliation in affiliations
+    ]
+    schema["revolving_door"]["confidence"] = "high"
+
+
+def _affiliation_period(affiliation: dict[str, Any]) -> str | None:
+    start = affiliation.get("start_date", "")
+    end = affiliation.get("end_date", "")
+    if not start and not end:
+        return None
+    return f"{start} - {end}"
 
 
 def _analyze_article_corpus(name: str, articles: list[dict[str, Any]]) -> dict[str, Any]:

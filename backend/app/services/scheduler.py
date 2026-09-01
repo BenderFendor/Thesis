@@ -19,6 +19,7 @@ EMFILE_BACKOFF_SECONDS = int(os.getenv("RSS_EMFILE_BACKOFF_SECONDS", "300"))
 
 
 def _parse_next_check_at(value: object) -> datetime | None:
+    """Parse a cached refresh deadline into an aware UTC datetime."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -28,6 +29,30 @@ def _parse_next_check_at(value: object) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _classify_source_due(
+    source_name: str,
+    stats_map: dict[str, dict[str, object]],
+    now: datetime,
+) -> tuple[bool, float | None]:
+    """Classify one source as due now, and expose its wait time when not due."""
+    stat = stats_map.get(source_name)
+    next_check_at = _parse_next_check_at(stat.get("next_check_at") if stat else None)
+    if next_check_at is None:
+        return True, None
+    seconds_until_due = (next_check_at - now).total_seconds()
+    if seconds_until_due <= 0:
+        return True, None
+    return False, seconds_until_due
+
+
+def _min_wait(current: float | None, candidate: float | None) -> float | None:
+    if candidate is None:
+        return current
+    if current is None or candidate < current:
+        return candidate
+    return current
 
 
 def _get_due_rss_sources() -> tuple[list[str], float | None]:
@@ -44,19 +69,11 @@ def _get_due_rss_sources() -> tuple[list[str], float | None]:
     next_wait_seconds: float | None = None
 
     for source_name in configured_sources:
-        stat = stats_map.get(source_name)
-        next_check_at = _parse_next_check_at(stat.get("next_check_at") if stat else None)
-        if next_check_at is None:
+        is_due, seconds_until_due = _classify_source_due(source_name, stats_map, now)
+        if is_due:
             due_sources.append(source_name)
-            continue
-
-        seconds_until_due = (next_check_at - now).total_seconds()
-        if seconds_until_due <= 0:
-            due_sources.append(source_name)
-            continue
-
-        if next_wait_seconds is None or seconds_until_due < next_wait_seconds:
-            next_wait_seconds = seconds_until_due
+        else:
+            next_wait_seconds = _min_wait(next_wait_seconds, seconds_until_due)
 
     return due_sources, next_wait_seconds
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.core.config import SCOOP_USER_AGENT, settings
+from app.core.logging import get_session_dir
 from app.data.rss_sources import get_rss_sources
 from app.database import (
     Article,
@@ -23,16 +24,15 @@ from app.database import (
     fetch_articles_page,
 )
 from app.services.cache import news_cache
-from app.services.persistence import get_embedding_queue_depth
+from app.services.country_mentions import backfill_article_mentioned_countries
+from app.services.debug_logger import DEBUG_LOG_DIR, debug_logger
+from app.services.image_extraction import ImageErrorType
 from app.services.metrics import get_metrics
+from app.services.persistence import get_embedding_queue_depth
 from app.services.rss_parser_rust_bindings import parse_feeds_parallel
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
-from app.services.debug_logger import debug_logger, DEBUG_LOG_DIR
-from app.services.image_extraction import ImageErrorType
-from app.services.country_mentions import backfill_article_mentioned_countries
 from app.vector_store import get_vector_store
-from app.core.logging import get_session_dir
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -131,6 +131,94 @@ def _read_jsonl_tail(
     }
 
 
+def _source_rss_urls(source_info: dict[str, object]) -> tuple[str, list[str]]:
+    configured = source_info["url"]
+    urls = cast(list[str], configured) if isinstance(configured, list) else [cast(str, configured)]
+    return urls[0], urls
+
+
+def _description_preview(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        return "No description"
+    return f"{value[:200]}..." if len(value) > 200 else value
+
+
+def _entry_image_details(entry: dict[str, object]) -> tuple[list[dict[str, str]], list[str]]:
+    image_sources: list[dict[str, str]] = []
+    image_url = entry.get("image")
+    if isinstance(image_url, str) and image_url:
+        image_sources.append({"type": "rust_image", "url": image_url})
+    description = entry.get("description")
+    html_images = (
+        _extract_image_urls_from_html(description)
+        if isinstance(description, str) and description
+        else []
+    )
+    return image_sources, html_images
+
+
+def _parsed_debug_entry(
+    index: int, entry: dict[str, object]
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    image_sources, html_images = _entry_image_details(entry)
+    parsed = {
+        "index": index,
+        "title": entry.get("title", "No title"),
+        "link": entry.get("link", ""),
+        "description": _description_preview(entry.get("description")),
+        "published": entry.get("published", "No date"),
+        "author": entry.get("author") or "No author",
+        "tags": entry.get("tags") or [],
+        "has_images": bool(image_sources or html_images),
+        "image_sources": image_sources,
+        "content_images": html_images,
+        "description_images": list(html_images),
+        "raw_entry_keys": list(entry.keys()),
+    }
+    analysis = [
+        {"entry_index": index, "source": "content", "urls": html_images},
+        {"entry_index": index, "source": "description", "urls": html_images},
+        {"entry_index": index, "source": "metadata", "data": image_sources},
+    ]
+    return parsed, analysis
+
+
+def _append_debug_entries(debug_data: dict[str, object], articles: list[dict[str, object]]) -> None:
+    parsed_entries = cast(list[dict[str, object]], debug_data["parsed_entries"])
+    image_analysis = cast(dict[str, object], debug_data["image_analysis"])
+    image_sources = cast(list[dict[str, object]], image_analysis["image_sources"])
+    images_count = 0
+    for index, entry in enumerate(articles[:10]):
+        parsed, analysis = _parsed_debug_entry(index, entry)
+        parsed_entries.append(parsed)
+        image_sources.extend(analysis)
+        images_count += int(bool(parsed["has_images"]))
+    image_analysis["entries_with_images"] = images_count
+
+
+async def _parse_source_feed(
+    source_name: str, rss_url: str
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    rust_result = await run_in_threadpool(parse_feeds_parallel, [(source_name, [rss_url])], 8)
+    articles = [
+        article
+        for article in cast(list[dict[str, object]], rust_result.get("articles", []))
+        if article.get("source") == source_name
+    ]
+    stats = cast(dict[str, object], rust_result.get("source_stats", {}))
+    return articles, cast(dict[str, object], stats.get(source_name, {}))
+
+
+def _cached_source_data(source_name: str) -> tuple[list[dict[str, object]], object]:
+    articles = [
+        article.dict() for article in news_cache.get_articles() if article.source == source_name
+    ]
+    stat = next(
+        (item for item in news_cache.get_source_stats() if item["name"] == source_name), None
+    )
+    return articles, stat
+
+
 @router.get("/sources/{source_name}")
 async def get_source_debug_data(source_name: str) -> dict[str, object]:
     """Get Source Debug Data."""
@@ -138,41 +226,16 @@ async def get_source_debug_data(source_name: str) -> dict[str, object]:
     if source_name not in rss_sources:
         raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
 
-    source_info = rss_sources[source_name]
-    rss_url = source_info["url"][0] if isinstance(source_info["url"], list) else source_info["url"]
-
+    source_info = cast(dict[str, object], rss_sources[source_name])
+    rss_url, all_urls = _source_rss_urls(source_info)
     rss_text = await _fetch_rss_text(rss_url)
-    rust_result = await run_in_threadpool(
-        parse_feeds_parallel,
-        [(source_name, [rss_url])],
-        8,
-    )
-    source_articles = [
-        article
-        for article in cast(list[dict[str, object]], rust_result.get("articles", []))
-        if article.get("source") == source_name
-    ]
-    source_feed_stat = cast(dict[str, object], rust_result.get("source_stats", {})).get(
-        source_name,
-        {},
-    )
-    source_feed_stat = cast(dict[str, object], source_feed_stat)
-
-    cached_articles = [
-        article.dict() for article in news_cache.get_articles() if article.source == source_name
-    ]
-    source_stat = next(
-        (stats for stats in news_cache.get_source_stats() if stats["name"] == source_name),
-        None,
-    )
-
-    debug_data = {
+    source_articles, source_feed_stat = await _parse_source_feed(source_name, rss_url)
+    cached_articles, source_stat = _cached_source_data(source_name)
+    debug_data: dict[str, object] = {
         "source_name": source_name,
         "source_config": source_info,
         "rss_url": rss_url,
-        "all_urls": source_info["url"]
-        if isinstance(source_info["url"], list)
-        else [source_info["url"]],
+        "all_urls": all_urls,
         "feed_metadata": {
             "title": source_name,
             "description": "",
@@ -198,55 +261,7 @@ async def get_source_debug_data(source_name: str) -> dict[str, object]:
         },
         "raw_feed_preview": rss_text[:1000],
     }
-
-    for i, entry in enumerate(source_articles[:10]):
-        image_sources = []
-
-        image_url = entry.get("image")
-        if isinstance(image_url, str) and image_url:
-            image_sources.append({"type": "rust_image", "url": image_url})
-
-        content_images: list[str] = []
-        description_value = entry.get("description")
-        if isinstance(description_value, str) and description_value:
-            content_images = _extract_image_urls_from_html(description_value)
-
-        desc_images: list[str] = []
-        if isinstance(description_value, str) and description_value:
-            desc_images = _extract_image_urls_from_html(description_value)
-
-        has_images = bool(image_sources or content_images or desc_images)
-        if has_images:
-            debug_data["image_analysis"]["entries_with_images"] += 1
-
-        parsed_entry = {
-            "index": i,
-            "title": entry.get("title", "No title"),
-            "link": entry.get("link", ""),
-            "description": (
-                description_value[:200] + "..."
-                if isinstance(description_value, str) and len(description_value) > 200
-                else description_value or "No description"
-            ),
-            "published": entry.get("published", "No date"),
-            "author": entry.get("author") or "No author",
-            "tags": entry.get("tags") or [],
-            "has_images": has_images,
-            "image_sources": image_sources,
-            "content_images": content_images,
-            "description_images": desc_images,
-            "raw_entry_keys": list(entry.keys()),
-        }
-
-        debug_data["parsed_entries"].append(parsed_entry)
-        debug_data["image_analysis"]["image_sources"].extend(
-            [
-                {"entry_index": i, "source": "content", "urls": content_images},
-                {"entry_index": i, "source": "description", "urls": desc_images},
-                {"entry_index": i, "source": "metadata", "data": image_sources},
-            ]
-        )
-
+    _append_debug_entries(debug_data, source_articles)
     return debug_data
 
 
@@ -391,6 +406,49 @@ async def list_cached_articles(
     }
 
 
+def _cached_article_sample(source: str | None, offset: int, limit: int) -> tuple[int, list[str]]:
+    cached = news_cache.get_articles()
+    if source:
+        cached = [article for article in cached if article.source == source]
+    sample = cached[offset : offset + limit]
+    return len(cached), [article.link for article in sample if article.link]
+
+
+async def _database_url_sample(source: str | None, urls: list[str]) -> tuple[int, set[str]]:
+    if AsyncSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with AsyncSessionLocal() as session:
+        count_stmt = select(func.count(Article.id))
+        if source:
+            count_stmt = count_stmt.where(Article.source == source)
+        db_total = (await session.execute(count_stmt)).scalar_one()
+        matched = await session.execute(select(Article.url).where(Article.url.in_(urls)))
+    return db_total, {row[0] for row in matched.all()}
+
+
+def _cache_delta_response(
+    cache_total: int,
+    urls: list[str],
+    db_total: int,
+    matched: set[str],
+    source: str | None,
+    offset: int,
+    limit: int,
+    preview_limit: int,
+) -> dict[str, object]:
+    missing = [url for url in urls if url not in matched]
+    return {
+        "cache_total": cache_total,
+        "cache_sampled": len(urls),
+        "db_total": db_total,
+        "missing_in_db_count": len(missing),
+        "missing_in_db_sample": missing[:preview_limit],
+        "source": source,
+        "sample_offset": offset,
+        "sample_limit": limit,
+    }
+
+
 @router.get("/cache/delta")
 async def get_cache_db_delta(
     sample_limit: int = Query(200, ge=10, le=1000),
@@ -398,18 +456,10 @@ async def get_cache_db_delta(
     source: str | None = Query(default=None, description="Filter by RSS source key"),
     sample_preview_limit: int = Query(50, ge=0, le=200),
 ) -> dict[str, object]:
-    """Get Cache Db Delta."""
+    """Compare a cache sample with persisted article URLs."""
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
-
-    cached = news_cache.get_articles()
-    if source:
-        cached = [article for article in cached if article.source == source]
-
-    cache_total = len(cached)
-    sample_slice = cached[sample_offset : sample_offset + sample_limit]
-    cache_urls = [article.link for article in sample_slice if article.link]
-
+    cache_total, cache_urls = _cached_article_sample(source, sample_offset, sample_limit)
     if not cache_urls:
         return {
             "cache_total": cache_total,
@@ -419,66 +469,50 @@ async def get_cache_db_delta(
             "missing_in_db_sample": [],
             "source": source,
         }
+    db_total, matched = await _database_url_sample(source, cache_urls)
+    return _cache_delta_response(
+        cache_total,
+        cache_urls,
+        db_total,
+        matched,
+        source,
+        sample_offset,
+        sample_limit,
+        sample_preview_limit,
+    )
 
-    async with AsyncSessionLocal() as session:
-        db_total_stmt = select(func.count(Article.id))
-        if source:
-            db_total_stmt = db_total_stmt.where(Article.source == source)
-        db_total = (await session.execute(db_total_stmt)).scalar_one()
 
-        matched_stmt = select(Article.url).where(Article.url.in_(cache_urls))
-        matched_urls = {row[0] for row in (await session.execute(matched_stmt)).all()}
-
-    missing_in_db = [url for url in cache_urls if url not in matched_urls]
-
+def _storage_drift_report(
+    mappings: list[dict[str, Any]], chroma_ids: set[str], sample_limit: int
+) -> dict[str, object]:
+    db_chroma_ids = {m["chroma_id"] for m in mappings if m["chroma_id"]}
+    missing_embedding = [m for m in mappings if not m["chroma_id"]]
+    missing_chroma = [m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids]
+    dangling = list(chroma_ids - db_chroma_ids)
     return {
-        "cache_total": cache_total,
-        "cache_sampled": len(cache_urls),
-        "db_total": db_total,
-        "missing_in_db_count": len(missing_in_db),
-        "missing_in_db_sample": missing_in_db[:sample_preview_limit],
-        "source": source,
-        "sample_offset": sample_offset,
-        "sample_limit": sample_limit,
+        "database_total_articles": len(mappings),
+        "database_with_embeddings": len(db_chroma_ids),
+        "database_missing_embeddings": len(missing_embedding),
+        "vector_total_documents": len(chroma_ids),
+        "missing_in_chroma": missing_chroma[:sample_limit],
+        "dangling_in_chroma": dangling[:sample_limit],
+        "missing_in_chroma_count": len(missing_chroma),
+        "dangling_in_chroma_count": len(dangling),
     }
 
 
 @router.get("/storage/drift")
-async def get_storage_drift(
-    sample_limit: int = Query(50, ge=5, le=500),
-) -> dict[str, object]:
-    """Get Storage Drift."""
+async def get_storage_drift(sample_limit: int = Query(50, ge=5, le=500)) -> dict[str, object]:
+    """Compare database embedding mappings with the vector store."""
     vector_store = get_vector_store()
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store unavailable")
-
     if not settings.enable_database or AsyncSessionLocal is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
-
     async with AsyncSessionLocal() as session:
         mappings = await fetch_article_chroma_mappings(session)
-
-    db_total = len(mappings)
-    db_chroma_ids = {m["chroma_id"] for m in mappings if m["chroma_id"]}
-    db_missing_chroma = [m for m in mappings if not m["chroma_id"]]
-
     chroma_ids = set(await run_in_threadpool(vector_store.list_all_ids))
-
-    missing_in_chroma = [m for m in mappings if m["chroma_id"] and m["chroma_id"] not in chroma_ids]
-    dangling_in_chroma = list(chroma_ids - db_chroma_ids)
-
-    drift_report = {
-        "database_total_articles": db_total,
-        "database_with_embeddings": len(db_chroma_ids),
-        "database_missing_embeddings": len(db_missing_chroma),
-        "vector_total_documents": len(chroma_ids),
-        "missing_in_chroma": missing_in_chroma[:sample_limit],
-        "dangling_in_chroma": dangling_in_chroma[:sample_limit],
-        "missing_in_chroma_count": len(missing_in_chroma),
-        "dangling_in_chroma_count": len(dangling_in_chroma),
-    }
-
-    return drift_report
+    return _storage_drift_report(mappings, chroma_ids, sample_limit)
 
 
 # --- Phase 3: Debug Page Consolidation - New Endpoints ---
@@ -491,8 +525,8 @@ async def get_system_status() -> dict[str, object]:
     Returns startup metrics, component health, and runtime info.
     """
     import os
-    import sys
     import platform
+    import sys
 
     startup_data = startup_metrics.to_dict()
     cache_stats = news_cache.get_source_stats()
@@ -672,11 +706,11 @@ async def test_rss_parser(
 
         return result
 
-    except Exception as e:
+    except (AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
         return {
             "url": url,
             "success": False,
-            "error": str(e),
+            "error": str(error),
             "parse_time_seconds": time.time() - start_time,
         }
 
@@ -728,7 +762,7 @@ async def list_active_jobs() -> dict[str, object]:
 @router.get("/updates/subscribers")
 async def get_updates_subscribers() -> dict[str, object]:
     """Get updates stream subscriber info."""
-    from app.api.routes.updates import _update_subscribers, _event_counter
+    from app.api.routes.updates import _event_counter, _update_subscribers
 
     return {
         "subscriber_count": len(_update_subscribers),
@@ -890,6 +924,45 @@ async def list_debug_log_files() -> dict[str, object]:
     }
 
 
+def _valid_debug_log_path(filename: str) -> Path:
+    path = DEBUG_LOG_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Log file not found: {filename}")
+    if not path.name.startswith("debug_") or path.suffix != ".jsonl":
+        raise HTTPException(status_code=400, detail="Invalid log file name")
+    return path
+
+
+def _decode_log_event(line: str, event_type: str | None) -> dict[str, object] | None:
+    if not line.strip():
+        return None
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(event, dict) or (event_type and event.get("event_type") != event_type):
+        return None
+    return cast(dict[str, object], event)
+
+
+def _read_debug_events(
+    path: Path, offset: int, limit: int, event_type: str | None
+) -> tuple[int, list[dict[str, object]]]:
+    events: list[dict[str, object]] = []
+    total_lines = 0
+    with path.open() as handle:
+        for index, line in enumerate(handle):
+            if not line.strip():
+                continue
+            total_lines += 1
+            if index < offset or len(events) >= limit:
+                continue
+            event = _decode_log_event(line, event_type)
+            if event is not None:
+                events.append(event)
+    return total_lines, events
+
+
 @router.get("/logs/file/{filename}")
 async def read_debug_log_file(
     filename: str,
@@ -897,44 +970,14 @@ async def read_debug_log_file(
     offset: int = Query(0, ge=0),
     event_type: str | None = Query(default=None),
 ) -> dict[str, object]:
-    """Read events from a specific debug log file.
-
-    Supports pagination and filtering by event type.
-    """
-    log_file = DEBUG_LOG_DIR / filename
-    if not log_file.exists():
-        raise HTTPException(status_code=404, detail=f"Log file not found: {filename}")
-
-    if not log_file.name.startswith("debug_") or not log_file.suffix == ".jsonl":
-        raise HTTPException(status_code=400, detail="Invalid log file name")
-
-    events: list[dict[str, object]] = []
-    total_lines = 0
-
+    """Read paginated events from one debug JSONL file."""
+    log_file = _valid_debug_log_path(filename)
     try:
-        with log_file.open() as f:
-            for i, line in enumerate(f):
-                if not line.strip():
-                    continue
-                total_lines += 1
-
-                if i < offset:
-                    continue
-                if len(events) >= limit:
-                    continue
-
-                try:
-                    event = json.loads(line)
-                    if not isinstance(event, dict):
-                        continue
-                    if event_type and event.get("event_type") != event_type:
-                        continue
-                    events.append(event)
-                except json.JSONDecodeError:
-                    continue
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read log file: {e}")
-
+        total_lines, events = _read_debug_events(log_file, offset, limit, event_type)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read log file: {error!s}"
+        ) from error
     return {
         "filename": filename,
         "total_lines": total_lines,
@@ -1020,8 +1063,8 @@ async def clear_old_log_files(
             size = log_file.stat().st_size
             log_file.unlink()
             deleted.append({"filename": log_file.name, "size_bytes": size})
-        except Exception as e:
-            deleted.append({"filename": log_file.name, "error": str(e)})
+        except OSError as error:
+            deleted.append({"filename": log_file.name, "error": str(error)})
 
     return {
         "message": f"Deleted {len(deleted)} old log files",

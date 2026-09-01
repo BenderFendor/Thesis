@@ -234,9 +234,8 @@ def _extract_with_rust(html: str) -> dict[str, Any]:
     }
 
 
-def _extract_rebelmouse_article(url: str, html: str) -> dict[str, Any] | None:
-    if not html:
-        return None
+def _fetch_rebelmouse_bootstrap(url: str, html: str) -> Any | None:
+    """Fetch the RebelMouse bootstrap payload; None when unavailable/parse-failed."""
     match = re.search(r'"fullBootstrapUrl"\s*:\s*"([^"]+)"', html)
     if not match:
         logger.debug("RebelMouse bootstrap URL not found for %s", url)
@@ -257,9 +256,49 @@ def _extract_rebelmouse_article(url: str, html: str) -> dict[str, Any] | None:
                 response.status_code,
             )
             return None
-        data = response.json()
+        return response.json()
     except Exception as exc:
         logger.debug("RebelMouse bootstrap parse failed for %s: %s", url, exc)
+        return None
+
+
+def _clean_rebelmouse_text(text: str) -> str:
+    """Normalize whitespace in extracted RebelMouse text."""
+    text = unescape(text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text)
+    return text.strip()
+
+
+def _rebelmouse_publish_date(post: dict[str, Any], payload: dict[str, Any]) -> Any:
+    return (
+        post.get("last_published_date")
+        or post.get("created_date")
+        or post.get("formated_created_ts")
+        or payload.get("publish_date")
+    )
+
+
+def _rebelmouse_authors(post: dict[str, Any], payload: dict[str, Any]) -> list[str]:
+    author = post.get("author_name")
+    if author:
+        return [author]
+    return payload.get("authors") or []
+
+
+def _rebelmouse_title(post: dict[str, Any], payload: dict[str, Any]) -> Any:
+    return post.get("headline") or post.get("title") or payload.get("title")
+
+
+def _rebelmouse_top_image(post: dict[str, Any], payload: dict[str, Any]) -> Any:
+    return post.get("image") or post.get("image_external") or payload.get("top_image")
+
+
+def _extract_rebelmouse_article(url: str, html: str) -> dict[str, Any] | None:
+    if not html:
+        return None
+    data = _fetch_rebelmouse_bootstrap(url, html)
+    if data is None:
         return None
 
     post = data.get("post", {})
@@ -270,30 +309,19 @@ def _extract_rebelmouse_article(url: str, html: str) -> dict[str, Any] | None:
 
     payload = extract_article_html(body_html)
     text_value = payload.get("text")
-    text = text_value if isinstance(text_value, str) else ""
-    text = unescape(text)
-    text = re.sub(r"[ \t\r\f\v]+", " ", text)
-    text = re.sub(r"\n\s*\n+", "\n\n", text)
-    text = text.strip()
+    text = _clean_rebelmouse_text(text_value if isinstance(text_value, str) else "")
 
     if not text:
         logger.debug("RebelMouse body extracted empty for %s", url)
         return None
 
-    author = post.get("author_name")
-    publish_date = (
-        post.get("last_published_date")
-        or post.get("created_date")
-        or post.get("formated_created_ts")
-    )
-
     return {
         "success": True,
         "text": text,
-        "title": post.get("headline") or post.get("title") or payload.get("title"),
-        "authors": [author] if author else (payload.get("authors") or []),
-        "publish_date": publish_date or payload.get("publish_date"),
-        "top_image": post.get("image") or post.get("image_external") or payload.get("top_image"),
+        "title": _rebelmouse_title(post, payload),
+        "authors": _rebelmouse_authors(post, payload),
+        "publish_date": _rebelmouse_publish_date(post, payload),
+        "top_image": _rebelmouse_top_image(post, payload),
         "images": payload.get("images") or [],
         "meta_description": payload.get("meta_description"),
         "keywords": [],

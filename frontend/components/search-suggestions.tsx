@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Search, TrendingUp, Loader2 } from "lucide-react";
+import { Loader2, Search, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SearchSuggestion } from "@/lib/api";
 import { fetchSearchSuggestions } from "@/lib/api";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface SearchSuggestionsProps {
   query: string;
@@ -22,22 +22,22 @@ export function SearchSuggestions({
   debounceMs = 300,
   className = "",
 }: SearchSuggestionsProps) {
-  const debouncedQuery = useDebounce(query, debounceMs);
-  const suggestionsQuery = useQuery<SearchSuggestion[]>({
-    queryKey: ["search-suggestions", debouncedQuery, minQueryLength],
+  const debouncedQuery = useDebounce(query, debounceMs),
+   suggestionsQuery = useQuery<SearchSuggestion[]>({
+    enabled: debouncedQuery.length >= minQueryLength,
     queryFn: async () => {
       const response = await fetchSearchSuggestions(debouncedQuery, 5);
       return response.suggestions;
     },
-    enabled: debouncedQuery.length >= minQueryLength,
+    queryKey: ["search-suggestions", debouncedQuery, minQueryLength],
     retry: 1,
-  });
-  const suggestions = suggestionsQuery.data ?? [];
-  const loading = suggestionsQuery.isLoading;
-  const error = suggestionsQuery.error instanceof Error ? suggestionsQuery.error.message : null;
+  }),
+   suggestions = suggestionsQuery.data ?? [],
+   loading = suggestionsQuery.isLoading,
+   error = suggestionsQuery.error instanceof Error ? suggestionsQuery.error.message : null;
 
   if (query.length < minQueryLength) {
-    return null;
+    return;
   }
 
   if (loading) {
@@ -50,11 +50,11 @@ export function SearchSuggestions({
   }
 
   if (error || suggestions.length === 0) {
-    return null;
+    return;
   }
 
   return (
-    <div className={`${className}`}>
+    <div className={className}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
         <TrendingUp className="w-3 h-3" />
         <span>Related topics</span>

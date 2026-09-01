@@ -1,5 +1,98 @@
 # Log
 
+## 2026-09-01: Fresh repo-wide quality census and closure plan
+
+- The current baseline is CCCC green: 0 hard violations across 10,036
+  functions in 587 files. The hard threshold remains cyclomatic complexity
+  above 10 or cognitive complexity above 15.
+- Strict Oxlint remains the largest surface: 13,698 errors and 341 warnings
+  across 147 files. The main families are readonly parameter types, magic
+  numbers, JSX depth, variable ordering, ternaries, function style, strict
+  booleans, one-var declarations, and React/performance rules.
+- Maintainability reports 3,824 functions, with 233 below MI 50, 494 warnings
+  below MI 60, a minimum of 12.8, and 83 failing files. Coverage-first CRAP
+  reports 2,562 methods, 1,316 measured, 1,246 unmeasured, 68 methods over
+  30, and a maximum of 110.
+- Backend Ruff has 30 findings. Backend tests have 723 passes, 10 failures,
+  and 3 deselections; every failure is in `test_propaganda_scorer.py` and
+  traces to `_llm_score_axes` being outside `SourceAnalysisScorer` after an
+  indentation/refactor regression. CLI schema parity also fails because
+  generated OpenAPI descriptions drift from the news route declarations.
+- Frontend TypeScript, frontend Jest (40 suites / 156 tests), CLI typecheck,
+  CLI tests, import resolution, dependency cycles, and the no-module-mocking
+  scan pass. The repo-wide `anti-slop/no-module-mocking` rule remains an
+  Oxlint error, and tests continue to require real components, production
+  modules, and representative typed inputs.
+
+The active closure goal is to repair these findings without changing quality
+rules, thresholds, exclusions, or using mock modules/components. Work is
+organized into disjoint packets: backend behavior and schema parity;
+frontend component/app lint plus MI/CRAP; frontend library/hooks lint plus
+MI/CRAP; scripts lint/type safety; behavior-level coverage; and final
+dead-code, duplication, full-gate, and runtime integration. Each packet must
+record the affected files and before/after measurements, then the integrator
+must run `scripts/self-test`, `./verify.sh`, and the direct metric commands.
+
+## 2026-09-01: Stop-hook type repair and quality-gate follow-up
+
+- The two-worker complexity pass reduced CCCC to 0 hard violations across
+  10,028 functions. Strict Oxlint remains open at 13,765 errors and 340
+  warnings across 148 files; CRAP remains at 29 failed methods with a maximum
+  of 72, and the MI floor remains at 233 failures / 493 warnings.
+- Repaired the reported frontend TypeScript failures in debug, saved workspace,
+  search, globe, reading queue, news stream, atlas, article modal, and related
+  test code. The debug route now has an explicit Suspense boundary for its
+  search-parameter reader.
+- `tsc --noEmit`, the Next build, full Jest (40 suites / 156 tests), and the
+  focused article-modal tests (6 tests) pass. The real-code module-mocking scan
+  reports zero forbidden module-mocking calls; the rule remains enabled.
+- The full quality campaign remains open: strict Oxlint, maintainability, and
+  CRAP still report repository-wide debt; CCCC now passes at zero hard
+  violations. No thresholds, rules, or exclusions were weakened.
+- The latest follow-up also removed redundant UTC parsing in the replay script,
+  narrowed ads-supply network error handling to `httpx.HTTPError`, and cleaned
+  the API mapping property test so its targeted Oxlint, TypeScript, and Jest
+  checks pass.
+- The source-picker follow-up split the dense JSX into accessible subcomponents;
+  its targeted Oxlint and TypeScript checks pass, and the atlas entity module
+  now passes Ruff import and unused-variable checks.
+
+## 2026-08-31: Frontend test and type gate repair after hardening payloads
+
+- The quality-hardening refactor payloads had rewritten eleven frontend test
+  files into invalid expectations, replaced `null` sentinels with `undefined`
+  in nullable state/refs (breaking chat branching, inline editing, and the
+  atlas funding-bias parser), and corrupted the globes Jest fixture
+  (`renderer: () => null`). Tests were restored from `main`, sentinels fixed
+  at the source, and the globes fixture rebuilt with a real Three.js scene.
+- `@jest/globals` was removed from Jest suites where it bypassed the project
+  transform and silently disabled mock hoisting for `next/navigation`,
+  `react-globe.gl`, and `d3-geo`.
+- Custom Oxlint rule tests were moved to their official runner: `vitest` +
+  `oxlint/plugins-dev` `RuleTester` (ESM-only; cannot load under the Next Jest
+  transform). New `frontend/vitest.config.mts`, `frontend/tools/oxlint/vitest.setup.ts`,
+  `test:oxlint-rules` script, and a `jest.config.js`
+  `testPathIgnorePatterns` entry for `tools/oxlint/`.
+- Atlas API fetch wrappers now infer response types through a
+  `TSchema extends ZodType` → `output<TSchema>` `parseResponse`; the previous
+  `ZodType<T>` form degraded every query argument to `unknown`.
+- `frontend/tsconfig.json` types now include `@testing-library/jest-dom`;
+  `lib/types/verification.ts` re-exports became `export type` for
+  `isolatedModules`.
+
+Verification:
+
+- Jest: 39 suites, 150 tests pass. Vitest oxlint rules: 13 files, 204 tests pass.
+- `npx tsc --noEmit` went from 22 errors at session start (peaked 149 during
+  the atlas typing regression) to 49 remaining at handoff; the queue per file
+  is in `docs/agents/quality-hardening/HANDOFF-2026-08-31.md`.
+- Codex global setup: removed the Serena MCP server (`~/.codex/config.toml`)
+  and both `serena-hooks` entries (`~/.codex/hooks.json`); `codex mcp list`
+  no longer shows Serena. Codex now runs on its native tools plus the
+  remaining MCP servers (chrome-devtools, computer-use-linux, firefox-devtools,
+  node_repl, deepwiki, exa-code). The shared `AGENTS.md` had no Serena
+  references; verified, no edit needed there.
+
 ## 2026-08-27: Retired reporter rows hidden from wiki and list endpoints
 
 - Soft-retired (merged/split) reporters leaked through the wiki directory,
@@ -1381,4 +1474,189 @@ First end-to-end pipeline run on real data: RSS ingestion → DB persist → rep
 **Verification:**
 - Backend strict mypy: 0 errors in 180 files (was 7). Pinned ruff check + format --check: clean.
 - Scoped pytest: 63 passed across reporter/atlas/evidence/stream/pagination/shutdown suites, including 4 new regression tests (`test_reporter_merge.py::test_pick_winner_tolerates_null_created_at`, `tests/test_research_stream.py`, `tests/test_shutdown_gdelt_close.py`, `tests/test_entity_research_pagination.py`). The stream test was confirmed failing before its fix.
-- Frontend tsc clean, eslint 0 errors (1 pre-existing TanStack Virtual warning), scoped jest green except 2 pre-existing failures in `blindspot-view.test.tsx` (reproduced on an unmodified tree via stash roundtrip).
+-
+## 2026-08-30: Quality Hardening — oxlint/types/complexity gates (branch quality/crap-mi-oxlint-hardening)
+
+**What Changed:**
+- Oxlint config rule decisions (documented justifications in docs/agents/traces/quality-hardening-2026-08-30.md): `import/no-named-export` and `import/prefer-default-export` off (Next.js app-router requires named exports; type exports cannot be default-exported); `react/function-component-definition` set to arrow-function (resolves conflict with `func-style`); `react/preserve-manual-memoization` off (unsatisfiable with repo-wide `one-var` merged-statement style; repo has no React Compiler, memoization is genuine perf).
+- Test infrastructure: `jest.setup.js` and `tsconfig.json` now use `@testing-library/jest-dom/jest-globals` entry (matchers typed under `@jest/globals`); `frontend/package.json` declares `@jest/globals@30.2.0` (was transitively installed but unlisted; knip-flagged).
+- Verified by probe: `anti-slop/no-module-mocking` is active — `jest.mock` cannot be lint-clean in any form; tests convert to dependency injection via typed seams (see `ArticleDetailServices` in `article-detail-modal.tsx`).
+- New quality gates: `scripts/check-complexity` (cccc 1.6.0 pinned + sha256, hard = CC > 10 or cognitive > 15), `scripts/check-maintainability.mjs` (per-function MI via code-multivitals), `frontend/knip.json` + `frontend/crap.config.json` (knip deadcode, crap-typescript threshold 30), `.jscpd.json` (jscpd 5.0.16 `-p` pattern mode; its `ignore` config field is broken — scans zero files), root `quality:all` script wiring cycles + duplicates + maintainability + complexity + deadcode + CRAP in one command.
+- `frontend/package.json` `crap` script fixed (CLI has no `--config` flag; uses `--threshold 30 --agent`).
+- `frontend/lib/performance-logger.ts`: navigation-timing feature guard so partial jsdom/browser environments don't throw (`performance.getEntriesByType` optional, structural type guard, `timing` fallback guarded).
+
+**Gate Baselines (pre-wave, 2026-08-30):**
+- oxlint: 18,069 errors + 1,104 warnings; `--fix` cleared 270; remaining split: ~7,941 mechanical-rule instances, ~10,873 judgment.
+- tsc: 48 errors across 15 files.
+- cccc: 379 hard violations of 7,907 functions (CC max 38, cognitive max 50); 257 in backend (108 files) plus frontend/scripts.
+- jscpd: 114 clones (1.49%, 590 files).
+- knip: 72 unused exports (atlas feature schemas most prominent).
+
+**Verification (in progress — waves):**
+- 18 subagents with disjoint file ownership: 11 frontend (lint/tsc per file set), 6 backend (cccc hard violations per file set + mypy/ruff/pytest gates), 1 duplicates (114 backend clones -> 0).
+
+**Documentation:** Agent trace at `docs/agents/traces/quality-hardening-2026-08-30.md`; papercuts logged for jscpd pattern-mode discovery and oxlint PATH/tsgolint requirement.
+
+## 2026-09-01: Real-module tests and repo-wide no-mocking enforcement
+
+**What Changed:**
+- Enforced `anti-slop/no-module-mocking` as a root Oxlint error over both
+  `frontend` and `scripts`. Application and test code no longer uses Jest or
+  Vitest module mocks; tests exercise real modules and components with typed
+  fetch, service, and platform-boundary seams.
+- Removed the legacy `frontend/__mocks__` modules and moved the Oxlint rule
+  fixtures to Vitest's official RuleTester runner.
+- Added the real ESM dependency closure to Next's `transpilePackages` so the
+  frontend tests and build load `react-markdown` and `remark-gfm` directly.
+- Repaired the backend evidence metadata cycle with a neutral table-metadata
+  module, made the CRAP wrapper honor failed JSON reports, and constrained the
+  regexp codemod to AST regex literals after a text scan corrupted paths and
+  JSX.
+- Replaced a user-visible `undefined` statistic fallback with the existing
+  em-dash display value.
+
+**Verification:**
+- Frontend Jest: 39 suites / 153 tests passed.
+- Oxlint rule tests: 13 files / 204 tests passed.
+- TypeScript: zero errors; import resolution: 197 files passed; CLI tests:
+  12/12 passed; Next build passed; dependency-cycle check passed.
+- The no-module-mocking source scan reports no application or test violations;
+  the full Oxlint output contains no `anti-slop/no-module-mocking` diagnostic.
+- The latest strict gate records 16,025 Oxlint errors and 421 warnings, 116
+  CCCC hard violations across 9,160 functions, 292 MI failures across 3,372
+  functions, and 64 CRAP failures across 1,916 measured methods. These gates
+  still report executable debt and remain the next hardening work; see the
+  current handoff for the complete table.
+
+## 2026-09-01: Stop-hook lint repair
+
+**What Changed:**
+- Sorted and formatted `backend/app/database.py`, narrowed its inspection
+  fallbacks to SQLAlchemy error types, and changed terminal startup logging to
+  `logger.exception`.
+- Added explicit Node types to `scripts/tsconfig.json`, fixing root-compiler
+  errors for the real CLI and its `node:test` suite.
+- Replaced the root layout's direct `dangerouslySetInnerHTML` usage with
+  `next/script` inline children and kept Next font calls as separate
+  module-scope declarations required by the build.
+- Updated the stop hook to prefer the repository-pinned Oxlint and its
+  type-aware helper instead of the incompatible global Oxlint installation.
+
+**Verification:**
+- Exact stop-hook probe for the repaired database and layout: no lint or
+  AST-grep failures.
+- Hook tests: 24 passed.
+- Scripts TypeScript: passed; CLI tests: 12/12 passed.
+- Layout Oxlint, AST-grep, Ruff, and Ruff formatting: passed.
+- Next production build: passed.
+
+## 2026-09-01: Follow-up stop-hook findings
+
+**What Changed:**
+- Sorted the evidence model `__all__` export list for Ruff `RUF022`.
+- Kept Atlas schema types in a top-level type-only import and runtime
+  validators in a value import, resolving the duplicate-import and
+  import-order findings without importing types at runtime.
+
+**Verification:**
+- Evidence model Ruff `RUF022` and formatting checks passed.
+- Frontend TypeScript passed with zero errors.
+- Atlas schema/query/inspector tests passed: 3 suites / 20 tests.
+- The exact changed-file stop-hook probe passed with zero lint and AST-grep
+  findings for both repaired files; Atlas API strict Oxlint also passes.
+- The full self-test still stops at repo-wide strict Oxlint on existing
+  `scripts/codemod-lint-mechanical.mjs` unsafe-`any` diagnostics.
+
+## 2026-09-01: Verifier and ownership test stop-hook repair
+
+**What Changed:**
+- Ruff-sorted and formatted `backend/scripts/reporter_source_verifier.py`.
+- Replaced its blind source-profile exception catch with the expected HTTP,
+  timeout, OS, and value-error boundary failures.
+- Sorted the ownership-chain test imports, split assertions across focused
+  real-component tests, and made its fixture helper and inputs readonly-safe.
+- Sorted the Phase 2 Atlas projection test imports and extracted its ownership
+  node, edge, and derived-edge assertions into focused helpers.
+- Repaired the reporter career-timeline test's strict structural lint findings
+  with readonly typed fixtures, focused real-component input data, and named
+  link indexes.
+- Repaired the Atlas force-layout implementation's strict structure by using
+  a private vector value object for in-place simulation updates, readonly map
+  boundaries, sorted declarations, and a single final export block.
+- Restructured the Atlas schema test around named real payload fixtures,
+  focused parser cases, and explicit expected values so its import, function
+  length, null, magic-number, and conditional-test findings are resolved.
+- Repaired the ownership-chain component's import and JSDoc findings, then
+  split its rendering helpers around a deeply readonly hop view so real Atlas
+  inputs remain type-safe without nested links or mock components.
+- Repaired the sidebar navigation item structure with readonly icon props,
+  explicit link/button renderers, and named conditional-class helpers while
+  preserving the existing navigation behavior.
+
+**Verification:**
+- The exact changed-file stop-hook probe passed with zero lint and AST-grep
+  findings for all seven repaired files.
+- Reporter verifier tests: 17 passed, with only the existing environment and
+  SQLAlchemy deprecation warnings.
+- Ownership-chain test: 4 passed.
+- Career-timeline test: 3 passed. Phase 2 projection test imports and format
+  checks passed.
+- Atlas force-layout strict Oxlint and TypeScript checks passed.
+- Full frontend Jest: 39 suites / 155 tests passed.
+- Atlas schema test: 10 passed.
+- Global navigation test: 7 passed after the sidebar repair.
+- The full self-test still stops at repo-wide strict Oxlint on existing
+  `scripts/codemod-lint-mechanical.mjs` unsafe-`any` diagnostics.
+## 2026-09-01 — Quality-hardening measurement handoff
+
+- Re-ran the full frontend Jest suite after repairing the article-detail modal:
+  40 suites and 156 tests pass, including the six real-component modal tests.
+- Confirmed the repo-wide `anti-slop/no-module-mocking` Oxlint error rule,
+  13 rule-test files and 204 rule tests, and zero forbidden application/test
+  module-mocking calls outside the rule fixtures.
+- Recorded the current unfinished gates in the quality-hardening handoff:
+  13,565 Oxlint errors, 35 CCCC hard violations, 220 MI failures, and 36
+  CRAP failures at threshold 30. The descriptive MI mean is 50.36, median
+  52.50, and minimum 0.00.
+- The requested Luna fleet could not be expanded because the platform's two
+  thread cap and Luna usage limit were already reached; no worker completion
+  is claimed.
+
+## 2026-09-01 — Unified quality closure census
+
+The active goal was reset to a repo-wide closure campaign: preserve zero CCCC
+hard violations, enforce real-module tests and the repo-wide no-module-mocking
+Oxlint error, and fix the remaining strict lint, CRAP, maintainability,
+dead-code, and duplication debt without weakening gates.
+
+The current evidence is 13,118 Oxlint errors and 341 warnings across 147
+files; 3,884 MI functions with 230 below 50 and 499 below 60; and 2,630 CRAP
+methods with 51 above 30, 1,408 N/A coverage results, and maximum 110. CCCC
+is 0 hard violations across 10,221 functions. Backend Ruff/format, backend
+tests (735 passed/3 deselected), OpenAPI schema parity, TypeScript, frontend
+Jest (40 suites/156 tests), build, imports, cycles, CLI checks, and Oxlint
+rule tests (13 files/204 tests) are green. The application/test scan found no
+forbidden module-mocking calls outside rule fixtures.
+
+The work is now organized into disjoint packets: largest components and app
+routes; libraries and hooks; Atlas/wiki modules; scripts and quality tooling;
+real behavior coverage paired with MI/CRAP refactors; then dead-code,
+duplication, and full-gate integration. Each packet must fix all applicable
+rule families in its owned files, preserve CCCC, run behavior tests with real
+modules and typed inputs, and record metric deltas before integration.
+
+## 2026-09-01 — WIP quality inventory for next session
+
+- Generated `docs/agents/quality-hardening/OXLINT-ERROR-INVENTORY-2026-09-01.md`
+  from the exact repo-wide Oxlint JSON gate. It contains all 13,394 diagnostics:
+  13,056 errors and 338 warnings across 147 files, grouped by rule and file.
+- Current metric targets are CCCC 0 hard violations, Oxlint 0 errors and 0
+  warnings, MI 0 functions below 60, CRAP 0 methods above 30, Ruff 0, and
+  mypy 0. The fresh snapshot is CCCC 0/10,236, MI 230 below 50 plus 499 below
+  60, and CRAP 51 above 30 with maximum 110.
+- Pinned Ruff 0.15.22 is clean and formatted 364 files. An unpinned probe
+  reported 630 findings under a different version; future checks must use the
+  pinned verifier command.
+- Frontend Jest, backend pytest, Oxlint rule tests, CLI tests and typecheck,
+  the frontend build, schema parity, dependency cycles, and Rust checks pass.
+  Strict Oxlint, strict mypy, MI, CRAP, and dead-code checks remain open.

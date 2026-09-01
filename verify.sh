@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "--- TypeScript / Frontend ---"
+rm -f frontend/tsconfig.tsbuildinfo
 npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+node scripts/check-imports.mjs
 npm --prefix frontend run build
 npm --prefix frontend run lint
+npm run quality:all
 
 echo "--- OpenAPI CLI Parity ---"
 npm run cli:typecheck
@@ -23,6 +26,8 @@ cargo fmt --manifest-path backend/rss_parser_rust/Cargo.toml --all -- --check
 cp backend/rss_parser_rust/target/release/librss_parser_rust.so backend/.venv/lib/python3.13/site-packages/rss_parser_rust/rss_parser_rust.abi3.so
 
 echo "--- Tests ---"
+npm --prefix frontend test -- --runInBand
+npm --prefix frontend run test:oxlint-rules
 bash -lc 'cd backend && .venv/bin/pytest tests -m "not slow"'
 
 echo "--- All checks passed ---"

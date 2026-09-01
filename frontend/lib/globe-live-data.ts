@@ -23,13 +23,13 @@ function getArticleTimestamp(article: NewsArticle): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function sortByNewest(articles: NewsArticle[]): NewsArticle[] {
+function sortByNewest(articles:readonly  NewsArticle[]): NewsArticle[] {
   return [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
 }
 
-function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
-  const seenIds = new Set<number>()
-  const seenFallbackKeys = new Set<string>()
+function dedupeArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
+  const seenIds = new Set<number>(),
+   seenFallbackKeys = new Set<string>()
 
   return articles.filter((article) => {
     if (seenIds.has(article.id)) {
@@ -46,7 +46,7 @@ function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
   })
 }
 
-function countDistinctSources(articles: NewsArticle[]): number {
+function countDistinctSources(articles:readonly  NewsArticle[]): number {
   return new Set(
     articles
       .map((article) => article.sourceId || article.source)
@@ -55,10 +55,10 @@ function countDistinctSources(articles: NewsArticle[]): number {
 }
 
 export function buildCountryMetricsFromArticles(
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
 ): CountryArticleCounts {
-  const sourceCounts: Record<string, number> = {}
-  const mentionCounts: Record<string, number> = {}
+  const sourceCounts: Record<string, number> = {},
+   mentionCounts: Record<string, number> = {}
   let articlesWithCountry = 0
 
   articles.forEach((article) => {
@@ -79,34 +79,34 @@ export function buildCountryMetricsFromArticles(
   })
 
   return {
-    counts: mentionCounts,
-    source_counts: sourceCounts,
-    geo_signals: [
-      {
-        ...DEFAULT_GEO_SIGNAL,
-        country_counts: mentionCounts,
-        country_count: Object.keys(mentionCounts).length,
-        article_count: articlesWithCountry,
-        total_mentions: Object.values(mentionCounts).reduce((sum, count) => sum + count, 0),
-      },
-      {
-        id: "source_origin",
-        label: "Source origin",
-        country_counts: sourceCounts,
-        country_count: Object.keys(sourceCounts).length,
-        article_count: Object.values(sourceCounts).reduce((sum, count) => sum + count, 0),
-        total_mentions: Object.values(sourceCounts).reduce((sum, count) => sum + count, 0),
-      },
-    ],
-    total_articles: articles.length,
     articles_with_country: articlesWithCountry,
     articles_without_country: articles.length - articlesWithCountry,
     country_count: Object.keys(mentionCounts).length,
+    counts: mentionCounts,
+    geo_signals: [
+      {
+        ...DEFAULT_GEO_SIGNAL,
+        article_count: articlesWithCountry,
+        country_count: Object.keys(mentionCounts).length,
+        country_counts: mentionCounts,
+        total_mentions: Object.values(mentionCounts).reduce((sum, count) => sum + count, 0),
+      },
+      {
+        article_count: Object.values(sourceCounts).reduce((sum, count) => sum + count, 0),
+        country_count: Object.keys(sourceCounts).length,
+        country_counts: sourceCounts,
+        id: "source_origin",
+        label: "Source origin",
+        total_mentions: Object.values(sourceCounts).reduce((sum, count) => sum + count, 0),
+      },
+    ],
+    source_counts: sourceCounts,
+    total_articles: articles.length,
   }
 }
 
 export function buildCountryListFromArticles(
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
 ): CountryListResponse {
   const countryStats = new Map<string, { articleCount: number; latestTimestamp: number; latestArticle: string | null }>()
 
@@ -116,14 +116,14 @@ export function buildCountryListFromArticles(
       return
     }
 
-    const timestamp = getArticleTimestamp(article)
-    const current = countryStats.get(sourceCountry)
+    const timestamp = getArticleTimestamp(article),
+     current = countryStats.get(sourceCountry)
 
     if (!current) {
       countryStats.set(sourceCountry, {
         articleCount: 1,
-        latestTimestamp: timestamp,
         latestArticle: article.publishedAt || null,
+        latestTimestamp: timestamp,
       })
       return
     }
@@ -137,8 +137,8 @@ export function buildCountryListFromArticles(
 
   const countries = [...countryStats.entries()]
     .map(([code, stats]) => ({
-      code,
       article_count: stats.articleCount,
+      code,
       latest_article: stats.latestArticle,
     }))
     .sort((left, right) => right.article_count - left.article_count || left.code.localeCompare(right.code))
@@ -155,64 +155,64 @@ export function buildLocalLensFromArticles({
   countryName,
   view,
   limit,
-}: {
+}:Readonly< {
   articles: NewsArticle[]
   code: string
   countryName: string
   view: "internal" | "external"
   limit: number
-}): LocalLensResponse {
-  const codeUpper = code.toUpperCase()
-  const sortedArticles = sortByNewest(articles)
+}>): LocalLensResponse {
+  const codeUpper = code.toUpperCase(),
+   sortedArticles = sortByNewest(articles),
 
-  const internalPrimary = sortedArticles.filter((article) => {
-    return getSourceCountry(article) === codeUpper && (article.mentioned_countries ?? []).includes(codeUpper)
-  })
+   internalPrimary = sortedArticles.filter((article) =>
+    getSourceCountry(article) === codeUpper && (article.mentioned_countries ?? []).includes(codeUpper)
+  ),
 
-  const internalFallback = sortedArticles.filter((article) => getSourceCountry(article) === codeUpper)
-  const externalMatches = sortedArticles.filter((article) => {
+   internalFallback = sortedArticles.filter((article) => getSourceCountry(article) === codeUpper),
+   externalMatches = sortedArticles.filter((article) => {
     const sourceCountry = getSourceCountry(article)
     return sourceCountry !== null && sourceCountry !== codeUpper && (article.mentioned_countries ?? []).includes(codeUpper)
-  })
+  }),
 
-  const fullResult = dedupeArticles(
+   fullResult = dedupeArticles(
     view === "internal"
-      ? internalPrimary.length > 0
+      ? (internalPrimary.length > 0
         ? internalPrimary
-        : internalFallback
+        : internalFallback)
       : externalMatches,
-  )
+  ),
 
-  const usesSourceFallback = view === "internal" && internalPrimary.length === 0 && internalFallback.length > 0
-  const limitedArticles = fullResult.slice(0, limit)
-  const geoSignal = usesSourceFallback
+   usesSourceFallback = view === "internal" && internalPrimary.length === 0 && internalFallback.length > 0,
+   limitedArticles = fullResult.slice(0, limit),
+   geoSignal = usesSourceFallback
     ? { id: "source_origin", label: "Source origin" }
     : DEFAULT_GEO_SIGNAL
 
   return {
+    articles: limitedArticles,
     country_code: codeUpper,
     country_name: countryName,
+    geo_signal: geoSignal,
+    has_more: fullResult.length > limit,
+    limit,
+    matching_strategy:
+      view === "internal"
+        ? (usesSourceFallback
+          ? "source_origin_fallback"
+          : "country_mentions")
+        : "country_mentions",
+    offset: 0,
+    returned: limitedArticles.length,
+    source_count: countDistinctSources(fullResult),
+    total: fullResult.length,
     view,
     view_description:
       view === "internal"
-        ? usesSourceFallback
+        ? (usesSourceFallback
           ? `Recent reporting from sources based in ${countryName}`
-          : `How sources in ${countryName} cover ${countryName}`
+          : `How sources in ${countryName} cover ${countryName}`)
         : `How outside sources cover ${countryName}`,
-    matching_strategy:
-      view === "internal"
-        ? usesSourceFallback
-          ? "source_origin_fallback"
-          : "country_mentions"
-        : "country_mentions",
-    total: fullResult.length,
-    limit,
-    offset: 0,
-    returned: limitedArticles.length,
-    has_more: fullResult.length > limit,
-    source_count: countDistinctSources(fullResult),
     window_hours: null,
-    geo_signal: geoSignal,
-    articles: limitedArticles,
   }
 }

@@ -15,9 +15,7 @@ import {
   subscribeToStorageKey,
 } from "@/lib/storage";
 
-export const APPEARANCE_STORAGE_KEY = STORAGE_KEYS.APPEARANCE_SETTINGS;
-
-export interface AppearanceColorTokens {
+interface AppearanceColorTokens {
   background: string;
   surface: string;
   foreground: string;
@@ -26,32 +24,32 @@ export interface AppearanceColorTokens {
   border: string;
 }
 
-export interface AppearanceTypographyTokens {
+interface AppearanceTypographyTokens {
   /** Multiplier applied to every named Tailwind text size. */
   textScale: number;
   bodyWeight: number;
   headingWeight: number;
 }
 
-export interface AppearanceLayoutTokens {
+interface AppearanceLayoutTokens {
   /** Multiplier applied to the Tailwind spacing unit. */
   spaceScale: number;
   /** Corner radius in pixels; drives --radius. */
   cornerRadius: number;
 }
 
-export interface AppearanceShadowTokens {
+interface AppearanceShadowTokens {
   /** Multiplier on the alpha of standard Tailwind box shadows. */
   strength: number;
 }
 
-export interface AppearanceMotionTokens {
+interface AppearanceMotionTokens {
   enabled: boolean;
   /** Multiplier on the default transition duration. */
   speed: number;
 }
 
-export interface AppearanceSettings {
+interface AppearanceSettings {
   version: 1;
   colors: AppearanceColorTokens;
   typography: AppearanceTypographyTokens;
@@ -60,61 +58,65 @@ export interface AppearanceSettings {
   motion: AppearanceMotionTokens;
 }
 
-/** Numeric slider bounds shared by the model and the settings page controls. */
-export const APPEARANCE_RANGES = {
-  textScale: { min: 0.85, max: 1.3, step: 0.05 },
-  bodyWeight: { min: 300, max: 700, step: 50 },
-  headingWeight: { min: 400, max: 800, step: 50 },
-  spaceScale: { min: 0.85, max: 1.25, step: 0.05 },
-  cornerRadius: { min: 0, max: 18, step: 1 },
-  shadowStrength: { min: 0, max: 2, step: 0.05 },
-  motionSpeed: { min: 0.5, max: 2, step: 0.05 },
-} as const;
-
 /**
  * Dark-first palette anchors taken from the .dark block in globals.css.
  * A field equal to its default means "no override": the theme keeps control.
  */
-export const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
-  version: 1,
+const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
   colors: Object.freeze({
+    accent: "#d0af73",
     background: "#000000",
-    surface: "#0a0a0a",
+    border: "#222222",
     foreground: "#ece3d5",
     secondaryText: "#9d917f",
-    accent: "#d0af73",
-    border: "#222222",
-  }),
-  typography: Object.freeze({
-    textScale: 1,
-    bodyWeight: 400,
-    headingWeight: 600,
+    surface: "#0a0a0a",
   }),
   layout: Object.freeze({
-    spaceScale: 1,
     cornerRadius: 6,
-  }),
-  shadows: Object.freeze({
-    strength: 1,
+    spaceScale: 1,
   }),
   motion: Object.freeze({
     enabled: true,
     speed: 1,
   }),
-}) as AppearanceSettings;
+  shadows: Object.freeze({
+    strength: 1,
+  }),
+  typography: Object.freeze({
+    bodyWeight: 400,
+    headingWeight: 600,
+    textScale: 1,
+  }),
+  version: 1,
+  }),
+
+/** Numeric slider bounds shared by the model and the settings page controls. */
+  APPEARANCE_RANGES = {
+  bodyWeight: { max: 700, min: 300, step: 50 },
+  cornerRadius: { max: 18, min: 0, step: 1 },
+  headingWeight: { max: 800, min: 400, step: 50 },
+  motionSpeed: { max: 2, min: 0.5, step: 0.05 },
+  shadowStrength: { max: 2, min: 0, step: 0.05 },
+  spaceScale: { max: 1.25, min: 0.85, step: 0.05 },
+  textScale: { max: 1.3, min: 0.85, step: 0.05 },
+  } as const,
+
+  APPEARANCE_STORAGE_KEY = STORAGE_KEYS.APPEARANCE_SETTINGS,
 
 /** Root CSS properties overridden per color token; --ring follows --accent. */
-const COLOR_PROPERTY_BY_TOKEN: Record<keyof AppearanceColorTokens, string | string[]> = {
+  COLOR_PROPERTY_BY_TOKEN: Record<keyof AppearanceColorTokens, string | string[]> = {
+  accent: ["--primary", "--ring"],
   background: "--background",
-  surface: "--card",
+  border: "--border",
   foreground: "--foreground",
   secondaryText: "--muted-foreground",
-  accent: ["--primary", "--ring"],
-  border: "--border",
-};
+  surface: "--card",
+},
+
+  HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u,
 
 /** Neutral values that mean "no override" for the numeric root properties. */
-const NEUTRAL_NUMBER_BY_PROPERTY: Record<string, number> = {
+  NEUTRAL_NUMBER_BY_PROPERTY: Record<string, number> = {
   "--appearance-text-scale": 1,
   "--appearance-font-weight-body": APPEARANCE_DEFAULTS.typography.bodyWeight,
   "--appearance-font-weight-heading": APPEARANCE_DEFAULTS.typography.headingWeight,
@@ -123,16 +125,14 @@ const NEUTRAL_NUMBER_BY_PROPERTY: Record<string, number> = {
   "--radius": APPEARANCE_DEFAULTS.layout.cornerRadius,
   "--appearance-shadow-strength": 1,
   "--appearance-motion-speed": 1,
-};
+  };
 
-export function getServerAppearanceSettings(): AppearanceSettings {
+function getServerAppearanceSettings(): AppearanceSettings {
   // Stable frozen reference required by useSyncExternalStore server snapshots.
   return APPEARANCE_DEFAULTS;
 }
 
-const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number): number {
+function clampNumber(value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
@@ -155,59 +155,53 @@ function normalizeHexColor(value: unknown, fallback: string): string {
  * keys are dropped, invalid fields fall back to their default, numbers are
  * clamped into range. Never throws.
  */
-export function normalizeAppearanceSettings(input: unknown): AppearanceSettings {
-  const source = isPlainObject(input) ? (input as Record<string, unknown>) : {};
-  if (source.version !== 1) {
+function normalizeAppearanceSettings(input: unknown): AppearanceSettings {
+  const settings = appearanceInputGroups(input);
+  if (settings.source.version !== 1) {
     return { ...APPEARANCE_DEFAULTS };
   }
 
-  const colors = group(source.colors);
-  const typography = group(source.typography);
-  const layout = group(source.layout);
-  const shadows = group(source.shadows);
-  const motion = group(source.motion);
-
   return {
-    version: 1,
     colors: {
-      background: normalizeHexColor(colors.background, APPEARANCE_DEFAULTS.colors.background),
-      surface: normalizeHexColor(colors.surface, APPEARANCE_DEFAULTS.colors.surface),
-      foreground: normalizeHexColor(colors.foreground, APPEARANCE_DEFAULTS.colors.foreground),
+      accent: normalizeHexColor(settings.colors.accent, APPEARANCE_DEFAULTS.colors.accent),
+      background: normalizeHexColor(settings.colors.background, APPEARANCE_DEFAULTS.colors.background),
+      border: normalizeHexColor(settings.colors.border, APPEARANCE_DEFAULTS.colors.border),
+      foreground: normalizeHexColor(settings.colors.foreground, APPEARANCE_DEFAULTS.colors.foreground),
       secondaryText: normalizeHexColor(
-        colors.secondaryText,
+        settings.colors.secondaryText,
         APPEARANCE_DEFAULTS.colors.secondaryText,
       ),
-      accent: normalizeHexColor(colors.accent, APPEARANCE_DEFAULTS.colors.accent),
-      border: normalizeHexColor(colors.border, APPEARANCE_DEFAULTS.colors.border),
+      surface: normalizeHexColor(settings.colors.surface, APPEARANCE_DEFAULTS.colors.surface),
+    },
+    layout: {
+      cornerRadius: clampNumber(
+        settings.layout.cornerRadius,
+        APPEARANCE_RANGES.cornerRadius,
+        APPEARANCE_DEFAULTS.layout.cornerRadius,
+      ),
+      spaceScale: snapStep(clampNumber(settings.layout.spaceScale, APPEARANCE_RANGES.spaceScale, 1)),
+    },
+    motion: {
+      enabled: settings.motion.enabled === undefined ? true : settings.motion.enabled === true,
+      speed: snapStep(clampNumber(settings.motion.speed, APPEARANCE_RANGES.motionSpeed, 1)),
+    },
+    shadows: {
+      strength: snapStep(clampNumber(settings.shadows.strength, APPEARANCE_RANGES.shadowStrength, 1)),
     },
     typography: {
-      textScale: snapStep(clampNumber(typography.textScale, APPEARANCE_RANGES.textScale, 1)),
       bodyWeight: clampNumber(
-        typography.bodyWeight,
+        settings.typography.bodyWeight,
         APPEARANCE_RANGES.bodyWeight,
         APPEARANCE_DEFAULTS.typography.bodyWeight,
       ),
       headingWeight: clampNumber(
-        typography.headingWeight,
+        settings.typography.headingWeight,
         APPEARANCE_RANGES.headingWeight,
         APPEARANCE_DEFAULTS.typography.headingWeight,
       ),
+      textScale: snapStep(clampNumber(settings.typography.textScale, APPEARANCE_RANGES.textScale, 1)),
     },
-    layout: {
-      spaceScale: snapStep(clampNumber(layout.spaceScale, APPEARANCE_RANGES.spaceScale, 1)),
-      cornerRadius: clampNumber(
-        layout.cornerRadius,
-        APPEARANCE_RANGES.cornerRadius,
-        APPEARANCE_DEFAULTS.layout.cornerRadius,
-      ),
-    },
-    shadows: {
-      strength: snapStep(clampNumber(shadows.strength, APPEARANCE_RANGES.shadowStrength, 1)),
-    },
-    motion: {
-      enabled: motion.enabled === undefined ? true : motion.enabled === true,
-      speed: snapStep(clampNumber(motion.speed, APPEARANCE_RANGES.motionSpeed, 1)),
-    },
+    version: 1,
   };
 }
 
@@ -217,6 +211,18 @@ function isPlainObject(value: unknown): boolean {
 
 function group(value: unknown): Record<string, unknown> {
   return isPlainObject(value) ? (value as Record<string, unknown>) : {};
+}
+
+function appearanceInputGroups(input: unknown) {
+  const source = isPlainObject(input) ? (input as Record<string, unknown>) : {};
+  return {
+    colors: group(source.colors),
+    layout: group(source.layout),
+    motion: group(source.motion),
+    shadows: group(source.shadows),
+    source,
+    typography: group(source.typography),
+  };
 }
 
 /**
@@ -232,7 +238,7 @@ function readRawStorageValue(): string | null {
     return null;
   }
   try {
-    return window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
+    return globalThis.localStorage.getItem(APPEARANCE_STORAGE_KEY);
   } catch {
     return null;
   }
@@ -240,41 +246,48 @@ function readRawStorageValue(): string | null {
 
 let snapshotCache: { raw: string | null; value: AppearanceSettings } | null = null;
 
-/**
- * useSyncExternalStore-compatible snapshot: parses and validates at most once
- * per stored value, so React sees a stable reference between renders.
- */
-export function loadAppearanceSettings(): AppearanceSettings {
-  const raw = readRawStorageValue();
-  if (snapshotCache && snapshotCache.raw === raw) {
-    return snapshotCache.value;
-  }
-
-  let parsed: unknown = null;
-  if (raw !== null) {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = null;
-    }
-  }
-  const value = normalizeAppearanceSettings(parsed);
+function cacheAppearanceSettings(raw: string | null): AppearanceSettings {
+  const value = normalizeAppearanceSettings(parseAppearanceStorageValue(raw));
   snapshotCache = { raw, value };
   return value;
 }
 
-export function subscribeToAppearanceSettings(onChange: () => void): () => void {
+function parseAppearanceStorageValue(raw: string | null): unknown {
+  if (raw === null) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * UseSyncExternalStore-compatible snapshot: parses and validates at most once
+ * per stored value, so React sees a stable reference between renders.
+ */
+function loadAppearanceSettings(): AppearanceSettings {
+  const raw = readRawStorageValue();
+  if (snapshotCache?.raw === raw) {
+    return snapshotCache.value;
+  }
+
+  return cacheAppearanceSettings(raw);
+}
+
+function subscribeToAppearanceSettings(onChange: () => void): () => void {
   // Reuses the shared storage bus: same-tab custom events plus cross-tab
-  // native storage events.
+  // Native storage events.
   return subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange);
 }
 
-export function saveAppearanceSettings(settings: AppearanceSettings): boolean {
+function saveAppearanceSettings(settings: AppearanceSettings): boolean {
   return saveToStorage(APPEARANCE_STORAGE_KEY, settings);
 }
 
 /** Remove persisted overrides; the next snapshot falls back to defaults. */
-export function resetAppearanceSettings(): boolean {
+function resetAppearanceSettings(): boolean {
   return removeFromStorage(APPEARANCE_STORAGE_KEY);
 }
 
@@ -286,17 +299,16 @@ interface AppliedProperty {
 
 function colorProperties(colors: AppearanceColorsInput): AppliedProperty[] {
   const entries: AppliedProperty[] = [];
-  for (const token of Object.keys(COLOR_PROPERTY_BY_TOKEN) as Array<keyof AppearanceColorTokens>) {
-    const propertyOrProperties = COLOR_PROPERTY_BY_TOKEN[token];
-    const value = colors[token];
-    const properties = Array.isArray(propertyOrProperties)
+  for (const token of Object.keys(COLOR_PROPERTY_BY_TOKEN) as (keyof AppearanceColorTokens)[]) {
+    const propertyOrProperties = COLOR_PROPERTY_BY_TOKEN[token],
+      value = colors[token];
+    for (const property of Array.isArray(propertyOrProperties)
       ? propertyOrProperties
-      : [propertyOrProperties];
-    for (const property of properties) {
+      : [propertyOrProperties]) {
       entries.push({
+        neutral: value === APPEARANCE_DEFAULTS.colors[token],
         property,
         rendered: value,
-        neutral: value === APPEARANCE_DEFAULTS.colors[token],
       });
     }
   }
@@ -309,42 +321,42 @@ function numericProperties(settings: AppearanceSettings): AppliedProperty[] {
   const radiusRem = `${snapStep(settings.layout.cornerRadius / 16)}rem`;
   return [
     {
+      neutral: settings.typography.textScale === 1,
       property: "--appearance-text-scale",
       rendered: String(settings.typography.textScale),
-      neutral: settings.typography.textScale === 1,
     },
     {
-      property: "--appearance-font-weight-body",
-      rendered: String(settings.typography.bodyWeight),
       neutral:
         settings.typography.bodyWeight === NEUTRAL_NUMBER_BY_PROPERTY["--appearance-font-weight-body"],
+      property: "--appearance-font-weight-body",
+      rendered: String(settings.typography.bodyWeight),
     },
     {
-      property: "--appearance-font-weight-heading",
-      rendered: String(settings.typography.headingWeight),
       neutral:
         settings.typography.headingWeight ===
         NEUTRAL_NUMBER_BY_PROPERTY["--appearance-font-weight-heading"],
+      property: "--appearance-font-weight-heading",
+      rendered: String(settings.typography.headingWeight),
     },
     {
+      neutral: settings.layout.spaceScale === 1,
       property: "--appearance-space-scale",
       rendered: String(settings.layout.spaceScale),
-      neutral: settings.layout.spaceScale === 1,
     },
     {
+      neutral: settings.layout.cornerRadius === NEUTRAL_NUMBER_BY_PROPERTY["--radius"],
       property: "--radius",
       rendered: radiusRem,
-      neutral: settings.layout.cornerRadius === NEUTRAL_NUMBER_BY_PROPERTY["--radius"],
     },
     {
+      neutral: settings.shadows.strength === 1,
       property: "--appearance-shadow-strength",
       rendered: String(settings.shadows.strength),
-      neutral: settings.shadows.strength === 1,
     },
     {
+      neutral: settings.motion.speed === 1,
       property: "--appearance-motion-speed",
       rendered: String(settings.motion.speed),
-      neutral: settings.motion.speed === 1,
     },
   ];
 }
@@ -354,11 +366,11 @@ function numericProperties(settings: AppearanceSettings): AppliedProperty[] {
  * default are removed instead of written, so untouched tokens keep following
  * the light/dark theme classes.
  */
-export function applyAppearanceSettings(settings: AppearanceSettings): void {
+function applyAppearanceSettings(settings: AppearanceSettings): void {
   if (typeof document === "undefined") {
     return;
   }
-  const style = document.documentElement.style;
+  const {style} = document.documentElement;
 
   for (const entry of [...colorProperties(settings.colors), ...numericProperties(settings)]) {
     if (entry.neutral) {
@@ -380,18 +392,18 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
  * so a reload does not flash unstyled tokens. Keep the validation identical
  * to normalizeAppearanceSettings.
  */
-export function buildAppearanceBootstrapScript(): string {
+function buildAppearanceBootstrapScript(): string {
   const d = JSON.stringify({
     colors: APPEARANCE_DEFAULTS.colors,
-    typography: APPEARANCE_DEFAULTS.typography,
     cornerRadius: APPEARANCE_DEFAULTS.layout.cornerRadius,
     motionSpeedRange: APPEARANCE_RANGES.motionSpeed,
-  });
-  const ranges = JSON.stringify(APPEARANCE_RANGES);
+    typography: APPEARANCE_DEFAULTS.typography,
+  }),
+   ranges = JSON.stringify(APPEARANCE_RANGES);
 
   return `(function(){try{
 var d=${d};var R=${ranges};
-var raw=window.localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)});
+var raw=globalThis.localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)});
 if(!raw){return;}
 var s=JSON.parse(raw);
 if(!s||s.version!==1){return;}
@@ -418,3 +430,26 @@ var ms=num(m.speed,d.motionSpeedRange.min,d.motionSpeedRange.max,1);put("--appea
 if(m.enabled===false){document.documentElement.setAttribute("data-motion-off","true");}
 }catch(e){}})();`;
 }
+
+export {
+  APPEARANCE_DEFAULTS,
+  APPEARANCE_RANGES,
+  APPEARANCE_STORAGE_KEY,
+  applyAppearanceSettings,
+  buildAppearanceBootstrapScript,
+  getServerAppearanceSettings,
+  loadAppearanceSettings,
+  normalizeAppearanceSettings,
+  resetAppearanceSettings,
+  saveAppearanceSettings,
+  subscribeToAppearanceSettings,
+};
+
+export type {
+  AppearanceColorTokens,
+  AppearanceLayoutTokens,
+  AppearanceMotionTokens,
+  AppearanceSettings,
+  AppearanceShadowTokens,
+  AppearanceTypographyTokens,
+};

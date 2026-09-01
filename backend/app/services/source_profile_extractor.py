@@ -32,6 +32,17 @@ class SourceDocument:
     text: str
 
 
+def _collect_field_values(
+    fields: dict[str, list[dict[str, object]]],
+    key: str,
+    source_label: str,
+    values: list[str],
+) -> None:
+    """Append every extracted value of one field to the fields registry."""
+    for value in values:
+        _append_field_unique(fields, key, value, [source_label])
+
+
 def build_fields_from_documents(
     documents: Sequence[SourceDocument],
 ) -> dict[str, list[dict[str, object]]]:
@@ -44,15 +55,14 @@ def build_fields_from_documents(
             continue
         source_label = _source_label(document.url)
 
-        for value in _extract_funding_values(text):
-            _append_field_unique(fields, "funding", value, [source_label])
-
-        for value in _extract_ownership_values(text):
-            _append_field_unique(fields, "ownership", value, [source_label])
-
-        for value in _extract_editorial_stance_values(text):
-            _append_field_unique(fields, "editorial_stance", value, [source_label])
-
+        _collect_field_values(fields, "funding", source_label, _extract_funding_values(text))
+        _collect_field_values(fields, "ownership", source_label, _extract_ownership_values(text))
+        _collect_field_values(
+            fields,
+            "editorial_stance",
+            source_label,
+            _extract_editorial_stance_values(text),
+        )
         corrections_value = _extract_corrections_value(text)
         if corrections_value:
             _append_field_unique(
@@ -61,21 +71,31 @@ def build_fields_from_documents(
                 corrections_value,
                 [source_label],
             )
-
-        for value in _extract_political_bias_values(text):
-            _append_field_unique(fields, "political_bias", value, [source_label])
-
-        for value in _extract_factual_reporting_values(text):
-            _append_field_unique(fields, "factual_reporting", value, [source_label])
-
-        for value in _extract_major_controversies(text):
-            _append_field_unique(fields, "major_controversies", value, [source_label])
-
-        for value in _extract_reach_traffic_values(text):
-            _append_field_unique(fields, "reach_traffic", value, [source_label])
-
-        for value in _extract_affiliations(text):
-            _append_field_unique(fields, "affiliations", value, [source_label])
+        _collect_field_values(
+            fields,
+            "political_bias",
+            source_label,
+            _extract_political_bias_values(text),
+        )
+        _collect_field_values(
+            fields,
+            "factual_reporting",
+            source_label,
+            _extract_factual_reporting_values(text),
+        )
+        _collect_field_values(
+            fields,
+            "major_controversies",
+            source_label,
+            _extract_major_controversies(text),
+        )
+        _collect_field_values(
+            fields,
+            "reach_traffic",
+            source_label,
+            _extract_reach_traffic_values(text),
+        )
+        _collect_field_values(fields, "affiliations", source_label, _extract_affiliations(text))
 
     return fields
 
@@ -115,29 +135,25 @@ def _append_field_unique(
     )
 
 
+FUNDING_PATTERN_LABELS = [
+    (r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", "non-profit"),
+    (r"reader[- ]supported|supported by readers|supported by reader", "reader-supported"),
+    (r"reader donations", "reader-supported"),
+    (r"member[- ]supported", "member-supported"),
+    (r"donations?", "donation-supported"),
+    (r"foundation(s)?|grant(s)?", "foundation funding"),
+    (r"subscription(s)?", "subscription-supported"),
+    (r"membership", "member-supported"),
+]
+
+
 def _extract_funding_values(text: str) -> list[str]:
-    values: list[str] = []
-    if re.search(r"\bnon[- ]?profit\b|\bnot[- ]?for[- ]?profit\b|\b501\(c\)\(3\)\b", text, re.I):
-        _append_unique(values, "non-profit")
-    if re.search(r"reader[- ]supported|supported by readers|supported by reader", text, re.I):
-        _append_unique(values, "reader-supported")
-    if re.search(r"reader donations", text, re.I):
-        _append_unique(values, "reader-supported")
-    if re.search(r"member[- ]supported", text, re.I):
-        _append_unique(values, "member-supported")
-    if re.search(r"donations?", text, re.I):
-        _append_unique(values, "donation-supported")
-    if re.search(r"foundation(s)?|grant(s)?", text, re.I):
-        _append_unique(values, "foundation funding")
-    no_ads = re.search(r"no advertising|does not accept advertising", text, re.I)
+    values = _labels_for_patterns(text, FUNDING_PATTERN_LABELS)
+    no_ads = re.search(r"no advertising|does not accept advertising", text, re.I) is not None
     if no_ads:
         _append_unique(values, "no advertising")
-    if not no_ads and re.search(r"\badvertising\b", text, re.I):
+    elif re.search(r"\badvertising\b", text, re.I):
         _append_unique(values, "advertising-supported")
-    if re.search(r"subscription(s)?", text, re.I):
-        _append_unique(values, "subscription-supported")
-    if re.search(r"membership", text, re.I):
-        _append_unique(values, "member-supported")
     return values
 
 
@@ -281,6 +297,15 @@ def _trim_words(text: str, limit: int) -> str:
 def _append_unique(values: list[str], value: str) -> None:
     if value not in values:
         values.append(value)
+
+
+def _labels_for_patterns(text: str, patterns: list[tuple[str, str]]) -> list[str]:
+    """Collect the labels of every pattern matched in the text."""
+    values: list[str] = []
+    for pattern, label in patterns:
+        if re.search(pattern, text, re.I):
+            _append_unique(values, label)
+    return values
 
 
 def _normalize_rating(value: str) -> str:

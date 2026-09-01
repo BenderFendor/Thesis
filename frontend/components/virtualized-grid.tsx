@@ -1,22 +1,22 @@
 "use client";
 
-import { useRef, useCallback, useEffect, useMemo, memo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
 import { SafeImage } from "@/components/safe-image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Heart, PlusCircle, MinusCircle, Loader2 } from "lucide-react";
+import { Clock, Heart, Loader2, MinusCircle, PlusCircle } from "lucide-react";
 import type { NewsArticle } from "@/lib/api";
 import { useReadingQueue } from "@/hooks/useReadingQueue";
-import { useLikedArticles } from "@/hooks/useLikedArticles";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
 
 // Configuration constants
-const CARD_HEIGHT = 380; // Height of each article card
-const CARD_MIN_WIDTH = 280; // Minimum width of each article card
-const GAP = 0; // Gap between cards
-const OVERSCAN = 3; // Number of rows to render outside viewport
+const CARD_HEIGHT = 380, // Height of each article card
+ CARD_MIN_WIDTH = 280, // Minimum width of each article card
+ GAP = 0, // Gap between cards
+ OVERSCAN = 3; // Number of rows to render outside viewport
 
 interface VirtualizedGridProps {
   articles: NewsArticle[];
@@ -28,30 +28,30 @@ interface VirtualizedGridProps {
 }
 
 const getArticleKey = (article: NewsArticle, fallbackIndex: number) => {
-  if (article.url) return `url:${article.url}`;
-  if (typeof article.id === "number") return `id:${article.id}`;
+  if (article.url) {return `url:${article.url}`;}
+  if (typeof article.id === "number") {return `id:${article.id}`;}
   return `idx:${fallbackIndex}`;
-};
+},
 
 // Memoized article card component
-const ArticleCard = memo(function ArticleCard({
+ ArticleCard = memo(({
   article,
   onClick,
   style,
   articleNumber,
-}: {
+}:Readonly< {
   article: NewsArticle;
   onClick: () => void;
   style: React.CSSProperties;
   articleNumber: number;
-}) {
+}>) => {
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } =
-    useReadingQueue();
-  const { likedIds, toggleLike } = useLikedArticles();
-  const inQueue = isArticleInQueue(article.url);
-  const liked = typeof article.id === "number" ? likedIds.has(article.id) : false;
+    useReadingQueue(),
+   { likedIds, toggleLike } = useLikedArticles(),
+   inQueue = isArticleInQueue(article.url),
+   liked = typeof article.id === "number" ? likedIds.has(article.id) : false,
 
-  const handleQueueToggle = useCallback(
+   handleQueueToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (inQueue) {
@@ -61,21 +61,21 @@ const ArticleCard = memo(function ArticleCard({
       }
     },
     [inQueue, article, addArticleToQueue, removeArticleFromQueue]
-  );
+  ),
 
-  const handleLike = useCallback((e: React.MouseEvent) => {
+   handleLike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (typeof article.id === "number") {
       void toggleLike(article.id);
     }
-  }, [article.id, toggleLike]);
+  }, [article.id, toggleLike]),
 
-  const hasRealImage = useMemo(() => {
+   hasRealImage = useMemo(() => {
     const src = article.image;
-    if (!src) return false;
+    if (!src) {return false;}
     const trimmed = src.trim();
-    if (!trimmed) return false;
-    if (trimmed === "none") return false;
+    if (!trimmed) {return false;}
+    if (trimmed === "none") {return false;}
     const lower = trimmed.toLowerCase();
     return (
       !lower.includes("/placeholder.svg") &&
@@ -163,7 +163,7 @@ const ArticleCard = memo(function ArticleCard({
           {/* Source */}
           <Link
             href={`/source/${encodeURIComponent(article.sourceId)}`}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) =>{  e.stopPropagation(); }}
             className="text-xs text-muted-foreground/70 uppercase tracking-widest mb-2 truncate hover:text-primary transition-colors"
           >
             {article.source}
@@ -186,8 +186,8 @@ const ArticleCard = memo(function ArticleCard({
             <Clock className="w-3 h-3" />
             <span>
               {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                month: "short",
                 day: "numeric",
+                month: "short",
               })}
             </span>
           </div>
@@ -205,15 +205,15 @@ export function VirtualizedGrid({
   onArticleClick,
   totalCount,
 }: VirtualizedGridProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const [columnCount, setColumnCount] = useState(4);
+  const parentRef = useRef<HTMLDivElement>(null),
+   [columnCount, setColumnCount] = useState(4);
 
   // Calculate columns based on container width
   useEffect(() => {
     const updateColumns = () => {
-      if (!parentRef.current) return;
-      const width = parentRef.current.offsetWidth - GAP * 2; // Account for padding
-      const cols = Math.max(1, Math.floor(width / (CARD_MIN_WIDTH + GAP)));
+      if (!parentRef.current) {return;}
+      const width = parentRef.current.offsetWidth - GAP * 2, // Account for padding
+       cols = Math.max(1, Math.floor(width / (CARD_MIN_WIDTH + GAP)));
       setColumnCount(cols);
     };
 
@@ -224,29 +224,29 @@ export function VirtualizedGrid({
       resizeObserver.observe(parentRef.current);
     }
 
-    return () => resizeObserver.disconnect();
+    return () =>{  resizeObserver.disconnect(); };
   }, []);
 
   // Row count based on articles and columns
-  const rowCount = Math.ceil(articles.length / columnCount);
+  const rowCount = Math.ceil(articles.length / columnCount),
 
   // Virtual row renderer
   // TanStack Virtual returns imperative helpers; memoization warnings are expected here.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const rowVirtualizer = useVirtualizer({
+  // eslint-disable-next-line react-hooks/iuncompatible-library
+   rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
-    getScrollElement: () => parentRef.current,
     estimateSize: () => CARD_HEIGHT + GAP,
+    getScrollElement: () => parentRef.current,
     overscan: OVERSCAN,
-  });
+  }),
 
   // Fetch next page when scrolling near bottom
-  const virtualItems = rowVirtualizer.getVirtualItems();
+   virtualItems = rowVirtualizer.getVirtualItems();
 
   useEffect(() => {
-    const lastItem = virtualItems[virtualItems.length - 1];
+    const lastItem = virtualItems.at(-1);
 
-    if (!lastItem) return;
+    if (!lastItem) {return;}
 
     // If we're at the last row and there's more to load
     if (lastItem.index >= rowCount - 1 && hasNextPage && !isFetchingNextPage) {
@@ -262,7 +262,7 @@ export function VirtualizedGrid({
 
   // Calculate card width based on available space
   const cardWidth = useMemo(() => {
-    if (!parentRef.current) return CARD_MIN_WIDTH;
+    if (!parentRef.current) {return CARD_MIN_WIDTH;}
     const containerWidth = parentRef.current.offsetWidth - GAP * 2;
     return Math.floor((containerWidth - GAP * (columnCount - 1)) / columnCount);
   }, [columnCount]);
@@ -293,8 +293,8 @@ export function VirtualizedGrid({
         <div
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
-            width: "100%",
             position: "relative",
+            width: "100%",
           }}
         >
           {virtualItems.map((virtualRow) => {
@@ -305,12 +305,12 @@ export function VirtualizedGrid({
                 <div
                   key="loader"
                   style={{
+                    height: `${virtualRow.size}px`,
+                    left: 0,
                     position: "absolute",
                     top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
+                    width: "100%",
                   }}
                   className="flex items-center justify-center"
                 >
@@ -329,8 +329,8 @@ export function VirtualizedGrid({
             }
 
             // Get articles for this row
-            const startIndex = virtualRow.index * columnCount;
-            const rowArticles = articles.slice(
+            const startIndex = virtualRow.index * columnCount,
+             rowArticles = articles.slice(
               startIndex,
               startIndex + columnCount
             );
@@ -339,12 +339,12 @@ export function VirtualizedGrid({
               <div
                 key={virtualRow.index}
                 style={{
+                  height: `${virtualRow.size}px`,
+                  left: 0,
                   position: "absolute",
                   top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
+                  width: "100%",
                 }}
                 className="flex justify-center gap-0"
               >
@@ -352,11 +352,11 @@ export function VirtualizedGrid({
                   <ArticleCard
                     key={getArticleKey(article, startIndex + colIndex)}
                     article={article}
-                    onClick={() => onArticleClick(article)}
+                    onClick={() =>{  onArticleClick(article); }}
                     articleNumber={startIndex + colIndex + 1}
                     style={{
-                      width: cardWidth + GAP,
                       height: CARD_HEIGHT,
+                      width: cardWidth + GAP,
                     }}
                   />
                 ))}

@@ -377,6 +377,264 @@ def normalize_organization_name(name: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[,.;:]+", " ", name.casefold())).strip()
 
 
+async def _resolve_research_result(value: Any) -> dict[str, Any]:
+    if isinstance(value, BaseException):
+        return {}
+    resolved = await value if inspect.isawaitable(value) else value
+    return resolved if isinstance(resolved, dict) else {}
+
+
+async def _resolve_research_results(values: list[Any]) -> tuple[dict[str, Any], ...]:
+    return tuple([await _resolve_research_result(value) for value in values])
+
+
+def _wikidata_label_map(entities: Any) -> dict[str, str]:
+    if not entities:
+        return {}
+    values = entities.values() if isinstance(entities, dict) else entities
+    labels: dict[str, str] = {}
+    for entity in values:
+        if isinstance(entity, dict):
+            entity_id = entity.get("id")
+            label = (entity.get("labels") or {}).get("en", {}).get("value")
+            if entity_id and label:
+                labels[str(entity_id)] = str(label)
+    return labels
+
+
+def _string_value(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def _first_matching_nonprofit(
+    name: str, organizations: list[dict[str, Any]], matches: Any
+) -> dict[str, Any] | None:
+    return next(
+        (candidate for candidate in organizations if matches(name, candidate.get("name") or "")),
+        None,
+    )
+
+
+def _propublica_summary(org: dict[str, Any], ein: str) -> dict[str, Any]:
+    return {"source": "propublica", "ein": ein, "name": org.get("name"), "confidence": "medium"}
+
+
+def _propublica_filing_payload(data: dict[str, Any], ein: str) -> dict[str, Any]:
+    info = data.get("organization", {})
+    filings = data.get("filings_with_data", [])
+    latest = filings[0] if filings else {}
+    return {
+        "source": "propublica",
+        "ein": ein,
+        "name": info.get("name"),
+        "funding_type": "non-profit",
+        "annual_revenue": str(latest.get("totrevenue", "")),
+        "total_assets": str(latest.get("totassetsend", "")),
+        "tax_period": latest.get("tax_prd_yr"),
+        "subsection": info.get("subsection_code"),
+        "confidence": "high",
+    }
+
+
+def _latest_sec_fact_value(us_gaap: dict[str, Any], tag: str) -> str | None:
+    entries = us_gaap.get(tag, {}).get("units", {}).get("USD", [])
+    if not entries:
+        return None
+    annual = [entry for entry in entries if entry.get("form") == "10-K"] or entries
+    candidates = [entry for entry in annual if entry.get("end")] or annual
+    latest = max(
+        candidates, key=lambda entry: (str(entry.get("end") or ""), str(entry.get("filed") or ""))
+    )
+    return _string_value(latest.get("val"))
+
+
+def _first_sec_fact(us_gaap: dict[str, Any], tags: tuple[str, ...]) -> str | None:
+    return next((value for tag in tags if (value := _latest_sec_fact_value(us_gaap, tag))), None)
+
+
+_CONFLICT_KEYWORDS = (
+    "oil",
+    "gas",
+    "petroleum",
+    "defense",
+    "military",
+    "pharma",
+    "pharmaceutical",
+    "bank",
+    "finance",
+    "telecom",
+    "media",
+    "insurance",
+    "healthcare",
+    "tech",
+    "technology",
+    "real estate",
+    "retail",
+)
+
+
+def _business_interest_labels(parent_data: dict[str, Any], parent_org: str) -> set[str]:
+    values = (
+        list(parent_data.get("owned_by") or [])
+        + list(parent_data.get("parent_orgs") or [])
+        + [parent_org]
+    )
+    return {value.lower() for value in values if isinstance(value, str)}
+
+
+def _first_topic_conflict(topic: str, interests: set[str]) -> dict[str, Any] | None:
+    topic_lower = topic.lower()
+    match = next(
+        (
+            (interest, keyword)
+            for interest in interests
+            for keyword in _CONFLICT_KEYWORDS
+            if keyword in interest and keyword in topic_lower
+        ),
+        None,
+    )
+    if match is None:
+        return None
+    interest, _keyword = match
+    return {
+        "topic": topic,
+        "business_interest": interest,
+        "severity": "high",
+        "evidence": f"Source covers '{topic}' and parent '{interest}' operates in the same sector.",
+    }
+
+
+_MISSING_ORG_FIELDS = (
+    "org_type",
+    "parent_org",
+    "ownership_percentage",
+    "funding_type",
+    "annual_revenue",
+    "media_bias_rating",
+    "factual_reporting",
+)
+
+
+def _missing_org_fields(org: dict[str, Any]) -> list[str]:
+    return [field for field in _MISSING_ORG_FIELDS if not org.get(field)]
+
+
+def _org_enrichment_prompt(
+    org: dict[str, Any], missing_fields: list[str], staleness_flags: list[str]
+) -> str:
+    missing_desc = ", ".join(missing_fields) or "staleness validation"
+    staleness_note = " ".join(staleness_flags)
+    return f"""You are a media research assistant analyzing a news organization.
+
+Organization: {org["name"]}
+Known Data:
+- Funding Type: {org.get("funding_type", "Unknown")}
+- Parent Organization: {org.get("parent_org", "Unknown")}
+- Bias Rating: {org.get("media_bias_rating", "Unknown")}
+- Factual Reporting: {org.get("factual_reporting", "Unknown")}
+- Annual Revenue: {org.get("annual_revenue", "Unknown")}
+- Current Source Description: {org.get("description", "Unknown")}
+
+{staleness_note}
+
+Based on your knowledge, fill these missing or uncertain fields: {missing_desc}.
+Use only relationships completed as of today for parent_org and ownership_percentage.
+Put pending or proposed transactions only in recent_ownership_changes. Return null or an
+empty list when a value is not publicly supported. Do not guess advertiser names, donors,
+or ownership stakes. Return a JSON object with org_type, funding_type, funding_sources,
+parent_org, ownership_percentage, media_bias_rating, factual_reporting, estimated_revenue,
+revenue_citation, major_donors, major_advertisers, recent_ownership_changes,
+funding_transparency, has_paywall, and notes.
+"""
+
+
+def _apply_ai_response(org: dict[str, Any], org_name: str, content: str | None) -> None:
+    if not content:
+        logger.warning("AI returned empty content for org %s", org_name)
+        return
+    match = re.search(r"\{[\s\S]*?\}", content, re.DOTALL)
+    if match is None:
+        logger.warning("AI returned no JSON object for org %s", org_name)
+        return
+    _apply_ai_enhancements(org, json.loads(match.group()))
+
+
+def _wikidata_item_proportion(claim: dict[str, Any]) -> tuple[str, str | None] | None:
+    value = (claim.get("mainsnak") or {}).get("datavalue", {}).get("value") or {}
+    if not isinstance(value, dict) or not value.get("id"):
+        return None
+    qualifiers = (claim.get("qualifiers") or {}).get("P1107", [])
+    proportion = next(
+        (
+            _format_wikidata_proportion(raw)
+            for qualifier in qualifiers
+            if (raw := _qualifier_value(qualifier)) is not None
+        ),
+        None,
+    )
+    return str(value["id"]), proportion
+
+
+def _qualifier_value(qualifier: dict[str, Any]) -> Any:
+    value = (qualifier.get("datavalue") or {}).get("value")
+    return value.get("amount") if isinstance(value, dict) else value
+
+
+def _fill_missing_from(
+    org: dict[str, Any],
+    source: dict[str, Any],
+    fields: tuple[str, ...],
+    *,
+    source_aliases: dict[str, str] | None = None,
+) -> None:
+    aliases = source_aliases or {}
+    for field in fields:
+        source_field = aliases.get(field, field)
+        if not org.get(field) and source.get(source_field):
+            org[field] = source[source_field]
+
+
+def _copy_present_from(
+    org: dict[str, Any], source: dict[str, Any], fields: tuple[str, ...]
+) -> None:
+    for field in fields:
+        if source.get(field):
+            org[field] = source[field]
+
+
+def _copy_fields(
+    org: dict[str, Any],
+    source: dict[str, Any],
+    fields: tuple[str, ...],
+    *,
+    source_aliases: dict[str, str] | None = None,
+    default_lists: set[str] | None = None,
+) -> None:
+    aliases = source_aliases or {}
+    list_fields = default_lists or set()
+    for field in fields:
+        value = source.get(aliases.get(field, field))
+        org[field] = (value or []) if field in list_fields else value
+
+
+def _first_value(values: Any) -> Any:
+    return values[0] if values else None
+
+
+def _first_proportion(data: dict[str, Any]) -> str | None:
+    pairs = list(data.get("owned_with_proportion") or []) + list(
+        data.get("parent_with_proportion") or []
+    )
+    return next((percentage for _owner, percentage in pairs if percentage is not None), None)
+
+
+def _record_research_source(org: dict[str, Any], source: str, confidence: str) -> None:
+    if source not in org["research_sources"]:
+        org["research_sources"].append(source)
+    if org["research_confidence"] == "low" or confidence == "high":
+        org["research_confidence"] = confidence
+
+
 class FundingResearcher:
     """Agent that researches news organization funding and ownership."""
 
@@ -425,28 +683,13 @@ class FundingResearcher:
             return_exceptions=True,
         )
 
-        wikipedia_data: dict[str, Any] = (
-            results[0] if not isinstance(results[0], BaseException) else {}
-        )
-        nonprofit_data: dict[str, Any] = (
-            results[1] if not isinstance(results[1], BaseException) else {}
-        )
-        known_data: dict[str, Any] = results[2] if not isinstance(results[2], BaseException) else {}
-        sec_data: dict[str, Any] = results[3] if not isinstance(results[3], BaseException) else {}
-        wikidata_sparql: dict[str, Any] = (
-            results[4] if not isinstance(results[4], BaseException) else {}
-        )
-
-        if inspect.isawaitable(wikipedia_data):
-            wikipedia_data = await wikipedia_data
-        if inspect.isawaitable(nonprofit_data):
-            nonprofit_data = await nonprofit_data
-        if inspect.isawaitable(known_data):
-            known_data = await known_data
-        if inspect.isawaitable(sec_data):
-            sec_data = await sec_data
-        if inspect.isawaitable(wikidata_sparql):
-            wikidata_sparql = await wikidata_sparql
+        (
+            wikipedia_data,
+            nonprofit_data,
+            known_data,
+            sec_data,
+            wikidata_sparql,
+        ) = await _resolve_research_results(results)
 
         wikidata_data = await self._fetch_wikidata(wikipedia_data.get("page_title") or name)
 
@@ -645,75 +888,29 @@ class FundingResearcher:
         """Search ProPublica Nonprofit Explorer for 990 data."""
         try:
             search_url = f"{self.propublica_base}/search.json"
-            params = httpx.QueryParams({"q": name})
-
             async with _external_semaphore:
-                response = await self.http_client.get(search_url, params=params)
+                response = await self.http_client.get(
+                    search_url, params=httpx.QueryParams({"q": name})
+                )
             if response.status_code != 200:
                 return {}
-
-            data = response.json()
-            organizations = data.get("organizations", [])
-
-            if not organizations:
+            org = _first_matching_nonprofit(
+                name, response.json().get("organizations", []), self._propublica_name_matches
+            )
+            if org is None:
+                logger.debug("ProPublica: no name match for '%s'", name)
                 return {}
-
-            # Find the best match by name similarity
-            org = None
-            for candidate in organizations:
-                candidate_name = candidate.get("name") or ""
-                if self._propublica_name_matches(name, candidate_name):
-                    org = candidate
-                    break
-
-            if not org:
-                logger.debug(
-                    "ProPublica: no name match for '%s' in results: %s",
-                    name,
-                    [c.get("name") for c in organizations[:3]],
-                )
-                return {}
-
-            ein = org.get("ein")
-            if ein is not None:
-                ein = str(ein)
-
+            ein = _string_value(org.get("ein"))
             if not ein:
                 return {}
-
-            # Get detailed org data including 990 filings
             org_url = f"{self.propublica_base}/organizations/{ein}.json"
             async with _external_semaphore:
                 org_response = await self.http_client.get(org_url)
-
             if org_response.status_code != 200:
-                return {
-                    "source": "propublica",
-                    "ein": ein,
-                    "name": org.get("name"),
-                    "confidence": "medium",
-                }
-
-            org_data = org_response.json()
-            org_info = org_data.get("organization", {})
-            filings = org_data.get("filings_with_data", [])
-
-            latest_filing = filings[0] if filings else {}
-
-            return {
-                "source": "propublica",
-                "ein": ein,
-                "name": org_info.get("name"),
-                "funding_type": "non-profit",
-                "annual_revenue": str(latest_filing.get("totrevenue", "")),
-                "total_assets": str(latest_filing.get("totassetsend", "")),
-                "tax_period": latest_filing.get("tax_prd_yr"),
-                "subsection": org_info.get("subsection_code"),  # 501c type
-                "confidence": "high",
-            }
-
-        except Exception as e:
-            logger.error(f"ProPublica search failed for {name}: {e}")
+                return _propublica_summary(org, ein)
+            return _propublica_filing_payload(org_response.json(), ein)
+        except Exception as exc:
+            logger.error("ProPublica search failed for %s: %s", name, exc)
             return {}
 
     async def _fetch_wikidata(self, page_title: str) -> dict[str, Any]:
@@ -785,20 +982,7 @@ class FundingResearcher:
         if response.status_code != 200:
             return {}
         data = response.json()
-        labels: dict[str, str] = {}
-        entities = data.get("entities")
-        if not entities:
-            return labels
-        # Wikidata returns entities as a dict keyed by QID
-        entity_values = entities.values() if isinstance(entities, dict) else entities
-        for entity in entity_values:
-            if not isinstance(entity, dict):
-                continue
-            entity_id = entity.get("id")
-            label = (entity.get("labels") or {}).get("en", {}).get("value")
-            if entity_id and label:
-                labels[entity_id] = label
-        return labels
+        return _wikidata_label_map(data.get("entities"))
 
     async def _get_known_org_data(self, name: str) -> dict[str, Any]:
         """Return known data for major news organizations."""
@@ -918,184 +1102,132 @@ class FundingResearcher:
             return None
 
     async def _search_sec_edgar(self, name: str) -> dict[str, Any]:
-        """Search SEC EDGAR for company financial data.
-
-        Uses the EDGAR full-text search and falls back to Company Facts API.
-        """
+        """Search SEC EDGAR for company financial data."""
         try:
             cik = await self._resolve_cik(name)
             if not cik:
                 return {}
-
-            sec_data: dict[str, Any] = {
-                "source": "sec_edgar",
-                "cik": cik,
-                "confidence": "medium",
-            }
-
-            submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-            async with _external_semaphore:
-                submissions_response = await self.http_client.get(
-                    submissions_url, headers=_EDGAR_HEADERS
-                )
-            if submissions_response.status_code == 200:
-                submissions = submissions_response.json()
-                sec_data["ein"] = submissions.get("ein")
-                sec_data["sic_description"] = submissions.get("sicDescription")
-                sec_data["tickers"] = submissions.get("tickers") or []
-                sec_data["exchanges"] = submissions.get("exchanges") or []
-                sec_data["confidence"] = "high"
-
-            facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
-            async with _external_semaphore:
-                facts_response = await self.http_client.get(facts_url, headers=_EDGAR_HEADERS)
-            if facts_response.status_code == 200:
-                facts = facts_response.json()
-                facts_data = facts.get("facts", {})
-                us_gaap = facts_data.get("us-gaap", {})
-
-                def _latest_fact_value(tag: str) -> str | None:
-                    """Return the latest annual (10-K) fact value for a GAAP tag.
-
-                    Selects the latest reporting period, then the latest filed
-                    revision for that period. A single 10-K repeats prior-year
-                    comparatives with the current fiscal-year label.
-                    """
-                    tag_data = us_gaap.get(tag, {})
-                    units = tag_data.get("units", {})
-                    usd_entries = units.get("USD", [])
-                    if not usd_entries:
-                        return None
-                    # Filter to 10-K filings only (annual)
-                    annual = [e for e in usd_entries if e.get("form") == "10-K"]
-                    if not annual:
-                        annual = usd_entries
-                    entries_with_period = [entry for entry in annual if entry.get("end")]
-                    candidates = entries_with_period or annual
-                    latest = max(
-                        candidates,
-                        key=lambda entry: (
-                            str(entry.get("end") or ""),
-                            str(entry.get("filed") or ""),
-                        ),
-                    )
-                    value = latest.get("val")
-                    return str(value) if value is not None else None
-
-                # Probe revenue tags in priority order (ASC 606 first)
-                revenue = (
-                    _latest_fact_value("RevenueFromContractWithCustomerExcludingAssessedTax")
-                    or _latest_fact_value("Revenues")
-                    or _latest_fact_value("SalesRevenueNet")
-                )
-                sec_data["revenue"] = revenue
-                sec_data["total_assets"] = _latest_fact_value("Assets")
-                sec_data["confidence"] = "high"
-
+            sec_data: dict[str, Any] = {"source": "sec_edgar", "cik": cik, "confidence": "medium"}
+            await self._merge_sec_submissions(cik, sec_data)
+            await self._merge_sec_company_facts(cik, sec_data)
             if len(sec_data) > 3:
                 return sec_data
-
-            query = quote(name)
-            search_url = (
-                f"https://efts.sec.gov/LATEST/search-index?q={query}&categories=form-type=10-K"
-            )
-            async with _external_semaphore:
-                search_response = await self.http_client.get(search_url, headers=_EDGAR_HEADERS)
-            if search_response.status_code == 200:
-                search_data = search_response.json()
-                if search_data.get("hits", {}).get("hits", []):
-                    return sec_data
-
+            return sec_data if await self._sec_search_has_hits(name) else {}
+        except Exception as exc:
+            logger.warning("SEC EDGAR search failed for %s: %s", name, exc)
             return {}
 
-        except Exception as e:
-            logger.warning("SEC EDGAR search failed for %s: %s", name, e)
-            return {}
+    async def _merge_sec_submissions(self, cik: str, sec_data: dict[str, Any]) -> None:
+        submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        async with _external_semaphore:
+            response = await self.http_client.get(submissions_url, headers=_EDGAR_HEADERS)
+        if response.status_code != 200:
+            return
+        submissions = response.json()
+        sec_data.update(
+            ein=submissions.get("ein"),
+            sic_description=submissions.get("sicDescription"),
+            tickers=submissions.get("tickers") or [],
+            exchanges=submissions.get("exchanges") or [],
+            confidence="high",
+        )
+
+    async def _merge_sec_company_facts(self, cik: str, sec_data: dict[str, Any]) -> None:
+        facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+        async with _external_semaphore:
+            response = await self.http_client.get(facts_url, headers=_EDGAR_HEADERS)
+        if response.status_code != 200:
+            return
+        us_gaap = response.json().get("facts", {}).get("us-gaap", {})
+        sec_data["revenue"] = _first_sec_fact(
+            us_gaap,
+            ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+        )
+        sec_data["total_assets"] = _latest_sec_fact_value(us_gaap, "Assets")
+        sec_data["confidence"] = "high"
+
+    async def _sec_search_has_hits(self, name: str) -> bool:
+        query = quote(name)
+        search_url = f"https://efts.sec.gov/LATEST/search-index?q={query}&categories=form-type=10-K"
+        async with _external_semaphore:
+            response = await self.http_client.get(search_url, headers=_EDGAR_HEADERS)
+        return response.status_code == 200 and bool(response.json().get("hits", {}).get("hits", []))
 
     async def _resolve_org_wikidata_sparql(
         self, name: str, domain: str | None = None
     ) -> dict[str, Any]:
-        """Resolve an organization via Wikidata using wbsearchentities and SPARQL.
-
-        Searches for entities with instance types: newspaper (Q11032),
-        magazine (Q192283), TV station (Q5296), website (Q35127), etc.
-        """
+        """Resolve an organization through Wikidata search, then SPARQL fallback."""
+        del domain
         try:
-            # Step 1: wbsearchentities
-            search_url = "https://www.wikidata.org/w/api.php"
-            search_params = httpx.QueryParams(
-                {
-                    "action": "wbsearchentities",
-                    "search": name,
-                    "language": "en",
-                    "format": "json",
-                    "limit": 3,
-                    "type": "item",
-                }
+            qid = await self._search_wikidata_org_qid(name)
+            if qid is None:
+                qid = await self._sparql_wikidata_org_qid(name)
+            return await self._fetch_wikidata_by_qid(qid) if qid else {}
+        except Exception as exc:
+            logger.warning("Wikidata SPARQL org resolution failed: %s", exc)
+            return {}
+
+    async def _search_wikidata_org_qid(self, name: str) -> str | None:
+        params = httpx.QueryParams(
+            {
+                "action": "wbsearchentities",
+                "search": name,
+                "language": "en",
+                "format": "json",
+                "limit": 3,
+                "type": "item",
+            }
+        )
+        async with _external_semaphore:
+            response = await self.http_client.get(
+                "https://www.wikidata.org/w/api.php", params=params
             )
-            async with _external_semaphore:
-                search_response = await self.http_client.get(search_url, params=search_params)
-            if search_response.status_code == 200:
-                search_data = search_response.json()
-                hits = search_data.get("search", [])
-                for hit in hits:
-                    hit_label = (hit.get("label") or "").lower()
-                    if (
-                        self._name_overlap(
-                            self._normalize_name(name), self._normalize_name(hit_label)
-                        )
-                        >= 0.5
-                    ):
-                        qid = hit.get("id")
-                        if qid:
-                            return await self._fetch_wikidata_by_qid(qid)
+        if response.status_code != 200:
+            return None
+        normalized_name = self._normalize_name(name)
+        for hit in response.json().get("search", []):
+            label = self._normalize_name(str(hit.get("label") or ""))
+            if self._name_overlap(normalized_name, label) >= 0.5 and hit.get("id"):
+                return str(hit["id"])
+        return None
 
-            # Step 2: SPARQL query by name with org instance types
-            org_types = [
-                "wd:Q11032",  # newspaper
-                "wd:Q192283",  # magazine
-                "wd:Q5296",  # TV station
-                "wd:Q35127",  # website
-                "wd:Q5633421",  # publisher
-                "wd:Q16735862",  # media company
-                "wd:Q43229",  # organization
-            ]
-            types_clause = " ".join(org_types)
-            sparql_query = f"""
-            SELECT ?item ?itemLabel WHERE {{
-              SERVICE wikibase:mwapi {{
-                bd:serviceParam wikibase:api "EntitySearch".
-                bd:serviceParam wikibase:endpoint "www.wikidata.org".
-                bd:serviceParam mwapi:search "{name}".
-                bd:serviceParam mwapi:language "en".
-                ?item wikibase:apiOutputItem mwapi:item.
-              }}
-              ?item wdt:P31 ?org_type.
-              VALUES ?org_type {{ {types_clause} }}
-              SERVICE wikibase:label {{
-                bd:serviceParam wikibase:language "en".
-              }}
-            }}
-            LIMIT 5
-            """
-            sparql_params = httpx.QueryParams({"format": "json", "query": sparql_query})
-            async with _external_semaphore:
-                sparql_response = await self.http_client.get(
-                    "https://query.wikidata.org/sparql", params=sparql_params
-                )
-            if sparql_response.status_code == 200:
-                sparql_data = sparql_response.json()
-                bindings = sparql_data.get("results", {}).get("bindings", [])
-                for binding in bindings:
-                    item_url = binding.get("item", {}).get("value", "")
-                    qid = item_url.split("/")[-1] if item_url else None
-                    if qid:
-                        return await self._fetch_wikidata_by_qid(qid)
-
-        except Exception as e:
-            logger.warning("Wikidata SPARQL org resolution failed: %s", e)
-
-        return {}
+    async def _sparql_wikidata_org_qid(self, name: str) -> str | None:
+        types_clause = " ".join(
+            (
+                "wd:Q11032",
+                "wd:Q192283",
+                "wd:Q5296",
+                "wd:Q35127",
+                "wd:Q5633421",
+                "wd:Q16735862",
+                "wd:Q43229",
+            )
+        )
+        query = f"""
+        SELECT ?item ?itemLabel WHERE {{
+          SERVICE wikibase:mwapi {{
+            bd:serviceParam wikibase:api "EntitySearch".
+            bd:serviceParam wikibase:endpoint "www.wikidata.org".
+            bd:serviceParam mwapi:search "{name}".
+            bd:serviceParam mwapi:language "en".
+            ?item wikibase:apiOutputItem mwapi:item.
+          }}
+          ?item wdt:P31 ?org_type.
+          VALUES ?org_type {{ {types_clause} }}
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+        }}
+        LIMIT 5
+        """
+        async with _external_semaphore:
+            response = await self.http_client.get(
+                "https://query.wikidata.org/sparql",
+                params=httpx.QueryParams({"format": "json", "query": query}),
+            )
+        if response.status_code != 200:
+            return None
+        bindings = response.json().get("results", {}).get("bindings", [])
+        item_urls = [binding.get("item", {}).get("value", "") for binding in bindings]
+        return next((url.rsplit("/", 1)[-1] for url in item_urls if url), None)
 
     async def _fetch_wikidata_by_qid(self, qid: str) -> dict[str, Any]:
         """Fetch Wikidata claims and labels for a known QID."""
@@ -1149,155 +1281,32 @@ class FundingResearcher:
         parent_org: str | None,
         coverage_topics: list[str],
     ) -> list[dict[str, Any]]:
-        """Detect conflicts of interest between ownership and coverage.
-
-        Cross-references parent company business interests (from SEC EDGAR
-        segments + Wikidata industry codes) with the source's top coverage
-        topics to flag potential conflicts.
-
-        Returns a list of conflict flags with severity.
-        """
-        conflicts: list[dict[str, Any]] = []
+        """Detect overlap between a parent's business interests and coverage topics."""
+        del source_name
         if not parent_org or not coverage_topics:
-            return conflicts
-
-        # Get parent company business interests
+            return []
         parent_data = await self.research_organization(parent_org, use_ai=False)
-        owned_by = parent_data.get("owned_by", []) or []
-        parent_orgs = parent_data.get("parent_orgs", []) or []
-        business_interests: set[str] = set()
-
-        # Gather all ownership labels as potential business interest strings
-        for item in owned_by + parent_orgs + [parent_org]:
-            if isinstance(item, str):
-                business_interests.add(item.lower())
-
-        # Known conflict keywords mapping
-        conflict_keywords: dict[str, str] = {
-            "oil": "energy",
-            "gas": "energy",
-            "petroleum": "energy",
-            "defense": "defense",
-            "military": "defense",
-            "pharma": "pharmaceuticals",
-            "pharmaceutical": "pharmaceuticals",
-            "bank": "finance",
-            "finance": "finance",
-            "telecom": "telecommunications",
-            "media": "media",
-            "insurance": "insurance",
-            "healthcare": "healthcare",
-            "tech": "technology",
-            "technology": "technology",
-            "real estate": "real estate",
-            "retail": "retail",
-        }
-
+        interests = _business_interest_labels(parent_data, parent_org)
+        conflicts: list[dict[str, Any]] = []
         for topic in coverage_topics:
-            topic_lower = topic.lower()
-            for interest in business_interests:
-                for kw, _sector in conflict_keywords.items():
-                    if kw in interest and kw in topic_lower:
-                        conflicts.append(
-                            {
-                                "topic": topic,
-                                "business_interest": interest,
-                                "severity": "high",
-                                "evidence": (
-                                    f"Source covers '{topic}' and parent "
-                                    f"'{interest}' operates in the same sector."
-                                ),
-                            }
-                        )
-                        break
-
+            conflict = _first_topic_conflict(topic, interests)
+            if conflict is not None:
+                conflicts.append(conflict)
         return conflicts
 
     async def _ai_enhance_org_data(self, org: dict[str, Any]) -> dict[str, Any]:
-        """Use AI to fill gaps in organization data with expanded research.
-
-        Cross-checks KNOWN_ORGS data for staleness and requesting richer
-        funding transparency fields.
-        """
+        """Use AI to fill gaps in organization data with expanded research."""
         if not self.client:
             return org
-
         org_name = org["name"]
-        known_key = self._normalize_name(org_name)
-
-        # Staleness check: cross-reference KNOWN_ORGS against LLM knowledge
-        staleness_flags = _collect_staleness_flags(self.client, org_name, known_key)
-
+        staleness_flags = _collect_staleness_flags(
+            self.client, org_name, self._normalize_name(org_name)
+        )
+        missing_fields = _missing_org_fields(org)
+        if not missing_fields and not staleness_flags:
+            return org
+        prompt = _org_enrichment_prompt(org, missing_fields, staleness_flags)
         try:
-            missing_fields = [
-                field
-                for field in (
-                    "org_type",
-                    "parent_org",
-                    "ownership_percentage",
-                    "funding_type",
-                    "annual_revenue",
-                    "media_bias_rating",
-                    "factual_reporting",
-                )
-                if not org.get(field)
-            ]
-            if not missing_fields and not staleness_flags:
-                return org
-
-            missing_desc = ", ".join(missing_fields) if missing_fields else "staleness validation"
-            staleness_note = " ".join(staleness_flags) if staleness_flags else ""
-
-            prompt = f"""You are a media research assistant analyzing a news organization.
-
-Organization: {org_name}
-Known Data:
-- Funding Type: {org.get("funding_type", "Unknown")}
-- Parent Organization: {org.get("parent_org", "Unknown")}
-- Bias Rating: {org.get("media_bias_rating", "Unknown")}
-- Factual Reporting: {org.get("factual_reporting", "Unknown")}
-- Annual Revenue: {org.get("annual_revenue", "Unknown")}
-- Current Source Description: {org.get("description", "Unknown")}
-
-{staleness_note}
-
-Based on your knowledge, fill these missing or uncertain fields: {missing_desc}.
-Use only relationships completed as of today for parent_org and
-ownership_percentage. Put pending or proposed transactions only in
-recent_ownership_changes. Return null or an empty list when a value is not
-publicly supported. Do not guess advertiser names, donors, or ownership stakes.
-
-Provide:
-1. Organization type (publisher, media conglomerate, parent company, nonprofit, public broadcaster, or state media)
-2. Funding type (commercial, public, non-profit, state-funded, independent, trust-owned)
-3. Current parent or controlling owner and ownership percentage
-4. Material funding sources or revenue streams
-5. General media bias and factual-reporting rating
-6. Estimated annual revenue range and source hint
-7. Publicly documented major donors or grant funders
-8. Publicly documented major advertisers
-9. Recent ownership changes in the last five years
-10. Funding transparency and paywall status
-
-Respond in JSON:
-{{
-  "org_type": "media conglomerate",
-  "funding_type": "commercial",
-  "funding_sources": ["advertising", "subscriptions"],
-  "parent_org": "Current Parent Company" or null,
-  "ownership_percentage": "100%" or null,
-  "media_bias_rating": "center",
-  "factual_reporting": "high",
-  "estimated_revenue": "e.g. $50M-$100M",
-  "revenue_citation": "e.g. 2025 annual report",
-  "major_donors": [],
-  "major_advertisers": [],
-  "recent_ownership_changes": "Description or null",
-  "funding_transparency": "transparent",
-  "has_paywall": false,
-  "notes": "Brief explanation"
-}}"""
-
             response = self.client.chat.completions.create(
                 model=(
                     get_llamacpp_model()
@@ -1305,31 +1314,17 @@ Respond in JSON:
                     else resolve_opencode_model(settings.open_router_model)
                 ),
                 messages=cast(
-                    Iterable[ChatCompletionMessageParam],
-                    [{"role": "user", "content": prompt}],
+                    Iterable[ChatCompletionMessageParam], [{"role": "user", "content": prompt}]
                 ),
                 max_tokens=1200,
                 temperature=0.1,
                 response_format={"type": "json_object"},
             )
-
-            content = response.choices[0].message.content
-            if not content:
-                logger.warning(f"AI returned empty content for org {org_name}")
-                return org
-            json_match = re.search(r"\{[\s\S]*?\}", content, re.DOTALL)
-
-            if json_match:
-                ai_data = json.loads(json_match.group())
-                _apply_ai_enhancements(org, ai_data)
-            else:
-                logger.warning("AI returned no JSON object for org %s", org_name)
-
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse AI enhancement JSON for %s: %s", org_name, e)
-        except Exception as e:
-            logger.error("AI enhancement failed for org %s: %s", org_name, e)
-
+            _apply_ai_response(org, org_name, response.choices[0].message.content)
+        except json.JSONDecodeError as exc:
+            logger.error("Failed to parse AI enhancement JSON for %s: %s", org_name, exc)
+        except Exception as exc:
+            logger.error("AI enhancement failed for org %s: %s", org_name, exc)
         return org
 
     async def get_ownership_chain(self, org_name: str, max_depth: int = 5) -> list[dict[str, Any]]:
@@ -1450,35 +1445,12 @@ def _format_wikidata_proportion(amount: object) -> str | None:
 def _extract_wikidata_items_with_proportion(
     claims: dict[str, Any], prop: str
 ) -> list[tuple[str, str | None]]:
-    """Extract (item_id, proportion) pairs from a Wikidata claim property.
-
-    Reads the proportion qualifier (P1107) on each statement to determine
-    ownership or voting percentage. Returns None for proportion when no
-    qualifier is present or the qualifier value is not numeric.
-    """
-    results: list[tuple[str, str | None]] = []
-    for claim in claims.get(prop, []):
-        mainsnak = claim.get("mainsnak") or {}
-        datavalue = mainsnak.get("datavalue") or {}
-        value = datavalue.get("value") or {}
-        if not isinstance(value, dict):
-            continue
-        item_id = value.get("id")
-        if not item_id:
-            continue
-
-        # Check qualifiers for proportion (P1107)
-        proportion: str | None = None
-        qualifiers = claim.get("qualifiers") or {}
-        for qual_claim in qualifiers.get("P1107", []):
-            qual_snak = qual_claim.get("datavalue") or {}
-            qual_value = qual_snak.get("value")
-            if isinstance(qual_value, dict):
-                proportion = _format_wikidata_proportion(qual_value.get("amount"))
-            elif isinstance(qual_value, (int, float, str)):
-                proportion = _format_wikidata_proportion(qual_value)
-        results.append((item_id, proportion))
-    return results
+    """Extract item ids and ownership proportions from Wikidata claims."""
+    return [
+        pair
+        for claim in claims.get(prop, [])
+        if (pair := _wikidata_item_proportion(claim)) is not None
+    ]
 
 
 def _collect_wikidata_relations(
@@ -1567,23 +1539,21 @@ def _merge_known_data(org: dict[str, Any], known: dict[str, Any]) -> None:
     """Merge KNOWN_ORGS data (highest priority for major outlets)."""
     if not known:
         return
-    org["funding_type"] = known.get("funding_type") or org["funding_type"]
-    org["parent_org"] = known.get("parent") or org["parent_org"]
-    org["description"] = known.get("description") or org["description"]
-    org["org_type"] = known.get("org_type") or org["org_type"]
-    org["cik"] = known.get("cik") or org["cik"]
+    preferred = {
+        "funding_type": "funding_type",
+        "parent_org": "parent",
+        "description": "description",
+        "org_type": "org_type",
+        "cik": "cik",
+    }
+    for destination, source in preferred.items():
+        org[destination] = known.get(source) or org[destination]
+    _fill_missing_from(org, known, ("annual_revenue", "ownership_percentage", "funding_sources"))
     if not org["ein"] and known.get("ein"):
         org["ein"] = str(known["ein"])
-    if not org["annual_revenue"] and known.get("annual_revenue"):
-        org["annual_revenue"] = known["annual_revenue"]
-    if not org["ownership_percentage"] and known.get("ownership_percentage"):
-        org["ownership_percentage"] = known["ownership_percentage"]
-    if not org["funding_sources"] and known.get("funding_sources"):
-        org["funding_sources"] = known["funding_sources"]
     org["media_bias_rating"] = known.get("media_bias_rating")
     org["factual_reporting"] = known.get("factual_reporting")
-    org["research_sources"].append("known_data")
-    org["research_confidence"] = "high"
+    _record_research_source(org, "known_data", "high")
 
 
 def _merge_wikipedia_data(org: dict[str, Any], wikipedia: dict[str, Any]) -> None:
@@ -1608,75 +1578,66 @@ def _merge_wikidata_data(org: dict[str, Any], wikidata: dict[str, Any]) -> None:
     """Merge Wikidata data from English Wikipedia title lookup."""
     if not wikidata:
         return
-    org["wikidata_url"] = wikidata.get("wikidata_url")
-    org["wikidata_qid"] = wikidata.get("qid")
-    org["owned_by"] = wikidata.get("owned_by") or []
-    org["parent_orgs"] = wikidata.get("parent_orgs") or []
-    org["part_of"] = wikidata.get("part_of") or []
-    org["headquarters"] = wikidata.get("headquarters") or []
-    org["subsidiaries"] = wikidata.get("subsidiaries") or []
+    _copy_fields(
+        org,
+        wikidata,
+        (
+            "wikidata_url",
+            "wikidata_qid",
+            "owned_by",
+            "parent_orgs",
+            "part_of",
+            "headquarters",
+            "subsidiaries",
+            "inception",
+            "official_website",
+        ),
+        source_aliases={"wikidata_qid": "qid"},
+        default_lists={"owned_by", "parent_orgs", "part_of", "headquarters", "subsidiaries"},
+    )
     if not org["org_type"]:
         org["org_type"] = _select_organization_type(
             cast(list[str], wikidata.get("org_types") or [])
         )
-    org["inception"] = wikidata.get("inception")
-    org["official_website"] = wikidata.get("official_website")
-    if not org["parent_org"] and org["parent_orgs"]:
-        org["parent_org"] = org["parent_orgs"][0]
-    if not org["website"] and org["official_website"]:
-        org["website"] = org["official_website"]
-
-    # Extract ownership_percentage from Wikidata proportion qualifiers (P1107)
-    if not org.get("ownership_percentage"):
-        wiki_owned_proportion = wikidata.get("owned_with_proportion") or []
-        wiki_parent_proportion = wikidata.get("parent_with_proportion") or []
-        for _name, pct in wiki_owned_proportion + wiki_parent_proportion:
-            if pct is not None:
-                org["ownership_percentage"] = pct
-                break
-
-    org["research_sources"].append("wikidata")
-    if org["research_confidence"] == "low":
-        org["research_confidence"] = "medium"
+    org["parent_org"] = org["parent_org"] or _first_value(org["parent_orgs"])
+    org["website"] = org["website"] or org["official_website"]
+    org["ownership_percentage"] = org.get("ownership_percentage") or _first_proportion(wikidata)
+    _record_research_source(org, "wikidata", "medium")
 
 
 def _merge_wikidata_sparql_data(
     org: dict[str, Any], wikidata_sparql: dict[str, Any] | None
 ) -> None:
-    """Merge the Wikidata SPARQL fallback (orgs without English Wikipedia)."""
+    """Merge the Wikidata SPARQL fallback for organizations without Wikipedia."""
     if not wikidata_sparql:
         return
-    if not org["wikidata_qid"]:
-        org["wikidata_qid"] = wikidata_sparql.get("qid")
-    if not org["wikidata_url"]:
-        org["wikidata_url"] = wikidata_sparql.get("wikidata_url")
-    for field in ("owned_by", "part_of", "headquarters", "subsidiaries"):
-        if wikidata_sparql.get(field):
-            org[field] = wikidata_sparql[field]
-    if wikidata_sparql.get("parent_orgs"):
-        org["parent_orgs"] = wikidata_sparql["parent_orgs"]
-        if not org["parent_org"]:
-            org["parent_org"] = org["parent_orgs"][0]
+    _fill_missing_from(
+        org,
+        wikidata_sparql,
+        ("wikidata_qid", "wikidata_url"),
+        source_aliases={"wikidata_qid": "qid"},
+    )
+    _copy_present_from(
+        org,
+        wikidata_sparql,
+        (
+            "owned_by",
+            "part_of",
+            "headquarters",
+            "subsidiaries",
+            "parent_orgs",
+            "inception",
+            "official_website",
+        ),
+    )
+    if not org["parent_org"]:
+        org["parent_org"] = _first_value(org.get("parent_orgs"))
     if not org["org_type"]:
         org["org_type"] = _select_organization_type(
             cast(list[str], wikidata_sparql.get("org_types") or [])
         )
-    if not org["ownership_percentage"]:
-        proportions = (wikidata_sparql.get("owned_with_proportion") or []) + (
-            wikidata_sparql.get("parent_with_proportion") or []
-        )
-        org["ownership_percentage"] = next(
-            (percentage for _owner, percentage in proportions if percentage is not None),
-            None,
-        )
-    if wikidata_sparql.get("inception"):
-        org["inception"] = wikidata_sparql["inception"]
-    if wikidata_sparql.get("official_website"):
-        org["official_website"] = wikidata_sparql["official_website"]
-    if "wikidata_sparql" not in org["research_sources"]:
-        org["research_sources"].append("wikidata_sparql")
-    if org["research_confidence"] == "low":
-        org["research_confidence"] = "medium"
+    org["ownership_percentage"] = org["ownership_percentage"] or _first_proportion(wikidata_sparql)
+    _record_research_source(org, "wikidata_sparql", "medium")
 
 
 def _merge_nonprofit_data(org: dict[str, Any], nonprofit: dict[str, Any]) -> None:
@@ -1705,18 +1666,11 @@ def _merge_sec_data(org: dict[str, Any], sec: dict[str, Any] | None) -> None:
     org["cik"] = sec.get("cik")
     if sec.get("ein"):
         org["ein"] = org["ein"] or str(sec["ein"])
-    if sec.get("tickers") and not org.get("funding_type"):
-        org["funding_type"] = "commercial"
-    if sec.get("tickers") and not org.get("org_type"):
-        org["org_type"] = "public company"
-    if sec.get("revenue"):
-        org["annual_revenue"] = org["annual_revenue"] or sec["revenue"]
-    if sec.get("total_assets"):
-        org["annual_revenue"] = org["annual_revenue"] or sec["total_assets"]
-    if "sec_edgar" not in org["research_sources"]:
-        org["research_sources"].append("sec_edgar")
-    if org["research_confidence"] == "low":
-        org["research_confidence"] = "medium"
+    if sec.get("tickers"):
+        org["funding_type"] = org.get("funding_type") or "commercial"
+        org["org_type"] = org.get("org_type") or "public company"
+    org["annual_revenue"] = org["annual_revenue"] or sec.get("revenue") or sec.get("total_assets")
+    _record_research_source(org, "sec_edgar", "medium")
 
 
 def _collect_staleness_flags(client: OpenAI, org_name: str, known_key: str) -> list[str]:

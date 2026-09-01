@@ -40,6 +40,14 @@ def _required_str(value: str | None) -> str:
     return cast(str, value)
 
 
+def _org_str_list(value: Any) -> list[str]:
+    return cast(list[str], value or [])
+
+
+def _org_dict_list(value: Any) -> list[dict[str, Any]]:
+    return cast(list[dict[str, Any]], value or [])
+
+
 def _extract_wikipedia_lang_and_title(url: str) -> tuple[str | None, str | None]:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
@@ -72,6 +80,17 @@ def _extract_wikipedia_lang_and_title(url: str) -> tuple[str | None, str | None]
     return lang, title
 
 
+def _find_english_langlink(pages: dict[str, Any]) -> str | None:
+    for page in pages.values():
+        langlinks = page.get("langlinks") or []
+        for link in langlinks:
+            if link.get("lang") == "en":
+                en_title = link.get("*") or link.get("title")
+                if en_title:
+                    return f"https://en.wikipedia.org/wiki/{quote(en_title.replace(' ', '_'))}"
+    return None
+
+
 async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) -> str:
     cached = _WIKIPEDIA_URL_CACHE.get(url)
     if cached:
@@ -97,18 +116,10 @@ async def _resolve_english_wikipedia_url(url: str, client: httpx.AsyncClient) ->
             return url
 
         data = response.json()
-        pages = data.get("query", {}).get("pages", {})
-        for page in pages.values():
-            langlinks = page.get("langlinks") or []
-            for link in langlinks:
-                if link.get("lang") == "en":
-                    en_title = link.get("*") or link.get("title")
-                    if en_title:
-                        normalized = (
-                            f"https://en.wikipedia.org/wiki/{quote(en_title.replace(' ', '_'))}"
-                        )
-                        _WIKIPEDIA_URL_CACHE[url] = normalized
-                        return normalized
+        normalized = _find_english_langlink(data.get("query", {}).get("pages", {}))
+        if normalized is not None:
+            _WIKIPEDIA_URL_CACHE[url] = normalized
+            return normalized
     except Exception as exc:
         logger.debug("Wikipedia normalization failed for %s: %s", url, exc)
 
@@ -229,7 +240,7 @@ def _organization_response_from_record(
     cached: bool,
 ) -> OrganizationResearchResponse:
     """Serialize every persisted organization research field."""
-    parent_orgs = cast(list[str], organization.parent_orgs or [])
+    parent_orgs = _org_str_list(organization.parent_orgs)
     return OrganizationResearchResponse(
         id=organization.id,
         name=_required_str(organization.name),
@@ -238,25 +249,25 @@ def _organization_response_from_record(
         parent_org=parent_orgs[0] if parent_orgs else None,
         ownership_percentage=organization.ownership_percentage,
         funding_type=organization.funding_type,
-        funding_sources=cast(list[str], organization.funding_sources or []),
-        major_advertisers=cast(list[str], organization.major_advertisers or []),
+        funding_sources=_org_str_list(organization.funding_sources),
+        major_advertisers=_org_str_list(organization.major_advertisers),
         ein=organization.ein,
         annual_revenue=organization.annual_revenue,
-        top_donors=cast(list[str], organization.top_donors or []),
+        top_donors=_org_str_list(organization.top_donors),
         media_bias_rating=organization.media_bias_rating,
         factual_reporting=organization.factual_reporting,
         website=organization.website,
         wikipedia_url=wikipedia_url,
-        owned_by=cast(list[str], organization.owned_by or []),
+        owned_by=_org_str_list(organization.owned_by),
         parent_orgs=parent_orgs,
-        part_of=cast(list[str], organization.part_of or []),
-        subsidiaries=cast(list[str], organization.subsidiaries or []),
-        headquarters=cast(list[str], organization.headquarters or []),
+        part_of=_org_str_list(organization.part_of),
+        subsidiaries=_org_str_list(organization.subsidiaries),
+        headquarters=_org_str_list(organization.headquarters),
         inception=organization.inception,
         official_website=organization.official_website,
         cik=organization.cik,
-        conflict_flags=cast(list[dict[str, Any]], organization.conflict_flags or []),
-        research_sources=cast(list[str], organization.research_sources or []),
+        conflict_flags=_org_dict_list(organization.conflict_flags),
+        research_sources=_org_str_list(organization.research_sources),
         research_confidence=organization.research_confidence,
         cached=cached,
     )
@@ -499,6 +510,53 @@ async def get_reporter(
     return response
 
 
+def _organization_values_from_org_data(
+    org_data: dict[str, Any],
+) -> dict[str, Any]:
+    parents = org_data.get("parent_orgs")
+    if not parents:
+        parent_org = org_data.get("parent_org")
+        parents = [parent_org] if parent_org else []
+    return {
+        "name": org_data.get("name"),
+        "normalized_name": org_data.get("normalized_name"),
+        "org_type": org_data.get("org_type"),
+        "ownership_percentage": org_data.get("ownership_percentage"),
+        "funding_type": org_data.get("funding_type"),
+        "funding_sources": _org_str_list(org_data.get("funding_sources")),
+        "major_advertisers": _org_str_list(org_data.get("major_advertisers")),
+        "ein": org_data.get("ein"),
+        "annual_revenue": org_data.get("annual_revenue"),
+        "top_donors": _org_str_list(org_data.get("top_donors")),
+        "media_bias_rating": org_data.get("media_bias_rating"),
+        "factual_reporting": org_data.get("factual_reporting"),
+        "website": org_data.get("website"),
+        "wikipedia_url": org_data.get("wikipedia_url"),
+        "owned_by": _org_str_list(org_data.get("owned_by")),
+        "parent_orgs": parents,
+        "part_of": _org_str_list(org_data.get("part_of")),
+        "subsidiaries": _org_str_list(org_data.get("subsidiaries")),
+        "headquarters": _org_str_list(org_data.get("headquarters")),
+        "inception": org_data.get("inception"),
+        "official_website": org_data.get("official_website"),
+        "cik": org_data.get("cik"),
+        "conflict_flags": _org_dict_list(org_data.get("conflict_flags")),
+        "research_sources": _org_str_list(org_data.get("research_sources")),
+        "research_confidence": org_data.get("research_confidence"),
+    }
+
+
+async def _load_cached_organization(db: AsyncSession, normalized_name: str) -> Organization | None:
+    stmt = (
+        select(Organization)
+        .where(Organization.normalized_name == normalized_name)
+        .order_by(Organization.id.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 @router.post("/organization/research", response_model=OrganizationResearchResponse)
 async def research_organization(
     request: OrganizationResearchRequest,
@@ -509,14 +567,7 @@ async def research_organization(
     logger.info(f"Organization research request: {request.name}")
 
     normalized_name = normalize_organization_name(request.name)
-    stmt = (
-        select(Organization)
-        .where(Organization.normalized_name == normalized_name)
-        .order_by(Organization.id.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    cached = result.scalar_one_or_none()
+    cached = await _load_cached_organization(db, normalized_name)
 
     if cached and not force_refresh:
         logger.info(f"Returning cached org data for {request.name}")
@@ -526,36 +577,7 @@ async def research_organization(
     researcher = get_funding_researcher()
     org_data = await researcher.research_organization(name=request.name, website=request.website)
     org_data["wikipedia_url"] = await _ensure_english_wikipedia_url(org_data.get("wikipedia_url"))
-    values: dict[str, Any] = {
-        "name": org_data.get("name"),
-        "normalized_name": org_data.get("normalized_name"),
-        "org_type": org_data.get("org_type"),
-        "ownership_percentage": org_data.get("ownership_percentage"),
-        "funding_type": org_data.get("funding_type"),
-        "funding_sources": org_data.get("funding_sources") or [],
-        "major_advertisers": org_data.get("major_advertisers") or [],
-        "ein": org_data.get("ein"),
-        "annual_revenue": org_data.get("annual_revenue"),
-        "top_donors": org_data.get("top_donors") or [],
-        "media_bias_rating": org_data.get("media_bias_rating"),
-        "factual_reporting": org_data.get("factual_reporting"),
-        "website": org_data.get("website"),
-        "wikipedia_url": org_data.get("wikipedia_url"),
-        "owned_by": org_data.get("owned_by") or [],
-        "parent_orgs": (
-            org_data.get("parent_orgs")
-            or ([org_data["parent_org"]] if org_data.get("parent_org") else [])
-        ),
-        "part_of": org_data.get("part_of") or [],
-        "subsidiaries": org_data.get("subsidiaries") or [],
-        "headquarters": org_data.get("headquarters") or [],
-        "inception": org_data.get("inception"),
-        "official_website": org_data.get("official_website"),
-        "cik": org_data.get("cik"),
-        "conflict_flags": org_data.get("conflict_flags") or [],
-        "research_sources": org_data.get("research_sources") or [],
-        "research_confidence": org_data.get("research_confidence"),
-    }
+    values = _organization_values_from_org_data(org_data)
     organization = cached or Organization()
     for field, value in values.items():
         setattr(organization, field, value)

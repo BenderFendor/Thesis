@@ -1,84 +1,375 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { BarChart3 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { useState } from "react";
+import { BarChart3 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import type { SourceCredibilityProfile } from "@/lib/api"
+} from "@/components/ui/tooltip";
+import type {
+  CredibilityDimension,
+  SourceCredibilityProfile,
+} from "@/lib/api";
+
+const DEFAULT_DIMENSION_COUNT = 6,
+ MODERATE_SCORE_THRESHOLD = 40,
+ SCORE_PERCENT_MAX = 100,
+ SCORE_PERCENT_MIN = 0,
+ STRONG_SCORE_THRESHOLD = 70;
+type BadgeSize = "lg" | "md" | "sm";
+
+const SKELETON_IDS: readonly string[] = [
+  "ownership",
+  "transparency",
+  "corrections",
+  "funding",
+  "reporting",
+  "history",
+],
+
+ ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+  lg: "h-4 w-4",
+  md: "h-3.5 w-3.5",
+  sm: "h-3 w-3",
+},
+
+ TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+  lg: "text-xs",
+  md: "text-[11px]",
+  sm: "text-[10px]",
+};
 
 interface CredibilityBadgeProps {
-  domain: string
-  className?: string
-  size?: "sm" | "md" | "lg"
+  readonly className?: string;
+  readonly domain: string;
+  readonly size?: BadgeSize;
 }
 
-export function CredibilityBadge({ domain, className = "", size = "md" }: CredibilityBadgeProps) {
-  const [showPanel, setShowPanel] = useState(false)
-  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface CredibilityPanelProps {
+  readonly available: number;
+  readonly dimensions: readonly (readonly [string, CredibilityDimension])[];
+  readonly domain: string;
+  readonly error?: string;
+  readonly loading: boolean;
+  readonly onClose: () => void;
+  readonly profile?: Readonly<SourceCredibilityProfile>;
+  readonly total: number;
+}
 
-  const dimensionalData = profile?.data_quality
-  const available = dimensionalData?.dimensions_available ?? 0
-  const total = dimensionalData?.dimensions_total ?? 6
+interface DimensionRowProps {
+  readonly dimension: Readonly<CredibilityDimension>;
+  readonly name: string;
+}
 
-  const iconSizes = { sm: "w-3 h-3", md: "w-3.5 h-3.5", lg: "w-4 h-4" }
-  const textSizes = { sm: "text-[10px]", md: "text-[11px]", lg: "text-xs" }
-  const iconSize = iconSizes[size]
-  const textSize = textSizes[size]
+const hasScore = (score: CredibilityDimension["score"]): score is number =>
+  typeof score === "number",
 
-  const handleClick = async () => {
+ scoreToColor = (score: CredibilityDimension["score"]): string => {
+  if (!hasScore(score)) {
+    return "bg-muted";
+  }
+  if (score >= STRONG_SCORE_THRESHOLD) {
+    return "bg-emerald-500";
+  }
+  if (score >= MODERATE_SCORE_THRESHOLD) {
+    return "bg-amber-500";
+  }
+  return "bg-red-500";
+},
+
+ scoreToLabel = (score: CredibilityDimension["score"]): string => {
+  if (!hasScore(score)) {
+    return "No data";
+  }
+  if (score >= STRONG_SCORE_THRESHOLD) {
+    return "Strong";
+  }
+  if (score >= MODERATE_SCORE_THRESHOLD) {
+    return "Moderate";
+  }
+  return "Weak";
+},
+
+ scoreToWidth = (score: CredibilityDimension["score"]): string => {
+  if (!hasScore(score)) {
+    return "0%";
+  }
+  const bounded = Math.max(
+    SCORE_PERCENT_MIN,
+    Math.min(SCORE_PERCENT_MAX, score),
+  );
+  return `${bounded}%`;
+},
+
+ getProvenanceKey = (
+  provenance: Readonly<CredibilityDimension["provenance"][number]>,
+): string => `${provenance.source}:${provenance.url}`,
+
+ DimensionProvenance = ({
+  dimension,
+}: Readonly<{ dimension: Readonly<CredibilityDimension> }>) => (
+  <div className="space-y-1">
+    <span className="text-[9px] font-mono uppercase text-muted-foreground/50">
+      Data Sources
+    </span>
+    {dimension.provenance.map((provenance) => (
+      <div
+        key={getProvenanceKey(provenance)}
+        className="text-[10px] text-muted-foreground"
+      >
+        {provenance.url.length > SCORE_PERCENT_MIN ? (
+          <a
+            href={provenance.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground"
+          >
+            {provenance.source}
+          </a>
+        ) : (
+          <span>{provenance.source}</span>
+        )}
+      </div>
+    ))}
+  </div>
+),
+
+ DimensionRow = ({
+  dimension,
+  name,
+}: Readonly<DimensionRowProps>) => {
+  const {score} = dimension;
+  return (
+    <details className="group rounded-lg border border-white/5 p-3">
+      <summary className="flex cursor-pointer items-center justify-between gap-2">
+        <span className="text-xs font-mono capitalize text-foreground/80">
+          {name.replaceAll("_", " ")}
+        </span>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {scoreToLabel(score)}
+        </span>
+      </summary>
+      <div className="mt-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/30">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${scoreToColor(score)}`}
+              style={{ width: scoreToWidth(score) }}
+            />
+          </div>
+          <span className="min-w-[3ch] text-[10px] font-mono text-muted-foreground">
+            {hasScore(score) ? Math.round(score) : "-"}
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground/70">
+          {dimension.explanation}
+        </p>
+        {dimension.provenance.length > SCORE_PERCENT_MIN && (
+          <DimensionProvenance dimension={dimension} />
+        )}
+      </div>
+    </details>
+  );
+},
+
+ CredibilitySkeleton = () => (
+  <div className="space-y-3 py-4">
+    {SKELETON_IDS.map((skeletonId) => (
+      <div key={skeletonId} className="space-y-1">
+        <div className="h-3 w-32 animate-pulse rounded bg-muted/30" />
+        <div className="h-2 w-full animate-pulse rounded bg-muted/20" />
+      </div>
+    ))}
+  </div>
+),
+
+ CredibilitySummary = ({
+  available,
+  domain,
+  profile,
+  total,
+}: Readonly<{
+  available: number;
+  domain: string;
+  profile?: Readonly<SourceCredibilityProfile>;
+  total: number;
+}>) => (
+  <div className="mb-2 grid grid-cols-3 gap-2">
+    <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
+      <span className="block text-[10px] font-mono uppercase text-muted-foreground/60">
+        Domain
+      </span>
+      <span className="block truncate text-xs font-medium text-foreground">
+        {profile?.domain ?? domain}
+      </span>
+    </div>
+    <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
+      <span className="block text-[10px] font-mono uppercase text-muted-foreground/60">
+        Available
+      </span>
+      <span className="text-xs font-medium text-foreground">
+        {available}/{total}
+      </span>
+    </div>
+    <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
+      <span className="block text-[10px] font-mono uppercase text-muted-foreground/60">
+        Status
+      </span>
+      <span className="text-xs font-medium text-foreground">
+        {profile?.status ?? "Unknown"}
+      </span>
+    </div>
+  </div>
+),
+
+ CredibilityPanelBody = ({
+  available,
+  dimensions,
+  domain,
+  error,
+  loading,
+  profile,
+  total,
+}: Readonly<Omit<CredibilityPanelProps, "onClose">>) => {
+  if (loading) {
+    return <CredibilitySkeleton />;
+  }
+  if (error !== undefined) {
+    return (
+      <div className="py-4 text-center text-sm text-muted-foreground">
+        {error}
+      </div>
+    );
+  }
+  if (dimensions.length === SCORE_PERCENT_MIN) {
+    return (
+      <div className="py-4 text-center text-sm text-muted-foreground">
+        No credibility data available for this source.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <CredibilitySummary
+        available={available}
+        domain={domain}
+        profile={profile}
+        total={total}
+      />
+      {dimensions.map(([name, dimension]) => (
+        <DimensionRow key={name} dimension={dimension} name={name} />
+      ))}
+    </div>
+  );
+},
+
+ CredibilityPanel = ({
+  available,
+  dimensions,
+  domain,
+  error,
+  loading,
+  onClose,
+  profile,
+  total,
+}: Readonly<CredibilityPanelProps>) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <button
+      type="button"
+      aria-label="Close credibility panel"
+      className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="credibility-panel-title"
+      className="relative z-10 max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-white/10 bg-[var(--news-bg-secondary)] p-5 shadow-2xl"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <h3
+          id="credibility-panel-title"
+          className="font-serif text-base font-semibold text-foreground"
+        >
+          Source Credibility
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          Close
+        </button>
+      </div>
+      <CredibilityPanelBody
+        available={available}
+        dimensions={dimensions}
+        domain={domain}
+        error={error}
+        loading={loading}
+        profile={profile}
+        total={total}
+      />
+    </div>
+  </div>
+),
+
+ loadCredibilityProfile = async (
+  domain: string,
+): Promise<SourceCredibilityProfile> => {
+  const { fetchSourceCredibility } = await import("@/lib/api");
+  return fetchSourceCredibility(domain);
+};
+
+export const CredibilityBadge = ({
+  className = "",
+  domain,
+  size = "md",
+}: Readonly<CredibilityBadgeProps>) => {
+  const [showPanel, setShowPanel] = useState(false),
+   [profile, setProfile] = useState<SourceCredibilityProfile>(),
+   [loading, setLoading] = useState(false),
+   [error, setError] = useState<string>(),
+   dimensionalData = profile?.data_quality,
+   available = dimensionalData?.dimensions_available ?? SCORE_PERCENT_MIN,
+   total = dimensionalData?.dimensions_total ?? DEFAULT_DIMENSION_COUNT,
+   dimensions = Object.entries(profile?.dimensions ?? {}),
+   iconSize = ICON_SIZE_CLASSES[size],
+   textSize = TEXT_SIZE_CLASSES[size],
+
+   closePanel = () => {
+    setShowPanel(false);
+  },
+
+   openPanel = async () => {
     if (showPanel) {
-      setShowPanel(false)
-      return
+      closePanel();
+      return;
     }
-    if (profile && !error) {
-      setShowPanel(true)
-      return
+    if (profile !== undefined && error === undefined) {
+      setShowPanel(true);
+      return;
     }
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(undefined);
     try {
-      const { fetchSourceCredibility } = await import("@/lib/api")
-      const data = await fetchSourceCredibility(domain)
-      setProfile(data)
-      setShowPanel(true)
+      const nextProfile = await loadCredibilityProfile(domain);
+      setProfile(nextProfile);
     } catch {
-      setError("Failed to load credibility data")
-      setShowPanel(true)
+      setError("Failed to load credibility data");
     } finally {
-      setLoading(false)
+      setLoading(false);
+      setShowPanel(true);
     }
-  }
+  },
 
-  const dims = profile?.dimensions ?? {}
-  const dimensionEntries = Object.entries(dims) as [string, {
-    score?: number | null
-    confidence?: number
-    explanation?: string
-    provenance?: Array<{ source: string; url: string }>
-    status?: string
-    dimension?: string
-  }][]
-
-  const scoreToColor = (score: number | null | undefined): string => {
-    if (score == null) return "bg-muted"
-    if (score >= 70) return "bg-emerald-500"
-    if (score >= 40) return "bg-amber-500"
-    return "bg-red-500"
-  }
-
-  const scoreToLabel = (score: number | null | undefined): string => {
-    if (score == null) return "No data"
-    if (score >= 70) return "Strong"
-    if (score >= 40) return "Moderate"
-    return "Weak"
-  }
+   requestOpenPanel = () => {
+    void openPanel();
+  };
 
   return (
     <>
@@ -88,7 +379,7 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
             <Badge
               variant="outline"
               className={`cursor-pointer border-white/10 bg-muted/20 hover:bg-muted/30 ${className}`}
-              onClick={handleClick}
+              onClick={requestOpenPanel}
             >
               <BarChart3 className={`${iconSize} mr-1 text-muted-foreground`} />
               <span className={`${textSize} text-muted-foreground`}>
@@ -97,7 +388,7 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
             </Badge>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
-            <div className="text-xs space-y-1">
+            <div className="space-y-1 text-xs">
               <div className="font-medium">Credibility Data</div>
               <div>{available} of {total} dimensions have data</div>
               <div className="text-muted-foreground">Click to expand</div>
@@ -105,139 +396,18 @@ export function CredibilityBadge({ domain, className = "", size = "md" }: Credib
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-
       {showPanel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowPanel(false)}
-          />
-          <div className="relative z-10 w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl border border-white/10 bg-[var(--news-bg-secondary)] p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-serif text-base font-semibold text-foreground">
-                Source Credibility
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPanel(false)}
-                className="text-muted-foreground hover:text-foreground text-sm"
-              >
-                Close
-              </button>
-            </div>
-
-            {loading && (
-              <div className="space-y-3 py-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="h-3 w-32 bg-muted/30 rounded animate-pulse" />
-                    <div className="h-2 w-full bg-muted/20 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {error && !loading && (
-              <div className="py-4 text-center text-sm text-muted-foreground">
-                {error}
-              </div>
-            )}
-
-            {!loading && !error && dimensionEntries.length === 0 && (
-              <div className="py-4 text-center text-sm text-muted-foreground">
-                No credibility data available for this source.
-              </div>
-            )}
-
-            {!loading && !error && dimensionEntries.length > 0 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
-                    <span className="block text-[10px] font-mono text-muted-foreground/60 uppercase">
-                      Domain
-                    </span>
-                    <span className="text-xs font-medium text-foreground truncate block">
-                      {profile?.domain ?? domain}
-                    </span>
-                  </div>
-                  <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
-                    <span className="block text-[10px] font-mono text-muted-foreground/60 uppercase">
-                      Available
-                    </span>
-                    <span className="text-xs font-medium text-foreground">
-                      {available}/{total}
-                    </span>
-                  </div>
-                  <div className="rounded border border-white/5 bg-muted/10 p-2 text-center">
-                    <span className="block text-[10px] font-mono text-muted-foreground/60 uppercase">
-                      Status
-                    </span>
-                    <span className="text-xs font-medium text-foreground">
-                      {profile?.status ?? "Unknown"}
-                    </span>
-                  </div>
-                </div>
-
-                {dimensionEntries.map(([key, dim]) => {
-                  const score = dim.score
-                  const isNil = score == null
-                  return (
-                    <details key={key} className="group border border-white/5 rounded-lg p-3">
-                      <summary className="cursor-pointer flex items-center justify-between gap-2">
-                        <span className="text-xs font-mono text-foreground/80 capitalize">
-                          {key.replace(/_/g, " ")}
-                        </span>
-                        <span className="text-[10px] font-mono text-muted-foreground">
-                          {isNil ? "No data" : scoreToLabel(score)}
-                        </span>
-                      </summary>
-                      <div className="mt-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${scoreToColor(score)}`}
-                              style={{ width: isNil ? "0%" : `${Math.min(100, score as number)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-mono text-muted-foreground min-w-[3ch]">
-                            {isNil ? "-" : `${Math.round(score as number)}`}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground/70">
-                          {dim.explanation ?? ""}
-                        </p>
-                        {dim.provenance && dim.provenance.length > 0 && (
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-mono uppercase text-muted-foreground/50">
-                              Data Sources
-                            </span>
-                            {dim.provenance.map((p, pi) => (
-                              <div key={pi} className="text-[10px] text-muted-foreground">
-                                {p.url ? (
-                                  <a
-                                    href={p.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline hover:text-foreground"
-                                  >
-                                    {p.source}
-                                  </a>
-                                ) : (
-                                  <span>{p.source}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </details>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        <CredibilityPanel
+          available={available}
+          dimensions={dimensions}
+          domain={domain}
+          error={error}
+          loading={loading}
+          onClose={closePanel}
+          profile={profile}
+          total={total}
+        />
       )}
     </>
-  )
-}
+  );
+};

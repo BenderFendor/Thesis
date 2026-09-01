@@ -161,3 +161,120 @@ Fix:
 - Leave generic 403 bypass disabled unless a targeted test sets `THESIS_CLOUDSCRAPER_GENERIC_BLOCKS=1`; Bloomberg generic 403 probing hung in live testing.
 - Keep `THESIS_CLOUDSCRAPER_HARD_TIMEOUT_SECONDS` set or defaulted so the fallback returns the direct fetch outcome with `fallback_error=cloudscraper_timeout`.
 - Record the blocked URL as `access_barrier` plus `fallback_error`; do not treat it as a missing author-page signal.
+
+## Quality-hardening integration hazards
+
+- `next/font` loaders must be separate module-scope constants. Combining
+  multiple loader calls in one declaration makes the Next build fail.
+- `react18-json-view` imports `src/style.css`; a typo in that path is a build
+  failure, not a harmless style omission.
+- The Unicode-regexp mechanical codemod must operate on AST regex literals.
+  A text scan can rewrite URL paths, imports, and JSX closing tags.
+- The backend cycle check must remain clean. Shared evidence-table metadata
+  belongs in `backend/app/models/evidence_tables.py`, which neither the
+  database module nor the evidence model imports back through.
+- `scripts/check-crap.mjs` validates the upstream JSON report status as well as
+  the subprocess status, because a successful process can still report a
+  failed threshold gate.
+- The stop-hook must use the repository-pinned frontend Oxlint binary. The
+  global Oxlint 1.71 binary does not register the React rules used by the
+  pinned 1.80 configuration and fails before linting. The hook now resolves
+  `frontend/node_modules/.bin/oxlint` first and prepends its bin directory so
+  `tsgolint` is available.
+- `scripts/tsconfig.json` must explicitly include `types: ["node"]` when its
+  compiler is invoked from the repository root. A root TypeScript installation
+  otherwise ignores the Node declarations stored under the frontend package.
+- The root Next layout must use `next/script` children for the appearance
+  bootstrap. Direct `dangerouslySetInnerHTML` violates the shared AST-grep
+  rule; the `Script` path preserves the blocking inline behavior without raw
+  HTML injection.
+## Repo-wide quality gate is still red after focused repairs
+
+Symptom:
+
+`./verify.sh` and `scripts/self-test` do not reach a fully green repository
+because the strict lint, metric, backend regression, schema-parity, dead-code,
+and duplication checks still have findings. The frontend TypeScript compiler,
+frontend Jest suite, CLI checks, dependency-cycle check, and CCCC hard gate are
+currently green.
+
+Fresh census (2026-09-01, superseded by the unified closure census below):
+
+- CCCC: 0 hard violations across 10,036 functions in 587 files. The hard rule
+  is `CC > 10` or cognitive complexity `> 15`; this is a floor to preserve.
+- Strict Oxlint: 13,698 errors and 341 warnings across 147 files. The largest
+  error families are readonly parameter types (2,468), magic numbers (1,575),
+  JSX depth (1,146), variable ordering (1,093), ternaries (813), function
+  style (716), strict booleans (602), and one-var declarations (531).
+- Maintainability index: 3,824 functions, 233 below MI 50, 494 warnings below
+  MI 60, and a minimum of 12.8 across 83 failing files.
+- CRAP: 2,562 methods in the coverage-first report; 1,316 are measured and
+  1,246 are unmeasured. Sixty-eight measured methods exceed the configured
+  threshold of 30; the maximum is 110. Unmeasured methods are a coverage
+  problem, not evidence that the code is safe.
+- Backend Ruff: 30 findings, mostly missing docstrings, plus an undefined
+  `rows_inserted`, an unused import, a simplifiable loop, and a deprecated
+  `Callable` import.
+- Backend tests: 723 passed, 10 failed, and 3 were deselected. All failures
+  are in `tests/test_propaganda_scorer.py`; `SourceAnalysisScorer.score_source`
+  calls `_llm_score_axes`, but the method is outside the class after an
+  indentation/refactor regression.
+- CLI schema parity fails because generated OpenAPI descriptions differ from
+  the current news route declarations. CLI typecheck, CLI tests, import
+  resolution, dependency cycles, and frontend Jest pass.
+- Dead-code analysis reports 105 unused exports, 3 duplicate exports, 1 unused
+  development dependency, and 11 configuration hints. Duplication reports 95
+  clone groups and 1.11% duplicated code; the command exits 0 but remains a
+  cleanup target for the campaign.
+- The repo-wide `anti-slop/no-module-mocking` rule is still an Oxlint error.
+  The application/test scan found zero forbidden module-mocking calls. Rule
+  fixtures are the only intentional invalid examples. Tests must render real
+  components and run production modules with representative typed inputs;
+  boundary injection is allowed for deterministic network, fetch, or browser
+  I/O, but not to replace the component or implementation under test.
+
+Latest unified census (2026-09-01):
+
+- CCCC is 0 hard violations across 10,221 functions.
+- Strict Oxlint is 13,118 errors and 341 warnings across 147 files. The
+  largest families are readonly parameter types (2,551), magic numbers
+  (1,508), JSX depth (1,123), variable ordering (1,120), ternaries (765),
+  function style (692), strict booleans (570), and one-var (538).
+- Maintainability is 3,884 functions, 230 below MI 50, 499 below MI 60, and
+  minimum MI 12.8.
+- CRAP is 2,630 methods, 1,222 covered methods, 1,408 N/A methods, 51 above
+  threshold 30, and maximum 110.
+- Backend Ruff and formatting pass; backend tests pass 735 with 3 deselected;
+  OpenAPI export and CLI schema parity pass. Frontend TypeScript, Jest,
+  build, imports, CLI checks, and dependency cycles also pass.
+
+Do not restart cleanup from the first reported line. Use the owned work
+packets in the current handoff: fix all applicable rule families in a file,
+then run its behavior tests and metric probes before moving to the next slice.
+
+Do not lower thresholds, add exclusions, add suppression comments, or replace
+real behavior with mock modules or mock components. The work is a coordinated
+closure campaign, not a sequence of unrelated one-file lint edits:
+
+1. Repair the `SourceAnalysisScorer` class-boundary regression and the OpenAPI
+   description drift. Run backend tests and `npm run cli:schema:check` before
+   metric cleanup so behavior and generated contracts are stable.
+2. Keep CCCC at zero while fixing the strict Oxlint findings in disjoint
+   ownership slices. Start with the largest files and rule families, but apply
+   semantic changes for JSX depth, strict types, function style, and React
+   effects instead of blindly formatting them.
+3. Refactor the highest-CRAP and lowest-MI functions together. Add or improve
+   behavior coverage with real production modules and representative payloads;
+   coverage changes must be tied to a behavior assertion, not a mock-only test.
+4. Re-run dead-code and duplication checks after exports and component
+   boundaries settle. Remove an export or dependency only after checking all
+   repository references.
+5. Integrate by running `scripts/self-test`, then `./verify.sh` and the direct
+   metric commands. A targeted pass is not completion while a repo-wide gate
+   remains red.
+
+The next work packets are: backend behavior/schema repair; frontend
+component/app lint and metric slices; frontend library/hooks lint and metric
+slices; scripts lint/type safety; test-confidence and coverage improvements;
+and a final integrator pass. Each packet owns explicit files, records its
+before/after metrics, and must leave the full verification command runnable.

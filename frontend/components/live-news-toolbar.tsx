@@ -1,6 +1,6 @@
 "use client"
 
-import { Volume2, VolumeX, RefreshCw, Plus } from "lucide-react"
+import { Plus, RefreshCw, Volume2, VolumeX } from "lucide-react"
 
 interface LiveNewsToolbarProps {
   layout: "2x2" | "3x3" | "auto"
@@ -33,7 +33,7 @@ export function LiveNewsToolbar({
             <button
               key={opt}
               type="button"
-              onClick={() => onLayoutChange(opt)}
+              onClick={() =>{  onLayoutChange(opt); }}
               className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] rounded-sm transition-colors ${
                 layout === opt
                   ? "bg-primary/20 text-primary"

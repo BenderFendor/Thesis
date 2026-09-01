@@ -1,0 +1,96 @@
+name: Quality hardening targeted checks
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - "frontend/app/saved/**"
+      - "frontend/app/sources/[source]/debug/**"
+      - "frontend/components/credibility-badge.tsx"
+      - "frontend/components/highlight-toolbar.tsx"
+      - "frontend/components/reporter-profile.tsx"
+      - "frontend/components/source-sidebar.tsx"
+      - "frontend/features/intelligence-atlas/atlas-entity-list.tsx"
+      - "frontend/features/intelligence-atlas/atlas-stage-shell.tsx"
+      - "frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx"
+      - "frontend/features/intelligence-atlas/lib/atlas-force-layout.ts"
+      - "frontend/hooks/use-scroll-personalization.ts"
+      - "frontend/lib/api.ts"
+      - "frontend/lib/feed-ranking.ts"
+      - ".github/workflows/quality-hardening-targeted.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: quality-hardening-targeted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install analyzers
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+      - name: Recent refactor Oxlint
+        run: |
+          set +e
+          files=(
+            "frontend/app/saved/page.tsx"
+            "frontend/app/saved/saved-workspace-model.ts"
+            "frontend/app/saved/saved-workspace-view.tsx"
+            "frontend/app/saved/use-saved-workspace-controller.ts"
+            "frontend/app/sources/[source]/debug/page.tsx"
+            "frontend/app/sources/[source]/debug/source-debug-view.tsx"
+            "frontend/components/credibility-badge.tsx"
+            "frontend/components/highlight-toolbar.tsx"
+            "frontend/components/reporter-profile.tsx"
+            "frontend/components/source-sidebar.tsx"
+            "frontend/features/intelligence-atlas/atlas-entity-list.tsx"
+            "frontend/features/intelligence-atlas/atlas-stage-shell.tsx"
+            "frontend/features/intelligence-atlas/intelligence-atlas-workspace.tsx"
+            "frontend/features/intelligence-atlas/lib/atlas-force-layout.ts"
+            "frontend/hooks/use-scroll-personalization.ts"
+            "frontend/lib/feed-ranking.ts"
+          )
+          status=0
+          for file in "${files[@]}"; do
+            echo "::group::Oxlint $file"
+            PATH="$PWD/frontend/node_modules/.bin:$PATH" \
+              timeout 20s frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix "$file"
+            code=$?
+            if [ "$code" -ne 0 ]; then
+              echo "oxlint exit $code for $file"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
+      - name: API Oxlint
+        run: |
+          PATH="$PWD/frontend/node_modules/.bin:$PATH" \
+            timeout 2m frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix \
+            frontend/lib/api.ts
+      - name: TypeScript
+        run: |
+          rm -f frontend/tsconfig.tsbuildinfo
+          npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+      - name: Import resolution
+        run: node scripts/check-imports.mjs
+      - name: Maintainability
+        run: npm run quality:maintainability -- --strict
+      - name: CRAP
+        run: npm --prefix frontend run crap

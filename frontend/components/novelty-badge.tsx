@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { NoveltyScoreResponse } from "@/lib/api";
 import { fetchNoveltyScore } from "@/lib/api";
@@ -18,19 +18,19 @@ export function NoveltyBadge({
   className = "",
 }: NoveltyBadgeProps) {
   const { data: novelty, isLoading: loading, error } = useQuery<NoveltyScoreResponse>({
-    queryKey: ["novelty-score", articleId, readingHistory],
-    queryFn: () => fetchNoveltyScore(articleId, readingHistory),
     enabled: readingHistory.length > 0,
+    queryFn: () => fetchNoveltyScore(articleId, readingHistory),
+    queryKey: ["novelty-score", articleId, readingHistory],
     retry: 1,
   });
 
   if (readingHistory.length === 0) {
-    return null;
+    return;
   }
 
   if (loading) {
     return (
-      <Badge variant="outline" className={`${className}`}>
+      <Badge variant="outline" className={className}>
         <Loader2 className="w-3 h-3 animate-spin mr-1" />
         <span className="text-[10px]">Checking...</span>
       </Badge>
@@ -38,17 +38,17 @@ export function NoveltyBadge({
   }
 
   if (error || !novelty) {
-    return null;
+    return;
   }
 
-  const score = novelty.novelty_score;
-  const label = score >= 0.7 ? "New topic" : score >= 0.4 ? "Related" : "Similar";
-  const color =
+  const score = novelty.novelty_score,
+   label = score >= 0.7 ? "New topic" : (score >= 0.4 ? "Related" : "Similar"),
+   color =
     score >= 0.7
       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
-      : score >= 0.4
+      : (score >= 0.4
       ? "bg-amber-500/15 text-amber-400 border-amber-500/40"
-      : "bg-slate-500/15 text-slate-400 border-slate-500/40";
+      : "bg-slate-500/15 text-slate-400 border-slate-500/40");
 
   return (
     <Badge

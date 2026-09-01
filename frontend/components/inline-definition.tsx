@@ -19,16 +19,16 @@ export function InlineDefinitionPopover({
   setOpen,
   anchorPosition,
 }: InlineDefinitionPopoverProps) {
-  if (!open || !result) return null;
+  if (!open || !result) {return;}
 
-  const x = anchorPosition?.x ?? 0;
-  const y = anchorPosition?.y ?? 0;
+  const x = anchorPosition?.x ?? 0,
+   y = anchorPosition?.y ?? 0;
 
   return (
     <div
-      style={{ position: "absolute", left: x, top: y }}
+      style={{ left: x, position: "absolute", top: y }}
       className="z-50 max-w-xs rounded-md border bg-white p-3 shadow-lg text-sm"
-      onClick={() => setOpen(false)}
+      onClick={() =>{  setOpen(false); }}
     >
       <div className="font-semibold">{result.term}</div>
       <div className="mt-1 text-gray-700">
@@ -39,4 +39,4 @@ export function InlineDefinitionPopover({
 }
 
 export default InlineDefinitionPopover;
-// single component kept
+// Single component kept

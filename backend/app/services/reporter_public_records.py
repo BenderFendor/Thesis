@@ -6,9 +6,10 @@ import asyncio
 import json
 import re
 from collections import Counter, OrderedDict
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from html import unescape
 from typing import Any
-from collections.abc import Iterable
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -388,11 +389,20 @@ def _strip_section_or_beat_suffix(text: str) -> str:
 
 def _is_non_person_byline(text: str) -> bool:
     lowered = text.lower()
+    return _is_non_person_label(text, lowered) or _has_non_person_pattern(text)
+
+
+def _is_non_person_label(text: str, lowered: str) -> bool:
     return (
         not text
         or lowered in _NON_PERSON_AUTHOR_LABELS
         or any(phrase in lowered for phrase in _NON_PERSON_AUTHOR_PHRASES)
-        or bool(_ORGANIZATION_AUTHOR_PATTERN.search(text))
+    )
+
+
+def _has_non_person_pattern(text: str) -> bool:
+    return (
+        bool(_ORGANIZATION_AUTHOR_PATTERN.search(text))
         or bool(_ROLE_AUTHOR_PATTERN.search(text))
         or bool(_GENERIC_BYLINE_PATTERN.search(text))
         or bool(_GENERIC_BYLINE_EXACT_PATTERN.match(text))
@@ -430,50 +440,61 @@ def clean_author_name(value: str | None) -> str | None:
     return text
 
 
-def _collect_author_objects(payload: Any) -> list[dict[str, Any]]:
+def _author_objects_from_mapping(payload: dict[str, Any]) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
-    if isinstance(payload, dict):
-        author = payload.get("author")
-        if isinstance(author, list):
-            for item in author:
-                if isinstance(item, dict):
-                    results.append(item)
-                elif isinstance(item, str):
-                    results.append({"name": item})
-        elif isinstance(author, dict):
-            results.append(author)
-        elif isinstance(author, str):
-            results.append({"name": author})
+    author = payload.get("author")
+    if isinstance(author, list):
+        for item in author:
+            if isinstance(item, dict):
+                results.append(item)
+            elif isinstance(item, str):
+                results.append({"name": item})
+    elif isinstance(author, dict):
+        results.append(author)
+    elif isinstance(author, str):
+        results.append({"name": author})
 
-        graph = payload.get("@graph")
-        if isinstance(graph, list):
-            for item in graph:
-                results.extend(_collect_author_objects(item))
-    elif isinstance(payload, list):
-        for item in payload:
+    graph = payload.get("@graph")
+    if isinstance(graph, list):
+        for item in graph:
             results.extend(_collect_author_objects(item))
     return results
 
 
-def _collect_json_ld_publishers(payload: Any) -> list[str]:
-    publishers: list[str] = []
+def _collect_author_objects(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, dict):
-        publisher = payload.get("publisher") or payload.get("sourceOrganization")
-        if isinstance(publisher, dict):
-            name = publisher.get("name")
-            if isinstance(name, str) and name.strip():
-                publishers.append(name.strip())
-        elif isinstance(publisher, str) and publisher.strip():
-            publishers.append(publisher.strip())
+        return _author_objects_from_mapping(payload)
+    if isinstance(payload, list):
+        return [author for item in payload for author in _collect_author_objects(item)]
+    return []
 
-        graph = payload.get("@graph")
-        if isinstance(graph, list):
-            for item in graph:
-                publishers.extend(_collect_json_ld_publishers(item))
-    elif isinstance(payload, list):
-        for item in payload:
-            publishers.extend(_collect_json_ld_publishers(item))
+
+def _publisher_name(value: Any) -> str | None:
+    if isinstance(value, dict):
+        value = value.get("name")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _collect_publishers_from_mapping(payload: dict[str, Any]) -> list[str]:
+    publishers: list[str] = []
+    publisher = payload.get("publisher") or payload.get("sourceOrganization")
+    name = _publisher_name(publisher)
+    if name:
+        publishers.append(name)
+    graph = payload.get("@graph")
+    if isinstance(graph, list):
+        publishers.extend(_collect_json_ld_publishers(graph))
     return publishers
+
+
+def _collect_json_ld_publishers(payload: Any) -> list[str]:
+    if isinstance(payload, dict):
+        return _collect_publishers_from_mapping(payload)
+    if isinstance(payload, list):
+        return [publisher for item in payload for publisher in _collect_json_ld_publishers(item)]
+    return []
 
 
 _AUTHOR_META_KEYS = {
@@ -507,36 +528,77 @@ def _meta_entries(html: str) -> list[tuple[str, str]]:
     return entries
 
 
+def _metadata_entry_data(
+    key: str, content: str, page_url: str
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    if key in _AUTHOR_META_KEYS:
+        if content.startswith(("http://", "https://", "/")):
+            return [], [urljoin(page_url, content)], [], []
+        names = [
+            name
+            for part in re.split(r"\s+(?:and|with)\s+|[,;]", content)
+            if (name := clean_author_name(part))
+        ]
+        return names, [], [], []
+
+    if key not in _PUBLISHER_META_KEYS:
+        return [], [], [], []
+    cleaned = _strip_html(content).strip()
+    if cleaned.startswith("@"):
+        cleaned = cleaned[1:].strip()
+    if not cleaned:
+        return [], [], [], []
+    if key == "og:site_name":
+        return [], [], [], [cleaned]
+    return [], [], [cleaned], []
+
+
 def _parse_metadata_author_data(html: str, page_url: str) -> dict[str, list[str]]:
     names: list[str] = []
     author_pages: list[str] = []
     publishers: list[str] = []
     site_names: list[str] = []
     for key, content in _meta_entries(html):
-        if key in _AUTHOR_META_KEYS:
-            if content.startswith(("http://", "https://", "/")):
-                author_pages.append(urljoin(page_url, content))
-                continue
-            for part in re.split(r"\s+(?:and|with)\s+|[,;]", content):
-                name = clean_author_name(part)
-                if name:
-                    names.append(name)
-        elif key in _PUBLISHER_META_KEYS:
-            cleaned = _strip_html(content).strip()
-            if cleaned.startswith("@"):
-                cleaned = cleaned[1:].strip()
-            if not cleaned:
-                continue
-            if key == "og:site_name":
-                site_names.append(cleaned)
-            else:
-                publishers.append(cleaned)
+        entry_names, entry_pages, entry_publishers, entry_sites = _metadata_entry_data(
+            key, content, page_url
+        )
+        names.extend(entry_names)
+        author_pages.extend(entry_pages)
+        publishers.extend(entry_publishers)
+        site_names.extend(entry_sites)
     return {
         "names": _ordered_unique(names),
         "author_pages": _ordered_unique(author_pages),
         "publisher_names": _ordered_unique(publishers),
         "site_names": _ordered_unique(site_names),
     }
+
+
+def _parse_json_ld_payload(raw_json: str) -> Any | None:
+    try:
+        return json.loads(raw_json.strip())
+    except json.JSONDecodeError:
+        return None
+
+
+def _json_ld_author_links(
+    author: dict[str, Any], reporter_name: str, page_url: str
+) -> tuple[list[str], list[str]]:
+    name = author.get("name")
+    if not _name_matches(name if isinstance(name, str) else None, reporter_name):
+        return [], []
+
+    author_pages = []
+    if isinstance(author.get("url"), str):
+        author_pages.append(urljoin(page_url, author["url"]))
+
+    same_as = author.get("sameAs")
+    social_links: list[str] = []
+    if isinstance(same_as, list):
+        social_links.extend(urljoin(page_url, value) for value in same_as if isinstance(value, str))
+    elif isinstance(same_as, str):
+        social_links.append(urljoin(page_url, same_as))
+    return author_pages, social_links
 
 
 def _parse_json_ld_author_data(
@@ -546,24 +608,13 @@ def _parse_json_ld_author_data(
     social_links: list[str] = []
 
     for raw_json in _JSON_LD_PATTERN.findall(html):
-        try:
-            payload = json.loads(raw_json.strip())
-        except json.JSONDecodeError:
+        payload = _parse_json_ld_payload(raw_json)
+        if payload is None:
             continue
-
         for author in _collect_author_objects(payload):
-            name = author.get("name")
-            if not _name_matches(name if isinstance(name, str) else None, reporter_name):
-                continue
-            if isinstance(author.get("url"), str):
-                author_pages.append(urljoin(page_url, author["url"]))
-            same_as = author.get("sameAs")
-            if isinstance(same_as, list):
-                social_links.extend(
-                    urljoin(page_url, value) for value in same_as if isinstance(value, str)
-                )
-            elif isinstance(same_as, str):
-                social_links.append(urljoin(page_url, same_as))
+            pages, links = _json_ld_author_links(author, reporter_name, page_url)
+            author_pages.extend(pages)
+            social_links.extend(links)
 
     return {
         "author_pages": _ordered_unique(author_pages),
@@ -596,77 +647,145 @@ def _author_name_from_meta(html: str) -> str | None:
     return match.group(1).strip() or None
 
 
-def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any]:
-    """Extract possible author names/pages from an article page without a known name."""
-    names: list[str] = []
-    author_pages: list[str] = []
-    social_links: list[str] = []
-    structured_person_names: list[str] = []
-    microdata_author_names: list[str] = []
-    metadata_author_names: list[str] = []
-    publisher_names: list[str] = []
-    site_names: list[str] = []
+@dataclass(slots=True)
+class _AuthorCandidateSignals:
+    names: list[str] = field(default_factory=list)
+    author_pages: list[str] = field(default_factory=list)
+    social_links: list[str] = field(default_factory=list)
+    structured_person_names: list[str] = field(default_factory=list)
+    microdata_author_names: list[str] = field(default_factory=list)
+    metadata_author_names: list[str] = field(default_factory=list)
+    publisher_names: list[str] = field(default_factory=list)
+    site_names: list[str] = field(default_factory=list)
 
+
+def _author_types(author: dict[str, Any]) -> list[Any]:
+    raw_type = author.get("@type")
+    return raw_type if isinstance(raw_type, list) else [raw_type]
+
+
+def _extend_same_as(
+    signals: _AuthorCandidateSignals,
+    same_as: Any,
+    page_url: str,
+) -> None:
+    if isinstance(same_as, str):
+        signals.social_links.append(urljoin(page_url, same_as))
+        return
+    if isinstance(same_as, list):
+        signals.social_links.extend(
+            urljoin(page_url, value) for value in same_as if isinstance(value, str)
+        )
+
+
+def _collect_json_ld_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_json in _JSON_LD_PATTERN.findall(html):
         try:
             payload = json.loads(raw_json.strip())
         except json.JSONDecodeError:
             continue
-        publisher_names.extend(_collect_json_ld_publishers(payload))
+        signals.publisher_names.extend(_collect_json_ld_publishers(payload))
         for author in _collect_author_objects(payload):
             name = clean_author_name(author.get("name"))
             if name:
-                names.append(name)
-                raw_type = author.get("@type")
-                author_types = raw_type if isinstance(raw_type, list) else [raw_type]
-                if "Person" in author_types:
-                    structured_person_names.append(name)
-            if isinstance(author.get("url"), str):
-                author_pages.append(urljoin(page_url, author["url"]))
-            same_as = author.get("sameAs")
-            if isinstance(same_as, list):
-                social_links.extend(
-                    urljoin(page_url, value) for value in same_as if isinstance(value, str)
-                )
-            elif isinstance(same_as, str):
-                social_links.append(urljoin(page_url, same_as))
+                signals.names.append(name)
+                if "Person" in _author_types(author):
+                    signals.structured_person_names.append(name)
+            url = author.get("url")
+            if isinstance(url, str):
+                signals.author_pages.append(urljoin(page_url, url))
+            _extend_same_as(signals, author.get("sameAs"), page_url)
+    return signals
 
-    metadata_authors = _parse_metadata_author_data(html, page_url)
-    names.extend(metadata_authors["names"])
-    author_pages.extend(metadata_authors["author_pages"])
-    metadata_author_names.extend(metadata_authors["names"])
-    publisher_names.extend(metadata_authors["publisher_names"])
-    site_names.extend(metadata_authors["site_names"])
+
+def _collect_metadata_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    metadata = _parse_metadata_author_data(html, page_url)
+    return _AuthorCandidateSignals(
+        names=list(metadata["names"]),
+        author_pages=list(metadata["author_pages"]),
+        metadata_author_names=list(metadata["names"]),
+        publisher_names=list(metadata["publisher_names"]),
+        site_names=list(metadata["site_names"]),
+    )
+
+
+def _collect_microdata_candidate_signals(html: str) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_author in _ITEMPROP_AUTHOR_PATTERN.findall(html):
-        author_text = clean_author_name(raw_author)
-        if author_text:
-            names.append(author_text)
-            microdata_author_names.append(author_text)
+        author = clean_author_name(raw_author)
+        if author:
+            signals.names.append(author)
+            signals.microdata_author_names.append(author)
+    return signals
 
+
+def _collect_anchor_candidate_signals(
+    html: str,
+    page_url: str,
+) -> _AuthorCandidateSignals:
+    signals = _AuthorCandidateSignals()
     for raw_attrs, raw_text in _ANCHOR_PATTERN.findall(html):
         attrs = _parse_tag_attrs(raw_attrs)
         href = attrs.get("href")
         if not href:
             continue
         absolute = urljoin(page_url, href)
-        rel = attrs.get("rel", "")
-        text = clean_author_name(raw_text)
-        if not text:
+        author_name = clean_author_name(raw_text)
+        if not author_name:
             continue
-        if "author" in rel.lower() or _AUTHOR_PATH_PATTERN.search(urlparse(absolute).path):
-            names.append(text)
-            author_pages.append(absolute)
+        if "author" in attrs.get("rel", "").lower() or _AUTHOR_PATH_PATTERN.search(
+            urlparse(absolute).path
+        ):
+            signals.names.append(author_name)
+            signals.author_pages.append(absolute)
+    return signals
 
+
+def _merge_candidate_signals(groups: list[_AuthorCandidateSignals]) -> _AuthorCandidateSignals:
+    merged = _AuthorCandidateSignals()
+    for group in groups:
+        merged.names.extend(group.names)
+        merged.author_pages.extend(group.author_pages)
+        merged.social_links.extend(group.social_links)
+        merged.structured_person_names.extend(group.structured_person_names)
+        merged.microdata_author_names.extend(group.microdata_author_names)
+        merged.metadata_author_names.extend(group.metadata_author_names)
+        merged.publisher_names.extend(group.publisher_names)
+        merged.site_names.extend(group.site_names)
+    return merged
+
+
+def _candidate_signal_payload(signals: _AuthorCandidateSignals) -> dict[str, Any]:
     return {
-        "names": _ordered_unique(names),
-        "author_pages": _ordered_unique(author_pages),
-        "social_links": _ordered_unique(social_links),
-        "structured_person_names": _ordered_unique(structured_person_names),
-        "microdata_author_names": _ordered_unique(microdata_author_names),
-        "metadata_author_names": _ordered_unique(metadata_author_names),
-        "publisher_names": _ordered_unique(publisher_names),
-        "site_names": _ordered_unique(site_names),
+        "names": _ordered_unique(signals.names),
+        "author_pages": _ordered_unique(signals.author_pages),
+        "social_links": _ordered_unique(signals.social_links),
+        "structured_person_names": _ordered_unique(signals.structured_person_names),
+        "microdata_author_names": _ordered_unique(signals.microdata_author_names),
+        "metadata_author_names": _ordered_unique(signals.metadata_author_names),
+        "publisher_names": _ordered_unique(signals.publisher_names),
+        "site_names": _ordered_unique(signals.site_names),
     }
+
+
+def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any]:
+    """Extract possible author names/pages from an article page without a known name."""
+    signals = _merge_candidate_signals(
+        [
+            _collect_json_ld_candidate_signals(html, page_url),
+            _collect_metadata_candidate_signals(html, page_url),
+            _collect_microdata_candidate_signals(html),
+            _collect_anchor_candidate_signals(html, page_url),
+        ]
+    )
+    return _candidate_signal_payload(signals)
 
 
 async def _fetch_article_author_signals(
@@ -703,14 +822,8 @@ async def _fetch_article_author_signals(
     }
 
 
-def _collect_activity_metrics(
-    recent_articles: list[dict[str, Any]],
-) -> tuple[Counter[str], Counter[str], Counter[str], list[str], list[str]]:
-    source_counts: Counter[str] = Counter()
-    category_counts: Counter[str] = Counter()
-    domain_counts: Counter[str] = Counter()
-    article_dates: list[str] = []
-    article_urls = [
+def _fetchable_article_urls(recent_articles: list[dict[str, Any]]) -> list[str]:
+    return [
         str(article["url"])
         for article in recent_articles
         if isinstance(article.get("url"), str)
@@ -718,23 +831,62 @@ def _collect_activity_metrics(
         and _is_fetchable_article_url(str(article["url"]))
     ][:30]
 
+
+def _count_activity_metrics(
+    recent_articles: list[dict[str, Any]],
+) -> tuple[Counter[str], Counter[str], Counter[str], list[str]]:
+    source_counts: Counter[str] = Counter()
+    category_counts: Counter[str] = Counter()
+    domain_counts: Counter[str] = Counter()
+    article_dates: list[str] = []
+
     for article in recent_articles:
-        source = article.get("source")
-        category = article.get("category")
-        published_at = article.get("published_at")
-        url = article.get("url")
-        if isinstance(source, str) and source:
-            source_counts[source] += 1
-        if isinstance(category, str) and category:
-            category_counts[category] += 1
-        if isinstance(url, str) and url:
-            host = _domain(url)
-            if host:
-                domain_counts[host] += 1
-        if isinstance(published_at, str) and published_at:
+        published_at = _count_activity_article(
+            article,
+            source_counts,
+            category_counts,
+            domain_counts,
+        )
+        if published_at:
             article_dates.append(published_at)
 
-    return source_counts, category_counts, domain_counts, article_dates, article_urls
+    return source_counts, category_counts, domain_counts, article_dates
+
+
+def _count_activity_article(
+    article: dict[str, Any],
+    source_counts: Counter[str],
+    category_counts: Counter[str],
+    domain_counts: Counter[str],
+) -> str | None:
+    source = article.get("source")
+    category = article.get("category")
+    published_at = article.get("published_at")
+    url = article.get("url")
+    if isinstance(source, str) and source:
+        source_counts[source] += 1
+    if isinstance(category, str) and category:
+        category_counts[category] += 1
+    if isinstance(url, str) and url:
+        host = _domain(url)
+        if host:
+            domain_counts[host] += 1
+    return published_at if isinstance(published_at, str) and published_at else None
+
+
+def _collect_activity_metrics(
+    recent_articles: list[dict[str, Any]],
+) -> tuple[Counter[str], Counter[str], Counter[str], list[str], list[str]]:
+    source_counts, category_counts, domain_counts, article_dates = _count_activity_metrics(
+        recent_articles
+    )
+    return (
+        source_counts,
+        category_counts,
+        domain_counts,
+        article_dates,
+        _fetchable_article_urls(recent_articles),
+    )
 
 
 async def _fetch_activity_author_signals(
@@ -753,18 +905,26 @@ async def _fetch_activity_author_signals(
     social_links: list[str] = []
     matched_meta_articles = 0
     for result in results:
-        if isinstance(result, BaseException):
-            continue
-        author_pages.extend(
-            value for value in result.get("author_pages", []) if isinstance(value, str)
-        )
-        social_links.extend(
-            value for value in result.get("social_links", []) if isinstance(value, str)
-        )
-        meta_author = result.get("meta_author")
-        if _name_matches(meta_author if isinstance(meta_author, str) else None, reporter_name):
-            matched_meta_articles += 1
+        pages, links, matched = _activity_signal_parts(result, reporter_name)
+        author_pages.extend(pages)
+        social_links.extend(links)
+        matched_meta_articles += matched
     return author_pages, social_links, matched_meta_articles
+
+
+def _activity_signal_parts(
+    result: dict[str, Any] | BaseException,
+    reporter_name: str,
+) -> tuple[list[str], list[str], int]:
+    if isinstance(result, BaseException):
+        return [], [], 0
+    author_pages = [value for value in result.get("author_pages", []) if isinstance(value, str)]
+    social_links = [value for value in result.get("social_links", []) if isinstance(value, str)]
+    meta_author = result.get("meta_author")
+    matched = int(
+        _name_matches(meta_author if isinstance(meta_author, str) else None, reporter_name)
+    )
+    return author_pages, social_links, matched
 
 
 async def build_reporter_activity_summary(

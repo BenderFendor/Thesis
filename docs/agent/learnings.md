@@ -534,6 +534,65 @@ Future Codex agents should:
 - Always try RSS catalog name matching as a fallback when article-source attribution is missing
 - Wikidata employer labels are often multi-word ("The New York Times Company") — use substring matching not exact comparison
 - Build catalog name lookup as a flat dict of base-name → full-name for fast matching
+
+## 2026-09-01 — Real-module tests and safe quality automation
+
+- Keep `anti-slop/no-module-mocking` enabled as a root Oxlint error over
+  `frontend` and `scripts`; test the real component and implementation with
+  typed fetch/service seams instead of module mocks or mock components.
+- Real ESM dependencies such as `react-markdown` and `remark-gfm` need their
+  dependency closure in Next's `transpilePackages` when the Jest suite loads
+  them directly.
+- `node:test` suites do not provide Jest's `expect.hasAssertions()` API; a
+  mechanical test codemod must identify the runner before inserting assertions.
+- A codemod that finds regular expressions must use the TypeScript AST. Text
+  matching for slash-delimited literals can corrupt imports, paths, and JSX.
+- Quality wrappers must propagate the measured report status, not only the
+  subprocess exit code. The CRAP wrapper rejects a JSON report marked failed
+  even when the upstream process exits successfully.
+- When cycle analysis finds a model/database import loop, move shared table
+  metadata into a neutral module rather than adding a lazy import or a runtime
+  fallback that hides the cycle.
+
+## 2026-09-01 — Stop-hook toolchain alignment
+
+Context:
+- The stop hook reported an Oxlint configuration parse failure even though the
+  repository's pinned Oxlint accepted the configuration.
+
+What worked:
+- Resolve `frontend/node_modules/.bin/oxlint` before global tools and prepend
+  its bin directory so the matching `tsgolint` executable is discoverable.
+- Add explicit Node types to the scripts compiler configuration so both the
+  root and frontend TypeScript installations resolve the same declarations.
+- Use `next/script` with inline children for the blocking appearance bootstrap,
+  which keeps the real startup behavior and satisfies the AST-grep rule.
+
+What failed:
+- Removing newer React rules from the configuration would have hidden a tool
+  version mismatch rather than fixing it.
+
+Future Codex agents should:
+- Keep repository-pinned linters and their type-aware helper binaries ahead of
+  global installations in hook runners.
+- Treat framework-required root-layout exceptions as explicit configuration,
+  and verify the production build after changing the layout.
+
+## 2026-09-01 — Unified quality closure planning
+
+The quality campaign is faster and safer when the inventory is taken once and
+then executed by disjoint ownership packets. Current repeatable Oxlint rules
+account for most findings, but JSX depth, strict types, effects, coverage,
+and function size cannot be repaired by a universal formatter. Group the
+mechanical changes by file and rule family, then perform semantic refactors
+against the MI and CRAP hotspot lists in the same slice.
+
+Keep CCCC, TypeScript, behavior tests, and the no-module-mocking scan as
+integration invariants. A test that injects a deterministic network or
+browser boundary is still acceptable, but a module mock or mock component is
+not evidence for CRAP or behavior correctness. Re-run dead-code and
+duplication only after export and component boundaries stabilize; otherwise
+the inventory describes moving targets.
 # 2026-07-21 — Background ingestion needs source-level truth
 
 Context:

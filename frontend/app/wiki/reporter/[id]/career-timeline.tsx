@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import type { ReporterCareerTimeline } from "@/lib/api";
 
 function formatTimelineDate(value?: string | null): string | null {
-  if (!value) return null;
+  if (!value) {return null;}
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  if (Number.isNaN(parsed.getTime())) {return null;}
+  return parsed.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 /**
@@ -18,8 +18,8 @@ function formatTimelineDate(value?: string | null): string | null {
  * of the reporter's outlets resolve to the same accepted owner. Replaces the
  * deleted synthetic coauthor/shared_outlet reporter-graph edges.
  */
-export function CareerTimeline({ data }: { data: ReporterCareerTimeline }) {
-  if (data.timeline.length === 0) return null;
+export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline }>) {
+  if (data.timeline.length === 0) {return;}
 
   return (
     <div className="space-y-3">
@@ -74,9 +74,9 @@ export function CareerTimeline({ data }: { data: ReporterCareerTimeline }) {
 
       <div className="relative space-y-4 border-l border-white/10 pl-6">
         {data.timeline.map((entry, index) => {
-          const start = formatTimelineDate(entry.start_date);
-          const end = formatTimelineDate(entry.end_date);
-          const range =
+          const start = formatTimelineDate(entry.start_date),
+           end = formatTimelineDate(entry.end_date),
+           range =
             start && end ? (start === end ? start : `${start} – ${end}`) : start || end || "Undated";
           return (
             <div key={`${entry.outlet}-${entry.source}-${index}`} className="relative">
@@ -105,11 +105,11 @@ export function CareerTimeline({ data }: { data: ReporterCareerTimeline }) {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {entry.article_count != null ? (
+                  {entry.article_count == null ? null : (
                     <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
                       {entry.article_count} articles
                     </span>
-                  ) : null}
+                  )}
                   {entry.evidence_url ? (
                     <a
                       href={entry.evidence_url}

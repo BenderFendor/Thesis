@@ -1,0 +1,123 @@
+name: Repository quality audit
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths-ignore:
+      - "docs/agents/traces/quality-audit-latest.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install repository analyzers
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+          python -m pip install --quiet radon==6.0.1 vulture==2.14
+          curl -fsSL -o /tmp/cccc.tar.gz https://github.com/moznion/cccc/releases/download/v1.6.0/cccc-v1.6.0-x86_64-unknown-linux-musl.tar.gz
+          echo "8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b  /tmp/cccc.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/cccc-extract
+          tar -xzf /tmp/cccc.tar.gz -C /tmp/cccc-extract
+          CCCC="$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)"
+          test -n "$CCCC"
+          sudo cp "$CCCC" /usr/local/bin/cccc
+      - name: Measure complexity
+        run: cccc backend frontend scripts --config cccc.toml --pretty > /tmp/cccc.json
+      - name: Measure JavaScript and TypeScript maintainability
+        continue-on-error: true
+        run: |
+          npx code-multivitals \
+            'frontend/app/**/*.{js,jsx,ts,tsx}' \
+            'frontend/components/**/*.{js,jsx,ts,tsx}' \
+            'frontend/features/**/*.{js,jsx,ts,tsx}' \
+            'frontend/hooks/**/*.{js,jsx,ts,tsx}' \
+            'frontend/lib/**/*.{js,jsx,ts,tsx}' \
+            'frontend/__tests__/**/*.{js,jsx,ts,tsx}' \
+            'scripts/**/*.{js,mjs,cjs,ts}' \
+            --reporter json -o /tmp/multivitals.json
+      - name: Measure Python maintainability and dead code
+        continue-on-error: true
+        run: |
+          radon mi backend -j -e 'backend/.venv/*,backend/**/__pycache__/*' > /tmp/radon-mi.json
+          vulture backend/app backend/scripts --min-confidence 90 > /tmp/vulture.txt || true
+      - name: Measure duplication
+        continue-on-error: true
+        run: |
+          npx jscpd backend frontend scripts \
+            --min-lines 5 --min-tokens 50 --threshold 3 \
+            --ignore '**/node_modules/**,**/.next/**,**/coverage/**,**/generated/**,frontend/tools/oxlint/**' \
+            --reporters json,console --output /tmp/jscpd > /tmp/jscpd-console.txt 2>&1 || true
+      - name: Check dependency cycles
+        continue-on-error: true
+        run: npm run deps:cycles > /tmp/cycles.txt 2>&1
+      - name: Check lint and types
+        continue-on-error: true
+        run: |
+          npm --prefix frontend run lint > /tmp/oxlint.txt 2>&1 || true
+          npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit > /tmp/tsc.txt 2>&1 || true
+          uvx ruff check backend > /tmp/ruff.txt 2>&1 || true
+      - name: Build audit report
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          def read(path):
+              p=Path(path); return p.read_text(errors='replace') if p.exists() else ''
+          data=json.loads(Path('/tmp/cccc.json').read_text()); funcs=[]
+          def walk(path, items):
+              for f in items:
+                  funcs.append((path,f['line'],f['name'],f['cyclomatic'],f['cognitive'])); walk(path,f.get('children',[]))
+          for file in data['files']: walk(file['path'],file.get('functions',[]))
+          hard=sorted((x for x in funcs if x[3]>10 or x[4]>15),key=lambda x:(-max(x[3]/10,x[4]/15),-x[3]-x[4],x[0],x[1]))
+          warn=sorted((x for x in funcs if (x[3]>8 or x[4]>12) and x not in hard),key=lambda x:(-x[3]-x[4],x[0],x[1]))
+          lines=['# Repository Quality Audit','',f"Commit: `{os.environ.get('GITHUB_SHA','unknown')}`",'', '## Complexity summary','',f"Files: {data['summary']['file_count']}",f"Functions: {data['summary']['function_count']}",f"Parse errors: {data['summary']['parse_error_count']}",f"Cyclomatic max/p95: {data['summary']['cyclomatic']['max']} / {data['summary']['cyclomatic']['p95']}",f"Cognitive max/p95: {data['summary']['cognitive']['max']} / {data['summary']['cognitive']['p95']}",f"Hard violations: {len(hard)}",f"Warning-only: {len(warn)}",'','### Hard complexity violations','','| path:line | function | CC | cognitive |','|---|---|---:|---:|']
+          for p,l,n,cc,cog in hard[:250]: lines.append(f'| `{p}:{l}` | `{n}` | {cc} | {cog} |')
+          mv_path=Path('/tmp/multivitals.json')
+          if mv_path.exists():
+              try:
+                  mv=json.loads(mv_path.read_text()); low=[]
+                  for f in mv.get('files',[]):
+                      for fn in f.get('functions',[]):
+                          mi=fn.get('maintainabilityIndex',100)
+                          if mi<65: low.append((f.get('filePath','?'),fn.get('startLine',0),fn.get('name','?'),mi))
+                  low.sort(key=lambda x:x[3]); lines += ['', '## JS/TS Maintainability Index','',f'Functions below MI 65: {len(low)}','','| path:line | function | MI |','|---|---|---:|']
+                  for p,l,n,mi in low[:200]: lines.append(f'| `{p}:{l}` | `{n}` | {mi} |')
+              except Exception as exc: lines += ['', '## JS/TS Maintainability Index','',f'Parse error: `{exc}`']
+          def section(title,path,max_chars=30000):
+              lines.extend(['',f'## {title}','','```text',(read(path).strip() or '(no output)')[:max_chars],'```'])
+          section('Python Maintainability Index','/tmp/radon-mi.json')
+          section('Dead-code candidates (>=90% confidence)','/tmp/vulture.txt')
+          section('Duplication','/tmp/jscpd-console.txt')
+          section('Dependency cycles','/tmp/cycles.txt')
+          section('Oxlint findings','/tmp/oxlint.txt')
+          section('TypeScript findings','/tmp/tsc.txt')
+          section('Ruff findings','/tmp/ruff.txt')
+          Path('docs/agents/traces/quality-audit-latest.md').write_text('\n'.join(lines)+'\n')
+          PY
+      - name: Commit audit report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/agents/traces/quality-audit-latest.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: record repository quality audit"
+          git push

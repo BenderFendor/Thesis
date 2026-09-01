@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import gc
 import os
+import statistics
 import threading
 import time
-import statistics
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from functools import wraps
 from types import TracebackType
 from typing import Any, cast
@@ -54,10 +54,8 @@ class EndpointMetrics:
         self.call_count += 1
         self.total_time_ms += duration_ms
         self.times_ms.append(duration_ms)
-        if duration_ms < self.min_time_ms:
-            self.min_time_ms = duration_ms
-        if duration_ms > self.max_time_ms:
-            self.max_time_ms = duration_ms
+        self.min_time_ms = min(self.min_time_ms, duration_ms)
+        self.max_time_ms = max(self.max_time_ms, duration_ms)
         self.last_called = time.time()
         if not success:
             self.errors += 1
@@ -264,86 +262,87 @@ class ProfilingSession:
             "thread_count": threading.active_count(),
         }
 
+    @staticmethod
+    def _finite_min(value: float) -> float:
+        return round(value, 2) if value != float("inf") else 0
+
+    @classmethod
+    def _endpoint_summary(cls, key: str, metrics: EndpointMetrics) -> dict[str, Any]:
+        error_percent = metrics.errors / metrics.call_count * 100 if metrics.call_count else 0
+        return {
+            "endpoint": key,
+            "call_count": metrics.call_count,
+            "total_time_ms": round(metrics.total_time_ms, 2),
+            "avg_time_ms": round(metrics.avg_time_ms, 2),
+            "min_time_ms": cls._finite_min(metrics.min_time_ms),
+            "max_time_ms": round(metrics.max_time_ms, 2),
+            "p50_ms": round(metrics.percentile(50), 2),
+            "p95_ms": round(metrics.percentile(95), 2),
+            "p99_ms": round(metrics.percentile(99), 2),
+            "errors": metrics.errors,
+            "errors_percent": round(error_percent, 2),
+        }
+
+    @classmethod
+    def _query_summary(cls, key: str, metrics: QueryMetrics) -> dict[str, Any]:
+        return {
+            "query": key,
+            "call_count": metrics.call_count,
+            "total_time_ms": round(metrics.total_time_ms, 2),
+            "avg_time_ms": round(metrics.avg_time_ms, 2),
+            "min_time_ms": cls._finite_min(metrics.min_time_ms),
+            "max_time_ms": round(metrics.max_time_ms, 2),
+            "errors": metrics.errors,
+        }
+
+    @classmethod
+    def _external_summary(
+        cls, key: tuple[str, str], metrics: ExternalCallMetrics
+    ) -> dict[str, Any]:
+        service, operation = key
+        return {
+            "service": service,
+            "operation": operation,
+            "call_count": metrics.call_count,
+            "total_time_ms": round(metrics.total_time_ms, 2),
+            "avg_time_ms": round(metrics.avg_time_ms, 2),
+            "min_time_ms": cls._finite_min(metrics.min_time_ms),
+            "max_time_ms": round(metrics.max_time_ms, 2),
+            "timeouts": metrics.timeouts,
+            "errors": metrics.errors,
+        }
+
+    def _memory_summary(self) -> dict[str, Any] | None:
+        if not self.memory_samples:
+            return None
+        rss_values = [sample["rss_mb"] for sample in self.memory_samples]
+        return {
+            "samples": len(self.memory_samples),
+            "rss_avg_mb": round(statistics.mean(rss_values), 2),
+            "rss_max_mb": round(max(rss_values), 2),
+            "rss_min_mb": round(min(rss_values), 2),
+        }
+
     def get_summary(self) -> dict[str, Any]:
-        """Get Summary."""
-        endpoint_stats: list[dict[str, Any]] = []
-        for key, endpoint_metrics in self.endpoints.items():
-            endpoint_stats.append(
-                {
-                    "endpoint": key,
-                    "call_count": endpoint_metrics.call_count,
-                    "total_time_ms": round(endpoint_metrics.total_time_ms, 2),
-                    "avg_time_ms": round(endpoint_metrics.avg_time_ms, 2),
-                    "min_time_ms": round(endpoint_metrics.min_time_ms, 2)
-                    if endpoint_metrics.min_time_ms != float("inf")
-                    else 0,
-                    "max_time_ms": round(endpoint_metrics.max_time_ms, 2),
-                    "p50_ms": round(endpoint_metrics.percentile(50), 2),
-                    "p95_ms": round(endpoint_metrics.percentile(95), 2),
-                    "p99_ms": round(endpoint_metrics.percentile(99), 2),
-                    "errors": endpoint_metrics.errors,
-                    "errors_percent": round(
-                        endpoint_metrics.errors / endpoint_metrics.call_count * 100,
-                        2,
-                    )
-                    if endpoint_metrics.call_count > 0
-                    else 0,
-                }
-            )
-
-        query_stats: list[dict[str, Any]] = []
-        for key, query_metrics in self.queries.items():
-            query_stats.append(
-                {
-                    "query": key,
-                    "call_count": query_metrics.call_count,
-                    "total_time_ms": round(query_metrics.total_time_ms, 2),
-                    "avg_time_ms": round(query_metrics.avg_time_ms, 2),
-                    "min_time_ms": round(query_metrics.min_time_ms, 2)
-                    if query_metrics.min_time_ms != float("inf")
-                    else 0,
-                    "max_time_ms": round(query_metrics.max_time_ms, 2),
-                    "errors": query_metrics.errors,
-                }
-            )
-
-        external_stats: list[dict[str, Any]] = []
-        for (service, operation), external_metrics in self.external_calls.items():
-            external_stats.append(
-                {
-                    "service": service,
-                    "operation": operation,
-                    "call_count": external_metrics.call_count,
-                    "total_time_ms": round(external_metrics.total_time_ms, 2),
-                    "avg_time_ms": round(external_metrics.avg_time_ms, 2),
-                    "min_time_ms": round(external_metrics.min_time_ms, 2)
-                    if external_metrics.min_time_ms != float("inf")
-                    else 0,
-                    "max_time_ms": round(external_metrics.max_time_ms, 2),
-                    "timeouts": external_metrics.timeouts,
-                    "errors": external_metrics.errors,
-                }
-            )
-
-        memory_stats = None
-        if self.memory_samples:
-            rss_values = [s["rss_mb"] for s in self.memory_samples]
-            memory_stats = {
-                "samples": len(self.memory_samples),
-                "rss_avg_mb": round(statistics.mean(rss_values), 2),
-                "rss_max_mb": round(max(rss_values), 2),
-                "rss_min_mb": round(min(rss_values), 2),
-            }
-
+        """Return normalized endpoint, query, external-call, and memory metrics."""
+        endpoint_stats = [
+            self._endpoint_summary(key, metrics) for key, metrics in self.endpoints.items()
+        ]
+        query_stats = [self._query_summary(key, metrics) for key, metrics in self.queries.items()]
+        external_stats = [
+            self._external_summary(key, metrics) for key, metrics in self.external_calls.items()
+        ]
         return {
             "session_name": self.name,
             "duration_seconds": round(self.duration_seconds, 2),
-            "endpoints": sorted(endpoint_stats, key=lambda x: x["avg_time_ms"], reverse=True),
-            "queries": sorted(query_stats, key=lambda x: x["avg_time_ms"], reverse=True),
-            "external_calls": sorted(external_stats, key=lambda x: x["avg_time_ms"], reverse=True),
-            "memory": memory_stats,
-            "total_requests": sum(e["call_count"] for e in endpoint_stats),
-            "total_errors": sum(e["errors"] for e in endpoint_stats),
+            "endpoints": sorted(endpoint_stats, key=lambda item: item["avg_time_ms"], reverse=True),
+            "queries": sorted(query_stats, key=lambda item: item["avg_time_ms"], reverse=True),
+            "external_calls": sorted(
+                external_stats, key=lambda item: item["avg_time_ms"], reverse=True
+            ),
+            "memory": self._memory_summary(),
+            "total_requests": sum(item["call_count"] for item in endpoint_stats),
+            "total_errors": sum(item["errors"] for item in endpoint_stats),
         }
 
 
@@ -474,55 +473,59 @@ def get_top_slow_endpoints(limit: int = 5) -> list[dict[str, Any]]:
     return endpoints[:limit]
 
 
+def _endpoint_bottleneck(endpoint: dict[str, Any]) -> dict[str, Any] | None:
+    if endpoint["p95_ms"] <= 1000:
+        return None
+    return {
+        "type": "high_latency_endpoint",
+        "target": endpoint["endpoint"],
+        "p95_ms": endpoint["p95_ms"],
+        "call_count": endpoint["call_count"],
+        "severity": "critical" if endpoint["p95_ms"] > 5000 else "warning",
+    }
+
+
+def _query_bottleneck(query: dict[str, Any]) -> dict[str, Any] | None:
+    avg_ms = query["avg_time_ms"]
+    if avg_ms <= 100:
+        return None
+    return {
+        "type": "slow_query",
+        "target": query["query"][:100],
+        "avg_ms": avg_ms,
+        "call_count": query["call_count"],
+        "severity": "critical" if avg_ms > 500 else "warning",
+    }
+
+
+def _external_bottleneck(call: dict[str, Any]) -> dict[str, Any] | None:
+    avg_ms = call["avg_time_ms"]
+    if avg_ms <= 1000 and call["timeouts"] <= 0:
+        return None
+    return {
+        "type": "slow_external_call",
+        "target": f"{call['service']}:{call['operation']}",
+        "avg_ms": avg_ms,
+        "timeouts": call["timeouts"],
+        "severity": "critical" if call["timeouts"] > 0 else "warning",
+    }
+
+
+def _bottleneck_sort_value(item: dict[str, Any]) -> float:
+    return float(item.get("p95_ms", item.get("avg_ms", 0)))
+
+
 def get_bottleneck_summary() -> dict[str, Any]:
     """Generate a summary of performance bottlenecks."""
-    session = get_profiling_session()
-    stats = session.get_summary()
-
-    bottlenecks = []
-
-    for endpoint in stats.get("endpoints", []):
-        if endpoint["p95_ms"] > 1000:
-            bottlenecks.append(
-                {
-                    "type": "high_latency_endpoint",
-                    "target": endpoint["endpoint"],
-                    "p95_ms": endpoint["p95_ms"],
-                    "call_count": endpoint["call_count"],
-                    "severity": "critical" if endpoint["p95_ms"] > 5000 else "warning",
-                }
-            )
-
-    for query in stats.get("queries", []):
-        if query["avg_time_ms"] > 100:
-            bottlenecks.append(
-                {
-                    "type": "slow_query",
-                    "target": query["query"][:100],
-                    "avg_ms": query["avg_ms"],
-                    "call_count": query["call_count"],
-                    "severity": "critical" if query["avg_ms"] > 500 else "warning",
-                }
-            )
-
-    for ext in stats.get("external_calls", []):
-        if ext["avg_time_ms"] > 1000 or ext["timeouts"] > 0:
-            bottlenecks.append(
-                {
-                    "type": "slow_external_call",
-                    "target": f"{ext['service']}:{ext['operation']}",
-                    "avg_ms": ext["avg_ms"],
-                    "timeouts": ext["timeouts"],
-                    "severity": "critical" if ext["timeouts"] > 0 else "warning",
-                }
-            )
-
+    stats = get_profiling_session().get_summary()
+    candidates = [
+        *(_endpoint_bottleneck(item) for item in stats.get("endpoints", [])),
+        *(_query_bottleneck(item) for item in stats.get("queries", [])),
+        *(_external_bottleneck(item) for item in stats.get("external_calls", [])),
+    ]
+    bottlenecks = [item for item in candidates if item is not None]
     return {
         "timestamp": datetime.now(UTC).isoformat(),
         "bottleneck_count": len(bottlenecks),
-        "bottlenecks": sorted(
-            bottlenecks,
-            key=lambda x: x["p95_ms"] if "p95_ms" in x else x["avg_ms"],
-            reverse=True,
-        ),
+        "bottlenecks": sorted(bottlenecks, key=_bottleneck_sort_value, reverse=True),
     }

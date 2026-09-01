@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import { act, renderHook } from "@testing-library/react";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 
 describe("useReadingHistory", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    globalThis.localStorage.clear();
   });
 
-  it("does not rewrite an existing article when it is marked as read again", () => {
+  it("does not rewrite an existing article when it is marked as read again", () => {expect.hasAssertions();
     const { result } = renderHook(() => useReadingHistory());
 
     act(() => {
@@ -20,10 +21,10 @@ describe("useReadingHistory", () => {
     });
 
     expect(result.current.history).toHaveLength(1);
-    expect(result.current.history[0]).toEqual(firstEntry);
+    expect(result.current.history[0]).toStrictEqual(firstEntry);
   });
 
-  it("fills missing metadata once without duplicating the entry", () => {
+  it("fills missing metadata once without duplicating the entry", () => {expect.hasAssertions();
     const { result } = renderHook(() => useReadingHistory());
 
     act(() => {
@@ -37,8 +38,8 @@ describe("useReadingHistory", () => {
     expect(result.current.history).toHaveLength(1);
     expect(result.current.history[0]).toMatchObject({
       articleId: 7,
-      title: "Filled title",
       source: "AP",
+      title: "Filled title",
     });
   });
 });

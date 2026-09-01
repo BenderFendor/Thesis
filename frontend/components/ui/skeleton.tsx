@@ -1,15 +1,18 @@
-import { cn } from "@/lib/utils"
+import type { FunctionComponent } from 'react'
 
-function Skeleton({
-    className,
-    ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-    return (
-        <div
-            className={cn("animate-pulse rounded-md bg-muted", className)}
-            {...props}
-        />
-    )
+import { cn } from '@/lib/utils'
+
+interface SkeletonProps {
+  readonly className?: string
 }
+
+const Skeleton: FunctionComponent<Readonly<SkeletonProps>> = (props) => {
+  const { className } = props;
+
+  return (
+    <div className={cn('animate-pulse rounded-md bg-muted', className)} />
+  );
+};
+
 
 export { Skeleton }

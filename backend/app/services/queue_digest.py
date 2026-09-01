@@ -78,48 +78,8 @@ def _build_digest_prompt(
     articles: list[dict[str, Any]], grouped: dict[str, list[dict[str, Any]]]
 ) -> str:
     """Build the prompt for digest generation."""
-    # Generate category-specific summaries
-    category_sections = []
-    for category, cat_articles in grouped.items():
-        if not cat_articles:
-            continue
-
-        articles_text = "\n\n".join(
-            [
-                (
-                    f"Title: {a.get('title', 'Untitled')}\n"
-                    f"Source: {a.get('source', 'Unknown')}\n"
-                    f"URL: {a.get('url') or a.get('link') or 'N/A'}\n"
-                    f"Summary: {a.get('summary') or a.get('description') or ''}"
-                )
-                for a in cat_articles
-            ]
-        )
-
-        category_sections.append(
-            f"""## {category} ({len(cat_articles)} articles)
-
-Articles:
-{articles_text}"""
-        )
-
-    articles_by_category = "\n\n".join(category_sections)
-
-    # Build a deduplicated reference list of article title -> url for explicit linking
-    seen = set()
-    reference_lines = []
-    for a in articles:
-        title = a.get("title") or "Untitled"
-        url = a.get("url") or a.get("link")
-        if not url:
-            continue
-        key = (title, url)
-        if key in seen:
-            continue
-        seen.add(key)
-        reference_lines.append(f"- [{title}]({url})")
-
-    reference_links = "\n".join(reference_lines)
+    articles_by_category = _category_sections(grouped)
+    reference_links = _reference_links(articles)
 
     return f"""You are a personal research assistant creating a daily briefing for a busy professional.
 
@@ -150,6 +110,37 @@ REFERENCE LINKS:
 """
 
 
+def _category_sections(grouped: dict[str, list[dict[str, Any]]]) -> str:
+    sections = []
+    for category, category_articles in grouped.items():
+        if not category_articles:
+            continue
+        articles_text = "\n\n".join(
+            f"Title: {article.get('title', 'Untitled')}\n"
+            f"Source: {article.get('source', 'Unknown')}\n"
+            f"URL: {article.get('url') or article.get('link') or 'N/A'}\n"
+            f"Summary: {article.get('summary') or article.get('description') or ''}"
+            for article in category_articles
+        )
+        sections.append(
+            f"## {category} ({len(category_articles)} articles)\n\nArticles:\n{articles_text}"
+        )
+    return "\n\n".join(sections)
+
+
+def _reference_links(articles: list[dict[str, Any]]) -> str:
+    seen: set[tuple[Any, Any]] = set()
+    reference_lines = []
+    for article in articles:
+        title = article.get("title") or "Untitled"
+        url = article.get("url") or article.get("link")
+        if not url or (title, url) in seen:
+            continue
+        seen.add((title, url))
+        reference_lines.append(f"- [{title}]({url})")
+    return "\n".join(reference_lines)
+
+
 def _build_structured_articles_block(articles: list[dict[str, Any]] | None) -> str:
     """Build a fenced JSON block with normalized articles for frontend embedding.
 
@@ -157,38 +148,7 @@ def _build_structured_articles_block(articles: list[dict[str, Any]] | None) -> s
     parses the JSON payload inside. Provide a minimal, stable schema so the
     reader UI can create inline cards.
     """
-    normalized: list[dict[str, Any]] = []
-
-    for a in articles or []:
-        # Normalize common fields the frontend expects
-        title = a.get("title") or a.get("headline") or "Untitled"
-        summary = a.get("summary") or a.get("description") or ""
-        url = a.get("url") or a.get("link") or ""
-        image = a.get("image") or a.get("image_url") or "/placeholder.svg"
-        source = a.get("source") or a.get("publisher") or "Unknown"
-        published = a.get("published") or a.get("published_at")
-        category = a.get("category") or "general"
-        author = a.get("author")
-
-        meta = {
-            "retrieval_method": a.get("retrieval_method"),
-            "chroma_id": a.get("chroma_id"),
-            "semantic_score": a.get("semantic_score"),
-        }
-
-        normalized.append(
-            {
-                "title": title,
-                "summary": summary,
-                "url": url,
-                "image": image,
-                "source": source,
-                "published": published,
-                "category": category,
-                "author": author,
-                "meta": meta,
-            }
-        )
+    normalized = [_normalize_digest_article(article) for article in articles or []]
 
     payload = {"articles": normalized, "total": len(normalized), "clusters": []}
 
@@ -200,3 +160,29 @@ def _build_structured_articles_block(articles: list[dict[str, Any]] | None) -> s
         json_text = "{}"
 
     return f"```json:articles\n{json_text}\n```"
+
+
+def _normalize_digest_article(article: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": _first_value(article, ("title", "headline"), "Untitled"),
+        "summary": _first_value(article, ("summary", "description"), ""),
+        "url": _first_value(article, ("url", "link"), ""),
+        "image": _first_value(article, ("image", "image_url"), "/placeholder.svg"),
+        "source": _first_value(article, ("source", "publisher"), "Unknown"),
+        "published": _first_value(article, ("published", "published_at")),
+        "category": _first_value(article, ("category",), "general"),
+        "author": article.get("author"),
+        "meta": {
+            "retrieval_method": article.get("retrieval_method"),
+            "chroma_id": article.get("chroma_id"),
+            "semantic_score": article.get("semantic_score"),
+        },
+    }
+
+
+def _first_value(article: dict[str, Any], keys: tuple[str, ...], default: Any = None) -> Any:
+    for key in keys:
+        value = article.get(key)
+        if value:
+            return value
+    return default

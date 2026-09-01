@@ -27,6 +27,24 @@ JOURNALISM_INSTANCES = [
 ]
 
 
+def _directory_account(account: dict[str, Any], instance_url: str) -> dict[str, Any]:
+    fields = {
+        field.get("name", ""): field.get("value", "") for field in account.get("fields") or []
+    }
+    return {
+        "username": account.get("acct", ""),
+        "display_name": account.get("display_name", ""),
+        "bio": _strip_html(account.get("note", ""))[:500],
+        "url": account.get("url", ""),
+        "avatar": account.get("avatar", ""),
+        "followers_count": account.get("followers_count", 0),
+        "following_count": account.get("following_count", 0),
+        "created_at": account.get("created_at", ""),
+        "custom_fields": fields,
+        "instance": instance_url,
+    }
+
+
 async def enumerate_instance_directory(
     instance_url: str,
     http_client: httpx.AsyncClient,
@@ -37,50 +55,43 @@ async def enumerate_instance_directory(
     offset = 0
     page_size = 80
     while True:
-        try:
-            r = await http_client.get(
-                f"{instance_url}/api/v1/directory",
-                params={"local": True, "limit": page_size, "offset": offset},
-                headers={"User-Agent": SCOOP_USER_AGENT},
-                timeout=15.0,
-            )
-            if r.status_code != 200:
-                logger.warning(
-                    "Directory enumeration failed on %s: HTTP %s", instance_url, r.status_code
-                )
-                break
-            page = r.json()
-            raw = list(page) if isinstance(page, list) else []
-            if not raw:
-                break
-            for acct in raw:
-                fields = {}
-                for field in acct.get("fields") or []:
-                    fields[field.get("name", "")] = field.get("value", "")
-                accounts.append(
-                    {
-                        "username": acct.get("acct", ""),
-                        "display_name": acct.get("display_name", ""),
-                        "bio": _strip_html(acct.get("note", ""))[:500],
-                        "url": acct.get("url", ""),
-                        "avatar": acct.get("avatar", ""),
-                        "followers_count": acct.get("followers_count", 0),
-                        "following_count": acct.get("following_count", 0),
-                        "created_at": acct.get("created_at", ""),
-                        "custom_fields": fields,
-                        "instance": instance_url,
-                    }
-                )
-            offset += page_size
-            if limit and len(accounts) >= limit:
-                break
-            if len(raw) < page_size:
-                break
-            await asyncio.sleep(0.3)
-        except Exception as exc:
-            logger.warning("Directory enumeration error on %s: %s", instance_url, exc)
+        raw = await _fetch_directory_page(http_client, instance_url, offset, page_size)
+        if raw is None or not raw:
             break
+        accounts.extend(_directory_account(account, instance_url) for account in raw)
+        offset += page_size
+        if (limit and len(accounts) >= limit) or len(raw) < page_size:
+            break
+        await asyncio.sleep(0.3)
     return accounts
+
+
+async def _fetch_directory_page(
+    http_client: httpx.AsyncClient,
+    instance_url: str,
+    offset: int,
+    page_size: int,
+) -> list[dict[str, Any]] | None:
+    """Fetch one directory page, returning ``None`` after a recoverable failure."""
+    try:
+        response = await http_client.get(
+            f"{instance_url}/api/v1/directory",
+            params={"local": True, "limit": page_size, "offset": offset},
+            headers={"User-Agent": SCOOP_USER_AGENT},
+            timeout=15.0,
+        )
+        if response.status_code != 200:
+            logger.warning(
+                "Directory enumeration failed on %s: HTTP %s",
+                instance_url,
+                response.status_code,
+            )
+            return None
+        payload = response.json()
+        return list(payload) if isinstance(payload, list) else []
+    except Exception as exc:
+        logger.warning("Directory enumeration error on %s: %s", instance_url, exc)
+        return None
 
 
 def _strip_html(text: str) -> str:

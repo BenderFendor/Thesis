@@ -1,78 +1,58 @@
-import React from "react";
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import type { ComponentProps } from "react";
 import { fireEvent, render } from "@testing-library/react";
 
 import { HighlightToolbar } from "@/components/highlight-toolbar";
 
-jest.mock("lucide-react", () => {
-  const Icon = (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />;
-  return {
-    Highlighter: Icon,
-    X: Icon,
-  };
-});
+type HighlightToolbarProps = ComponentProps<typeof HighlightToolbar>;
 
-jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
-
-jest.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
-}));
-
-jest.mock("@/lib/api", () => ({
-  ENABLE_HIGHLIGHTS: true,
-}));
-
-describe("HighlightToolbar", () => {
+describe("highlightToolbar", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it("does not auto-create highlights for selections outside the article container", () => {
+  it("does not auto-create highlights for selections outside the article container", () => {  expect.hasAssertions();
+
+
     const articleContainer = document.createElement("div");
-    document.body.appendChild(articleContainer);
+    document.body.append(articleContainer);
 
     const outside = document.createElement("div");
     outside.textContent = "Outside selection";
-    document.body.appendChild(outside);
+    document.body.append(outside);
 
-    const outsideText = outside.firstChild as Text;
-    const selection = {
-      rangeCount: 1,
-      isCollapsed: false,
+    const outsideText = outside.firstChild as Text,
+     selection = {
       anchorNode: outsideText,
       focusNode: outsideText,
-      toString: () => "Outside selection",
       getRangeAt: () =>
         ({
-          startContainer: outsideText,
-          endContainer: outsideText,
-          startOffset: 0,
-          endOffset: 7,
           commonAncestorContainer: outsideText,
+          endContainer: outsideText,
+          endOffset: 7,
           getBoundingClientRect: () => new DOMRect(10, 10, 20, 10),
+          startContainer: outsideText,
+          startOffset: 0,
         }) as unknown as Range,
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => "Outside selection",
     } as unknown as Selection;
 
     jest.spyOn(window, "getSelection").mockReturnValue(selection);
 
-    const onCreate = jest.fn();
+    const onCreate = jest.fn<HighlightToolbarProps["onCreate"]>();
 
     render(
       <HighlightToolbar
         articleUrl="https://example.com/story"
         containerRef={{ current: articleContainer }}
         highlightColor="yellow"
-        autoCreate={true}
+        autoCreate
         highlights={[]}
         onCreate={onCreate}
-        onUpdate={jest.fn()}
-        onDelete={jest.fn()}
+        onUpdate={jest.fn<HighlightToolbarProps["onUpdate"]>()}
+        onDelete={jest.fn<HighlightToolbarProps["onDelete"]>()}
       />,
     );
 

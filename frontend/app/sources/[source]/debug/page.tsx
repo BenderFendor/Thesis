@@ -1,362 +1,107 @@
-"use client"
+"use client";
 
-import { useState, use } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { use, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+
+import { SourceDebugView } from "@/app/sources/[source]/debug/source-debug-view";
+import { Button } from "@/components/ui/button";
+import { useDebugMode } from "@/hooks/use-debug-mode";
+import { fetchSourceDebugData } from "@/lib/api";
 import type { SourceDebugData } from "@/lib/api";
-import { fetchSourceDebugData } from "@/lib/api"
-import { setDebugMode } from "@/lib/logger"
-import { useDebugMode } from "@/hooks/useDebugMode"
-import { ArrowLeft, RefreshCw, Code, ExternalLink, AlertTriangle, ImageIcon, FileText, Globe, Search, Settings } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import Link from "next/link"
-import JsonView from 'react18-json-view'
-import 'react18-json-view/src/style.css'
+import { setDebugMode } from "@/lib/logger";
 
-export default function SourceDebugPage(props: { params: Promise<{ source: string }> }) {
-  const params = use(props.params)
-  const sourceName = decodeURIComponent(params.source)
-  const [searchQuery, setSearchQuery] = useState("")
-  const debugMode = useDebugMode()
-  const {
+const DEFAULT_ERROR_MESSAGE =
+  "Failed to load debug data. The source might be unavailable or the backend service is down.",
+ QUERY_RETRY_COUNT = 1;
+
+interface SourceDebugPageProps {
+  readonly params: Promise<Readonly<{ source: string }>>;
+}
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return DEFAULT_ERROR_MESSAGE;
+},
+
+ LoadingState = ({ sourceName }: Readonly<{ sourceName: string }>) => (
+  <div className="flex min-h-screen items-center justify-center bg-background dark">
+    <div className="flex items-center gap-3 text-lg">
+      <RefreshCw className="h-6 w-6 animate-spin" />
+      <span>Loading debug data for {sourceName}...</span>
+    </div>
+  </div>
+),
+
+ ErrorState = ({
+  error,
+  onRetry,
+}: Readonly<{
+  error: unknown;
+  onRetry: () => void;
+}>) => (
+  <div className="flex min-h-screen flex-col items-center justify-center bg-background text-red-500 dark">
+    <AlertTriangle className="mb-4 h-12 w-12" />
+    <h1 className="mb-2 text-2xl font-bold">Error</h1>
+    <p className="max-w-md text-center">{getErrorMessage(error)}</p>
+    <Button onClick={onRetry} className="mt-6">
+      <RefreshCw className="mr-2 h-4 w-4" />
+      Retry
+    </Button>
+  </div>
+),
+
+ EmptyState = ({ sourceName }: Readonly<{ sourceName: string }>) => (
+  <div className="flex min-h-screen items-center justify-center bg-background dark">
+    <p>No debug data available for {sourceName}.</p>
+  </div>
+),
+
+ SourceDebugPage = ({ params: paramsPromise }: Readonly<SourceDebugPageProps>) => {
+  const params = use(paramsPromise),
+   sourceName = decodeURIComponent(params.source),
+   [searchQuery, setSearchQuery] = useState(""),
+   debugMode = useDebugMode(),
+   {
     data: debugData,
-    isLoading: loading,
+    isLoading,
     error,
     refetch,
   } = useQuery<SourceDebugData>({
-    queryKey: ["source-debug", sourceName],
     queryFn: () => fetchSourceDebugData(sourceName),
-    retry: 1,
-  })
-  const errorMessage =
-    error instanceof Error
-      ? error.message
-      : "Failed to load debug data. The source might be unavailable or the backend service is down."
+    queryKey: ["source-debug", sourceName],
+    retry: QUERY_RETRY_COUNT,
+  }),
 
-  const toggleDebugMode = () => {
-    const next = !debugMode
-    setDebugMode(next)
+   refresh = () => {
+    void refetch();
+  },
+   toggleDebugMode = () => {
+    setDebugMode(!debugMode);
+  };
+
+  if (isLoading) {
+    return <LoadingState sourceName={sourceName} />;
   }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background dark">
-        <div className="flex items-center gap-3 text-lg">
-          <RefreshCw className="w-6 h-6 animate-spin" />
-          <span>Loading debug data for {sourceName}...</span>
-        </div>
-      </div>
-    )
+  if (error !== null) {
+    return <ErrorState error={error} onRetry={refresh} />;
   }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background dark text-red-500">
-        <AlertTriangle className="w-12 h-12 mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Error</h1>
-        <p className="text-center max-w-md">{errorMessage}</p>
-        <Button onClick={() => void refetch()} className="mt-6">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Retry
-        </Button>
-      </div>
-    )
-  }
-
-  if (!debugData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background dark">
-        <p>No debug data available for {sourceName}.</p>
-      </div>
-    )
-  }
-
-  const filteredDebugData = () => {
-    if (!searchQuery) {
-      return debugData
-    }
-    const lowercasedQuery = searchQuery.toLowerCase()
-    const filtered = JSON.parse(JSON.stringify(debugData))
-
-  const filterObject = (obj: unknown): unknown => {
-      if (Array.isArray(obj)) {
-        return obj.filter(item => filterObject(item) !== null)
-      }
-      if (typeof obj === 'object' && obj !== null) {
-        let hasMatch = false
-        const newObj: Record<string, unknown> = {}
-        const record = obj as Record<string, unknown>
-        for (const key in record) {
-          if (key.toLowerCase().includes(lowercasedQuery)) {
-            hasMatch = true
-            newObj[key] = record[key]
-          } else if (typeof record[key] === 'string' && record[key].toLowerCase().includes(lowercasedQuery)) {
-            hasMatch = true
-            newObj[key] = record[key]
-          } else {
-            const result = filterObject(record[key])
-            if (
-              result !== null &&
-              (typeof result !== 'object' || Object.keys(result as Record<string, unknown>).length > 0)
-            ) {
-              hasMatch = true
-              newObj[key] = result
-            }
-          }
-        }
-        return hasMatch ? newObj : null
-      }
-      return null
-    }
-
-    return filterObject(filtered)
+  if (debugData === undefined) {
+    return <EmptyState sourceName={sourceName} />;
   }
 
   return (
-    <div className="min-h-screen bg-background dark text-foreground p-4 sm:p-6 lg:p-8">
-      <header className="mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/debug?tab=sources">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">
-                Debug: <span className="text-primary">{debugData.source_name}</span>
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Raw RSS feed data and parsing analysis.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(debugData.rss_url, "_blank")}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Open RSS Feed
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleDebugMode}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Debug {debugMode ? "On" : "Off"}
-            </Button>
-            <Button onClick={() => void refetch()} size="sm">
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-      </header>
+    <SourceDebugView
+      debugData={debugData}
+      debugMode={debugMode}
+      onRefresh={refresh}
+      onSearchQueryChange={setSearchQuery}
+      onToggleDebugMode={toggleDebugMode}
+      searchQuery={searchQuery}
+    />
+  );
+};
 
-      <main className="space-y-6">
-        <details open>
-          <summary className="cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="w-5 h-5" />
-                Feed Overview
-              </CardTitle>
-            </CardHeader>
-          </summary>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <p className="text-2xl font-bold">{debugData.feed_status?.http_status || 'N/A'}</p>
-                <p className="text-xs text-muted-foreground">HTTP Status</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{debugData.feed_status?.entries_count || 0}</p>
-                <p className="text-xs text-muted-foreground">RSS Entries</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{debugData.cached_articles?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Cached Articles</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{debugData.image_analysis?.entries_with_images || 0}</p>
-                <p className="text-xs text-muted-foreground">With Images</p>
-              </div>
-            </div>
-            {(debugData.feed_status?.bozo || debugData.error) && (
-              <div className="mt-4 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">Feed Issue Detected</h4>
-                    {debugData.feed_status?.bozo && (
-                      <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                        <strong>Bozo Feed:</strong> {debugData.feed_status.bozo_exception}
-                      </p>
-                    )}
-                    {debugData.error && (
-                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                        <strong>Processing Error:</strong> {debugData.error}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </details>
-
-        {debugData.source_statistics?.is_consolidated && debugData.source_statistics?.sub_feeds && debugData.source_statistics.sub_feeds.length > 0 && (
-          <details open>
-            <summary className="cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="w-5 h-5" />
-                  Sub-Feeds ({debugData.source_statistics.sub_feeds.length})
-                </CardTitle>
-              </CardHeader>
-            </summary>
-            <CardContent>
-              <div className="space-y-3">
-                {debugData.source_statistics.sub_feeds.map((subFeed, idx) => (
-                  <div key={idx} className="border border-muted rounded-lg p-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <a
-                        href={subFeed.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-mono text-blue-400 hover:underline truncate"
-                      >
-                        {subFeed.url}
-                      </a>
-                      <Badge
-                        variant={subFeed.status === "success" ? "default" : "secondary"}
-                      >
-                        {subFeed.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {subFeed.article_count} articles
-                      {subFeed.error && ` • Error: ${subFeed.error}`}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </details>
-        )}
-
-        {debugData.image_analysis && (
-          <details>
-            <summary className="cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5" />
-                  Image Parsing Analysis
-                </CardTitle>
-              </CardHeader>
-            </summary>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Images found in entries:</span>
-                  <Badge>{debugData.image_analysis.entries_with_images || 0} / {debugData.image_analysis.total_entries || 0}</Badge>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2.5">
-                  <div 
-                    className="bg-primary h-2.5 rounded-full" 
-                    style={{
-                      width: `${(debugData.image_analysis.total_entries || 0) > 0 
-                        ? ((debugData.image_analysis.entries_with_images || 0) / (debugData.image_analysis.total_entries || 1)) * 100 
-                        : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  {Math.round(((debugData.image_analysis.entries_with_images || 0) / (debugData.image_analysis.total_entries || 1)) * 100)}% of entries have images.
-                </p>
-              </div>
-            </CardContent>
-          </details>
-        )}
-
-        {debugData.parsed_entries && debugData.parsed_entries.length > 0 && (
-          <details>
-            <summary className="cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Sample Parsed Entries (First 5)
-                </CardTitle>
-              </CardHeader>
-            </summary>
-            <CardContent>
-              <div className="space-y-4">
-                {debugData.parsed_entries.slice(0, 5).map((entry, index) => (
-                  <div key={index} className="border border-muted rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-semibold text-base line-clamp-2">{entry.title}</h4>
-                      <div className="flex gap-2 ml-2 flex-shrink-0">
-                        {entry.has_images && <Badge variant="secondary" className="text-xs">Has Images</Badge>}
-                        <Badge variant="outline" className="text-xs">#{entry.index + 1}</Badge>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{entry.description}</p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Published: {entry.published}</span>
-                      <span>Author: {entry.author || 'N/A'}</span>
-                    </div>
-                    {entry.has_images && (
-                      <div className="mt-3 pt-3 border-t border-muted">
-                        <div className="text-xs font-medium text-foreground mb-2">Images found in:</div>
-                        <div className="flex flex-wrap gap-2">
-                          {entry.content_images.length > 0 && <Badge variant="outline">Content ({entry.content_images.length})</Badge>}
-                          {entry.description_images.length > 0 && <Badge variant="outline">Description ({entry.description_images.length})</Badge>}
-                          {entry.image_sources.length > 0 && <Badge variant="outline">Metadata ({entry.image_sources.length})</Badge>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </details>
-        )}
-
-        <details open>
-          <summary className="cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Code className="w-5 h-5" />
-                  Complete Debug JSON
-                </span>
-              </CardTitle>
-            </CardHeader>
-          </summary>
-          <CardContent>
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search JSON..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <JsonView 
-              src={filteredDebugData() || {}} 
-              collapsed={2}
-              enableClipboard={true}
-              theme="vscode"
-            />
-          </CardContent>
-        </details>
-      </main>
-    </div>
-  )
-}
+export default SourceDebugPage;

@@ -1,0 +1,14 @@
+# Cross-language complexity policy for owned Python, TypeScript/JavaScript, and Rust.
+# Generated, vendored, build, and dependency trees are excluded from human complexity metrics.
+exclude = [
+  "node_modules/**",
+  ".next/**",
+  "coverage/**",
+  ".venv/**",
+  "target/**",
+  "lib/generated/**",
+  "tools/oxlint/**",
+  "**/__pycache__/**",
+]
+pretty = true
+cache = false

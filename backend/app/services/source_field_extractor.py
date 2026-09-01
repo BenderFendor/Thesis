@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Any
 from collections.abc import Sequence
+from typing import Any
 
 from app.core.config import get_openai_client, resolve_opencode_model, settings
 from app.core.logging import get_logger
@@ -161,6 +161,16 @@ def _parse_extracted_fields(content: str) -> list[dict[str, Any]]:
     return []
 
 
+def _extract_entry_values(entry: dict[Any, Any]) -> tuple[Any, Any, Any, Any]:
+    """Extract the supported aliases from one raw entry."""
+    return (
+        entry.get("field") or entry.get("field_name"),
+        entry.get("value") or entry.get("info"),
+        entry.get("source") or entry.get("url"),
+        entry.get("evidence") or entry.get("notes") or entry.get("quote"),
+    )
+
+
 def _normalize_extracted_entries(entries: list[Any]) -> list[dict[str, Any]]:
     """Normalize extracted entries."""
     normalized = []
@@ -168,10 +178,7 @@ def _normalize_extracted_entries(entries: list[Any]) -> list[dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
 
-        field = entry.get("field") or entry.get("field_name")
-        value = entry.get("value") or entry.get("info")
-        source = entry.get("source") or entry.get("url")
-        evidence = entry.get("evidence") or entry.get("notes") or entry.get("quote")
+        field, value, source, evidence = _extract_entry_values(entry)
 
         if not field or not value:
             continue

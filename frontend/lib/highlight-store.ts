@@ -22,18 +22,18 @@ export interface HighlightStoreState {
 }
 
 function normalizeHighlightedText(text: string) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase()
+  return text.replaceAll(/\s+/gu, " ").trim().toLowerCase()
 }
 
 export function getHighlightsStorageKey(articleUrl: string) {
   return `highlights:v1:${articleUrl}`
 }
 
-export function createHighlightFingerprint(highlight: {
+export function createHighlightFingerprint(highlight:Readonly< {
   character_start: number
   character_end: number
   highlighted_text: string
-}) {
+}>) {
   return `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
     highlight.highlighted_text
   )}`
@@ -44,26 +44,26 @@ function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
     highlight.updated_at ??
     highlight.created_at ??
     highlight.local_updated_at ??
-    ""
+    "",
 
-  const parsed = Date.parse(timestamp)
+   parsed = Date.parse(timestamp)
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-export function dedupeLocalHighlights(highlights: LocalHighlight[]): LocalHighlight[] {
+export function dedupeLocalHighlights(highlights:readonly  LocalHighlight[]): LocalHighlight[] {
   const byFingerprint = new Map<string, LocalHighlight>()
 
   for (const highlight of highlights) {
-    const fingerprint = createHighlightFingerprint(highlight)
-    const existing = byFingerprint.get(fingerprint)
+    const fingerprint = createHighlightFingerprint(highlight),
+     existing = byFingerprint.get(fingerprint)
 
     if (!existing) {
       byFingerprint.set(fingerprint, highlight)
       continue
     }
 
-    const existingHasServerId = Boolean(getServerId(existing))
-    const nextHasServerId = Boolean(getServerId(highlight))
+    const existingHasServerId = Boolean(getServerId(existing)),
+     nextHasServerId = Boolean(getServerId(highlight))
 
     if (nextHasServerId && !existingHasServerId) {
       byFingerprint.set(fingerprint, highlight)
@@ -77,7 +77,7 @@ export function dedupeLocalHighlights(highlights: LocalHighlight[]): LocalHighli
     }
   }
 
-  return [...byFingerprint.values()].sort((a, b) => a.character_start - b.character_start)
+  return [...byFingerprint.values()].toSorted((a, b) => a.character_start - b.character_start)
 }
 
 function safeNowIso() {
@@ -97,11 +97,11 @@ function getServerId(highlight: Partial<LocalHighlight>) {
 }
 
 export function loadHighlightStore(articleUrl: string): HighlightStoreState {
-  const key = getHighlightsStorageKey(articleUrl)
-  const stored = getFromStorage<HighlightStoreState | null>(key, null)
+  const key = getHighlightsStorageKey(articleUrl),
+   stored = getFromStorage<HighlightStoreState | null>(key, null)
 
-  if (!stored || stored.version !== 1 || stored.article_url !== articleUrl) {
-    return { version: 1, article_url: articleUrl, highlights: [] }
+  if (stored?.version !== 1 || stored.article_url !== articleUrl) {
+    return { article_url: articleUrl, highlights: [], version: 1 }
   }
 
   return stored
@@ -112,18 +112,14 @@ export function saveHighlightStore(state: HighlightStoreState) {
   saveToStorage(key, state)
 }
 
-export function mergeHighlights({
-  articleUrl,
-  local,
-  server,
-}: {
-  articleUrl: string
-  local: LocalHighlight[]
-  server: Highlight[]
-}): LocalHighlight[] {
-  const localByServerId = new Map<number, LocalHighlight>()
-  const localByFingerprint = new Map<string, LocalHighlight>()
+interface HighlightIndexes {
+  localByServerId: Map<number, LocalHighlight>
+  localByFingerprint: Map<string, LocalHighlight>
+}
 
+function indexLocalHighlights(local:readonly  LocalHighlight[]): HighlightIndexes {
+  const localByServerId = new Map<number, LocalHighlight>(),
+   localByFingerprint = new Map<string, LocalHighlight>()
   for (const item of local) {
     const serverId = getServerId(item)
     if (serverId) {
@@ -131,100 +127,141 @@ export function mergeHighlights({
     }
     localByFingerprint.set(createHighlightFingerprint(item), item)
   }
+  return { localByFingerprint, localByServerId }
+}
 
-  const merged: LocalHighlight[] = []
-  const seen = new Set<string>()
+function appendUniqueHighlight(
+  merged: LocalHighlight[],
+  seen: Set<string>,
+  highlight: LocalHighlight,
+): void {
+  if (seen.has(highlight.client_id)) {
+    return
+  }
+  seen.add(highlight.client_id)
+  merged.push(highlight)
+}
 
-  const upsert = (highlight: LocalHighlight) => {
-    const key = highlight.client_id
-    if (seen.has(key)) return
-    seen.add(key)
-    merged.push(highlight)
+function mergeServerHighlight(
+  serverHighlight: Highlight,
+  indexes: HighlightIndexes,
+): LocalHighlight {
+  const serverId = serverHighlight.id,
+   match = findServerHighlightMatch(serverHighlight, indexes)
+
+  if (!match) {
+    return createSyncedHighlight(serverHighlight, serverId)
   }
 
-  for (const serverHighlight of server) {
-    const serverId = serverHighlight.id
-    const serverFingerprint = createHighlightFingerprint(serverHighlight)
-
-    const match =
-      (serverId ? localByServerId.get(serverId) : undefined) ??
-      localByFingerprint.get(serverFingerprint)
-
-    if (!match) {
-      upsert({
-        ...serverHighlight,
-        client_id: generateClientId(),
-        server_id: serverId,
-        sync_status: "synced",
-        pending_op: undefined,
-        deleted: false,
-        last_error: undefined,
-        local_updated_at: safeNowIso(),
-      })
-      continue
-    }
-
-    if (match.deleted && match.pending_op === "delete") {
-      upsert(match)
-      continue
-    }
-
-    const localIsNewer =
-      Date.parse(match.local_updated_at) >=
-      Date.parse(serverHighlight.updated_at ?? serverHighlight.created_at ?? "")
-
-    const mergedNote = localIsNewer
-      ? match.note ?? serverHighlight.note
-      : serverHighlight.note ?? match.note
-
-    upsert({
-      ...serverHighlight,
-      note: mergedNote,
-      ...match,
-      highlighted_text: serverHighlight.highlighted_text,
-      color: serverHighlight.color,
-      character_start: serverHighlight.character_start,
-      character_end: serverHighlight.character_end,
-      server_id: serverId,
-      sync_status: match.sync_status,
-      pending_op: match.pending_op,
-      deleted: match.deleted,
-      last_error: match.last_error,
-    })
+  if (match.deleted && match.pending_op === "delete") {
+    return match
   }
 
+  return mergeExistingHighlight(serverHighlight, match, serverId)
+}
+
+function findServerHighlightMatch(
+  serverHighlight: Highlight,
+  indexes: HighlightIndexes,
+): LocalHighlight | undefined {
+  const serverId = serverHighlight.id
+  return (
+    (serverId ? indexes.localByServerId.get(serverId) : undefined) ??
+    indexes.localByFingerprint.get(createHighlightFingerprint(serverHighlight))
+  )
+}
+
+function createSyncedHighlight(serverHighlight: Highlight, serverId: number | undefined): LocalHighlight {
+  return {
+    ...serverHighlight,
+    client_id: generateClientId(),
+    deleted: false,
+    last_error: undefined,
+    local_updated_at: safeNowIso(),
+    pending_op: undefined,
+    server_id: serverId,
+    sync_status: "synced",
+  }
+}
+
+function mergeExistingHighlight(
+  serverHighlight: Highlight,
+  match: LocalHighlight,
+  serverId: number | undefined,
+): LocalHighlight {
+  const localIsNewer =
+    Date.parse(match.local_updated_at) >=
+    Date.parse(serverHighlight.updated_at ?? serverHighlight.created_at ?? ""),
+   mergedNote = localIsNewer
+    ? match.note ?? serverHighlight.note
+    : serverHighlight.note ?? match.note
+  return {
+    ...serverHighlight,
+    note: mergedNote,
+    ...match,
+    highlighted_text: serverHighlight.highlighted_text,
+    color: serverHighlight.color,
+    character_start: serverHighlight.character_start,
+    character_end: serverHighlight.character_end,
+    server_id: serverId,
+    sync_status: match.sync_status,
+    pending_op: match.pending_op,
+    deleted: match.deleted,
+    last_error: match.last_error,
+  }
+}
+
+function appendUnmatchedLocalHighlights(
+  local:readonly  LocalHighlight[],
+  indexes: HighlightIndexes,
+  merged: LocalHighlight[],
+  seen: Set<string>,
+): void {
   for (const item of local) {
-    if (item.deleted) {
-      upsert(item)
-      continue
-    }
-
-    if (item.pending_op) {
-      upsert(item)
+    if (item.deleted || item.pending_op) {
+      appendUniqueHighlight(merged, seen, item)
       continue
     }
 
     const serverId = getServerId(item)
-    if (serverId && localByServerId.has(serverId)) {
+    if (serverId && indexes.localByServerId.has(serverId)) {
       continue
     }
 
     const fingerprint = createHighlightFingerprint(item)
-    if (localByFingerprint.get(fingerprint) !== item) {
-      continue
+    if (indexes.localByFingerprint.get(fingerprint) === item) {
+      appendUniqueHighlight(merged, seen, item)
     }
-
-    upsert(item)
   }
+}
+
+export function mergeHighlights({
+  articleUrl,
+  local,
+  server,
+}:Readonly< {
+  articleUrl: string
+  local: LocalHighlight[]
+  server: Highlight[]
+}>): LocalHighlight[] {
+  const indexes = indexLocalHighlights(local),
+   merged: LocalHighlight[] = [],
+   seen = new Set<string>()
+
+  for (const serverHighlight of server) {
+    appendUniqueHighlight(merged, seen, mergeServerHighlight(serverHighlight, indexes))
+  }
+
+  appendUnmatchedLocalHighlights(local, indexes, merged, seen)
 
   return dedupeLocalHighlights(
     merged
-    .filter((item) => item.article_url === articleUrl)
-    .sort((a, b) => a.character_start - b.character_start)
+      .filter((item) => item.article_url === articleUrl)
+      .toSorted((a, b) => a.character_start - b.character_start),
   )
 }
 
-export function toRemoteHighlights(local: LocalHighlight[]): Highlight[] {
+export function toRemoteHighlights(local:readonly  LocalHighlight[]): Highlight[] {
   return dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
@@ -234,65 +271,68 @@ export function toRemoteHighlights(local: LocalHighlight[]): Highlight[] {
       void local_updated_at
       void deleted
       const id = rest.id ?? server_id
-      return id ? { ...rest, id, client_id } : { ...rest, client_id }
+      return id ? Object.assign(rest, {
+	client_id,
+	id
+}) : Object.assign(rest, { client_id })
     })
 }
 
 export function markPending({
   highlight,
   op,
-}: {
+}:Readonly< {
   highlight: LocalHighlight
   op: HighlightOp
-}): LocalHighlight {
+}>): LocalHighlight {
   return {
     ...highlight,
-    sync_status: "pending",
-    pending_op: op,
-    local_updated_at: safeNowIso(),
-    last_error: undefined,
     deleted: op === "delete" ? true : highlight.deleted,
+    last_error: undefined,
+    local_updated_at: safeNowIso(),
+    pending_op: op,
+    sync_status: "pending",
   }
 }
 
 export function markSynced({
   highlight,
   server,
-}: {
+}:Readonly< {
   highlight: LocalHighlight
   server: Highlight
-}): LocalHighlight {
+}>): LocalHighlight {
   return {
     ...highlight,
     ...server,
+    deleted: false,
     id: server.id,
+    last_error: undefined,
+    local_updated_at: safeNowIso(),
+    pending_op: undefined,
     server_id: server.id,
     sync_status: "synced",
-    pending_op: undefined,
-    last_error: undefined,
-    deleted: false,
-    local_updated_at: safeNowIso(),
   }
 }
 
 export function markFailed({
   highlight,
   error,
-}: {
+}:Readonly< {
   highlight: LocalHighlight
   error: unknown
-}): LocalHighlight {
+}>): LocalHighlight {
   const message =
     error instanceof Error
       ? error.message
-      : typeof error === "string"
+      : (typeof error === "string"
         ? error
-        : "unknown error"
+        : "unknown error")
 
   return {
     ...highlight,
-    sync_status: "failed",
     last_error: message,
     local_updated_at: safeNowIso(),
+    sync_status: "failed",
   }
 }

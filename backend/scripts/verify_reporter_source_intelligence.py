@@ -98,41 +98,43 @@ def _print_byline_results(byline_results: list[dict[str, Any]], reporters_per_so
             print(f"ERROR\t{result['source']}\t{result['error']}")
 
 
-def _print_summary(
+def _failed_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in results if not item["ok"]]
+
+
+def _byline_quality_counts(
+    byline_results: list[dict[str, Any]],
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    source_counts = {"strong": 0, "medium": 0, "weak": 0, "none": 0}
+    article_counts = {"strong": 0, "medium": 0, "weak": 0, "none": 0}
+    evidence_counts = {
+        "generic": 0,
+        "blocked": 0,
+        "source_mismatch": 0,
+        "structured": 0,
+        "microdata": 0,
+        "metadata": 0,
+    }
+    for item in byline_results:
+        quality = str(item.get("quality") or "none")
+        source_counts[quality] = source_counts.get(quality, 0) + 1
+        for tier in article_counts:
+            article_counts[tier] += int(item.get(tier, 0))
+        for key in evidence_counts:
+            evidence_counts[key] += int(item.get(key, 0))
+    return source_counts, article_counts, evidence_counts
+
+
+def _print_quality_summary(
     source_results: list[dict[str, Any]],
     profile_results: list[dict[str, Any]],
     reporter_results: list[dict[str, Any]],
     byline_results: list[dict[str, Any]],
     reporters_per_source: int,
     min_byline_quality: str,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    failed_sources = [item for item in source_results if not item["ok"]]
-    failed_profiles = [item for item in profile_results if not item["ok"]]
-    failed_reporters = [item for item in reporter_results if not item["ok"]]
-    failed_bylines = [
-        item
-        for item in byline_results
-        if not item["ok"] or not source_meets_min_quality(item, min_byline_quality)
-    ]
-    source_quality_counts = {"strong": 0, "medium": 0, "weak": 0, "none": 0}
-    article_quality_counts = {"strong": 0, "medium": 0, "weak": 0, "none": 0}
-    generic_bylines = 0
-    blocked_articles = 0
-    source_mismatches = 0
-    structured_authors = 0
-    microdata_authors = 0
-    metadata_authors = 0
-    for item in byline_results:
-        quality = str(item.get("quality") or "none")
-        source_quality_counts[quality] = source_quality_counts.get(quality, 0) + 1
-        for tier in article_quality_counts:
-            article_quality_counts[tier] += int(item.get(tier, 0))
-        generic_bylines += int(item.get("generic", 0))
-        blocked_articles += int(item.get("blocked", 0))
-        source_mismatches += int(item.get("source_mismatch", 0))
-        structured_authors += int(item.get("structured", 0))
-        microdata_authors += int(item.get("microdata", 0))
-        metadata_authors += int(item.get("metadata", 0))
+    failed_bylines: list[dict[str, Any]],
+) -> None:
+    source_counts, article_counts, evidence_counts = _byline_quality_counts(byline_results)
     good_sources = [item for item in byline_results if source_has_good_byline(item)]
     full_sources = [item for item in byline_results if source_has_full_requested_coverage(item)]
     print(
@@ -140,26 +142,26 @@ def _print_summary(
     )
     print(
         "BYLINE_SOURCE_QUALITY\t"
-        f"strong={source_quality_counts.get('strong', 0)}\t"
-        f"medium={source_quality_counts.get('medium', 0)}\t"
-        f"weak={source_quality_counts.get('weak', 0)}\t"
-        f"none={source_quality_counts.get('none', 0)}"
+        f"strong={source_counts.get('strong', 0)}\t"
+        f"medium={source_counts.get('medium', 0)}\t"
+        f"weak={source_counts.get('weak', 0)}\t"
+        f"none={source_counts.get('none', 0)}"
     )
     print(
         "BYLINE_ARTICLE_QUALITY\t"
-        f"strong={article_quality_counts.get('strong', 0)}\t"
-        f"medium={article_quality_counts.get('medium', 0)}\t"
-        f"weak={article_quality_counts.get('weak', 0)}\t"
-        f"none={article_quality_counts.get('none', 0)}\t"
-        f"generic={generic_bylines}\t"
-        f"blocked={blocked_articles}\t"
-        f"source_mismatch={source_mismatches}"
+        f"strong={article_counts.get('strong', 0)}\t"
+        f"medium={article_counts.get('medium', 0)}\t"
+        f"weak={article_counts.get('weak', 0)}\t"
+        f"none={article_counts.get('none', 0)}\t"
+        f"generic={evidence_counts['generic']}\t"
+        f"blocked={evidence_counts['blocked']}\t"
+        f"source_mismatch={evidence_counts['source_mismatch']}"
     )
     print(
         "BYLINE_EVIDENCE_TYPE\t"
-        f"structured={structured_authors}\t"
-        f"microdata={microdata_authors}\t"
-        f"metadata={metadata_authors}"
+        f"structured={evidence_counts['structured']}\t"
+        f"microdata={evidence_counts['microdata']}\t"
+        f"metadata={evidence_counts['metadata']}"
     )
     print(
         "BYLINE_COVERAGE\t"
@@ -173,21 +175,44 @@ def _print_summary(
         f"passed={len(byline_results) - len(failed_bylines)}\t"
         f"failed={len(failed_bylines)}"
     )
+
+
+def _print_summary(
+    source_results: list[dict[str, Any]],
+    profile_results: list[dict[str, Any]],
+    reporter_results: list[dict[str, Any]],
+    byline_results: list[dict[str, Any]],
+    reporters_per_source: int,
+    min_byline_quality: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    failed_sources = _failed_results(source_results)
+    failed_profiles = _failed_results(profile_results)
+    failed_reporters = _failed_results(reporter_results)
+    failed_bylines = [
+        item
+        for item in byline_results
+        if not item["ok"] or not source_meets_min_quality(item, min_byline_quality)
+    ]
+    _print_quality_summary(
+        source_results,
+        profile_results,
+        reporter_results,
+        byline_results,
+        reporters_per_source,
+        min_byline_quality,
+        failed_bylines,
+    )
     print(
         f"FAILURES\tsources={len(failed_sources)}\tsource_profiles={len(failed_profiles)}\treporters={len(failed_reporters)}\tbylines={len(failed_bylines)}"
     )
     return failed_sources, failed_profiles, failed_reporters, failed_bylines
 
 
-async def main_async(args: argparse.Namespace) -> int:
-    source_names = args.source or (
-        broad_source_sample(args.sample_sources) if args.sample_sources else DEFAULT_SOURCES
-    )
-    reporter_specs = args.reporter or DEFAULT_REPORTERS
-    byline_sources = args.byline_source or (
-        source_names if args.bylines_from_sources else DEFAULT_BYLINE_SOURCES
-    )
-
+async def _run_source_checks(
+    args: argparse.Namespace,
+    source_names: list[str],
+    byline_sources: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     selected_sources = select_sources(source_names)
     source_results_raw = await gather_limited(
         [validate_source_async(name, config) for name, config in selected_sources.items()],
@@ -220,6 +245,23 @@ async def main_async(args: argparse.Namespace) -> int:
         item if isinstance(item, dict) else {"source": "unknown", "ok": False, "error": str(item)}
         for item in byline_results_raw
     ]
+    return source_results, profile_results, byline_results
+
+
+async def main_async(args: argparse.Namespace) -> int:
+    source_names = args.source or (
+        broad_source_sample(args.sample_sources) if args.sample_sources else DEFAULT_SOURCES
+    )
+    reporter_specs = args.reporter or DEFAULT_REPORTERS
+    byline_sources = args.byline_source or (
+        source_names if args.bylines_from_sources else DEFAULT_BYLINE_SOURCES
+    )
+
+    source_results, profile_results, byline_results = await _run_source_checks(
+        args,
+        source_names,
+        byline_sources,
+    )
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         reporter_results = [await validate_reporter(spec, client) for spec in reporter_specs]

@@ -1,200 +1,396 @@
 /**
  * Deterministic force-directed layout for the Atlas graph canvas.
  *
- * This used to run inside a dedicated Web Worker (`workers/atlas-layout.worker.ts`,
- * loaded via `new Worker(new URL(...), { type: "module" })`). Under this
- * project's Turbopack dev config that pattern silently fails: Turbopack treats
- * the `.ts` worker file as an opaque static asset rather than compiling it,
- * so the emitted URL serves the raw, un-transpiled TypeScript source with a
- * `video/mp2t` MIME type (a `.ts` extension collision with MPEG transport
- * streams). The browser refuses to execute that as a module worker, so
- * `positions` never populated and the graph canvas rendered nothing but its
- * floating status strip.
- *
- * The fix: run the same algorithm on the main thread, chunked across
- * `requestAnimationFrame` callbacks so it stays interactive instead of
- * blocking. See `hooks/use-atlas-layout.ts`.
+ * This used to run inside a dedicated Web Worker. Under this project's
+ * Turbopack dev config the worker was served as raw TypeScript, so the browser
+ * rejected it. The same simulation now runs on the main thread in chunks from
+ * requestAnimationFrame; see hooks/use-atlas-layout.ts.
  */
 
-import type { AtlasEdge, AtlasNode } from "./atlas-schema";
-import type { AtlasLayoutMode } from "./atlas-query-state";
+import type { AtlasEdge, AtlasNode } from "./atlas-schema"
+import type { AtlasLayoutMode } from "./atlas-query-state"
 
-export interface AtlasPosition {
-  x: number;
-  y: number;
+interface AtlasPosition {
+  // oxlint-disable-next-line eslint/id-length -- x is the serialized horizontal coordinate key.
+  readonly "x": number
+  // oxlint-disable-next-line eslint/id-length -- y is the serialized vertical coordinate key.
+  readonly "y": number
 }
 
-export type AtlasLayoutNodeInput = Pick<AtlasNode, "id" | "entity_type" | "country_code" | "connection_count">;
-export type AtlasLayoutEdgeInput = Pick<AtlasEdge, "source_id" | "target_id" | "relation_type" | "weight">;
+type AtlasLayoutNodeInput = Readonly<Pick<AtlasNode, "id" | "entity_type" | "country_code" | "connection_count">>
+type AtlasLayoutEdgeInput = Readonly<Pick<AtlasEdge, "source_id" | "target_id" | "relation_type" | "weight">>
 
-export interface AtlasLayoutRequest {
-  width: number;
-  height: number;
-  layout: AtlasLayoutMode;
-  selectedId: string | null;
-  nodes: AtlasLayoutNodeInput[];
-  edges: AtlasLayoutEdgeInput[];
+interface AtlasLayoutRequest {
+  readonly width: number
+  readonly height: number
+  readonly layout: AtlasLayoutMode
+  readonly selectedId: string | null
+  readonly nodes: readonly AtlasLayoutNodeInput[]
+  readonly edges: readonly AtlasLayoutEdgeInput[]
 }
 
-function hashValue(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
+interface PositionVector {
+  readonly add: (horizontalDelta: number, verticalDelta: number) => void
+  readonly getHorizontal: () => number
+  readonly getVertical: () => number
+  readonly set: (horizontal: number, vertical: number) => void
 }
 
-function seededUnit(value: string, salt: number): number {
-  return (hashValue(`${value}:${salt}`) % 100000) / 100000;
-}
+const CANVAS_PADDING = 48,
+ CENTER_DIVISOR = 2,
+ CENTER_FORCE = 0.0035,
+ CODE_POINT_START = 0,
+ DEFAULT_EDGE_DISTANCE = 145,
+ DEFAULT_GROUPING_RADIUS = 0.18,
+ DEGREES_PER_CIRCLE = 360,
+ DIRECT_NEIGHBOR_RADIUS = 185,
+ FULL_TURN_DIVISOR = 2,
+ GEOGRAPHY_GROUPING_RADIUS = 0.27,
+ GROUP_RADIUS_RATIO = 0.24,
+ HASH_BUCKETS = 100_000,
+ HASH_PRIME = 16_777_619,
+ HASH_SEED = 2_166_136_261,
+ HORIZONTAL_KEY = "x",
+ INDEX_STEP = 1,
+ ITERATION_BASE = 220,
+ LOCAL_ANGLE_SALT = 3,
+ LOCAL_BASE_RADIUS = 40,
+ LOCAL_RADIUS_RANGE = 170,
+ LOCAL_RADIUS_SALT = 4,
+ MAX_ITERATIONS = 180,
+ MAX_REPULSION = 9,
+ MIN_DISTANCE_SQUARED = 36,
+ MIN_EDGE_DISTANCE = 1,
+ MIN_EDGE_WEIGHT = 0.25,
+ MIN_ITERATIONS = 80,
+ NODES_PER_ITERATION_STEP = 4,
+ ORGANIZATION_X_RATIO = 0.42,
+ ORGANIZATION_Y_RATIO = 0.48,
+ OTHER_NODE_RADIUS = 330,
+ OUTLET_X_RATIO = 0.64,
+ OWNERSHIP_EDGE_DISTANCE = 118,
+ PERSON_X_RATIO = 0.28,
+ PERSON_Y_RATIO = 0.32,
+ RADIAL_BASE_RADIUS = 150,
+ RADIAL_RING_COUNT = 4,
+ RADIAL_RING_STEP = 78,
+ RADIAL_SALT = 9,
+ RADIANS_PER_CIRCLE = Math.PI * FULL_TURN_DIVISOR,
+ REPULSION_STRENGTH = 1800,
+ SPRING_STRENGTH = 0.006,
+ TARGET_ANGLE_SALT = 11,
+ VELOCITY_DAMPING = 0.82,
+ VERTICAL_KEY = "y",
+ ZERO_COORDINATE = 0,
 
-function groupKey(node: AtlasLayoutNodeInput, layout: AtlasLayoutMode): string {
-  if (layout === "geography") return node.country_code || "Unspecified";
-  return node.entity_type;
-}
-
-function initialPosition(node: AtlasLayoutNodeInput, index: number, request: AtlasLayoutRequest): AtlasPosition {
-  if (request.layout === "radial" && request.selectedId) {
-    if (node.id === request.selectedId) return { x: request.width / 2, y: request.height / 2 };
-    const angle = seededUnit(node.id, 9) * Math.PI * 2;
-    const ring = 150 + (index % 4) * 78;
-    return {
-      x: request.width / 2 + Math.cos(angle) * ring,
-      y: request.height / 2 + Math.sin(angle) * ring,
-    };
-  }
-
-  const key = groupKey(node, request.layout);
-  const groupHash = hashValue(key);
-  const centerAngle = (groupHash % 360) * (Math.PI / 180);
-  const groupRadius = Math.min(request.width, request.height) * 0.24;
-  const centerX = request.width / 2 + Math.cos(centerAngle) * groupRadius;
-  const centerY = request.height / 2 + Math.sin(centerAngle) * groupRadius;
-  const localAngle = seededUnit(node.id, 3) * Math.PI * 2;
-  const localRadius = 40 + seededUnit(node.id, 4) * 170;
+ clampCoordinate = (value: number, maximum: number, padding: number): number => (
+  Math.min(maximum - padding, Math.max(padding, value))
+),
+ createPosition = (horizontal: number, vertical: number): AtlasPosition => ({
+  [HORIZONTAL_KEY]: horizontal,
+  [VERTICAL_KEY]: vertical,
+}),
+ createVector = (horizontal: number, vertical: number): PositionVector => {
+  let currentHorizontal = horizontal,
+    currentVertical = vertical
   return {
-    x: centerX + Math.cos(localAngle) * localRadius,
-    y: centerY + Math.sin(localAngle) * localRadius,
-  };
-}
+    add: (horizontalDelta, verticalDelta) => {
+      currentHorizontal += horizontalDelta
+      currentVertical += verticalDelta
+    },
+    getHorizontal: () => currentHorizontal,
+    getVertical: () => currentVertical,
+    set: (nextHorizontal, nextVertical) => {
+      currentHorizontal = nextHorizontal
+      currentVertical = nextVertical
+    },
+  }
+},
+ edgeDistance = (edge: AtlasLayoutEdgeInput): number => {
+  if (edge.relation_type === "ownership") {return OWNERSHIP_EDGE_DISTANCE}
+  return DEFAULT_EDGE_DISTANCE
+},
+ groupKey = (node: AtlasLayoutNodeInput, layout: AtlasLayoutMode): string => {
+  if (layout !== "geography") {return node.entity_type}
+  const countryCode = node.country_code ?? ""
+  if (countryCode === "") {return "Unspecified"}
+  return countryCode
+},
+ groupedInitialPosition = (
+  node: AtlasLayoutNodeInput,
+  request: AtlasLayoutRequest,
+): PositionVector => {
+  const centerAngle = (hashValue(groupKey(node, request.layout)) % DEGREES_PER_CIRCLE)
+      * (Math.PI / (DEGREES_PER_CIRCLE / CENTER_DIVISOR)),
+   centerRadius = Math.min(request.width, request.height) * GROUP_RADIUS_RATIO,
+   centerX = request.width / CENTER_DIVISOR + Math.cos(centerAngle) * centerRadius,
+   centerY = request.height / CENTER_DIVISOR + Math.sin(centerAngle) * centerRadius,
+   localAngle = seededUnit(node.id, LOCAL_ANGLE_SALT) * RADIANS_PER_CIRCLE,
+   localRadius = LOCAL_BASE_RADIUS + seededUnit(node.id, LOCAL_RADIUS_SALT) * LOCAL_RADIUS_RANGE
+  return createVector(
+    centerX + Math.cos(localAngle) * localRadius,
+    centerY + Math.sin(localAngle) * localRadius,
+  )
+},
+ groupingRadius = (layout: AtlasLayoutMode): number => {
+  if (layout === "geography") {return GEOGRAPHY_GROUPING_RADIUS}
+  return DEFAULT_GROUPING_RADIUS
+},
+ hashValue = (value: string): number => {
+  let hash = HASH_SEED
+  for (let index = CODE_POINT_START; index < value.length; index += INDEX_STEP) {
+    hash ^= value.codePointAt(index) ?? CODE_POINT_START
+    hash = Math.imul(hash, HASH_PRIME)
+  }
+  return hash >>> CODE_POINT_START
+},
+ initialPosition = (
+  node: AtlasLayoutNodeInput,
+  index: number,
+  request: AtlasLayoutRequest,
+): PositionVector => {
+  if (request.layout === "radial" && request.selectedId !== null) {
+    return radialInitialPosition(node, index, request)
+  }
+  return groupedInitialPosition(node, request)
+},
+ radialInitialPosition = (
+  node: AtlasLayoutNodeInput,
+  index: number,
+  request: AtlasLayoutRequest,
+): PositionVector => {
+  if (node.id === request.selectedId) {
+    return createVector(request.width / CENTER_DIVISOR, request.height / CENTER_DIVISOR)
+  }
+  const angle = seededUnit(node.id, RADIAL_SALT) * RADIANS_PER_CIRCLE,
+   ring = RADIAL_BASE_RADIUS + (index % RADIAL_RING_COUNT) * RADIAL_RING_STEP
+  return createVector(
+    request.width / CENTER_DIVISOR + Math.cos(angle) * ring,
+    request.height / CENTER_DIVISOR + Math.sin(angle) * ring,
+  )
+},
+ seededUnit = (value: string, salt: number): number => (
+  (hashValue(`${value}:${salt}`) % HASH_BUCKETS) / HASH_BUCKETS
+)
 
 /** Steps a force-directed simulation one iteration at a time so a caller
- * (e.g. a `requestAnimationFrame` loop) can spread the work across frames. */
-export class AtlasForceLayoutRunner {
-  readonly totalIterations: number;
-  private iteration = 0;
-  private readonly request: AtlasLayoutRequest;
-  private readonly positions: Map<string, AtlasPosition>;
-  private readonly velocities: Map<string, AtlasPosition>;
-  private readonly adjacency: Map<string, Set<string>>;
-  private readonly padding = 48;
+ * can spread the work across animation frames. */
+class AtlasForceLayoutRunner {
+  readonly totalIterations: number
+  private iteration = ZERO_COORDINATE
+  private readonly request: AtlasLayoutRequest
+  private readonly positions = new Map<string, PositionVector>()
+  private readonly velocities = new Map<string, PositionVector>()
+  private readonly adjacency = new Map<string, Set<string>>()
+  private readonly padding = CANVAS_PADDING
 
   constructor(request: AtlasLayoutRequest) {
-    this.request = request;
-    this.positions = new Map();
-    this.velocities = new Map();
-    this.adjacency = new Map();
-    request.nodes.forEach((node, index) => {
-      this.positions.set(node.id, initialPosition(node, index, request));
-      this.velocities.set(node.id, { x: 0, y: 0 });
-      this.adjacency.set(node.id, new Set());
-    });
-    request.edges.forEach((edge) => {
-      this.adjacency.get(edge.source_id)?.add(edge.target_id);
-      this.adjacency.get(edge.target_id)?.add(edge.source_id);
-    });
-    this.totalIterations = Math.min(180, Math.max(80, 220 - Math.floor(request.nodes.length / 4)));
+    this.request = request
+    this.initializeNodes()
+    this.initializeEdges()
+    const proposedIterations = ITERATION_BASE - Math.floor(request.nodes.length / NODES_PER_ITERATION_STEP)
+    this.totalIterations = Math.min(MAX_ITERATIONS, Math.max(MIN_ITERATIONS, proposedIterations))
+  }
+
+  private initializeNodes(): void {
+    this.request.nodes.forEach((node, index) => {
+      this.positions.set(node.id, initialPosition(node, index, this.request))
+      this.velocities.set(node.id, createVector(ZERO_COORDINATE, ZERO_COORDINATE))
+      this.adjacency.set(node.id, new Set())
+    })
+  }
+
+  private initializeEdges(): void {
+    for (const edge of this.request.edges) {
+      this.adjacency.get(edge.source_id)?.add(edge.target_id)
+      this.adjacency.get(edge.target_id)?.add(edge.source_id)
+    }
   }
 
   hasNext(): boolean {
-    return this.iteration < this.totalIterations;
+    return this.iteration < this.totalIterations
+  }
+
+  private applyRepulsion(forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>, alpha: number): void {
+    for (let leftIndex = ZERO_COORDINATE; leftIndex < this.request.nodes.length; leftIndex += INDEX_STEP) {
+      const left = this.request.nodes[leftIndex]
+      if (left !== undefined) {
+        this.applyRepulsionFromNode(leftIndex, left, forces, alpha)
+      }
+    }
+  }
+
+  private applyRepulsionFromNode(
+    leftIndex: number,
+    left: AtlasLayoutNodeInput,
+    forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>,
+    alpha: number,
+  ): void {
+    for (let rightIndex = leftIndex + INDEX_STEP; rightIndex < this.request.nodes.length; rightIndex += INDEX_STEP) {
+      const right = this.request.nodes[rightIndex]
+      if (right !== undefined) {
+        this.applyRepulsionPair(left.id, right.id, forces, alpha)
+      }
+    }
+  }
+
+  private applyRepulsionPair(
+    leftId: string,
+    rightId: string,
+    forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>,
+    alpha: number,
+  ): void {
+    const leftForce = forces.get(leftId),
+      leftPosition = this.positions.get(leftId),
+      rightForce = forces.get(rightId),
+      rightPosition = this.positions.get(rightId)
+    if (leftForce === undefined || leftPosition === undefined || rightForce === undefined || rightPosition === undefined) {
+      return
+    }
+    {
+      const distance = Math.max(Math.hypot(
+        rightPosition.getHorizontal() - leftPosition.getHorizontal(),
+        rightPosition.getVertical() - leftPosition.getVertical(),
+      ), Math.sqrt(MIN_DISTANCE_SQUARED)),
+        horizontalDelta = (rightPosition.getHorizontal() - leftPosition.getHorizontal()) / distance,
+        repulsion = Math.min(MAX_REPULSION, REPULSION_STRENGTH / (distance * distance)) * alpha,
+        verticalDelta = (rightPosition.getVertical() - leftPosition.getVertical()) / distance
+      leftForce.add(-horizontalDelta * repulsion, -verticalDelta * repulsion)
+      rightForce.add(horizontalDelta * repulsion, verticalDelta * repulsion)
+    }
+  }
+
+  private applySprings(forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>, alpha: number): void {
+    for (const edge of this.request.edges) {
+      this.applySpring(edge, forces, alpha)
+    }
+  }
+
+  private applySpring(
+    edge: AtlasLayoutEdgeInput,
+    forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>,
+    alpha: number,
+  ): void {
+    const sourceForce = forces.get(edge.source_id),
+      sourcePosition = this.positions.get(edge.source_id),
+      targetForce = forces.get(edge.target_id),
+      targetPosition = this.positions.get(edge.target_id)
+    if (sourceForce === undefined || sourcePosition === undefined || targetForce === undefined || targetPosition === undefined) {
+      return
+    }
+    {
+      const distance = Math.max(Math.hypot(
+        targetPosition.getHorizontal() - sourcePosition.getHorizontal(),
+        targetPosition.getVertical() - sourcePosition.getVertical(),
+      ), MIN_EDGE_DISTANCE),
+        horizontalDelta = (targetPosition.getHorizontal() - sourcePosition.getHorizontal()) / distance,
+        spring = (distance - edgeDistance(edge)) * SPRING_STRENGTH * Math.max(edge.weight, MIN_EDGE_WEIGHT) * alpha,
+        verticalDelta = (targetPosition.getVertical() - sourcePosition.getVertical()) / distance
+      sourceForce.add(horizontalDelta * spring, verticalDelta * spring)
+      targetForce.add(-horizontalDelta * spring, -verticalDelta * spring)
+    }
+  }
+
+  private groupTarget(node: AtlasLayoutNodeInput): Readonly<PositionVector> {
+    const angle = (hashValue(groupKey(node, this.request.layout)) % DEGREES_PER_CIRCLE)
+      * (Math.PI / (DEGREES_PER_CIRCLE / CENTER_DIVISOR)),
+      radius = groupingRadius(this.request.layout)
+    return createVector(
+      this.request.width / CENTER_DIVISOR + Math.cos(angle) * this.request.width * radius,
+      this.request.height / CENTER_DIVISOR + Math.sin(angle) * this.request.height * radius,
+    )
+  }
+
+  private radialTarget(node: AtlasLayoutNodeInput): Readonly<PositionVector> {
+    const angle = seededUnit(node.id, TARGET_ANGLE_SALT) * RADIANS_PER_CIRCLE,
+      directNeighbor = this.adjacency.get(this.request.selectedId ?? "")?.has(node.id) === true
+    if (this.request.selectedId === null) {return this.groupTarget(node)}
+    let radius = OTHER_NODE_RADIUS
+    if (directNeighbor) {radius = DIRECT_NEIGHBOR_RADIUS}
+    if (node.id === this.request.selectedId) {radius = ZERO_COORDINATE}
+    return createVector(
+      this.request.width / CENTER_DIVISOR + Math.cos(angle) * radius,
+      this.request.height / CENTER_DIVISOR + Math.sin(angle) * radius,
+    )
+  }
+
+  private ownershipTarget(node: AtlasLayoutNodeInput, fallback: Readonly<PositionVector>): Readonly<PositionVector> {
+    if (node.entity_type === "organization") {
+      return createVector(this.request.width * ORGANIZATION_X_RATIO, this.request.height * ORGANIZATION_Y_RATIO)
+    }
+    if (node.entity_type === "outlet") {
+      return createVector(this.request.width * OUTLET_X_RATIO, fallback.getVertical())
+    }
+    if (node.entity_type === "person") {
+      return createVector(this.request.width * PERSON_X_RATIO, this.request.height * PERSON_Y_RATIO)
+    }
+    return fallback
+  }
+
+  private targetForNode(node: AtlasLayoutNodeInput): Readonly<PositionVector> {
+    const grouped = this.groupTarget(node)
+    if (this.request.layout === "radial") {return this.radialTarget(node)}
+    if (this.request.layout === "ownership") {return this.ownershipTarget(node, grouped)}
+    return grouped
+  }
+
+  private updateNodes(forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>, alpha: number): void {
+    for (const node of this.request.nodes) {
+      this.updateNode(node, forces, alpha)
+    }
+  }
+
+  private updateNode(
+    node: AtlasLayoutNodeInput,
+    forces: Readonly<ReadonlyMap<string, Readonly<PositionVector>>>,
+    alpha: number,
+  ): void {
+    const force = forces.get(node.id),
+      position = this.positions.get(node.id),
+      target = this.targetForNode(node),
+      velocity = this.velocities.get(node.id)
+    if (force === undefined || position === undefined || velocity === undefined) {
+      return
+    }
+    force.add(
+      (target.getHorizontal() - position.getHorizontal()) * CENTER_FORCE * alpha,
+      (target.getVertical() - position.getVertical()) * CENTER_FORCE * alpha,
+    )
+    velocity.set(
+      (velocity.getHorizontal() + force.getHorizontal()) * VELOCITY_DAMPING,
+      (velocity.getVertical() + force.getVertical()) * VELOCITY_DAMPING,
+    )
+    position.set(
+      clampCoordinate(position.getHorizontal() + velocity.getHorizontal(), this.request.width, this.padding),
+      clampCoordinate(position.getVertical() + velocity.getVertical(), this.request.height, this.padding),
+    )
   }
 
   step(): void {
-    const request = this.request;
-    const alpha = 1 - this.iteration / this.totalIterations;
-    const forces = new Map(request.nodes.map((node) => [node.id, { x: 0, y: 0 }]));
-
-    for (let leftIndex = 0; leftIndex < request.nodes.length; leftIndex += 1) {
-      const left = request.nodes[leftIndex]!;
-      const leftPosition = this.positions.get(left.id)!;
-      for (let rightIndex = leftIndex + 1; rightIndex < request.nodes.length; rightIndex += 1) {
-        const right = request.nodes[rightIndex]!;
-        const rightPosition = this.positions.get(right.id)!;
-        let dx = rightPosition.x - leftPosition.x;
-        let dy = rightPosition.y - leftPosition.y;
-        const distanceSquared = Math.max(dx * dx + dy * dy, 36);
-        const distance = Math.sqrt(distanceSquared);
-        dx /= distance;
-        dy /= distance;
-        const repulsion = Math.min(9, 1800 / distanceSquared) * alpha;
-        const leftForce = forces.get(left.id)!;
-        const rightForce = forces.get(right.id)!;
-        leftForce.x -= dx * repulsion;
-        leftForce.y -= dy * repulsion;
-        rightForce.x += dx * repulsion;
-        rightForce.y += dy * repulsion;
-      }
-    }
-
-    for (const edge of request.edges) {
-      const sourcePosition = this.positions.get(edge.source_id);
-      const targetPosition = this.positions.get(edge.target_id);
-      if (!sourcePosition || !targetPosition) continue;
-      let dx = targetPosition.x - sourcePosition.x;
-      let dy = targetPosition.y - sourcePosition.y;
-      const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-      dx /= distance;
-      dy /= distance;
-      const desiredDistance = edge.relation_type === "ownership" ? 118 : 145;
-      const spring = (distance - desiredDistance) * 0.006 * Math.max(edge.weight, 0.25) * alpha;
-      const sourceForce = forces.get(edge.source_id)!;
-      const targetForce = forces.get(edge.target_id)!;
-      sourceForce.x += dx * spring;
-      sourceForce.y += dy * spring;
-      targetForce.x -= dx * spring;
-      targetForce.y -= dy * spring;
-    }
-
-    for (const node of request.nodes) {
-      const position = this.positions.get(node.id)!;
-      const force = forces.get(node.id)!;
-      const velocity = this.velocities.get(node.id)!;
-      const group = groupKey(node, request.layout);
-      const groupAngle = (hashValue(group) % 360) * (Math.PI / 180);
-      const groupingRadius = request.layout === "geography" ? 0.27 : 0.18;
-      let targetX = request.width / 2 + Math.cos(groupAngle) * request.width * groupingRadius;
-      let targetY = request.height / 2 + Math.sin(groupAngle) * request.height * groupingRadius;
-
-      if (request.layout === "radial" && request.selectedId) {
-        const graphDistance = this.adjacency.get(request.selectedId)?.has(node.id) ? 185 : 330;
-        const angle = seededUnit(node.id, 11) * Math.PI * 2;
-        targetX = request.width / 2 + Math.cos(angle) * (node.id === request.selectedId ? 0 : graphDistance);
-        targetY = request.height / 2 + Math.sin(angle) * (node.id === request.selectedId ? 0 : graphDistance);
-      }
-      if (request.layout === "ownership" && node.entity_type === "organization") {
-        targetX = request.width * 0.42;
-        targetY = request.height * 0.48;
-      } else if (request.layout === "ownership" && node.entity_type === "outlet") {
-        targetX = request.width * 0.64;
-      } else if (request.layout === "ownership" && node.entity_type === "person") {
-        targetX = request.width * 0.28;
-        targetY = request.height * 0.32;
-      }
-
-      force.x += (targetX - position.x) * 0.0035 * alpha;
-      force.y += (targetY - position.y) * 0.0035 * alpha;
-      velocity.x = (velocity.x + force.x) * 0.82;
-      velocity.y = (velocity.y + force.y) * 0.82;
-      position.x = Math.min(request.width - this.padding, Math.max(this.padding, position.x + velocity.x));
-      position.y = Math.min(request.height - this.padding, Math.max(this.padding, position.y + velocity.y));
-    }
-
-    this.iteration += 1;
+    const alpha = INDEX_STEP - this.iteration / this.totalIterations,
+      forces = new Map(this.request.nodes.map((node) => [node.id, createVector(ZERO_COORDINATE, ZERO_COORDINATE)]))
+    this.applyRepulsion(forces, alpha)
+    this.applySprings(forces, alpha)
+    this.updateNodes(forces, alpha)
+    this.iteration += INDEX_STEP
   }
 
-  getPositions(): Record<string, AtlasPosition> {
-    return Object.fromEntries(this.positions);
+  getPositions() {
+    return Object.fromEntries(
+      [...this.positions.entries()].map(
+        ([nodeId, position]: readonly [string, PositionVector]): readonly [string, AtlasPosition] => [
+          nodeId,
+          createPosition(position.getHorizontal(), position.getVertical()),
+        ],
+      ),
+    )
   }
+}
+
+export {
+  AtlasForceLayoutRunner,
+  type AtlasLayoutEdgeInput,
+  type AtlasLayoutNodeInput,
+  type AtlasLayoutRequest,
+  type AtlasPosition,
 }

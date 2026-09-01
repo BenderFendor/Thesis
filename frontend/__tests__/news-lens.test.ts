@@ -1,62 +1,60 @@
-import {
-  filterArticlesByLens,
-  getLensSourceIds,
-  getLensStats,
-  type NewsLensId,
-} from "@/lib/news-lens";
+import { describe, expect, it } from '@jest/globals';
+import { filterArticlesByLens, getLensSourceIds, getLensStats } from '@/lib/news-lens';
+import type { NewsLensId } from '@/lib/news-lens';
 import type { NewsArticle, NewsSource } from "@/lib/api";
 
 function source(overrides: Partial<NewsSource>): NewsSource {
   return {
-    id: "source",
-    slug: "source",
-    name: "Source",
-    country: "US",
-    url: "https://example.com",
-    rssUrl: "https://example.com/rss",
-    credibility: "medium",
     bias: "center",
     category: ["general"],
-    language: "en",
+    country: "US",
+    credibility: "medium",
     funding: ["Unknown"],
+    id: "source",
+    language: "en",
+    name: "Source",
+    rssUrl: "https://example.com/rss",
+    slug: "source",
+    url: "https://example.com",
     ...overrides,
   };
 }
 
 function article(overrides: Partial<NewsArticle>): NewsArticle {
   return {
-    id: 1,
-    title: "Article",
-    source: "Source",
-    sourceId: "source",
-    url: "https://example.com/article",
+    bias: "center",
+    category: "general",
     country: "US",
     credibility: "medium",
-    bias: "center",
-    summary: "Summary",
+    id: 1,
     image: "",
-    publishedAt: "2026-05-31T00:00:00Z",
-    category: "general",
-    tags: [],
     originalLanguage: "en",
+    publishedAt: "2026-05-31T00:00:00Z",
+    source: "Source",
+    sourceId: "source",
+    summary: "Summary",
+    tags: [],
+    title: "Article",
     translated: false,
+    url: "https://example.com/article",
     ...overrides,
   };
 }
 
 describe("news lens filtering", () => {
   const sources = [
-    source({ id: "reuters", slug: "reuters", name: "Reuters", sourceType: "wire" }),
-    source({ id: "local", slug: "local", name: "Local Paper", sourceType: "local" }),
+    source({ id: "reuters", name: "Reuters", slug: "reuters", sourceType: "wire" }),
+    source({ id: "local", name: "Local Paper", slug: "local", sourceType: "local" }),
     source({
       id: "paywall",
-      slug: "paywall",
-      name: "Paywall Daily",
       isPaywalled: true,
+      name: "Paywall Daily",
+      slug: "paywall",
     }),
   ];
 
-  it("selects source ids for a lens", () => {
+  it("selects source ids for a lens", () => {  expect.hasAssertions();
+  
     const ids = getLensSourceIds(sources, "wire");
     expect(ids.has("reuters")).toBe(true);
     expect(ids.has("local")).toBe(false);
@@ -70,14 +68,15 @@ describe("news lens filtering", () => {
     },
   );
 
-  it("filters articles by source metadata", () => {
+  it("filters articles by source metadata", () => {  expect.hasAssertions();
+  
     const articles = [
       article({ id: 1, source: "Reuters", sourceId: "reuters" }),
       article({ id: 2, source: "Paywall Daily", sourceId: "paywall" }),
-    ];
+    ],
 
-    const filtered = filterArticlesByLens(articles, sources, "low-paywall");
+     filtered = filterArticlesByLens(articles, sources, "low-paywall");
 
-    expect(filtered.map((item) => item.id)).toEqual([1]);
+    expect(filtered.map((item) => item.id)).toStrictEqual([1]);
   });
 });

@@ -6,12 +6,8 @@ import { usePathname, useRouter } from "next/navigation"
 import { Bell, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { SafeImage } from "@/components/safe-image"
-import {
-  LIBRARY_NAVIGATION,
-  VIEW_NAVIGATION,
-  WIKI_NAVIGATION,
-  type ViewMode,
-} from "@/components/navigation/navigation-config"
+import { LIBRARY_NAVIGATION, VIEW_NAVIGATION, WIKI_NAVIGATION } from '@/components/navigation/navigation-config';
+import type { ViewMode } from '@/components/navigation/navigation-config';
 import {
   buildSearchHref,
   buildViewHref,
@@ -33,6 +29,22 @@ interface GlobalNavigationProps {
   onViewPreload?: (view: ViewMode) => void
   onAlertsClick?: () => void
   alertCount?: number
+  navigationServices?: GlobalNavigationServices
+}
+
+interface GlobalNavigationRouter {
+  push: (href: string) => void
+  replace: (href: string, options?: { scroll?: boolean }) => void
+}
+
+export interface GlobalNavigationServices {
+  usePathname: () => string
+  useRouter: () => GlobalNavigationRouter
+}
+
+const DEFAULT_NAVIGATION_SERVICES: GlobalNavigationServices = {
+  usePathname,
+  useRouter,
 }
 
 export function GlobalNavigation({
@@ -41,36 +53,37 @@ export function GlobalNavigation({
   onViewPreload,
   onAlertsClick,
   alertCount = 0,
+  navigationServices = DEFAULT_NAVIGATION_SERVICES,
 }: GlobalNavigationProps) {
-  const pathname = usePathname()
-  const isHomeRoute = pathname === "/"
-  const { push, replace } = useRouter()
-  const expanded = useSyncExternalStore(
+  const pathname = navigationServices.usePathname(),
+   isHomeRoute = pathname === "/",
+   { push, replace } = navigationServices.useRouter(),
+   expanded = useSyncExternalStore(
     subscribeSidebarExpanded,
     readSidebarExpanded,
     () => false,
   )
 
   useEffect(() => {
-    if (!isHomeRoute || !onViewChange) return
+    if (!isHomeRoute || !onViewChange) {return}
 
     const syncViewFromLocation = () => {
-      const requestedView = getViewFromSearch(window.location.search)
+      const requestedView = getViewFromSearch(globalThis.location.search)
       if (requestedView) {
         onViewChange(requestedView)
       }
     }
 
     syncViewFromLocation()
-    window.addEventListener("popstate", syncViewFromLocation)
-    return () => window.removeEventListener("popstate", syncViewFromLocation)
+    globalThis.addEventListener("popstate", syncViewFromLocation)
+    return () =>{  globalThis.removeEventListener("popstate", syncViewFromLocation); }
   }, [isHomeRoute, onViewChange])
 
   const updateExpanded = useCallback((nextExpanded: boolean) => {
     writeSidebarExpanded(nextExpanded)
-  }, [])
+  }, []),
 
-  const handleViewClick = useCallback(
+   handleViewClick = useCallback(
     (view: ViewMode) => {
       if (isHomeRoute && onViewChange) {
         onViewChange(view)
@@ -80,9 +93,9 @@ export function GlobalNavigation({
       push(buildViewHref(view))
     },
     [isHomeRoute, onViewChange, push, replace],
-  )
+  ),
 
-  const handleSearch = useCallback(
+   handleSearch = useCallback(
     (query: string) => {
       push(buildSearchHref(query))
     },
@@ -134,7 +147,7 @@ export function GlobalNavigation({
 
       <button
         type="button"
-        onClick={() => updateExpanded(!expanded)}
+        onClick={() =>{  updateExpanded(!expanded); }}
         className="absolute -right-3 top-[4.45rem] flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-[var(--news-bg-secondary)] text-muted-foreground shadow-lg transition-colors hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         aria-expanded={expanded}
         aria-controls="primary-navigation-content"
@@ -148,7 +161,7 @@ export function GlobalNavigation({
         <div className="border-b border-white/10 p-3">
           <WorkspaceSearch
             expanded={expanded}
-            onExpand={() => updateExpanded(true)}
+            onExpand={() =>{  updateExpanded(true); }}
             onSearch={handleSearch}
           />
         </div>
@@ -165,7 +178,7 @@ export function GlobalNavigation({
                 active={pathname === "/" && currentView === item.key}
                 onFocus={() => onViewPreload?.(item.key)}
                 onPointerEnter={() => onViewPreload?.(item.key)}
-                onClick={() => handleViewClick(item.key)}
+                onClick={() =>{  handleViewClick(item.key); }}
               />
             ))}
           </SidebarSection>

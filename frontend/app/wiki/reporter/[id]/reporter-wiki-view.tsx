@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -12,11 +12,8 @@ import {
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  fetchWikiReporter,
-  parseReporterCareerTimeline,
-  type WikiReporterDossier,
-} from "@/lib/api";
+import { fetchWikiReporter, parseReporterCareerTimeline } from '@/lib/api';
+import type { WikiReporterDossier } from '@/lib/api';
 import { GlobalNavigation } from "@/components/global-navigation";
 import { CareerTimeline } from "./career-timeline";
 
@@ -34,7 +31,7 @@ function ReporterLoadingState() {
   );
 }
 
-function ReporterNotFoundState({ message }: { message: string }) {
+function ReporterNotFoundState({ message }:Readonly< { message: string }>) {
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
       <GlobalNavigation />
@@ -53,10 +50,10 @@ function ReporterNotFoundState({ message }: { message: string }) {
 function ReporterDossierHeader({
   data,
   primaryOutlet,
-}: {
+}:Readonly< {
   data: WikiReporterDossier;
   primaryOutlet?: string;
-}) {
+}>) {
   return (
     <header className="mx-auto max-w-[1500px] px-4 pt-6">
       <Link href="/wiki/reporters" className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors">
@@ -87,10 +84,10 @@ function ReporterDossierHeader({
 function QuickFactsCard({
   data,
   activity,
-}: {
+}:Readonly< {
   data: WikiReporterDossier;
   activity?: ReporterActivity;
-}) {
+}>) {
   return (
     <SidebarCard title="Quick Facts">
       <SidebarFact label="Articles" value={String(data.article_count)} />
@@ -111,7 +108,7 @@ function QuickFactsCard({
   );
 }
 
-function OutletsCard({ outlets }: { outlets?: ReporterActivity["outlets"] }) {
+function OutletsCard({ outlets }:Readonly< { outlets?: ReporterActivity["outlets"] }>) {
   return (
     <SidebarCard title="Outlets In Corpus">
       {outlets?.length ? (
@@ -134,7 +131,7 @@ function OutletsCard({ outlets }: { outlets?: ReporterActivity["outlets"] }) {
   );
 }
 
-function AuthorPagesCard({ authorPages }: { authorPages?: ReporterActivity["author_pages"] }) {
+function AuthorPagesCard({ authorPages }:Readonly< { authorPages?: ReporterActivity["author_pages"] }>) {
   return (
     <SidebarCard title="Author Pages">
       {authorPages?.length ? (
@@ -163,11 +160,11 @@ function ExternalProfilesCard({
   externalProfiles,
   wikidataUrl,
   wikipediaUrl,
-}: {
+}:Readonly< {
   externalProfiles?: ReporterActivity["external_profiles"];
   wikidataUrl?: string;
   wikipediaUrl?: string;
-}) {
+}>) {
   return (
     <SidebarCard title="External Profiles">
       <div className="space-y-2 text-sm">
@@ -194,7 +191,7 @@ function ExternalProfilesCard({
   );
 }
 
-function BeatsCard({ categories }: { categories: ReporterActivity["categories"] }) {
+function BeatsCard({ categories }:Readonly< { categories: ReporterActivity["categories"] }>) {
   return (
     <SidebarCard title="Beats In Corpus">
       <div className="flex flex-wrap gap-2">
@@ -208,7 +205,7 @@ function BeatsCard({ categories }: { categories: ReporterActivity["categories"] 
   );
 }
 
-function OverviewPanel({ data }: { data: WikiReporterDossier }) {
+function OverviewPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
   return (
     <Panel title="Overview" eyebrow="Deterministic identity and corpus view">
       <div className="rounded-2xl border border-white/10 bg-black/25 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
@@ -228,7 +225,7 @@ function OverviewPanel({ data }: { data: WikiReporterDossier }) {
   );
 }
 
-function PublicRecordPanel({ sections }: { sections: WikiReporterDossier["dossier_sections"] }) {
+function PublicRecordPanel({ sections }:Readonly< { sections: WikiReporterDossier["dossier_sections"] }>) {
   return (
     <Panel title="Public Record" eyebrow="Identity and external reference evidence">
       <div className="space-y-2">
@@ -258,7 +255,7 @@ function PublicRecordPanel({ sections }: { sections: WikiReporterDossier["dossie
   );
 }
 
-function BackgroundPanel({ data }: { data: WikiReporterDossier }) {
+function BackgroundPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
   return (
     <Panel title="Background" eyebrow="Stored employment and education records">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -308,7 +305,7 @@ function BackgroundPanel({ data }: { data: WikiReporterDossier }) {
   );
 }
 
-function CorpusActivityPanel({ activity }: { activity: ReporterActivity }) {
+function CorpusActivityPanel({ activity }:Readonly< { activity: ReporterActivity }>) {
   return (
     <Panel title="Corpus Activity" eyebrow="Signals derived from your own article database">
       <div className="grid gap-4 lg:grid-cols-3">
@@ -329,7 +326,7 @@ function CorpusActivityPanel({ activity }: { activity: ReporterActivity }) {
   );
 }
 
-function RecentArticlesPanel({ articles }: { articles: WikiReporterDossier["recent_articles"] }) {
+function RecentArticlesPanel({ articles }:Readonly< { articles: WikiReporterDossier["recent_articles"] }>) {
   return (
     <Panel title="Recent Articles" eyebrow="Latest work in the local corpus">
       <div className="space-y-3">
@@ -359,7 +356,7 @@ function RecentArticlesPanel({ articles }: { articles: WikiReporterDossier["rece
   );
 }
 
-function CitationsPanel({ citations }: { citations: WikiReporterDossier["citations"] }) {
+function CitationsPanel({ citations }:Readonly< { citations: WikiReporterDossier["citations"] }>) {
   return (
     <Panel title="Citations" eyebrow="Public references used for this page">
       <div className="space-y-2 rounded-2xl border border-white/5 bg-black/20 p-5 text-sm transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
@@ -380,11 +377,58 @@ function CitationsPanel({ citations }: { citations: WikiReporterDossier["citatio
   );
 }
 
-export function ReporterWikiView({ reporterId }: { reporterId: number }) {
+function ReporterDossierSidebar({
+  data,
+  activity,
+}: Readonly<{ data: WikiReporterDossier; activity?: ReporterActivity }>) {
+  return (
+    <aside className="rounded-2xl border bg-black/40 backdrop-blur-2xl border-white/10 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto custom-scrollbar">
+      <QuickFactsCard data={data} activity={activity} />
+      <OutletsCard outlets={activity?.outlets} />
+      <AuthorPagesCard authorPages={activity?.author_pages} />
+      <ExternalProfilesCard
+        externalProfiles={activity?.external_profiles}
+        wikidataUrl={data.wikidata_url}
+        wikipediaUrl={data.wikipedia_url}
+      />
+      {activity?.categories?.length ? <BeatsCard categories={activity.categories} /> : null}
+    </aside>
+  );
+}
+
+function ReporterDossierPanels({
+  data,
+  activity,
+  careerTimeline,
+}: Readonly<{
+  data: WikiReporterDossier;
+  activity?: ReporterActivity;
+  careerTimeline: ReturnType<typeof parseReporterCareerTimeline>;
+}>) {
+  return (
+    <section className="space-y-5">
+      <OverviewPanel data={data} />
+      <PublicRecordPanel sections={data.dossier_sections} />
+      {data.career_history?.length || data.education?.length ? <BackgroundPanel data={data} /> : null}
+      {careerTimeline && careerTimeline.timeline.length > 0 ? (
+        <Panel title="Career Timeline" eyebrow="Bylines and affiliations, merged chronologically">
+          <CareerTimeline data={careerTimeline} />
+        </Panel>
+      ) : null}
+      {activity ? <CorpusActivityPanel activity={activity} /> : null}
+      {data.recent_articles.length > 0 ? (
+        <RecentArticlesPanel articles={data.recent_articles} />
+      ) : null}
+      {data.citations.length > 0 ? <CitationsPanel citations={data.citations} /> : null}
+    </section>
+  );
+}
+
+export function ReporterWikiView({ reporterId }:Readonly< { reporterId: number }>) {
   const { data, isLoading, error } = useQuery<WikiReporterDossier>({
-    queryKey: ["wiki-reporter", reporterId],
-    queryFn: () => fetchWikiReporter(reporterId),
     enabled: Number.isFinite(reporterId),
+    queryFn: () => fetchWikiReporter(reporterId),
+    queryKey: ["wiki-reporter", reporterId],
     retry: 1,
   });
 
@@ -397,10 +441,9 @@ export function ReporterWikiView({ reporterId }: { reporterId: number }) {
     return <ReporterNotFoundState message={message} />;
   }
 
-  const activity = data.activity_summary;
-  const careerTimeline = parseReporterCareerTimeline(data.career_timeline);
-  const primaryOutlet = activity?.outlets?.[0]?.name;
-  const hasBackground = !!(data.career_history?.length || data.education?.length);
+  const activity = data.activity_summary,
+   careerTimeline = parseReporterCareerTimeline(data.career_timeline),
+   primaryOutlet = activity?.outlets?.[0]?.name;
 
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
@@ -411,36 +454,12 @@ export function ReporterWikiView({ reporterId }: { reporterId: number }) {
         <ReporterDossierHeader data={data} primaryOutlet={primaryOutlet} />
 
         <main className="mx-auto grid max-w-[1500px] gap-5 p-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border bg-black/40 backdrop-blur-2xl border-white/10 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto custom-scrollbar">
-            <QuickFactsCard data={data} activity={activity} />
-            <OutletsCard outlets={activity?.outlets} />
-            <AuthorPagesCard authorPages={activity?.author_pages} />
-            <ExternalProfilesCard
-              externalProfiles={activity?.external_profiles}
-              wikidataUrl={data.wikidata_url}
-              wikipediaUrl={data.wikipedia_url}
-            />
-            {activity?.categories?.length ? <BeatsCard categories={activity.categories} /> : null}
-          </aside>
-
-          <section className="space-y-5">
-            <OverviewPanel data={data} />
-            <PublicRecordPanel sections={data.dossier_sections} />
-
-            {hasBackground && <BackgroundPanel data={data} />}
-
-            {careerTimeline && careerTimeline.timeline.length > 0 && (
-              <Panel title="Career Timeline" eyebrow="Bylines and affiliations, merged chronologically">
-                <CareerTimeline data={careerTimeline} />
-              </Panel>
-            )}
-
-            {activity && <CorpusActivityPanel activity={activity} />}
-
-            {data.recent_articles.length > 0 && <RecentArticlesPanel articles={data.recent_articles} />}
-
-            {data.citations.length > 0 && <CitationsPanel citations={data.citations} />}
-          </section>
+          <ReporterDossierSidebar data={data} activity={activity} />
+          <ReporterDossierPanels
+            data={data}
+            activity={activity}
+            careerTimeline={careerTimeline}
+          />
         </main>
       </div>
     </div>
@@ -451,11 +470,11 @@ function Panel({
   title,
   eyebrow,
   children,
-}: {
+}:Readonly< {
   title: string;
   eyebrow: string;
   children: ReactNode;
-}) {
+}>) {
   return (
     <section>
       <div className="mb-3">
@@ -470,10 +489,10 @@ function Panel({
 function SidebarCard({
   title,
   children,
-}: {
+}:Readonly< {
   title: string;
   children: ReactNode;
-}) {
+}>) {
   return (
     <div className="mt-4 rounded-2xl border border-white/5 bg-black/20 p-4 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
       <div className="mb-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{title}</div>
@@ -482,7 +501,7 @@ function SidebarCard({
   );
 }
 
-function SidebarFact({ label, value }: { label: string; value: string }) {
+function SidebarFact({ label, value }:Readonly< { label: string; value: string }>) {
   return (
     <div className="flex items-start justify-between gap-3 text-[10px] font-mono tracking-widest uppercase mt-2">
       <span className="text-muted-foreground">{label}</span>
@@ -491,11 +510,11 @@ function SidebarFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActivityList({ title, items }: { title: string; items: string[] }) {
+function ActivityList({ title, items }:Readonly< { title: string; items: string[] }>) {
   return (
     <div className="rounded-2xl border border-white/5 bg-black/20 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg p-5">
       <div className="mb-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{title}</div>
-      {items.length ? (
+      {items.length > 0 ? (
         <div className="space-y-2 text-[10px] font-mono tracking-widest uppercase">
           {items.map((item) => (
             <div key={item} className="rounded-xl border border-white/5 bg-black/20 px-3 py-2 transition-colors hover:bg-white/5 hover:border-white/10">

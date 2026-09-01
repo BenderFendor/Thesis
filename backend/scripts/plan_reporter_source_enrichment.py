@@ -563,7 +563,18 @@ async def load_reporter_source_facts(
         .order_by(func.count(ArticleAuthor.id).desc(), Article.source, Reporter.id)
     )
     rows = (await session.execute(stmt)).all()
-    facts = [
+    facts = _reporter_source_facts_from_rows(rows)
+    if limit_sources is None:
+        return facts
+    ranked_sources = {
+        row.source
+        for row in summarize_source_backlog(facts, source_configs=get_rss_sources())[:limit_sources]
+    }
+    return [fact for fact in facts if fact.source in ranked_sources]
+
+
+def _reporter_source_facts_from_rows(rows: list[Any]) -> list[ReporterSourceFact]:
+    return [
         ReporterSourceFact(
             source=str(source),
             reporter_id=int(reporter_id),
@@ -583,13 +594,6 @@ async def load_reporter_source_facts(
             article_count,
         ) in rows
     ]
-    if limit_sources is None:
-        return facts
-    ranked_sources = {
-        row.source
-        for row in summarize_source_backlog(facts, source_configs=get_rss_sources())[:limit_sources]
-    }
-    return [fact for fact in facts if fact.source in ranked_sources]
 
 
 def write_rows_csv(rows: list[SourceEnrichmentRow], output: TextIO) -> None:
@@ -618,7 +622,7 @@ async def _get_session() -> AsyncSession:
     return AsyncSessionLocal()
 
 
-async def main_async(args: argparse.Namespace) -> int:
+async def _load_planning_facts(args: argparse.Namespace) -> list[ReporterSourceFact]:
     session = await _get_session()
     try:
         facts = await load_reporter_source_facts(session)
@@ -628,35 +632,42 @@ async def main_async(args: argparse.Namespace) -> int:
     if args.source:
         facts = [fact for fact in facts if _source_matches_filter(fact.source, args.source)]
     if args.dedupe_identities:
-        facts = dedupe_reporter_facts_by_identity(facts)
+        return dedupe_reporter_facts_by_identity(facts)
+    return facts
 
-    source_configs = get_rss_sources()
-    output: TextIO
+
+def _write_planning_output(
+    args: argparse.Namespace,
+    facts: list[ReporterSourceFact],
+    source_configs: dict[str, dict[str, object]],
+) -> None:
     output_path = Path(args.output) if args.output and args.output != "-" else None
     if output_path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output = output_path.open("w", encoding="utf-8", newline="")
     else:
         output = sys.stdout
-    if args.mode == "reporters":
-        reporter_rows = summarize_reporter_backlog(facts, source_configs=source_configs)
-        if args.limit_reporters and args.limit_reporters > 0:
-            reporter_rows = reporter_rows[: args.limit_reporters]
-        try:
-            write_reporter_rows_csv(reporter_rows, output)
-        finally:
-            if output_path:
-                output.close()
-        return 0
 
-    rows = summarize_source_backlog(facts, source_configs=source_configs)
-    if args.limit_sources and args.limit_sources > 0:
-        rows = rows[: args.limit_sources]
     try:
+        if args.mode == "reporters":
+            reporter_rows = summarize_reporter_backlog(facts, source_configs=source_configs)
+            if args.limit_reporters and args.limit_reporters > 0:
+                reporter_rows = reporter_rows[: args.limit_reporters]
+            write_reporter_rows_csv(reporter_rows, output)
+            return
+
+        rows = summarize_source_backlog(facts, source_configs=source_configs)
+        if args.limit_sources and args.limit_sources > 0:
+            rows = rows[: args.limit_sources]
         write_rows_csv(rows, output)
     finally:
         if output_path:
             output.close()
+
+
+async def main_async(args: argparse.Namespace) -> int:
+    facts = await _load_planning_facts(args)
+    _write_planning_output(args, facts, get_rss_sources())
     return 0
 
 

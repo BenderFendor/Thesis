@@ -6,7 +6,7 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +14,11 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.data.rss_sources import get_rss_sources
 from app.services.cache import news_cache
-from app.services.source_document_collector import MAX_DOCS, collect_source_documents
 from app.services.entity_wiki_service import (
     build_source_profile as build_deterministic_source_profile,
 )
 from app.services.rss_parser_rust_bindings import parse_feeds_parallel
+from app.services.source_document_collector import MAX_DOCS, collect_source_documents
 from app.services.source_field_extractor import extract_fields_from_documents
 from app.services.source_profile_extractor import (
     FIELD_KEYS,
@@ -52,6 +52,23 @@ def _cache_path(source_name: str) -> Path:
     return CACHE_DIR / f"{_slugify(source_name)}.json"
 
 
+def _feed_article_domains(source_name: str, articles: list[Any]) -> Counter[str]:
+    domains: Counter[str] = Counter()
+    for item in articles:
+        if not isinstance(item, dict):
+            continue
+        if item.get("source") != source_name:
+            continue
+        link = item.get("link")
+        if not isinstance(link, str) or not link.strip():
+            continue
+        domain = extract_host(link)
+        if not domain or domain in AGGREGATOR_HOSTS:
+            continue
+        domains[domain] += 1
+    return domains
+
+
 def _infer_website_from_feed_articles(
     source_name: str,
     url_value: Any,
@@ -70,19 +87,7 @@ def _infer_website_from_feed_articles(
     if not isinstance(articles, list) or not articles:
         return None
 
-    domains: Counter[str] = Counter()
-    for item in articles:
-        if not isinstance(item, dict):
-            continue
-        if item.get("source") != source_name:
-            continue
-        link = item.get("link")
-        if not isinstance(link, str) or not link.strip():
-            continue
-        domain = extract_host(link)
-        if not domain or domain in AGGREGATOR_HOSTS:
-            continue
-        domains[domain] += 1
+    domains = _feed_article_domains(source_name, articles)
 
     if not domains:
         return None
@@ -92,6 +97,38 @@ def _infer_website_from_feed_articles(
     if top_count < 2 and len(domains) > 1:
         return None
     return f"https://{top_domain}"
+
+
+def _matching_catalog_config(
+    sources: dict[str, dict[str, Any]], normalized_target: str
+) -> dict[str, Any] | None:
+    for configured_name, config in sources.items():
+        base_name = configured_name.split(" - ")[0].strip().lower()
+        if normalized_target in {configured_name.lower(), base_name}:
+            return config
+    return None
+
+
+def _resolve_catalog_config(source_name: str, config: dict[str, Any]) -> str | None:
+    configured_site = config.get("site_url")
+    if isinstance(configured_site, str) and configured_site.strip():
+        return configured_site.strip()
+
+    url_value = config.get("url")
+    normalized_website = normalize_site_url(url_value)
+    inferred_website = _infer_website_from_feed_articles(source_name, url_value)
+    if inferred_website:
+        inferred_host = extract_domain(inferred_website) or ""
+        normalized_host = extract_domain(normalized_website) if normalized_website else None
+        if normalized_host and not hosts_match(normalized_host, inferred_host):
+            logger.info(
+                "Website guard replaced %s catalog host %s with inferred host %s",
+                source_name,
+                normalized_host,
+                inferred_host,
+            )
+        return inferred_website
+    return normalized_website
 
 
 def _resolve_website_from_catalog(source_name: str) -> str | None:
@@ -108,35 +145,11 @@ def _resolve_website_from_catalog(source_name: str) -> str | None:
         logger.debug("Failed to load RSS catalog for %s: %s", source_name, exc)
         return None
 
-    for configured_name, config in sources.items():
-        base_name = configured_name.split(" - ")[0].strip().lower()
-        if normalized_target in {configured_name.lower(), base_name}:
-            configured_site = config.get("site_url")
-            if isinstance(configured_site, str) and configured_site.strip():
-                resolved = configured_site.strip()
-                _CATALOG_WEBSITE_CACHE[normalized_target] = resolved
-                return resolved
-
-            url_value = config.get("url")
-            normalized_website = normalize_site_url(url_value)
-            inferred_website = _infer_website_from_feed_articles(source_name, url_value)
-
-            if inferred_website:
-                inferred_host = extract_domain(inferred_website) or ""
-                normalized_host = extract_domain(normalized_website) if normalized_website else None
-                if normalized_host and not hosts_match(normalized_host, inferred_host):
-                    logger.info(
-                        "Website guard replaced %s catalog host %s with inferred host %s",
-                        source_name,
-                        normalized_host,
-                        inferred_host,
-                    )
-                _CATALOG_WEBSITE_CACHE[normalized_target] = inferred_website
-                return inferred_website
-
-            if normalized_website:
-                _CATALOG_WEBSITE_CACHE[normalized_target] = normalized_website
-                return normalized_website
+    config = _matching_catalog_config(sources, normalized_target)
+    if config is not None:
+        resolved = _resolve_catalog_config(source_name, config)
+        _CATALOG_WEBSITE_CACHE[normalized_target] = resolved
+        return resolved
 
     _CATALOG_WEBSITE_CACHE[normalized_target] = None
     return None
@@ -337,14 +350,23 @@ def _merge_extracted_fields(
 def _add_wikidata_fields(fields: dict[str, list[dict[str, Any]]], org_data: dict[str, Any]) -> None:
     wikidata_url = org_data.get("wikidata_url")
     wikidata_sources = [wikidata_url] if wikidata_url else ["wikidata"]
+    _append_wikidata_relations(fields, org_data, wikidata_sources)
+    _append_wikidata_scalar_fields(fields, org_data, wikidata_sources)
+
+
+def _append_wikidata_relations(
+    fields: dict[str, list[dict[str, Any]]],
+    org_data: dict[str, Any],
+    sources: list[str],
+) -> None:
     for owner in org_data.get("owned_by") or []:
-        _append_field(fields, "ownership", owner, wikidata_sources, "Wikidata P127 (owned by)")
+        _append_field(fields, "ownership", owner, sources, "Wikidata P127 (owned by)")
     for parent in org_data.get("parent_orgs") or []:
         _append_field(
             fields,
             "ownership",
             parent,
-            wikidata_sources,
+            sources,
             "Wikidata P749 (parent organization)",
         )
     for affiliation in org_data.get("part_of") or []:
@@ -352,17 +374,24 @@ def _add_wikidata_fields(fields: dict[str, list[dict[str, Any]]], org_data: dict
             fields,
             "affiliations",
             affiliation,
-            wikidata_sources,
+            sources,
             "Wikidata P361 (part of)",
         )
     for hq in org_data.get("headquarters") or []:
-        _append_field(fields, "headquarters", hq, wikidata_sources, "Wikidata P159 (headquarters)")
+        _append_field(fields, "headquarters", hq, sources, "Wikidata P159 (headquarters)")
+
+
+def _append_wikidata_scalar_fields(
+    fields: dict[str, list[dict[str, Any]]],
+    org_data: dict[str, Any],
+    sources: list[str],
+) -> None:
     if org_data.get("inception"):
         _append_field(
             fields,
             "founded",
             org_data["inception"],
-            wikidata_sources,
+            sources,
             "Wikidata P571 (inception)",
         )
     if org_data.get("official_website"):
@@ -370,7 +399,7 @@ def _add_wikidata_fields(fields: dict[str, list[dict[str, Any]]], org_data: dict
             fields,
             "official_website",
             org_data["official_website"],
-            wikidata_sources,
+            sources,
             "Wikidata P856 (official website)",
         )
 
@@ -455,44 +484,48 @@ def _build_gap_queries(
         site_filter = f" site:{_extract_domain(website)}"
 
     queries: list[str] = []
-    if "funding" in missing_fields or "nonprofit_filings" in missing_fields:
-        queries.extend(
+    query_groups = _gap_query_groups(source_name, site_filter)
+    missing = set(missing_fields)
+    for required_fields, group_queries in query_groups:
+        if missing & required_fields:
+            queries.extend(group_queries)
+
+    return _dedupe_queries(queries)
+
+
+def _gap_query_groups(source_name: str, site_filter: str) -> tuple[tuple[set[str], list[str]], ...]:
+    return (
+        (
+            {"funding", "nonprofit_filings"},
             [
                 f"{source_name} funding{site_filter}",
                 f"{source_name} donors{site_filter}",
                 f"{source_name} 990",
                 f"{source_name} annual report",
-            ]
-        )
-    if "ownership" in missing_fields:
-        queries.extend(
+            ],
+        ),
+        (
+            {"ownership"},
             [
                 f"{source_name} ownership",
                 f"{source_name} parent company",
                 f"{source_name} owned by",
-            ]
-        )
-    if "corrections_history" in missing_fields:
-        queries.append(f"{source_name} corrections policy{site_filter}")
-    if "editorial_stance" in missing_fields:
-        queries.extend(
+            ],
+        ),
+        ({"corrections_history"}, [f"{source_name} corrections policy{site_filter}"]),
+        (
+            {"editorial_stance"},
             [
                 f"{source_name} editorial standards{site_filter}",
                 f"{source_name} code of ethics{site_filter}",
-            ]
-        )
-    if "political_bias" in missing_fields or "factual_reporting" in missing_fields:
-        queries.append(f"{source_name} media bias rating")
-    if "reach_traffic" in missing_fields:
-        queries.append(f"{source_name} audience size")
-    if "affiliations" in missing_fields:
-        queries.append(f"{source_name} member of")
-    if "founded" in missing_fields:
-        queries.append(f"{source_name} founded year")
-    if "headquarters" in missing_fields:
-        queries.append(f"{source_name} headquarters")
-
-    return _dedupe_queries(queries)
+            ],
+        ),
+        ({"political_bias", "factual_reporting"}, [f"{source_name} media bias rating"]),
+        ({"reach_traffic"}, [f"{source_name} audience size"]),
+        ({"affiliations"}, [f"{source_name} member of"]),
+        ({"founded"}, [f"{source_name} founded year"]),
+        ({"headquarters"}, [f"{source_name} headquarters"]),
+    )
 
 
 def _extract_domain(website: str) -> str:

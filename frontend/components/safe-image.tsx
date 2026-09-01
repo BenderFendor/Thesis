@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image, { type ImageProps } from "next/image"
+import Image from 'next/image';
+import type { ImageProps } from 'next/image';
 
 type SafeImageProps = Omit<ImageProps, "src"> & {
   src?: string | null
@@ -15,8 +16,8 @@ export function SafeImage({
   unoptimized = true,
   ...props
 }: SafeImageProps) {
-  const resolvedSrc = src && src.trim().length > 0 ? src : fallbackSrc
-  const [currentSrc, setCurrentSrc] = useState(resolvedSrc)
+  const resolvedSrc = src && src.trim().length > 0 ? src : fallbackSrc,
+   [currentSrc, setCurrentSrc] = useState(resolvedSrc)
 
   useEffect(() => {
     setCurrentSrc(resolvedSrc)

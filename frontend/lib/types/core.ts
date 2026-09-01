@@ -1,4 +1,4 @@
-export interface ArticleCore {
+interface ArticleCore {
   id: string
   title: string
   source: string
@@ -11,7 +11,7 @@ export interface ArticleCore {
   category?: string
 }
 
-export interface SourceCore {
+interface SourceCore {
   id: string
   name: string
   category?: string
@@ -21,7 +21,7 @@ export interface SourceCore {
   ownershipLabel?: string
 }
 
-export interface ClusterCore {
+interface ClusterCore {
   id: string
   topic: string
   articles: ArticleCore[]
@@ -29,7 +29,7 @@ export interface ClusterCore {
   articleCount: number
 }
 
-export interface QueuedItem {
+interface QueuedItem {
   id: string
   url: string
   title: string
@@ -37,10 +37,18 @@ export interface QueuedItem {
   addedAt: string
 }
 
-export interface HighlightCore {
+interface HighlightCore {
   id: string
   articleId: string
   text: string
   note?: string
   createdAt: string
+}
+
+export type {
+  ArticleCore,
+  ClusterCore,
+  HighlightCore,
+  QueuedItem,
+  SourceCore,
 }

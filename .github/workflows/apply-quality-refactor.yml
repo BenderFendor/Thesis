@@ -1,0 +1,46 @@
+name: Apply verified quality refactor
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+          fetch-depth: 0
+      - name: Apply verified patch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          parts=(.github/quality-refactor-payload.part-*.b64)
+          if (( ${#parts[@]} == 0 )); then
+            echo "No payload; nothing to apply."
+            exit 0
+          fi
+          cat "${parts[@]}" | base64 --decode > /tmp/quality-refactor.patch.gz
+          echo "c4c383ed424c5b552c969052e6fbdb5481ace0fe7feb54c0772cb9d8a9a1be85  /tmp/quality-refactor.patch.gz" | sha256sum --check
+          gzip --decompress --stdout /tmp/quality-refactor.patch.gz > /tmp/quality-refactor.patch
+          git apply --check /tmp/quality-refactor.patch
+          git apply /tmp/quality-refactor.patch
+          rm "${parts[@]}"
+          rm -f .github/quality-refactor-ready
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor: zero hard complexity debt"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:quality/crap-mi-oxlint-hardening; then
+              exit 0
+            fi
+            echo "Push raced with another workflow; rebasing (attempt $attempt)."
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          echo "Failed to persist verified refactor after retries." >&2
+          exit 1

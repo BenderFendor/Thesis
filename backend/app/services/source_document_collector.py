@@ -90,6 +90,61 @@ class DuckDuckGoSearcher:
         return payload
 
 
+async def _collect_search_queries(
+    planner: SourceSearchPlanner,
+    source_name: str,
+    website: str | None,
+    extra_queries: Sequence[str] | None,
+    use_llm_planner: bool,
+) -> list[str]:
+    """Build the search query list, appending agentic and extra queries, deduped."""
+    search_queries = _build_search_queries(source_name, website)
+    if extra_queries:
+        search_queries.extend(extra_queries)
+    if use_llm_planner:
+        agentic_queries = await planner.plan_queries(source_name, website)
+        search_queries.extend(agentic_queries)
+    return _dedupe_queries(search_queries)
+
+
+async def _search_candidate_urls(
+    searcher: DuckDuckGoSearcher,
+    search_queries: Sequence[str],
+    official_domain: str | None,
+    normalized_name: str,
+) -> set[str]:
+    """Run searches and collect URL candidates matching the source domain/name."""
+    candidate_urls: set[str] = set()
+    for query in search_queries:
+        results = await searcher.search(query, MAX_RESULTS_PER_QUERY)
+        for result in results:
+            url = _normalize_url(result.url)
+            if not url:
+                continue
+            if _is_candidate_url(url, official_domain, normalized_name):
+                candidate_urls.add(url)
+    return candidate_urls
+
+
+async def _fetch_candidates(
+    client: httpx.AsyncClient,
+    prioritized: Iterable[str],
+    limit: int,
+    documents: list[SourceDocument],
+    existing_urls: set[str],
+) -> None:
+    """Fetch each prioritized candidate and append new source documents."""
+    for url in prioritized:
+        if len(documents) >= limit:
+            break
+        if url in existing_urls:
+            continue
+        document = await _fetch_document(client, url)
+        if document:
+            documents.append(document)
+            existing_urls.add(document.url)
+
+
 async def collect_source_documents(
     source_name: str,
     website: str | None = None,
@@ -111,36 +166,18 @@ async def collect_source_documents(
     existing_urls = {doc.url for doc in documents}
 
     candidate_urls = _candidate_urls_from_known_paths(website)
-    search_queries = _build_search_queries(source_name, website)
-    if extra_queries:
-        search_queries.extend(extra_queries)
-    if use_llm_planner:
-        agentic_queries = await planner.plan_queries(source_name, website)
-        search_queries.extend(agentic_queries)
-    search_queries = _dedupe_queries(search_queries)
-
-    for query in search_queries:
-        results = await searcher.search(query, MAX_RESULTS_PER_QUERY)
-        for result in results:
-            url = _normalize_url(result.url)
-            if not url:
-                continue
-            if _is_candidate_url(url, official_domain, normalized_name):
-                candidate_urls.add(url)
+    search_queries = await _collect_search_queries(
+        planner, source_name, website, extra_queries, use_llm_planner
+    )
+    candidate_urls.update(
+        await _search_candidate_urls(searcher, search_queries, official_domain, normalized_name)
+    )
 
     prioritized = _prioritize_urls(candidate_urls, official_domain)
     limit = max_total_docs if max_total_docs is not None else max_docs
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        for url in prioritized:
-            if len(documents) >= limit:
-                break
-            if url in existing_urls:
-                continue
-            document = await _fetch_document(client, url)
-            if document:
-                documents.append(document)
-                existing_urls.add(document.url)
+        await _fetch_candidates(client, prioritized, limit, documents, existing_urls)
 
     logger.info("Collected %s source documents for %s", len(documents), source_name)
     return documents

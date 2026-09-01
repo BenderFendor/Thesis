@@ -7,7 +7,7 @@ supporting adjudication/policy/proof-suite bookkeeping tables.
 """
 
 from __future__ import annotations
-from app.database import Base, get_utc_now
+
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -22,6 +22,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+
+from app.database import Base, get_utc_now
+from app.models.evidence_tables import EVIDENCE_SPINE_TABLES
 
 
 class EvidenceEntity(Base):
@@ -535,39 +538,8 @@ class ProofRun(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
-# Table names owned exclusively by the Alembic evidence-spine revision
-# (backend/alembic/versions/20260720_0001_evidence_spine.py). These tables must
-# never be created or altered by the ad hoc `Base.metadata.create_all` /
-# "add missing columns" startup path in app/database.py -- that path runs on
-# every process boot and, if it also manages these tables, it silently creates
-# them ahead of Alembic (no alembic_version row is ever written), which makes
-# `alembic history`/`alembic current` lie about what produced the schema and
-# turns `alembic downgrade` into a no-op the next time the app starts. Keep
-# this tuple and the migration's `_TABLES` tuple in sync.
-EVIDENCE_SPINE_TABLES = (
-    "evidence_entities",
-    "entity_external_ids",
-    "entity_resolutions",
-    "evidence_documents",
-    "document_snapshots",
-    "archive_requests",
-    "evidence_observations",
-    "evidence_claims",
-    "claim_evidence_links",
-    "accepted_relationships",
-    "relationship_claim_links",
-    "source_lineage",
-    "adjudication_items",
-    "calculation_traces",
-    "external_material_events",
-    "preregistrations",
-    "measurement_validation_cards",
-    "corpus_coverage_windows",
-    "proof_runs",
-    "evidence_ingest_runs",
-)
-
 __all__ = [
+    "EVIDENCE_SPINE_TABLES",
     "AcceptedRelationship",
     "AdjudicationItem",
     "ArchiveRequest",
@@ -582,7 +554,6 @@ __all__ = [
     "EvidenceEntity",
     "EvidenceIngestRun",
     "EvidenceObservation",
-    "EVIDENCE_SPINE_TABLES",
     "ExternalMaterialEvent",
     "MeasurementValidationCard",
     "Preregistration",

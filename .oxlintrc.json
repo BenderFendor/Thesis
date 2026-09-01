@@ -1,7 +1,208 @@
 {
-  "jsPlugins": ["oxlint-plugin-complexity"],
-  "rules": {
-    "complexity/complexity": ["error", { "cyclomatic": 1, "cognitive": 1, "minLines": 0 }]
+  "$schema": "./frontend/node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
   },
-  "ignorePatterns": ["node_modules/**", ".next/**", "frontend/lib/generated/**"]
+  "plugins": [
+    "eslint",
+    "typescript",
+    "oxc",
+    "unicorn",
+    "react",
+    "import",
+    "jsdoc",
+    "jest",
+    "jsx-a11y",
+    "nextjs",
+    "react-perf",
+    "promise",
+    "node"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "off",
+    "nursery": "warn"
+  },
+  "settings": {
+    "next": {
+      "rootDir": "frontend"
+    },
+    "jsx-a11y": {
+      "components": {
+        "Button": "button"
+      }
+    }
+  },
+  "ignorePatterns": [
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".next/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "node_modules/**",
+    "frontend/.next/**",
+    "frontend/coverage/**",
+    "frontend/lib/generated/**",
+    "frontend/tools/oxlint/**"
+  ],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "./frontend/tools/oxlint/anti-slop/index.ts"
+    },
+    {
+      "name": "thesis",
+      "specifier": "./frontend/tools/oxlint/thesis/index.mjs"
+    }
+  ],
+  "rules": {
+     "import/no-named-export": "off",
+     "import/prefer-default-export": "off",
+    "react/preserve-manual-memoization": "off",
+     "react/function-component-definition": ["error", { "namedComponents": "arrow-function", "unnamedComponents": "arrow-function" }],
+    "max-depth": ["error", { "max": 4 }],
+    "max-params": ["error", { "max": 5 }],
+    "max-lines": [
+      "warn",
+      {
+        "max": 500,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "max-lines-per-function": [
+      "warn",
+      {
+        "max": 50,
+        "skipBlankLines": true,
+        "skipComments": true,
+        "IIFEs": true
+      }
+    ],
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": [
+      "error",
+      {
+        "allowInTypeGuards": true
+      }
+    ],
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "react/react-in-jsx-scope": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/consistent-type-definitions": ["error", "interface"],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "import/no-cycle": "error",
+    "no-duplicate-imports": [
+      "error",
+      {
+        "allowSeparateTypeImports": true
+      }
+    ],
+    "react/exhaustive-deps": "error",
+    "react/rules-of-hooks": "error",
+    "react/set-state-in-effect": "error",
+    "react/set-state-in-render": "error",
+    "jest/no-disabled-tests": "error",
+    "jest/no-focused-tests": "error",
+    "thesis/no-fragile-map-keys": "error",
+    "thesis/no-hook-object-dependencies": "error",
+    "thesis/no-nested-button-content": "error",
+    "thesis/require-dialog-title": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "frontend/**/*.{js,jsx,ts,tsx}"
+      ],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": [
+        "frontend/app/layout.tsx"
+      ],
+      "rules": {
+        "one-var": "off",
+        "import/no-unassigned-import": "off",
+        "react/jsx-max-depth": "off",
+        "typescript/prefer-readonly-parameter-types": "off"
+      }
+    },
+    {
+      "files": [
+        "frontend/hooks/use-debug-mode.ts"
+      ],
+      "globals": {
+        "process": "readonly"
+      }
+    },
+    {
+      "files": [
+        "frontend/app/search/page.tsx",
+        "frontend/components/article-detail-modal.tsx",
+        "frontend/components/chat-sidebar.tsx",
+        "frontend/components/feed-view.tsx",
+        "frontend/components/grid-view.tsx"
+      ],
+      "rules": {
+        "thesis/no-arbitrary-tailwind-value": "error"
+      }
+    },
+    {
+      "files": [
+        "frontend/**/__tests__/**/*.{js,jsx,ts,tsx}",
+        "frontend/**/*.test.{js,jsx,ts,tsx}",
+        "frontend/**/*.spec.{js,jsx,ts,tsx}"
+      ],
+      "env": {
+        "jest": true
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.{js,mjs,cjs,ts}",
+        "frontend/*.config.{js,mjs,cjs,ts}",
+        "frontend/jest.setup.js"
+      ],
+      "env": {
+        "node": true
+      },
+      "rules": {
+        "import/no-unassigned-import": "off"
+      }
+    }
+  ]
 }

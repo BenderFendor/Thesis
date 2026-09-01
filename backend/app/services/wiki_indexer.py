@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from typing import Any, Protocol, TypedDict, cast
 
@@ -24,16 +24,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.logging import get_logger
+from app.data.rss_sources import get_rss_sources
 from app.database import (
     AsyncSessionLocal,
     Organization,
+    SourceAnalysisScore,
     SourceClaim,
     SourceClaimEvidence,
-    SourceAnalysisScore,
     WikiIndexStatus,
     get_utc_now,
 )
-from app.data.rss_sources import get_rss_sources
 from app.services.funding_researcher import get_funding_researcher
 from app.services.reporter_indexer import index_stale_reporters
 from app.services.source_claims import (
@@ -201,6 +201,91 @@ async def _save_analysis_scores(
     await session.commit()
 
 
+_ORGANIZATION_UPDATE_FIELDS = (
+    "funding_type",
+    "funding_sources",
+    "ein",
+    "annual_revenue",
+    "media_bias_rating",
+    "factual_reporting",
+    "wikipedia_url",
+    "research_sources",
+    "research_confidence",
+    "owned_by",
+    "parent_orgs",
+    "part_of",
+    "headquarters",
+    "inception",
+    "official_website",
+    "cik",
+    "opensecrets_data",
+    "conflict_flags",
+)
+
+
+def _update_organization_record(
+    organization: Organization,
+    org_data: dict[str, Any],
+) -> Organization:
+    for attribute in _ORGANIZATION_UPDATE_FIELDS:
+        value = org_data.get(attribute)
+        if value is not None:
+            setattr(organization, attribute, value)
+    organization.updated_at = get_utc_now()
+    return organization
+
+
+def _new_organization_record(
+    org_data: dict[str, Any],
+    normalized: str,
+) -> Organization:
+    return Organization(
+        name=org_data.get("name"),
+        normalized_name=normalized,
+        org_type=org_data.get("org_type"),
+        funding_type=org_data.get("funding_type"),
+        funding_sources=org_data.get("funding_sources"),
+        ein=org_data.get("ein"),
+        annual_revenue=org_data.get("annual_revenue"),
+        media_bias_rating=org_data.get("media_bias_rating"),
+        factual_reporting=org_data.get("factual_reporting"),
+        website=org_data.get("website"),
+        wikipedia_url=org_data.get("wikipedia_url"),
+        research_sources=org_data.get("research_sources"),
+        research_confidence=org_data.get("research_confidence"),
+        owned_by=org_data.get("owned_by", []),
+        parent_orgs=org_data.get("parent_orgs", []),
+        part_of=org_data.get("part_of", []),
+        headquarters=org_data.get("headquarters", []),
+        inception=org_data.get("inception"),
+        official_website=org_data.get("official_website"),
+        cik=org_data.get("cik"),
+        opensecrets_data=org_data.get("opensecrets_data", {}),
+        conflict_flags=org_data.get("conflict_flags", []),
+    )
+
+
+async def _link_parent_organization(
+    session: AsyncSession,
+    organization: Organization,
+    org_data: dict[str, Any],
+    normalized: str,
+) -> None:
+    parent_org_name = org_data.get("parent_org")
+    if not isinstance(parent_org_name, str):
+        return
+    parent_normalized = parent_org_name.lower().strip()
+    if not parent_normalized or parent_normalized == normalized:
+        return
+    parent_result = await session.execute(
+        select(Organization).where(Organization.normalized_name == parent_normalized)
+    )
+    parent_row = parent_result.scalar_one_or_none()
+    if parent_row is not None:
+        organization.parent_org_id = parent_row.id
+        organization.updated_at = get_utc_now()
+
+
 async def _upsert_organization(
     session: AsyncSession,
     org_data: dict[str, Any],
@@ -219,76 +304,14 @@ async def _upsert_organization(
     )
     existing = result.scalar_one_or_none()
 
-    _updateable_attrs = (
-        "funding_type",
-        "funding_sources",
-        "ein",
-        "annual_revenue",
-        "media_bias_rating",
-        "factual_reporting",
-        "wikipedia_url",
-        "research_sources",
-        "research_confidence",
-        "owned_by",
-        "parent_orgs",
-        "part_of",
-        "headquarters",
-        "inception",
-        "official_website",
-        "cik",
-        "opensecrets_data",
-        "conflict_flags",
-    )
-
     if existing:
-        for attr in _updateable_attrs:
-            value = org_data.get(attr)
-            if value is not None:
-                setattr(existing, attr, value)
-        existing.updated_at = get_utc_now()
-        org = existing
+        org = _update_organization_record(existing, org_data)
     else:
-        org = Organization(
-            name=org_data.get("name"),
-            normalized_name=normalized,
-            org_type=org_data.get("org_type"),
-            funding_type=org_data.get("funding_type"),
-            funding_sources=org_data.get("funding_sources"),
-            ein=org_data.get("ein"),
-            annual_revenue=org_data.get("annual_revenue"),
-            media_bias_rating=org_data.get("media_bias_rating"),
-            factual_reporting=org_data.get("factual_reporting"),
-            website=org_data.get("website"),
-            wikipedia_url=org_data.get("wikipedia_url"),
-            research_sources=org_data.get("research_sources"),
-            research_confidence=org_data.get("research_confidence"),
-            owned_by=org_data.get("owned_by", []),
-            parent_orgs=org_data.get("parent_orgs", []),
-            part_of=org_data.get("part_of", []),
-            headquarters=org_data.get("headquarters", []),
-            inception=org_data.get("inception"),
-            official_website=org_data.get("official_website"),
-            cik=org_data.get("cik"),
-            opensecrets_data=org_data.get("opensecrets_data", {}),
-            conflict_flags=org_data.get("conflict_flags", []),
-        )
+        org = _new_organization_record(org_data, normalized)
         session.add(org)
 
     await session.flush()
-
-    # Resolve parent_org string to parent_org_id
-    parent_org_name = org_data.get("parent_org")
-    if parent_org_name and isinstance(parent_org_name, str):
-        parent_normalized = parent_org_name.lower().strip()
-        if parent_normalized and parent_normalized != normalized:
-            parent_result = await session.execute(
-                select(Organization).where(Organization.normalized_name == parent_normalized)
-            )
-            parent_row = parent_result.scalar_one_or_none()
-            if parent_row is not None:
-                org.parent_org_id = parent_row.id
-                org.updated_at = get_utc_now()
-
+    await _link_parent_organization(session, org, org_data, normalized)
     await session.commit()
     return cast(int, org.id)
 
@@ -336,6 +359,83 @@ async def _hydrate_org_claims(
     return hydrated
 
 
+async def _load_source_org_data(
+    source_name: str,
+    source_config: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    researcher = get_funding_researcher()
+    org_data = await researcher.research_organization(source_name, use_ai=False)
+    rss_funding = source_config.get("funding_type", "").strip()
+    research_sources = org_data.get("research_sources", [])
+    if rss_funding and "known_data" not in research_sources:
+        org_data["funding_type"] = rss_funding.lower()
+        if "rss_config" not in research_sources:
+            org_data.setdefault("research_sources", []).append("rss_config")
+
+    source_metadata = {
+        "country": source_config.get("country", ""),
+        "funding_type": source_config.get("funding_type", ""),
+        "political_bias": source_config.get("bias_rating", ""),
+        "source_type": source_config.get("category", "general"),
+        "site_url": source_config.get("site_url", ""),
+    }
+    configured_site = source_config.get("site_url")
+    if isinstance(configured_site, str) and configured_site.strip():
+        org_data.setdefault("website", configured_site.strip())
+    return org_data, source_metadata
+
+
+async def _score_source(
+    source_name: str,
+    org_data: dict[str, Any],
+    source_metadata: dict[str, Any],
+    enable_llm_scoring: bool,
+) -> _ScoringResultLike:
+    if not enable_llm_scoring:
+        return _DisabledScoringResult()
+    scorer = get_source_analysis_scorer()
+    return await scorer.score_source(
+        source_name=source_name,
+        org_data=org_data,
+        source_metadata=source_metadata,
+    )
+
+
+def _apply_org_updates(org_data: dict[str, Any], result: _ScoringResultLike) -> None:
+    if not result.org_updates:
+        return
+    for field in ("funding_type", "parent_org", "media_bias_rating", "factual_reporting"):
+        value = result.org_updates.get(field)
+        if value and not org_data.get(field):
+            org_data[field] = value
+    if "ai_inference" not in org_data.get("research_sources", []):
+        org_data.setdefault("research_sources", []).append("ai_inference")
+
+
+async def _persist_source_index(
+    session: AsyncSession,
+    source_name: str,
+    source_config: dict[str, Any],
+    org_data: dict[str, Any],
+    result: _ScoringResultLike,
+) -> None:
+    await _upsert_organization(session, org_data)
+    await _save_analysis_scores(session, source_name, result.scores)
+    article_count_30d, top_topics_30d = await collect_article_behavior_stats(
+        session, source_name, days=30
+    )
+    claim_inputs = build_source_claim_inputs(
+        source_name=source_name,
+        source_config=source_config,
+        org_data=org_data,
+        article_count_30d=article_count_30d,
+        top_topics_30d=top_topics_30d,
+    )
+    await sync_source_claims(session, source_name, claim_inputs)
+    hydrated_org_data = await _hydrate_org_claims(session, org_data, source_name)
+    await _upsert_organization(session, hydrated_org_data)
+
+
 async def index_source(
     source_name: str,
     source_config: dict[str, Any],
@@ -359,81 +459,10 @@ async def index_source(
     session = await _get_session()
     try:
         await _upsert_index_status(session, "source", source_name, "indexing")
-
-        # Research organization data WITHOUT AI enhancement
-        # The scorer's LLM call handles org metadata when needed
-        researcher = get_funding_researcher()
-        org_data = await researcher.research_organization(source_name, use_ai=False)
-
-        # Prefer existing known-org data, then RSS config, then external research.
-        rss_funding = source_config.get("funding_type", "").strip()
-        if rss_funding and "known_data" not in org_data.get("research_sources", []):
-            org_data["funding_type"] = rss_funding.lower()
-            if "rss_config" not in org_data.get("research_sources", []):
-                org_data.setdefault("research_sources", []).append("rss_config")
-
-        source_metadata = {
-            "country": source_config.get("country", ""),
-            "funding_type": source_config.get("funding_type", ""),
-            "political_bias": source_config.get("bias_rating", ""),
-            "source_type": source_config.get("category", "general"),
-            "site_url": source_config.get("site_url", ""),
-        }
-
-        configured_site = source_config.get("site_url")
-        if isinstance(configured_site, str) and configured_site.strip():
-            org_data.setdefault("website", configured_site.strip())
-
-        # Score source-analysis axes (LLM call) - only when explicitly enabled
-        result: _ScoringResultLike
-        if enable_llm_scoring:
-            scorer = get_source_analysis_scorer()
-            result = await scorer.score_source(
-                source_name=source_name,
-                org_data=org_data,
-                source_metadata=source_metadata,
-            )
-        else:
-            result = _DisabledScoringResult()
-
-        # Apply org metadata updates from the consolidated LLM call
-        if result.org_updates:
-            for field in (
-                "funding_type",
-                "parent_org",
-                "media_bias_rating",
-                "factual_reporting",
-            ):
-                value = result.org_updates.get(field)
-                if value and not org_data.get(field):
-                    org_data[field] = value
-            if "ai_inference" not in org_data.get("research_sources", []):
-                org_data.setdefault("research_sources", []).append("ai_inference")
-
-        # Persist organization data
-        await _upsert_organization(session, org_data)
-
-        # Persist analysis scores (empty when LLM disabled)
-        await _save_analysis_scores(session, source_name, result.scores)
-
-        # Persist claim-level dossier fields with provenance and versioning
-        article_count_30d, top_topics_30d = await collect_article_behavior_stats(
-            session,
-            source_name,
-            days=30,
-        )
-        claim_inputs = build_source_claim_inputs(
-            source_name=source_name,
-            source_config=source_config,
-            org_data=org_data,
-            article_count_30d=article_count_30d,
-            top_topics_30d=top_topics_30d,
-        )
-        await sync_source_claims(session, source_name, claim_inputs)
-
-        # Keep organization profile in sync with freshly persisted claim provenance.
-        hydrated_org_data = await _hydrate_org_claims(session, org_data, source_name)
-        await _upsert_organization(session, hydrated_org_data)
+        org_data, source_metadata = await _load_source_org_data(source_name, source_config)
+        result = await _score_source(source_name, org_data, source_metadata, enable_llm_scoring)
+        _apply_org_updates(org_data, result)
+        await _persist_source_index(session, source_name, source_config, org_data, result)
 
         duration_ms = int((time.monotonic() - start) * 1000)
         await _upsert_index_status(
@@ -511,6 +540,40 @@ async def index_all_sources(
     return summary
 
 
+async def _sources_to_reindex(
+    session: AsyncSession,
+    stale_days: int,
+) -> tuple[dict[str, dict[str, Any]], int, int]:
+    cutoff = get_utc_now() - timedelta(days=stale_days)
+    result = await session.execute(
+        select(WikiIndexStatus).where(
+            WikiIndexStatus.entity_type == "source",
+            WikiIndexStatus.status.in_(["complete", "stale", "failed"]),
+            WikiIndexStatus.last_indexed_at < cutoff,
+        )
+    )
+    stale_names = {entry.entity_name for entry in result.scalars().all()}
+
+    all_sources = get_rss_sources()
+    result2 = await session.execute(
+        select(WikiIndexStatus.entity_name).where(WikiIndexStatus.entity_type == "source")
+    )
+    indexed_names = {row[0] for row in result2.all()}
+    unique_sources: dict[str, dict[str, Any]] = {}
+    for name, config in all_sources.items():
+        base_name = name.split(" - ")[0].strip()
+        if base_name not in unique_sources:
+            unique_sources[base_name] = config
+
+    unindexed = {
+        name: config for name, config in unique_sources.items() if name not in indexed_names
+    }
+    to_reindex = {
+        name: unique_sources.get(name, {}) for name in stale_names if name in unique_sources
+    }
+    return {**to_reindex, **unindexed}, len(to_reindex), len(unindexed)
+
+
 async def index_stale_sources(
     stale_days: int = STALE_THRESHOLD_DAYS,
     delay_seconds: float = INDEX_DELAY_SECONDS,
@@ -519,42 +582,7 @@ async def index_stale_sources(
     """Re-index sources whose wiki data is older than stale_days."""
     session = await _get_session()
     try:
-        cutoff = get_utc_now() - timedelta(days=stale_days)
-
-        # Find stale entries
-        result = await session.execute(
-            select(WikiIndexStatus).where(
-                WikiIndexStatus.entity_type == "source",
-                WikiIndexStatus.status.in_(["complete", "stale", "failed"]),
-                WikiIndexStatus.last_indexed_at < cutoff,
-            )
-        )
-        stale_entries = result.scalars().all()
-
-        # Find sources that have never been indexed
-        all_sources = get_rss_sources()
-        result2 = await session.execute(
-            select(WikiIndexStatus.entity_name).where(WikiIndexStatus.entity_type == "source")
-        )
-        indexed_names = {row[0] for row in result2.all()}
-
-        # Get unique source base names
-        unique_sources: dict[str, dict[str, Any]] = {}
-        for name, config in all_sources.items():
-            base_name = name.split(" - ")[0].strip()
-            if base_name not in unique_sources:
-                unique_sources[base_name] = config
-
-        unindexed = {
-            name: config for name, config in unique_sources.items() if name not in indexed_names
-        }
-
-        stale_names = {entry.entity_name for entry in stale_entries}
-        to_reindex = {
-            name: unique_sources.get(name, {}) for name in stale_names if name in unique_sources
-        }
-
-        all_to_index = {**to_reindex, **unindexed}
+        all_to_index, stale_count, unindexed_count = await _sources_to_reindex(session, stale_days)
         total = len(all_to_index)
 
         if total == 0:
@@ -566,8 +594,8 @@ async def index_stale_sources(
 
         logger.info(
             "Found %d stale + %d unindexed = %d sources to index",
-            len(to_reindex),
-            len(unindexed),
+            stale_count,
+            unindexed_count,
             total,
         )
 

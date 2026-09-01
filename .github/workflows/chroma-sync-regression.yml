@@ -1,0 +1,52 @@
+name: Chroma sync regression
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - "backend/app/services/chroma_sync.py"
+      - "backend/tests/test_chroma_sync_recovery.py"
+      - ".github/workflows/chroma-sync-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chroma-sync-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+      PYTHONPATH: .
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --quiet \
+            ruff==0.15.22 \
+            pytest \
+            pytest-asyncio \
+            sqlalchemy \
+            aiosqlite \
+            python-dotenv \
+            google-genai \
+            openai \
+            httpx
+      - name: Check formatting and lint
+        run: |
+          ruff format --check --diff app/services/chroma_sync.py tests/test_chroma_sync_recovery.py
+          ruff check app/services/chroma_sync.py tests/test_chroma_sync_recovery.py
+      - name: Compile Chroma sync
+        run: python -m compileall -q app/services/chroma_sync.py
+      - name: Run recovery regressions
+        run: pytest -q tests/test_chroma_sync_recovery.py

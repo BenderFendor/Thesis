@@ -1,18 +1,7 @@
 "use client"
 
-import {
-  Fragment,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-  lazy,
-  Suspense,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ChangeEvent,
-} from "react"
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
@@ -30,71 +19,64 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Clock,
-  Newspaper,
-  Heart,
-  Search,
-  PlusCircle,
-  MinusCircle,
-  Star,
-  List,
-  Layers,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Clock,
+  Heart,
+  Layers,
+  List,
   Loader2,
+  MinusCircle,
+  Newspaper,
+  PlusCircle,
+  Search,
+  Star,
 } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { TrendingFeed } from "./trending-feed"
-import type { NewsArticle, AllCluster, TrendingCluster } from "@/lib/api"
-import { getLogger, cn } from "@/lib/utils"
+import type { AllCluster, NewsArticle, TrendingCluster } from "@/lib/api"
+import { cn, getLogger } from "@/lib/utils"
 import { useReadingQueue } from "@/hooks/useReadingQueue"
-import { useLikedArticles } from "@/hooks/useLikedArticles"
-import { useFavorites } from "@/hooks/useFavorites"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
+import { useFavorites } from "@/hooks/use-favorites"
 import {
   clusterArticlesToNewsArticles,
   getClusterPreviewStats,
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display"
-import {
-  buildSourceGroups,
-  compareSourceGroupsForGrid,
-  getVisibleSourceIds,
-  type SourceGroup,
-} from "@/lib/source-groups"
+import { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds } from '@/lib/source-groups';
+import type { SourceGroup } from '@/lib/source-groups';
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
-import {
-  type GridViewMode,
-  getStoredGridViewMode,
-  setStoredGridViewMode,
-} from "@/lib/view-mode-storage"
+import { getStoredGridViewMode, setStoredGridViewMode } from '@/lib/view-mode-storage';
+import type { GridViewMode } from '@/lib/view-mode-storage';
 
 const VirtualizedGrid = lazy(() =>
   import("./virtualized-grid").then((module) => ({
     default: module.VirtualizedGrid,
   })),
-)
+),
 
-const ArticleDetailModal = dynamic(
+ ArticleDetailModal = dynamic(
   () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
   {
-    ssr: false,
     loading: () => null,
+    ssr: false,
   },
-)
+),
 
-const ClusterDetailModal = dynamic(
+ ClusterDetailModal = dynamic(
   () => import("./cluster-detail-modal").then((module) => module.ClusterDetailModal),
   {
-    ssr: false,
     loading: () => null,
+    ssr: false,
   },
-)
+),
 
-const logger = getLogger("GridView")
-const SOURCE_GROUP_BATCH_SIZE = 10
-const COLLAPSED_SOURCE_ARTICLE_COUNT = 20
+ logger = getLogger("GridView"),
+ COLLAPSED_SOURCE_ARTICLE_COUNT = 20,
+ SOURCE_GROUP_BATCH_SIZE = 10
 
 interface GridViewProps {
   articles: NewsArticle[]
@@ -130,11 +112,11 @@ function SourceArticleCard({
   onQueueToggle,
   index,
 }: SourceArticleCardProps) {
-  const showImage = hasRealImage(article.image)
+  const showImage = hasRealImage(article.image),
 
-  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.target !== event.currentTarget) return
-    if (event.key !== "Enter" && event.key !== " ") return
+   handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) {return}
+    if (event.key !== "Enter" && event.key !== " ") {return}
     event.preventDefault()
     onArticleClick(article)
   }
@@ -143,10 +125,10 @@ function SourceArticleCard({
     <motion.article
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.05, ease: [0.25, 0.1, 0.25, 1.0] }}
+      transition={{ delay: index * 0.05, duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
       role="button"
       tabIndex={0}
-      onClick={() => onArticleClick(article)}
+      onClick={() =>{  onArticleClick(article); }}
       onKeyDown={handleCardKeyDown}
       className="group flex h-full min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-80 sm:rounded-lg"
     >
@@ -174,7 +156,7 @@ function SourceArticleCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(event) => onQueueToggle(article, event)}
+            onClick={(event) =>{  onQueueToggle(article, event); }}
             className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
             title={isArticleInQueue(article.url) ? "Remove from queue" : "Add to queue"}
           >
@@ -187,14 +169,14 @@ function SourceArticleCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={(event) => onLike(article.id as number, event)}
+            onClick={(event) =>{  onLike(article.id, event); }}
             className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
-            title={likedIds.has(article.id as number) ? "Unlike" : "Like"}
+            title={likedIds.has(article.id) ? "Unlike" : "Like"}
           >
             <Heart
               className={cn(
                 "h-2.5 w-2.5 transition-colors sm:h-4 sm:w-4",
-                likedIds.has(article.id as number)
+                likedIds.has(article.id)
                   ? "fill-red-500 text-red-500 hover:text-red-600"
                   : "text-white",
               )}
@@ -232,8 +214,8 @@ function SourceArticleCard({
             <Clock className="h-3 w-3" />
             <span>
               {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                month: "short",
                 day: "numeric",
+                month: "short",
               })}
             </span>
           </div>
@@ -292,7 +274,7 @@ function ModeSwitcher({ viewMode, clusterWindow, onModeSelect, onClusterWindow }
         <Button
           variant={viewMode === "source" ? "default" : "ghost"}
           size="sm"
-          onClick={() => onModeSelect("source")}
+          onClick={() =>{  onModeSelect("source"); }}
           className={cn(
             "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
             viewMode === "source"
@@ -306,7 +288,7 @@ function ModeSwitcher({ viewMode, clusterWindow, onModeSelect, onClusterWindow }
         <Button
           variant={viewMode === "topic" ? "default" : "ghost"}
           size="sm"
-          onClick={() => onModeSelect("topic")}
+          onClick={() =>{  onModeSelect("topic"); }}
           className={cn(
             "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
             viewMode === "topic"
@@ -322,7 +304,7 @@ function ModeSwitcher({ viewMode, clusterWindow, onModeSelect, onClusterWindow }
       {viewMode === "topic" && (
         <Select
           value={clusterWindow}
-          onValueChange={(value) => onClusterWindow(value as "1d" | "1w" | "1m")}
+          onValueChange={(value) =>{  onClusterWindow(value as "1d" | "1w" | "1m"); }}
         >
           <SelectTrigger className="h-9 rounded-lg border-white/5 bg-white/5 text-xs uppercase tracking-widest">
             <SelectValue />
@@ -351,7 +333,7 @@ interface SourceGroupSectionProps {
   hasRealImage: (src?: string | null) => boolean
   isArticleInQueue: (url: string) => boolean
   isFavorite: (sourceId: string) => boolean
-  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
   onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
   onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
   onToggleFavorite: (sourceId: string) => void
@@ -392,7 +374,7 @@ function SourceGroupSection({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onToggleFavorite(group.sourceId)}
+              onClick={() =>{  onToggleFavorite(group.sourceId); }}
               className="h-8 w-8 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0 sm:h-9 sm:w-9"
             >
               <Star
@@ -436,7 +418,7 @@ function SourceGroupSection({
                   likedIds={likedIds}
                   hasRealImage={hasRealImage}
                   isArticleInQueue={isArticleInQueue}
-                  onArticleClick={(article) => onArticleClick(article, group.articles)}
+                  onArticleClick={(article) =>{  onArticleClick(article, group.articles); }}
                   onLike={onLike}
                   onQueueToggle={onQueueToggle}
                 />
@@ -479,10 +461,10 @@ function TopicClusterCard({
   onCompare,
 }: TopicClusterCardProps) {
   const representative = cluster.representative_article
-  if (!representative) return null
+  if (!representative) {return}
 
-  const imageUrl = pickClusterImageUrl(cluster)
-  const previewStats = getClusterPreviewStats(cluster)
+  const imageUrl = pickClusterImageUrl(cluster),
+   previewStats = getClusterPreviewStats(cluster)
 
   return (
     <motion.div
@@ -498,8 +480,8 @@ function TopicClusterCard({
       )}
       onClick={onExpand}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        if (event.key !== "Enter" && event.key !== " ") return
+        if (event.target !== event.currentTarget) {return}
+        if (event.key !== "Enter" && event.key !== " ") {return}
         event.preventDefault()
         onExpand()
       }}
@@ -639,7 +621,7 @@ function ExpandedTopicPanel({
                 likedIds={likedIds}
                 hasRealImage={hasRealImage}
                 isArticleInQueue={isArticleInQueue}
-                onArticleClick={(article) => onArticleClick(article)}
+                onArticleClick={(article) =>{  onArticleClick(article); }}
                 onLike={onLike}
                 onQueueToggle={onQueueToggle}
               />
@@ -684,7 +666,7 @@ interface TopicFeedProps {
   getDisplayLabel: (cluster: AllCluster) => string
   onExpand: (cluster: AllCluster) => void
   onCompare: (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => void
-  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
   onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
   onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
   onCloseExpanded: () => void
@@ -716,14 +698,14 @@ function TopicFeed({
           <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
           Mapping topic clusters...
         </div>
-      ) : clusters.length === 0 ? (
+      ) : (clusters.length === 0 ? (
         <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
           {clustersStatus === "initializing" ? "Building topics..." : "No topics found"}
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
           {sortedClusters.map((cluster, index) => {
-            if (!cluster.representative_article) return null
+            if (!cluster.representative_article) {return null}
             const isExpanded = expandedClusterId === cluster.cluster_id
             return (
               <Fragment key={cluster.cluster_id}>
@@ -732,8 +714,8 @@ function TopicFeed({
                   index={index}
                   isExpanded={isExpanded}
                   getDisplayLabel={getDisplayLabel}
-                  onExpand={() => onExpand(cluster)}
-                  onCompare={(event) => onCompare(cluster, event)}
+                  onExpand={() =>{  onExpand(cluster); }}
+                  onCompare={(event) =>{  onCompare(cluster, event); }}
                 />
                 {isExpanded && expandedCluster && (
                   <ExpandedTopicPanel
@@ -743,7 +725,7 @@ function TopicFeed({
                     hasRealImage={hasRealImage}
                     isArticleInQueue={isArticleInQueue}
                     getDisplayLabel={getDisplayLabel}
-                    onArticleClick={(article) => onArticleClick(article, expandedClusterArticles)}
+                    onArticleClick={(article) =>{  onArticleClick(article, expandedClusterArticles); }}
                     onLike={onLike}
                     onQueueToggle={onQueueToggle}
                     onClose={onCloseExpanded}
@@ -753,7 +735,7 @@ function TopicFeed({
             )
           })}
         </div>
-      )}
+      ))}
     </div>
   )
 }
@@ -764,7 +746,7 @@ interface TrendingSectionProps {
 }
 
 function TrendingSection({ showTrending, viewMode }: TrendingSectionProps) {
-  if (!showTrending) return null
+  if (!showTrending) {return}
   if (viewMode === "topic") {
     return (
       <div className="hidden sm:block">
@@ -803,7 +785,7 @@ interface VirtualizedModeViewProps {
   isArticleModalOpen: boolean
   selectedArticle: NewsArticle | null
   onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onArticleClick: (article: NewsArticle, context: NewsArticle[]) => void
+  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
   onModalClose: () => void
   onModalNavigate: (direction: "prev" | "next") => void
 }
@@ -842,7 +824,7 @@ function VirtualizedModeView({
             hasNextPage={false}
             isFetchingNextPage={false}
             fetchNextPage={() => {}}
-            onArticleClick={(article) => onArticleClick(article, displayArticles)}
+            onArticleClick={(article) =>{  onArticleClick(article, displayArticles); }}
             totalCount={resolvedTotalCount}
           />
         </Suspense>
@@ -860,6 +842,561 @@ function VirtualizedModeView({
   )
 }
 
+interface GridViewHeaderProps {
+  searchTerm: string
+  viewMode: GridViewMode
+  clusterWindow: "1d" | "1w" | "1m"
+  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onModeSelect: (mode: GridViewMode) => void
+  onClusterWindow: (value: "1d" | "1w" | "1m") => void
+}
+
+function GridViewHeader({
+  searchTerm,
+  viewMode,
+  clusterWindow,
+  onSearchChange,
+  onModeSelect,
+  onClusterWindow,
+}: GridViewHeaderProps) {
+  return (
+    <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
+        <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <GridViewSearchBar value={searchTerm} variant="main" onChange={onSearchChange} />
+          <ModeSwitcher
+            viewMode={viewMode}
+            clusterWindow={clusterWindow}
+            onModeSelect={onModeSelect}
+            onClusterWindow={onClusterWindow}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface GridViewSourceResultProps {
+  expandedSourceId: string | null
+  likedIds: Set<number>
+  hasRealImage: (src?: string | null) => boolean
+  isArticleInQueue: (url: string) => boolean
+  isFavorite: (sourceId: string) => boolean
+  onArticleClick: (article: NewsArticle, context: readonly NewsArticle[]) => void
+  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
+  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
+  onToggleFavorite: (sourceId: string) => void
+  onToggleExpand: (sourceId: string) => void
+}
+
+interface GridViewResultsProps {
+  showTrending: boolean
+  viewMode: GridViewMode
+  displayArticles: NewsArticle[]
+  isLoadingState: boolean
+  visibleSourceGroups: SourceGroup[]
+  source: GridViewSourceResultProps
+  topic: TopicFeedProps
+  hasMoreSourceGroups: boolean
+  visibleSourceCount: number
+  totalSourceCount: number
+  onLoadMoreSources: () => void
+}
+
+function GridViewResults({
+  showTrending,
+  viewMode,
+  displayArticles,
+  isLoadingState,
+  visibleSourceGroups,
+  source,
+  topic,
+  hasMoreSourceGroups,
+  visibleSourceCount,
+  totalSourceCount,
+  onLoadMoreSources,
+}: GridViewResultsProps) {
+  const empty = displayArticles.length === 0 && !isLoadingState
+  return (
+    <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
+      <TrendingSection showTrending={showTrending} viewMode={viewMode} />
+      {empty ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
+          <Newspaper className="mb-6 h-16 w-16 text-white/10" />
+          <h3 className="mb-2 font-serif text-3xl text-foreground/80">No signals detected</h3>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Adjust your search parameters to find relevant intelligence.
+          </p>
+        </motion.div>
+      ) : (viewMode === "source" ? (
+        visibleSourceGroups.map((group) => (
+          <SourceGroupSection
+            key={group.sourceId}
+            group={group}
+            isExpanded={source.expandedSourceId === group.sourceId}
+            likedIds={source.likedIds}
+            hasRealImage={source.hasRealImage}
+            isArticleInQueue={source.isArticleInQueue}
+            isFavorite={source.isFavorite}
+            onArticleClick={source.onArticleClick}
+            onLike={source.onLike}
+            onQueueToggle={source.onQueueToggle}
+            onToggleFavorite={source.onToggleFavorite}
+            onToggleExpand={() => {source.onToggleExpand(group.sourceId)}}
+          />
+        ))
+      ) : (
+        <TopicFeed {...topic} />
+      ))}
+      {viewMode === "source" && hasMoreSourceGroups ? (
+        <MoreSourcesButton
+          visible={visibleSourceCount}
+          total={totalSourceCount}
+          onLoadMore={onLoadMoreSources}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+interface GridViewModalOverlayProps {
+  isArticleModalOpen: boolean
+  selectedArticle: NewsArticle | null
+  onArticleModalClose: () => void
+  onArticleModalNavigate: (direction: "prev" | "next") => void
+  showScrollTop: boolean
+  onScrollToTop: () => void
+  isClusterModalOpen: boolean
+  selectedCluster: TrendingCluster | null
+  onClusterModalClose: () => void
+}
+
+function GridViewModalOverlays({
+  isArticleModalOpen,
+  selectedArticle,
+  onArticleModalClose,
+  onArticleModalNavigate,
+  showScrollTop,
+  onScrollToTop,
+  isClusterModalOpen,
+  selectedCluster,
+  onClusterModalClose,
+}: GridViewModalOverlayProps) {
+  return (
+    <>
+      {isArticleModalOpen && selectedArticle ? (
+        <ArticleDetailModal
+          article={selectedArticle}
+          isOpen={isArticleModalOpen}
+          onClose={onArticleModalClose}
+          onNavigate={onArticleModalNavigate}
+        />
+      ) : null}
+      {showScrollTop ? (
+        <Button
+          type="button"
+          size="icon"
+          onClick={onScrollToTop}
+          className="absolute bottom-8 right-8 z-40 h-12 w-12 rounded-full border border-white/10 bg-background/85 shadow-xl backdrop-blur"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </Button>
+      ) : null}
+      {isClusterModalOpen && selectedCluster ? (
+        <ClusterDetailModal
+          cluster={selectedCluster}
+          isBreaking={false}
+          isOpen={isClusterModalOpen}
+          onClose={onClusterModalClose}
+        />
+      ) : null}
+    </>
+  )
+}
+
+interface GridViewContentProps {
+  searchTerm: string
+  viewMode: GridViewMode
+  clusterWindow: "1d" | "1w" | "1m"
+  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onModeSelect: (mode: GridViewMode) => void
+  onClusterWindow: (value: "1d" | "1w" | "1m") => void
+  containerRef: { current: HTMLDivElement | null }
+  results: GridViewResultsProps
+  overlays: GridViewModalOverlayProps
+}
+
+function GridViewContent({
+  searchTerm,
+  viewMode,
+  clusterWindow,
+  onSearchChange,
+  onModeSelect,
+  onClusterWindow,
+  containerRef,
+  results,
+  overlays,
+}: GridViewContentProps) {
+  return (
+    <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
+      <GridViewHeader
+        searchTerm={searchTerm}
+        viewMode={viewMode}
+        clusterWindow={clusterWindow}
+        onSearchChange={onSearchChange}
+        onModeSelect={onModeSelect}
+        onClusterWindow={onClusterWindow}
+      />
+      <div ref={containerRef} className="scroll-smooth pb-24 lg:flex-1 lg:overflow-y-auto">
+        <GridViewResults {...results} />
+      </div>
+      <GridViewModalOverlays {...overlays} />
+    </div>
+  )
+}
+
+const formatGridKeywordLabel = (keywords?: readonly string[]) => {
+  if (!keywords || keywords.length === 0) {return}
+  return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+},
+
+ normalizeGridLabel = (value: string) => value.toLowerCase().replaceAll(/[^a-z0-9]+/gu, " ").trim(),
+
+ stripGridTitleSuffix = (value: string) => value.split(/\s[-|\u2013\u2014]\s/u)[0]!.trim(),
+
+ getGridTitleCandidate = (cluster: AllCluster): string => {
+  const title = cluster.representative_article?.title
+  return title ? stripGridTitleSuffix(title) : ""
+},
+
+ hasMatchingGridLabels = (label: string, keywords: string | undefined, title: string): boolean =>
+  Boolean(title && label && keywords && label === keywords),
+
+ chooseGridClusterLabel = (label: string, title: string, keywords: string | undefined): string =>
+  label || title || keywords || "Topic",
+
+ getGridClusterDisplayLabel = (cluster: AllCluster) => {
+  const label = cluster.label?.trim() || "",
+   keywordLabel = formatGridKeywordLabel(cluster.keywords),
+   titleCandidate = getGridTitleCandidate(cluster),
+   normalizedLabel = label ? normalizeGridLabel(label) : "",
+   normalizedKeywords = keywordLabel ? normalizeGridLabel(keywordLabel) : "",
+   labelsMatch = hasMatchingGridLabels(normalizedLabel, normalizedKeywords, titleCandidate)
+  return labelsMatch ? titleCandidate : chooseGridClusterLabel(label, titleCandidate, keywordLabel)
+}
+
+interface GridSourceControllerOptions {
+  articles: NewsArticle[]
+  controlledViewMode?: GridViewMode
+  isFavorite: (sourceId: string) => boolean
+  onViewModeChange?: (mode: GridViewMode) => void
+}
+
+const useGridSourceController = ({
+  articles,
+  controlledViewMode,
+  isFavorite,
+  onViewModeChange,
+}: GridSourceControllerOptions) => {
+  const [searchTerm, setSearchTerm] = useState(""),
+   [viewMode, setViewMode] = useState<GridViewMode>(controlledViewMode ?? "source"),
+   [expandedSourceId, setExpandedSourceId] = useState<string | null>(null),
+   [sourceBatchCount, setSourceBatchCount] = useState(1),
+
+   filteredNews = useMemo(() => {
+    if (!searchTerm) {return articles}
+    const normalizedSearch = searchTerm.toLowerCase()
+    return articles.filter((article) =>
+      article.title.toLowerCase().includes(normalizedSearch) ||
+      article.summary?.toLowerCase().includes(normalizedSearch) ||
+      article.source.toLowerCase().includes(normalizedSearch),
+    )
+  }, [articles, searchTerm]),
+
+   sourceGroups = useMemo(
+    () => buildSourceGroups(filteredNews).sort((a, b) => {
+      const favoriteDifference = Number(isFavorite(b.sourceId)) - Number(isFavorite(a.sourceId))
+      return favoriteDifference || compareSourceGroupsForGrid(a, b)
+    }),
+    [filteredNews, isFavorite],
+  ),
+   sortedSourceIds = useMemo(
+    () => sourceGroups.map((group) => group.sourceId),
+    [sourceGroups],
+  ),
+   visibleSourceIds = useMemo(() => {
+    if (viewMode !== "source") {return new Set<string>()}
+    const favoriteSourceIds = new Set(
+      sourceGroups
+        .filter((group) => isFavorite(group.sourceId))
+        .map((group) => group.sourceId),
+    )
+    return getVisibleSourceIds(
+      sourceGroups,
+      favoriteSourceIds,
+      sourceBatchCount,
+      SOURCE_GROUP_BATCH_SIZE,
+    )
+  }, [isFavorite, sourceBatchCount, sourceGroups, viewMode]),
+   visibleSourceGroups = useMemo(
+    () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
+    [sourceGroups, visibleSourceIds],
+  ),
+   hasMoreSourceGroups = viewMode === "source" && visibleSourceIds.size < sortedSourceIds.length
+
+  useEffect(() => {
+    if (controlledViewMode) {
+      setViewMode(controlledViewMode)
+      return
+    }
+    setViewMode(getStoredGridViewMode())
+  }, [controlledViewMode])
+
+  useEffect(() => {
+    if (!controlledViewMode) {
+      setStoredGridViewMode(viewMode)
+    }
+  }, [controlledViewMode, viewMode])
+
+  useEffect(() => {
+    setSourceBatchCount((previous) => {
+      if (viewMode !== "source") {return previous}
+      const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length,
+       minimumVisible = favoriteCount + SOURCE_GROUP_BATCH_SIZE,
+       currentlyVisible = favoriteCount + previous * SOURCE_GROUP_BATCH_SIZE
+      return currentlyVisible < minimumVisible ? 1 : previous
+    })
+  }, [isFavorite, sourceGroups, viewMode])
+
+  const resetSourceBrowseState = () => {
+    setSourceBatchCount(1)
+    setExpandedSourceId(null)
+  },
+   handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    resetSourceBrowseState()
+    setSearchTerm(event.target.value)
+  },
+   handleModeSelect = (mode: GridViewMode) => {
+    resetSourceBrowseState()
+    setViewMode(mode)
+    onViewModeChange?.(mode)
+  },
+   toggleSource = (sourceId: string) => {
+    setExpandedSourceId((previous) => previous === sourceId ? null : sourceId)
+  },
+   loadMoreSources = () => {
+    setSourceBatchCount((previous) => previous + 1)
+  }
+
+  return {
+    expandedSourceId,
+    filteredNews,
+    handleModeSelect,
+    handleSearchChange,
+    hasMoreSourceGroups,
+    loadMoreSources,
+    searchTerm,
+    sortedSourceIds,
+    toggleSource,
+    viewMode,
+    visibleSourceGroups,
+    visibleSourceIds,
+  }
+}
+
+interface GridTopicControllerOptions {
+  clusterWindow: "1d" | "1w" | "1m"
+  viewMode: GridViewMode
+  topicSortMode: "sources" | "articles" | "recent"
+}
+
+const useGridTopicController = ({
+  clusterWindow,
+  viewMode,
+  topicSortMode,
+}: GridTopicControllerOptions) => {
+  const [clusters, setClusters] = useState<AllCluster[]>([]),
+   [clustersLoading, setClustersLoading] = useState(false),
+   [clustersStatus, setClustersStatus] = useState<string | null>(null),
+   [expandedClusterId, setExpandedClusterId] = useState<number | null>(null),
+   [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
+
+  useEffect(() => {
+    if (viewMode !== "topic") {return}
+    let cancelled = false,
+     retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const loadClusters = async () => {
+      setClustersLoading(true)
+      try {
+        const data = await fetchAllClusters(clusterWindow, 2, 100)
+        if (cancelled) {return}
+        setClusters(data.clusters)
+        setClustersStatus(data.status ?? null)
+        setExpandedClusterId((previous) =>
+          previous !== null && data.clusters.some((cluster) => cluster.cluster_id === previous)
+            ? previous
+            : null,
+        )
+        if (data.status === "initializing") {
+          retryTimer = setTimeout(() => {void loadClusters()}, 15_000)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          logger.error("Failed to load clusters:", error)
+        }
+      } finally {
+        if (!cancelled) {setClustersLoading(false)}
+      }
+    }
+
+    void loadClusters()
+    return () => {
+      cancelled = true
+      if (retryTimer) {clearTimeout(retryTimer)}
+    }
+  }, [clusterWindow, viewMode])
+
+  const clusterTimes = useMemo(() => {
+    const times = new Map<number, number>()
+    for (const cluster of clusters) {
+      const publishedAt = cluster.representative_article?.published_at,
+       timestamp = publishedAt ? new Date(publishedAt).getTime() : 0
+      times.set(cluster.cluster_id, Number.isNaN(timestamp) ? 0 : timestamp)
+    }
+    return times
+  }, [clusters]),
+   sortedClusters = useMemo(() => {
+    const items = [...clusters]
+    items.sort((a, b) => {
+      if (topicSortMode === "articles") {return b.article_count - a.article_count}
+      if (topicSortMode === "recent") {
+        return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0)
+      }
+      return b.source_diversity - a.source_diversity
+    })
+    return items
+  }, [clusterTimes, clusters, topicSortMode]),
+   expandedCluster = expandedClusterId === null
+    ? undefined
+    : sortedClusters.find((cluster) => cluster.cluster_id === expandedClusterId) ?? null,
+   expandedClusterArticles = expandedCluster
+    ? clusterArticlesCache.get(expandedCluster.cluster_id) ?? []
+    : [],
+
+   handleExpandCluster = useCallback(async (cluster: AllCluster) => {
+    const clusterId = cluster.cluster_id
+    if (expandedClusterId === clusterId) {
+      setExpandedClusterId(null)
+      return
+    }
+
+    const section = document.querySelector<HTMLElement>(`[data-cluster-id="${clusterId}"]`)
+    setExpandedClusterId(clusterId)
+    globalThis.setTimeout(() => {
+      section?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 0)
+    const cachedArticles = clusterArticlesCache.get(clusterId)
+    if (cachedArticles && cachedArticles.length > 0) {return}
+
+    const previewArticles = clusterArticlesToNewsArticles(cluster.articles)
+    setClusterArticlesCache((previous) => new Map(previous).set(clusterId, previewArticles))
+    try {
+      const fullArticles = await fetchClusterArticles(clusterId)
+      setClusterArticlesCache((previous) => new Map(previous).set(clusterId, fullArticles))
+    } catch (error) {
+      logger.warn("Failed to load full topic cluster articles", { clusterId, error })
+    }
+  }, [clusterArticlesCache, expandedClusterId])
+
+  return {
+    clusters,
+    clustersLoading,
+    clustersStatus,
+    expandedCluster,
+    expandedClusterArticles,
+    expandedClusterId,
+    handleExpandCluster,
+    setExpandedClusterId,
+    sortedClusters,
+  }
+},
+
+ useGridModalController = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
+   [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null),
+   [modalArticles, setModalArticles] = useState<NewsArticle[]>([]),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null),
+   [isClusterModalOpen, setIsClusterModalOpen] = useState(false),
+   [showScrollTop, setShowScrollTop] = useState(false),
+
+   handleArticleClick = useCallback((article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
+    const nextIndex = contextArticles.findIndex((item) =>
+      article.url && item.url ? item.url === article.url : item.id === article.id,
+    )
+    setModalArticles([...contextArticles])
+    setSelectedArticleIndex(nextIndex === -1 ? null : nextIndex)
+    setSelectedArticle(article)
+    setIsArticleModalOpen(true)
+  }, []),
+   handleModalNavigate = useCallback((direction: "prev" | "next") => {
+    if (selectedArticleIndex === null) {return}
+    const nextIndex = direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
+    if (nextIndex < 0 || nextIndex >= modalArticles.length) {return}
+    setSelectedArticleIndex(nextIndex)
+    setSelectedArticle(modalArticles[nextIndex] ?? null)
+  }, [modalArticles, selectedArticleIndex]),
+   handleModalClose = useCallback(() => {
+    setIsArticleModalOpen(false)
+    setSelectedArticle(null)
+    setSelectedArticleIndex(null)
+    setModalArticles([])
+  }, []),
+   handleOpenClusterCompare = useCallback((cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    setSelectedCluster({
+      ...cluster,
+      articles: cluster.articles ?? [],
+      trending_score: cluster.source_diversity,
+      velocity: cluster.window_count,
+    })
+    setIsClusterModalOpen(true)
+  }, []),
+   closeClusterModal = () => {
+    setIsClusterModalOpen(false)
+    setSelectedCluster(null)
+  }
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) {return}
+    const handleScroll = () => {setShowScrollTop(container.scrollTop > 500)}
+    handleScroll()
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {container.removeEventListener("scroll", handleScroll)}
+  }, [])
+  const scrollToTop = () => {
+    containerRef.current?.scrollTo({ behavior: "smooth", top: 0 })
+  }
+
+  return {
+    closeClusterModal,
+    containerRef,
+    handleArticleClick,
+    handleModalClose,
+    handleModalNavigate,
+    handleOpenClusterCompare,
+    isArticleModalOpen,
+    isClusterModalOpen,
+    scrollToTop,
+    selectedArticle,
+    selectedCluster,
+    showScrollTop,
+  }
+}
+
 export function GridView({
   articles,
   loading,
@@ -875,136 +1412,44 @@ export function GridView({
   void _apiUrl
   void _isScrollMode
 
-  const hasRealImage = useCallback((src?: string | null) => hasRealClusterImage(src), [])
+  const hasRealImage = useCallback((src?: string | null) => hasRealClusterImage(src), []),
+   { likedIds, toggleLike } = useLikedArticles(),
+   { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue(),
+   { isFavorite, toggleFavorite } = useFavorites(),
+   {
+    expandedSourceId,
+    filteredNews,
+    handleModeSelect,
+    handleSearchChange,
+    hasMoreSourceGroups,
+    loadMoreSources,
+    searchTerm,
+    sortedSourceIds,
+    toggleSource,
+    viewMode,
+    visibleSourceGroups,
+    visibleSourceIds,
+  } = useGridSourceController({
+    articles,
+    controlledViewMode,
+    isFavorite,
+    onViewModeChange,
+  }),
+   [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w"),
+   topic = useGridTopicController({ clusterWindow, topicSortMode, viewMode }),
+   modal = useGridModalController(),
+   isLoadingState = loading,
+   displayArticles = filteredNews,
+   resolvedTotalCount = totalCount ?? filteredNews.length,
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [viewMode, setViewMode] = useState<GridViewMode>(controlledViewMode ?? "source")
-  const [clusters, setClusters] = useState<AllCluster[]>([])
-  const [clustersLoading, setClustersLoading] = useState(false)
-  const [clustersStatus, setClustersStatus] = useState<string | null>(null)
-  const [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w")
-  const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
-  const [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
-  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
-  const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null)
-  const [modalArticles, setModalArticles] = useState<NewsArticle[]>([])
-  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false)
-  const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null)
-  const [isClusterModalOpen, setIsClusterModalOpen] = useState(false)
-  const [showScrollTop, setShowScrollTop] = useState(false)
-  const { likedIds, toggleLike } = useLikedArticles()
-  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue()
-  const { isFavorite, toggleFavorite } = useFavorites()
-  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
-  const [sourceBatchCount, setSourceBatchCount] = useState(1)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-
-  const resetSourceBrowseState = useCallback(() => {
-    setSourceBatchCount(1)
-    setExpandedSourceId(null)
-  }, [])
-
-  const formatKeywordLabel = useCallback((keywords?: string[]) => {
-    if (!keywords || keywords.length === 0) return null
-    return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
-  }, [])
-
-  const normalizeLabel = useCallback((value: string) => {
-    return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
-  }, [])
-
-  const stripTitleSuffix = useCallback((value: string) => {
-    return value.split(/\s[-|\u2013\u2014]\s/)[0]!.trim()
-  }, [])
-
-  const getClusterDisplayLabel = useCallback(
-    (cluster: AllCluster) => {
-      const label = cluster.label?.trim() || ""
-      const keywordLabel = formatKeywordLabel(cluster.keywords)
-      const titleCandidate = cluster.representative_article?.title
-        ? stripTitleSuffix(cluster.representative_article.title)
-        : ""
-      const normalizedLabel = label ? normalizeLabel(label) : ""
-      const normalizedKeywords = keywordLabel ? normalizeLabel(keywordLabel) : ""
-      const useTitle =
-        titleCandidate &&
-        normalizedLabel &&
-        normalizedKeywords &&
-        normalizedLabel === normalizedKeywords
-
-      if (useTitle) return titleCandidate
-      return label || titleCandidate || keywordLabel || "Topic"
-    },
-    [formatKeywordLabel, normalizeLabel, stripTitleSuffix],
-  )
-
-  const filteredNews = useMemo(() => {
-    if (!searchTerm) return articles
-    return articles.filter(
-      (article) =>
-        article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        article.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        article.source.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
-  }, [articles, searchTerm])
-
-  const displayArticles = filteredNews
-  const isLoadingState = loading
-  const resolvedTotalCount = totalCount ?? filteredNews.length
-
-  useEffect(() => {
-    if (controlledViewMode) {
-      setViewMode(controlledViewMode)
-      return
-    }
-
-    setViewMode(getStoredGridViewMode())
-  }, [controlledViewMode])
-
-  useEffect(() => {
-    if (controlledViewMode) return
-    setStoredGridViewMode(viewMode)
-  }, [viewMode, controlledViewMode])
-
-  const handleArticleClick = useCallback((article: NewsArticle, contextArticles: NewsArticle[]) => {
-    const nextIndex = contextArticles.findIndex((item) => {
-      if (article.url && item.url) return item.url === article.url
-      return item.id === article.id
-    })
-
-    setModalArticles(contextArticles)
-    setSelectedArticleIndex(nextIndex >= 0 ? nextIndex : null)
-    setSelectedArticle(article)
-    setIsArticleModalOpen(true)
-  }, [])
-
-  const handleModalNavigate = useCallback((direction: "prev" | "next") => {
-    if (selectedArticleIndex === null) return
-
-    const nextIndex =
-      direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
-    if (nextIndex < 0 || nextIndex >= modalArticles.length) return
-
-    setSelectedArticleIndex(nextIndex)
-    setSelectedArticle(modalArticles[nextIndex] ?? null)
-  }, [modalArticles, selectedArticleIndex])
-
-  const handleModalClose = useCallback(() => {
-    setIsArticleModalOpen(false)
-    setSelectedArticle(null)
-    setSelectedArticleIndex(null)
-    setModalArticles([])
-  }, [])
-
-  const handleLike = useCallback(
+   handleLike = useCallback(
     (articleId: number, event?: MouseEvent<HTMLButtonElement>) => {
       event?.stopPropagation()
       void toggleLike(articleId)
     },
     [toggleLike],
-  )
-
-  const handleQueueToggle = useCallback(
+  ),
+   handleQueueToggle = useCallback(
     (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => {
       event?.stopPropagation()
       if (isArticleInQueue(article.url)) {
@@ -1013,210 +1458,8 @@ export function GridView({
         addArticleToQueue(article)
       }
     },
-    [isArticleInQueue, removeArticleFromQueue, addArticleToQueue],
+    [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
   )
-
-  const sourceGroups = useMemo(() => {
-    return buildSourceGroups(filteredNews).sort((a, b) => {
-      const aFav = isFavorite(a.sourceId) ? 1 : 0
-      const bFav = isFavorite(b.sourceId) ? 1 : 0
-      if (aFav !== bFav) return bFav - aFav
-
-      return compareSourceGroupsForGrid(a, b)
-    })
-  }, [filteredNews, isFavorite])
-
-  const sortedSourceIds = useMemo(
-    () => sourceGroups.map((group) => group.sourceId),
-    [sourceGroups],
-  )
-
-  const visibleSourceIds = useMemo(() => {
-    if (viewMode !== "source") return new Set<string>()
-
-    return getVisibleSourceIds(
-      sourceGroups,
-      new Set(sourceGroups.filter((group) => isFavorite(group.sourceId)).map((group) => group.sourceId)),
-      sourceBatchCount,
-      SOURCE_GROUP_BATCH_SIZE,
-    )
-  }, [isFavorite, sourceBatchCount, sourceGroups, viewMode])
-
-  const hasMoreSourceGroups = useMemo(() => {
-    if (viewMode !== "source") return false
-    return visibleSourceIds.size < sortedSourceIds.length
-  }, [sortedSourceIds.length, viewMode, visibleSourceIds.size])
-
-  const visibleSourceGroups = useMemo(
-    () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
-    [sourceGroups, visibleSourceIds],
-  )
-
-  useEffect(() => {
-    setSourceBatchCount((prev) => {
-      if (viewMode !== "source") return prev
-      const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length
-      const minimumVisible = favoriteCount + SOURCE_GROUP_BATCH_SIZE
-      const currentlyVisible = favoriteCount + prev * SOURCE_GROUP_BATCH_SIZE
-      if (currentlyVisible >= minimumVisible) return prev
-      return 1
-    })
-  }, [isFavorite, sourceGroups, viewMode])
-
-  useEffect(() => {
-    if (viewMode !== "topic") return
-    let cancelled = false
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-
-    const loadClusters = async () => {
-      setClustersLoading(true)
-      try {
-        const data = await fetchAllClusters(clusterWindow, 2, 100)
-        if (cancelled) return
-        setClusters(data.clusters)
-        setClustersStatus(data.status ?? null)
-        setExpandedClusterId((prev) =>
-          prev !== null && data.clusters.some((cluster) => cluster.cluster_id === prev)
-            ? prev
-            : null,
-        )
-
-        if (data.status === "initializing") {
-          retryTimer = setTimeout(() => {
-            void loadClusters()
-          }, 15000)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          logger.error("Failed to load clusters:", err)
-        }
-      } finally {
-        if (!cancelled) setClustersLoading(false)
-      }
-    }
-
-    void loadClusters()
-    return () => {
-      cancelled = true
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-      }
-    }
-  }, [viewMode, clusterWindow])
-
-  const getClusterTime = useCallback((cluster: AllCluster) => {
-    const publishedAt = cluster.representative_article?.published_at
-    if (!publishedAt) return 0
-    const timestamp = new Date(publishedAt).getTime()
-    return Number.isNaN(timestamp) ? 0 : timestamp
-  }, [])
-
-  const clusterTimes = useMemo(() => {
-    const times = new Map<number, number>()
-    for (const cluster of clusters) {
-      times.set(cluster.cluster_id, getClusterTime(cluster))
-    }
-    return times
-  }, [clusters, getClusterTime])
-
-  const sortedClusters = useMemo(() => {
-    const items = [...clusters]
-    items.sort((a, b) => {
-      if (topicSortMode === "articles") {
-        return b.article_count - a.article_count
-      }
-      if (topicSortMode === "recent") {
-        return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0)
-      }
-      return b.source_diversity - a.source_diversity
-    })
-    return items
-  }, [clusterTimes, clusters, topicSortMode])
-
-  const handleExpandCluster = useCallback(
-    async (cluster: AllCluster) => {
-      const clusterId = cluster.cluster_id
-      if (expandedClusterId === clusterId) {
-        setExpandedClusterId(null)
-        return
-      }
-
-      const section = document.querySelector<HTMLElement>(
-        `[data-cluster-id="${clusterId}"]`,
-      )
-      setExpandedClusterId(clusterId)
-      window.setTimeout(() => {
-        section?.scrollIntoView({ behavior: "smooth", block: "start" })
-      }, 0)
-      if (!clusterArticlesCache.has(clusterId) || clusterArticlesCache.get(clusterId)?.length === 0) {
-        const previewArticles = clusterArticlesToNewsArticles(cluster.articles)
-        setClusterArticlesCache((prev) => new Map(prev).set(clusterId, previewArticles))
-
-        try {
-          const fullArticles = await fetchClusterArticles(clusterId)
-          setClusterArticlesCache((prev) => new Map(prev).set(clusterId, fullArticles))
-        } catch (error) {
-          logger.warn("Failed to load full topic cluster articles", {
-            clusterId,
-            error,
-          })
-        }
-      }
-    },
-    [expandedClusterId, clusterArticlesCache],
-  )
-
-  const expandedCluster = useMemo(() => {
-    if (expandedClusterId === null) return null
-    return sortedClusters.find((cluster) => cluster.cluster_id === expandedClusterId) ?? null
-  }, [sortedClusters, expandedClusterId])
-
-  const expandedClusterArticles = useMemo(() => {
-    if (!expandedCluster) return []
-    return clusterArticlesCache.get(expandedCluster.cluster_id) ?? []
-  }, [clusterArticlesCache, expandedCluster])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const handleScroll = () => {
-      setShowScrollTop(container.scrollTop > 500)
-    }
-
-    handleScroll()
-    container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => container.removeEventListener("scroll", handleScroll)
-  }, [])
-
-  const handleOpenClusterCompare = useCallback(
-    (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation()
-      setSelectedCluster({
-        ...cluster,
-        trending_score: cluster.source_diversity,
-        velocity: cluster.window_count,
-        articles: cluster.articles ?? [],
-      })
-      setIsClusterModalOpen(true)
-    },
-    [],
-  )
-
-  const scrollToTop = useCallback(() => {
-    containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
-  }, [])
-
-  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    resetSourceBrowseState()
-    setSearchTerm(event.target.value)
-  }
-
-  const handleModeSelect = (mode: GridViewMode) => {
-    resetSourceBrowseState()
-    setViewMode(mode)
-    onViewModeChange?.(mode)
-  }
 
   if (isLoadingState && displayArticles.length === 0) {
     return (
@@ -1236,125 +1479,78 @@ export function GridView({
         empty={displayArticles.length === 0 && !isLoadingState}
         displayArticles={displayArticles}
         resolvedTotalCount={resolvedTotalCount}
-        isArticleModalOpen={isArticleModalOpen}
-        selectedArticle={selectedArticle}
+        isArticleModalOpen={modal.isArticleModalOpen}
+        selectedArticle={modal.selectedArticle}
         onSearchChange={handleSearchChange}
-        onArticleClick={handleArticleClick}
-        onModalClose={handleModalClose}
-        onModalNavigate={handleModalNavigate}
+        onArticleClick={modal.handleArticleClick}
+        onModalClose={modal.handleModalClose}
+        onModalNavigate={modal.handleModalNavigate}
       />
     )
   }
 
   return (
-    <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
-      <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
-          <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <GridViewSearchBar value={searchTerm} variant="main" onChange={handleSearchChange} />
-            <ModeSwitcher
-              viewMode={viewMode}
-              clusterWindow={clusterWindow}
-              onModeSelect={handleModeSelect}
-              onClusterWindow={(value) => setClusterWindow(value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div
-        ref={containerRef}
-        className="scroll-smooth pb-24 lg:flex-1 lg:overflow-y-auto"
-      >
-        <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
-          <TrendingSection showTrending={showTrending} viewMode={viewMode} />
-
-          {displayArticles.length === 0 && !isLoadingState ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
-              <Newspaper className="mb-6 h-16 w-16 text-white/10" />
-              <h3 className="mb-2 font-serif text-3xl text-foreground/80">No signals detected</h3>
-              <p className="max-w-md text-sm text-muted-foreground/60">
-                Adjust your search parameters to find relevant intelligence.
-              </p>
-            </motion.div>
-          ) : viewMode === "source" ? (
-            visibleSourceGroups.map((group) => (
-              <SourceGroupSection
-                key={group.sourceId}
-                group={group}
-                isExpanded={expandedSourceId === group.sourceId}
-                likedIds={likedIds}
-                hasRealImage={hasRealImage}
-                isArticleInQueue={isArticleInQueue}
-                isFavorite={isFavorite}
-                onArticleClick={handleArticleClick}
-                onLike={handleLike}
-                onQueueToggle={handleQueueToggle}
-                onToggleFavorite={toggleFavorite}
-                onToggleExpand={() => setExpandedSourceId(expandedSourceId === group.sourceId ? null : group.sourceId)}
-              />
-            ))
-          ) : (
-            <TopicFeed
-              clustersLoading={clustersLoading}
-              clusters={clusters}
-              clustersStatus={clustersStatus}
-              sortedClusters={sortedClusters}
-              expandedClusterId={expandedClusterId}
-              expandedCluster={expandedCluster}
-              expandedClusterArticles={expandedClusterArticles}
-              likedIds={likedIds}
-              hasRealImage={hasRealImage}
-              isArticleInQueue={isArticleInQueue}
-              getDisplayLabel={getClusterDisplayLabel}
-              onExpand={(cluster) => handleExpandCluster(cluster)}
-              onCompare={handleOpenClusterCompare}
-              onArticleClick={handleArticleClick}
-              onLike={handleLike}
-              onQueueToggle={handleQueueToggle}
-              onCloseExpanded={() => setExpandedClusterId(null)}
-            />
-          )}
-
-          {!useVirtualization && viewMode === "source" && hasMoreSourceGroups && (
-            <MoreSourcesButton
-              visible={visibleSourceIds.size}
-              total={sortedSourceIds.length}
-              onLoadMore={() => setSourceBatchCount((prev) => prev + 1)}
-            />
-          )}
-        </div>
-      </div>
-
-      {isArticleModalOpen && selectedArticle && (
-        <ArticleDetailModal
-          article={selectedArticle}
-          isOpen={isArticleModalOpen}
-          onClose={handleModalClose}
-          onNavigate={handleModalNavigate}
-        />
-      )}
-      {showScrollTop && (
-        <Button
-          type="button"
-          size="icon"
-          onClick={scrollToTop}
-          className="absolute bottom-8 right-8 z-40 h-12 w-12 rounded-full border border-white/10 bg-background/85 shadow-xl backdrop-blur"
-        >
-          <ChevronUp className="h-5 w-5" />
-        </Button>
-      )}
-      {isClusterModalOpen && selectedCluster && (
-        <ClusterDetailModal
-          cluster={selectedCluster}
-          isBreaking={false}
-          isOpen={isClusterModalOpen}
-          onClose={() => {
-            setIsClusterModalOpen(false)
-            setSelectedCluster(null)
-          }}
-        />
-      )}
-    </div>
+    <GridViewContent
+      searchTerm={searchTerm}
+      viewMode={viewMode}
+      clusterWindow={clusterWindow}
+      onSearchChange={handleSearchChange}
+      onModeSelect={handleModeSelect}
+      onClusterWindow={setClusterWindow}
+      containerRef={modal.containerRef}
+      results={{
+        displayArticles,
+        hasMoreSourceGroups,
+        isLoadingState,
+        onLoadMoreSources: loadMoreSources,
+        showTrending,
+        source: {
+          expandedSourceId,
+          hasRealImage,
+          isArticleInQueue,
+          isFavorite,
+          likedIds,
+          onArticleClick: modal.handleArticleClick,
+          onLike: handleLike,
+          onQueueToggle: handleQueueToggle,
+          onToggleExpand: toggleSource,
+          onToggleFavorite: toggleFavorite,
+        },
+        topic: {
+          clusters: topic.clusters,
+          clustersLoading: topic.clustersLoading,
+          clustersStatus: topic.clustersStatus,
+          expandedCluster: topic.expandedCluster ?? null,
+          expandedClusterArticles: topic.expandedClusterArticles,
+          expandedClusterId: topic.expandedClusterId,
+          getDisplayLabel: getGridClusterDisplayLabel,
+          hasRealImage,
+          isArticleInQueue,
+          likedIds,
+          onArticleClick: modal.handleArticleClick,
+          onCloseExpanded: () => {topic.setExpandedClusterId(null)},
+          onCompare: modal.handleOpenClusterCompare,
+          onExpand: topic.handleExpandCluster,
+          onLike: handleLike,
+          onQueueToggle: handleQueueToggle,
+          sortedClusters: topic.sortedClusters,
+        },
+        totalSourceCount: sortedSourceIds.length,
+        viewMode,
+        visibleSourceCount: visibleSourceIds.size,
+        visibleSourceGroups,
+      }}
+      overlays={{
+        isArticleModalOpen: modal.isArticleModalOpen,
+        isClusterModalOpen: modal.isClusterModalOpen,
+        onArticleModalClose: modal.handleModalClose,
+        onArticleModalNavigate: modal.handleModalNavigate,
+        onClusterModalClose: modal.closeClusterModal,
+        onScrollToTop: modal.scrollToTop,
+        selectedArticle: modal.selectedArticle,
+        selectedCluster: modal.selectedCluster,
+        showScrollTop: modal.showScrollTop,
+      }}
+    />
   )
 }

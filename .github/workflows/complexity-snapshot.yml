@@ -1,0 +1,63 @@
+name: Complexity snapshot
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths-ignore:
+      - "docs/agents/traces/complexity-snapshot.md"
+      - "docs/agents/traces/complexity-groups.md"
+permissions:
+  contents: write
+concurrency:
+  group: complexity-snapshot-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - name: Install cccc 1.6.0
+        run: |
+          curl -fsSL -o /tmp/cccc.tar.gz https://github.com/moznion/cccc/releases/download/v1.6.0/cccc-v1.6.0-x86_64-unknown-linux-musl.tar.gz
+          echo "8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b  /tmp/cccc.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/cccc-extract
+          tar -xzf /tmp/cccc.tar.gz -C /tmp/cccc-extract
+          CCCC="$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)"
+          test -n "$CCCC"
+          sudo cp "$CCCC" /usr/local/bin/cccc
+          cccc --version
+      - name: Measure and write snapshot
+        run: |
+          cccc backend frontend scripts --config cccc.toml --pretty > /tmp/cccc.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          d=json.loads(Path('/tmp/cccc.json').read_text())
+          rows=[]
+          def walk(path, fs):
+              for f in fs:
+                  rows.append((path,f['line'],f['name'],f['cyclomatic'],f['cognitive']))
+                  walk(path,f.get('children',[]))
+          for file in d['files']: walk(file['path'],file.get('functions',[]))
+          hard=sorted((r for r in rows if r[3]>10 or r[4]>15),key=lambda r:(-max(r[3]/10,r[4]/15),-r[3]-r[4],r[0],r[1]))
+          warn=sorted((r for r in rows if (r[3]>8 or r[4]>12) and r not in hard),key=lambda r:(-r[3]-r[4],r[0],r[1]))
+          out=['# Complexity Snapshot','',f"Commit: `{os.environ['GITHUB_SHA']}`",'',f"Files: {d['summary']['file_count']}",f"Functions: {d['summary']['function_count']}",f"Parse errors: {d['summary']['parse_error_count']}",f"CC max/p95: {d['summary']['cyclomatic']['max']} / {d['summary']['cyclomatic']['p95']}",f"Cognitive max/p95: {d['summary']['cognitive']['max']} / {d['summary']['cognitive']['p95']}",f"Hard violations: {len(hard)}",f"Warning-only: {len(warn)}",'','## Hard violations','','| path:line | function | CC | cognitive |','|---|---|---:|---:|']
+          for p,l,n,cc,cog in hard: out.append(f'| `{p}:{l}` | `{n}` | {cc} | {cog} |')
+          out += ['','## Warning-only','','| path:line | function | CC | cognitive |','|---|---|---:|---:|']
+          for p,l,n,cc,cog in warn: out.append(f'| `{p}:{l}` | `{n}` | {cc} | {cog} |')
+          Path('docs/agents/traces/complexity-snapshot.md').write_text('\n'.join(out)+'\n')
+          PY
+      - name: Commit snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/agents/traces/complexity-snapshot.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: record complexity snapshot"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          exit 1

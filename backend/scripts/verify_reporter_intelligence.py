@@ -17,6 +17,7 @@ import asyncio
 import json
 import sys
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
@@ -129,6 +130,57 @@ def _is_source_label_byline(author: str | None, source: str | None) -> bool:
     return bool(author_label and source_label and author_label == source_label)
 
 
+def _strong_profile_evidence(reporter: Reporter) -> bool:
+    has_author_profile = is_author_profile_url(
+        str(reporter.author_page_url or "")
+    ) or is_author_profile_url(str(reporter.canonical_author_url or ""))
+    return (
+        has_journalism_profile_evidence(reporter)
+        or has_author_profile
+        or has_supporting_byline_evidence(reporter)
+    )
+
+
+def _tiered_profile_issues(reporter: Reporter, tier: str) -> list[str]:
+    issues: list[str] = []
+    if not has_person_like_reporter_name(reporter):
+        issues.append(f"{tier}_missing_person_like_name")
+    if _is_qid_like_name(str(reporter.name or "")) and _is_qid_like_name(
+        str(reporter.canonical_name or "")
+    ):
+        issues.append(f"{tier}_qid_label_name")
+    if tier == "strong" and not _strong_profile_evidence(reporter):
+        issues.append(f"{tier}_missing_journalism_profile_evidence")
+    return issues
+
+
+def _local_byline_profile_issues(
+    reporter: Reporter, reporter_sources: dict[int, list[str]], tier: str
+) -> list[str]:
+    issues: list[str] = []
+    if reporter.id is None or int(reporter.id) not in reporter_sources:
+        issues.append(f"{tier}_local_byline_without_article_links")
+    if _is_combined_byline_name(str(reporter.name or "")):
+        issues.append(f"{tier}_combined_local_byline_name")
+    source_candidates = list(reporter_sources.get(int(reporter.id or 0), []))
+    source_candidates.extend(_source_names_from_career_history(reporter))
+    if any(
+        _is_source_label_byline(str(reporter.name or ""), source) for source in source_candidates
+    ):
+        issues.append(f"{tier}_source_label_local_byline_name")
+    return issues
+
+
+def _reporter_profile_issues(
+    reporter: Reporter, reporter_sources: dict[int, list[str]]
+) -> list[str]:
+    tier = str(reporter.confidence_tier or "unmatched")
+    issues = _tiered_profile_issues(reporter, tier) if tier in {"verified", "strong"} else []
+    if reporter.match_status == "local_byline":
+        issues.extend(_local_byline_profile_issues(reporter, reporter_sources, tier))
+    return issues
+
+
 def _profile_issue_samples(
     reporters: list[Reporter],
     reporter_sources: dict[int, list[str]],
@@ -138,57 +190,24 @@ def _profile_issue_samples(
     blocking_failure_count = 0
     backlog_issue_count = 0
 
-    def record(issue: str, reporter: Reporter) -> None:
-        nonlocal blocking_failure_count, backlog_issue_count
-        issue_counts[issue] += 1
-        tier = str(reporter.confidence_tier or "unmatched")
-        if tier in {"verified", "strong"}:
-            blocking_failure_count += 1
-        else:
-            backlog_issue_count += 1
-        bucket = samples.setdefault(issue, [])
-        if len(bucket) < 10:
-            source_hint = ", ".join(reporter_sources.get(int(reporter.id or 0), [])[:2])
-            bucket.append(
-                f"{_sample_reporter(reporter)}"
-                f"|tier={tier}"
-                f"|canonical={reporter.canonical_name or '-'}"
-                f"|qid={reporter.wikidata_qid or '-'}"
-                f"|source={source_hint or '-'}"
-            )
-
     for reporter in reporters:
         tier = str(reporter.confidence_tier or "unmatched")
-        if tier in {"verified", "strong"}:
-            if not has_person_like_reporter_name(reporter):
-                record(f"{tier}_missing_person_like_name", reporter)
-            if _is_qid_like_name(str(reporter.name or "")) and _is_qid_like_name(
-                str(reporter.canonical_name or "")
-            ):
-                record(f"{tier}_qid_label_name", reporter)
-            has_author_profile = is_author_profile_url(
-                str(reporter.author_page_url or "")
-            ) or is_author_profile_url(str(reporter.canonical_author_url or ""))
-            if (
-                tier == "strong"
-                and not has_journalism_profile_evidence(reporter)
-                and not has_author_profile
-                and not has_supporting_byline_evidence(reporter)
-            ):
-                record(f"{tier}_missing_journalism_profile_evidence", reporter)
-
-        if reporter.match_status == "local_byline":
-            if reporter.id is None or int(reporter.id) not in reporter_sources:
-                record(f"{tier}_local_byline_without_article_links", reporter)
-            if _is_combined_byline_name(str(reporter.name or "")):
-                record(f"{tier}_combined_local_byline_name", reporter)
-            source_candidates = list(reporter_sources.get(int(reporter.id or 0), []))
-            source_candidates.extend(_source_names_from_career_history(reporter))
-            if any(
-                _is_source_label_byline(str(reporter.name or ""), source)
-                for source in source_candidates
-            ):
-                record(f"{tier}_source_label_local_byline_name", reporter)
+        for issue in _reporter_profile_issues(reporter, reporter_sources):
+            issue_counts[issue] += 1
+            if tier in {"verified", "strong"}:
+                blocking_failure_count += 1
+            else:
+                backlog_issue_count += 1
+            bucket = samples.setdefault(issue, [])
+            if len(bucket) < 10:
+                source_hint = ", ".join(reporter_sources.get(int(reporter.id or 0), [])[:2])
+                bucket.append(
+                    f"{_sample_reporter(reporter)}"
+                    f"|tier={tier}"
+                    f"|canonical={reporter.canonical_name or '-'}"
+                    f"|qid={reporter.wikidata_qid or '-'}"
+                    f"|source={source_hint or '-'}"
+                )
 
     return {
         "total_reporters": len(reporters),
@@ -198,6 +217,28 @@ def _profile_issue_samples(
         "backlog_issues": backlog_issue_count,
         "total_issues": blocking_failure_count + backlog_issue_count,
     }
+
+
+def _eligible_reporter(
+    reporter: Reporter,
+    article_count: int,
+    sources: tuple[str, ...],
+    *,
+    min_article_links: int,
+) -> EligibleReporter | None:
+    if (
+        article_count < min_article_links
+        or not sources
+        or not has_person_like_reporter_name(reporter)
+        or _is_combined_byline_name(str(reporter.name or ""))
+        or any(_is_source_label_byline(str(reporter.name or ""), source) for source in sources)
+    ):
+        return None
+    return EligibleReporter(
+        reporter=reporter,
+        article_link_count=article_count,
+        sources=sources,
+    )
 
 
 def _eligible_reporters(
@@ -215,21 +256,14 @@ def _eligible_reporters(
         rid = int(reporter_id)
         article_count = reporter_article_counts.get(rid, 0)
         sources = tuple(sorted(set(reporter_sources.get(rid, []))))
-        if (
-            article_count < min_article_links
-            or not sources
-            or not has_person_like_reporter_name(reporter)
-            or _is_combined_byline_name(str(reporter.name or ""))
-            or any(_is_source_label_byline(str(reporter.name or ""), source) for source in sources)
-        ):
-            continue
-        eligible.append(
-            EligibleReporter(
-                reporter=reporter,
-                article_link_count=article_count,
-                sources=sources,
-            )
+        item = _eligible_reporter(
+            reporter,
+            article_count,
+            sources,
+            min_article_links=min_article_links,
         )
+        if item is not None:
+            eligible.append(item)
     return eligible
 
 
@@ -239,6 +273,54 @@ def _target_verified_count(total: int, target_verified_percent: float) -> int:
     import math
 
     return int(math.ceil(total * (target_verified_percent / 100.0)))
+
+
+def _index_eligible_source_tiers(
+    eligible: list[EligibleReporter],
+) -> tuple[dict[str, Counter[str]], dict[str, int]]:
+    source_rows: dict[str, Counter[str]] = {}
+    source_article_counts: dict[str, int] = {}
+    for item in eligible:
+        tier = str(item.reporter.confidence_tier or "unmatched")
+        for source_name in item.sources:
+            source_rows.setdefault(source_name, Counter())[tier] += 1
+            source_article_counts[source_name] = source_article_counts.get(source_name, 0) + int(
+                item.article_link_count
+            )
+    return source_rows, source_article_counts
+
+
+def _source_audit_rows(
+    source_rows: dict[str, Counter[str]],
+    source_article_counts: dict[str, int],
+) -> list[dict[str, Any]]:
+    top_sources: list[dict[str, Any]] = []
+    for source_name, counts in source_rows.items():
+        source_total = int(sum(counts.values()))
+        unverified = source_total - int(counts.get("verified", 0))
+        leakage = int(counts.get("likely", 0) + counts.get("unmatched", 0))
+        top_sources.append(
+            {
+                "source": source_name,
+                "eligible": source_total,
+                "verified": int(counts.get("verified", 0)),
+                "strong": int(counts.get("strong", 0)),
+                "likely": int(counts.get("likely", 0)),
+                "unmatched": int(counts.get("unmatched", 0)),
+                "unverified": unverified,
+                "non_strong_leakage": leakage,
+                "article_links": source_article_counts.get(source_name, 0),
+            }
+        )
+    top_sources.sort(
+        key=lambda row: (
+            -int(row["unverified"]),
+            -int(row["non_strong_leakage"]),
+            -int(row["eligible"]),
+            str(row["source"]),
+        )
+    )
+    return top_sources
 
 
 def _eligible_cohort_audit(
@@ -273,42 +355,8 @@ def _eligible_cohort_audit(
     non_strong_leakage = int(tier_counts.get("likely", 0) + tier_counts.get("unmatched", 0))
     verified_percent = round((verified / total) * 100, 2) if total else 0.0
 
-    source_rows: dict[str, Counter[str]] = {}
-    source_article_counts: dict[str, int] = {}
-    for item in eligible:
-        tier = str(item.reporter.confidence_tier or "unmatched")
-        for source_name in item.sources:
-            source_rows.setdefault(source_name, Counter())[tier] += 1
-            source_article_counts[source_name] = source_article_counts.get(source_name, 0) + int(
-                item.article_link_count
-            )
-
-    top_sources = []
-    for source_name, counts in source_rows.items():
-        source_total = int(sum(counts.values()))
-        unverified = source_total - int(counts.get("verified", 0))
-        leakage = int(counts.get("likely", 0) + counts.get("unmatched", 0))
-        top_sources.append(
-            {
-                "source": source_name,
-                "eligible": source_total,
-                "verified": int(counts.get("verified", 0)),
-                "strong": int(counts.get("strong", 0)),
-                "likely": int(counts.get("likely", 0)),
-                "unmatched": int(counts.get("unmatched", 0)),
-                "unverified": unverified,
-                "non_strong_leakage": leakage,
-                "article_links": source_article_counts.get(source_name, 0),
-            }
-        )
-    top_sources.sort(
-        key=lambda row: (
-            -int(row["unverified"]),
-            -int(row["non_strong_leakage"]),
-            -int(row["eligible"]),
-            str(row["source"]),
-        )
-    )
+    source_rows, source_article_counts = _index_eligible_source_tiers(eligible)
+    top_sources = _source_audit_rows(source_rows, source_article_counts)
 
     failure_count = int(bool(verified_shortfall) + bool(non_strong_leakage))
     return {
@@ -409,42 +457,49 @@ def _normalized_identity_label(value: str | None) -> str:
     return " ".join(str(value or "").split()).casefold()
 
 
-def _identity_alias_audit(reporters: list[Reporter]) -> dict[str, Any]:
-    """Report tiered reporter rows that are likely aliases of the same person."""
-    tiered = [
-        reporter
-        for reporter in reporters
-        if str(reporter.confidence_tier or "") in {"verified", "strong"}
-    ]
+def _raw_byline_residue_sample(reporter: Reporter) -> str | None:
+    raw_name = str(reporter.name or "").strip()
+    cleaned_raw = clean_author_name(raw_name)
+    if not (cleaned_raw and raw_name):
+        return None
+    if _normalized_identity_label(raw_name) == _normalized_identity_label(cleaned_raw):
+        return None
+    return (
+        f"{_sample_reporter(reporter)}|cleaned={cleaned_raw}"
+        f"|canonical={reporter.canonical_name or '-'}"
+        f"|url={reporter.author_page_url or '-'}"
+    )
+
+
+def _author_page_identity_url(reporter: Reporter) -> str:
+    if is_author_profile_url(str(reporter.author_page_url or "")):
+        return str(reporter.author_page_url or "")
+    if is_author_profile_url(str(reporter.canonical_author_url or "")):
+        return str(reporter.canonical_author_url or "")
+    return ""
+
+
+def _collect_identity_alias_inputs(
+    tiered: list[Reporter],
+) -> tuple[dict[str, list[Reporter]], int, list[str]]:
+    author_url_groups: dict[str, list[Reporter]] = {}
     raw_residue_count = 0
     raw_residue_samples: list[str] = []
-    author_url_groups: dict[str, list[Reporter]] = {}
-
     for reporter in tiered:
-        raw_name = str(reporter.name or "").strip()
-        cleaned_raw = clean_author_name(raw_name)
-        if (
-            cleaned_raw
-            and raw_name
-            and _normalized_identity_label(raw_name) != _normalized_identity_label(cleaned_raw)
-        ):
+        sample = _raw_byline_residue_sample(reporter)
+        if sample is not None:
             raw_residue_count += 1
             if len(raw_residue_samples) < 20:
-                raw_residue_samples.append(
-                    f"{_sample_reporter(reporter)}|cleaned={cleaned_raw}"
-                    f"|canonical={reporter.canonical_name or '-'}"
-                    f"|url={reporter.author_page_url or '-'}"
-                )
-
-        identity_url = ""
-        if is_author_profile_url(str(reporter.author_page_url or "")):
-            identity_url = str(reporter.author_page_url or "")
-        elif is_author_profile_url(str(reporter.canonical_author_url or "")):
-            identity_url = str(reporter.canonical_author_url or "")
-        normalized_url = _normalized_author_url(identity_url)
+                raw_residue_samples.append(sample)
+        normalized_url = _normalized_author_url(_author_page_identity_url(reporter))
         if normalized_url:
             author_url_groups.setdefault(normalized_url, []).append(reporter)
+    return author_url_groups, raw_residue_count, raw_residue_samples
 
+
+def _duplicate_author_page_groups(
+    author_url_groups: dict[str, list[Reporter]],
+) -> tuple[list[dict[str, Any]], int, int]:
     duplicate_groups: list[dict[str, Any]] = []
     duplicate_rows = 0
     duplicate_conflict_rows = 0
@@ -475,13 +530,26 @@ def _identity_alias_audit(reporters: list[Reporter]) -> dict[str, Any]:
                 ],
             }
         )
-
     duplicate_groups.sort(
         key=lambda row: (-int(row["rows"]), str(row["author_url"])),
     )
-    unique_author_page_identities = len(
-        {url for url, group in author_url_groups.items() if len(group) >= 1}
+    return duplicate_groups, duplicate_rows, duplicate_conflict_rows
+
+
+def _identity_alias_audit(reporters: list[Reporter]) -> dict[str, Any]:
+    """Report tiered reporter rows that are likely aliases of the same person."""
+    tiered = [
+        reporter
+        for reporter in reporters
+        if str(reporter.confidence_tier or "") in {"verified", "strong"}
+    ]
+    author_url_groups, raw_residue_count, raw_residue_samples = _collect_identity_alias_inputs(
+        tiered
     )
+    duplicate_groups, duplicate_rows, duplicate_conflict_rows = _duplicate_author_page_groups(
+        author_url_groups
+    )
+    unique_author_page_identities = len(author_url_groups)
     return {
         "tiered_reporters": len(tiered),
         "tiered_author_page_identities": unique_author_page_identities,
@@ -518,23 +586,29 @@ def _format_identity_alias_audit(audit: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _audit_reporter_quality(reporters: list[Reporter]) -> dict[str, Any]:
+def _author_page_claimed(reporter: Reporter) -> bool:
+    return is_author_profile_url(str(reporter.author_page_url or "")) or is_author_profile_url(
+        str(reporter.canonical_author_url or "")
+    )
+
+
+def _verified_quality_buckets(
+    reporters: list[Reporter],
+) -> tuple[list[Reporter], list[Reporter], list[Reporter]]:
     verified = [reporter for reporter in reporters if reporter.confidence_tier == "verified"]
     bad_non_person = [
         reporter for reporter in verified if not clean_author_name(str(reporter.name or ""))
     ]
-    bad_author_page = [
-        reporter
-        for reporter in verified
-        if not (
-            is_author_profile_url(str(reporter.author_page_url or ""))
-            or is_author_profile_url(str(reporter.canonical_author_url or ""))
-        )
-    ]
+    bad_author_page = [reporter for reporter in verified if not _author_page_claimed(reporter)]
     bad_author_page_citation = [
         reporter for reporter in verified if not _author_page_citation_present(reporter)
     ]
+    return bad_non_person, bad_author_page, bad_author_page_citation
 
+
+def _audit_reporter_quality(reporters: list[Reporter]) -> dict[str, Any]:
+    verified = [reporter for reporter in reporters if reporter.confidence_tier == "verified"]
+    bad_non_person, bad_author_page, bad_author_page_citation = _verified_quality_buckets(reporters)
     failures = {
         "verified_non_person_names": bad_non_person,
         "verified_non_public_author_pages": bad_author_page,
@@ -639,6 +713,80 @@ def _reporter_attribution_totals(
     return totals
 
 
+async def _recompute_reporter_tier(
+    session: Any,
+    reporter: Reporter,
+    tier: str,
+    score: float | None,
+) -> tuple[str, float | None]:
+    tries = 0
+    while tries < 2:
+        try:
+            computed_tier, computed_score, _ = await compute_confidence_tier(session, reporter)
+            return computed_tier, computed_score
+        except Exception:
+            tries += 1
+    return tier, score
+
+
+def _accumulate_author_page_metrics(m: dict[str, Any], tier: str, reporter: Reporter) -> None:
+    if not reporter.author_page_url:
+        return
+    m["with_author_page_url"] += 1
+    if not _author_page_claimed(reporter):
+        return
+    m["with_public_author_page_url"] += 1
+    if tier == "verified" and has_verified_author_page_citation(reporter):
+        m["verified_author_page_citations"] += 1
+
+
+def _empty_source_metrics(source_name: str) -> dict[str, Any]:
+    return {
+        "source": source_name,
+        "total_reporters": 0,
+        "article_source_reporters": 0,
+        "career_source_reporters": 0,
+        "unknown_source_reporters": 0,
+        "tier_counts": Counter(),
+        "score_sum": 0.0,
+        "with_author_page_url": 0,
+        "with_public_author_page_url": 0,
+        "verified_author_page_citations": 0,
+        "with_claims": 0,
+        "score_count": 0,
+    }
+
+
+def _accumulate_reporter_source_metrics(
+    sources: dict[str, dict[str, Any]],
+    source_name: str,
+    tier: str,
+    score: float | None,
+    attribution_type: str,
+    reporter: Reporter,
+) -> None:
+    if source_name not in sources:
+        sources[source_name] = _empty_source_metrics(source_name)
+    m = sources[source_name]
+    m["total_reporters"] += 1
+    if attribution_type == "article":
+        m["article_source_reporters"] += 1
+    elif attribution_type == "career":
+        m["career_source_reporters"] += 1
+    else:
+        m["unknown_source_reporters"] += 1
+
+    m["tier_counts"][tier] += 1
+
+    if score is not None:
+        m["score_sum"] += score
+    m["score_count"] += 1
+
+    _accumulate_author_page_metrics(m, tier, reporter)
+    if reporter.claims_count and reporter.claims_count > 0:
+        m["with_claims"] += 1
+
+
 async def _compute_source_metrics(
     reporters: list[Reporter],
     reporter_sources: dict[int, list[str]],
@@ -663,60 +811,13 @@ async def _compute_source_metrics(
             float(reporter.confidence_score) if reporter.confidence_score is not None else None
         )
         if recompute:
-            tries = 0
-            while tries < 2:
-                try:
-                    computed_tier, computed_score, _ = await compute_confidence_tier(
-                        session, reporter
-                    )
-                    tier = computed_tier
-                    score = computed_score
-                    break
-                except Exception:
-                    tries += 1
+            tier, score = await _recompute_reporter_tier(session, reporter, tier, score)
 
         src_list, attribution_type = _source_attribution_for_reporter(reporter, reporter_sources)
         for source_name in src_list:
-            if source_name not in sources:
-                sources[source_name] = {
-                    "source": source_name,
-                    "total_reporters": 0,
-                    "article_source_reporters": 0,
-                    "career_source_reporters": 0,
-                    "unknown_source_reporters": 0,
-                    "tier_counts": Counter(),
-                    "score_sum": 0.0,
-                    "with_author_page_url": 0,
-                    "with_public_author_page_url": 0,
-                    "verified_author_page_citations": 0,
-                    "with_claims": 0,
-                    "score_count": 0,
-                }
-            m = sources[source_name]
-            m["total_reporters"] += 1
-            if attribution_type == "article":
-                m["article_source_reporters"] += 1
-            elif attribution_type == "career":
-                m["career_source_reporters"] += 1
-            else:
-                m["unknown_source_reporters"] += 1
-
-            m["tier_counts"][tier] += 1
-
-            if score is not None:
-                m["score_sum"] += score
-            m["score_count"] += 1
-
-            if reporter.author_page_url:
-                m["with_author_page_url"] += 1
-                if is_author_profile_url(str(reporter.author_page_url)) or is_author_profile_url(
-                    str(reporter.canonical_author_url or "")
-                ):
-                    m["with_public_author_page_url"] += 1
-                    if tier == "verified" and has_verified_author_page_citation(reporter):
-                        m["verified_author_page_citations"] += 1
-            if reporter.claims_count and reporter.claims_count > 0:
-                m["with_claims"] += 1
+            _accumulate_reporter_source_metrics(
+                sources, source_name, tier, score, attribution_type, reporter
+            )
 
     return sources
 
@@ -831,6 +932,12 @@ def _format_trend(
     return lines
 
 
+def _emit_audit(audit: dict[str, Any], formatter: Callable[[dict[str, Any]], list[str]]) -> int:
+    for line in formatter(audit):
+        print(line)
+    return 1 if int(audit["quality_failures"]) > 0 else 0
+
+
 async def main_async(
     trend: bool,
     recompute: bool = False,
@@ -849,15 +956,9 @@ async def main_async(
             print("total_reporters=0")
             return 0
         if audit_quality:
-            audit = _audit_reporter_quality(reporters)
-            for line in _format_quality_audit(audit):
-                print(line)
-            return 1 if int(audit["quality_failures"]) > 0 else 0
+            return _emit_audit(_audit_reporter_quality(reporters), _format_quality_audit)
         if audit_aliases:
-            audit = _identity_alias_audit(reporters)
-            for line in _format_identity_alias_audit(audit):
-                print(line)
-            return 1 if int(audit["quality_failures"]) > 0 else 0
+            return _emit_audit(_identity_alias_audit(reporters), _format_identity_alias_audit)
 
         reporter_ids = [int(r.id) for r in reporters if r.id]
         reporter_sources = await _load_reporter_sources(session, reporter_ids)
@@ -871,15 +972,12 @@ async def main_async(
                 target_verified_percent=eligible_target_verified_percent,
                 top_sources_limit=eligible_top_sources,
             )
-            for line in _format_eligible_cohort_audit(audit):
-                print(line)
-            return 1 if int(audit["quality_failures"]) > 0 else 0
+            return _emit_audit(audit, _format_eligible_cohort_audit)
 
         if audit_profiles:
-            audit = _profile_issue_samples(reporters, reporter_sources)
-            for line in _format_profile_audit(audit):
-                print(line)
-            return 1 if int(audit["quality_failures"]) > 0 else 0
+            return _emit_audit(
+                _profile_issue_samples(reporters, reporter_sources), _format_profile_audit
+            )
 
         sources = await _compute_source_metrics(
             reporters,

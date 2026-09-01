@@ -1,49 +1,32 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+
 import { Button } from "@/components/ui/button"
-import {
-  fetchSourceCredibility,
-  type SourceCredibilityProfile,
-} from "@/lib/api"
+import type { SourceCredibilityProfile } from "@/lib/api"
+import { fetchSourceCredibility } from "@/lib/api"
 
 interface SourceCredibilityPanelProps {
   domain: string
   autoRun?: boolean
 }
 
-const DIMENSION_LABELS: Record<string, string> = {
-  funding_transparency: "Funding Transparency",
-  source_network_diversity: "Source Network Diversity",
-  political_orientation_disclosure: "Political Orientation",
-  correction_record: "Correction Record",
-  methodology_transparency: "Methodology Transparency",
-  cross_verification_alignment: "Cross-Verification Alignment",
+interface CredibilityDimensionProps {
+  dimension: SourceCredibilityProfile["dimensions"][string]
+  expanded: boolean
+  label: string
+  onToggle: () => void
 }
 
-function scoreToColor(score: number | null | undefined): string {
-  if (score == null) return "bg-muted/30"
-  if (score >= 70) return "bg-emerald-500"
-  if (score >= 40) return "bg-amber-500"
-  return "bg-red-500"
-}
+const useCredibilityController = (domain: string, autoRun: boolean) => {
+  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null),
+   [loading, setLoading] = useState(false),
+   [error, setError] = useState<string | null>(null),
+   [expandedDim, setExpandedDim] = useState<string | null>(null),
 
-function scoreToTextColor(score: number | null | undefined): string {
-  if (score == null) return "text-muted-foreground"
-  if (score >= 70) return "text-emerald-400"
-  if (score >= 40) return "text-amber-400"
-  return "text-red-400"
-}
-
-export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredibilityPanelProps) {
-  const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [expandedDim, setExpandedDim] = useState<string | null>(null)
-
-  const loadProfile = useCallback(async () => {
-    if (!domain) return
+   loadProfile = useCallback(async () => {
+    if (!domain) {return}
     setLoading(true)
     setError(null)
     try {
@@ -62,8 +45,112 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
     }
   }, [autoRun, loadProfile])
 
-  const dims = profile?.dimensions ?? {}
-  const dimEntries = Object.entries(dims)
+  return {
+    dimEntries: Object.entries(profile?.dimensions ?? {}),
+    error,
+    expandedDim,
+    loadProfile,
+    loading,
+    profile,
+    setExpandedDim,
+  }
+},
+
+ scoreToColor = (score: number | null | undefined): string => {
+  if (score == null) {return "bg-muted/30"}
+  if (score >= 70) {return "bg-emerald-500"}
+  if (score >= 40) {return "bg-amber-500"}
+  return "bg-red-500"
+},
+
+ scoreToTextColor = (score: number | null | undefined): string => {
+  if (score == null) {return "text-muted-foreground"}
+  if (score >= 70) {return "text-emerald-400"}
+  if (score >= 40) {return "text-amber-400"}
+  return "text-red-400"
+},
+
+ DIMENSION_LABELS = new Map(Object.entries({
+  correction_record: "Correction Record",
+  cross_verification_alignment: "Cross-Verification Alignment",
+  funding_transparency: "Funding Transparency",
+  methodology_transparency: "Methodology Transparency",
+  political_orientation_disclosure: "Political Orientation",
+  source_network_diversity: "Source Network Diversity",
+})),
+
+CredibilityDimension = ({
+  dimension,
+  expanded,
+  label,
+  onToggle,
+}: CredibilityDimensionProps) => {
+  const { score } = dimension,
+   isNil = score == null
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2 group cursor-pointer"
+        onClick={onToggle}
+      >
+        <span className="flex-1 text-[11px] font-mono text-foreground/70 capitalize truncate">
+          {label}
+        </span>
+        <span className={`text-[10px] font-mono ${scoreToTextColor(score)}`}>
+          {isNil ? "-" : `${Math.round(score)}`}
+        </span>
+      </div>
+      <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden mt-1">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${scoreToColor(score)}`}
+          style={{ width: isNil ? "0%" : `${Math.min(100, score)}%` }}
+        />
+      </div>
+      {expanded && !isNil && (
+        <div className="mt-2 pl-1 space-y-1.5 border-l border-white/5 ml-1 pl-2">
+          <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+            {dimension.explanation ?? ""}
+          </p>
+          {dimension.provenance && dimension.provenance.length > 0 && (
+            <div className="space-y-0.5">
+              {dimension.provenance.map((provenance) => (
+                <div key={`${provenance.source}-${provenance.url}`} className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+                  {provenance.url ? (
+                    <a
+                      href={provenance.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground/60 flex items-center gap-0.5"
+                    >
+                      {provenance.source}
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  ) : (
+                    <span>{provenance.source}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+},
+
+SourceCredibilityPanel = ({
+  domain,
+  autoRun = false,
+}: SourceCredibilityPanelProps) => {
+  const {
+    dimEntries,
+    error,
+    expandedDim,
+    loadProfile,
+    loading,
+    profile,
+    setExpandedDim,
+  } = useCredibilityController(domain, autoRun)
 
   if (!autoRun && !profile) {
     return (
@@ -123,8 +210,6 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
     )
   }
 
-  const dq = profile.data_quality
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -133,7 +218,7 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
             Credibility
           </span>
           <span className="font-mono text-[10px] text-foreground/80">
-            {dq.dimensions_available}/{dq.dimensions_total} dimensions
+            {profile.data_quality.dimensions_available}/{profile.data_quality.dimensions_total} dimensions
           </span>
         </div>
         <Button
@@ -148,67 +233,24 @@ export function SourceCredibilityPanel({ domain, autoRun = false }: SourceCredib
       </div>
 
       <div className="space-y-2.5">
-        {dimEntries.map(([key, dim]) => {
-          const score = dim.score
-          const isNil = score == null
-          const isExpanded = expandedDim === key
-          return (
-            <div key={key}>
-              <div
-                className="flex items-center gap-2 group cursor-pointer"
-                onClick={() => setExpandedDim(isExpanded ? null : key)}
-              >
-                <span className="flex-1 text-[11px] font-mono text-foreground/70 capitalize truncate">
-                  {DIMENSION_LABELS[key] ?? key.replace(/_/g, " ")}
-                </span>
-                <span className={`text-[10px] font-mono ${scoreToTextColor(score)}`}>
-                  {isNil ? "-" : `${Math.round(score as number)}`}
-                </span>
-              </div>
-              <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden mt-1">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${scoreToColor(score)}`}
-                  style={{ width: isNil ? "0%" : `${Math.min(100, score as number)}%` }}
-                />
-              </div>
-              {isExpanded && !isNil && (
-                <div className="mt-2 pl-1 space-y-1.5 border-l border-white/5 ml-1 pl-2">
-                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                    {dim.explanation ?? ""}
-                  </p>
-                  {dim.provenance && dim.provenance.length > 0 && (
-                    <div className="space-y-0.5">
-                      {dim.provenance.map((p, idx) => (
-                        <div key={idx} className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
-                          {p.url ? (
-                            <a
-                              href={p.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline hover:text-foreground/60 flex items-center gap-0.5"
-                            >
-                              {p.source}
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          ) : (
-                            <span>{p.source}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {dimEntries.map(([key, dimension]) => (
+          <CredibilityDimension
+            key={key}
+            dimension={dimension}
+            expanded={expandedDim === key}
+            label={DIMENSION_LABELS.get(key) ?? key.replaceAll('_', " ")}
+            onToggle={() =>{  setExpandedDim(expandedDim === key ? null : key); }}
+          />
+        ))}
       </div>
 
-      {dq.last_updated && (
+      {profile.data_quality.last_updated && (
         <div className="text-[9px] text-muted-foreground/40 font-mono pt-1 border-t border-white/5">
-          Last updated: {new Date(dq.last_updated).toLocaleDateString()}
+          Last updated: {new Date(profile.data_quality.last_updated).toLocaleDateString()}
         </div>
       )}
     </div>
   )
-}
+};
+
+export { SourceCredibilityPanel }

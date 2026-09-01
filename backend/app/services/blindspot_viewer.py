@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Literal, TypedDict, cast
-from collections.abc import Callable, Mapping
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -385,48 +385,53 @@ def _article_country_code(article: Any) -> str | None:
     return source_entry.get("country")
 
 
+def _container_signal(
+    article: Any,
+    containers: Sequence[str],
+    keys: Sequence[str],
+    *,
+    signal_id: str,
+    label: str,
+) -> BlindspotGeoSignalPayload | None:
+    for container_name in containers:
+        container = _article_value(article, container_name)
+        if not isinstance(container, Mapping):
+            continue
+        for key in keys:
+            value = container.get(key)
+            if _has_text(value):
+                return {"id": signal_id, "label": label, "count": 1}
+    return None
+
+
 def _geography_signal(article: Any) -> BlindspotGeoSignalPayload | None:
     source_country = _article_value(article, "source_country")
     if _has_text(source_country):
-        return {
-            "id": "source_country",
-            "label": "Source country",
-            "count": 1,
-        }
+        return {"id": "source_country", "label": "Source country", "count": 1}
 
-    for container_name in ("geo", "geography"):
-        container = _article_value(article, container_name)
-        if not isinstance(container, Mapping):
-            continue
-        for key in ("source_country", "country_code"):
-            value = container.get(key)
-            if _has_text(value):
-                return {
-                    "id": "source_country",
-                    "label": "Source country",
-                    "count": 1,
-                }
+    direct = _container_signal(
+        article,
+        ("geo", "geography"),
+        ("source_country", "country_code"),
+        signal_id="source_country",
+        label="Source country",
+    )
+    if direct is not None:
+        return direct
 
-    for container_name in ("baseline", "geo_baseline"):
-        container = _article_value(article, container_name)
-        if not isinstance(container, Mapping):
-            continue
-        for key in ("baseline_country", "country_code", "country"):
-            value = container.get(key)
-            if _has_text(value):
-                return {
-                    "id": "baseline_country",
-                    "label": "Baseline country",
-                    "count": 1,
-                }
+    baseline = _container_signal(
+        article,
+        ("baseline", "geo_baseline"),
+        ("baseline_country", "country_code", "country"),
+        signal_id="baseline_country",
+        label="Baseline country",
+    )
+    if baseline is not None:
+        return baseline
 
     country = _article_value(article, "country")
     if _has_text(country):
-        return {
-            "id": "country",
-            "label": "Article country",
-            "count": 1,
-        }
+        return {"id": "country", "label": "Article country", "count": 1}
     return None
 
 
@@ -598,6 +603,29 @@ def _choose_representative_article(
     return _article_preview(with_image[0] if with_image else articles[0])
 
 
+def _source_key_from_payload(article: SnapshotArticlePayload) -> str:
+    return str(article.get("source_id", "")).strip().lower() or _slugify_source_name(
+        str(article.get("source", "unknown-source"))
+    )
+
+
+def _unique_source_previews(
+    articles: list[SnapshotArticlePayload],
+    limit: int,
+) -> list[SnapshotArticlePayload]:
+    selected: list[SnapshotArticlePayload] = []
+    seen_sources: set[str] = set()
+    for article in articles:
+        source_key = _source_key_from_payload(article)
+        if source_key in seen_sources:
+            continue
+        selected.append(_article_preview(article))
+        seen_sources.add(source_key)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def _select_preview_articles(
     articles: list[SnapshotArticlePayload],
     limit: int = DEFAULT_CARD_ARTICLES,
@@ -605,19 +633,9 @@ def _select_preview_articles(
     if limit <= 0 or not articles:
         return []
 
-    selected: list[SnapshotArticlePayload] = []
-    seen_sources: set[str] = set()
-    for article in articles:
-        source_key = str(article.get("source_id", "")).strip().lower() or _slugify_source_name(
-            str(article.get("source", "unknown-source"))
-        )
-        if source_key in seen_sources:
-            continue
-        selected.append(_article_preview(article))
-        seen_sources.add(source_key)
-        if len(selected) >= limit:
-            return selected
-
+    selected = _unique_source_previews(articles, limit)
+    if len(selected) >= limit:
+        return selected
     for article in articles:
         preview = _article_preview(article)
         if any(existing["id"] == preview["id"] for existing in selected):
@@ -821,14 +839,10 @@ def _quantile(values: list[float], percentile: float) -> float:
     return float(quantile_rust(values, percentile))
 
 
-async def _load_embeddings_for_articles(
-    articles_by_id: Mapping[int, Any],
-) -> dict[int, list[float]] | None:
-    vector_store = get_vector_store()
-    if vector_store is None:
-        return None
-
-    article_ids = list(articles_by_id.keys())
+def _chroma_embeddings(
+    vector_store: Any,
+    article_ids: list[int],
+) -> dict[int, list[float]]:
     chroma_ids = [f"article_{article_id}" for article_id in article_ids]
     embeddings: dict[int, list[float]] = {}
     try:
@@ -844,22 +858,29 @@ async def _load_embeddings_for_articles(
                 continue
             article_id = int(chroma_id.replace("article_", ""))
             embeddings[article_id] = vector
-    except Exception as exc:  # pragma: no cover - live Chroma boundary
+    except (
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live Chroma boundary
         logger.warning(
             "Blindspot SemAxis falling back to on-demand embeddings after Chroma get failed: %s",
             exc,
         )
+    return embeddings
 
-    missing_articles = [
-        article for article_id, article in articles_by_id.items() if article_id not in embeddings
-    ]
-    if not missing_articles:
-        return embeddings
 
-    articles_to_encode = [article for article in missing_articles if _embedding_text(article) != ""]
+def _encode_missing_embeddings(
+    vector_store: Any,
+    articles_to_encode: list[Article],
+    embeddings: dict[int, list[float]],
+) -> dict[int, list[float]] | None:
     if not articles_to_encode:
         return embeddings
-
     try:
         encoded = vector_store.embedding_model.encode(
             [_embedding_text(article) for article in articles_to_encode],
@@ -868,20 +889,68 @@ async def _load_embeddings_for_articles(
             convert_to_numpy=False,
         )
         encoded_rows = _coerce_embedding_rows(encoded)
-    except Exception as exc:  # pragma: no cover - live embedding boundary
+    except (
+        AttributeError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live embedding boundary
         logger.warning(
             "Blindspot SemAxis could not generate on-demand embeddings: %s",
             exc,
         )
         return embeddings or None
-
     for article, vector in zip(articles_to_encode, encoded_rows, strict=False):
         encoded_article_id: Any = getattr(article, "id", None)
         if encoded_article_id is None:
             continue
         embeddings[int(encoded_article_id)] = vector
-
     return embeddings
+
+
+async def _load_embeddings_for_articles(
+    articles_by_id: Mapping[int, Any],
+) -> dict[int, list[float]] | None:
+    vector_store = get_vector_store()
+    if vector_store is None:
+        return None
+
+    article_ids = list(articles_by_id.keys())
+    embeddings = _chroma_embeddings(vector_store, article_ids)
+
+    missing_articles = [
+        article for article_id, article in articles_by_id.items() if article_id not in embeddings
+    ]
+    articles_to_encode = [article for article in missing_articles if _embedding_text(article) != ""]
+    return _encode_missing_embeddings(vector_store, articles_to_encode, embeddings)
+
+
+def _cluster_source_scores(
+    articles: list[Any],
+    embeddings_by_article: Mapping[int, list[float]],
+    axis_vector: list[float],
+) -> dict[str, list[float]]:
+    scores_by_source: dict[str, list[float]] = {}
+    for article in articles:
+        article_id = getattr(article, "id", None)
+        if article_id is None:
+            continue
+        vector = embeddings_by_article.get(article_id)
+        if vector is None:
+            continue
+        normalized = _normalize_vector(vector)
+        if not normalized:
+            continue
+        source_id = _article_value(article, "source_id")
+        source_key = (
+            cast(str, source_id).strip().lower()
+            if _has_text(source_id)
+            else _slugify_source_name(_article_source_name(article))
+        )
+        scores_by_source.setdefault(source_key, []).append(_dot_product(normalized, axis_vector))
+    return scores_by_source
 
 
 def _source_scores_by_cluster(
@@ -893,27 +962,7 @@ def _source_scores_by_cluster(
     all_source_scores: list[float] = []
 
     for cluster_id, articles in filtered_cluster_articles.items():
-        scores_by_source: dict[str, list[float]] = {}
-        for article in articles:
-            article_id = getattr(article, "id", None)
-            if article_id is None:
-                continue
-            vector = embeddings_by_article.get(article_id)
-            if vector is None:
-                continue
-            normalized = _normalize_vector(vector)
-            if not normalized:
-                continue
-            source_id = _article_value(article, "source_id")
-            source_key = (
-                cast(str, source_id).strip().lower()
-                if _has_text(source_id)
-                else _slugify_source_name(_article_source_name(article))
-            )
-            scores_by_source.setdefault(source_key, []).append(
-                _dot_product(normalized, axis_vector)
-            )
-
+        scores_by_source = _cluster_source_scores(articles, embeddings_by_article, axis_vector)
         averaged_scores: dict[str, float] = {
             source_key: sum(values) / len(values)
             for source_key, values in scores_by_source.items()
@@ -945,26 +994,9 @@ def _counts_from_semaxis_scores(
     return counts_by_cluster
 
 
-async def _build_semaxis_counts_by_cluster(
-    filtered_cluster_articles: Mapping[int, list[Any]],
-) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
-    all_articles = {
-        int(article.id): article
-        for articles in filtered_cluster_articles.values()
-        for article in articles
-        if getattr(article, "id", None) is not None
-    }
-    if not all_articles:
-        return {}, "No articles were available for semantic scoring."
-
-    embeddings_by_article = await _load_embeddings_for_articles(all_articles)
-    if not embeddings_by_article:
-        return {}, "Stored embeddings were unavailable for the SemAxis lens."
-
-    vector_store = get_vector_store()
-    if vector_store is None:
-        return {}, "Stored embeddings were unavailable for the SemAxis lens."
-
+async def _embed_pole_vectors(
+    vector_store: Any,
+) -> tuple[list[list[float]], list[list[float]]] | None:
     try:
         positive_encoded = vector_store.embedding_model.encode(
             INSTITUTIONAL_POLE_WORDS,
@@ -978,20 +1010,62 @@ async def _build_semaxis_counts_by_cluster(
             show_progress_bar=False,
             convert_to_numpy=False,
         )
-    except Exception as exc:  # pragma: no cover - live embedding boundary
+    except (
+        AttributeError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:  # pragma: no cover - live embedding boundary
         logger.warning(
             "Blindspot SemAxis pole-word embedding generation failed: %s",
             exc,
         )
-        return {}, "The SemAxis lens is temporarily unavailable."
+        return None
+    return (
+        _coerce_embedding_rows(positive_encoded),
+        _coerce_embedding_rows(negative_encoded),
+    )
 
-    positive_vectors = _coerce_embedding_rows(positive_encoded)
-    negative_vectors = _coerce_embedding_rows(negative_encoded)
 
+async def _load_semaxis_inputs(
+    filtered_cluster_articles: Mapping[int, list[Any]],
+) -> tuple[dict[int, Any], dict[int, list[float]], list[float]] | str:
+    all_articles = {
+        int(article.id): article
+        for articles in filtered_cluster_articles.values()
+        for article in articles
+        if getattr(article, "id", None) is not None
+    }
+    if not all_articles:
+        return "No articles were available for semantic scoring."
+
+    embeddings_by_article = await _load_embeddings_for_articles(all_articles)
+    if not embeddings_by_article:
+        return "Stored embeddings were unavailable for the SemAxis lens."
+    vector_store = get_vector_store()
+    if vector_store is None:
+        return "Stored embeddings were unavailable for the SemAxis lens."
+
+    pole_vectors = await _embed_pole_vectors(vector_store)
+    if pole_vectors is None:
+        return "The SemAxis lens is temporarily unavailable."
+    positive_vectors, negative_vectors = pole_vectors
     rust_axis = build_semaxis_rust(positive_vectors, negative_vectors)
-    axis_vector: list[float] = rust_axis if rust_axis is not None else []
+    axis_vector = rust_axis if rust_axis is not None else []
     if not axis_vector:
-        return {}, "Semantic axis construction failed for the SemAxis lens."
+        return "Semantic axis construction failed for the SemAxis lens."
+    return all_articles, embeddings_by_article, axis_vector
+
+
+async def _build_semaxis_counts_by_cluster(
+    filtered_cluster_articles: Mapping[int, list[Any]],
+) -> tuple[dict[int, BlindspotCoveragePayload], str | None]:
+    inputs = await _load_semaxis_inputs(filtered_cluster_articles)
+    if isinstance(inputs, str):
+        return {}, inputs
+    _all_articles, embeddings_by_article, axis_vector = inputs
 
     source_scores_by_cluster, all_source_scores = _source_scores_by_cluster(
         filtered_cluster_articles,
@@ -1077,6 +1151,24 @@ def _initializing_viewer_payload(
     }
 
 
+def _article_needs_db_backfill(
+    article: SnapshotArticlePayload,
+    lens: LensId,
+    category: str | None,
+) -> bool:
+    if lens == "institutional_populist":
+        return False
+    if (
+        lens == "bias"
+        and _article_bias_value(article) is None
+        or (lens == "credibility" and _article_factual_reporting_value(article) is None)
+        or lens == "geography"
+        and _article_country_code(article) is None
+    ):
+        return True
+    return category is not None and not _has_text(_article_value(article, "category"))
+
+
 def _collect_snapshot_articles(
     cluster_payloads: list[SnapshotClusterPayload],
     lens: LensId,
@@ -1092,17 +1184,7 @@ def _collect_snapshot_articles(
     article_ids_needing_db: set[int] = set()
     for article_id, article in snapshot_articles_by_id.items():
         article_ids_needing_db.add(article_id)
-        if lens == "institutional_populist":
-            continue
-        if (
-            lens == "bias"
-            and _article_bias_value(article) is None
-            or (lens == "credibility" and _article_factual_reporting_value(article) is None)
-            or lens == "geography"
-            and _article_country_code(article) is None
-        ):
-            article_ids_needing_db.add(article_id)
-        if category is not None and not _has_text(_article_value(article, "category")):
+        if _article_needs_db_backfill(article, lens, category):
             article_ids_needing_db.add(article_id)
 
     return article_ids_needing_db
@@ -1122,6 +1204,46 @@ async def _load_articles_from_db(
         if article.id is not None:
             articles_by_id[article.id] = article
     return articles_by_id
+
+
+def _cluster_matching_articles(
+    cluster: SnapshotClusterPayload,
+    articles_by_id: dict[int, Article],
+    category: str | None,
+    selected_sources: set[str],
+) -> tuple[list[Any], list[SnapshotArticlePayload]]:
+    matching_articles: list[Any] = []
+    preview_articles: list[SnapshotArticlePayload] = []
+    for article in cluster.get("articles", []):
+        article_id = article.get("id")
+        if not isinstance(article_id, int):
+            continue
+        db_article = articles_by_id.get(article_id)
+        materialized_article: Any = db_article or article
+        if (
+            category is not None
+            and _article_value(materialized_article, "category") is None
+            and db_article is None
+        ):
+            continue
+        if not _matches_category(materialized_article, category):
+            continue
+        if not _matches_selected_sources(materialized_article, selected_sources):
+            continue
+        matching_articles.append(materialized_article)
+        preview_articles.append(_article_preview(article))
+    return matching_articles, preview_articles
+
+
+def _cluster_passes_minimums(matching_articles: list[Any]) -> bool:
+    distinct_sources = {
+        _article_value(article, "source_id") or _slugify_source_name(_article_source_name(article))
+        for article in matching_articles
+    }
+    return (
+        len(matching_articles) >= MIN_CLUSTER_ARTICLES
+        and len(distinct_sources) >= MIN_CLUSTER_SOURCES
+    )
 
 
 def _filter_cluster_payloads(
@@ -1145,38 +1267,14 @@ def _filter_cluster_payloads(
         if not isinstance(cluster_id, int):
             continue
         total_clusters += 1
-        matching_articles: list[Any] = []
-        preview_articles: list[SnapshotArticlePayload] = []
-
-        for article in cluster.get("articles", []):
-            article_id = article.get("id")
-            if not isinstance(article_id, int):
-                continue
-            db_article = articles_by_id.get(article_id)
-            materialized_article: Any = db_article or article
-            if (
-                category is not None
-                and _article_value(materialized_article, "category") is None
-                and db_article is None
-            ):
-                continue
-            if not _matches_category(materialized_article, category):
-                continue
-            if not _matches_selected_sources(materialized_article, selected_sources):
-                continue
-            matching_articles.append(materialized_article)
-            preview_articles.append(_article_preview(article))
-
+        matching_articles, preview_articles = _cluster_matching_articles(
+            cluster,
+            articles_by_id,
+            category,
+            selected_sources,
+        )
         trailing_matching_articles = matching_articles
-        distinct_sources = {
-            _article_value(article, "source_id")
-            or _slugify_source_name(_article_source_name(article))
-            for article in matching_articles
-        }
-        if (
-            len(matching_articles) < MIN_CLUSTER_ARTICLES
-            or len(distinct_sources) < MIN_CLUSTER_SOURCES
-        ):
+        if not _cluster_passes_minimums(matching_articles):
             continue
 
         filtered_cluster_articles[cluster_id] = matching_articles

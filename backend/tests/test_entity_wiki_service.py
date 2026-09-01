@@ -202,32 +202,59 @@ async def test_source_profile_uses_specific_citation_labels(
         "Example Source", "https://example.com"
     )
 
+    _assert_source_profile_citations(profile)
+    transparency = _transparency_section(profile)
+    _assert_source_profile_labels(profile, transparency)
+    _assert_ads_txt_items(profile, transparency)
+    _assert_sellers_json_item(transparency)
+
+
+def _assert_source_profile_citations(profile: dict[str, Any]) -> None:
     citation_labels = {citation["label"] for citation in profile["citations"]}
-    assert "Wikipedia profile" in citation_labels
-    assert "Wikidata public record" in citation_labels
-    assert "Official website" in citation_labels
-    assert "Official transparency page" in citation_labels
+    assert {
+        "Wikipedia profile",
+        "Wikidata public record",
+        "Official website",
+        "Official transparency page",
+    } <= citation_labels
     assert "Public source" not in citation_labels
 
-    transparency = next(
+
+def _transparency_section(profile: dict[str, Any]) -> dict[str, Any]:
+    return next(
         section for section in profile["dossier_sections"] if section["id"] == "transparency"
     )
-    transparency_labels = {item["label"] for item in transparency["items"]}
-    assert "About page" in transparency_labels
-    assert "Masthead or author directory" in transparency_labels
-    assert "Editorial standards" in transparency_labels
-    assert "Corrections policy" in transparency_labels
-    assert "Funding record" in transparency_labels
-    assert "ads.txt authorized sellers" in transparency_labels
-    assert "ads.txt owner domain" in transparency_labels
-    assert "ads.txt manager domain" in transparency_labels
-    assert "ads.txt diagnostics" in transparency_labels
-    assert "sellers.json cross-check" in transparency_labels
-    assert "sellers.json domain alignment" in transparency_labels
-    assert "Policy signal: Editorial independence" in transparency_labels
-    assert "Policy signal: Ethics or standards" in transparency_labels
-    assert "Policy signal: Corrections process" in transparency_labels
+
+
+def _assert_source_profile_labels(
+    profile: dict[str, Any],
+    transparency: dict[str, Any],
+) -> None:
+    labels = {item["label"] for item in transparency["items"]}
+    expected = {
+        "About page",
+        "Masthead or author directory",
+        "Editorial standards",
+        "Corrections policy",
+        "Funding record",
+        "ads.txt authorized sellers",
+        "ads.txt owner domain",
+        "ads.txt manager domain",
+        "ads.txt diagnostics",
+        "sellers.json cross-check",
+        "sellers.json domain alignment",
+        "Policy signal: Editorial independence",
+        "Policy signal: Ethics or standards",
+        "Policy signal: Corrections process",
+    }
+    assert expected <= labels
     assert profile["policy_transparency"]["available_signals"] >= 3
+
+
+def _assert_ads_txt_items(
+    profile: dict[str, Any],
+    transparency: dict[str, Any],
+) -> None:
     ads_item = next(
         item for item in transparency["items"] if item["label"] == "ads.txt authorized sellers"
     )
@@ -238,6 +265,9 @@ async def test_source_profile_uses_specific_citation_labels(
     )
     assert diagnostics["value"] == "1 duplicate records; 2 invalid lines"
     assert "records" not in profile["ads_txt"]
+
+
+def _assert_sellers_json_item(transparency: dict[str, Any]) -> None:
     sellers_item = next(
         item for item in transparency["items"] if item["label"] == "sellers.json cross-check"
     )

@@ -1,29 +1,35 @@
 
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import type { Highlight } from "@/lib/api";
 import { renderHighlightedContent } from "@/lib/highlight-utils";
 
 interface ArticleContentProps {
-  content: string;
-  highlights: Highlight[];
-  onHighlightClick?: (id: string, element: HTMLElement) => void;
-  activeHighlightId?: string | null;
-  className?: string;
+  readonly activeHighlightId?: string | null;
+  readonly className?: string;
+  readonly content: string;
+  readonly highlights: readonly Highlight[];
+  readonly onHighlightClick?: (id: string, element: HTMLElement) => void;
 }
 
-export const ArticleContent = forwardRef<HTMLDivElement, ArticleContentProps>(
-  ({ content, highlights, onHighlightClick, activeHighlightId, className }, ref) => {
+const ARTICLE_CONTENT_STYLE = { whiteSpace: "pre-wrap", wordBreak: "break-word" } as const,
+
+ ArticleContent = forwardRef<HTMLDivElement, Readonly<ArticleContentProps>>(
+  (props, ref) => {
+    const { activeHighlightId, className, content, highlights, onHighlightClick } = props;
+
     return (
       <div
         ref={ref}
         className={`article-content selection:bg-primary/20 selection:text-foreground ${className}`}
-        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={ARTICLE_CONTENT_STYLE}
       >
         {renderHighlightedContent(content, highlights, onHighlightClick, activeHighlightId)}
       </div>
-    )
-  }
-)
+    );
+  },
+);
 
 
 ArticleContent.displayName = "ArticleContent";
+
+export { ArticleContent };

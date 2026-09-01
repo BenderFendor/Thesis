@@ -471,8 +471,92 @@ async def _record_interest_trace(
     await db.flush()
 
 
+def _require_materializable_claim(claim: EvidenceClaim | None, claim_id: str) -> EvidenceClaim:
+    """Validate that the claim exists and is an entity-to-entity, non-retracted claim."""
+    if claim is None:
+        raise EvidenceSpineError(f"claim {claim_id!r} does not exist")
+    if claim.object_entity_id is None:
+        raise EvidenceSpineError("only entity-to-entity claims materialize as relationships")
+    if claim.retracted_at is not None or claim.status in {"rejected", "superseded"}:
+        raise EvidenceSpineError("retracted or rejected claims cannot materialize")
+    return claim
+
+
+def _accepted_lifecycle(qualifiers: dict[str, Any]) -> str:
+    """Normalize a qualifier lifecycle state to the accepted vocabulary."""
+    lifecycle_state = str(qualifiers.get("lifecycle_state") or "current").lower()
+    if lifecycle_state not in {
+        "current",
+        "historical",
+        "proposed",
+        "pending",
+        "disputed",
+        "rejected",
+        "superseded",
+    }:
+        return "current"
+    return lifecycle_state
+
+
+async def _find_existing_relationship(db: AsyncSession, digest: str) -> AcceptedRelationship | None:
+    """Return the active relationship already materialized for this digest."""
+    return (
+        await db.execute(
+            select(AcceptedRelationship).where(
+                AcceptedRelationship.relationship_hash == digest,
+                AcceptedRelationship.retracted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _attach_supporting_relationship_link(
+    db: AsyncSession, existing: AcceptedRelationship, claim_id: str
+) -> None:
+    """Idempotently link a supporting claim to its already-materialized relationship."""
+    link = await db.get(RelationshipClaim, {"relationship_id": existing.id, "claim_id": claim_id})
+    if link is None:
+        db.add(
+            RelationshipClaim(
+                relationship_id=existing.id, claim_id=claim_id, derivation_role="supporting"
+            )
+        )
+
+
+def _build_materialized_relationship(
+    claim: EvidenceClaim,
+    qualifiers: dict[str, Any],
+    lifecycle_state: str,
+    digest: str,
+    relationship_id: str,
+    reviewer: str,
+    policy_version: str | None,
+) -> AcceptedRelationship:
+    """Construct the accepted relationship row for a materialized claim."""
+    return AcceptedRelationship(
+        id=relationship_id,
+        subject_entity_id=claim.subject_entity_id,
+        predicate=claim.predicate,
+        object_entity_id=claim.object_entity_id,
+        qualifiers=qualifiers,
+        valid_from=claim.valid_from,
+        valid_to=claim.valid_to,
+        recorded_at=claim.recorded_at,
+        materialized_at=datetime.now(UTC).replace(tzinfo=None),
+        materialized_by=reviewer,
+        acceptance_policy_version=policy_version,
+        status="accepted",
+        lifecycle_state=lifecycle_state,
+        relationship_hash=digest,
+    )
+
+
 async def materialize_claim(
-    db: AsyncSession, claim_id: str, *, complete_control_path: bool = False, reviewer: str
+    db: AsyncSession,
+    claim_id: str,
+    *,
+    complete_control_path: bool = False,
+    reviewer: str,
 ) -> AcceptedRelationship:
     """Accept a qualifying claim into an `AcceptedRelationship`, idempotently.
 
@@ -483,13 +567,7 @@ async def materialize_claim(
     reviewer = reviewer.strip()
     if not reviewer:
         raise EvidenceSpineError("materialization requires a non-empty reviewer identity")
-    claim = await db.get(EvidenceClaim, claim_id)
-    if claim is None:
-        raise EvidenceSpineError(f"claim {claim_id!r} does not exist")
-    if claim.object_entity_id is None:
-        raise EvidenceSpineError("only entity-to-entity claims materialize as relationships")
-    if claim.retracted_at is not None or claim.status in {"rejected", "superseded"}:
-        raise EvidenceSpineError("retracted or rejected claims cannot materialize")
+    claim = _require_materializable_claim(await db.get(EvidenceClaim, claim_id), claim_id)
     evaluation = await evaluate_claim_by_id(
         db, claim_id, complete_control_path=complete_control_path
     )
@@ -499,29 +577,14 @@ async def materialize_claim(
     digest = relationship_hash(
         cast(str, claim.subject_entity_id),
         cast(str, claim.predicate),
-        claim.object_entity_id,
+        cast(str, claim.object_entity_id),
         qualifiers,
         claim.valid_from,
         claim.valid_to,
     )
-    existing = (
-        await db.execute(
-            select(AcceptedRelationship).where(
-                AcceptedRelationship.relationship_hash == digest,
-                AcceptedRelationship.retracted_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
+    existing = await _find_existing_relationship(db, digest)
     if existing is not None:
-        link = await db.get(
-            RelationshipClaim, {"relationship_id": existing.id, "claim_id": claim_id}
-        )
-        if link is None:
-            db.add(
-                RelationshipClaim(
-                    relationship_id=existing.id, claim_id=claim_id, derivation_role="supporting"
-                )
-            )
+        await _attach_supporting_relationship_link(db, existing, claim_id)
         return existing
     conflict = await _find_conflicting_relationship(db, claim)
     if conflict is not None:
@@ -534,32 +597,14 @@ async def materialize_claim(
         )
     _check_interest_claim(claim)
     relationship_id = f"rel_{digest[:32]}"
-    lifecycle_state = str(qualifiers.get("lifecycle_state") or "current").lower()
-    if lifecycle_state not in {
-        "current",
-        "historical",
-        "proposed",
-        "pending",
-        "disputed",
-        "rejected",
-        "superseded",
-    }:
-        lifecycle_state = "current"
-    relationship = AcceptedRelationship(
-        id=relationship_id,
-        subject_entity_id=claim.subject_entity_id,
-        predicate=claim.predicate,
-        object_entity_id=claim.object_entity_id,
-        qualifiers=qualifiers,
-        valid_from=claim.valid_from,
-        valid_to=claim.valid_to,
-        recorded_at=claim.recorded_at,
-        materialized_at=datetime.now(UTC).replace(tzinfo=None),
-        materialized_by=reviewer,
-        acceptance_policy_version=evaluation.policy_version,
-        status="accepted",
-        lifecycle_state=lifecycle_state,
-        relationship_hash=digest,
+    relationship = _build_materialized_relationship(
+        claim,
+        qualifiers,
+        _accepted_lifecycle(qualifiers),
+        digest,
+        relationship_id,
+        reviewer,
+        evaluation.policy_version,
     )
     db.add(relationship)
     db.add(

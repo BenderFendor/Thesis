@@ -1,0 +1,71 @@
+name: Complexity groups
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths-ignore:
+      - "docs/agents/traces/complexity-groups.md"
+      - "docs/agents/traces/complexity-snapshot.md"
+permissions:
+  contents: write
+concurrency:
+  group: complexity-groups-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+      - name: Install cccc 1.6.0
+        run: |
+          curl -fsSL -o /tmp/cccc.tar.gz https://github.com/moznion/cccc/releases/download/v1.6.0/cccc-v1.6.0-x86_64-unknown-linux-musl.tar.gz
+          echo "8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b  /tmp/cccc.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/cccc-extract
+          tar -xzf /tmp/cccc.tar.gz -C /tmp/cccc-extract
+          sudo cp "$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)" /usr/local/bin/cccc
+      - name: Build grouped report
+        run: |
+          cccc backend frontend scripts \
+            --exclude 'frontend/node_modules/**' --exclude 'frontend/.next/**' \
+            --exclude 'frontend/coverage/**' --exclude 'frontend/lib/generated/**' \
+            --exclude 'frontend/tools/oxlint/**' --pretty > /tmp/cccc.json
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+          d=json.loads(Path('/tmp/cccc.json').read_text())
+          groups=defaultdict(list)
+          def walk(path, funcs):
+              for f in funcs:
+                  if f['cyclomatic'] > 10 or f['cognitive'] > 15:
+                      groups[path].append((f['line'], f['name'], f['cyclomatic'], f['cognitive']))
+                  walk(path, f.get('children', []))
+          for file in d['files']:
+              walk(file['path'], file.get('functions', []))
+          total=sum(map(len, groups.values()))
+          rows=sorted(groups.items(), key=lambda item: (-len(item[1]), -max(x[2] for x in item[1]), item[0]))
+          out=['# Complexity groups','',f'Hard violations: {total}',f'Files with hard violations: {len(rows)}','','| file | violations | max CC | max cognitive |','|---|---:|---:|---:|']
+          for path, funcs in rows:
+              out.append(f"| `{path}` | {len(funcs)} | {max(x[2] for x in funcs)} | {max(x[3] for x in funcs)} |")
+          out += ['', '## Functions by file', '']
+          for path, funcs in rows:
+              out += [f'### `{path}`','', '| line | function | CC | cognitive |','|---:|---|---:|---:|']
+              for line,name,cc,cog in sorted(funcs, key=lambda x:(-max(x[2]/10,x[3]/15), x[0])):
+                  out.append(f'| {line} | `{name}` | {cc} | {cog} |')
+              out.append('')
+          Path('docs/agents/traces/complexity-groups.md').write_text('\n'.join(out)+'\n')
+          PY
+      - name: Commit grouped report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/agents/traces/complexity-groups.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: record grouped complexity debt"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          exit 1

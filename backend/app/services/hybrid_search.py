@@ -122,6 +122,53 @@ def combine_scores(
     return combined
 
 
+def _hybrid_preview(
+    vector_result: SimilarSearchResult | None,
+    bm25_result: BM25SearchResult | None,
+) -> str:
+    """Pick the best preview text for a fused result."""
+    if vector_result is not None:
+        return vector_result["preview"]
+    if bm25_result is not None:
+        return bm25_result["document"][:200]
+    return ""
+
+
+def _build_hybrid_results(
+    fused: list[tuple[str, float]],
+    vector_results: Sequence[SimilarSearchResult],
+    bm25_results: Sequence[BM25SearchResult],
+    limit: int,
+) -> list[dict[str, object]]:
+    """Build the client-facing result payloads from the fused ranking."""
+    chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
+    chroma_id_to_bm25 = {r["chroma_id"]: r for r in bm25_results}
+
+    results: list[dict[str, object]] = []
+    for chroma_id, fused_score in fused[:limit]:
+        vector_result = chroma_id_to_vector.get(chroma_id)
+        bm25_result: BM25SearchResult | None = chroma_id_to_bm25.get(chroma_id)
+
+        results.append(
+            {
+                "chroma_id": chroma_id,
+                "article_id": int(chroma_id.replace("article_", "")),
+                "fused_score": round(fused_score, 4),
+                "bm25_score": round(
+                    bm25_result["bm25_score"] if bm25_result is not None else 0.0,
+                    2,
+                ),
+                "vector_score": round(
+                    vector_result["similarity_score"] if vector_result is not None else 0.0,
+                    4,
+                ),
+                "preview": _hybrid_preview(vector_result, bm25_result),
+                "metadata": (vector_result["metadata"] if vector_result is not None else {}),
+            }
+        )
+    return results
+
+
 class HybridSearch:
     """Hybrid search combining BM25 (keyword) and vector (semantic) retrieval.
 
@@ -203,61 +250,32 @@ class HybridSearch:
             logger.warning("BM25 index not built - falling back to vector only")
             return self._vector_only_search(query, vector_store, limit)
 
-        # 1. BM25 search
         bm25_results = self.bm25_search.search(query, top_k=limit)
-        bm25_ranking = [(r["chroma_id"], r["bm25_score"]) for r in bm25_results]
-
-        # 2. Vector search
         vector_results = list(vector_store.search_similar(query, limit=vector_limit))
         vector_scores = {r["chroma_id"]: r["similarity_score"] for r in vector_results}
-        vector_ranking = sorted(vector_scores.items(), key=lambda x: x[1], reverse=True)
+        fused = self._fuse_rankings(bm25_results, vector_scores, fusion_method)
 
-        # 3. Fuse results
-        if fusion_method == "rrf":
-            fused = reciprocal_rank_fusion([bm25_ranking, vector_ranking])
-        else:
-            combined = combine_scores(
-                {k: v for k, v in bm25_ranking},
-                dict(vector_ranking),
-                bm25_weight=self.bm25_weight,
-            )
-            fused = sorted(combined.items(), key=lambda x: x[1], reverse=True)
-
-        # 4. Build response
-        chroma_id_to_vector = {r["chroma_id"]: r for r in vector_results}
-        chroma_id_to_bm25 = {r["chroma_id"]: r for r in bm25_results}
-
-        results: list[dict[str, object]] = []
-        for chroma_id, fused_score in fused[:limit]:
-            vector_result = chroma_id_to_vector.get(chroma_id)
-            bm25_result: BM25SearchResult | None = chroma_id_to_bm25.get(chroma_id)
-
-            results.append(
-                {
-                    "chroma_id": chroma_id,
-                    "article_id": int(chroma_id.replace("article_", "")),
-                    "fused_score": round(fused_score, 4),
-                    "bm25_score": round(
-                        bm25_result["bm25_score"] if bm25_result is not None else 0.0,
-                        2,
-                    ),
-                    "vector_score": round(
-                        vector_result["similarity_score"] if vector_result is not None else 0.0,
-                        4,
-                    ),
-                    "preview": (
-                        vector_result["preview"]
-                        if vector_result is not None
-                        else bm25_result["document"][:200]
-                        if bm25_result is not None
-                        else ""
-                    ),
-                    "metadata": (vector_result["metadata"] if vector_result is not None else {}),
-                }
-            )
-
+        results = _build_hybrid_results(fused, vector_results, bm25_results, limit)
         logger.info(f"Hybrid search returned {len(results)} results for query: '{query[:50]}...'")
         return results
+
+    def _fuse_rankings(
+        self,
+        bm25_results: Sequence[BM25SearchResult],
+        vector_scores: dict[str, float],
+        fusion_method: str,
+    ) -> list[tuple[str, float]]:
+        """Fuse BM25 and vector rankings using RRF or weighted combination."""
+        bm25_ranking = [(r["chroma_id"], r["bm25_score"]) for r in bm25_results]
+        vector_ranking = sorted(vector_scores.items(), key=lambda x: x[1], reverse=True)
+        if fusion_method == "rrf":
+            return reciprocal_rank_fusion([bm25_ranking, vector_ranking])
+        combined = combine_scores(
+            {k: v for k, v in bm25_ranking},
+            dict(vector_ranking),
+            bm25_weight=self.bm25_weight,
+        )
+        return sorted(combined.items(), key=lambda x: x[1], reverse=True)
 
     def _vector_only_search(
         self,

@@ -229,6 +229,14 @@ def _build_fallback_overview(name: str, org_data: dict[str, Any]) -> str | None:
     if description:
         return _condense_overview_text(description)
 
+    pieces = _fallback_overview_pieces(org_data)
+    if not pieces:
+        return None
+    prefix = f"{name} public profile summary."
+    return _condense_overview_text(f"{prefix} {' '.join(pieces)}")
+
+
+def _fallback_overview_pieces(org_data: dict[str, Any]) -> list[str]:
     pieces: list[str] = []
     funding_type = str(org_data.get("funding_type") or "").strip()
     parent_org = str(org_data.get("parent_org") or "").strip()
@@ -243,11 +251,7 @@ def _build_fallback_overview(name: str, org_data: dict[str, Any]) -> str | None:
         pieces.append(f"Catalog bias label: {media_bias}.")
     if factual:
         pieces.append(f"Catalog factual reporting label: {factual}.")
-
-    if not pieces:
-        return None
-    prefix = f"{name} public profile summary."
-    return _condense_overview_text(f"{prefix} {' '.join(pieces)}")
+    return pieces
 
 
 def _coerce_sources_to_urls(values: Iterable[Any]) -> list[str]:
@@ -445,13 +449,21 @@ async def _resolve_labels(
     results: dict[str, str] = {}
     values = entities.values() if isinstance(entities, dict) else entities
     for entity in values:
-        if not isinstance(entity, dict):
-            continue
-        entity_id = entity.get("id")
-        label = (entity.get("labels") or {}).get("en", {}).get("value")
-        if entity_id and label:
-            results[str(entity_id)] = str(label)
+        parsed = _wikidata_label(entity)
+        if parsed is not None:
+            entity_id, label = parsed
+            results[entity_id] = label
     return results
+
+
+def _wikidata_label(entity: Any) -> tuple[str, str] | None:
+    if not isinstance(entity, dict):
+        return None
+    entity_id = entity.get("id")
+    label = (entity.get("labels") or {}).get("en", {}).get("value")
+    if not entity_id or not label:
+        return None
+    return str(entity_id), str(label)
 
 
 async def _fetch_entities(
@@ -529,6 +541,31 @@ async def _fetch_wikipedia_summary(
     return {}
 
 
+async def _fetch_official_page(
+    http_client: httpx.AsyncClient,
+    base_url: str,
+    label: str,
+    path: str,
+    seen_urls: set[str],
+) -> dict[str, str] | None:
+    candidate = f"{base_url.rstrip('/')}{path}"
+    try:
+        response = await http_client.get(candidate, follow_redirects=True)
+    except Exception:
+        return None
+    if response.status_code != 200:
+        return None
+    if "text/html" not in response.headers.get("content-type", ""):
+        return None
+    text = _strip_html(response.text)
+    final_url = str(response.url)
+    if len(text) < 80 or final_url in seen_urls:
+        return None
+    if not _official_page_url_matches_label(label, final_url):
+        return None
+    return {"label": label, "url": final_url, "summary": text[:420]}
+
+
 async def _try_fetch_site_pages(
     http_client: httpx.AsyncClient, website: str | None
 ) -> list[dict[str, str]]:
@@ -539,25 +576,11 @@ async def _try_fetch_site_pages(
     seen_urls: set[str] = set()
     for label, paths in OFFICIAL_PAGE_CANDIDATES:
         for path in paths:
-            candidate = f"{base.rstrip('/')}{path}"
-            try:
-                response = await http_client.get(candidate, follow_redirects=True)
-            except Exception:
+            page = await _fetch_official_page(http_client, base, label, path, seen_urls)
+            if page is None:
                 continue
-            if response.status_code != 200:
-                continue
-            if "text/html" not in response.headers.get("content-type", ""):
-                continue
-            text = _strip_html(response.text)
-            final_url = str(response.url)
-            if (
-                len(text) < 80
-                or final_url in seen_urls
-                or not _official_page_url_matches_label(label, final_url)
-            ):
-                continue
-            seen_urls.add(final_url)
-            pages.append({"label": label, "url": final_url, "summary": text[:420]})
+            seen_urls.add(page["url"])
+            pages.append(page)
             break
     return pages
 
@@ -666,53 +689,68 @@ def _collect_label_ids(entity_candidates: Sequence[dict[str, Any]]) -> list[str]
     ]
 
 
-def _score_reporter_candidate(
+def _reporter_candidate_signals(
     normalized_name: str,
-    organization: str | None,
-    article_context: str | None,
     entity: dict[str, Any],
     label_map: dict[str, str],
-) -> tuple[float, dict[str, Any]]:
+) -> dict[str, Any]:
     claims = entity.get("claims") or {}
     label = (entity.get("labels") or {}).get("en", {}).get("value") or normalized_name
     description = (entity.get("descriptions") or {}).get("en", {}).get("value") or ""
-    instance_ids = _extract_wikidata_item_ids(claims, "P31")
-    occupation_labels = _claim_labels(label_map, claims, "P106")
-    employer_labels = _claim_labels(label_map, claims, "P108")
-    wiki_title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get("title")
-    twitter_handle = _extract_wikidata_string(claims, "P2002")
-    linkedin_url = _extract_wikidata_url(claims, "P6634")
-    instagram_handle = _extract_wikidata_string(claims, "P2003")
-    field_of_work = _claim_labels(label_map, claims, "P101")
-    affiliations = _claim_labels(label_map, claims, "P1416")
-    political_party = _claim_labels(label_map, claims, "P102")
-    political_ideology = _claim_labels(label_map, claims, "P1142")
-    member_of = _claim_labels(label_map, claims, "P463")
-    work_location = _claim_labels(label_map, claims, "P937")
-    award_labels = _claim_labels(label_map, claims, "P166")
-    notable_works = _claim_labels(label_map, claims, "P800")
-    degrees = _claim_labels(label_map, claims, "P512")
-    languages = _claim_labels(label_map, claims, "P1412")
-    date_of_birth = _extract_wikidata_string(claims, "P569")
-    place_of_birth_labels = _claim_labels(label_map, claims, "P19")
-    work_period_start = _extract_wikidata_string(claims, "P2031")
-    work_period_end = _extract_wikidata_string(claims, "P2032")
-    name_score = _text_similarity(normalized_name, label)
+    return {
+        "claims": claims,
+        "label": label,
+        "description": description,
+        "instance_ids": _extract_wikidata_item_ids(claims, "P31"),
+        "occupation_labels": _claim_labels(label_map, claims, "P106"),
+        "employer_labels": _claim_labels(label_map, claims, "P108"),
+        "wiki_title": ((entity.get("sitelinks") or {}).get("enwiki") or {}).get("title"),
+        "twitter_handle": _extract_wikidata_string(claims, "P2002"),
+        "linkedin_url": _extract_wikidata_url(claims, "P6634"),
+        "instagram_handle": _extract_wikidata_string(claims, "P2003"),
+        "field_of_work": _claim_labels(label_map, claims, "P101"),
+        "affiliations": _claim_labels(label_map, claims, "P1416"),
+        "political_party": _claim_labels(label_map, claims, "P102"),
+        "political_ideology": _claim_labels(label_map, claims, "P1142"),
+        "member_of": _claim_labels(label_map, claims, "P463"),
+        "work_location": _claim_labels(label_map, claims, "P937"),
+        "award_labels": _claim_labels(label_map, claims, "P166"),
+        "notable_works": _claim_labels(label_map, claims, "P800"),
+        "degrees": _claim_labels(label_map, claims, "P512"),
+        "languages": _claim_labels(label_map, claims, "P1412"),
+        "date_of_birth": _extract_wikidata_string(claims, "P569"),
+        "place_of_birth_labels": _claim_labels(label_map, claims, "P19"),
+        "work_period_start": _extract_wikidata_string(claims, "P2031"),
+        "work_period_end": _extract_wikidata_string(claims, "P2032"),
+        "official_website": _extract_wikidata_url(claims, "P856"),
+        "qid": entity.get("id"),
+    }
+
+
+def _reporter_candidate_scores(
+    normalized_name: str,
+    organization: str | None,
+    article_context: str | None,
+    signals: dict[str, Any],
+) -> dict[str, float]:
+    occupation_labels = signals["occupation_labels"]
+    employer_labels = signals["employer_labels"]
+    instance_ids = signals["instance_ids"]
+    name_score = _text_similarity(normalized_name, signals["label"])
     organization_score = max(
         max(_token_overlap(organization, emp_label) for emp_label in employer_labels)
         if employer_labels
         else 0.0,
         0.0,
     )
-    occupation_is_journalism = any(
-        keyword in " ".join(occupation_labels).lower() for keyword in JOURNALISM_KEYWORDS
-    )
+    occupation_text = " ".join(occupation_labels).lower()
+    occupation_is_journalism = any(keyword in occupation_text for keyword in JOURNALISM_KEYWORDS)
     occupation_is_non_journalist = any(
-        keyword in " ".join(occupation_labels).lower() for keyword in NON_JOURNALIST_OCCUPATIONS
+        keyword in occupation_text for keyword in NON_JOURNALIST_OCCUPATIONS
     )
     occupation_score = 1.0 if occupation_is_journalism else 0.0
     human_score = 1.0 if INSTANCE_HUMAN in instance_ids else 0.0
-    context_score = _context_similarity(normalized_name, description, article_context)
+    context_score = _context_similarity(normalized_name, signals["description"], article_context)
     total_score = (
         name_score * 0.30
         + human_score * 0.18
@@ -722,45 +760,55 @@ def _score_reporter_candidate(
     )
     if occupation_is_non_journalist and not occupation_is_journalism:
         total_score -= NON_JOURNALIST_PENALTY
-    education = _claim_labels(label_map, claims, "P69")
-    citizenships = _claim_labels(label_map, claims, "P27")
-    metadata = {
-        "qid": entity.get("id"),
-        "label": label,
-        "description": description,
-        "occupations": occupation_labels,
-        "employers": employer_labels,
-        "education": education,
-        "citizenships": citizenships,
-        "official_website": _extract_wikidata_url(claims, "P856"),
-        "twitter_handle": twitter_handle,
-        "linkedin_url": linkedin_url,
-        "instagram_handle": instagram_handle,
-        "field_of_work": field_of_work,
-        "affiliations": affiliations,
-        "political_party": political_party,
-        "political_ideology": political_ideology,
-        "member_of": member_of,
-        "work_location": work_location,
-        "awards": award_labels,
-        "notable_works": notable_works,
-        "degrees": degrees,
-        "languages": languages,
-        "date_of_birth": date_of_birth,
-        "place_of_birth": place_of_birth_labels,
-        "work_period_start": work_period_start,
-        "work_period_end": work_period_end,
-        "wiki_title": wiki_title,
-        "scores": {
-            "name": round(name_score, 3),
-            "human": round(human_score, 3),
-            "occupation": round(occupation_score, 3),
-            "organization": round(organization_score, 3),
-            "context": round(context_score, 3),
-            "total": round(total_score, 3),
-        },
+    return {
+        "name": name_score,
+        "human": human_score,
+        "occupation": occupation_score,
+        "organization": organization_score,
+        "context": context_score,
+        "total": total_score,
     }
-    return total_score, metadata
+
+
+def _score_reporter_candidate(
+    normalized_name: str,
+    organization: str | None,
+    article_context: str | None,
+    entity: dict[str, Any],
+    label_map: dict[str, str],
+) -> tuple[float, dict[str, Any]]:
+    signals = _reporter_candidate_signals(normalized_name, entity, label_map)
+    scores = _reporter_candidate_scores(normalized_name, organization, article_context, signals)
+    metadata = {
+        "qid": signals["qid"],
+        "label": signals["label"],
+        "description": signals["description"],
+        "occupations": signals["occupation_labels"],
+        "employers": signals["employer_labels"],
+        "education": _claim_labels(label_map, signals["claims"], "P69"),
+        "citizenships": _claim_labels(label_map, signals["claims"], "P27"),
+        "official_website": signals["official_website"],
+        "twitter_handle": signals["twitter_handle"],
+        "linkedin_url": signals["linkedin_url"],
+        "instagram_handle": signals["instagram_handle"],
+        "field_of_work": signals["field_of_work"],
+        "affiliations": signals["affiliations"],
+        "political_party": signals["political_party"],
+        "political_ideology": signals["political_ideology"],
+        "member_of": signals["member_of"],
+        "work_location": signals["work_location"],
+        "awards": signals["award_labels"],
+        "notable_works": signals["notable_works"],
+        "degrees": signals["degrees"],
+        "languages": signals["languages"],
+        "date_of_birth": signals["date_of_birth"],
+        "place_of_birth": signals["place_of_birth_labels"],
+        "work_period_start": signals["work_period_start"],
+        "work_period_end": signals["work_period_end"],
+        "wiki_title": signals["wiki_title"],
+        "scores": {key: round(value, 3) for key, value in scores.items()},
+    }
+    return scores["total"], metadata
 
 
 def _select_reporter_match(
@@ -997,29 +1045,22 @@ async def _finalize_reporter_dossier(
     second_score: float,
     best_meta: dict[str, Any],
 ) -> dict[str, Any]:
-    matched_threshold = 0.65 if len(scored) == 1 else 0.55
-    match_status = (
-        "matched"
-        if best_score >= matched_threshold and (best_score - second_score) >= 0.08
-        else "ambiguous"
+    context = await _reporter_dossier_context(
+        client,
+        normalized_name,
+        scored,
+        best_score,
+        second_score,
+        best_meta,
     )
+    match_status = context["match_status"]
     summary: dict[str, Any] = {}
-    try:
-        summary = await _fetch_wikipedia_summary(client, best_meta.get("wiki_title"))
-    except Exception:
-        logger.debug("Wikipedia summary fetch failed for %s", normalized_name)
-    wikipedia_url = cast(str | None, summary.get("url"))
-    wikidata_url = (
-        f"https://www.wikidata.org/wiki/{best_meta['qid']}" if best_meta.get("qid") else None
-    )
-    canonical_name = cast(str, summary.get("title") or best_meta.get("label") or normalized_name)
-    overview = cast(str | None, summary.get("extract") or best_meta.get("description"))
-    citation_urls = _unique_strings(
-        [wikipedia_url, wikidata_url, best_meta.get("official_website")]
-    )
-    citations = _optional_citation(wikipedia_url, "Wikipedia lead") + _optional_citation(
-        wikidata_url, "Wikidata item"
-    )
+    wikipedia_url = context["wikipedia_url"]
+    wikidata_url = context["wikidata_url"]
+    canonical_name = context["canonical_name"]
+    overview = context["overview"]
+    citation_urls = context["citation_urls"]
+    citations = context["citations"]
     sections = _build_reporter_sections(
         canonical_name=canonical_name,
         match_explanation=(
@@ -1056,6 +1097,78 @@ async def _finalize_reporter_dossier(
     )
 
 
+async def _reporter_dossier_context(
+    client: httpx.AsyncClient,
+    normalized_name: str,
+    scored: Sequence[tuple[float, dict[str, Any], dict[str, Any]]],
+    best_score: float,
+    second_score: float,
+    best_meta: dict[str, Any],
+) -> dict[str, Any]:
+    matched_threshold = 0.65 if len(scored) == 1 else 0.55
+    match_status = (
+        "matched"
+        if best_score >= matched_threshold and (best_score - second_score) >= 0.08
+        else "ambiguous"
+    )
+    summary: dict[str, Any] = {}
+    try:
+        summary = await _fetch_wikipedia_summary(client, best_meta.get("wiki_title"))
+    except Exception:
+        logger.debug("Wikipedia summary fetch failed for %s", normalized_name)
+    wikipedia_url = cast(str | None, summary.get("url"))
+    wikidata_url = (
+        f"https://www.wikidata.org/wiki/{best_meta['qid']}" if best_meta.get("qid") else None
+    )
+    canonical_name = cast(str, summary.get("title") or best_meta.get("label") or normalized_name)
+    overview = cast(str | None, summary.get("extract") or best_meta.get("description"))
+    citation_urls = _unique_strings(
+        [wikipedia_url, wikidata_url, best_meta.get("official_website")]
+    )
+    citations = _optional_citation(wikipedia_url, "Wikipedia lead") + _optional_citation(
+        wikidata_url, "Wikidata item"
+    )
+    return {
+        "match_status": match_status,
+        "wikipedia_url": wikipedia_url,
+        "wikidata_url": wikidata_url,
+        "canonical_name": canonical_name,
+        "overview": overview,
+        "citation_urls": citation_urls,
+        "citations": citations,
+    }
+
+
+async def _score_reporter_entities(
+    client: httpx.AsyncClient,
+    normalized_name: str,
+    organization: str | None,
+    article_context: str | None,
+    candidates: list[dict[str, Any]],
+) -> list[tuple[float, dict[str, Any], dict[str, Any]]]:
+    candidate_ids = [
+        str(candidate_id)
+        for candidate in candidates
+        for candidate_id in [
+            (_extract_entity_id(candidate.get("concepturi")) or candidate.get("id"))
+        ]
+        if candidate_id
+    ]
+    entity_candidates = await _fetch_entities(client, candidate_ids)
+    label_map = await _resolve_labels(client, _collect_label_ids(entity_candidates))
+    scored: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
+    for entity in entity_candidates:
+        total_score, metadata = _score_reporter_candidate(
+            normalized_name,
+            organization,
+            article_context,
+            entity,
+            label_map,
+        )
+        scored.append((total_score, entity, metadata))
+    return scored
+
+
 async def build_reporter_dossier(
     name: str,
     organization: str | None = None,
@@ -1076,26 +1189,13 @@ async def build_reporter_dossier(
                 "No public Wikimedia record cleared the search step.",
                 ["wikidata_search"],
             )
-        candidate_ids = [
-            str(candidate_id)
-            for candidate in candidates
-            for candidate_id in [
-                (_extract_entity_id(candidate.get("concepturi")) or candidate.get("id"))
-            ]
-            if candidate_id
-        ]
-        entity_candidates = await _fetch_entities(client, candidate_ids)
-        label_map = await _resolve_labels(client, _collect_label_ids(entity_candidates))
-        scored: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
-        for entity in entity_candidates:
-            total_score, metadata = _score_reporter_candidate(
-                normalized_name,
-                organization,
-                article_context,
-                entity,
-                label_map,
-            )
-            scored.append((total_score, entity, metadata))
+        scored = await _score_reporter_entities(
+            client,
+            normalized_name,
+            organization,
+            article_context,
+            candidates,
+        )
         if not scored:
             return _empty_reporter_dossier(
                 normalized_name,
@@ -1251,6 +1351,7 @@ def _ads_txt_transparency_items(
     items: list[dict[str, Any]] = []
     if not ads_txt:
         return items
+    ads_txt_sources = _ads_txt_sources(ads_txt)
     authorized_sellers = int(ads_txt.get("authorized_sellers") or 0)
     direct_sellers = int(ads_txt.get("direct_sellers") or 0)
     resellers = int(ads_txt.get("resellers") or 0)
@@ -1258,42 +1359,65 @@ def _ads_txt_transparency_items(
         _transparency_item(
             "ads.txt authorized sellers",
             f"{authorized_sellers} authorized sellers ({direct_sellers} DIRECT, {resellers} RESELLER)",
-            _unique_strings([cast(str | None, ads_txt.get("url"))]),
+            ads_txt_sources,
             "IAB ads.txt signal: publisher declares authorized digital advertising sellers.",
         )
     )
-    owner_domains = cast(list[str], ads_txt.get("owner_domains") or [])
-    if owner_domains:
-        items.append(
-            _transparency_item(
-                "ads.txt owner domain",
-                ", ".join(owner_domains),
-                _unique_strings([cast(str | None, ads_txt.get("url"))]),
-                "IAB ads.txt OWNERDOMAIN signal links publisher inventory to declared ownership domain.",
-            )
-        )
-    manager_domains = cast(list[str], ads_txt.get("manager_domains") or [])
-    if manager_domains:
-        items.append(
-            _transparency_item(
-                "ads.txt manager domain",
-                ", ".join(manager_domains),
-                _unique_strings([cast(str | None, ads_txt.get("url"))]),
-                "IAB ads.txt MANAGERDOMAIN signal names the declared monetization manager.",
-            )
-        )
+    _append_ads_txt_domain_item(
+        items,
+        "ads.txt owner domain",
+        cast(list[str], ads_txt.get("owner_domains") or []),
+        ads_txt_sources,
+        "IAB ads.txt OWNERDOMAIN signal links publisher inventory to declared ownership domain.",
+    )
+    _append_ads_txt_domain_item(
+        items,
+        "ads.txt manager domain",
+        cast(list[str], ads_txt.get("manager_domains") or []),
+        ads_txt_sources,
+        "IAB ads.txt MANAGERDOMAIN signal names the declared monetization manager.",
+    )
     duplicate_records = int(ads_txt.get("duplicate_records") or 0)
     invalid_lines = int(ads_txt.get("invalid_lines") or 0)
+    _append_ads_txt_diagnostics(
+        items,
+        duplicate_records,
+        invalid_lines,
+        ads_txt_sources,
+    )
+    return items
+
+
+def _ads_txt_sources(ads_txt: dict[str, Any]) -> list[str]:
+    return _unique_strings([cast(str | None, ads_txt.get("url"))])
+
+
+def _append_ads_txt_domain_item(
+    items: list[dict[str, Any]],
+    label: str,
+    domains: list[str],
+    sources: list[str],
+    note: str,
+) -> None:
+    if domains:
+        items.append(_transparency_item(label, ", ".join(domains), sources, note))
+
+
+def _append_ads_txt_diagnostics(
+    items: list[dict[str, Any]],
+    duplicate_records: int,
+    invalid_lines: int,
+    sources: list[str],
+) -> None:
     if duplicate_records or invalid_lines:
         items.append(
             _transparency_item(
                 "ads.txt diagnostics",
                 f"{duplicate_records} duplicate records; {invalid_lines} invalid lines",
-                _unique_strings([cast(str | None, ads_txt.get("url"))]),
+                sources,
                 "Local parser diagnostics for malformed or repeated ads.txt seller declarations.",
             )
         )
-    return items
 
 
 def _sellers_json_transparency_items(
@@ -1303,11 +1427,7 @@ def _sellers_json_transparency_items(
     if not sellers_json:
         return items
     systems = cast(list[dict[str, Any]], sellers_json.get("systems") or [])
-    sellers_json_urls = _unique_strings(
-        cast(str | None, system.get("sellers_json_url"))
-        for system in systems
-        if system.get("status") == "available"
-    )
+    sellers_json_urls = _available_sellers_json_urls(systems)
     checked_records = int(sellers_json.get("checked_records") or 0)
     matched_records = int(sellers_json.get("matched_records") or 0)
     available_sellers_json = int(sellers_json.get("available_sellers_json") or 0)
@@ -1323,21 +1443,38 @@ def _sellers_json_transparency_items(
             "IAB sellers.json signal: ad-system seller IDs were checked against published seller identity files.",
         )
     )
+    _append_sellers_json_alignment(items, sellers_json, sellers_json_urls)
+    return items
+
+
+def _available_sellers_json_urls(systems: list[dict[str, Any]]) -> list[str]:
+    return _unique_strings(
+        cast(str | None, system.get("sellers_json_url"))
+        for system in systems
+        if system.get("status") == "available"
+    )
+
+
+def _append_sellers_json_alignment(
+    items: list[dict[str, Any]],
+    sellers_json: dict[str, Any],
+    urls: list[str],
+) -> None:
     owner_domain_matches = int(sellers_json.get("owner_domain_matches") or 0)
     manager_domain_matches = int(sellers_json.get("manager_domain_matches") or 0)
-    if owner_domain_matches or manager_domain_matches:
-        items.append(
-            _transparency_item(
-                "sellers.json domain alignment",
-                (
-                    f"{owner_domain_matches} OWNERDOMAIN matches; "
-                    f"{manager_domain_matches} MANAGERDOMAIN matches"
-                ),
-                sellers_json_urls,
-                "Matched sellers.json domains are compared with ads.txt OWNERDOMAIN and MANAGERDOMAIN declarations.",
-            )
+    if not owner_domain_matches and not manager_domain_matches:
+        return
+    items.append(
+        _transparency_item(
+            "sellers.json domain alignment",
+            (
+                f"{owner_domain_matches} OWNERDOMAIN matches; "
+                f"{manager_domain_matches} MANAGERDOMAIN matches"
+            ),
+            urls,
+            "Matched sellers.json domains are compared with ads.txt OWNERDOMAIN and MANAGERDOMAIN declarations.",
         )
-    return items
+    )
 
 
 def _policy_transparency_items(

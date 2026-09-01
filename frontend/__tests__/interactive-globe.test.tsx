@@ -1,132 +1,122 @@
-import React from "react"
-import { waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { useEffect } from "react";
+import { waitFor } from "@testing-library/react";
+import type { GlobeMethods, GlobeProps } from "react-globe.gl";
+import type { MutableRefObject } from "react";
+import { Scene } from "three";
 
-import { InteractiveGlobe } from "@/components/interactive-globe"
-import { renderWithQueryClient } from "@/test-utils/render-with-query-client"
+import { InteractiveGlobe } from '@/components/interactive-globe';
+import type { InteractiveGlobeComponent } from '@/components/interactive-globe';
+import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 
-const mockControls = {
-  autoRotate: false,
-  autoRotateSpeed: 0,
-  enableZoom: true,
-  enablePan: true,
+const testControls = {
+    autoRotate: false,
+    autoRotateSpeed: 0,
+    enablePan: true,
+    enableZoom: true,
+  },
+  pointOfView = jest.fn(),
+  renderer = {
+    capabilities: {
+      getMaxAnisotropy: () => 1,
+      maxTextureSize: 4096,
+    },
+    outputColorSpace: "",
+    setPixelRatio: jest.fn(),
+    toneMapping: 0,
+    toneMappingExposure: 1,
+  },
+  // SAFETY: the injected surface exercises the five GlobeMethods consumed by InteractiveGlobe;
+  // The remaining library methods are outside this browser-surface regression.
+  globeInstance: GlobeMethods = {
+    controls: () => testControls,
+    getGlobeRadius: () => 100,
+    pointOfView,
+    renderer: () => renderer,
+    scene: () => new Scene(),
+  } as unknown as GlobeMethods;
+
+interface GlobeSurfaceProps extends GlobeProps {
+  ref?: MutableRefObject<GlobeMethods | undefined>;
 }
-const mockPointOfView = jest.fn()
-const mockGlobeInstance = {
-  controls: () => mockControls,
-  pointOfView: (...args: unknown[]) => mockPointOfView(...args),
-  renderer: () => null,
-  scene: () => null,
-} as const
-const mockReactGlobe = React.forwardRef<unknown, Record<string, unknown>>((_props, ref) => {
-  React.useEffect(() => {
-    if (typeof ref === "function") {
-      ref(mockGlobeInstance)
-      return () => ref(null)
-    }
 
-    if (ref && typeof ref === "object" && "current" in ref) {
-      ;(ref as { current: unknown }).current = mockGlobeInstance
-      return () => {
-        ;(ref as { current: unknown }).current = null
+const GlobeSurface: InteractiveGlobeComponent = ({ ref }: GlobeSurfaceProps) => {
+  useEffect(() => {
+    const timer = globalThis.setTimeout(() => {
+      if (ref !== undefined) {
+        ref.current = globeInstance;
       }
-    }
-    return
-  }, [ref])
+    }, 0);
+    return () =>{  globalThis.clearTimeout(timer); };
+  }, [ref]);
 
-  return <div data-testid="mock-globe" />
-})
+  return <div data-testid="globe-surface" />;
+};
 
-mockReactGlobe.displayName = "MockGlobe"
+GlobeSurface.displayName = "GlobeSurface";
 
-jest.mock("next/dynamic", () => {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  const React = jest.requireActual<typeof import("react")>("react")
+const globeComponent: InteractiveGlobeComponent = GlobeSurface;
 
-  return (
-    _loader: unknown,
-    options?: { loading?: () => React.ReactNode },
-  ) => {
-    const DynamicGlobe = React.forwardRef<unknown, Record<string, unknown>>((props, ref) => {
-      const [ready, setReady] = React.useState(false)
-
-      React.useEffect(() => {
-        const timer = window.setTimeout(() => {
-          setReady(true)
-        }, 0)
-        return () => window.clearTimeout(timer)
-      }, [])
-
-      if (!ready) {
-        return options?.loading ? <>{options.loading()}</> : null
-      }
-
-      const MockGlobeComponent = mockReactGlobe
-      return <MockGlobeComponent {...props} ref={ref} />
-    })
-
-    DynamicGlobe.displayName = "DynamicGlobeMock"
-    return DynamicGlobe
-  }
-})
-
-jest.mock("react-globe.gl", () => {
-  return {
-    __esModule: true,
-    default: mockReactGlobe,
-  }
-})
-
-jest.mock("d3-geo", () => ({
-  geoCentroid: () => [0, 0],
-}))
-
-describe("InteractiveGlobe", () => {
-  const fetchMock = jest.fn()
+describe("interactiveGlobe", () => {
+  const fetchMock = jest.fn<typeof fetch>();
 
   beforeEach(() => {
-    mockControls.autoRotate = false
-    mockControls.autoRotateSpeed = 0
-    mockControls.enableZoom = true
-    mockControls.enablePan = true
-    mockPointOfView.mockReset()
-    fetchMock.mockReset()
+    testControls.autoRotate = false;
+    testControls.autoRotateSpeed = 0;
+    testControls.enableZoom = true;
+    testControls.enablePan = true;
+    pointOfView.mockReset();
+    fetchMock.mockReset();
     fetchMock.mockResolvedValue({
       json: async () => ({ features: [] }),
-    })
-    global.fetch = fetchMock as typeof fetch
-    global.ResizeObserver = class ResizeObserver {
+      ok: true,
+      status: 200,
+    } as Response);
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+      writable: true,
+    });
+    globalThis.ResizeObserver = class ResizeObserver {
       observe() {}
       unobserve() {}
       disconnect() {}
-    } as unknown as typeof ResizeObserver
-  })
+    };
+  });
 
-  it("initializes globe controls after the delayed dynamic mount resolves", async () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("initializes globe controls after the delayed client surface mounts", async () => {  expect.hasAssertions();
+
     renderWithQueryClient(
       <InteractiveGlobe
         articles={[]}
         countryMetrics={{
-          counts: {},
-          total_articles: 0,
           articles_with_country: 0,
           articles_without_country: 0,
           country_count: 0,
+          counts: {},
+          total_articles: 0,
         }}
+        globeComponent={globeComponent}
         onCountrySelect={jest.fn()}
         selectedCountry={null}
         lightingMode="all-lit"
       />,
-    )
+    );
 
-    expect(mockPointOfView).not.toHaveBeenCalled()
+    expect(pointOfView).not.toHaveBeenCalled();
 
     await waitFor(() => {
-      expect(mockControls.autoRotate).toBe(true)
-    })
+      expect(testControls.autoRotate).toBe(true);
+    });
 
-    expect(mockControls.autoRotateSpeed).toBe(0.5)
-    expect(mockControls.enableZoom).toBe(false)
-    expect(mockControls.enablePan).toBe(false)
-    expect(mockPointOfView).toHaveBeenCalled()
-  })
-})
+    expect(testControls.autoRotateSpeed).toBe(0.5);
+    expect(testControls.enableZoom).toBe(false);
+    expect(testControls.enablePan).toBe(false);
+    expect(pointOfView).toHaveBeenNthCalledWith(1, { altitude: 2.5 });
+    expect(pointOfView).toHaveBeenNthCalledWith(2, { altitude: 2.5 }, 800);
+  });
+});

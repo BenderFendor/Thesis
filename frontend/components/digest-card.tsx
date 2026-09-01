@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReadingQueueItem } from "@/lib/api";
-import { getDailyDigest, ENABLE_DIGEST } from "@/lib/api";
+import { ENABLE_DIGEST, getDailyDigest } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BookMarked, Calendar, Clock } from "lucide-react";
@@ -18,22 +18,23 @@ interface DigestData {
 }
 
 interface DigestCardProps {
+  enabled?: boolean;
   onRefresh?: () => void;
 }
 
-export function DigestCard({ onRefresh }: DigestCardProps) {
+export function DigestCard({ enabled = ENABLE_DIGEST, onRefresh }: DigestCardProps) {
   void onRefresh;
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState("09:00");
-  const { data: digest, isLoading } = useQuery<DigestData>({
-    queryKey: ["daily-digest"],
+  const [showSchedule, setShowSchedule] = useState(false),
+   [scheduleTime, setScheduleTime] = useState("09:00"),
+   { data: digest, isLoading } = useQuery<DigestData>({
+    enabled,
     queryFn: getDailyDigest,
-    enabled: ENABLE_DIGEST,
+    queryKey: ["daily-digest"],
     retry: 1,
   });
 
-  if (!ENABLE_DIGEST) {
-    return null;
+  if (!enabled) {
+    return;
   }
 
   const handleSchedule = () => {
@@ -43,7 +44,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
   };
 
   if (isLoading || !digest) {
-    return null;
+    return;
   }
 
   return (
@@ -111,7 +112,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
               <input
                 type="time"
                 value={scheduleTime}
-                onChange={(e) => setScheduleTime(e.target.value)}
+                onChange={(e) =>{  setScheduleTime(e.target.value); }}
                 className="flex-1 px-2 py-1 text-xs rounded border border-border/60 bg-background text-foreground"
               />
               <Button
@@ -127,7 +128,7 @@ export function DigestCard({ onRefresh }: DigestCardProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowSchedule(true)}
+            onClick={() =>{  setShowSchedule(true); }}
             className="w-full text-xs"
           >
             <Calendar className="h-3 w-3 mr-1" />

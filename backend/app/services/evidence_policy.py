@@ -246,26 +246,55 @@ def _coerce_evidence(item: ObservationEvidence | Mapping[str, str]) -> Observati
     )
 
 
-def evaluate_acceptance(
-    *,
-    predicate: str,
-    evidence: Iterable[ObservationEvidence | Mapping[str, str]],
-    complete_control_path: bool = False,
-    policy: PredicatePolicy | None = None,
-) -> AcceptanceDecision:
-    """Evaluate a claim without mutating it or materializing a relationship."""
-    active = policy or policy_for(predicate)
-    items = tuple(_coerce_evidence(item) for item in evidence)
-    reasons: list[str] = []
-
+def _qualifying_observations(
+    items: Sequence[ObservationEvidence],
+    active: PredicatePolicy,
+) -> tuple[tuple[ObservationEvidence, ...], tuple[ObservationEvidence, ...]]:
     claimed_entailing = tuple(item for item in items if item.entailment == "reviewed_yes")
     entailing = tuple(item for item in claimed_entailing if item.reviewed_by)
-    unattributed = len(claimed_entailing) - len(entailing)
     qualifying = tuple(
         item for item in entailing if item.evidence_class in active.allowed_evidence_classes
     )
-    root_ids = {item.root_id for item in qualifying if item.root_id}
+    return entailing, qualifying
 
+
+def _acceptance_reasons(
+    *,
+    active: PredicatePolicy,
+    claimed_entailing: Sequence[ObservationEvidence],
+    entailing: Sequence[ObservationEvidence],
+    qualifying: Sequence[ObservationEvidence],
+    root_ids: set[str],
+    complete_control_path: bool,
+) -> list[str]:
+    reasons: list[str] = []
+    reasons.extend(
+        _basic_acceptance_reasons(
+            active=active,
+            claimed_entailing=claimed_entailing,
+            entailing=entailing,
+            qualifying=qualifying,
+            root_ids=root_ids,
+            complete_control_path=complete_control_path,
+        )
+    )
+    catalog_reason = _catalog_only_reason(active, entailing)
+    if catalog_reason:
+        reasons.append(catalog_reason)
+    return reasons
+
+
+def _basic_acceptance_reasons(
+    *,
+    active: PredicatePolicy,
+    claimed_entailing: Sequence[ObservationEvidence],
+    entailing: Sequence[ObservationEvidence],
+    qualifying: Sequence[ObservationEvidence],
+    root_ids: set[str],
+    complete_control_path: bool,
+) -> list[str]:
+    reasons: list[str] = []
+    unattributed = len(claimed_entailing) - len(entailing)
     if not entailing:
         reasons.append("no reviewed evidence entails the claim")
     if unattributed:
@@ -281,14 +310,44 @@ def evaluate_acceptance(
         )
     if active.requires_complete_path and not complete_control_path:
         reasons.append("predicate requires a complete accepted control path")
+    return reasons
 
+
+def _catalog_only_reason(
+    active: PredicatePolicy,
+    entailing: Sequence[ObservationEvidence],
+) -> str | None:
     evidence_classes = {item.evidence_class for item in entailing}
     if (
         evidence_classes
         and evidence_classes.issubset(CATALOG_ONLY_CLASSES)
         and not active.permits_catalog_only
     ):
-        reasons.append("catalog or generated evidence cannot establish an accepted fact")
+        return "catalog or generated evidence cannot establish an accepted fact"
+    return None
+
+
+def evaluate_acceptance(
+    *,
+    predicate: str,
+    evidence: Iterable[ObservationEvidence | Mapping[str, str]],
+    complete_control_path: bool = False,
+    policy: PredicatePolicy | None = None,
+) -> AcceptanceDecision:
+    """Evaluate a claim without mutating it or materializing a relationship."""
+    active = policy or policy_for(predicate)
+    items = tuple(_coerce_evidence(item) for item in evidence)
+    claimed_entailing = tuple(item for item in items if item.entailment == "reviewed_yes")
+    entailing, qualifying = _qualifying_observations(items, active)
+    root_ids = {item.root_id for item in qualifying if item.root_id}
+    reasons = _acceptance_reasons(
+        active=active,
+        claimed_entailing=claimed_entailing,
+        entailing=entailing,
+        qualifying=qualifying,
+        root_ids=root_ids,
+        complete_control_path=complete_control_path,
+    )
 
     return AcceptanceDecision(
         accepted=not reasons,

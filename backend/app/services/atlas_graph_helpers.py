@@ -1,10 +1,12 @@
 """Shared normalization and trust helpers for Intelligence Atlas graph services."""
 
 from __future__ import annotations
+
 import hashlib
 import re
 from collections.abc import Iterable
 from typing import Any
+
 from app.data.rss_sources import get_rss_sources
 from app.database import Reporter
 from app.models.atlas import (
@@ -119,37 +121,34 @@ def _research_confidence(value: str | None) -> float | None:
     )
 
 
+def _matches_filter_value(value: str | None, expected: list[str] | None) -> bool:
+    if not expected:
+        return True
+    return (value or "").casefold() in {item.casefold() for item in expected}
+
+
+def _node_search_text(node: AtlasNode) -> str:
+    values = (
+        node.label,
+        node.subtitle,
+        node.country_code,
+        node.funding_type,
+        node.bias_rating,
+    )
+    return " ".join(value for value in values if value).casefold()
+
+
 def _node_matches(node: AtlasNode, filters: AtlasGraphFilters) -> bool:
     if filters.entity_types and node.entity_type not in filters.entity_types:
         return False
-    if filters.country and (node.country_code or "").casefold() not in {
-        value.casefold() for value in filters.country
-    }:
+    if not _matches_filter_value(node.country_code, filters.country):
         return False
-    if filters.funding and (node.funding_type or "").casefold() not in {
-        value.casefold() for value in filters.funding
-    }:
+    if not _matches_filter_value(node.funding_type, filters.funding):
         return False
-    if filters.bias and (node.bias_rating or "").casefold() not in {
-        value.casefold() for value in filters.bias
-    }:
+    if not _matches_filter_value(node.bias_rating, filters.bias):
         return False
-    if filters.q:
-        query = filters.q.casefold().strip()
-        haystack = " ".join(
-            value
-            for value in (
-                node.label,
-                node.subtitle or "",
-                node.country_code or "",
-                node.funding_type or "",
-                node.bias_rating or "",
-            )
-            if value
-        ).casefold()
-        if query not in haystack:
-            return False
-    return True
+    query = filters.q.casefold().strip() if filters.q else ""
+    return not query or query in _node_search_text(node)
 
 
 def _edge_matches(edge: AtlasEdge, filters: AtlasGraphFilters) -> bool:

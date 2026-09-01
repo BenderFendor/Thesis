@@ -18,30 +18,30 @@ import type { AtlasSearchItem } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";
 
 function humanize(value: string): string {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
 function pluralGroupLabel(type: string): string {
-  if (type === "person") return "People";
+  if (type === "person") {return "People";}
   return `${humanize(type)}s`;
 }
 
 function dateDistance(value?: string | null): string {
-  if (!value) return "Not indexed";
+  if (!value) {return "Not indexed";}
   const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "Not indexed";
+  if (!Number.isFinite(timestamp)) {return "Not indexed";}
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
-  return `${Math.round(seconds / 86400)}d ago`;
+  if (seconds < 60) {return "just now";}
+  if (seconds < 3600) {return `${Math.round(seconds / 60)}m ago`;}
+  if (seconds < 86_400) {return `${Math.round(seconds / 3600)}h ago`;}
+  return `${Math.round(seconds / 86_400)}d ago`;
 }
 
 interface AtlasTopbarProps {
   inputRef: RefObject<HTMLInputElement | null>;
   searchText: string;
   searchOpen: boolean;
-  searchItems: AtlasSearchItem[];
+  searchItems: readonly AtlasSearchItem[];
   activeSearchIndex: number;
   searching: boolean;
   focus: boolean;
@@ -114,10 +114,10 @@ export function AtlasTopbar({
               <div className="flex items-center gap-2 p-4 text-sm text-[#77736a]">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching indexed entities
               </div>
-            ) : searchItems.length > 0 ? (
+            ) : (searchItems.length > 0 ? (
               (["outlet", "organization", "person", "reporter"] as const).map((type) => {
                 const items = searchItems.filter((item) => item.entity_type === type);
-                if (items.length === 0) return null;
+                if (items.length === 0) {return;}
                 return (
                   <div key={type} className={styles.searchGroup}>
                     <div className={`${styles.microLabel} px-2 pb-2`}>{pluralGroupLabel(type)}</div>
@@ -131,9 +131,9 @@ export function AtlasTopbar({
                           aria-selected={index === activeSearchIndex}
                           className={styles.searchResult}
                           data-active={index === activeSearchIndex}
-                          onMouseEnter={() => onSearchHover(index)}
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => onChooseSearchResult(item)}
+                          onMouseEnter={() =>{  onSearchHover(index); }}
+                          onMouseDown={(event) =>{  event.preventDefault(); }}
+                          onClick={() =>{  onChooseSearchResult(item); }}
                         >
                           <span className={styles.entityMark} data-type={item.entity_type} aria-hidden="true">
                             {item.entity_type.slice(0, 2).toUpperCase()}
@@ -155,7 +155,7 @@ export function AtlasTopbar({
               })
             ) : (
               <div className="p-4 text-sm text-[#77736a]">No indexed entity matches this query.</div>
-            )}
+            ))}
           </div>
         ) : null}
       </div>

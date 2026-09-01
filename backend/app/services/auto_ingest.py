@@ -30,9 +30,12 @@ Design:
   touching call sites. Test fixtures also clear FastAPI's startup handlers
   entirely (see tests/conftest.py), so this never runs during the default
   test suite regardless of the flag.
-- Every stage is independently wrapped: a network failure (offline
-  Wikidata/EDGAR/LittleSis/MBFC) or any other exception logs a warning and
-  the orchestrator moves on to the next stage. Pipeline idempotency
+- Every stage is independently wrapped: stage failures log a warning and the
+  orchestrator moves on to the next stage. Within the evidence stage, expected
+  transport, persistence, parsing, and payload-shape failures are recorded per
+  source so later sources still run; unexpected programming errors reach the
+  stage boundary instead of being silently classified as source failures.
+  Pipeline idempotency
   (dedupe by claim_hash / deterministic ids / locked preregistration) is
   guaranteed by the pipelines themselves -- see `app.services.entity_backfill`,
   `app.services.evidence_ingest`, and `app.services.funding_bias_analysis`.
@@ -40,22 +43,25 @@ Design:
 
 from __future__ import annotations
 
-import time
 import os
-from uuid import uuid4
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, cast
+from uuid import uuid4
 
+import httpx
 from sqlalchemy import desc, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, WikiIndexStatus, get_utc_now
-from app.models.evidence import EvidenceIngestRun
 from app.models.atlas import AtlasIngestStatusResponse, EvidenceIngestRunRecord
+from app.models.evidence import EvidenceIngestRun
+from app.scripts.ingest_reporter_bylines import ingest_reporter_bylines
 from app.services.entity_backfill import run_backfill
 from app.services.evidence_ingest import (
     METHOD_VERSION,
@@ -73,7 +79,6 @@ from app.services.reporter_merge import merge_duplicate_reporters
 from app.services.reporter_name_cleanup import cleanup_dirty_reporter_names
 from app.services.reporter_outlet_repair import repair_feedburner_collision
 from app.services.reporter_split_backfill import split_composite_reporters
-from app.scripts.ingest_reporter_bylines import ingest_reporter_bylines
 
 logger = get_logger("auto_ingest")
 
@@ -151,14 +156,8 @@ async def _run_reporter_merge(db: AsyncSession) -> object:
     return report
 
 
-async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
-    """Run every evidence-ingestion source; one source's failure doesn't skip the rest."""
-    from app.scripts.ingest_evidence import (
-        EDGAR_PARENT_CIKS,
-        _catalog_domain_map,
-        _catalog_publishers,
-    )
-
+async def _block_missing_credential_adapters(db: AsyncSession) -> None:
+    """Persist a blocked record for every adapter with missing credentials."""
     for contract in ADAPTER_REGISTRY.values():
         missing = [name for name in contract.required_credentials if not os.getenv(name)]
         if not missing:
@@ -179,9 +178,20 @@ async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
         )
         await db.commit()
 
+
+async def _evidence_sources(
+    db: AsyncSession,
+) -> list[tuple[str, Callable[[], Awaitable[IngestReport]]]]:
+    """Build the catalog evidence source runners for one pass."""
+    from app.scripts.ingest_evidence import (
+        EDGAR_PARENT_CIKS,
+        _catalog_domain_map,
+        _catalog_publishers,
+    )
+
     domain_map = _catalog_domain_map()
     publishers = await _catalog_publishers(db)
-    sources: list[tuple[str, Callable[[], Awaitable[IngestReport]]]] = [
+    return [
         ("wikidata", lambda: ingest_wikidata_ownership_claims(db)),
         ("littlesis", lambda: ingest_littlesis_ownership(db)),
         ("mbfc", lambda: ingest_mbfc_ownership(db, catalog_domains=domain_map)),
@@ -189,11 +199,11 @@ async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
         ("ads_txt", lambda: ingest_ads_supply(db, publishers=publishers)),
     ]
 
-    results: dict[str, IngestReport] = {}
-    failures: dict[str, str] = {}
-    for source_name, run_source in sources:
-        run_id = f"ingest_{uuid4().hex}"
-        run = EvidenceIngestRun(
+
+async def _record_evidence_source_start(db: AsyncSession, run_id: str, source_name: str) -> None:
+    """Create the running marker row for one source."""
+    db.add(
+        EvidenceIngestRun(
             id=run_id,
             adapter=source_name,
             adapter_version=METHOD_VERSION,
@@ -202,54 +212,97 @@ async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
             network_mode="live",
             missing_credentials=[],
         )
-        db.add(run)
+    )
+    await db.commit()
+
+
+async def _record_evidence_source_success(
+    db: AsyncSession,
+    run_id: str,
+    report: IngestReport,
+    source_name: str,
+    failures: dict[str, str],
+) -> None:
+    """Mark a source run complete and record any acceptance failures."""
+    run = await db.get(EvidenceIngestRun, run_id)
+    if run is None:
+        return
+    run.status = "partial" if report.acceptance_failures else "success"
+    run.documents_count = report.documents_created
+    run.snapshots_count = report.snapshots_created
+    run.observations_count = report.observations_created
+    run.claims_count = report.claims_created
+    run.accepted_count = report.accepted
+    run.candidate_count = report.candidates
+    run.failure = "; ".join(report.acceptance_failures) or None
+    run.retryable = bool(report.acceptance_failures)
+    run.completed_at = get_utc_now()
+    if report.acceptance_failures:
+        failures[source_name] = str(run.failure)
+    await db.commit()
+    logger.info(
+        "auto-ingest: evidence source '%s' complete "
+        "(claims created=%d deduped=%d accepted=%d candidates=%d)",
+        source_name,
+        report.claims_created,
+        report.claims_deduped,
+        report.accepted,
+        report.candidates,
+    )
+    if report.adjudications_opened:
+        logger.info(
+            "auto-ingest: evidence source '%s' opened/existing adjudication items: %d",
+            source_name,
+            len(report.adjudications_opened),
+        )
+
+
+async def _record_evidence_source_failure(
+    db: AsyncSession,
+    run_id: str,
+    source_name: str,
+    exc: Exception,
+    failures: dict[str, str],
+) -> None:
+    """Persist a failure marker for one source and record the failure."""
+    await db.rollback()
+    persisted_run = await db.get(EvidenceIngestRun, run_id)
+    if persisted_run is not None:
+        persisted_run.status = "failed"
+        persisted_run.failure = f"{type(exc).__name__}: {exc}"
+        persisted_run.retryable = True
+        persisted_run.completed_at = get_utc_now()
         await db.commit()
+    failures[source_name] = f"{type(exc).__name__}: {exc}"
+    logger.warning(
+        "auto-ingest: evidence source '%s' failed (offline or unreachable?): %s",
+        source_name,
+        exc,
+    )
+
+
+async def _run_evidence_ingestion(db: AsyncSession) -> dict[str, IngestReport]:
+    """Run evidence sources; expected source failures do not skip later sources."""
+    await _block_missing_credential_adapters(db)
+    results: dict[str, IngestReport] = {}
+    failures: dict[str, str] = {}
+    for source_name, run_source in await _evidence_sources(db):
+        run_id = f"ingest_{uuid4().hex}"
+        await _record_evidence_source_start(db, run_id, source_name)
         try:
             report = await run_source()
             results[source_name] = report
-            run.status = "partial" if report.acceptance_failures else "success"
-            run.documents_count = report.documents_created
-            run.snapshots_count = report.snapshots_created
-            run.observations_count = report.observations_created
-            run.claims_count = report.claims_created
-            run.accepted_count = report.accepted
-            run.candidate_count = report.candidates
-            run.failure = "; ".join(report.acceptance_failures) or None
-            run.retryable = bool(report.acceptance_failures)
-            run.completed_at = get_utc_now()
-            if report.acceptance_failures:
-                failures[source_name] = str(run.failure)
-            await db.commit()
-            logger.info(
-                "auto-ingest: evidence source '%s' complete "
-                "(claims created=%d deduped=%d accepted=%d candidates=%d)",
-                source_name,
-                report.claims_created,
-                report.claims_deduped,
-                report.accepted,
-                report.candidates,
-            )
-            if report.adjudications_opened:
-                logger.info(
-                    "auto-ingest: evidence source '%s' opened/existing adjudication items: %d",
-                    source_name,
-                    len(report.adjudications_opened),
-                )
-        except Exception as exc:
-            await db.rollback()
-            persisted_run = await db.get(EvidenceIngestRun, run_id)
-            if persisted_run is not None:
-                persisted_run.status = "failed"
-                persisted_run.failure = f"{type(exc).__name__}: {exc}"
-                persisted_run.retryable = True
-                persisted_run.completed_at = get_utc_now()
-                await db.commit()
-            failures[source_name] = f"{type(exc).__name__}: {exc}"
-            logger.warning(
-                "auto-ingest: evidence source '%s' failed (offline or unreachable?): %s",
-                source_name,
-                exc,
-            )
+            await _record_evidence_source_success(db, run_id, report, source_name, failures)
+        except (
+            httpx.HTTPError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            SQLAlchemyError,
+        ) as exc:
+            await _record_evidence_source_failure(db, run_id, source_name, exc, failures)
     if failures:
         summary = "; ".join(f"{name}: {failure}" for name, failure in failures.items())
         raise PartialIngestError(f"required evidence adapters were partial: {summary}")
@@ -334,6 +387,40 @@ async def _record_successful_run(db: AsyncSession) -> None:
     await db.commit()
 
 
+def _freshness_label(
+    active: bool,
+    incomplete: bool,
+    last_success: datetime | None,
+    newest_status: str | None,
+) -> str:
+    """Classify adapter freshness for the Atlas UI."""
+    if active:
+        return "running"
+    if incomplete and (last_success is None or newest_status != "success"):
+        return "partial"
+    if last_success is None:
+        return "never"
+    now = get_utc_now()
+    compare_now = now if last_success.tzinfo else now.replace(tzinfo=None)
+    if compare_now - last_success < timedelta(hours=settings.auto_ingest_interval_hours):
+        return "fresh"
+    return "stale"
+
+
+def _ingest_status_summary(
+    rows: list[EvidenceIngestRun],
+) -> tuple[list[EvidenceIngestRunRecord], datetime | None, bool, bool, list[str]]:
+    records = [EvidenceIngestRunRecord.model_validate(row, from_attributes=True) for row in rows]
+    successes = [row.completed_at for row in rows if row.status == "success" and row.completed_at]
+    last_success = max(successes, default=None)
+    active = any(row.status == "running" for row in rows)
+    incomplete = any(row.status in {"partial", "failed", "blocked"} for row in rows)
+    missing_credentials = sorted(
+        {credential for row in rows for credential in (row.missing_credentials or [])}
+    )
+    return records, last_success, active, incomplete, missing_credentials
+
+
 async def get_ingest_status(db: AsyncSession, *, limit: int = 40) -> AtlasIngestStatusResponse:
     """Return persisted adapter freshness and exact failures for the Atlas UI."""
     rows = list(
@@ -345,34 +432,57 @@ async def get_ingest_status(db: AsyncSession, *, limit: int = 40) -> AtlasIngest
         .scalars()
         .all()
     )
-    records = [EvidenceIngestRunRecord.model_validate(row, from_attributes=True) for row in rows]
-    successes = [row.completed_at for row in rows if row.status == "success" and row.completed_at]
-    last_success = max(successes, default=None)
-    active = any(row.status == "running" for row in rows)
-    incomplete = any(row.status in {"partial", "failed", "blocked"} for row in rows)
-    if active:
-        freshness = "running"
-    elif incomplete and (last_success is None or rows[0].status != "success"):
-        freshness = "partial"
-    elif last_success is None:
-        freshness = "never"
-    else:
-        now = get_utc_now()
-        compare_now = now if last_success.tzinfo else now.replace(tzinfo=None)
-        freshness = (
-            "fresh"
-            if compare_now - last_success < timedelta(hours=settings.auto_ingest_interval_hours)
-            else "stale"
-        )
+    records, last_success, active, incomplete, missing_credentials = _ingest_status_summary(rows)
+    freshness = _freshness_label(active, incomplete, last_success, rows[0].status if rows else None)
     return AtlasIngestStatusResponse(
         freshness=cast(Any, freshness),
         last_success_at=last_success,
         has_retryable_failures=any(row.retryable for row in rows),
-        missing_credentials=sorted(
-            {credential for row in rows for credential in (row.missing_credentials or [])}
-        ),
+        missing_credentials=missing_credentials,
         runs=records,
     )
+
+
+def _should_skip_network_bound(last_run_at: datetime | None, interval: timedelta) -> bool:
+    """Decide whether the interval guard should skip network-bound stages."""
+    if last_run_at is None:
+        return False
+    now = get_utc_now()
+    # last_run_at may be naive (SQLite in tests) or aware (Postgres);
+    # normalize before subtracting.
+    compare_now = now if last_run_at.tzinfo else now.replace(tzinfo=None)
+    age = compare_now - last_run_at
+    if age >= interval:
+        return False
+    logger.info(
+        "Auto-ingest: last successful full run was %.1fh ago (< %dh guard); "
+        "skipping network-bound stages this start",
+        age.total_seconds() / 3600,
+        settings.auto_ingest_interval_hours,
+    )
+    return True
+
+
+async def _run_stage(stage: Stage, factory: async_sessionmaker[AsyncSession]) -> bool:
+    """Run one stage; returns True when a network-bound stage completed."""
+    stage_start = time.monotonic()
+    logger.info("Auto-ingest: stage '%s' starting", stage.name)
+    try:
+        async with factory() as db:
+            await stage.run(db)
+        duration = time.monotonic() - stage_start
+        logger.info("Auto-ingest: stage '%s' finished (%.2fs)", stage.name, duration)
+        return stage.network_bound
+    except Exception as exc:  # pragma: no cover - defensive, logged and continued
+        duration = time.monotonic() - stage_start
+        logger.warning(
+            "Auto-ingest: stage '%s' failed after %.2fs, continuing to next stage: %s",
+            stage.name,
+            duration,
+            exc,
+            exc_info=True,
+        )
+        return False
 
 
 async def run_auto_ingest() -> None:
@@ -403,53 +513,19 @@ async def run_auto_ingest() -> None:
 
     async with factory() as db:
         last_run_at = await _last_successful_run_at(db)
-
-    skip_network_bound = False
-    if last_run_at is not None:
-        now = get_utc_now()
-        # last_run_at may be naive (SQLite in tests) or aware (Postgres);
-        # normalize before subtracting.
-        compare_now = now if last_run_at.tzinfo else now.replace(tzinfo=None)
-        age = compare_now - last_run_at
-        if age < interval:
-            skip_network_bound = True
-            logger.info(
-                "Auto-ingest: last successful full run was %.1fh ago (< %dh guard); "
-                "skipping network-bound stages this start",
-                age.total_seconds() / 3600,
-                settings.auto_ingest_interval_hours,
-            )
+    skip_network_bound = _should_skip_network_bound(last_run_at, interval)
 
     ran_network_bound = False
     for stage in STAGES:
         if stage.network_bound and skip_network_bound:
             logger.info("Auto-ingest: stage '%s' skipped (interval guard active)", stage.name)
             continue
-
-        stage_start = time.monotonic()
-        logger.info("Auto-ingest: stage '%s' starting", stage.name)
-        try:
-            async with factory() as db:
-                await stage.run(db)
-            duration = time.monotonic() - stage_start
-            logger.info("Auto-ingest: stage '%s' finished (%.2fs)", stage.name, duration)
-            if stage.network_bound:
-                ran_network_bound = True
-        except Exception as exc:  # pragma: no cover - defensive, logged and continued
-            duration = time.monotonic() - stage_start
-            logger.warning(
-                "Auto-ingest: stage '%s' failed after %.2fs, continuing to next stage: %s",
-                stage.name,
-                duration,
-                exc,
-                exc_info=True,
-            )
+        if await _run_stage(stage, factory):
+            ran_network_bound = True
 
     if ran_network_bound:
         async with factory() as db:
             await _record_successful_run(db)
-
-    if ran_network_bound:
         # Ingested data may have changed entity/relationship counts; drop the
         # cached `/api/wiki/atlas/stats` response so the next poll reflects it
         # instead of waiting out the TTL.

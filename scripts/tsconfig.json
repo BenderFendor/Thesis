@@ -8,7 +8,8 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2023",
-    "typeRoots": ["../frontend/node_modules/@types"]
+    "typeRoots": ["../frontend/node_modules/@types"],
+    "types": ["node"]
   },
   "include": ["scoop.ts", "tests/**/*.ts"]
 }

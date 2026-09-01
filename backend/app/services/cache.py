@@ -4,13 +4,34 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict
-from datetime import datetime, UTC
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.news import NewsArticle
 
 logger = get_logger("news_cache")
+
+
+def _merge_sorted_articles(
+    retained: list[NewsArticle],
+    new_articles: list[NewsArticle],
+    published_key: Callable[[NewsArticle], str],
+) -> list[NewsArticle]:
+    merged: list[NewsArticle] = []
+    retained_index = 0
+    new_index = 0
+    while retained_index < len(retained) and new_index < len(new_articles):
+        if published_key(retained[retained_index]) >= published_key(new_articles[new_index]):
+            merged.append(retained[retained_index])
+            retained_index += 1
+        else:
+            merged.append(new_articles[new_index])
+            new_index += 1
+    merged.extend(retained[retained_index:])
+    merged.extend(new_articles[new_index:])
+    return merged
 
 
 class NewsCache:
@@ -36,6 +57,29 @@ class NewsCache:
     def _published_key(self, article: NewsArticle) -> str:
         return article.published or ""
 
+    def _round_robin_articles(
+        self,
+        trimmed_groups: dict[str, list[NewsArticle]],
+        source_order: list[str],
+        max_articles: int,
+    ) -> list[NewsArticle]:
+        shaped: list[NewsArticle] = []
+        round_index = 0
+        while max_articles <= 0 or len(shaped) < max_articles:
+            appended = False
+            for source in source_order:
+                source_articles = trimmed_groups[source]
+                if round_index >= len(source_articles):
+                    continue
+                shaped.append(source_articles[round_index])
+                appended = True
+                if max_articles > 0 and len(shaped) >= max_articles:
+                    break
+            if not appended:
+                break
+            round_index += 1
+        return shaped
+
     def _shape_articles(self, articles: list[NewsArticle]) -> list[NewsArticle]:
         max_articles = settings.news_cache_max_articles
         max_per_source = settings.news_cache_max_per_source
@@ -59,23 +103,7 @@ class NewsCache:
             reverse=True,
         )
 
-        shaped: list[NewsArticle] = []
-        round_index = 0
-        while max_articles <= 0 or len(shaped) < max_articles:
-            appended = False
-            for source in source_order:
-                source_articles = trimmed_groups[source]
-                if round_index >= len(source_articles):
-                    continue
-                shaped.append(source_articles[round_index])
-                appended = True
-                if max_articles > 0 and len(shaped) >= max_articles:
-                    break
-            if not appended:
-                break
-            round_index += 1
-
-        return shaped
+        return self._round_robin_articles(trimmed_groups, source_order, max_articles)
 
     def _rebuild_source_index(self) -> None:
         self.articles_by_source = {}
@@ -175,21 +203,7 @@ class NewsCache:
                     key=self._published_key,
                     reverse=True,
                 )
-                merged: list[NewsArticle] = []
-                i = 0
-                j = 0
-                while i < len(retained) and j < len(new_articles):
-                    if self._published_key(retained[i]) >= self._published_key(new_articles[j]):
-                        merged.append(retained[i])
-                        i += 1
-                    else:
-                        merged.append(new_articles[j])
-                        j += 1
-                if i < len(retained):
-                    merged.extend(retained[i:])
-                if j < len(new_articles):
-                    merged.extend(new_articles[j:])
-
+                merged = _merge_sorted_articles(retained, new_articles, self._published_key)
                 self.articles = self._shape_articles(merged)
                 self._rebuild_source_index()
 
