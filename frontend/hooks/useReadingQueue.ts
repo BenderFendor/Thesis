@@ -63,25 +63,28 @@ async function preloadArticleData(
     const wordCount = fullText.trim().split(/\s+/u).length,
      readingTimeMinutes = Math.ceil(wordCount / 230);
     enhancedArticle._queueData ??= {};
-    enhancedArticle._queueData.fullText = fullText;
-    enhancedArticle._queueData.readingTimeMinutes = readingTimeMinutes;
+    enhancedArticle._queueData = {
+      ...enhancedArticle._queueData,
+      fullText,
+      readingTimeMinutes,
+    };
   }
 
   if (includeAiAnalysis) {
     const analysis = await preloadAiAnalysis(article);
     if (analysis) {
       enhancedArticle._queueData ??= {};
-      enhancedArticle._queueData.aiAnalysis = analysis;
+      enhancedArticle._queueData = { ...enhancedArticle._queueData, aiAnalysis: analysis };
     }
   }
 
   if (enhancedArticle._queueData) {
-    enhancedArticle._queueData.preloadedAt = Date.now();
+    enhancedArticle._queueData = { ...enhancedArticle._queueData, preloadedAt: Date.now() };
   }
   return enhancedArticle;
 }
 
-export function useReadingQueue() {
+const useQueuedArticlesStorage = () => {
   const [queuedArticles, setQueuedArticles] = useState<NewsArticle[]>([]),
    [isLoaded, setIsLoaded] = useState(false);
 
@@ -147,6 +150,12 @@ export function useReadingQueue() {
       }
     }
   }, [queuedArticles, isLoaded]);
+
+  return { queuedArticles, setQueuedArticles, isLoaded };
+};
+
+export function useReadingQueue() {
+  const { queuedArticles, setQueuedArticles, isLoaded } = useQueuedArticlesStorage();
 
   const addArticleToQueue = useCallback(
     async (article: NewsArticle) => {
