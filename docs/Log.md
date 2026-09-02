@@ -1,5 +1,15 @@
 # Log
 
+## 2026-09-02: Reading queue cluster floor crossed (MI 51)
+
+- `useReadingQueueController` fully decomposed into cohesive hooks: storage
+  (hydration, persistence, cross-tab listeners), mutations, preload, selectors,
+  and navigation; `preloadArticleData` uses a `withQueueData` merge helper.
+  MI min 16.7 -> 51 (cluster floor 50 crossed), tsc 0, reading-queue tests
+  12/12, repo-wide cccc 0 hard. Cluster closure (MI 60 + lint 0) stays open
+  on mechanical rule debt (103e/1w: filename-kebab, sort-imports, one-var,
+  underscore-dangle, id-length). Effect recorded; committed `cf99ff3`.
+
 ## 2026-09-02: Structural iteration on useReadingQueueController
 
 - Extracted the reading-queue storage engine (hydration, cross-tab sync,
