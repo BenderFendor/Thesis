@@ -26,6 +26,13 @@ import {
   Zap,
 } from "lucide-react";
 import type { ComponentProps, Dispatch, RefObject,SetStateAction } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildComparisonSourceOptions, getDefaultComparisonArticleIds, getSelectedComparisonArticles } from '@/lib/cluster-comparison';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,13 +46,6 @@ import { toast } from "sonner";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useQuery } from "@tanstack/react-query";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface ClusterArticle {
   id: number;

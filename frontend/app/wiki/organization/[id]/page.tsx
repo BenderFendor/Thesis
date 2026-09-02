@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { OrganizationWikiView } from "./organization-wiki-view";
+import { useParams } from "next/navigation";
 
 export default function OrganizationProfilePage() {
   const params = useParams(),

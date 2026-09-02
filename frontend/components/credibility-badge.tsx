@@ -1,19 +1,19 @@
 "use client";
 
+import type {
+  CredibilityDimension,
+  SourceCredibilityProfile,
+} from "@/lib/api";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 
+import { Badge } from "@/components/ui/badge";
 import { BarChart3 } from "lucide-react";
 import { useState } from "react";
-import type {
-  CredibilityDimension,
-  SourceCredibilityProfile,
-} from "@/lib/api";
 
 const DEFAULT_DIMENSION_COUNT = 6,
  MODERATE_SCORE_THRESHOLD = 40,

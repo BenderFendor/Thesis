@@ -40,8 +40,8 @@ import { AtlasTopbar } from "./atlas-topbar"
 import { GlobalNavigation } from "@/components/global-navigation"
 import type { ReadonlyAtlasQueryState } from "./lib/atlas-query-state"
 import { metricPercentage } from "./lib/atlas-schema"
-import type workspaceSupport from "@/app/wiki/ownership/source-intelligence-support"
 import styles from "./atlas.module.css"
+import type workspaceSupport from "@/app/wiki/ownership/source-intelligence-support"
 
 type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"]
 type NavigationMode = "push" | "replace"

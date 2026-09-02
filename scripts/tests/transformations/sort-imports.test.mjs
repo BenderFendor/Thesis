@@ -166,12 +166,17 @@ export const y = x;
   assertUnchanged(source);
 });
 
-test("files with a directive before imports stay unchanged", () => {
+test("directive-before-imports run is sorted (rule flags post-directive runs)", () => {
   const source = `"use client";
 import { b } from "b";
 import { a } from "a";
 `;
-  assertUnchanged(source);
+  const expected = `"use client";
+import { a } from "a";
+import { b } from "b";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
 });
 
 test("post-code import runs are sorted in place", () => {
@@ -247,7 +252,7 @@ import { y } from "y";
   assertParses(expected);
 });
 
-test("imports after a leading directive stay put while later runs sort", () => {
+test("directive run and later post-code run both sort", () => {
   const source = `"use client"
 import { z } from "z";
 import { a } from "a";
@@ -258,8 +263,8 @@ import { y } from "y";
 import { b } from "b";
 `;
   const expected = `"use client"
-import { z } from "z";
 import { a } from "a";
+import { z } from "z";
 
 const x = 1;
 

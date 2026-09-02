@@ -8,8 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AtlasAccessibleList } from "./atlas-accessible-list";
 import type { AtlasLayoutMode } from "./lib/atlas-query-state";
 import type { AtlasPosition } from "./lib/atlas-force-layout";
-import { useAtlasLayout } from "./hooks/use-atlas-layout";
 import styles from "./atlas.module.css";
+import { useAtlasLayout } from "./hooks/use-atlas-layout";
 
 interface AtlasGraphProps {
   nodes: AtlasNode[];

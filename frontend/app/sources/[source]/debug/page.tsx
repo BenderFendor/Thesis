@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import type { SourceDebugData } from "@/lib/api";
 import { SourceDebugView } from "@/app/sources/[source]/debug/source-debug-view";
 import { fetchSourceDebugData } from "@/lib/api";
+import { setDebugMode } from "@/lib/logger";
 import { useDebugMode } from "@/hooks/use-debug-mode";
 import { useQuery } from "@tanstack/react-query";
-import { setDebugMode } from "@/lib/logger";
 
 const DEFAULT_ERROR_MESSAGE =
   "Failed to load debug data. The source might be unavailable or the backend service is down.",

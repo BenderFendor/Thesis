@@ -8,9 +8,9 @@ import { GlobalNavigation } from "@/components/global-navigation";
 import Link from "next/link";
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 import type { ReactNode } from 'react';
+import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 import { fetchAtlasEntity } from "@/features/intelligence-atlas/lib/atlas-api";
 import { useQuery } from "@tanstack/react-query";
-import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 
 export function PersonWikiView({ entityId }:Readonly< { entityId: string }>) {
   const { data, isLoading, error } = useQuery<AtlasEntityRecord>({

@@ -10,10 +10,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { promoteRssSource, validateRssUrl } from '@/lib/api';
+import type { AddRssResponse } from '@/lib/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import type { AddRssResponse } from '@/lib/api';
 
 interface AddRssDialogProps {
   onSourceAdded?: () => void;

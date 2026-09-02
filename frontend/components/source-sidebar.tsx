@@ -10,10 +10,11 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { NEWS_LENSES, getLensStats } from "@/lib/news-lens";
 import { useMemo, useState } from "react";
 import { AddRssDialog } from "@/components/add-rss-dialog";
-import { Badge } from "@/components/ui/badge";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -24,7 +25,6 @@ import { useFavorites } from "@/hooks/use-favorites";
 import { useNewsLens } from "@/hooks/use-news-lens";
 import { useQuery } from "@tanstack/react-query";
 import { useSourceFilter } from "@/hooks/use-source-filter";
-import { NEWS_LENSES, getLensStats } from "@/lib/news-lens";
 
 const COVERAGE_COMPARISON_MIN_SOURCES = 2,
  EMPTY_RECENCY = 0,

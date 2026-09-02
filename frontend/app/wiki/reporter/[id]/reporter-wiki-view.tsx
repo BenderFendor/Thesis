@@ -10,12 +10,12 @@ import {
 } from "lucide-react";
 import { fetchWikiReporter, parseReporterCareerTimeline } from '@/lib/api';
 import { Badge } from "@/components/ui/badge";
+import { CareerTimeline } from "./career-timeline";
 import { GlobalNavigation } from "@/components/global-navigation";
 import Link from "next/link";
 import type { ReactNode } from 'react';
 import type { WikiReporterDossier } from '@/lib/api';
 import { useQuery } from "@tanstack/react-query";
-import { CareerTimeline } from "./career-timeline";
 
 type ReporterActivity = NonNullable<WikiReporterDossier["activity_summary"]>;
 

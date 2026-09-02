@@ -1,11 +1,11 @@
 "use client"
 
 import type { ArticleAnalysis, NewsArticle } from '@/lib/api';
+import { ExternalLink, ImageOff } from "lucide-react"
 import { SafeImage } from "@/components/safe-image"
 import { analyzeArticle } from '@/lib/api';
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ExternalLink, ImageOff } from "lucide-react"
 
 interface ArticleInlineEmbedProps {
   url: string

@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CardContent } from "@/components/ui/card"
 import { ContradictionPanel } from "@/components/contradiction-panel"
+import type { GridViewMode } from '@/lib/view-mode-storage';
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -50,7 +51,6 @@ import dynamic from "next/dynamic"
 import { useFavorites } from "@/hooks/use-favorites"
 import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useReadingQueue } from "@/hooks/use-reading-queue"
-import type { GridViewMode } from '@/lib/view-mode-storage';
 
 const ArticleDetailModal = dynamic(
   () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),

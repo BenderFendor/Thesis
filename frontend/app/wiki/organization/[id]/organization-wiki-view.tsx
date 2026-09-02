@@ -11,11 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-panel";
 import { GlobalNavigation } from "@/components/global-navigation";
+import Link from "next/link";
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 import { fetchAtlasEntity } from "@/features/intelligence-atlas/lib/atlas-api";
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 
 type AtlasEntityRecord = Awaited<ReturnType<typeof fetchAtlasEntity>>;
 type AtlasConnectionRecord = AtlasEntityRecord["connections"][number];

@@ -35,10 +35,10 @@ import { Button } from "@/components/ui/button";
 import { ClusterDetailModal } from "./cluster-detail-modal";
 import { SafeImage } from "@/components/safe-image";
 import { Skeleton } from "@/components/ui/skeleton";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useQuery } from "@tanstack/react-query";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
-import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 function handleCardKeyDown(
   event: React.KeyboardEvent<HTMLElement>,

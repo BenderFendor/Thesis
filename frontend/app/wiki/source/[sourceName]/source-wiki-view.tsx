@@ -17,10 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-panel";
 import { GlobalNavigation } from "@/components/global-navigation";
 import Link from "next/link";
+import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 import type { ReactNode } from 'react';
 import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 import { useQuery } from "@tanstack/react-query";
-import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 
 const ANALYSIS_META: Record<string, { label: string; description: string }> = {
   credibility: { description: "Correction and reliability track record.", label: "Credibility" },

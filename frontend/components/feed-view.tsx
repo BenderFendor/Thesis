@@ -11,6 +11,11 @@ import {
   Sparkles,
   Star,
 } from "lucide-react"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import type { Dispatch, RefObject, SetStateAction } from "react"
 import {
   RANKING_WEIGHTS,
@@ -33,11 +38,6 @@ import { useBookmarks } from "@/hooks/useBookmarks"
 import { useFavorites } from "@/hooks/use-favorites"
 import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useScrollPersonalization } from "@/hooks/use-scroll-personalization"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 
 const ArticleDetailModal = dynamic(
   () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),

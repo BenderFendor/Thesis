@@ -14,16 +14,16 @@ import type {
   RankedFeedResult,
 } from "@/lib/feed-ranking";
 import {
+  MAX_PERSONALIZATION_SEEDS,
+  buildInterestProfile,
+  rankFeedArticles,
+} from "@/lib/feed-ranking";
+import {
   fetchBookmarks,
   fetchBulkArticleTopics,
   fetchLikedArticles,
 } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  MAX_PERSONALIZATION_SEEDS,
-  buildInterestProfile,
-  rankFeedArticles,
-} from "@/lib/feed-ranking";
 
 type PersonalizationStatus = "basic" | "loading" | "ready" | "fallback";
 

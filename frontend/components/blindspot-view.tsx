@@ -5,6 +5,7 @@
 
 import type { BlindspotCard, BlindspotLane, BlindspotLens, TrendingCluster } from '@/lib/api';
 import { RefreshCcw, ShieldAlert } from "lucide-react"
+import { cn, serializeSources } from "@/lib/utils"
 import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { fetchBlindspotViewer } from '@/lib/api';
 import { motion } from "framer-motion"
 import { useQuery } from "@tanstack/react-query"
-import { cn, serializeSources } from "@/lib/utils"
 
 interface BlindspotViewProps {
   category?: string

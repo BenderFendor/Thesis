@@ -31,8 +31,8 @@ import { InteractiveGlobe } from "./interactive-globe"
 import { SafeImage } from "@/components/safe-image"
 import { cn } from "@/lib/utils"
 import { fetchCountryGeoData } from '@/lib/api';
-import { useQuery } from "@tanstack/react-query"
 import { useBookmarks } from "@/hooks/useBookmarks"
+import { useQuery } from "@tanstack/react-query"
 
 interface GlobeViewProps {
   readonly articles: NewsArticle[]

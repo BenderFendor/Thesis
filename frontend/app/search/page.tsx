@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import type { NewsArticle, SemanticSearchResult, ThinkingStep } from '@/lib/api';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  getMessageVersionGroupId,
+  getMessageVersionInfo,
+  getVisibleConversationMessages,
+} from "@/lib/chat-branching";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import { Button } from "@/components/ui/button";
@@ -33,11 +38,6 @@ import { VerificationPanel } from "@/components/verification-panel";
 import { motion } from "framer-motion";
 import remarkGfm from "remark-gfm";
 import { z } from "zod";
-import {
-  getMessageVersionGroupId,
-  getMessageVersionInfo,
-  getVisibleConversationMessages,
-} from "@/lib/chat-branching";
 
 type ReadonlyChatSummary = Readonly<ChatSummary>;
 type ReadonlyNewsArticle = Readonly<NewsArticle>;

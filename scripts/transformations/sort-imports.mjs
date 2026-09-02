@@ -418,16 +418,16 @@ const
     },
 
     /**
-     * Splits top-level statements into sortable contiguous import runs,
-     * excluding the import block that follows leading string directives.
+     * Splits top-level statements into sortable contiguous import runs.
+     * The import block that follows leading string directives is INCLUDED:
+     * oxlint's sort-imports rule flags post-directive runs as verified live
+     * (oxc keeps directives outside program.body), so closing the family
+     * requires sorting them too.
      * @param {readonly TsStatement[]} statements - Top-level statements.
      * @returns {TsImportDeclaration[][]} Contiguous import runs in source order.
      */
     sortableRuns(statements) {
-      const runs = SortImports.importRuns(statements);
-      if (SortImports.hasDirectiveImportBlock(statements)) {
-        return runs.slice(FIRST_INDEX);
-      }
+      return SortImports.importRuns(statements);
       return runs;
     },
 

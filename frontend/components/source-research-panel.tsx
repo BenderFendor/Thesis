@@ -5,9 +5,9 @@ import { checkSourceProfileCache, researchSourceProfile } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import type { SourceResearchProfile } from "@/lib/api"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import type { SourceResearchProfile } from "@/lib/api"
 
 interface SourceResearchPanelProps {
   sourceName: string

@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 import Link from "next/link"
+import type { ReporterProfile } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { profileReporter } from "@/lib/api"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import type { ReporterProfile } from "@/lib/api"
 
 interface ReporterProfilePanelProps {
   readonly reporterName: string

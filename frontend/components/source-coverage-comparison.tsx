@@ -5,11 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type {
   SourceCoverageResponse} from "@/lib/api";
-import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   fetchSourceCoverage
 } from "@/lib/api";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 interface SourceCoverageComparisonProps {
   sourceIds: string[];

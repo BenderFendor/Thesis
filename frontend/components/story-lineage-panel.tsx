@@ -2,9 +2,9 @@
 
 import { GitBranch, Link2, ShieldAlert, Tags } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { StoryLineageResponse } from "@/lib/api";
 import { fetchClusterLineage } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import type { StoryLineageResponse } from "@/lib/api";
 
 interface StoryLineagePanelProps {
   clusterId: number;

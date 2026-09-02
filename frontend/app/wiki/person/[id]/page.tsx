@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { PersonWikiView } from "./person-wiki-view";
+import { useParams } from "next/navigation";
 
 export default function PersonProfilePage() {
   const params = useParams(),

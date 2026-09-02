@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input"
 
 import { fetchAtlasIndex } from "./lib/atlas-api"
 
+import styles from "./atlas.module.css"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import styles from "./atlas.module.css"
 
 type EntityTypeTab = "all" | AtlasEntityType
 type AtlasEntityListVariant = "page" | "modal"

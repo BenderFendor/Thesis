@@ -22,11 +22,11 @@ import { GlobalNavigation } from '@/components/global-navigation';
 import { GridView } from "@/components/grid-view"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ThemeToggle } from "@/components/theme-toggle"
 import type { ViewMode } from '@/components/global-navigation';
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView),
  loadFeedView = () => import("@/components/feed-view").then((mod) => mod.FeedView),
@@ -63,34 +63,34 @@ const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.
   }
 )
 
-import { useDebugMode } from "@/hooks/use-debug-mode"
-import { useFavorites } from "@/hooks/use-favorites"
-import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
-import { useNewsLens } from "@/hooks/use-news-lens"
-import { useSourceFilter } from "@/hooks/use-source-filter"
-import type { NewsArticle, NewsSource } from "@/lib/api";
-import { fetchCacheStatus, fetchCategories, fetchSources } from "@/lib/api"
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NotificationsPopup } from '@/components/notification-popup';
-import type { Notification, NotificationActionType } from '@/components/notification-popup';
-import { SourceSidebar } from "@/components/source-sidebar";
-import { CredibilityBadge } from "@/components/credibility-badge";
-import { cn } from "@/lib/utils";
 import {
   GRID_VIEW_MODE_STORAGE_KEY,
   getStoredGridViewMode,
   isGridViewMode,
 } from "@/lib/view-mode-storage"
+import { NEWS_LENSES, filterArticlesByLens, getLensSourceIds } from "@/lib/news-lens";
+import type { NewsArticle, NewsSource } from "@/lib/api";
+import type { Notification, NotificationActionType } from '@/components/notification-popup';
+import { fetchCacheStatus, fetchCategories, fetchSources } from "@/lib/api"
 import {
   getSharedArticleCount,
   getSharedSourceCount,
   getSharedViewArticles,
   getSharedViewLoading,
 } from "@/lib/news-view-state";
+import { CredibilityBadge } from "@/components/credibility-badge";
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { NotificationsPopup } from '@/components/notification-popup';
+import { SourceSidebar } from "@/components/source-sidebar";
+import { cn } from "@/lib/utils";
+import { useDebugMode } from "@/hooks/use-debug-mode"
 import {
   useDismissedNotifications,
 } from "@/lib/notification-state";
-import { filterArticlesByLens, getLensSourceIds, NEWS_LENSES } from "@/lib/news-lens";
+import { useFavorites } from "@/hooks/use-favorites"
+import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
+import { useNewsLens } from "@/hooks/use-news-lens"
+import { useSourceFilter } from "@/hooks/use-source-filter"
 
 const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
   { label: "Globe", value: "globe" },

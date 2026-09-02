@@ -5,9 +5,9 @@ import { type LiveNewsPreferences, useLiveNewsPreferences } from "@/hooks/use-li
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { LiveNewsToolbar } from "./live-news-toolbar"
+import type { NewsArticle } from "@/lib/api"
 import { StreamCard } from "./stream-card"
 import { getDefaultSources } from "@/lib/live-news-sources"
-import type { NewsArticle } from "@/lib/api"
 
 interface LiveNewsViewProps {
   articles: NewsArticle[]

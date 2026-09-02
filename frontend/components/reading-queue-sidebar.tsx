@@ -52,13 +52,13 @@ import { NoveltyBadge } from "@/components/novelty-badge";
 import ReactMarkdown from 'react-markdown';
 import { SafeImage } from "@/components/safe-image";
 import { SemanticTags } from "@/components/semantic-tags";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { z } from "zod";
-import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 const ARTICLE_IMAGE_HEIGHT = 384,
  ARTICLE_IMAGE_WIDTH = 1280,

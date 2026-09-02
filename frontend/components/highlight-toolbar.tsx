@@ -8,8 +8,8 @@ import { ENABLE_HIGHLIGHTS } from "@/lib/api";
 import type { Highlight } from "@/lib/api";
 import type { RefObject } from "react";
 import { createHighlightFingerprint } from "@/lib/highlight-store";
-import { toast } from "sonner";
 import { getGlobalOffset } from "@/lib/highlight-utils";
+import { toast } from "sonner";
 
 const EMPTY_RANGE_COUNT = 0,
  FIRST_RANGE_INDEX = 0,

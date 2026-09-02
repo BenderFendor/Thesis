@@ -14,9 +14,9 @@ import { SourceResearchPanel } from "@/components/source-research-panel"
 import { getSourceById } from '@/lib/api';
 import { useBrowseIndex } from "@/hooks/use-browse-index"
 import { useDebugMode } from "@/hooks/use-debug-mode"
+import { useFavorites } from "@/hooks/use-favorites"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { useFavorites } from "@/hooks/use-favorites"
 
 interface SourcePageProps {
   params: Promise<{ sourceId: string }>

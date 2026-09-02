@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import type { NewsArticle } from "@/lib/api";
 import { SafeImage } from "@/components/safe-image";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useLikedArticles } from "@/hooks/use-liked-articles";
 
 // Configuration constants
 // Height of each article card

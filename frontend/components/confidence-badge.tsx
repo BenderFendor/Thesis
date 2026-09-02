@@ -7,15 +7,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
-import type {
-  ConfidenceLevel} from "@/lib/verification";
 import {
   formatConfidence,
   getConfidenceBgColor,
   getConfidenceColor,
   getConfidenceLabel,
 } from "@/lib/verification";
+import { Badge } from "@/components/ui/badge";
+import type {
+  ConfidenceLevel} from "@/lib/verification";
 
 interface ConfidenceBadgeProps {
   confidence: number;

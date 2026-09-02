@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
 import {
   getStorageSnapshot,
   removeFromStorage,
   saveToStorage,
   subscribeToStorageKey,
 } from "@/lib/storage";
+import { useCallback, useSyncExternalStore } from "react";
 
 const EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [],
  MAX_HISTORY_SIZE = 100,
