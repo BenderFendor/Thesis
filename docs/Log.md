@@ -1,5 +1,24 @@
 # Log
 
+## 2026-09-02: Campaign loop iteration and oxlint hang root cause
+
+- Root cause of the oxlint "hang": stale `tsgolint headless` workers from
+  killed runs (3 processes, ~98% CPU, 40+ minutes each) keep blocking
+  type-aware runs; `pkill -f "tsgolint headless"` unblocks, and scoped
+  oxlint then completes in under a second. Recorded in known-errors; the
+  hook's repo-pinned tool path was already correct.
+- InteractiveGlobe structural refactor shipped: data fetching, country counts,
+  and polygon presentation extracted into cohesive hooks; component body
+  reduced; tsc 0, globe characterization test 1/1, repo-wide cccc 0 hard.
+- Queue rebuilt from the fresh repo-wide measurement
+  (`qh-measure:b9453b72a55e1572c38c4fce`: 12,605 oxlint errors, 316 warnings,
+  14,038 units) - 237 tasks. Campaign loop executed: claimed and closed a P0
+  type task (no-redundant-type-constituents, resolved by the refactor) with
+  remeasure evidence; fixed `claimed -> verifying` transition; ledger records
+  attempt + effect.
+- Committed: `93245e2` (controller infra, canaries, CI gate, globe refactor)
+  and `10f5732` (docs).
+
 ## 2026-09-02: Shared hook core, CI, and campaign start
 
 - Phase 4: harness-neutral quality core at

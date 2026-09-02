@@ -1,6 +1,6 @@
 # Known Errors
 
-## Repo-pinned oxlint hangs >280s even on a single file
+## Repo-pinned oxlint appears to hang (>280s) on a single file
 
 Symptom:
 
@@ -8,23 +8,35 @@ Symptom:
 PATH="$PWD/frontend/node_modules/.bin:$PATH" ./frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix <file>
 ```
 
-never completes within 4-5 minutes (observed 2026-09-02 on
-`scripts/quality-hardening/schedule.mjs`); a stale `tsgolint` type-aware worker
-was previously observed running 90 minutes at 99% CPU.
+never completes; multiple `tsgolint headless` processes run at ~98% CPU.
+Observed 2026-09-02 (90-minute worker; three 40-minute workers from two
+attempts).
 
-Cause:
+Cause (VERIFIED 2026-09-02): STALE tsgolint WORKERS owned by previously
+killed/timeout oxlint runs keep running and hold the type-aware channel. New
+oxlint runs stall behind them. The pinned oxlint itself completes a scoped
+run in under a second once the stale workers are gone.
 
-- oxlint starts a background TypeScript worker for type-aware rules; on this
-  machine the worker can hang or restart repeatedly instead of finishing.
-- Config lookup also loads the repository plugin set per invocation.
+Fix:
 
-Workaround:
+```bash
+pkill -f 'tsgolint headless'
+```
 
-- Prefer the hook-injected per-file findings (the quality hook reports the
-  rule-level list) or `npm run cli:typecheck` + `node --test` for script files.
-- For TS source verification use `tsc -p frontend/tsconfig.json --noEmit`
-  (with `rm -f frontend/tsconfig.tsbuildinfo` first) and the focused Jest suites.
-- The full lint gate should be run in batch once, not per edit.
+then rerun oxlint. Add the sweep to any watchdog script. The earlier
+"wrong tool version" theory was disproven; the hook already uses the
+repo-pinned binary.
+
+## `scripts/check-complexity --report PATH` overwrites PATH with findings JSON
+
+Symptom: a source file passed as `--report` destination became `[]`
+(empty findings array); confusing "corrupted file" events.
+
+Cause: `--report PATH` is the REPORT DESTINATION, not a source path; the
+script writes the hard-violation rows JSON there (defaults to a temp file).
+
+Workaround: never pass a source file as the report destination; use
+`--report /tmp/report.json --path <source>`.
 
 ## The Edit tool cannot match literal `<SM:FIND>` text in file content
 
