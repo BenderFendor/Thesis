@@ -27,7 +27,7 @@ const recencyValue = function <T extends ComparisonCandidateArticle>(article: T)
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function buildComparisonSourceOptions<
+const buildComparisonSourceOptions = function <
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): ComparisonSourceOption<T>[] {
   const groups = new Map<string, ComparisonSourceOption<T>>();
@@ -55,7 +55,7 @@ function buildComparisonSourceOptions<
     .sort((a, b) => b.articles.length - a.articles.length);
 }
 
-function getDefaultComparisonArticleIds<
+const getDefaultComparisonArticleIds = function <
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): number[] {
   const groups = buildComparisonSourceOptions(articles);
@@ -69,7 +69,7 @@ function getDefaultComparisonArticleIds<
     .filter((value): value is number => typeof value === "number");
 }
 
-function getSelectedComparisonArticles<
+const getSelectedComparisonArticles = function <
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[], selectedIds: readonly number[]): T[] {
   const articleById = new Map(articles.map((article) => [article.id, article]));

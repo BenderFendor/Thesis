@@ -25,10 +25,10 @@ const subscribeToQueueChanges = (listener: QueueListener) => {
   return () => queueListeners.delete(listener);
 }
 
-function areQueueArticlesEqual(
+const areQueueArticlesEqual = (
   left: readonly NewsArticle[],
   right: readonly NewsArticle[],
-) {
+) => {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
@@ -61,10 +61,10 @@ const withQueueData = (article: NewsArticle, patch: Readonly<Record<string, unkn
   return enhanced;
 };
 
-async function preloadArticleData(
+const preloadArticleData = async (
   article: NewsArticle,
   options:Readonly< { includeAiAnalysis?: boolean }> = {}
-): Promise<NewsArticle> {
+): Promise<NewsArticle> => {
   const { includeAiAnalysis = false } = options;
   let enhancedArticle = { ...article };
   const fullText = await preloadFullText(article);

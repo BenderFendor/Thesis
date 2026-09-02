@@ -87,12 +87,12 @@ const compareSourceGroupsForGrid = (a: SourceGroup, b: SourceGroup): number => {
   return a.sourceId.localeCompare(b.sourceId)
 }
 
-function getVisibleSourceIds(
+const getVisibleSourceIds = (
   sourceGroups:readonly  SourceGroup[],
   favoriteSourceIds: Set<string>,
   batchCount: number,
   batchSize: number,
-): Set<string> {
+): Set<string> => {
   const visibleFavoriteIds = sourceGroups
     .filter((group) => favoriteSourceIds.has(group.sourceId))
     .map((group) => group.sourceId),
@@ -105,11 +105,11 @@ function getVisibleSourceIds(
   return new Set([...visibleFavoriteIds, ...visibleNonFavoriteIds])
 }
 
-function getCollapsedVisibleArticleCount(
+const getCollapsedVisibleArticleCount = (
   sourceGroups:readonly  SourceGroup[],
   visibleSourceIds: Set<string>,
   collapsedArticleCount: number,
-): number {
+): number => {
   const safeCollapsedCount = Math.max(1, collapsedArticleCount)
 
   return sourceGroups.reduce((total, group) => {

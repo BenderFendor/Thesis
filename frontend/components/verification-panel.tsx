@@ -36,12 +36,12 @@ interface VerificationPanelProps {
   className?: string;
 }
 
-function VerificationPanel({
+const VerificationPanel = ({
   query,
   mainAnswer,
   onVerificationComplete,
   className = "",
-}: VerificationPanelProps) {
+}: VerificationPanelProps) => {
   const [isOpen, setIsOpen] = useState(false),
    [isLoading, setIsLoading] = useState(false),
    [result, setResult] = useState<VerificationResult | null>(null),
@@ -348,13 +348,13 @@ interface VerificationToggleProps {
   className?: string;
 }
 
-function VerificationToggle({
+const VerificationToggle = ({
   onClick,
   isLoading,
   hasResult,
   confidence,
   className = "",
-}: VerificationToggleProps) {
+}: VerificationToggleProps) => {
   return (
     <Button
       variant="outline"

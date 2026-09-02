@@ -24,16 +24,16 @@ const enqueueStateSync = (callback: () => void): () => void => {
   }
 }
 
-function dismissNotification(
+const dismissNotification = (
   dismissedIds: Set<string>,
   notificationId: string,
-): Set<string> {
+): Set<string> => {
   const next = new Set(dismissedIds)
   next.add(notificationId)
   return next
 }
 
-function dismissAllNotifications<T extends NotificationLike>(
+const dismissAllNotifications = function <T extends NotificationLike>(
   dismissedIds: Set<string>,
   notifications:readonly  T[],
 ): Set<string> {
@@ -42,7 +42,7 @@ function dismissAllNotifications<T extends NotificationLike>(
   return next
 }
 
-function retainActiveDismissedNotifications<T extends NotificationLike>(
+const retainActiveDismissedNotifications = function <T extends NotificationLike>(
   dismissedIds: Set<string>,
   notifications:readonly  T[],
 ): Set<string> {
@@ -59,14 +59,14 @@ function retainActiveDismissedNotifications<T extends NotificationLike>(
   return new Set(retainedIds)
 }
 
-function getVisibleNotifications<T extends NotificationLike>(
+const getVisibleNotifications = function <T extends NotificationLike>(
   notifications:readonly  T[],
   dismissedIds: Set<string>,
 ): T[] {
   return notifications.filter((notification) => !dismissedIds.has(notification.id))
 }
 
-function useDismissedNotifications<T extends NotificationLike>(
+const useDismissedNotifications = function <T extends NotificationLike>(
   notifications:readonly  T[],
 ) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set()),

@@ -21,12 +21,12 @@ const getSharedViewLoading = (isLoading: boolean): boolean => {
   return isLoading
 }
 
-function getSharedArticleCount(
+const getSharedArticleCount = (
   cacheStatus: CacheStatus | null | undefined,
   totalCount: number,
   articles:readonly  NewsArticle[],
   isLoading: boolean,
-): number {
+): number => {
   if (totalCount > 0 || (!isLoading && totalCount === 0)) {
     return totalCount
   }
@@ -38,11 +38,11 @@ function getSharedArticleCount(
   return cacheStatus?.total_articles ?? 0
 }
 
-function getSharedSourceCount(
+const getSharedSourceCount = (
   cacheStatus: CacheStatus | null | undefined,
   articles:readonly  NewsArticle[],
   isLoading: boolean,
-): number {
+): number => {
   const sourceCount = new Set(
     articles
       .map((article) => article.sourceId || article.source)

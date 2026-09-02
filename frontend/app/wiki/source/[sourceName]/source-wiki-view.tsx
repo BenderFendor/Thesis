@@ -169,7 +169,7 @@ function renderSourceWikiContent({
   );
 }
 
-function SourceSidebar({
+const SourceSidebar = ({
   data,
   embedded,
   outletEntityId,
@@ -183,7 +183,7 @@ function SourceSidebar({
   avgScore: number | null;
   indexing: boolean;
   onIndex: () => void;
-}>) {
+}>) => {
   return (
     <>
       {!embedded && (
@@ -383,7 +383,7 @@ function ReporterListLink({ reporter }:Readonly< { reporter: WikiSourceProfile["
   );
 }
 
-function SourcePageBody({
+const SourcePageBody = ({
   data,
   outletEntityId,
   ownershipChain,
@@ -393,7 +393,7 @@ function SourcePageBody({
   outletEntityId?: string;
   ownershipChain: ReturnType<typeof parseOwnershipChain>;
   fundingAndBias: ReturnType<typeof parseFundingAndBias>;
-}>) {
+}>) => {
   return (
     <>
       <OverviewPanel data={data} />

@@ -126,11 +126,11 @@ const getLensStats = (sources:readonly  NewsSource[], lensId: NewsLensId) => {
   };
 }
 
-function filterArticlesByLens(
+const filterArticlesByLens = (
   articles:readonly  NewsArticle[],
   sources:readonly  NewsSource[],
   lensId: NewsLensId,
-): NewsArticle[] {
+): NewsArticle[] => {
   if (lensId === "all") {return [...articles];}
   const includedIds = getLensSourceIds(sources, lensId),
    sourcesByName = new Map(sources.map((source) => [normalize(source.name), source]));

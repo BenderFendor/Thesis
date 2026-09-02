@@ -64,10 +64,10 @@ interface ChatListItemSelectionProps {
   isSelected: boolean;
 }
 
-function ChatListItemSelection({
+const ChatListItemSelection = ({
   isSelectionMode,
   isSelected,
-}: ChatListItemSelectionProps): React.JSX.Element | null {
+}: ChatListItemSelectionProps): React.JSX.Element | null => {
   if (!isSelectionMode) {return null;}
   return (
     <div
@@ -94,7 +94,7 @@ interface ChatListItemBodyProps {
   toggleSelection: (id: string) => void;
 }
 
-function ChatListItemBody({
+const ChatListItemBody = ({
   chat,
   isEditing,
   isSelectionMode,
@@ -104,7 +104,7 @@ function ChatListItemBody({
   cancelRename,
   commitRename,
   toggleSelection,
-}: ChatListItemBodyProps): React.JSX.Element {
+}: ChatListItemBodyProps): React.JSX.Element => {
   return (
     <div className="min-w-0 flex-1">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -180,14 +180,14 @@ interface ChatListItemActionsProps {
   commitRename: () => void;
 }
 
-function ChatListItemActions({
+const ChatListItemActions = ({
   chat,
   isEditing,
   isSelectionMode,
   onDelete,
   startRename,
   commitRename,
-}: ChatListItemActionsProps): React.JSX.Element | null {
+}: ChatListItemActionsProps): React.JSX.Element | null => {
   if (isSelectionMode) {return null;}
   return (
     <div className="flex flex-col gap-2 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100">

@@ -170,11 +170,11 @@ const getLeaningOptions = (reporters: readonly WikiReporterCard[]): string[] => 
   return [...leanings].sort();
 }
 
-function filterReporters(
+const filterReporters = (
   reporters: readonly WikiReporterCard[],
   searchQuery: string,
   leaningFilter: string,
-): WikiReporterCard[] {
+): WikiReporterCard[] => {
   let result = [...reporters];
   if (searchQuery.length > 0) {
     const query = searchQuery.toLowerCase();

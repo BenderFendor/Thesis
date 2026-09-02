@@ -14,10 +14,10 @@ const hasRealClusterImage = (src?: string | null): boolean => {
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
 }
 
-function pickClusterImageUrl(cluster:Readonly< {
+const pickClusterImageUrl = (cluster:Readonly< {
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
-}>): string | null {
+}>): string | null => {
   const imageCandidates = [
     cluster.representative_article?.image_url,
     ...(cluster.articles ?? []).map((article) => article.image_url),
@@ -26,17 +26,17 @@ function pickClusterImageUrl(cluster:Readonly< {
   return imageCandidates.find((src) => hasRealClusterImage(src)) ?? null;
 }
 
-function filterTrendingClusters(
+const filterTrendingClusters = (
   trending:readonly  TrendingCluster[],
   breaking:readonly  BreakingCluster[],
-): TrendingCluster[] {
+): TrendingCluster[] => {
   const breakingIds = new Set(breaking.map((cluster) => cluster.cluster_id));
   return trending.filter((cluster) => !breakingIds.has(cluster.cluster_id));
 }
 
-function clusterArticlesToNewsArticles(
+const clusterArticlesToNewsArticles = (
   articles?:readonly  TrendingArticle[],
-): NewsArticle[] {
+): NewsArticle[] => {
   if (!articles) {return [];}
 
   return articles.map((article) => ({
@@ -58,12 +58,12 @@ function clusterArticlesToNewsArticles(
   }));
 }
 
-function getClusterPreviewStats(cluster:Readonly< {
+const getClusterPreviewStats = (cluster:Readonly< {
   article_count: number;
   source_diversity: number;
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
-}>): { articleCount: number; sourceCount: number } {
+}>): { articleCount: number; sourceCount: number } => {
   const previewArticles =
     cluster.articles && cluster.articles.length > 0
       ? cluster.articles

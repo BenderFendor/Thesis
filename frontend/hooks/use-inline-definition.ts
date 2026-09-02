@@ -47,11 +47,11 @@ const selectedDefinitionTerm = (event: MouseEvent): string | undefined => {
   return text || undefined;
 }
 
-async function requestInlineDefinitionForTerm(
+const requestInlineDefinitionForTerm = async (
   text: string,
   event: MouseEvent,
   state: InlineDefinitionRequestState,
-): Promise<void> {
+): Promise<void> => {
   const selection = globalThis.getSelection();
   if (!selection) {return;}
   state.setAnchorPosition(getSelectionAnchorPosition(selection, event));

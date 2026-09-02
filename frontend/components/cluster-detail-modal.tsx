@@ -188,17 +188,17 @@ const toPct = (value: number, min = -10, max = 10): number => {
   return ((clamped - min) / (max - min)) * 100;
 }
 
-function clusterContextOf(
+const clusterContextOf = (
   clusterDetail: { gdelt_context?: GdeltContext | null } | null | undefined,
   cluster:Readonly< { gdelt_context?: GdeltContext | null }>,
-): GdeltContext | null {
+): GdeltContext | null => {
   return clusterDetail?.gdelt_context ?? cluster.gdelt_context ?? null;
 }
 
-function resolveToneView(
+const resolveToneView = (
   activeContext: GdeltContext | null | undefined,
   clusterContext: GdeltContext | null,
-): { toneDelta: number | null; toneAvg: number | null } {
+): { toneDelta: number | null; toneAvg: number | null } => {
   return {
     toneAvg: activeContext?.tone_avg ?? clusterContext?.tone_avg ?? null,
     toneDelta: activeContext?.tone_delta_vs_cluster ?? null,
@@ -220,9 +220,9 @@ const hasRealImage = (src?: string | null): boolean => {
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
 }
 
-async function fetchArticleContentText(
+const fetchArticleContentText = async (
   article: Pick<ClusterArticle, "url">,
-): Promise<string | null> {
+): Promise<string | null> => {
   const cached = fullArticleCache.get(article.url);
   if (cached !== undefined) {
     return cached;
@@ -247,10 +247,10 @@ interface ComparisonRequestResult {
   data: ComparisonData;
 }
 
-async function requestComparison(
+const requestComparison = async (
   comparisonArticles: readonly ComparisonArticle[],
   articleContents: ReadonlyMap<number, string | null>,
-): Promise<ComparisonRequestResult> {
+): Promise<ComparisonRequestResult> => {
   const contentEntries = await Promise.all(
     comparisonArticles.map((article) => {
       const cachedContent = articleContents.get(article.id);
@@ -503,7 +503,7 @@ interface ClusterDetailViewProps {
   comparison: ComparisonTabProps
 }
 
-function ClusterDetailView({
+const ClusterDetailView = ({
   cluster,
   isBreaking,
   label,
@@ -527,7 +527,7 @@ function ClusterDetailView({
   onTabChange,
   onOpenComparison,
   comparison,
-}: ClusterDetailViewProps) {
+}: ClusterDetailViewProps) => {
   const detailArticles = clusterDetail?.articles ?? []
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
@@ -1004,13 +1004,13 @@ interface ComparisonArticleColumnProps {
   comparisonData: ComparisonData;
 }
 
-function ComparisonArticleColumn({
+const ComparisonArticleColumn = ({
   article,
   isFirst,
   content,
   loading,
   comparisonData,
-}: ComparisonArticleColumnProps) {
+}: ComparisonArticleColumnProps) => {
   return (
     <div className="space-y-4">
       {/* Article Header */}
@@ -1111,11 +1111,11 @@ interface EntitiesBlockProps {
   secondarySource: string;
 }
 
-function EntitiesBlock({
+const EntitiesBlock = ({
   comparisonData,
   primarySource,
   secondarySource,
-}: EntitiesBlockProps) {
+}: EntitiesBlockProps) => {
   const commonEntities = comparisonData.entities.comparison.common_entities;
   return (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
@@ -1192,11 +1192,11 @@ interface KeywordsBlockProps {
   secondarySource: string;
 }
 
-function KeywordsBlock({
+const KeywordsBlock = ({
   comparisonData,
   primarySource,
   secondarySource,
-}: KeywordsBlockProps) {
+}: KeywordsBlockProps) => {
   return (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
       <h4 className="font-bold mb-4">Keyword Analysis</h4>
@@ -1266,11 +1266,11 @@ interface ComparisonSummaryProps {
   secondarySource: string;
 }
 
-function ComparisonSummary({
+const ComparisonSummary = ({
   comparisonData,
   primarySource,
   secondarySource,
-}: ComparisonSummaryProps) {
+}: ComparisonSummaryProps) => {
   return (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
       <h4 className="font-bold mb-4">Comparison Summary</h4>
@@ -1345,7 +1345,7 @@ const comparisonArticleSourceId = (article: ComparisonArticle): string => {
   return article.source_id || article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
 }
 
-function ComparisonSourcePicker({
+const ComparisonSourcePicker = ({
   articles,
   options,
   onSourceChange,
@@ -1353,7 +1353,7 @@ function ComparisonSourcePicker({
   articles: ComparisonArticle[];
   options: ComparisonSourceOption<ComparisonArticle>[];
   onSourceChange: (sourceId: string, articleId: string) => void;
-}>) {
+}>) => {
   return (
     <div className="grid gap-4 border border-border/50 bg-[var(--news-bg-secondary)]/70 p-4 md:grid-cols-2">
       {options.slice(0, 2).map((sourceOption) => {
@@ -1386,7 +1386,7 @@ function ComparisonSourcePicker({
   );
 }
 
-function ComparisonPairHeader({
+const ComparisonPairHeader = ({
   comparisonData,
   primaryArticle,
   secondaryArticle,
@@ -1394,7 +1394,7 @@ function ComparisonPairHeader({
   comparisonData: ComparisonData | null;
   primaryArticle: ComparisonArticle;
   secondaryArticle: ComparisonArticle;
-}>) {
+}>) => {
   return (
     <div className="mb-6 text-center">
       <h3 className="mb-2 font-serif text-2xl font-bold">
@@ -1416,7 +1416,7 @@ function ComparisonSimilarityBadge({ value }:Readonly< { value: number }>) {
   );
 }
 
-function ComparisonResults({
+const ComparisonResults = ({
   comparisonData,
   comparisonError,
   comparisonLoading,
@@ -1434,7 +1434,7 @@ function ComparisonResults({
   loadingArticle: number | null;
   primarySource: string;
   secondarySource: string;
-}>) {
+}>) => {
   if (comparisonLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1483,7 +1483,7 @@ function ComparisonResults({
   );
 }
 
-function ComparisonView({
+const ComparisonView = ({
   comparisonSourceOptions,
   comparisonArticles,
   comparisonError,
@@ -1492,7 +1492,7 @@ function ComparisonView({
   articleContents,
   loadingArticle,
   onSourceChange,
-}: Omit<ComparisonTabProps, "comparisonMode" | "detailArticleCount">) {
+}: Omit<ComparisonTabProps, "comparisonMode" | "detailArticleCount">) => {
   const primaryArticle = comparisonArticles[0],
    secondaryArticle = comparisonArticles[1];
   return (

@@ -126,7 +126,7 @@ const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/7
   formatCheckedTime = (value: string | null | undefined): string =>
     value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 
-function SourceIntelligenceOperations({
+const SourceIntelligenceOperations = ({
   activeTab,
   onTabChange,
   tabs,
@@ -137,7 +137,7 @@ function SourceIntelligenceOperations({
   selectedSourceProfile,
   onRefreshAll,
   onSourceProfileRefresh,
-}: OperationsPanelProps) {
+}: OperationsPanelProps) => {
   const [rssUrl, setRssUrl] = useState(""),
    [articleUrl, setArticleUrl] = useState(""),
    [rssResult, setRssResult] = useState<ParserResult | null>(null),

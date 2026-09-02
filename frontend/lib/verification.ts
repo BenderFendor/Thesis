@@ -42,10 +42,10 @@ const fetchVerificationStatus = async (): Promise<VerificationStatus> => {
 /**
  * Verify claims from research output.
  */
-async function verifyResearch(
+const verifyResearch = async (
   request: VerificationRequest,
   signal?: AbortSignal
-): Promise<VerificationResult> {
+): Promise<VerificationResult> => {
   const response = await fetch(`${API_BASE_URL}/api/verification/verify`, {
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
@@ -64,10 +64,10 @@ async function verifyResearch(
 /**
  * Verify claims and get summary JSON response.
  */
-async function verifyResearchJson(
+const verifyResearchJson = async (
   request: VerificationRequest,
   signal?: AbortSignal
-): Promise<VerificationSummary> {
+): Promise<VerificationSummary> => {
   const response = await fetch(`${API_BASE_URL}/api/verification/verify/json`, {
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
@@ -86,7 +86,7 @@ async function verifyResearchJson(
 /**
  * Stream verification progress via SSE.
  */
-async function* streamVerification(
+const streamVerification = async function* (
   request: VerificationRequest,
   signal?: AbortSignal
 ): AsyncGenerator<VerificationStreamEvent> {

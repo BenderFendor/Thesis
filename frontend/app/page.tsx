@@ -151,33 +151,33 @@ const getSourceRecency = (articles: readonly NewsArticle[]): Record<string, numb
   return recency
 }
 
-function compareSourceRecency(
+const compareSourceRecency = (
   a: NewsArticle,
   b: NewsArticle,
   sourceRecency: Record<string, number>,
-): number {
+): number => {
   const aFresh = sourceRecency[getArticleSourceKey(a)] ?? 0,
     bFresh = sourceRecency[getArticleSourceKey(b)] ?? 0
   return bFresh - aFresh
 }
 
-function compareArticleTimestamps(
+const compareArticleTimestamps = (
   a: NewsArticle,
   b: NewsArticle,
   sortMode: ArticleSortMode,
-): number {
+): number => {
   const aTime = getArticleTimestamp(a),
     bTime = getArticleTimestamp(b)
   return sortMode === "oldest" ? aTime - bTime : bTime - aTime
 }
 
-function compareNewsArticles(
+const compareNewsArticles = (
   a: NewsArticle,
   b: NewsArticle,
   sortMode: ArticleSortMode,
   isFavorite: (sourceId: string) => boolean,
   sourceRecency: Record<string, number> | null,
-): number {
+): number => {
   if (sortMode === "favorites") {
     const favoriteDifference = Number(isFavorite(b.sourceId)) - Number(isFavorite(a.sourceId))
     if (favoriteDifference !== 0) {return favoriteDifference}
@@ -189,11 +189,11 @@ function compareNewsArticles(
   return compareArticleTimestamps(a, b, sortMode)
 }
 
-function sortNewsArticles(
+const sortNewsArticles = (
   articles: readonly NewsArticle[],
   sortMode: ArticleSortMode,
   isFavorite: (sourceId: string) => boolean,
-): NewsArticle[] {
+): NewsArticle[] => {
   const items = [...articles],
     sourceRecency = sortMode === "source-freshness" ? getSourceRecency(items) : null
   items.sort((a, b) => compareNewsArticles(a, b, sortMode, isFavorite, sourceRecency))
@@ -208,11 +208,11 @@ const formatLeadDate = (date: string): string => {
   })
 }
 
-function combineSourceIds(
+const combineSourceIds = (
   lens: string,
   selectedSourceIds:readonly  string[],
   lensSourceIds: Set<string>,
-): string[] {
+): string[] => {
   if (lens === "all") {return [...selectedSourceIds]}
   if (selectedSourceIds.length > 0) {
     return selectedSourceIds.filter((sourceId) => lensSourceIds.has(sourceId))
@@ -220,7 +220,7 @@ function combineSourceIds(
   return [...lensSourceIds]
 }
 
-function buildNotifications({
+const buildNotifications = ({
   activeCategory,
   browseIndexLoading,
   filterActive,
@@ -236,7 +236,7 @@ function buildNotifications({
   loading: boolean
   activeViewArticleCount: number
   selectedSourceCount: number
-}>): Notification[] {
+}>): Notification[] => {
   const next: Notification[] = [],
    notificationCategoryLabel = activeCategory === "all" ? "All" : activeCategory,
    notificationTimestamp = new Date().toISOString()
@@ -326,7 +326,7 @@ const LoadingToast = () => {
   )
 }
 
-function MobileViewTabs({
+const MobileViewTabs = ({
   currentView,
   onViewChange,
   onViewPreload,
@@ -334,7 +334,7 @@ function MobileViewTabs({
   currentView: ViewMode
   onViewChange: (view: ViewMode) => void
   onViewPreload: (view: ViewMode) => void
-}>) {
+}>) => {
   return (
     <nav
       aria-label="Mobile view tabs"
@@ -364,7 +364,7 @@ function MobileViewTabs({
   )
 }
 
-function CategorySelect({
+const CategorySelect = ({
   categories,
   activeCategory,
   onCategoryChange,
@@ -374,7 +374,7 @@ function CategorySelect({
   activeCategory: string
   onCategoryChange: (category: string) => void
   isGlobeView: boolean
-}>) {
+}>) => {
   return (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
@@ -402,7 +402,7 @@ function CategorySelect({
   )
 }
 
-function SortSelect({
+const SortSelect = ({
   isGlobeView,
   isTopicMode,
   sortValue,
@@ -412,7 +412,7 @@ function SortSelect({
   isTopicMode: boolean
   sortValue: string
   onSortModeChange: (value: string) => void
-}>) {
+}>) => {
   return (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
@@ -468,11 +468,11 @@ interface HeaderBarProps {
   onViewPreload: (view: ViewMode) => void
 }
 
-function HeaderIdentity({
+const HeaderIdentity = ({
   isGlobeView,
   currentView,
   articleCount,
-}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "articleCount">) {
+}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "articleCount">) => {
   return (
     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
       <h3
@@ -494,11 +494,11 @@ function HeaderIdentity({
   )
 }
 
-function MobileHeaderActions({
+const MobileHeaderActions = ({
   alertsButtonRef,
   actionableNotificationCount,
   onAlertsClick,
-}: Pick<HeaderBarProps, "alertsButtonRef" | "actionableNotificationCount" | "onAlertsClick">) {
+}: Pick<HeaderBarProps, "alertsButtonRef" | "actionableNotificationCount" | "onAlertsClick">) => {
   return (
     <div className="flex shrink-0 items-center gap-2 lg:hidden">
       <Button
@@ -550,12 +550,12 @@ const HeaderResourceLinks = ({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView"
   )
 }
 
-function HeaderSourceFilterButton({
+const HeaderSourceFilterButton = ({
   isGlobeView,
   lens,
   activeLensLabel,
   onOpenSidebar,
-}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) {
+}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => {
   return (
     <Button
       variant="outline"
@@ -571,12 +571,12 @@ function HeaderSourceFilterButton({
   )
 }
 
-function HeaderResourceActions({
+const HeaderResourceActions = ({
   isGlobeView,
   lens,
   activeLensLabel,
   onOpenSidebar,
-}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) {
+}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => {
   return (
     <div className={cn("grid grid-cols-3 gap-2 sm:flex sm:items-center", isGlobeView && "gap-1.5")}>
       <div className="hidden h-4 w-px bg-white/10 lg:block" />
@@ -591,7 +591,7 @@ function HeaderResourceActions({
   )
 }
 
-function HeaderControls({
+const HeaderControls = ({
   isGlobeView,
   currentView,
   gridMode,
@@ -604,7 +604,7 @@ function HeaderControls({
   lens,
   activeLensLabel,
   onOpenSidebar,
-}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "gridMode" | "topicSortMode" | "sortMode" | "categories" | "activeCategory" | "onCategoryChange" | "onSortModeChange" | "lens" | "activeLensLabel" | "onOpenSidebar">) {
+}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "gridMode" | "topicSortMode" | "sortMode" | "categories" | "activeCategory" | "onCategoryChange" | "onSortModeChange" | "lens" | "activeLensLabel" | "onOpenSidebar">) => {
   const isTopicMode = currentView === "grid" && gridMode === "topic"
   return (
     <div
@@ -637,7 +637,7 @@ function HeaderControls({
   )
 }
 
-function HeaderBar({
+const HeaderBar = ({
   isGlobeView,
   currentView,
   gridMode,
@@ -656,7 +656,7 @@ function HeaderBar({
   onOpenSidebar,
   onViewChange,
   onViewPreload,
-}: HeaderBarProps) {
+}: HeaderBarProps) => {
   return (
     <header
       className={cn(
@@ -722,7 +722,7 @@ const StatCell = ({ label, value, valueClassName }:Readonly< { label: string; va
   )
 }
 
-function LeadStory({
+const LeadStory = ({
   leadArticle,
   leadDateLabel,
   leadSummary,
@@ -730,7 +730,7 @@ function LeadStory({
   leadArticle: NewsArticle | null
   leadDateLabel: string
   leadSummary: string
-}) {
+}) => {
   return (
     <div className="flex-1 min-w-0">
       <div className="mb-2 flex items-center gap-2 sm:mb-3 sm:gap-3">
@@ -753,7 +753,7 @@ function LeadStory({
   )
 }
 
-function LeadMetadata({
+const LeadMetadata = ({
   leadArticle,
   articleCount,
   sourceCount,
@@ -765,7 +765,7 @@ function LeadMetadata({
   sourceCount: number
   leadBias: string
   leadCredibility: string
-}) {
+}) => {
   return (
     <div className="shrink-0 flex flex-col gap-1 w-full sm:w-64 lg:w-72">
       <div className="grid grid-cols-2 gap-px bg-white/5 border border-white/10 overflow-hidden">
@@ -789,12 +789,12 @@ function LeadMetadata({
   )
 }
 
-function getLeadDetails(leadArticle: NewsArticle | null): {
+const getLeadDetails = (leadArticle: NewsArticle | null): {
   dateLabel: string
   summary: string
   credibility: string
   bias: string
-} {
+} => {
   return {
     bias: leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN",
     credibility: leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN",
@@ -803,7 +803,7 @@ function getLeadDetails(leadArticle: NewsArticle | null): {
   }
 }
 
-function LeadSection({
+const LeadSection = ({
   leadArticle,
   articleCount,
   sourceCount,
@@ -817,7 +817,7 @@ function LeadSection({
   isBlindspotView: boolean
   isGlobeView: boolean
   currentView: ViewMode
-}>) {
+}>) => {
   if (isGlobeView || currentView === "scroll") {return}
   const { dateLabel, summary, credibility, bias } = getLeadDetails(leadArticle)
   return (
@@ -864,14 +864,14 @@ const GlobeActiveView = ({ categoryId, articles, loading }: Pick<ActiveViewProps
   return <GlobeView key={`${categoryId}-globe`} articles={articles} loading={loading} />
 }
 
-function GridActiveView({
+const GridActiveView = ({
   articles,
   loading,
   topicSortMode,
   gridMode,
   onGridModeChange,
   totalCount,
-}: Pick<ActiveViewProps, "articles" | "loading" | "topicSortMode" | "gridMode" | "onGridModeChange" | "totalCount">) {
+}: Pick<ActiveViewProps, "articles" | "loading" | "topicSortMode" | "gridMode" | "onGridModeChange" | "totalCount">) => {
   return (
     <GridView
       articles={articles}
@@ -886,13 +886,13 @@ function GridActiveView({
   )
 }
 
-function ScrollActiveView({
+const ScrollActiveView = ({
   categoryId,
   articles,
   loading,
   totalCount,
   debugMode,
-}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading" | "totalCount" | "debugMode">) {
+}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading" | "totalCount" | "debugMode">) => {
   return (
     <FeedView
       key={`${categoryId}-scroll`}
@@ -904,11 +904,11 @@ function ScrollActiveView({
   )
 }
 
-function BlindspotActiveView({
+const BlindspotActiveView = ({
   categoryId,
   activeCategory,
   selectedSourceIds,
-}: Pick<ActiveViewProps, "categoryId" | "activeCategory" | "selectedSourceIds">) {
+}: Pick<ActiveViewProps, "categoryId" | "activeCategory" | "selectedSourceIds">) => {
   return (
     <BlindspotView
       key={`${categoryId}-blindspot`}
@@ -918,11 +918,11 @@ function BlindspotActiveView({
   )
 }
 
-function LiveNewsActiveView({
+const LiveNewsActiveView = ({
   categoryId,
   articles,
   loading,
-}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) {
+}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => {
   return <LiveNewsView key={`${categoryId}-live-news`} articles={articles} loading={loading} />
 }
 
@@ -966,13 +966,13 @@ interface NewsPageLayoutProps {
   leadModal: { article: NewsArticle; onClose: () => void } | null
 }
 
-function NewsCategoryTabs({
+const NewsCategoryTabs = ({
   currentView,
   activeCategory,
   categories,
   activeView,
   onCategoryChange,
-}: Pick<NewsPageLayoutProps, "currentView" | "activeCategory" | "categories" | "activeView" | "onCategoryChange">) {
+}: Pick<NewsPageLayoutProps, "currentView" | "activeCategory" | "categories" | "activeView" | "onCategoryChange">) => {
   const isCompactView = currentView === "globe" || currentView === "scroll"
   return (
     <Tabs
@@ -995,7 +995,7 @@ function NewsCategoryTabs({
   )
 }
 
-function NewsMainContent({
+const NewsMainContent = ({
   currentView,
   activeCategory,
   categories,
@@ -1004,7 +1004,7 @@ function NewsMainContent({
   onCategoryChange,
   onTouchStart,
   onTouchEnd,
-}: Pick<NewsPageLayoutProps, "currentView" | "activeCategory" | "categories" | "activeView" | "lead" | "onCategoryChange" | "onTouchStart" | "onTouchEnd">) {
+}: Pick<NewsPageLayoutProps, "currentView" | "activeCategory" | "categories" | "activeView" | "lead" | "onCategoryChange" | "onTouchStart" | "onTouchEnd">) => {
   const isGlobeView = currentView === "globe",
     isScrollView = currentView === "scroll",
     isCompactView = isGlobeView || isScrollView
@@ -1033,7 +1033,7 @@ function NewsMainContent({
   )
 }
 
-function NewsPageLayout({
+const NewsPageLayout = ({
   loading,
   activeViewArticles,
   currentView,
@@ -1051,7 +1051,7 @@ function NewsPageLayout({
   onOpenSidebar,
   sourceSidebar,
   leadModal,
-}: NewsPageLayoutProps) {
+}: NewsPageLayoutProps) => {
   return (
     <div className="min-h-screen overflow-x-hidden flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
@@ -1110,9 +1110,9 @@ interface NewsPageState {
   lens: ReturnType<typeof useNewsLens>["lens"]
 }
 
-function useGridModeStorageSync(
+const useGridModeStorageSync = (
   setGridMode: NewsPageState["setGridMode"],
-): void {
+): void => {
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
       if (event.key === GRID_VIEW_MODE_STORAGE_KEY && isGridViewMode(event.newValue)) {
@@ -1211,10 +1211,10 @@ const useCacheStatusQuery = () => {
   return cacheStatus
 }
 
-function useSelectedSourcesQuery(
+const useSelectedSourcesQuery = (
   selectedSources: ReadonlySet<string>,
   lens: ReturnType<typeof useNewsLens>["lens"],
-) {
+) => {
   const selectedSourceIds = useMemo(() => [...selectedSources], [selectedSources]),
     sourcesQuery = useQuery({
       queryFn: fetchSources,
@@ -1231,11 +1231,11 @@ function useSelectedSourcesQuery(
   return { combinedSourceIds, selectedSourceIds, sources }
 }
 
-function useNewsPageQueryData({
+const useNewsPageQueryData = ({
   activeCategory,
   lens,
   selectedSources,
-}: Pick<NewsPageState, "activeCategory" | "lens" | "selectedSources">): NewsPageQueryData {
+}: Pick<NewsPageState, "activeCategory" | "lens" | "selectedSources">): NewsPageQueryData => {
   const { combinedSourceIds, selectedSourceIds, sources } = useSelectedSourcesQuery(selectedSources, lens),
     {
       articles: browseIndexArticles,
@@ -1271,14 +1271,14 @@ interface NewsPageSortedData {
   sourceRecency: Record<string, number>
 }
 
-function useNewsPageSortedData({
+const useNewsPageSortedData = ({
   currentView,
   sortMode,
   isFavorite,
   lens,
   browseIndexArticles,
   sources,
-}: Pick<NewsPageState, "currentView" | "sortMode" | "isFavorite" | "lens"> & Pick<NewsPageQueryData, "browseIndexArticles" | "sources">): NewsPageSortedData {
+}: Pick<NewsPageState, "currentView" | "sortMode" | "isFavorite" | "lens"> & Pick<NewsPageQueryData, "browseIndexArticles" | "sources">): NewsPageSortedData => {
   const sortArticles = useCallback(
       (items: readonly NewsArticle[]) => sortNewsArticles(items, sortMode, isFavorite),
       [isFavorite, sortMode],
@@ -1295,7 +1295,7 @@ function useNewsPageSortedData({
   return { activeLensLabel, activeViewArticles, browseArticles, sourceRecency }
 }
 
-function usePageNotifications({
+const usePageNotifications = ({
   activeCategory,
   activeViewArticles,
   browseIndexError,
@@ -1311,7 +1311,7 @@ function usePageNotifications({
   filterActive: boolean
   loading: boolean
   selectedSourceCount: number
-}): Notification[] {
+}): Notification[] => {
   return useMemo(
     () => buildNotifications({
       activeCategory,
@@ -1338,9 +1338,9 @@ interface NewsPageViewData extends NewsPageSortedData {
   sourceCount: number
 }
 
-function usePageNotificationState(
+const usePageNotificationState = (
   notifications: Notification[],
-) {
+) => {
   const dismissed = useDismissedNotifications(notifications),
    actionableNotificationCount = dismissed.visibleNotifications.filter(
     (item) => item.type === "error" || item.type === "warning",
@@ -1353,10 +1353,10 @@ function usePageNotificationState(
   }
 }
 
-function useNewsPageViewData(
+const useNewsPageViewData = (
   state: Pick<NewsPageState, "activeCategory" | "currentView" | "isFilterActive" | "selectedSources" | "sortMode" | "isFavorite" | "lens">,
   queries: Pick<NewsPageQueryData, "browseIndexArticles" | "browseIndexTotalCount" | "browseIndexLoading" | "browseIndexError" | "sources" | "cacheStatus">,
-): NewsPageViewData {
+): NewsPageViewData => {
   const sorted = useNewsPageSortedData({
       browseIndexArticles: queries.browseIndexArticles,
       currentView: state.currentView,
@@ -1443,9 +1443,9 @@ interface NewsPageNavigation {
   handleTouchEnd: (event: TouchEvent<HTMLElement>) => void
 }
 
-function useNewsPageNavigation(
+const useNewsPageNavigation = (
   state: Pick<NewsPageState, "setActiveCategory" | "setCurrentView" | "touchStartRef">,
-): NewsPageNavigation {
+): NewsPageNavigation => {
   const handleCategoryChange = useCallback((category: string) => {
       state.setActiveCategory(category)
     }, [state.setActiveCategory]),
@@ -1485,10 +1485,10 @@ interface NewsPageActions {
   closeLeadModal: () => void
 }
 
-function useNewsPageActions(
+const useNewsPageActions = (
   state: Pick<NewsPageState, "currentView" | "gridMode" | "router" | "setShowNotifications" | "setTopicSortMode" | "setSortMode" | "setSidebarOpen" | "setLeadModalOpen">,
   refetchBrowseIndex: () => void,
-): NewsPageActions {
+): NewsPageActions => {
   const handleRetry = useCallback(() => {refetchBrowseIndex()}, [refetchBrowseIndex]),
     handleNotificationAction = useCallback((actionType: NotificationActionType) => {
       if (actionType === "open-debug") {
@@ -1536,12 +1536,12 @@ interface NewsPageControllerParts {
   actions: NewsPageActions
 }
 
-function createPageNavigationProps({
+const createPageNavigationProps = ({
   state,
   view,
   navigation,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof GlobalNavigation> {
+}: NewsPageControllerParts): ComponentProps<typeof GlobalNavigation> => {
   return {
     alertCount: view.actionableNotificationCount,
     currentView: state.currentView,
@@ -1551,11 +1551,11 @@ function createPageNavigationProps({
   }
 }
 
-function createPageNotificationProps({
+const createPageNotificationProps = ({
   state,
   view,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof NotificationsPopup> {
+}: NewsPageControllerParts): ComponentProps<typeof NotificationsPopup> => {
   return {
     anchorRef: state.alertsButtonRef,
     notifications: view.visibleNotifications,
@@ -1566,13 +1566,13 @@ function createPageNotificationProps({
   }
 }
 
-function createPageHeaderProps({
+const createPageHeaderProps = ({
   state,
   queries,
   view,
   navigation,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof HeaderBar> {
+}: NewsPageControllerParts): ComponentProps<typeof HeaderBar> => {
   return {
     actionableNotificationCount: view.actionableNotificationCount,
     activeCategory: state.activeCategory,
@@ -1595,10 +1595,10 @@ function createPageHeaderProps({
   }
 }
 
-function createPageLeadProps({
+const createPageLeadProps = ({
   state,
   view,
-}: NewsPageControllerParts): ComponentProps<typeof LeadSection> {
+}: NewsPageControllerParts): ComponentProps<typeof LeadSection> => {
   return {
     articleCount: view.articleCount,
     currentView: state.currentView,
@@ -1609,11 +1609,11 @@ function createPageLeadProps({
   }
 }
 
-function createPageActiveViewProps({
+const createPageActiveViewProps = ({
   state,
   queries,
   view,
-}: NewsPageControllerParts): ComponentProps<typeof ActiveView> {
+}: NewsPageControllerParts): ComponentProps<typeof ActiveView> => {
   return {
     activeCategory: state.activeCategory,
     articles: view.browseArticles,
@@ -1629,11 +1629,11 @@ function createPageActiveViewProps({
   }
 }
 
-function createPageSidebarProps({
+const createPageSidebarProps = ({
   state,
   view,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof SourceSidebar> {
+}: NewsPageControllerParts): ComponentProps<typeof SourceSidebar> => {
   return {
     isOpen: state.sidebarOpen,
     onClose: actions.closeSidebar,

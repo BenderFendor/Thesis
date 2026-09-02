@@ -15,15 +15,15 @@ interface MessageVersionInfo {
 
 type BranchGroupMap<T> = Map<string | null, Map<string, T[]>>;
 
-function isVisibleConversationMessage<T extends BranchableChatMessage>(
+const isVisibleConversationMessage = function <T extends BranchableChatMessage>(
   message: T,
 ): boolean {
   return !message.toolType;
 }
 
-function getMessageVersionGroupId(
+const getMessageVersionGroupId = (
   message: Pick<BranchableChatMessage, "id" | "retryOfMessageId">,
-): string {
+): string => {
   return message.retryOfMessageId ?? message.id;
 }
 
@@ -31,7 +31,7 @@ const getVisibleMessages = function <T extends BranchableChatMessage>(messages:r
   return messages.filter(isVisibleConversationMessage);
 }
 
-function getResolvedParentMap<T extends BranchableChatMessage>(
+const getResolvedParentMap = function <T extends BranchableChatMessage>(
   messages:readonly  T[],
 ): Map<string, string | null> {
   const resolvedParents = new Map<string, string | null>();
@@ -46,7 +46,7 @@ function getResolvedParentMap<T extends BranchableChatMessage>(
   return resolvedParents;
 }
 
-function getBranchGroupMap<T extends BranchableChatMessage>(
+const getBranchGroupMap = function <T extends BranchableChatMessage>(
   messages:readonly  T[],
 ): {
   branchGroups: BranchGroupMap<T>;
@@ -69,7 +69,7 @@ function getBranchGroupMap<T extends BranchableChatMessage>(
   return { branchGroups, resolvedParents };
 }
 
-function resolveActiveVersion<T extends BranchableChatMessage>(
+const resolveActiveVersion = function <T extends BranchableChatMessage>(
   versions:readonly  T[],
   activeVersionId?: string,
 ): T {
@@ -79,7 +79,7 @@ function resolveActiveVersion<T extends BranchableChatMessage>(
   );
 }
 
-function getVisibleConversationMessages<T extends BranchableChatMessage>(
+const getVisibleConversationMessages = function <T extends BranchableChatMessage>(
   messages:readonly  T[],
   activeVersionByGroup: Record<string, string>,
 ): T[] {
@@ -109,7 +109,7 @@ function getVisibleConversationMessages<T extends BranchableChatMessage>(
   return path;
 }
 
-function getMessageVersionInfo<T extends BranchableChatMessage>(
+const getMessageVersionInfo = function <T extends BranchableChatMessage>(
   messages:readonly  T[],
   messageId: string,
   activeVersionByGroup: Record<string, string>,

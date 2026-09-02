@@ -225,11 +225,11 @@ const parseStructuredArticleBlock = (raw: string): StructuredArticlesPayload | u
   return parseStructuredArticles(json);
 }
 
-function updateAssistantMessage(
+const updateAssistantMessage = (
   context: Readonly<ResearchStreamContext>,
   updater: (message: Readonly<Message>) => Message,
   options?: Readonly<ChatMessageUpdateOptions>,
-): void {
+): void => {
   context.updateChatMessages(
     context.chatId,
     (messages) =>
@@ -240,20 +240,20 @@ function updateAssistantMessage(
   );
 }
 
-function processResearchStatus(
+const processResearchStatus = (
   data: Readonly<StatusMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   updateAssistantMessage(context, (message) => ({
     ...message,
     streamingStatus: data.message,
   }), { syncSummary: false });
 }
 
-function processResearchThinking(
+const processResearchThinking = (
   data: Readonly<ThinkingStepMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   context.streamState.addThinkingStep(data.step);
   updateAssistantMessage(context, (message) => ({
     ...message,
@@ -262,10 +262,10 @@ function processResearchThinking(
   }), { syncSummary: false });
 }
 
-function processResearchArticles(
+const processResearchArticles = (
   data: Readonly<ArticlesJsonMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   const parsed = parseStructuredArticles(data.data) ?? parseStructuredArticleBlock(data.data);
   if (parsed === undefined) {
     return;
@@ -278,10 +278,10 @@ function processResearchArticles(
   }), { syncSummary: false });
 }
 
-function processReferencedArticles(
+const processReferencedArticles = (
   data: Readonly<ReferencedArticlesMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   const referencedArticles = (data.articles ?? []).map(
     (article) => mapReferencedArticleToNewsArticle(article),
   );
@@ -292,10 +292,10 @@ function processReferencedArticles(
   }), { syncSummary: false });
 }
 
-function processResearchComplete(
+const processResearchComplete = (
   data: Readonly<CompleteMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   context.streamState.clearStallTimeout();
   const {result} = data,
    referencedArticles = (result.referenced_articles ?? []).map(
@@ -339,10 +339,10 @@ const normalizeResearchError = (message: string): string => {
   return message;
 }
 
-function processResearchError(
+const processResearchError = (
   data: Readonly<ErrorMessage>,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   context.streamState.clearStallTimeout();
   const errorMessage = normalizeResearchError(
     data.message || "Research hit an error.",
@@ -403,10 +403,10 @@ const researchMessageHandlers = {
  hasResearchMessageHandler = (type: string): type is ResearchMessageType =>
   Object.hasOwn(researchMessageHandlers, type);
 
-function processResearchEvent(
+const processResearchEvent = (
   line: string,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   if (!line.startsWith("data: ")) {
     return;
   }
@@ -424,24 +424,24 @@ function processResearchEvent(
   }
 }
 
-function processResearchStreamChunk(
+const processResearchStreamChunk = (
   chunk: Uint8Array,
   decoder: TextDecoder,
   buffer: string,
   context: Readonly<ResearchStreamContext>,
-): string {
+): string => {
   const lines = `${buffer}${decoder.decode(chunk, { stream: true })}`.split("\n"),
    remainder = lines.pop() ?? "";
   lines.forEach((line) =>{  processResearchEvent(line, context); });
   return remainder;
 }
 
-async function consumeResearchStreamChunks(
+const consumeResearchStreamChunks = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   decoder: TextDecoder,
   buffer: string,
   context: Readonly<ResearchStreamContext>,
-): Promise<string> {
+): Promise<string> => {
   const result = await reader.read();
   if (result.done) {
     return buffer;
@@ -450,12 +450,12 @@ async function consumeResearchStreamChunks(
   return consumeResearchStreamChunks(reader, decoder, nextBuffer, context);
 }
 
-async function consumeResearchStream(
+const consumeResearchStream = async (
   streamUrl: string,
   abortController: Readonly<AbortController>,
   stallTimeout: ReturnType<typeof setTimeout>,
   context: Readonly<ResearchStreamContext>,
-): Promise<void> {
+): Promise<void> => {
   const response = await fetch(streamUrl, { signal: abortController.signal });
   if (!response.ok || response.body === null) {
     throw new Error(`Stream request failed: ${response.status}`);
@@ -484,10 +484,10 @@ const finishAbortedResearch = (context: Readonly<ResearchStreamContext>): void =
   context.setIsSearching(false);
 }
 
-function handleResearchRequestError(
+const handleResearchRequestError = (
   error: Error | undefined,
   context: Readonly<ResearchStreamContext>,
-): void {
+): void => {
   if (error?.name === "AbortError") {
     finishAbortedResearch(context);
     return;
@@ -512,12 +512,12 @@ function handleResearchRequestError(
   context.setIsSearching(false);
 }
 
-async function runResearchStream(
+const runResearchStream = async (
   streamUrl: string,
   abortController: Readonly<AbortController>,
   stallTimeout: ReturnType<typeof setTimeout>,
   context: Readonly<ResearchStreamContext>,
-): Promise<void> {
+): Promise<void> => {
   try {
     await consumeResearchStream(streamUrl, abortController, stallTimeout, context);
   } catch (error) {
@@ -576,10 +576,10 @@ const addSemanticSearchMessage = (
   }, { syncSummary: false });
 };
 
-function buildResearchStreamUrl(
+const buildResearchStreamUrl = (
   promptQuery: string,
   historyPayload: readonly { content: string; type: string }[],
-): string {
+): string => {
   const streamUrl = new URL(`${API_BASE_URL}/api/news/research/stream`);
   streamUrl.searchParams.set("query", promptQuery);
   streamUrl.searchParams.set("include_thinking", "true");
@@ -589,9 +589,9 @@ function buildResearchStreamUrl(
   return streamUrl.toString();
 }
 
-function buildChatHistoryPayload(
+const buildChatHistoryPayload = (
   items: readonly Message[],
-): { content: string; type: Message["type"] }[] {
+): { content: string; type: Message["type"] }[] => {
   return items
     .filter(
       (message) =>
@@ -3917,9 +3917,9 @@ const createResearchPageViewProps = ({
   thinkingSteps: [...derivedState.thinkingSteps],
 });
 
-function useResearchPageController(
+const useResearchPageController = (
   services: NewsResearchPageServices,
-): ResearchPageViewProps {
+): ResearchPageViewProps => {
   const { replace } = services.useRouter(),
    searchParams = services.useSearchParams(),
    chatState = useResearchChatState(),

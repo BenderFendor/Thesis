@@ -131,7 +131,7 @@ interface RankingPanelProps {
   debugMode: boolean
 }
 
-function RankingPanel({
+const RankingPanel = ({
   status,
   totalLoaded,
   renderedCount,
@@ -142,7 +142,7 @@ function RankingPanel({
   topKeywords,
   topClusters,
   debugMode,
-}: RankingPanelProps) {
+}: RankingPanelProps) => {
   const [isOpen, setIsOpen] = useState(false),
    triggerLabel = formatRankingStatus(status)
 
@@ -388,7 +388,7 @@ interface FeedIntersectionOptions {
   readonly setActiveIndex: Dispatch<SetStateAction<number>>
 }
 
-function useFeedIntersectionObserver({
+const useFeedIntersectionObserver = ({
   containerRef,
   visibleCount,
   rankedArticles,
@@ -396,7 +396,7 @@ function useFeedIntersectionObserver({
   setRenderCount,
   setActiveArticleId,
   setActiveIndex,
-}: FeedIntersectionOptions): void {
+}: FeedIntersectionOptions): void => {
   useEffect(() => {
     const container = containerRef.current
     if (!container) {
@@ -437,12 +437,12 @@ interface FeedScrollNavigationOptions {
   readonly modalOpen: boolean
 }
 
-function useFeedScrollNavigation({
+const useFeedScrollNavigation = ({
   containerRef,
   activeIndex,
   visibleCount,
   modalOpen,
-}: FeedScrollNavigationOptions): { scrollToNext: () => void; scrollToPrev: () => void } {
+}: FeedScrollNavigationOptions): { scrollToNext: () => void; scrollToPrev: () => void } => {
   const scrollToNext = useCallback(() => {
     const container = containerRef.current
     if (!container || activeIndex >= visibleCount - 1) {
@@ -490,7 +490,7 @@ interface FeedActionButtonsProps {
   readonly onBookmark: (articleId: number) => void
 }
 
-function FeedActionButtons({
+const FeedActionButtons = ({
   article,
   liked,
   favorite,
@@ -498,7 +498,7 @@ function FeedActionButtons({
   onLike,
   onFavorite,
   onBookmark,
-}: FeedActionButtonsProps): React.JSX.Element {
+}: FeedActionButtonsProps): React.JSX.Element => {
   return (
     <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4 bg-black/40 backdrop-blur-xl p-2 md:p-3 border border-white/20 rounded-xl self-start md:self-auto">
       <Button
@@ -552,7 +552,7 @@ interface FeedStoryProps {
   readonly onBookmark: (articleId: number) => void
 }
 
-function FeedStory({
+const FeedStory = ({
   article,
   index,
   breakdown,
@@ -564,7 +564,7 @@ function FeedStory({
   onLike,
   onFavorite,
   onBookmark,
-}: FeedStoryProps): React.JSX.Element {
+}: FeedStoryProps): React.JSX.Element => {
   const imageSource = article.image || ogImage || "/placeholder.svg"
   return (
     <section
@@ -668,12 +668,12 @@ interface FeedScrollControlsProps {
   readonly onNext: () => void
 }
 
-function FeedScrollControls({
+const FeedScrollControls = ({
   activeIndex,
   visibleCount,
   onPrevious,
   onNext,
-}: FeedScrollControlsProps): React.JSX.Element {
+}: FeedScrollControlsProps): React.JSX.Element => {
   return (
     <div className="absolute right-6 lg:right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20 hidden md:flex">
       <Button
@@ -717,7 +717,7 @@ interface FeedResultsProps {
   readonly totalCount: number | undefined
 }
 
-function FeedResults({
+const FeedResults = ({
   containerRef,
   visibleArticles,
   rankedArticles,
@@ -734,7 +734,7 @@ function FeedResults({
   onNext,
   activeIndex,
   totalCount,
-}: FeedResultsProps): React.JSX.Element {
+}: FeedResultsProps): React.JSX.Element => {
   return (
     <>
       <div ref={containerRef} className="h-full w-full overflow-y-auto snap-y snap-proximity no-scrollbar">
@@ -790,7 +790,7 @@ interface FeedActionHandlers {
   readonly handleModalClose: () => void
 }
 
-function useFeedActionHandlers({
+const useFeedActionHandlers = ({
   bookmarkIds,
   rankedArticles,
   selectedArticleIndex,
@@ -799,7 +799,7 @@ function useFeedActionHandlers({
   setSelectedArticle,
   setSelectedArticleIndex,
   setIsArticleModalOpen,
-}: FeedActionHandlersOptions): FeedActionHandlers {
+}: FeedActionHandlersOptions): FeedActionHandlers => {
   const handleLike = useCallback(
     (articleId: number) => {
       void toggleLike(articleId)

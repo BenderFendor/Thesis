@@ -54,9 +54,9 @@ const countDistinctSources = (articles:readonly  NewsArticle[]): number => {
   ).size
 }
 
-function buildCountryMetricsFromArticles(
+const buildCountryMetricsFromArticles = (
   articles:readonly  NewsArticle[],
-): CountryArticleCounts {
+): CountryArticleCounts => {
   const mentionCounts: Record<string, number> = {},
    sourceCounts: Record<string, number> = {}
   let articlesWithCountry = 0
@@ -105,9 +105,9 @@ function buildCountryMetricsFromArticles(
   }
 }
 
-function buildCountryListFromArticles(
+const buildCountryListFromArticles = (
   articles:readonly  NewsArticle[],
-): CountryListResponse {
+): CountryListResponse => {
   const countryStats = new Map<string, { articleCount: number; latestTimestamp: number; latestArticle: string | null }>()
 
   articles.forEach((article) => {
@@ -149,7 +149,7 @@ function buildCountryListFromArticles(
   }
 }
 
-function buildLocalLensFromArticles({
+const buildLocalLensFromArticles = ({
   articles,
   code,
   countryName,
@@ -161,7 +161,7 @@ function buildLocalLensFromArticles({
   countryName: string
   view: "internal" | "external"
   limit: number
-}>): LocalLensResponse {
+}>): LocalLensResponse => {
   const codeUpper = code.toUpperCase(),
    sortedArticles = sortByNewest(articles),
 

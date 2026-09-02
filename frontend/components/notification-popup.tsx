@@ -49,14 +49,14 @@ const getTypeIcon = (type: Notification["type"]) => {
   }
 }
 
-function NotificationsPopup({
+const NotificationsPopup = ({
   notifications,
   onClear,
   onClearAll,
   onAction,
   onClose,
   anchorRef,
-}: NotificationsPopupProps) {
+}: NotificationsPopupProps) => {
   const handleNotificationAction = (notification: Notification) => {
     const {action} = notification
     if (action) {

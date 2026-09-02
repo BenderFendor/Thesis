@@ -119,11 +119,11 @@ const applyEventError = (event: PerformanceEvent, error: Error | string | undefi
   }
 }
 
-function recordComponentTiming(
+const recordComponentTiming = (
   componentTimings: Map<string, number[]>,
   component: string,
   durationMs: number | undefined,
-): void {
+): void => {
   if (!durationMs) {return;}
   const timings = componentTimings.get(component) || [];
   timings.push(durationMs);
@@ -141,12 +141,12 @@ const logDevelopmentEvent = (event: PerformanceEvent): void => {
   });
 }
 
-function updateStreamMetrics(
+const updateStreamMetrics = (
   metrics: StreamMetrics,
   eventName: string,
   options: StreamEventOptions,
   now: number,
-): void {
+): void => {
   if (!metrics.firstEventTime && eventName !== "start") {
     metrics.firstEventTime = now;
     metrics.timeToFirstEvent = now - metrics.startTime;
@@ -165,11 +165,11 @@ function updateStreamMetrics(
   if (metrics.events.length > 50) {metrics.events.shift();}
 }
 
-function streamEventDetails(
+const streamEventDetails = (
   metrics: StreamMetrics,
   options: StreamEventOptions,
   now: number,
-): Record<string, unknown> {
+): Record<string, unknown> => {
   const previousEvent = metrics.events.at(-2);
   return {
     ...options.details,
@@ -194,12 +194,12 @@ const canFlushFrontendDebugEvents = (): boolean => {
   return ENABLE_AGENTIC_LOGGING && typeof window !== "undefined";
 }
 
-function buildFrontendDebugReport(
+const buildFrontendDebugReport = (
   summary: Readonly<PerformanceSummary>,
   recentEvents:readonly PerformanceEvent[],
   slowOperations:readonly PerformanceEvent[],
   errors:readonly PerformanceEvent[],
-): FrontendDebugReportPayload {
+): FrontendDebugReportPayload => {
   return {
     dom_stats: {
       body_text_length: document.body?.textContent?.length ?? 0,

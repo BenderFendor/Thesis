@@ -29,11 +29,11 @@ const getHighlightsStorageKey = (articleUrl: string) => {
   return `highlights:v1:${articleUrl}`
 }
 
-function createHighlightFingerprint(highlight:Readonly< {
+const createHighlightFingerprint = (highlight:Readonly< {
   character_start: number
   character_end: number
   highlighted_text: string
-}>) {
+}>) => {
   return `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
     highlight.highlighted_text
   )}`
@@ -130,11 +130,11 @@ const indexLocalHighlights = (local:readonly  LocalHighlight[]): HighlightIndexe
   return { localByFingerprint, localByServerId }
 }
 
-function appendUniqueHighlight(
+const appendUniqueHighlight = (
   merged: LocalHighlight[],
   seen: Set<string>,
   highlight: LocalHighlight,
-): void {
+): void => {
   if (seen.has(highlight.client_id)) {
     return
   }
@@ -142,10 +142,10 @@ function appendUniqueHighlight(
   merged.push(highlight)
 }
 
-function mergeServerHighlight(
+const mergeServerHighlight = (
   serverHighlight: Highlight,
   indexes: HighlightIndexes,
-): LocalHighlight {
+): LocalHighlight => {
   const match = findServerHighlightMatch(serverHighlight, indexes),
    serverId = serverHighlight.id
 
@@ -211,12 +211,12 @@ function mergeExistingHighlight(
   }
 }
 
-function appendUnmatchedLocalHighlights(
+const appendUnmatchedLocalHighlights = (
   local:readonly  LocalHighlight[],
   indexes: HighlightIndexes,
   merged: LocalHighlight[],
   seen: Set<string>,
-): void {
+): void => {
   for (const item of local) {
     if (item.deleted || item.pending_op) {
       appendUniqueHighlight(merged, seen, item)
@@ -235,7 +235,7 @@ function appendUnmatchedLocalHighlights(
   }
 }
 
-function mergeHighlights({
+const mergeHighlights = ({
   articleUrl,
   local,
   server,
@@ -243,7 +243,7 @@ function mergeHighlights({
   articleUrl: string
   local: LocalHighlight[]
   server: Highlight[]
-}>): LocalHighlight[] {
+}>): LocalHighlight[] => {
   const indexes = indexLocalHighlights(local),
    merged: LocalHighlight[] = [],
    seen = new Set<string>()
@@ -278,13 +278,13 @@ const toRemoteHighlights = (local:readonly  LocalHighlight[]): Highlight[] => {
     })
 }
 
-function markPending({
+const markPending = ({
   highlight,
   op,
 }:Readonly< {
   highlight: LocalHighlight
   op: HighlightOp
-}>): LocalHighlight {
+}>): LocalHighlight => {
   return {
     ...highlight,
     deleted: op === "delete" ? true : highlight.deleted,
@@ -295,13 +295,13 @@ function markPending({
   }
 }
 
-function markSynced({
+const markSynced = ({
   highlight,
   server,
 }:Readonly< {
   highlight: LocalHighlight
   server: Highlight
-}>): LocalHighlight {
+}>): LocalHighlight => {
   return {
     ...highlight,
     ...server,
@@ -315,13 +315,13 @@ function markSynced({
   }
 }
 
-function markFailed({
+const markFailed = ({
   highlight,
   error,
 }:Readonly< {
   highlight: LocalHighlight
   error: unknown
-}>): LocalHighlight {
+}>): LocalHighlight => {
   const message =
     error instanceof Error
       ? error.message

@@ -34,7 +34,7 @@ const confidenceIcons = {
   very_low: ShieldQuestion,
 } satisfies Record<ConfidenceLevel, typeof Shield>;
 
-function ConfidenceBadge({
+const ConfidenceBadge = ({
   confidence,
   level,
   claimCount,
@@ -42,7 +42,7 @@ function ConfidenceBadge({
   className = "",
   showLabel = true,
   size = "md",
-}: ConfidenceBadgeProps) {
+}: ConfidenceBadgeProps) => {
   const colorClass = getConfidenceColor(level),
    bgClass = getConfidenceBgColor(level),
    label = getConfidenceLabel(level),
@@ -111,12 +111,12 @@ interface ConfidenceBarProps {
   showPercentage?: boolean;
 }
 
-function ConfidenceBar({
+const ConfidenceBar = ({
   confidence,
   level,
   className = "",
   showPercentage = true,
-}: ConfidenceBarProps) {
+}: ConfidenceBarProps) => {
   const barColor = {
     high: "bg-green-500",
     low: "bg-orange-500",

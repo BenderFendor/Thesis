@@ -21,18 +21,18 @@ const statusBadgeClass: Record<string, string> = {
   none: "border-white/10 bg-muted/20 text-muted-foreground",
 }
 
-function selectSourceResearchData<T>(
+const selectSourceResearchData = function <T>(
   cachedData?: T,
   researchData?: T,
 ): T | undefined {
   return researchData ?? cachedData
 }
 
-function useSourceResearchController({
+const useSourceResearchController = ({
   sourceName,
   website,
   autoRun,
-}: SourceResearchPanelProps) {
+}: SourceResearchPanelProps) => {
   const [runFullResearch, setRunFullResearch] = useState(autoRun),
    [refreshCounter, setRefreshCounter] = useState(0),
    sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`,

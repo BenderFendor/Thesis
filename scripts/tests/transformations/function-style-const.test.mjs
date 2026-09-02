@@ -352,12 +352,38 @@ function Name() {
 
 
 
-test('multi-line signature stays unchanged (invalid arrow artifact regression)', () => {
-  const source = 'const useSelectedSourcesQuery = (\n  a: ReadonlySet<string>,\n  b: string,\n) => {\n  return a.size + b.length;\n};\n';
-  assertUnchanged(source);
+test('multi-line function signature converts with the verbatim splice', () => {
+  const source = `function useSelectedSourcesQuery(
+  selectedSources: ReadonlySet<string>,
+  lens: string,
+) {
+  return selectedSources.size + lens.length;
+}
+`;
+  const expected = `const useSelectedSourcesQuery = (
+  selectedSources: ReadonlySet<string>,
+  lens: string,
+) => {
+  return selectedSources.size + lens.length;
+}
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
 });
 
-test('multi-line function signature stays unchanged', () => {
-  const source = 'function useSelectedSourcesQuery(\n  selectedSources: ReadonlySet<string>,\n  lens: string,\n) {\n  return selectedSources.size + lens.length;\n}\n';
-  assertUnchanged(source);
+test('multi-line signature with return annotation converts', () => {
+  const source = `function compute(
+  input: string,
+): number {
+  return input.length;
+}
+`;
+  const expected = `const compute = (
+  input: string,
+): number => {
+  return input.length;
+}
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
 });

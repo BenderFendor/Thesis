@@ -147,10 +147,10 @@ const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlP
   )
 }
 
-function useAppearanceSettingsActions(
+const useAppearanceSettingsActions = (
   settings: AppearanceSettings,
   save: (next: AppearanceSettings) => void,
-) {
+) => {
   const updateColorField = useCallback(
     (token: keyof AppearanceColorTokens, value: string) => {
       save({ ...settings, colors: { ...settings.colors, [token]: value } })

@@ -40,10 +40,10 @@ import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useQuery } from "@tanstack/react-query";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 
-function handleCardKeyDown(
+const handleCardKeyDown = (
   event: React.KeyboardEvent<HTMLElement>,
   onActivate: () => void,
-) {
+) => {
   activateCardFromKeyDown(event, onActivate);
 }
 
@@ -83,7 +83,7 @@ const extractKeyTerms = (title?: string): Set<string> => {
   return new Set(words);
 }
 
-function deduplicateClusters<T extends { representative_article?: { title?: string } | null; label?: string | null; keywords?: string[] }>(
+const deduplicateClusters = function <T extends { representative_article?: { title?: string } | null; label?: string | null; keywords?: string[] }>(
   clusters:readonly  T[]
 ): T[] {
   const seen: { terms: Set<string>; title: string }[] = [];

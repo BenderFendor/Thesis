@@ -2688,7 +2688,7 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
   </>
 )
 
-function ExpandedRightSidebar({
+const ExpandedRightSidebar = ({
   focusLabel,
   articleCount,
   sourceCount,
@@ -2716,7 +2716,7 @@ function ExpandedRightSidebar({
   countryMetrics: CountryArticleCounts
   onScrollTo: (ref: RefObject<HTMLDivElement | null>) => void
   lensBriefRef: RefObject<HTMLDivElement | null>
-}>) {
+}>) => {
   return (
     <div className="w-[320px] border-l border-white/10 p-5 flex flex-col overflow-y-auto custom-scrollbar bg-black/35 backdrop-blur-xl">
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Focus</h3>

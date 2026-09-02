@@ -55,7 +55,7 @@ interface HighlightHistoryState {
   readonly previousState: LocalHighlight[] | undefined
 }
 
-function useArticleLanguageDiagnostics({
+const useArticleLanguageDiagnostics = ({
   article,
   articleTextForMetrics,
   isOpen,
@@ -69,7 +69,7 @@ function useArticleLanguageDiagnostics({
   services: NonNullable<ArticleDetailModalProps["services"]>;
   wordCount: number;
   aiAnalysis: ArticleAnalysis | null | undefined;
-}>) {
+}>) => {
   const {
     data: languageDiagnostics,
     isFetching: languageDiagnosticsLoading,

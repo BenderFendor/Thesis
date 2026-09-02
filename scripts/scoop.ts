@@ -303,11 +303,11 @@ interface RequestTarget {
   cookies: string[];
 }
 
-function applyParameter(
+const applyParameter = (
   target: RequestTarget,
   parameter: ParameterObject,
   value: JsonValue | JsonValue[],
-): void {
+): void => {
   if (parameter.in === "path") {
     target.path = target.path.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
     return;
@@ -327,22 +327,22 @@ function applyParameter(
   }
 }
 
-function validateParameters(
+const validateParameters = (
   parameters:readonly  ParameterObject[],
   supplied: Map<string, string[]>,
   operationId: string,
-): void {
+): void => {
   const known = new Set(parameters.map((parameter) => parameter.name));
   for (const name of supplied.keys()) {
     if (!known.has(name)) {fail(`Unknown parameter for ${operationId}: ${name}`);}
   }
 }
 
-function applyOperationParameters(
+const applyOperationParameters = (
   target: RequestTarget,
   parameters:readonly  ParameterObject[],
   supplied: Map<string, string[]>,
-): void {
+): void => {
   for (const parameter of parameters) {
     const values = supplied.get(parameter.name);
     if (!values?.length) {
@@ -361,12 +361,12 @@ const applyRequestHeaders = (target: RequestTarget, options: CliOptions): void =
   if (target.cookies.length > 0) {target.headers.set("Cookie", target.cookies.join("; "));}
 }
 
-function applyRequestBody(
+const applyRequestBody = (
   target: RequestTarget,
   descriptor: OperationDescriptor,
   options: CliOptions,
   operationId: string,
-): JsonValue | undefined {
+): JsonValue | undefined => {
   const body = requestBody(options.body);
   if (descriptor.operation.requestBody?.required === true && body === undefined) {
     fail(`Missing required --body for ${operationId}`);
@@ -375,11 +375,11 @@ function applyRequestBody(
   return body;
 }
 
-function prepareRequest(
+const prepareRequest = (
   spec: OpenApiSpec,
   operationId: string,
   options: CliOptions = { _: [] },
-): PreparedRequest {
+): PreparedRequest => {
   const descriptor = findOperation(spec, operationId),
    parameters = [...descriptor.pathParameters, ...(descriptor.operation.parameters ?? [])],
    supplied = assignments(options.param);
@@ -429,12 +429,12 @@ const printValue = (value: unknown, output = "pretty"): void => {
   process.stdout.write(`${JSON.stringify(value, undefined, output === "json" ? 0 : 2)}\n`);
 }
 
-async function callOperation(
+const callOperation = async (
   spec: OpenApiSpec,
   operationId: string,
   options: CliOptions = { _: [] },
   fetchImpl: typeof fetch = fetch,
-): Promise<CallResult> {
+): Promise<CallResult> => {
   const request = prepareRequest(spec, operationId, options),
    timeoutSeconds = Number(options.timeout ?? 30);
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {fail("--timeout must be positive");}
@@ -510,11 +510,11 @@ const evaluateSmoke = (result: CallResult, options: CliOptions = { _: [] }): Smo
   };
 }
 
-async function listenWebSocket(
+const listenWebSocket = async (
   spec: OpenApiSpec,
   operationIdOrPath: string,
   options: CliOptions,
-): Promise<{ connected: boolean; received: number; url: string }> {
+): Promise<{ connected: boolean; received: number; url: string }> => {
   const descriptor = listWebSockets(spec).find(
     (item) => item.operationId === operationIdOrPath || item.path === operationIdOrPath,
   );
@@ -627,11 +627,11 @@ const INVESTIGATE_WORKFLOWS: Record<string, InvestigateWorkflow> = {
   },
 };
 
-function investigateParameters(
+const investigateParameters = (
   workflow: InvestigateWorkflow,
   target: string,
   options: CliOptions,
-): string[] {
+): string[] => {
   const params: string[] = [...(options.param ?? [])];
 
   // Forward --refresh to force_refresh query parameter
@@ -658,13 +658,13 @@ const investigateBody = (workflow: InvestigateWorkflow, target: string, options:
   return JSON.stringify(body);
 }
 
-async function runInvestigateCommand(
+const runInvestigateCommand = async (
   spec: OpenApiSpec,
   subcommand: string,
   target: string,
   options: CliOptions,
   fetchImpl: typeof fetch = fetch,
-): Promise<number> {
+): Promise<number> => {
   const workflow = INVESTIGATE_WORKFLOWS[subcommand];
   if (!workflow) {fail(`Unknown investigate subcommand: ${subcommand}`);}
 
@@ -750,12 +750,12 @@ const apiSmokeCommand = async (spec: OpenApiSpec, target: string | undefined, op
   return report.ok ? 0 : 1;
 }
 
-async function runApiCommand(
+const runApiCommand = async (
   spec: OpenApiSpec,
   action: string | undefined,
   target: string | undefined,
   options: CliOptions,
-): Promise<number> {
+): Promise<number> => {
   if (action === "list") {return apiListCommand(spec, options);}
   if (action === "describe") {return apiDescribeCommand(spec, target);}
   if (action === "call") {return apiCallCommand(spec, target, options);}
@@ -783,23 +783,23 @@ const wsListenCommand = async (spec: OpenApiSpec, target: string | undefined, op
   return 0;
 }
 
-async function runWsCommand(
+const runWsCommand = async (
   spec: OpenApiSpec,
   action: string | undefined,
   target: string | undefined,
   options: CliOptions,
-): Promise<number> {
+): Promise<number> => {
   if (action === "list") {return wsListCommand(spec, options);}
   if (action === "listen") {return wsListenCommand(spec, target, options);}
   fail(`Unknown command: ${options._.join(" ")}`);
 }
 
-function runInvestigateGroup(
+const runInvestigateGroup = (
   spec: OpenApiSpec,
   action: string | undefined,
   target: string | undefined,
   options: CliOptions,
-): Promise<number> {
+): Promise<number> => {
   if (!action) {fail("investigate requires a subcommand: organization, ownership, source, or reporter");}
   if (!target) {fail(`investigate ${action} requires a name`);}
   return runInvestigateCommand(spec, action, target, options);

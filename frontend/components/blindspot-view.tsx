@@ -184,11 +184,11 @@ interface LeadStoryMeta {
   paywallText: string | null
 }
 
-function getLeadStoryMeta(
+const getLeadStoryMeta = (
   card: BlindspotCard,
   laneId: BlindspotLane["id"],
   poleLabels: { pole_a: string; pole_b: string },
-): LeadStoryMeta {
+): LeadStoryMeta => {
   const isLackingPoleA = laneId === "pole_b",
     isLackingPoleB = laneId === "pole_a"
 
@@ -207,7 +207,7 @@ function getLeadStoryMeta(
   }
 }
 
-function LeadStory({
+const LeadStory = ({
   card,
   laneId,
   poleLabels,
@@ -217,7 +217,7 @@ function LeadStory({
   laneId: BlindspotLane["id"]
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}>) {
+}>) => {
   const meta = getLeadStoryMeta(card, laneId, poleLabels)
 
   return (
@@ -336,7 +336,7 @@ function LeadStoryDetails({
   )
 }
 
-function StoryRow({
+const StoryRow = ({
   card,
   poleLabels,
   onOpen,
@@ -344,7 +344,7 @@ function StoryRow({
   card: BlindspotCard
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}>) {
+}>) => {
   const paywallText = paywallLabel(card),
    sourceSummary = articleSourceSummary(card)
 
@@ -395,7 +395,7 @@ function StoryRow({
   )
 }
 
-function MobileBlindspotTile({
+const MobileBlindspotTile = ({
   card,
   laneId,
   poleLabels,
@@ -405,7 +405,7 @@ function MobileBlindspotTile({
   laneId: BlindspotLane["id"]
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
-}>) {
+}>) => {
   const imageUrl = card.representative_article?.image_url,
    isLackingPoleA = laneId === "pole_b",
    isLackingPoleB = laneId === "pole_a",
@@ -463,13 +463,13 @@ function MobileBlindspotTile({
   )
 }
 
-function useBlindspotData(
+const useBlindspotData = (
   category: string | undefined,
   selectedLens: BlindspotLens["id"],
   sortMode: SortMode,
   sources: string[] | undefined,
   services: BlindspotViewServices,
-) {
+) => {
   const serializedSources = useMemo(() => serializeSources(sources), [sources]),
     {
       data,
@@ -550,10 +550,10 @@ const BlindspotLoadingState = () => {
   )
 }
 
-function BlindspotErrorState({
+const BlindspotErrorState = ({
   message,
   onRetry,
-}: Readonly<{ message: string; onRetry: () => void }>) {
+}: Readonly<{ message: string; onRetry: () => void }>) => {
   return (
     <div className="flex min-h-[32rem] items-center justify-center p-6">
       <div className="max-w-xl bg-white/[0.02] p-12 text-center rounded-2xl">
@@ -577,10 +577,10 @@ function BlindspotErrorState({
   )
 }
 
-function BlindspotOfflineState({
+const BlindspotOfflineState = ({
   label,
   reason,
-}: Readonly<{ label: string; reason?: string | null }>) {
+}: Readonly<{ label: string; reason?: string | null }>) => {
   return (
     <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
       <h3 className="font-serif text-2xl text-foreground/60">
@@ -593,10 +593,10 @@ function BlindspotOfflineState({
   )
 }
 
-function BlindspotClusterModal({
+const BlindspotClusterModal = ({
   cluster,
   onClose,
-}: Readonly<{ cluster: TrendingCluster | null; onClose: () => void }>) {
+}: Readonly<{ cluster: TrendingCluster | null; onClose: () => void }>) => {
   return (
     <ClusterDetailModal
       cluster={cluster}
@@ -607,7 +607,7 @@ function BlindspotClusterModal({
   )
 }
 
-function BlindspotControls({
+const BlindspotControls = ({
   availableLenses,
   selectedLens,
   sortMode,
@@ -619,7 +619,7 @@ function BlindspotControls({
   sortMode: SortMode;
   onLensChange: (lens: BlindspotLens["id"]) => void;
   onSortChange: (mode: SortMode) => void;
-}>) {
+}>) => {
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="space-y-1.5 lg:space-y-2">
@@ -666,7 +666,7 @@ function BlindspotControls({
   )
 }
 
-function BlindspotLaneSection({
+const BlindspotLaneSection = ({
   accentClass,
   laneId,
   emptyLabel,
@@ -692,7 +692,7 @@ function BlindspotLaneSection({
   subtitleMobile?: string;
   title: string;
   titleMobile?: string;
-}>) {
+}>) => {
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -725,7 +725,7 @@ function BlindspotLaneSection({
   )
 }
 
-function BlindspotLaneSections({
+const BlindspotLaneSections = ({
   expandedLanes,
   laneMap,
   onExpandLane,
@@ -737,7 +737,7 @@ function BlindspotLaneSections({
   onExpandLane: (laneId: BlindspotLane["id"]) => void;
   onOpenCard: (card: BlindspotCard) => void;
   poleLabels: { pole_a: string; pole_b: string };
-}>) {
+}>) => {
   return (
     <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
       <BlindspotLaneSection

@@ -138,7 +138,7 @@ const parseFundingAndBias = (details: Record<string, unknown>): AtlasFundingAndB
   return parsed.success ? parsed.data : null;
 }
 
-function parseArrayField<S extends z.ZodTypeAny>(
+const parseArrayField = function <S extends z.ZodTypeAny>(
   details: Record<string, unknown>,
   key: string,
   schema: S,

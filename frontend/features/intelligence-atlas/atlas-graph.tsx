@@ -69,14 +69,14 @@ const nodeShape = (node: AtlasNode, radius: number) => {
   return <circle r={radius} />;
 }
 
-function handleAtlasNodeKeyboard(
+const handleAtlasNodeKeyboard = (
   event: KeyboardEvent<SVGGElement>,
   nodeId: string,
   orderedNodes:readonly  AtlasNode[],
   onSelect: (nodeId: string) => void,
   setKeyboardActiveNodeId: (nodeId: string) => void,
   svgRef:Readonly< { current: SVGSVGElement | null }>,
-) {
+) => {
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
     onSelect(nodeId);
@@ -116,7 +116,7 @@ const NeedsReviewMarker = ({ radius, visible }:Readonly< { radius: number; visib
   return <circle cx={radius * 0.7} cy={-radius * 0.7} r={3.2} fill="#f1635e" stroke="#080907" strokeWidth={1.5} />;
 }
 
-function AtlasNodeLabel({
+const AtlasNodeLabel = ({
   node,
   priority,
   radius,
@@ -126,7 +126,7 @@ function AtlasNodeLabel({
   priority: boolean;
   radius: number;
   show: boolean;
-}>) {
+}>) => {
   if (!show) {
     return;
   }
@@ -149,7 +149,7 @@ function AtlasNodeLabel({
   );
 }
 
-function AtlasNodeMark({
+const AtlasNodeMark = ({
   active,
   dimmed,
   node,
@@ -161,7 +161,7 @@ function AtlasNodeMark({
   priorityLabel,
   selected,
   showLabel,
-}: AtlasNodeMarkProps) {
+}: AtlasNodeMarkProps) => {
   const confidence = node.confidence_tier ?? "unresolved",
    radius = nodeRadius(node);
   return (
@@ -249,14 +249,14 @@ const atlasEdgeTouchesInteraction = (edge: AtlasEdge, interactionNodeId: string 
   );
 }
 
-function atlasEdgeIsDimmed(
+const atlasEdgeIsDimmed = (
   edge: AtlasEdge,
   focus: boolean,
   interactionNodeId: string | null,
   selectedId: string | null,
   selectedNeighbors: Set<string>,
   touchesInteraction: boolean,
-): boolean {
+): boolean => {
   const focusDimmed = Boolean(
     focus && selectedId && !selectedNeighbors.has(edge.source_id) && !selectedNeighbors.has(edge.target_id),
   );
@@ -277,13 +277,13 @@ const atlasEdgeMarker = (edge: AtlasEdge): string | undefined => {
   return `url(#${marker})`;
 }
 
-function getAtlasEdgeVisuals(
+const getAtlasEdgeVisuals = (
   edge: AtlasEdge,
   focus: boolean,
   interactionNodeId: string | null,
   selectedId: string | null,
   selectedNeighbors: Set<string>,
-): AtlasEdgeVisuals {
+): AtlasEdgeVisuals => {
   const touchesInteraction = atlasEdgeTouchesInteraction(edge, interactionNodeId),
    dimmed = atlasEdgeIsDimmed(
     edge,
@@ -303,7 +303,7 @@ function getAtlasEdgeVisuals(
   };
 }
 
-function AtlasEdgeLine({
+const AtlasEdgeLine = ({
   edge,
   focus,
   interactionNodeId,
@@ -311,7 +311,7 @@ function AtlasEdgeLine({
   selectedNeighbors,
   source,
   target,
-}: AtlasEdgeLineProps) {
+}: AtlasEdgeLineProps) => {
   if (!source || !target) {
     return;
   }
@@ -358,28 +358,28 @@ const isAtlasNodeDimmed = (nodeId: string, context: AtlasNodeLayerContext): bool
   return Boolean(outsideFocus || outsideInteraction);
 }
 
-function shouldShowAtlasNodeLabel(
+const shouldShowAtlasNodeLabel = (
   nodeId: string,
   selected: boolean,
   interacting: boolean,
   context: AtlasNodeLayerContext,
-): boolean {
+): boolean => {
   return context.transformScale >= 1.15 || context.priorityLabelIds.has(nodeId) || selected || interacting;
 }
 
-function isAtlasNodePriority(
+const isAtlasNodePriority = (
   nodeId: string,
   selected: boolean,
   interacting: boolean,
   context: AtlasNodeLayerContext,
-): boolean {
+): boolean => {
   return selected || interacting || context.priorityLabelIds.has(nodeId);
 }
 
-function getAtlasNodeMarkProps(
+const getAtlasNodeMarkProps = (
   node: AtlasNode,
   context: AtlasNodeLayerContext,
-): AtlasNodeMarkProps | null {
+): AtlasNodeMarkProps | null => {
   const position = context.positions[node.id];
   if (!position) {
     return null;
@@ -408,7 +408,7 @@ const renderAtlasNode = (node: AtlasNode, context: AtlasNodeLayerContext): React
   return props ? <AtlasNodeMark key={node.id} {...props} /> : null;
 }
 
-function AtlasNodeLayer({
+const AtlasNodeLayer = ({
   activeNodeId,
   focus,
   interactionNeighbors,
@@ -424,7 +424,7 @@ function AtlasNodeLayer({
   selectedNeighbors,
   transformScale,
   hoveredNodeId,
-}: AtlasNodeLayerProps) {
+}: AtlasNodeLayerProps) => {
   const context: AtlasNodeLayerContext = {
     activeNodeId,
     focus,
@@ -470,9 +470,9 @@ const getAtlasGraphDimensions = (rect: DOMRectReadOnly): AtlasGraphDimensions =>
   };
 }
 
-function useAtlasGraphDimensions(
+const useAtlasGraphDimensions = (
   containerRef: AtlasElementRef<HTMLDivElement>,
-): AtlasGraphDimensions {
+): AtlasGraphDimensions => {
   const [dimensions, setDimensions] = useState<AtlasGraphDimensions>({ height: 760, width: 1280 });
 
   useEffect(() => {
@@ -500,14 +500,14 @@ interface AtlasGraphLayoutInput {
   selectedId: string | null;
 }
 
-function useAtlasGraphLayout({
+const useAtlasGraphLayout = ({
   dimensions,
   edges,
   graphVersion,
   layout,
   nodes,
   selectedId,
-}: AtlasGraphLayoutInput) {
+}: AtlasGraphLayoutInput) => {
   const layoutOptions = useMemo(
     () => ({
       edges,
@@ -540,12 +540,12 @@ const getAtlasNeighbors = (edges:readonly AtlasEdge[], nodeId: string | null): S
   return ids;
 }
 
-function getAtlasActiveNodeId(
+const getAtlasActiveNodeId = (
   selectedId: string | null,
   keyboardActiveNodeId: string | null,
   nodes:readonly AtlasNode[],
   orderedNodes:readonly AtlasNode[],
-): string | null {
+): string | null => {
   if (selectedId !== null) {
     return selectedId;
   }
@@ -590,11 +590,11 @@ interface AtlasGraphSelectionValues {
   setKeyboardActiveNodeId: (nodeId: string) => void;
 }
 
-function useAtlasGraphSelectionValues(
+const useAtlasGraphSelectionValues = (
   nodes:readonly AtlasNode[],
   edges:readonly AtlasEdge[],
   selectedId: string | null,
-): AtlasGraphSelectionValues {
+): AtlasGraphSelectionValues => {
   const [keyboardActiveNodeId, setKeyboardActiveNodeId] = useState<string | null>(selectedId),
    [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null),
    selectedNeighbors = useMemo(() => getAtlasNeighbors(edges, selectedId), [edges, selectedId]),
@@ -633,13 +633,13 @@ interface AtlasGraphSelectionHandlers {
   handleNodeSelect: (nodeId: string) => void;
 }
 
-function useAtlasGraphSelectionHandlers(
+const useAtlasGraphSelectionHandlers = (
   orderedNodes:readonly AtlasNode[],
   onSelect: (nodeId: string) => void,
   svgRef: AtlasElementRef<SVGSVGElement>,
   setKeyboardActiveNodeId: (nodeId: string) => void,
   setHoveredNodeId: AtlasNodeIdStateSetter,
-): AtlasGraphSelectionHandlers {
+): AtlasGraphSelectionHandlers => {
   const handleHoverLeave = useCallback((nodeId: string) => {
     setHoveredNodeId((current) => (current === nodeId ? null : current));
   }, [setHoveredNodeId]),
@@ -667,13 +667,13 @@ function useAtlasGraphSelectionHandlers(
   return { handleHoverLeave, handleNodeKeyboard, handleNodeSelect };
 }
 
-function useAtlasGraphSelection(
+const useAtlasGraphSelection = (
   nodes:readonly AtlasNode[],
   edges:readonly AtlasEdge[],
   selectedId: string | null,
   onSelect: (nodeId: string) => void,
   svgRef: AtlasElementRef<SVGSVGElement>,
-): AtlasGraphSelectionState {
+): AtlasGraphSelectionState => {
   const values = useAtlasGraphSelectionValues(nodes, edges, selectedId),
    handlers = useAtlasGraphSelectionHandlers(
     values.orderedNodes,
@@ -688,10 +688,10 @@ function useAtlasGraphSelection(
   };
 }
 
-function getFittedAtlasTransform(
+const getFittedAtlasTransform = (
   positions: Record<string, AtlasPosition>,
   dimensions: AtlasGraphDimensions,
-): Transform {
+): Transform => {
   const values = Object.values(positions);
   if (values.length === 0) {
     return { scale: 1, x: 0, y: 0 };
@@ -719,12 +719,12 @@ function getFittedAtlasTransform(
 type TransformUpdate = Transform | ((current: Transform) => Transform);
 type SetAtlasTransform = (update: TransformUpdate) => void;
 
-function getZoomedAtlasTransform(
+const getZoomedAtlasTransform = (
   current: Transform,
   pointerX: number,
   pointerY: number,
   factor: number,
-): Transform {
+): Transform => {
   const nextScale = Math.min(3.5, Math.max(0.3, current.scale * factor)),
    worldX = (pointerX - current.x) / current.scale,
    worldY = (pointerY - current.y) / current.scale;
@@ -751,10 +751,10 @@ interface AtlasGraphZoomModel {
   transform: Transform;
 }
 
-function useAtlasGraphZoomModel(
+const useAtlasGraphZoomModel = (
   layoutKey: string,
   fittedTransform: Transform,
-): AtlasGraphZoomModel {
+): AtlasGraphZoomModel => {
   const [manualTransform, setManualTransform] = useState<{ key: string; value: Transform } | null>(null),
    transform = manualTransform?.key === layoutKey ? manualTransform.value : fittedTransform,
    setTransform: SetAtlasTransform = useCallback(
@@ -779,10 +779,10 @@ interface AtlasGraphZoomActions {
   zoomOut: () => void;
 }
 
-function useAtlasGraphZoomActions(
+const useAtlasGraphZoomActions = (
   svgRef: AtlasElementRef<SVGSVGElement>,
   setTransform: SetAtlasTransform,
-): AtlasGraphZoomActions {
+): AtlasGraphZoomActions => {
   const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
     if (!bounds) {
@@ -811,11 +811,11 @@ function useAtlasGraphZoomActions(
   return { handleWheel, zoomAt, zoomIn, zoomOut };
 }
 
-function useAtlasGraphZoom(
+const useAtlasGraphZoom = (
   svgRef: AtlasElementRef<SVGSVGElement>,
   layoutKey: string,
   fittedTransform: Transform,
-): AtlasGraphZoomState {
+): AtlasGraphZoomState => {
   const model = useAtlasGraphZoomModel(layoutKey, fittedTransform),
    actions = useAtlasGraphZoomActions(svgRef, model.setTransform);
   return { ...model, ...actions };
@@ -828,10 +828,10 @@ interface AtlasGraphPanState {
   panning: boolean;
 }
 
-function useAtlasGraphPan(
+const useAtlasGraphPan = (
   transform: Transform,
   setTransform: SetAtlasTransform,
-): AtlasGraphPanState {
+): AtlasGraphPanState => {
   const [panning, setPanning] = useState(false),
    panRef = useRef<PanState | null>(null),
    handlePointerDown = useCallback((event: PointerEvent<SVGSVGElement>) => {
@@ -1053,7 +1053,7 @@ const AtlasGraphMarkers = (): ReactNode => {
   );
 }
 
-function AtlasGraphLayers({
+const AtlasGraphLayers = ({
   activeNodeId,
   edges,
   focus,
@@ -1070,7 +1070,7 @@ function AtlasGraphLayers({
   selectedId,
   selectedNeighbors,
   transform,
-}: Omit<AtlasGraphSvgProps, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onWheel" | "panning" | "svgRef">): ReactNode {
+}: Omit<AtlasGraphSvgProps, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onWheel" | "panning" | "svgRef">): ReactNode => {
   return (
     <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.scale})`}>
       {edges.map((edge) => (

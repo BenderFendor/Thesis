@@ -47,13 +47,13 @@ const ReporterNotFoundState = ({ message }:Readonly< { message: string }>) => {
   );
 }
 
-function ReporterDossierHeader({
+const ReporterDossierHeader = ({
   data,
   primaryOutlet,
 }:Readonly< {
   data: WikiReporterDossier;
   primaryOutlet?: string;
-}>) {
+}>) => {
   return (
     <header className="mx-auto max-w-[1500px] px-4 pt-6">
       <Link href="/wiki/reporters" className="inline-flex items-center gap-2 text-[10px] font-mono tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors">
@@ -81,13 +81,13 @@ function ReporterDossierHeader({
   );
 }
 
-function QuickFactsCard({
+const QuickFactsCard = ({
   data,
   activity,
 }:Readonly< {
   data: WikiReporterDossier;
   activity?: ReporterActivity;
-}>) {
+}>) => {
   return (
     <SidebarCard title="Quick Facts">
       <SidebarFact label="Articles" value={String(data.article_count)} />
@@ -156,7 +156,7 @@ const AuthorPagesCard = ({ authorPages }:Readonly< { authorPages?: ReporterActiv
   );
 }
 
-function ExternalProfilesCard({
+const ExternalProfilesCard = ({
   externalProfiles,
   wikidataUrl,
   wikipediaUrl,
@@ -164,7 +164,7 @@ function ExternalProfilesCard({
   externalProfiles?: ReporterActivity["external_profiles"];
   wikidataUrl?: string;
   wikipediaUrl?: string;
-}>) {
+}>) => {
   return (
     <SidebarCard title="External Profiles">
       <div className="space-y-2 text-sm">
@@ -377,10 +377,10 @@ const CitationsPanel = ({ citations }:Readonly< { citations: WikiReporterDossier
   );
 }
 
-function ReporterDossierSidebar({
+const ReporterDossierSidebar = ({
   data,
   activity,
-}: Readonly<{ data: WikiReporterDossier; activity?: ReporterActivity }>) {
+}: Readonly<{ data: WikiReporterDossier; activity?: ReporterActivity }>) => {
   return (
     <aside className="rounded-2xl border bg-black/40 backdrop-blur-2xl border-white/10 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-y-auto custom-scrollbar">
       <QuickFactsCard data={data} activity={activity} />
@@ -396,7 +396,7 @@ function ReporterDossierSidebar({
   );
 }
 
-function ReporterDossierPanels({
+const ReporterDossierPanels = ({
   data,
   activity,
   careerTimeline,
@@ -404,7 +404,7 @@ function ReporterDossierPanels({
   data: WikiReporterDossier;
   activity?: ReporterActivity;
   careerTimeline: ReturnType<typeof parseReporterCareerTimeline>;
-}>) {
+}>) => {
   return (
     <section className="space-y-5">
       <OverviewPanel data={data} />

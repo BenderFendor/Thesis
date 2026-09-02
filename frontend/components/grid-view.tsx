@@ -102,7 +102,7 @@ interface SourceArticleCardProps {
   index: number
 }
 
-function SourceArticleCard({
+const SourceArticleCard = ({
   article,
   likedIds,
   hasRealImage,
@@ -111,7 +111,7 @@ function SourceArticleCard({
   onLike,
   onQueueToggle,
   index,
-}: SourceArticleCardProps) {
+}: SourceArticleCardProps) => {
   const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) {return}
     if (event.key !== "Enter" && event.key !== " ") {return}
@@ -340,7 +340,7 @@ interface SourceGroupSectionProps {
   onToggleExpand: () => void
 }
 
-function SourceGroupSection({
+const SourceGroupSection = ({
   group,
   isExpanded,
   likedIds,
@@ -352,7 +352,7 @@ function SourceGroupSection({
   onQueueToggle,
   onToggleFavorite,
   onToggleExpand,
-}: SourceGroupSectionProps) {
+}: SourceGroupSectionProps) => {
   const displayedArticles = isExpanded
     ? group.articles
     : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
@@ -452,14 +452,14 @@ interface TopicClusterCardProps {
   onCompare: (event: MouseEvent<HTMLButtonElement>) => void
 }
 
-function TopicClusterCard({
+const TopicClusterCard = ({
   cluster,
   index,
   isExpanded,
   getDisplayLabel,
   onExpand,
   onCompare,
-}: TopicClusterCardProps) {
+}: TopicClusterCardProps) => {
   const representative = cluster.representative_article
   if (!representative) {return}
 
@@ -558,7 +558,7 @@ interface ExpandedTopicPanelProps {
   onClose: () => void
 }
 
-function ExpandedTopicPanel({
+const ExpandedTopicPanel = ({
   cluster,
   articles,
   likedIds,
@@ -569,7 +569,7 @@ function ExpandedTopicPanel({
   onLike,
   onQueueToggle,
   onClose,
-}: ExpandedTopicPanelProps) {
+}: ExpandedTopicPanelProps) => {
   return (
     <div
       data-cluster-expanded-for={cluster.cluster_id}
@@ -672,7 +672,7 @@ interface TopicFeedProps {
   onCloseExpanded: () => void
 }
 
-function TopicFeed({
+const TopicFeed = ({
   clustersLoading,
   clusters,
   clustersStatus,
@@ -690,7 +690,7 @@ function TopicFeed({
   onLike,
   onQueueToggle,
   onCloseExpanded,
-}: TopicFeedProps) {
+}: TopicFeedProps) => {
   return (
     <div className="space-y-4 sm:space-y-6">
       {clustersLoading ? (
@@ -790,7 +790,7 @@ interface VirtualizedModeViewProps {
   onModalNavigate: (direction: "prev" | "next") => void
 }
 
-function VirtualizedModeView({
+const VirtualizedModeView = ({
   searchTerm,
   empty,
   displayArticles,
@@ -801,7 +801,7 @@ function VirtualizedModeView({
   onArticleClick,
   onModalClose,
   onModalNavigate,
-}: VirtualizedModeViewProps) {
+}: VirtualizedModeViewProps) => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
@@ -851,14 +851,14 @@ interface GridViewHeaderProps {
   onClusterWindow: (value: "1d" | "1w" | "1m") => void
 }
 
-function GridViewHeader({
+const GridViewHeader = ({
   searchTerm,
   viewMode,
   clusterWindow,
   onSearchChange,
   onModeSelect,
   onClusterWindow,
-}: GridViewHeaderProps) {
+}: GridViewHeaderProps) => {
   return (
     <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
@@ -903,7 +903,7 @@ interface GridViewResultsProps {
   onLoadMoreSources: () => void
 }
 
-function GridViewResults({
+const GridViewResults = ({
   showTrending,
   viewMode,
   displayArticles,
@@ -915,7 +915,7 @@ function GridViewResults({
   visibleSourceCount,
   totalSourceCount,
   onLoadMoreSources,
-}: GridViewResultsProps) {
+}: GridViewResultsProps) => {
   const empty = displayArticles.length === 0 && !isLoadingState
   return (
     <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
@@ -971,7 +971,7 @@ interface GridViewModalOverlayProps {
   onClusterModalClose: () => void
 }
 
-function GridViewModalOverlays({
+const GridViewModalOverlays = ({
   isArticleModalOpen,
   selectedArticle,
   onArticleModalClose,
@@ -981,7 +981,7 @@ function GridViewModalOverlays({
   isClusterModalOpen,
   selectedCluster,
   onClusterModalClose,
-}: GridViewModalOverlayProps) {
+}: GridViewModalOverlayProps) => {
   return (
     <>
       {isArticleModalOpen && selectedArticle ? (
@@ -1026,7 +1026,7 @@ interface GridViewContentProps {
   overlays: GridViewModalOverlayProps
 }
 
-function GridViewContent({
+const GridViewContent = ({
   searchTerm,
   viewMode,
   clusterWindow,
@@ -1036,7 +1036,7 @@ function GridViewContent({
   containerRef,
   results,
   overlays,
-}: GridViewContentProps) {
+}: GridViewContentProps) => {
   return (
     <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
       <GridViewHeader

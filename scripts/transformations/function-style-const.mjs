@@ -1,12 +1,12 @@
-// Converts hoist-safe top-level module `function Name() {...}` declarations to
-// Const bindings: arrow functions for clean bodies, function expressions when
+// Converts hoist-safe top-level module `function  Name() {...}` declarations to
+// Const bindings: arrow functions for clean bodies, function  expressions when
 // The body uses dynamic `this`, `arguments`, or `new.target`, and `function*`
 // Expressions for generator declarations (generators cannot be arrows). The
 // Rewrite satisfies ESLint `func-style` (prefer const arrow/fn-expression) and
 // `react/function-component-definition` (named components as arrow functions).
 //
 // Safety: a declaration is converted only when the const binding cannot be
-// Read before it initializes. Any value reference to the function name inside
+// Read before it initializes. Any value reference to the function  name inside
 // An earlier top-level statement disables the conversion - function
 // Declarations are hoisted, const bindings are temporal-dead-zone guarded. A
 // Reference inside the function's own body is fine: the binding initializes
@@ -149,18 +149,8 @@ const
      * @param {string} sourceText - Full source text.
      * @returns {boolean} True when the signature contains a line break.
      */
-    hasMultilineSignature(candidate, parsed, sourceText) {
-      const declaration = candidate.declaration;
-      const signatureEnd = FunctionStyleConst.signatureEnd(declaration);
-      const signature = sourceText.slice(declaration.name.end, signatureEnd);
-      return signature.includes("\n");
-    },
-
     blocked(candidate, statements, bindingCounts, parsed, sourceText) {
       if ((bindingCounts.get(candidate.nameText) ?? EMPTY_INDEX) > FIRST_INDEX) {
-        return true;
-      }
-      if (FunctionStyleConst.hasMultilineSignature(candidate, parsed, sourceText)) {
         return true;
       }
       return FunctionStyleConst.hasEarlierReference(candidate, statements);
@@ -626,16 +616,17 @@ const
       const declaration = candidate.declaration;
       const asyncText = FunctionStyleConst.asyncPrefix(declaration);
       const bodyStart = declaration.body.getStart(parsed);
-      const signatureEnd = FunctionStyleConst.signatureEnd(declaration);
-      const signatureText = sourceText.slice(declaration.name.end, signatureEnd);
-      const between = sourceText.slice(signatureEnd, bodyStart);
+      // Verbatim splice: keep the params + return type exactly as authored
+      // (multi-line signatures included), only replace the prefix and add
+      // the arrow before the body brace. No signature reconstruction.
+      const signatureText = sourceText.slice(declaration.name.end, bodyStart).trimEnd();
       const bodyText = sourceText.slice(bodyStart, declaration.body.getEnd());
       const prefix = `const ${candidate.nameText} = `;
       if (FunctionStyleConst.expressionForm(candidate, parsed)) {
         const generatorText = declaration.asteriskToken === undefined ? "" : "*";
-        return `${prefix}${asyncText}function${generatorText} ${signatureText}${between}${bodyText}`;
+        return `${prefix}${asyncText}function${generatorText} ${signatureText} ${bodyText}`;
       }
-      return `${prefix}${asyncText}${signatureText} =>${between}${bodyText}`;
+      return `${prefix}${asyncText}${signatureText} => ${bodyText}`;
     },
 
     /**

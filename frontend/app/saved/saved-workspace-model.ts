@@ -45,9 +45,9 @@ const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSumm
   };
 }
 
-function groupArticleSummaries(
+const groupArticleSummaries = (
   summaries: readonly QueueArticleSummary[],
-): Record<string, QueueArticleSummary[]> {
+): Record<string, QueueArticleSummary[]> => {
   const grouped: Record<string, QueueArticleSummary[]> = {};
   for (const summary of summaries) {
     const existing = grouped[summary.category];
@@ -74,10 +74,10 @@ const hasRealImage = (source?: string | null): boolean => {
   );
 }
 
-function mergeSavedArticles(
+const mergeSavedArticles = (
   bookmarks: readonly NewsArticle[],
   likedArticles: readonly NewsArticle[],
-): readonly SavedArticle[] {
+): readonly SavedArticle[] => {
   const articlesByUrl = new Map<string, SavedArticle>();
   for (const article of bookmarks) {
     articlesByUrl.set(article.url, { ...article, type: "bookmark" });
@@ -97,9 +97,9 @@ const stripStructuredArticleBlock = (digest: string): string => {
   return digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim();
 }
 
-async function requestQueueDigest(
+const requestQueueDigest = async (
   articles: readonly NewsArticle[],
-): Promise<string> {
+): Promise<string> => {
   const summaries = articles.map(toQueueArticleSummary),
    response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
     body: JSON.stringify({

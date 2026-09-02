@@ -140,13 +140,13 @@ const sampleArticle: NewsArticle = {
   url: "https://example.com/article",
 };
 
-function ReadTrackingHarness({
+const ReadTrackingHarness = ({
   article,
   isOpen,
 }: Readonly<{
   article: NewsArticle | null;
   isOpen: boolean;
-}>) {
+}>) => {
   const { history, markAsRead } = useReadingHistory(),
     articleId = article?.id ?? null,
     articleTitle = article?.title ?? null,
