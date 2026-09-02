@@ -1,4 +1,3 @@
-import type { CSSProperties, ComponentProps } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -15,22 +14,23 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import Link from "next/link";
-import ReactMarkdown from "react-markdown";
+import type { CSSProperties, ComponentProps } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import type { NewsArticle, ReadingShelf } from "@/lib/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ArticleDetailModal } from "@/components/article-detail-modal";
-import { HighlightsView } from "@/components/highlights-view";
-import { SafeImage } from "@/components/safe-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import type { NewsArticle, ReadingShelf } from "@/lib/api";
-import { hasRealImage } from "@/app/saved/saved-workspace-model";
+import { HighlightsView } from "@/components/highlights-view";
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { SafeImage } from "@/components/safe-image";
 import type { SavedArticle } from "@/app/saved/saved-workspace-model";
 import type { SavedWorkspaceController } from "@/app/saved/use-saved-workspace-controller";
+import { cn } from "@/lib/utils";
+import { hasRealImage } from "@/app/saved/saved-workspace-model";
 
 const CARD_OFFSET_LIMIT_PX = 16,
  CARD_OFFSET_STEP_PX = 4,

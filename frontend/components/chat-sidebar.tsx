@@ -1,5 +1,4 @@
-import React, { useMemo, useState } from "react";
-import { Button } from "./ui/button";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   CheckSquare,
   PanelLeftClose,
@@ -10,7 +9,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import React, { useMemo, useState } from "react";
+import { Button } from "./ui/button";
 
 export interface ChatSummary {
   id: string;

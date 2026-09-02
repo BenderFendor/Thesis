@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   addToReadingQueue as apiAddToQueue,
-  analyzeArticle,
   API_BASE_URL,
+  analyzeArticle,
   removeFromReadingQueueByUrl as apiRemoveFromQueue,
 } from "@/lib/api";
 import type { NewsArticle } from "@/lib/api";

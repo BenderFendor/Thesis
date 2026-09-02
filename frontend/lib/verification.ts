@@ -4,8 +4,6 @@
  * Handles communication with the verification agent backend.
  */
 
-import { API_BASE_URL } from "./api";
-import { logger } from "./logger";
 import type {
   ConfidenceLevel,
   VerificationRequest,
@@ -14,6 +12,8 @@ import type {
   VerificationStreamEvent,
   VerificationSummary,
 } from "@/lib/types/verification";
+import { API_BASE_URL } from "./api";
+import { logger } from "./logger";
 
 export type {
   ConfidenceLevel,

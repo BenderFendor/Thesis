@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import "react18-json-view/src/style.css";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -11,14 +11,14 @@ import {
   Search,
   Settings,
 } from "lucide-react";
-import Link from "next/link";
-import JsonView from "react18-json-view";
-import "react18-json-view/src/style.css";
-
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import type { ComponentProps } from "react";
 import { Input } from "@/components/ui/input";
+import JsonView from "react18-json-view";
+import Link from "next/link";
 import type { SourceDebugData } from "@/lib/api";
 
 const JSON_COLLAPSE_DEPTH = 2,

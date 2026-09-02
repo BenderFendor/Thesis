@@ -5,8 +5,8 @@
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import { sendFrontendDebugReport } from './api';
 import type { FrontendDebugReportPayload } from './api';
+import { sendFrontendDebugReport } from './api';
 
 // Configuration
 const FLUSH_INTERVAL_MS = 30_000,

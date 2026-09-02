@@ -1,13 +1,13 @@
 import { API_BASE_URL, streamNews } from '@/lib/api';
-import type { NewsArticle, StreamOptions, StreamProgress } from '@/lib/api';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import type { NewsArticle, StreamOptions, StreamProgress } from '@/lib/api';
 import {
   endStream as perfEndStream,
   logStreamEvent as perfLogStreamEvent,
   perfLogger,
   startStream as perfStartStream,
 } from "@/lib/performance-logger";
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { logger } from "@/lib/logger";
 import { z } from "zod";
 

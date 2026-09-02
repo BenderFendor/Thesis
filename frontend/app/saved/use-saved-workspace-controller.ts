@@ -1,9 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { useBookmarks } from "@/hooks/useBookmarks";
-import { useLikedArticles } from "@/hooks/use-liked-articles";
-import { useReadingQueue } from "@/hooks/use-reading-queue";
+import type { NewsArticle, ReadingShelf } from "@/lib/api";
 import {
   createReadingShelf,
   fetchBookmarks,
@@ -11,13 +6,18 @@ import {
   getAllHighlights,
   getReadingShelves,
 } from "@/lib/api";
-import type { NewsArticle, ReadingShelf } from "@/lib/api";
-import { logger } from "@/lib/logger";
+
 import {
   mergeSavedArticles,
   requestQueueDigest,
 } from "@/app/saved/saved-workspace-model";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SavedArticle } from "@/app/saved/saved-workspace-model";
+import { logger } from "@/lib/logger";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 
 const SHELF_QUERY_RETRY_COUNT = 1;
 
