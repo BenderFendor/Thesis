@@ -15,16 +15,7 @@ import type {
 import { API_BASE_URL } from "./api";
 import { logger } from "./logger";
 
-export type {
-  ConfidenceLevel,
-  SourceInfo,
-  VerifiedClaim,
-  VerificationRequest,
-  VerificationResult,
-  VerificationStatus,
-  VerificationSummary,
-  VerificationStreamEvent,
-} from "@/lib/types/verification";
+export type { ConfidenceLevel, SourceInfo, VerifiedClaim, VerificationResult } from "@/lib/types/verification";
 
 // --- API Functions ---
 
