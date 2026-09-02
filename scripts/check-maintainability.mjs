@@ -8,8 +8,8 @@
 //   THESIS_MI_CAP=50  functions below this MI fail the gate
 //   THESIS_MI_ERROR=60 functions in [cap, error) are reported as warns
 // Cccc.toml remains the complexity policy; this is the MI/health gate.
-import { readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { readdirSync, statSync } from "node:fs";
 import { analyse } from "code-multivitals";
 import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
 

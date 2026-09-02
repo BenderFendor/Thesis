@@ -1,8 +1,8 @@
 // @ts-check
 
-import { createHash } from "node:crypto";
-
 import { PROTOCOL_VERSION } from "./protocol.mjs";
+
+import { createHash } from "node:crypto";
 
 /** @param {unknown} value @returns {string} */
 function stableJson(value) {
