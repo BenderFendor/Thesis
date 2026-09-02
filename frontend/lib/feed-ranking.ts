@@ -30,9 +30,6 @@ const DEFAULT_BUCKET_RANK = 0,
  NO_SCORE = 0,
  PROFILE_COUNT_INCREMENT = 1,
  SCORE_DECIMAL_PLACES = 2,
- TOP_CLUSTER_LIMIT = 4,
- TOP_KEYWORD_LIMIT = 8,
-
  STOP_WORDS = new Set([
   "about",
   "after",
@@ -65,7 +62,10 @@ const DEFAULT_BUCKET_RANK = 0,
   "when",
   "with",
   "would",
-]);
+]),
+ TOP_CLUSTER_LIMIT = 4,
+
+ TOP_KEYWORD_LIMIT = 8;
 
 export interface PersonalizationSeed {
   readonly article: Readonly<NewsArticle>;
@@ -244,10 +244,10 @@ const addWeight = (
 ): void => {
   const categoryWeight =
     signal === "bookmark" ? PROFILE_CATEGORY_BOOKMARK_WEIGHT : PROFILE_CATEGORY_LIKE_WEIGHT,
-   sourceWeight =
-    signal === "bookmark" ? PROFILE_SOURCE_BOOKMARK_WEIGHT : PROFILE_SOURCE_LIKE_WEIGHT,
    keywordWeight =
-    signal === "bookmark" ? PROFILE_KEYWORD_BOOKMARK_WEIGHT : PROFILE_KEYWORD_LIKE_WEIGHT;
+    signal === "bookmark" ? PROFILE_KEYWORD_BOOKMARK_WEIGHT : PROFILE_KEYWORD_LIKE_WEIGHT,
+   sourceWeight =
+    signal === "bookmark" ? PROFILE_SOURCE_BOOKMARK_WEIGHT : PROFILE_SOURCE_LIKE_WEIGHT;
   addWeight(accumulator.categoryWeights, categoryKey, categoryWeight);
   addWeight(accumulator.sourceWeights, sourceKey, sourceWeight);
   for (const keyword of keywords) {
@@ -276,8 +276,8 @@ const addWeight = (
   topics: readonly ArticleTopic[],
 ): void => {
   const categoryKey = normalizeToken(seed.article.category ?? ""),
-   sourceKey = normalizeToken(seed.article.sourceId ?? seed.article.source ?? ""),
-   lexicalKeywords = tokenizeArticle(seed.article);
+   lexicalKeywords = tokenizeArticle(seed.article),
+   sourceKey = normalizeToken(seed.article.sourceId ?? seed.article.source ?? "");
   if (seed.bookmarked) {
     accumulator.bookmarkCount += PROFILE_COUNT_INCREMENT;
     addLexicalSignal(accumulator, categoryKey, sourceKey, lexicalKeywords, "bookmark");
@@ -331,45 +331,7 @@ export const buildInterestProfile = (
   return finalizeInterestProfile(accumulator, seeds.length);
 };
 
-const getBucket = (
-  article: Readonly<NewsArticle>,
-  isFavorite: (sourceId: string) => boolean,
-): FeedBucket => {
-  const favorite = isFavorite(article.sourceId),
-   hasImage = hasRealFeedImage(article.image);
-  if (favorite && hasImage) {
-    return { label: "favorite source + image", rank: FAVORITE_IMAGE_BUCKET_RANK };
-  }
-  if (favorite) {
-    return { label: "favorite source", rank: FAVORITE_BUCKET_RANK };
-  }
-  if (hasImage) {
-    return { label: "image", rank: IMAGE_BUCKET_RANK };
-  }
-  return { label: "default", rank: DEFAULT_BUCKET_RANK };
-},
-
- clamp = (value: number, maximum: number): number => Math.min(value, maximum),
-
- getMatchedKeywords = (
-  tokens: readonly string[],
-  profile: Readonly<InterestProfile>,
-): string[] =>
-  tokens.filter((token) => (profile.keywordWeights[token] ?? NO_SCORE) > NO_SCORE),
-
- getKeywordScore = (
-  matchedKeywords: readonly string[],
-  profile: Readonly<InterestProfile>,
-): number =>
-  clamp(
-    matchedKeywords.reduce(
-      (sum, token) => sum + (profile.keywordWeights[token] ?? NO_SCORE),
-      NO_SCORE,
-    ),
-    KEYWORD_SCORE_CAP,
-  ),
-
- roundScore = (score: number): number => Number(score.toFixed(SCORE_DECIMAL_PLACES)),
+const clamp = (value: number, maximum: number): number => Math.min(value, maximum),
 
  createBasicBreakdown = (
   article: Readonly<NewsArticle>,
@@ -387,7 +349,45 @@ const getBucket = (
   matchedKeywords: [],
   personalizedScore: NO_SCORE,
   totalScore: NO_SCORE,
-});
+}),
+
+ getBucket = (
+  article: Readonly<NewsArticle>,
+  isFavorite: (sourceId: string) => boolean,
+): FeedBucket => {
+  const favorite = isFavorite(article.sourceId),
+   hasImage = hasRealFeedImage(article.image);
+  if (favorite && hasImage) {
+    return { label: "favorite source + image", rank: FAVORITE_IMAGE_BUCKET_RANK };
+  }
+  if (favorite) {
+    return { label: "favorite source", rank: FAVORITE_BUCKET_RANK };
+  }
+  if (hasImage) {
+    return { label: "image", rank: IMAGE_BUCKET_RANK };
+  }
+  return { label: "default", rank: DEFAULT_BUCKET_RANK };
+},
+
+ getKeywordScore = (
+  matchedKeywords: readonly string[],
+  profile: Readonly<InterestProfile>,
+): number =>
+  clamp(
+    matchedKeywords.reduce(
+      (sum, token) => sum + (profile.keywordWeights[token] ?? NO_SCORE),
+      NO_SCORE,
+    ),
+    KEYWORD_SCORE_CAP,
+  ),
+
+ getMatchedKeywords = (
+  tokens: readonly string[],
+  profile: Readonly<InterestProfile>,
+): string[] =>
+  tokens.filter((token) => (profile.keywordWeights[token] ?? NO_SCORE) > NO_SCORE),
+
+ roundScore = (score: number): number => Number(score.toFixed(SCORE_DECIMAL_PLACES));
 
 export const scoreArticle = (
   article: Readonly<NewsArticle>,

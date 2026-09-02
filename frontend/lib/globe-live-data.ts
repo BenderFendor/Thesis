@@ -28,8 +28,8 @@ function sortByNewest(articles:readonly  NewsArticle[]): NewsArticle[] {
 }
 
 function dedupeArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
-  const seenIds = new Set<number>(),
-   seenFallbackKeys = new Set<string>()
+  const seenFallbackKeys = new Set<string>(),
+   seenIds = new Set<number>()
 
   return articles.filter((article) => {
     if (seenIds.has(article.id)) {
@@ -57,8 +57,8 @@ function countDistinctSources(articles:readonly  NewsArticle[]): number {
 export function buildCountryMetricsFromArticles(
   articles:readonly  NewsArticle[],
 ): CountryArticleCounts {
-  const sourceCounts: Record<string, number> = {},
-   mentionCounts: Record<string, number> = {}
+  const mentionCounts: Record<string, number> = {},
+   sourceCounts: Record<string, number> = {}
   let articlesWithCountry = 0
 
   articles.forEach((article) => {
@@ -116,8 +116,8 @@ export function buildCountryListFromArticles(
       return
     }
 
-    const timestamp = getArticleTimestamp(article),
-     current = countryStats.get(sourceCountry)
+    const current = countryStats.get(sourceCountry),
+     timestamp = getArticleTimestamp(article)
 
     if (!current) {
       countryStats.set(sourceCountry, {

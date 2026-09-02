@@ -1,8 +1,7 @@
 import { extname, join, relative, resolve, sep } from "node:path";
 import { readdirSync } from "node:fs";
 
-const FRONTEND_SOURCE_ROOTS = ["app", "components", "features", "hooks", "lib"],
- EXCLUDED_DIRECTORIES = new Set([
+const EXCLUDED_DIRECTORIES = new Set([
   ".next",
   "__mocks__",
   "__tests__",
@@ -11,6 +10,7 @@ const FRONTEND_SOURCE_ROOTS = ["app", "components", "features", "hooks", "lib"],
   "node_modules",
   "tools",
 ]),
+ FRONTEND_SOURCE_ROOTS = ["app", "components", "features", "hooks", "lib"],
  TEST_FILE_PATTERN = /(?:^|\.)(?:spec|test)\.[cm]?[jt]sx?$/u,
 
  collectFiles = (directory, extensions, output) => {

@@ -57,17 +57,17 @@ export function NotificationsPopup({
   onClose,
   anchorRef,
 }: NotificationsPopupProps) {
-  const popupRef = useRef<HTMLDivElement>(null),
-   unreadCount = notifications.filter(
-    (item) => item.type === "error" || item.type === "warning",
-  ).length,
-
-   handleNotificationAction = (notification: Notification) => {
+  const handleNotificationAction = (notification: Notification) => {
     const {action} = notification
     if (action) {
       onAction?.(action.type, notification)
     }
-  }
+  },
+   popupRef = useRef<HTMLDivElement>(null),
+
+   unreadCount = notifications.filter(
+    (item) => item.type === "error" || item.type === "warning",
+  ).length
 
   useEffect(() => {
     popupRef.current?.focus()

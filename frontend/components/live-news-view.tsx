@@ -1,12 +1,12 @@
 "use client"
 
+import type { Dispatch, SetStateAction } from "react"
+import { type LiveNewsPreferences, useLiveNewsPreferences } from "@/hooks/use-live-news-preferences"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { LiveNewsToolbar } from "./live-news-toolbar"
 import { StreamCard } from "./stream-card"
 import { getDefaultSources } from "@/lib/live-news-sources"
-import { useLiveNewsPreferences, type LiveNewsPreferences } from "@/hooks/use-live-news-preferences"
-import type { Dispatch, SetStateAction } from "react"
 import type { NewsArticle } from "@/lib/api"
 
 interface LiveNewsViewProps {
@@ -33,7 +33,14 @@ const useLiveNewsHandlers = (
   setFullscreenId: React.Dispatch<React.SetStateAction<string | null>>,
   setLoadedSources: React.Dispatch<React.SetStateAction<Set<string>>>,
 ) => {
-  const handleBecameVisible = useCallback(
+  const handleBecameHidden = useCallback((sourceId: string) => {
+    setLoadedSources((prev) => {
+      const next = new Set(prev)
+      next.delete(sourceId)
+      return next
+    })
+  }, []),
+   handleBecameVisible = useCallback(
     (sourceId: string) => {
       setLoadedSources((prev) => {
         const next = new Set(prev)
@@ -49,20 +56,6 @@ const useLiveNewsHandlers = (
     },
     [],
   ),
-   handleBecameHidden = useCallback((sourceId: string) => {
-    setLoadedSources((prev) => {
-      const next = new Set(prev)
-      next.delete(sourceId)
-      return next
-    })
-  }, []),
-   handleToggleMute = useCallback((_sourceId: string) => {
-    if (prefs.muteState === "all-muted") {
-      updatePrefs({ muteState: "per-source" })
-    } else {
-      updatePrefs({ muteState: "all-muted" })
-    }
-  }, [prefs.muteState, updatePrefs]),
    handleCloseSource = useCallback((sourceId: string) => {
     const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
     updatePrefs({ activeSourceIds: nextIds })
@@ -74,15 +67,22 @@ const useLiveNewsHandlers = (
    handleMuteAll = useCallback(() => {
     updatePrefs({ muteState: "all-muted" })
   }, [updatePrefs]),
-   handleUnmuteAll = useCallback(() => {
-    updatePrefs({ muteState: "per-source" })
-  }, [updatePrefs]),
+   handleToggleMute = useCallback((_sourceId: string) => {
+    if (prefs.muteState === "all-muted") {
+      updatePrefs({ muteState: "per-source" })
+    } else {
+      updatePrefs({ muteState: "all-muted" })
+    }
+  }, [prefs.muteState, updatePrefs]),
    handleToggleSource = useCallback((sourceId: string) => {
     const nextIds = prefs.activeSourceIds.includes(sourceId)
       ? prefs.activeSourceIds.filter((id) => id !== sourceId)
       : [...prefs.activeSourceIds, sourceId]
     updatePrefs({ activeSourceIds: nextIds })
   }, [prefs.activeSourceIds, updatePrefs]),
+   handleUnmuteAll = useCallback(() => {
+    updatePrefs({ muteState: "per-source" })
+  }, [updatePrefs]),
    mutedForSource = useCallback((_sourceId: string) => prefs.muteState === "all-muted", [prefs.muteState])
 
   return {

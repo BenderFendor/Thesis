@@ -30,10 +30,11 @@ type FetchBoundary = (
   init?: RequestInit,
 ) => Promise<FetchResponseFixture>;
 
-const fetchMock = jest.fn<FetchBoundary>(),
-  originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
-
- createStreamResponse = (): FetchResponseFixture => {
+const LOOP_MESSAGES = [
+  "Maximum update depth exceeded",
+  "The result of getServerSnapshot should be cached",
+],
+  createStreamResponse = (): FetchResponseFixture => {
   let delivered = false;
   const data = [
     `data: ${JSON.stringify({ articles: [], status: "initial" })}\n`,
@@ -60,6 +61,8 @@ const fetchMock = jest.fn<FetchBoundary>(),
   };
 },
 
+ fetchMock = jest.fn<FetchBoundary>(),
+
  installFetchBoundary = (): void => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input) => {
@@ -81,18 +84,15 @@ const fetchMock = jest.fn<FetchBoundary>(),
   });
 },
 
+ originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
+
  restoreFetchBoundary = (): void => {
   if (originalFetchDescriptor === undefined) {
     Reflect.deleteProperty(globalThis, "fetch");
   } else {
     Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
   }
-},
-
- LOOP_MESSAGES = [
-  "Maximum update depth exceeded",
-  "The result of getServerSnapshot should be cached",
-];
+};
 
 function installLoopGuard() {
   const errorSpy = jest

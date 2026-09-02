@@ -8,9 +8,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { NewsArticle } from "@/lib/api";
 import { toast } from "sonner";
 
-const WORDS_PER_MINUTE_READING = 230,
- READING_QUEUE_STORAGE_KEY = "readingQueue",
- USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true";
+const READING_QUEUE_STORAGE_KEY = "readingQueue",
+ USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true",
+ WORDS_PER_MINUTE_READING = 230;
 
 // Event emitter for cross-component updates
 type QueueListener = (articles:readonly  NewsArticle[]) => void;
@@ -157,9 +157,9 @@ const useQueueMutations = (
 }
 
 const useQueueSelectors = (queuedArticles: readonly NewsArticle[]) => {
-  const isArticleInQueue = useCallback(
+  const getArticleIndex = useCallback(
     (articleUrl: string) =>
-      queuedArticles.some((a) => a.url === articleUrl),
+      queuedArticles.findIndex((a) => a.url === articleUrl),
     [queuedArticles]
   ),
    getCurrentArticle = useCallback(
@@ -167,9 +167,9 @@ const useQueueSelectors = (queuedArticles: readonly NewsArticle[]) => {
       queuedArticles[index] || null,
     [queuedArticles]
   ),
-   getArticleIndex = useCallback(
+   isArticleInQueue = useCallback(
     (articleUrl: string) =>
-      queuedArticles.findIndex((a) => a.url === articleUrl),
+      queuedArticles.some((a) => a.url === articleUrl),
     [queuedArticles]
   )
   return { getArticleIndex, getCurrentArticle, isArticleInQueue };

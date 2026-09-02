@@ -1579,17 +1579,17 @@ const CollapsedIntelligenceStat = (props: CollapsedIntelligenceStatProps) => (
   </div>
 ),
 
- positiveValueOrFallback = (value: number, fallback: number): number => {
-  if (value > EMPTY_COUNT) {return value}
-  return fallback
-},
-
  CollapsedReadingAngleHeader = () => (
   <div className="flex items-center gap-2">
     <AlertCircle size={ICON_SIZE} className="text-primary" />
     <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Reading angle</span>
   </div>
-)
+),
+
+ positiveValueOrFallback = (value: number, fallback: number): number => {
+  if (value > EMPTY_COUNT) {return value}
+  return fallback
+}
 
 interface CollapsedReadingAngleCardProps {
   readonly label: string
@@ -1923,8 +1923,8 @@ const ExpandedFocusSources = (props: Readonly<Pick<ExpandedLeftSidebarProps, "so
 },
 
  ExpandedViewButtons = (props: Readonly<Pick<ExpandedLeftSidebarProps, "onViewModeChange" | "viewMode">>) => {
-  const onInternal = useCallback(() =>{  props.onViewModeChange("internal"); }, [props.onViewModeChange]),
-    onExternal = useCallback(() =>{  props.onViewModeChange("external"); }, [props.onViewModeChange])
+  const onExternal = useCallback(() =>{  props.onViewModeChange("external"); }, [props.onViewModeChange]),
+    onInternal = useCallback(() =>{  props.onViewModeChange("internal"); }, [props.onViewModeChange])
   return (
     <div className="flex flex-col gap-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
       <button

@@ -157,14 +157,14 @@ function useAppearanceSettingsActions(
     },
     [save, settings],
   ),
-   updateTypography = useCallback(
-    (patch: Partial<AppearanceTypographyTokens>) =>{
-      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
-    [save, settings],
-  ),
    updateLayout = useCallback(
     (patch: Partial<AppearanceLayoutTokens>) =>{
       save({ ...settings, layout: { ...settings.layout, ...patch } }); },
+    [save, settings],
+  ),
+   updateMotion = useCallback(
+    (patch: Partial<AppearanceMotionTokens>) =>{
+      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
     [save, settings],
   ),
    updateShadows = useCallback(
@@ -172,9 +172,9 @@ function useAppearanceSettingsActions(
       save({ ...settings, shadows: { ...settings.shadows, ...patch } }); },
     [save, settings],
   ),
-   updateMotion = useCallback(
-    (patch: Partial<AppearanceMotionTokens>) =>{
-      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
+   updateTypography = useCallback(
+    (patch: Partial<AppearanceTypographyTokens>) =>{
+      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
     [save, settings],
   )
   return { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography }
@@ -182,9 +182,9 @@ function useAppearanceSettingsActions(
 
 function useAppearanceFileActions(settings: AppearanceSettings) {
   const handleExport = useCallback(() => {
-    const blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
-     url = URL.createObjectURL(blob),
-     anchor = document.createElement("a")
+    const anchor = document.createElement("a"),
+     blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
+     url = URL.createObjectURL(blob)
     anchor.href = url
     anchor.download = "scoop-appearance-settings.json"
     anchor.click()

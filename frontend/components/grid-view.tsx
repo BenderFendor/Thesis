@@ -52,19 +52,15 @@ import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useReadingQueue } from "@/hooks/use-reading-queue"
 import type { GridViewMode } from '@/lib/view-mode-storage';
 
-const VirtualizedGrid = lazy(() =>
-  import("./virtualized-grid").then((module) => ({
-    default: module.VirtualizedGrid,
-  })),
-),
-
- ArticleDetailModal = dynamic(
+const ArticleDetailModal = dynamic(
   () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
   {
     loading: () => null,
     ssr: false,
   },
 ),
+
+ COLLAPSED_SOURCE_ARTICLE_COUNT = 20,
 
  ClusterDetailModal = dynamic(
   () => import("./cluster-detail-modal").then((module) => module.ClusterDetailModal),
@@ -74,9 +70,13 @@ const VirtualizedGrid = lazy(() =>
   },
 ),
 
- logger = getLogger("GridView"),
- COLLAPSED_SOURCE_ARTICLE_COUNT = 20,
- SOURCE_GROUP_BATCH_SIZE = 10
+ SOURCE_GROUP_BATCH_SIZE = 10,
+ VirtualizedGrid = lazy(() =>
+  import("./virtualized-grid").then((module) => ({
+    default: module.VirtualizedGrid,
+  })),
+),
+ logger = getLogger("GridView")
 
 interface GridViewProps {
   articles: NewsArticle[]
@@ -112,14 +112,14 @@ function SourceArticleCard({
   onQueueToggle,
   index,
 }: SourceArticleCardProps) {
-  const showImage = hasRealImage(article.image),
-
-   handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) {return}
     if (event.key !== "Enter" && event.key !== " ") {return}
     event.preventDefault()
     onArticleClick(article)
-  }
+  },
+
+   showImage = hasRealImage(article.image)
 
   return (
     <motion.article
@@ -1210,7 +1210,82 @@ interface GridTopicControllerOptions {
   topicSortMode: "sources" | "articles" | "recent"
 }
 
-const useGridTopicController = ({
+const useGridModalController = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null),
+   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
+   [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null),
+   [modalArticles, setModalArticles] = useState<NewsArticle[]>([]),
+   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
+   [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null),
+   [isClusterModalOpen, setIsClusterModalOpen] = useState(false),
+   [showScrollTop, setShowScrollTop] = useState(false),
+
+   handleArticleClick = useCallback((article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
+    const nextIndex = contextArticles.findIndex((item) =>
+      article.url && item.url ? item.url === article.url : item.id === article.id,
+    )
+    setModalArticles([...contextArticles])
+    setSelectedArticleIndex(nextIndex === -1 ? null : nextIndex)
+    setSelectedArticle(article)
+    setIsArticleModalOpen(true)
+  }, []),
+   handleModalNavigate = useCallback((direction: "prev" | "next") => {
+    if (selectedArticleIndex === null) {return}
+    const nextIndex = direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
+    if (nextIndex < 0 || nextIndex >= modalArticles.length) {return}
+    setSelectedArticleIndex(nextIndex)
+    setSelectedArticle(modalArticles[nextIndex] ?? null)
+  }, [modalArticles, selectedArticleIndex]),
+   handleModalClose = useCallback(() => {
+    setIsArticleModalOpen(false)
+    setSelectedArticle(null)
+    setSelectedArticleIndex(null)
+    setModalArticles([])
+  }, []),
+   handleOpenClusterCompare = useCallback((cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    setSelectedCluster({
+      ...cluster,
+      articles: cluster.articles ?? [],
+      trending_score: cluster.source_diversity,
+      velocity: cluster.window_count,
+    })
+    setIsClusterModalOpen(true)
+  }, []),
+   closeClusterModal = () => {
+    setIsClusterModalOpen(false)
+    setSelectedCluster(null)
+  }
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) {return}
+    const handleScroll = () => {setShowScrollTop(container.scrollTop > 500)}
+    handleScroll()
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {container.removeEventListener("scroll", handleScroll)}
+  }, [])
+  const scrollToTop = () => {
+    containerRef.current?.scrollTo({ behavior: "smooth", top: 0 })
+  }
+
+  return {
+    closeClusterModal,
+    containerRef,
+    handleArticleClick,
+    handleModalClose,
+    handleModalNavigate,
+    handleOpenClusterCompare,
+    isArticleModalOpen,
+    isClusterModalOpen,
+    scrollToTop,
+    selectedArticle,
+    selectedCluster,
+    showScrollTop,
+  }
+},
+
+ useGridTopicController = ({
   clusterWindow,
   viewMode,
   topicSortMode,
@@ -1319,81 +1394,6 @@ const useGridTopicController = ({
     handleExpandCluster,
     setExpandedClusterId,
     sortedClusters,
-  }
-},
-
- useGridModalController = () => {
-  const containerRef = useRef<HTMLDivElement | null>(null),
-   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
-   [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null),
-   [modalArticles, setModalArticles] = useState<NewsArticle[]>([]),
-   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
-   [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null),
-   [isClusterModalOpen, setIsClusterModalOpen] = useState(false),
-   [showScrollTop, setShowScrollTop] = useState(false),
-
-   handleArticleClick = useCallback((article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
-    const nextIndex = contextArticles.findIndex((item) =>
-      article.url && item.url ? item.url === article.url : item.id === article.id,
-    )
-    setModalArticles([...contextArticles])
-    setSelectedArticleIndex(nextIndex === -1 ? null : nextIndex)
-    setSelectedArticle(article)
-    setIsArticleModalOpen(true)
-  }, []),
-   handleModalNavigate = useCallback((direction: "prev" | "next") => {
-    if (selectedArticleIndex === null) {return}
-    const nextIndex = direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
-    if (nextIndex < 0 || nextIndex >= modalArticles.length) {return}
-    setSelectedArticleIndex(nextIndex)
-    setSelectedArticle(modalArticles[nextIndex] ?? null)
-  }, [modalArticles, selectedArticleIndex]),
-   handleModalClose = useCallback(() => {
-    setIsArticleModalOpen(false)
-    setSelectedArticle(null)
-    setSelectedArticleIndex(null)
-    setModalArticles([])
-  }, []),
-   handleOpenClusterCompare = useCallback((cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setSelectedCluster({
-      ...cluster,
-      articles: cluster.articles ?? [],
-      trending_score: cluster.source_diversity,
-      velocity: cluster.window_count,
-    })
-    setIsClusterModalOpen(true)
-  }, []),
-   closeClusterModal = () => {
-    setIsClusterModalOpen(false)
-    setSelectedCluster(null)
-  }
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) {return}
-    const handleScroll = () => {setShowScrollTop(container.scrollTop > 500)}
-    handleScroll()
-    container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => {container.removeEventListener("scroll", handleScroll)}
-  }, [])
-  const scrollToTop = () => {
-    containerRef.current?.scrollTo({ behavior: "smooth", top: 0 })
-  }
-
-  return {
-    closeClusterModal,
-    containerRef,
-    handleArticleClick,
-    handleModalClose,
-    handleModalNavigate,
-    handleOpenClusterCompare,
-    isArticleModalOpen,
-    isClusterModalOpen,
-    scrollToTop,
-    selectedArticle,
-    selectedCluster,
-    showScrollTop,
   }
 }
 

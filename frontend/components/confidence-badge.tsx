@@ -117,15 +117,15 @@ export function ConfidenceBar({
   className = "",
   showPercentage = true,
 }: ConfidenceBarProps) {
-  const colorClass = getConfidenceColor(level),
-   percentage = Math.round(confidence * 100),
-
-   barColor = {
+  const barColor = {
     high: "bg-green-500",
     low: "bg-orange-500",
     medium: "bg-yellow-500",
     very_low: "bg-red-500",
-  }[level] || "bg-gray-500";
+  }[level] || "bg-gray-500",
+   colorClass = getConfidenceColor(level),
+
+   percentage = Math.round(confidence * 100);
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>

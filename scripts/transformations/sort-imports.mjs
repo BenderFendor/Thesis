@@ -2,24 +2,33 @@
 //
 // Rule semantics (oxlint 1.80.0, default options; the repo config does not
 // Override what is captured here):
-//   - Only the leading import run (contiguous top-level import statements) is
-//     Checked by the rule, so only that run is reordered. Files whose first
-//     Statement is not an import (for example "use client" directives) contain
-//     No checked imports and stay unchanged.
-//   - Declaration order key: (member-syntax group index, first member's local
-//     Binding name), case-sensitive, stable. Default group order is
-//     None, all, multiple, single. Group classification by specifier count:
-//     Zero specifiers -> none; one namespace -> all; one other -> single;
-//     Two or more -> multiple.
+//   - Every contiguous top-level import run is reordered in place: the
+//     Leading run and each run that follows non-import statements. Imports
+//     Never move across non-import statements. The one exception is the
+//     Import block that follows leading "use ..." string directives at the
+//     Start of a file: that block is the file header's own import section
+//     And stays untouched (files starting with a directive keep their leading
+//     Imports as authored).
+//   - Declaration order key: (member-syntax group index, first local name),
+//     Case-sensitive, stable. Default group order is None, all, multiple,
+//     Single. Group classification by specifier count: zero specifiers ->
+//     None; one namespace -> all; one other -> single; two or more ->
+//     Multiple. Side-effect imports ("none") all share the empty first name,
+//     So their relative order is unchanged by the sort. The first local name
+//     Is the binding for default/namespace imports, otherwise the named
+//     Member that sorts first after member reordering - the same name the
+//     Rule compares on the post-sort text, which keeps the output idempotent.
 //   - Member order key: local binding name (`x as y` sorts as `y`),
 //     Case-sensitive, stable. Only named (`{ ... }`) members are reordered.
 //   - Text between imports (blank lines and comments) is preserved
 //     Byte-for-byte: imports move through fixed slots, trivia never moves.
-//   - Member reordering is skipped when a comment appears inside the import
-//     Specifier list, matching the rule's own fixer behavior.
+//   - A run whose first import holds a comment inside its specifier list is
+//     Skipped entirely; later imports with comments in their own specifier
+//     Lists keep their members as authored (matching the rule's fixer
+//     Behavior) while their declaration still sorts.
 //
 // Semantics: reordering imports never changes evaluation (imports are hoisted)
-// And no code outside the leading import run is touched.
+// And no code outside import runs is touched.
 //
 // Usage: node scripts/transformations/sort-imports.mjs --file <path> [--dry]
 import tsModule from "../../frontend/node_modules/typescript/lib/typescript.js";
@@ -36,7 +45,6 @@ import tsModule from "../../frontend/node_modules/typescript/lib/typescript.js";
 /** @typedef {{ analysis: ImportAnalysis; index: number }} ImportPlacement */
 /** @typedef {{ entry: MemberEntry; index: number }} MemberPlacement */
 /** @typedef {{ head: string; membersText: string; tail: string }} MemberPieces */
-/** @typedef {{ currentRegion: string; imports: readonly TsImportDeclaration[]; rebuiltRegion: string }} RegionInfo */
 /** @typedef {{ dryRun: boolean; filePath: string }} CliOptions */
 /** @typedef {Readonly<{ changed: boolean; text: string }>} TransformResult */
 
@@ -81,23 +89,24 @@ const
         return [];
       }
       const analysis = SortImports.analyzeDeclaration(statement);
+      const original = SortImports.statementText(parsed, analysis, sourceText);
       const text = SortImports.memberOrStatementText(parsed, analysis, sourceText);
+      analysis.firstName = SortImports.sortKeyName(analysis, text !== original);
       return [{analysis, text}];
     },
 
     /**
-     * Analyzes and sorts each leading import statement.
+     * Analyzes each import declaration of one import run.
      * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {readonly TsStatement[]} statements - Top-level statements.
+     * @param {readonly TsImportDeclaration[]} run - Contiguous import declarations.
      * @param {string} sourceText - Full source text.
-     * @param {number} runLength - Number of leading import statements.
      * @returns {AnalyzedImport[]} Per-import analysis and text.
      */
-    analyzedImports(parsed, statements, sourceText, runLength) {
+    runItems(parsed, run, sourceText) {
       /** @type {AnalyzedImport[]} */
       const items = [];
-      for (let index = EMPTY_INDEX; index < runLength; index += FIRST_INDEX) {
-        items.push(...SortImports.analyzedImport(parsed, statements[index], sourceText));
+      for (const declaration of run) {
+        items.push(...SortImports.analyzedImport(parsed, declaration, sourceText));
       }
       return items;
     },
@@ -213,11 +222,11 @@ const
      */
     fileTransform(sourceText, filePath) {
       const parsed = SortImports.parseSource(sourceText, filePath);
-      const runLength = SortImports.leadingImportLength(parsed.statements);
-      if (runLength === EMPTY_INDEX || parsed.parseDiagnostics.length > EMPTY_INDEX) {
+      if (parsed.parseDiagnostics.length > EMPTY_INDEX) {
         return SortImports.unchangedResult(sourceText);
       }
-      const transformed = SortImports.sortedImportRegion(parsed, parsed.statements, sourceText, runLength);
+      const runs = SortImports.sortableRuns(parsed.statements);
+      const transformed = SortImports.sortedRunsSource(parsed, runs, sourceText);
       if (transformed === UNCHANGED) {
         return SortImports.unchangedResult(sourceText);
       }
@@ -234,6 +243,44 @@ const
         return "";
       }
       return entries[EMPTY_INDEX].local;
+    },
+
+    /**
+     * Computes the canonical declaration sort key for one import.
+     * @param {ImportAnalysis} analysis - Import analysis.
+     * @param {boolean} membersSorted - Whether named members were reordered.
+     * @returns {string} First local name of the import's output text.
+     */
+    sortKeyName(analysis, membersSorted) {
+      const {entries} = analysis;
+      const binding = entries.find((entry) => entry.role !== "named");
+      if (binding !== undefined) {
+        return binding.local;
+      }
+      const named = entries.filter((entry) => entry.role === "named");
+      if (named.length >= MIN_MEMBER_COUNT && membersSorted) {
+        return SortImports.minLocalName(named);
+      }
+      if (named.length > EMPTY_INDEX) {
+        return named[EMPTY_INDEX].local;
+      }
+      return "";
+    },
+
+    /**
+     * Returns the case-sensitive smallest local name of named members.
+     * @param {readonly MemberEntry[]} named - Named member entries.
+     * @returns {string} The minimal local name.
+     */
+    minLocalName(named) {
+      let min = named[EMPTY_INDEX].local;
+      for (let index = FIRST_INDEX; index < named.length; index += FIRST_INDEX) {
+        const {local} = named[index];
+        if (SortImports.compareNames(local, min) < COMPARE_EQUAL) {
+          min = local;
+        }
+      }
+      return min;
     },
 
     /**
@@ -320,31 +367,68 @@ const
     },
 
     /**
-     * Counts the contiguous leading import statements of a file.
-     * @param {readonly TsStatement[]} statements - Top-level statements.
-     * @returns {number} Number of leading import statements.
+     * Reports whether one statement is a "use strict"/"use client"-style
+     * string directive.
+     * @param {TsStatement} statement - Candidate statement.
+     * @returns {boolean} True for a string-literal expression statement.
      */
     isDirectiveStatement(statement) {
       return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
     },
 
     /**
-     * Counts the contiguous import statements that begin after optional
-     * "use strict"/"use client"-style directives and JSDoc preceding them.
+     * Collects the contiguous import runs of top-level statements.
      * @param {readonly TsStatement[]} statements - Top-level statements.
-     * @returns {number} Number of import statements in the first run.
+     * @returns {TsImportDeclaration[][]} Contiguous import runs in source order.
      */
-    leadingImportLength(statements) {
-      let index = EMPTY_INDEX;
-      while (index < statements.length && SortImports.isDirectiveStatement(statements[index])) {
-        index += FIRST_INDEX;
+    importRuns(statements) {
+      /** @type {TsImportDeclaration[][]} */
+      const runs = [];
+      /** @type {TsImportDeclaration[]} */
+      let run = [];
+      for (const statement of statements) {
+        if (ts.isImportDeclaration(statement)) {
+          run.push(statement);
+        } else if (run.length > EMPTY_INDEX) {
+          runs.push(run);
+          run = [];
+        }
       }
-      let length = EMPTY_INDEX;
-      while (index < statements.length && ts.isImportDeclaration(statements[index])) {
-        length += FIRST_INDEX;
-        index += FIRST_INDEX;
+      if (run.length > EMPTY_INDEX) {
+        runs.push(run);
       }
-      return length;
+      return runs;
+    },
+
+    /**
+     * Reports whether the file starts with directives followed by imports.
+     * @param {readonly TsStatement[]} statements - Top-level statements.
+     * @returns {boolean} True when an import block follows leading directives.
+     */
+    hasDirectiveImportBlock(statements) {
+      let directiveCount = EMPTY_INDEX;
+      while (directiveCount < statements.length && SortImports.isDirectiveStatement(statements[directiveCount])) {
+        directiveCount += FIRST_INDEX;
+      }
+      return (
+        directiveCount > EMPTY_INDEX &&
+        directiveCount < statements.length &&
+        ts.isImportDeclaration(statements[directiveCount])
+      );
+    },
+
+    /**
+     * Splits top-level statements into sortable contiguous import runs,
+     * excluding the import block that follows leading string directives.
+     * @param {readonly TsStatement[]} statements - Top-level statements.
+     * @returns {TsImportDeclaration[][]} Contiguous import runs in source order.
+     */
+    sortableRuns(statements) {
+      const runs = SortImports.importRuns(statements);
+      if (SortImports.hasDirectiveImportBlock(statements)) {
+        return runs.slice(FIRST_INDEX);
+      }
+      return runs;
     },
 
     /**
@@ -554,34 +638,6 @@ const
     },
 
     /**
-     * Builds the region comparison data for a sorted import block.
-     * @param {readonly AnalyzedImport[]} items - Per-import analysis and text.
-     * @param {readonly TsImportDeclaration[]} imports - Leading import statements.
-     * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {string} source - Full source text.
-     * @returns {RegionInfo} Current and rebuilt region texts.
-     */
-    regionInfo(items, imports, parsed, source) {
-      const rebuiltRegion = SortImports.rebuildImportRegion(items, imports, parsed, source);
-      const {regionEnd, regionStart} = SortImports.regionBounds(imports, parsed);
-      const currentRegion = source.slice(regionStart, regionEnd);
-      return {currentRegion, imports, rebuiltRegion};
-    },
-
-    /**
-     * Replaces the leading import region with its sorted text.
-     * @param {string} sourceText - Full source text.
-     * @param {readonly TsImportDeclaration[]} imports - Leading import statements.
-     * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {string} rebuiltRegion - Rebuilt import region text.
-     * @returns {string} Source text with the sorted region.
-     */
-    replacedSource(sourceText, imports, parsed, rebuiltRegion) {
-      const {regionEnd, regionStart} = SortImports.regionBounds(imports, parsed);
-      return sourceText.slice(EMPTY_INDEX, regionStart) + rebuiltRegion + sourceText.slice(regionEnd);
-    },
-
-    /**
      * Reports the outcome of an applied transform.
      * @param {TransformResult} result - Transform result.
      * @param {string} filePath - File path.
@@ -622,21 +678,49 @@ const
     },
 
     /**
-     * Computes the transformed text for the leading import region.
+     * Rebuilds the sorted text of one import run.
      * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {readonly TsStatement[]} statements - Top-level statements.
+     * @param {readonly TsImportDeclaration[]} run - Contiguous import declarations.
      * @param {string} sourceText - Full source text.
-     * @param {number} runLength - Number of leading import statements.
+     * @returns {string} The sorted run text, or the original run text when the
+     *   run's first import holds a comment inside its specifier list.
+     */
+    rebuiltRunRegion(parsed, run, sourceText) {
+      const items = SortImports.runItems(parsed, run, sourceText);
+      const first = items[EMPTY_INDEX];
+      const firstNamed = first.analysis.entries.filter((entry) => entry.role === "named");
+      if (
+        firstNamed.length >= MIN_MEMBER_COUNT &&
+        SortImports.hasSpecifierComment(sourceText, first.analysis.declaration.getStart(parsed), first.analysis.bracesEnd)
+      ) {
+        const {regionEnd, regionStart} = SortImports.regionBounds(run, parsed);
+        return sourceText.slice(regionStart, regionEnd);
+      }
+      return SortImports.rebuildImportRegion(items, run, parsed, sourceText);
+    },
+
+    /**
+     * Replaces every import run with its sorted text in place.
+     * @param {TsSourceFile} parsed - Parsed source file.
+     * @param {readonly TsImportDeclaration[][]} runs - Contiguous import runs.
+     * @param {string} sourceText - Full source text.
      * @returns {string} Full transformed text, or the UNCHANGED sentinel.
      */
-    sortedImportRegion(parsed, statements, sourceText, runLength) {
-      const items = SortImports.analyzedImports(parsed, statements, sourceText, runLength);
-      const imports = items.map((item) => item.analysis.declaration);
-      const {currentRegion, rebuiltRegion} = SortImports.regionInfo(items, imports, parsed, sourceText);
-      if (rebuiltRegion === currentRegion) {
+    sortedRunsSource(parsed, runs, sourceText) {
+      let cursor = EMPTY_INDEX;
+      let rebuilt = "";
+      for (const run of runs) {
+        const {regionEnd, regionStart} = SortImports.regionBounds(run, parsed);
+        rebuilt +=
+          sourceText.slice(cursor, regionStart) +
+          SortImports.rebuiltRunRegion(parsed, run, sourceText);
+        cursor = regionEnd;
+      }
+      rebuilt += sourceText.slice(cursor);
+      if (rebuilt === sourceText) {
         return UNCHANGED;
       }
-      return SortImports.replacedSource(sourceText, imports, parsed, rebuiltRegion);
+      return rebuilt;
     },
 
     /**

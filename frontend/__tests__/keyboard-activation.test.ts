@@ -32,8 +32,8 @@ describe("keyboard activation helpers", () => {
   })
 
   it("does not activate nested controls", () => {expect.hasAssertions();
-    const preventDefault = jest.fn(),
-     onActivate = jest.fn()
+    const onActivate = jest.fn(),
+     preventDefault = jest.fn()
 
     activateCardFromKeyDown(
       {

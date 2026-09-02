@@ -73,13 +73,13 @@ export const bookmarkListeners = new Set<BookmarkListener>(),
       }
     }, [])
 
-    const refresh = useCallback(() => {
-        void loadBookmarksFromApi()
-      }, []),
-      isBookmarked = useCallback(
+    const isBookmarked = useCallback(
         (articleId: number) => bookmarkIds.has(articleId),
         [bookmarkIds],
       ),
+      refresh = useCallback(() => {
+        void loadBookmarksFromApi()
+      }, []),
       toggleBookmark = useCallback(
         async (articleId: number) => {
           if (!articleId) {

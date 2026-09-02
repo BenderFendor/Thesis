@@ -51,11 +51,11 @@ export function useLikedArticles() {
    [error, setError] = useState<string | null>(likedError)
 
   useEffect(() => {
-    const likedListener = (ids: Set<number>) => {
+    const errListener = (err: string | null) =>{  setError(err); },
+     likedListener = (ids: Set<number>) => {
       setLikedIds(ids)
       setIsLoaded(true)
-    },
-     errListener = (err: string | null) =>{  setError(err); }
+    }
 
     likedListeners.add(likedListener)
     errorListeners.add(errListener)
@@ -70,16 +70,16 @@ export function useLikedArticles() {
     }
   }, [])
 
-  const refresh = useCallback(async () =>
-    loadLikedFromApi()
-  , []),
-
-   isLiked = useCallback(
+  const isLiked = useCallback(
     (articleId: number) =>
       likedIds.has(articleId)
     ,
     [likedIds]
   ),
+
+   refresh = useCallback(async () =>
+    loadLikedFromApi()
+  , []),
 
    toggleLike = useCallback(
     async (articleId: number) => {

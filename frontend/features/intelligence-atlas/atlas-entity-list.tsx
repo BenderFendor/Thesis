@@ -43,8 +43,6 @@ const INITIAL_CURSOR: string | null = null,
  LOAD_AHEAD_ROWS = 8,
  PAGE_SIZE = 80,
  ROW_ESTIMATE = 66,
- VIRTUAL_OVERSCAN = 8,
-
  TYPE_TABS: readonly TypeTab[] = [
   { key: "all", label: "All", types: [] },
   { key: "outlet", label: "Outlets", types: ["outlet"] },
@@ -53,9 +51,14 @@ const INITIAL_CURSOR: string | null = null,
   { key: "reporter", label: "Reporters", types: ["reporter"] },
 ],
 
- humanizeKind = (value: string): string => (
-  value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase())
-),
+ VIRTUAL_OVERSCAN = 8,
+
+ analysisSummary = (node: AtlasNode): string => {
+  const count = Object.keys(node.analysis_scores).length
+  return count > 0 ? ` · ${count} analysis scores` : ""
+},
+
+ connectionSummary = (count: number): string => (count > 0 ? `${count} links` : "—"),
 
  effectiveEntityTypes = (
   type: EntityTypeTab,
@@ -65,13 +68,9 @@ const INITIAL_CURSOR: string | null = null,
   return TYPE_TABS.find((tab) => tab.key === type)?.types ?? []
 },
 
- toggleString = (values: readonly string[], value: string): string[] => (
-  values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+ humanizeKind = (value: string): string => (
+  value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase())
 ),
-
- singleFilterValue = (values: readonly string[]): string => values[0] ?? "all",
-
- toSingleFilter = (value: string): string[] => (value === "all" ? [] : [value]),
 
  isResearchedNode = (node: AtlasNode): boolean => (
   node.current_parent !== null && node.current_parent !== undefined
@@ -79,11 +78,6 @@ const INITIAL_CURSOR: string | null = null,
   || node.evidence_coverage !== "not researched"
   || Object.keys(node.analysis_scores).length > 0
 ),
-
- analysisSummary = (node: AtlasNode): string => {
-  const count = Object.keys(node.analysis_scores).length
-  return count > 0 ? ` · ${count} analysis scores` : ""
-},
 
  ownershipSummary = (node: AtlasNode): string => (
   node.current_parent !== null && node.current_parent !== undefined
@@ -97,7 +91,13 @@ const INITIAL_CURSOR: string | null = null,
     : ` · ${node.pending_change}`
 ),
 
- connectionSummary = (count: number): string => (count > 0 ? `${count} links` : "—")
+ singleFilterValue = (values: readonly string[]): string => values[0] ?? "all",
+
+ toSingleFilter = (value: string): string[] => (value === "all" ? [] : [value]),
+
+ toggleString = (values: readonly string[], value: string): string[] => (
+  values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+)
 
 interface DirectoryHeaderProps {
   readonly variant: AtlasEntityListVariant
@@ -494,11 +494,11 @@ export const AtlasEntityList = ({
     void indexQuery.fetchNextPage()
   }, [active, indexQuery, items.length, virtualItems])
 
-  const changeType = (nextType: EntityTypeTab) => {
+  const changeKind = (value: string) =>{  setKind((current) => toggleString(current, value)); },
+   changeType = (nextType: EntityTypeTab) => {
     setType(nextType)
     setKind([])
   },
-   changeKind = (value: string) =>{  setKind((current) => toggleString(current, value)); },
    rootClass = variant === "page" ? "flex min-h-0 flex-1 flex-col" : undefined,
    viewportClass = variant === "page" ? "relative min-h-0 flex-1 overflow-auto" : styles.indexViewport
 

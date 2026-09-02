@@ -80,8 +80,8 @@ function addComplexityFinding(groups, policy, unit) {
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
 function addMiFinding(groups, policy, unit) {
- const mi = unit.metrics?.code_multivitals?.maintainability_index,
-  floor = policy.config.thresholds.mi.cluster_floor;
+ const floor = policy.config.thresholds.mi.cluster_floor,
+  mi = unit.metrics?.code_multivitals?.maintainability_index;
  if (typeof mi === "number" && mi < floor) {
   const task = addFinding(groups, "structural_maintainability", "structural", `source-unit:${unit.unit_id ?? unit.path}`, unit.path, unit);
   recordGate(task, (floor - mi) / floor);
@@ -90,8 +90,8 @@ function addMiFinding(groups, policy, unit) {
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
 function addCrapFinding(groups, policy, unit) {
- const crap = unit.coverage?.crap,
-  ceiling = policy.config.thresholds.crap.cluster_ceiling;
+ const ceiling = policy.config.thresholds.crap.cluster_ceiling,
+  crap = unit.coverage?.crap;
  if (typeof crap === "number" && crap > ceiling) {
   const task = addFinding(groups, "testing", "coverage", "crap-coverage", unit.path, unit);
   recordGate(task, normalizedExcess(crap, ceiling));

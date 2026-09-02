@@ -148,34 +148,31 @@ interface ResearchStreamContext {
   readonly updateChatMessages: UpdateChatMessages;
 }
 
-const ARTICLE_DESCRIPTION_FALLBACK = "No description",
- ARTICLE_SOURCE_FALLBACK = "Unknown",
- ARTICLE_TITLE_FALLBACK = "No title",
- SEARCH_STREAM_STALL_TIMEOUT_MS = 30_000,
- SEMANTIC_SEARCH_MIN_SCORE = 0.55,
- SEMANTIC_SEARCH_RESULT_LIMIT = 5,
- NO_ARTICLE_INDEX = -1,
- ANIMATION_OFFSET = 18,
+const ANIMATION_OFFSET = 18,
+ ARTICLE_DESCRIPTION_FALLBACK = "No description",
  ARTICLE_IMAGE_HEIGHT = 96,
  ARTICLE_IMAGE_WIDTH = 128,
+ ARTICLE_SOURCE_FALLBACK = "Unknown",
+ ARTICLE_TITLE_FALLBACK = "No title",
  FIRST_INDEX = 0,
+ MARKDOWN_PLUGINS = [remarkGfm],
  MINIMUM_QUERY_LENGTH = 3,
  NEW_CHAT_ID_LENGTH = 8,
  NEW_CHAT_ID_RADIX = 36,
  NEW_CHAT_ID_START = 2,
  NEW_CHAT_TITLE_WORD_COUNT = 4,
+ NO_ARTICLE_INDEX = -1,
  PERCENTAGE_MULTIPLIER = 100,
  RESEARCH_LOG_LIMIT = 6,
  SAMPLE_QUERY_LIMIT = 3,
+ SEARCH_STREAM_STALL_TIMEOUT_MS = 30_000,
+ SEMANTIC_SEARCH_MIN_SCORE = 0.55,
+ SEMANTIC_SEARCH_RESULT_LIMIT = 5,
  SOURCE_PREVIEW_LIMIT = 5,
  STREAM_DATA_PREFIX_LENGTH = 6,
  STREAM_REQUEST_LIMIT = 3,
  STRUCTURED_ARTICLE_BLOCK_PATTERN = /```json:articles\n(?<json>[\s\S]*?)\n```/u,
  SUMMARY_PREVIEW_LENGTH = 200,
- VERSION_OFFSET = 1,
- MARKDOWN_PLUGINS = [remarkGfm],
- UnknownResearchMessageSchema = z.object({ type: z.string() }),
-
  StructuredArticleSummarySchema = z.object({
   author: z.string().optional(),
   category: z.string().optional(),
@@ -188,13 +185,16 @@ const ARTICLE_DESCRIPTION_FALLBACK = "No description",
   title: z.string().optional(),
   url: z.string().optional(),
 }),
-
  StructuredArticlesPayloadSchema = z.object({
   articles: z.array(StructuredArticleSummarySchema).optional(),
   clusters: z.array(
     z.record(z.string(), z.union([z.boolean(), z.number(), z.string(), z.null()])),
   ).optional(),
-});
+}),
+
+ UnknownResearchMessageSchema = z.object({ type: z.string() }),
+
+ VERSION_OFFSET = 1;
 
 function parseResearchStreamMessage(raw: string): ResearchStreamMessage {
   const parsed = UnknownResearchMessageSchema.safeParse(JSON.parse(raw));
@@ -460,8 +460,8 @@ async function consumeResearchStream(
   if (!response.ok || response.body === null) {
     throw new Error(`Stream request failed: ${response.status}`);
   }
-  const reader = response.body.getReader(),
-   decoder = new TextDecoder();
+  const decoder = new TextDecoder(),
+   reader = response.body.getReader();
   try {
     const buffer = await consumeResearchStreamChunks(reader, decoder, "", context);
     if (buffer.length > FIRST_INDEX) {
@@ -866,26 +866,29 @@ type ResearchStreamMessage =
   | ErrorMessage
   | UnknownMessage;
 
-const isStatusMessage = (
-  message: Readonly<ResearchStreamMessage>,
-): message is StatusMessage => message.type === "status",
- isThinkingStepMessage = (
-  message: Readonly<ResearchStreamMessage>,
-): message is ThinkingStepMessage => message.type === "thinking_step",
+const CHAT_STORAGE_KEY = "news-research.chat-state",
+ CHAT_STORAGE_VERSION = 1,
  isArticlesJsonMessage = (
   message: Readonly<ResearchStreamMessage>,
 ): message is ArticlesJsonMessage => message.type === "articles_json",
- isReferencedArticlesMessage = (
-  message: Readonly<ResearchStreamMessage>,
-): message is ReferencedArticlesMessage =>
-  message.type === "referenced_articles",
  isCompleteMessage = (
   message: Readonly<ResearchStreamMessage>,
  ): message is CompleteMessage => message.type === "complete",
  isErrorMessage = (
   message: Readonly<ResearchStreamMessage>,
  ): message is ErrorMessage => message.type === "error",
+ isReferencedArticlesMessage = (
+  message: Readonly<ResearchStreamMessage>,
+): message is ReferencedArticlesMessage =>
+  message.type === "referenced_articles",
 
+ isStatusMessage = (
+  message: Readonly<ResearchStreamMessage>,
+): message is StatusMessage => message.type === "status",
+
+ isThinkingStepMessage = (
+  message: Readonly<ResearchStreamMessage>,
+): message is ThinkingStepMessage => message.type === "thinking_step",
  stepStatusLabel = (stepType: string): string => {
   switch (stepType) {
     case "thought": {
@@ -902,10 +905,7 @@ const isStatusMessage = (
       return "Working.";
     }
   }
-},
-
- CHAT_STORAGE_KEY = "news-research.chat-state",
- CHAT_STORAGE_VERSION = 1;
+};
 
 interface StoredChatState {
   version: number;
@@ -931,10 +931,10 @@ const getArticleText = (value: string | undefined, fallback: string): string => 
   const category = getArticleText(article.category, "general"),
    description = getArticleText(article.description, ARTICLE_DESCRIPTION_FALLBACK),
    image = getArticleText(article.image, "/placeholder.svg"),
+   link = article.link ?? "",
    publishedAt = getArticleText(article.published, new Date().toISOString()),
    source = getArticleText(article.source, ARTICLE_SOURCE_FALLBACK),
-   title = getArticleText(article.title, ARTICLE_TITLE_FALLBACK),
-   link = article.link ?? "";
+   title = getArticleText(article.title, ARTICLE_TITLE_FALLBACK);
   return {
     bias: "center",
     category,
@@ -979,12 +979,12 @@ const getArticleText = (value: string | undefined, fallback: string): string => 
 },
 
  mapStructuredArticle = (article: Readonly<StructuredArticleSummary>): NewsArticle => {
-  const description = getEmbeddedArticleDescription(article),
-   link = getEmbeddedArticleLink(article),
-   source = getArticleText(article.source, ARTICLE_SOURCE_FALLBACK),
-   category = getArticleText(article.category, "general"),
+  const category = getArticleText(article.category, "general"),
+   description = getEmbeddedArticleDescription(article),
    image = getArticleText(article.image, "/placeholder.svg"),
+   link = getEmbeddedArticleLink(article),
    publishedAt = getArticleText(article.published, new Date().toISOString()),
+   source = getArticleText(article.source, ARTICLE_SOURCE_FALLBACK),
    title = getArticleText(article.title, ARTICLE_TITLE_FALLBACK);
   return {
     bias: "center",
@@ -1232,16 +1232,16 @@ const MessageVersionControls = ({
   if (versionInfo === null) {
     return <></>;
   }
-  const previousVersionId = versionInfo.versionIds[versionInfo.currentIndex - 1],
-   nextVersionId = versionInfo.versionIds[versionInfo.currentIndex + 1],
-   selectPreviousVersion = () => {
-    if (previousVersionId) {
-      onSelectVersion(versionInfo.groupId, previousVersionId);
-    }
-  },
+  const nextVersionId = versionInfo.versionIds[versionInfo.currentIndex + 1],
+   previousVersionId = versionInfo.versionIds[versionInfo.currentIndex - 1],
    selectNextVersion = () => {
     if (nextVersionId) {
       onSelectVersion(versionInfo.groupId, nextVersionId);
+    }
+  },
+   selectPreviousVersion = () => {
+    if (previousVersionId) {
+      onSelectVersion(versionInfo.groupId, previousVersionId);
     }
   };
   return (
@@ -2138,7 +2138,26 @@ interface ResearchChatPartProps {
   view: ResearchChatViewProps;
 }
 
-const ResearchChatMain = ({
+const ResearchChatAside = ({
+  view,
+}: Readonly<ResearchChatPartProps>) => (
+  <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
+    <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
+      <ResearchSidePanels
+        thinkingSteps={view.thinkingSteps}
+        latestAssistantMessage={view.latestAssistantMessage}
+        latestUserMessage={view.latestUserMessage}
+        latestSemanticMessage={view.latestSemanticMessage}
+        groupedSources={view.groupedSources}
+        expandedSourceIds={view.expandedSourceIds}
+        onToggleSource={view.onToggleSource}
+        onOpenArticle={view.onOpenArticle}
+      />
+    </div>
+  </aside>
+),
+
+ ResearchChatMain = ({
   view,
 }: Readonly<ResearchChatPartProps>) => (
   <section className="flex min-w-0 flex-1 flex-col lg:basis-8/12">
@@ -2176,25 +2195,6 @@ const ResearchChatMain = ({
       </div>
     </div>
   </section>
-),
-
- ResearchChatAside = ({
-  view,
-}: Readonly<ResearchChatPartProps>) => (
-  <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
-    <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
-      <ResearchSidePanels
-        thinkingSteps={view.thinkingSteps}
-        latestAssistantMessage={view.latestAssistantMessage}
-        latestUserMessage={view.latestUserMessage}
-        latestSemanticMessage={view.latestSemanticMessage}
-        groupedSources={view.groupedSources}
-        expandedSourceIds={view.expandedSourceIds}
-        onToggleSource={view.onToggleSource}
-        onOpenArticle={view.onOpenArticle}
-      />
-    </div>
-  </aside>
 ),
 
  ResearchChatView = (props: ResearchChatViewProps) =>
@@ -2823,8 +2823,8 @@ const useChatMessageUpdater = (
     if (options?.syncSummary === false) {
       return;
     }
-    const updatedAt = options?.updatedAt ?? new Date().toISOString(),
-     lastMessage = options?.summaryPreview ?? getChatPreview(nextMessages);
+    const lastMessage = options?.summaryPreview ?? getChatPreview(nextMessages),
+     updatedAt = options?.updatedAt ?? new Date().toISOString();
     setChats((previous) => previous.map((chat) => {
       if (chat.id !== chatId) {
         return chat;
@@ -2886,12 +2886,12 @@ const useResearchChatMessageSelectors = (
   collections: Readonly<ResearchChatCollectionsState>,
   editor: Readonly<ResearchChatEditorState>,
 ): ResearchChatMessageState => {
-  const selectors = useResearchChatMessageSelectors(collections),
+  const editingReset = useResearchChatEditingReset(editor),
+   selectors = useResearchChatMessageSelectors(collections),
    updater = useChatMessageUpdater(collections),
    versionSelection = useResearchChatVersionSelection(
     collections.setActiveAssistantVersionMap,
-  ),
-   editingReset = useResearchChatEditingReset(editor);
+  );
   return {
     ...selectors,
     ...editingReset,
@@ -2901,11 +2901,11 @@ const useResearchChatMessageSelectors = (
 },
 
  useResearchChatState = (): ResearchChatState => {
-  const search = useResearchChatSearchState(),
+  const collections = useResearchChatCollectionsState(),
    editor = useResearchChatEditorState(),
-   collections = useResearchChatCollectionsState(),
+   messages = useResearchChatMessageState(collections, editor),
    refs = useResearchChatRefs(),
-   messages = useResearchChatMessageState(collections, editor);
+   search = useResearchChatSearchState();
 
   return { ...search, ...editor, ...collections, ...refs, ...messages };
 };
@@ -3216,7 +3216,26 @@ interface ResearchStartPlan {
   visibleHistoryMessages: Message[];
 }
 
-const prepareResearchStart = (
+const createStreamingPlaceholder = (
+  parameters: Readonly<StartResearchParameters>,
+  plan: Readonly<ResearchStartPlan>,
+  chats: readonly ChatSummary[],
+): Message => {
+  const currentChatTitle =
+    parameters.newChatTitle || chats.find((chat) => chat.id === parameters.chatId)?.title;
+  return {
+    content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
+    id: plan.assistantId,
+    isStreaming: true,
+    parentMessageId: parameters.parentMessageId,
+    retryOfMessageId: parameters.retryGroupId,
+    streamingStatus: "Starting research...",
+    timestamp: new Date(),
+    type: "assistant",
+  };
+},
+
+ prepareResearchStart = (
   parameters: Readonly<StartResearchParameters>,
   activeAssistantVersions: Readonly<Record<string, Record<string, string>>>,
 ): ResearchStartPlan => {
@@ -3251,25 +3270,6 @@ const prepareResearchStart = (
 Provide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`,
     semanticToolId: `semantic-${timestamp}`,
     visibleHistoryMessages,
-  };
-},
-
- createStreamingPlaceholder = (
-  parameters: Readonly<StartResearchParameters>,
-  plan: Readonly<ResearchStartPlan>,
-  chats: readonly ChatSummary[],
-): Message => {
-  const currentChatTitle =
-    parameters.newChatTitle || chats.find((chat) => chat.id === parameters.chatId)?.title;
-  return {
-    content: currentChatTitle ? `Topic: ${currentChatTitle}` : "",
-    id: plan.assistantId,
-    isStreaming: true,
-    parentMessageId: parameters.parentMessageId,
-    retryOfMessageId: parameters.retryGroupId,
-    streamingStatus: "Starting research...",
-    timestamp: new Date(),
-    type: "assistant",
   };
 };
 
@@ -3446,7 +3446,12 @@ interface ResearchDerivedState {
   handleOpenArticle: (article: NewsArticle) => void;
 }
 
-const groupArticlesBySource = (articles: readonly ReadonlyNewsArticle[]): SourceGroup[] => {
+const findLatestMessage = (
+  messages: readonly Message[],
+  predicate: (message: Readonly<Message>) => boolean,
+): Message | undefined => [...messages].toReversed().find((message) => predicate(message)),
+
+ groupArticlesBySource = (articles: readonly ReadonlyNewsArticle[]): SourceGroup[] => {
   const groups = new Map<string, SourceGroup>(),
    seenKeys = new Set<string>();
 
@@ -3474,12 +3479,7 @@ const groupArticlesBySource = (articles: readonly ReadonlyNewsArticle[]): Source
   return [...groups.values()].toSorted(
     (a, b) => b.articles.length - a.articles.length,
   );
-},
-
- findLatestMessage = (
-  messages: readonly Message[],
-  predicate: (message: Readonly<Message>) => boolean,
-): Message | undefined => [...messages].toReversed().find((message) => predicate(message));
+};
 
 interface LatestResearchMessages {
   latestAssistantMessage: Message | undefined;
@@ -3542,7 +3542,13 @@ interface ResearchArticleDerivedState {
   thinkingSteps: NonNullable<Message["thinking_steps"]>;
 }
 
-const useResearchArticleDerivedState = (
+const getActiveBriefTitle = (
+  latestUserMessage: Message | undefined,
+  chats: readonly ChatSummary[],
+  activeChatId: string | null,
+): string => latestUserMessage?.content || chats.find((chat) => chat.id === activeChatId)?.title || "Research thread",
+
+ useResearchArticleDerivedState = (
   latestAssistantMessage: Message | undefined,
 ): ResearchArticleDerivedState => {
   const relatedArticles = useMemo(
@@ -3559,12 +3565,6 @@ const useResearchArticleDerivedState = (
     thinkingSteps: latestAssistantMessage?.thinking_steps ?? [],
   };
 },
-
- getActiveBriefTitle = (
-  latestUserMessage: Message | undefined,
-  chats: readonly ChatSummary[],
-  activeChatId: string | null,
-): string => latestUserMessage?.content || chats.find((chat) => chat.id === activeChatId)?.title || "Research thread",
 
  useResearchDerivedState = (
   context: Readonly<ResearchChatState>,

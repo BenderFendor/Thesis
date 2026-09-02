@@ -3,8 +3,8 @@
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
-const CLAIM_FILE = ".quality-hardening/locks/writer.json",
- ACTIVE_TASK_FILE = ".quality-hardening/active-task.json";
+const ACTIVE_TASK_FILE = ".quality-hardening/active-task.json",
+ CLAIM_FILE = ".quality-hardening/locks/writer.json";
 
 /** @param {string} repositoryRoot */
 function claimPath(repositoryRoot) {
@@ -78,8 +78,8 @@ async function expandWriterClaim(repositoryRoot, sessionId, taskId, path) {
   const claim = await readWriterClaim(repositoryRoot);
   if (!claim) {throw new Error("writer claim is required for scope expansion");}
   if (claim.session_id !== sessionId || claim.task_id !== taskId) {throw new Error("writer claim belongs to another task or session");}
-  const expanded = { ...claim, paths: normalizePaths(repositoryRoot, [...(Array.isArray(claim.paths) ? claim.paths : []), path]) },
-   claimFile = claimPath(repositoryRoot),
+  const claimFile = claimPath(repositoryRoot),
+   expanded = { ...claim, paths: normalizePaths(repositoryRoot, [...(Array.isArray(claim.paths) ? claim.paths : []), path]) },
    temporary = `${claimFile}.tmp-${process.pid}`;
   try {
     await writeFile(temporary, `${JSON.stringify(expanded, undefined, 2)}\n`, "utf8");

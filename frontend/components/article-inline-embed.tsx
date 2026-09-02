@@ -29,9 +29,9 @@ function toSourceName(url: string): string {
 }
 
 function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle {
-  const title = articleTitle(analysis, url),
+  const source = articleSource(analysis, url),
    summary = articleSummary(analysis),
-   source = articleSource(analysis, url)
+   title = articleTitle(analysis, url)
   return {
     bias: "center",
     category: "general",

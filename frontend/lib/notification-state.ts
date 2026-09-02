@@ -86,7 +86,16 @@ export function useDismissedNotifications<T extends NotificationLike>(
     })
   }, [activeDismissedIds, dismissedIds])
 
-  const dismissOne = useCallback(
+  const dismissAll = useCallback(() => {
+    setDismissedIds((current) =>
+      dismissAllNotifications(
+        retainActiveDismissedNotifications(current, notifications),
+        notifications,
+      ),
+    )
+  }, [notifications]),
+
+   dismissOne = useCallback(
     (notificationId: string) => {
       setDismissedIds((current) =>
         dismissNotification(
@@ -97,15 +106,6 @@ export function useDismissedNotifications<T extends NotificationLike>(
     },
     [notifications],
   ),
-
-   dismissAll = useCallback(() => {
-    setDismissedIds((current) =>
-      dismissAllNotifications(
-        retainActiveDismissedNotifications(current, notifications),
-        notifications,
-      ),
-    )
-  }, [notifications]),
 
    visibleNotifications = useMemo(
     () => getVisibleNotifications(notifications, activeDismissedIds),

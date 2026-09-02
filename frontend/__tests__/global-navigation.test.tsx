@@ -25,8 +25,8 @@ describe("globalNavigation", () => {
   it("changes the home view and writes a shareable URL", async () => {  expect.hasAssertions();
 
   
-    const user = userEvent.setup(),
-     onViewChange = jest.fn()
+    const onViewChange = jest.fn(),
+     user = userEvent.setup()
 
     render(
       <GlobalNavigation

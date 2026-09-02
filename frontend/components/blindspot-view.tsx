@@ -157,8 +157,8 @@ function articleSourceSummary(card: BlindspotCard): string | null {
     return null
   }
 
-  const visibleSources = uniqueSources.slice(0, 3).join(" · "),
-   remaining = uniqueSources.length - Math.min(uniqueSources.length, 3)
+  const remaining = uniqueSources.length - Math.min(uniqueSources.length, 3),
+   visibleSources = uniqueSources.slice(0, 3).join(" · ")
   return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
 }
 
@@ -345,8 +345,8 @@ function StoryRow({
   poleLabels: { pole_a: string; pole_b: string }
   onOpen: (card: BlindspotCard) => void
 }>) {
-  const sourceSummary = articleSourceSummary(card),
-   paywallText = paywallLabel(card)
+  const paywallText = paywallLabel(card),
+   sourceSummary = articleSourceSummary(card)
 
   return (
     <button

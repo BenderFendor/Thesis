@@ -18,10 +18,10 @@ const notification: Notification = {
 
 describe("notificationsPopup", () => {
   it("renders an accessible dialog and exposes notification actions", async () => {expect.hasAssertions();
-    const user = userEvent.setup(),
-     onAction = jest.fn(),
+    const onAction = jest.fn(),
      onClear = jest.fn(),
-     onClose = jest.fn()
+     onClose = jest.fn(),
+     user = userEvent.setup()
 
     render(
       <NotificationsPopup

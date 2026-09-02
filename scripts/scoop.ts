@@ -381,8 +381,8 @@ export function prepareRequest(
   options: CliOptions = { _: [] },
 ): PreparedRequest {
   const descriptor = findOperation(spec, operationId),
-   supplied = assignments(options.param),
-   parameters = [...descriptor.pathParameters, ...(descriptor.operation.parameters ?? [])];
+   parameters = [...descriptor.pathParameters, ...(descriptor.operation.parameters ?? [])],
+   supplied = assignments(options.param);
   validateParameters(parameters, supplied, operationId);
 
   const target: RequestTarget = {
@@ -393,9 +393,9 @@ export function prepareRequest(
   };
   applyOperationParameters(target, parameters, supplied);
   applyRequestHeaders(target, options);
-  const body = applyRequestBody(target, descriptor, options, operationId),
+  const baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
 
-   baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
+   body = applyRequestBody(target, descriptor, options, operationId),
    queryString = target.query.toString();
   return {
     descriptor,
@@ -863,8 +863,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exitCode = exitCode;
     },
     (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error),
-       exitCode = error instanceof CliError ? error.exitCode : 1;
+      const exitCode = error instanceof CliError ? error.exitCode : 1,
+       message = error instanceof Error ? error.message : String(error);
       console.error(message);
       process.exitCode = exitCode;
     },

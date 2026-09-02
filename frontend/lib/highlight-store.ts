@@ -118,8 +118,8 @@ interface HighlightIndexes {
 }
 
 function indexLocalHighlights(local:readonly  LocalHighlight[]): HighlightIndexes {
-  const localByServerId = new Map<number, LocalHighlight>(),
-   localByFingerprint = new Map<string, LocalHighlight>()
+  const localByFingerprint = new Map<string, LocalHighlight>(),
+   localByServerId = new Map<number, LocalHighlight>()
   for (const item of local) {
     const serverId = getServerId(item)
     if (serverId) {
@@ -146,8 +146,8 @@ function mergeServerHighlight(
   serverHighlight: Highlight,
   indexes: HighlightIndexes,
 ): LocalHighlight {
-  const serverId = serverHighlight.id,
-   match = findServerHighlightMatch(serverHighlight, indexes)
+  const match = findServerHighlightMatch(serverHighlight, indexes),
+   serverId = serverHighlight.id
 
   if (!match) {
     return createSyncedHighlight(serverHighlight, serverId)

@@ -13,15 +13,15 @@ import { readdirSync, statSync } from "node:fs";
 import { analyse } from "code-multivitals";
 import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
 
-const args = process.argv.slice(2),
+const EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "target", ".venv", "__pycache__"]),
+ args = process.argv.slice(2),
  json = args.includes("--json"),
- strict = args.includes("--strict"),
+ miCap = Number(process.env.THESIS_MI_CAP ?? 50),
+
+ miError = Number(process.env.THESIS_MI_ERROR ?? 60),
  patterns = args.filter((a) => !a.startsWith("--")),
 
- miCap = Number(process.env.THESIS_MI_CAP ?? 50),
- miError = Number(process.env.THESIS_MI_ERROR ?? 60),
-
- EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "target", ".venv", "__pycache__"]);
+ strict = args.includes("--strict");
 
 function collectFiles(dir, out) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -28,14 +28,7 @@ interface Transform {
   scale: number;
 }
 
-const ENTITY_FILL: Record<AtlasNode["entity_type"], string> = {
-  organization: "#d7b35f",
-  outlet: "#f0ede4",
-  person: "#e08a5f",
-  reporter: "#88a9ff",
-},
-
- EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
+const EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
   coauthor: "#88a9ff",
   current_outlet: "#88a9ff",
   employed_by: "#8ca0c8",
@@ -47,12 +40,19 @@ const ENTITY_FILL: Record<AtlasNode["entity_type"], string> = {
   publishes: "#b8b2a7",
   shared_outlet: "#6f86bd",
   sibling_via_owner: "#7d6f5a",
+},
+
+ ENTITY_FILL: Record<AtlasNode["entity_type"], string> = {
+  organization: "#d7b35f",
+  outlet: "#f0ede4",
+  person: "#e08a5f",
+  reporter: "#88a9ff",
 };
 
 function nodeRadius(node: AtlasNode): number {
-  const base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8,
-   degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8),
-   articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3);
+  const articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3),
+   base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8,
+   degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8);
   return base + degree + articles;
 }
 
@@ -162,8 +162,8 @@ function AtlasNodeMark({
   selected,
   showLabel,
 }: AtlasNodeMarkProps) {
-  const radius = nodeRadius(node),
-   confidence = node.confidence_tier ?? "unresolved";
+  const confidence = node.confidence_tier ?? "unresolved",
+   radius = nodeRadius(node);
   return (
     <g
       data-node-id={node.id}
@@ -384,9 +384,9 @@ function getAtlasNodeMarkProps(
   if (!position) {
     return null;
   }
-  const selected = context.selectedId === node.id,
+  const dimmed = isAtlasNodeDimmed(node.id, context),
    interacting = context.hoveredNodeId === node.id,
-   dimmed = isAtlasNodeDimmed(node.id, context),
+   selected = context.selectedId === node.id,
    showLabel = shouldShowAtlasNodeLabel(node.id, selected, interacting, context);
   return {
     active: context.activeNodeId === node.id,
@@ -640,7 +640,10 @@ function useAtlasGraphSelectionHandlers(
   setKeyboardActiveNodeId: (nodeId: string) => void,
   setHoveredNodeId: AtlasNodeIdStateSetter,
 ): AtlasGraphSelectionHandlers {
-  const handleNodeKeyboard = useCallback(
+  const handleHoverLeave = useCallback((nodeId: string) => {
+    setHoveredNodeId((current) => (current === nodeId ? null : current));
+  }, [setHoveredNodeId]),
+   handleNodeKeyboard = useCallback(
     (event: KeyboardEvent<SVGGElement>, nodeId: string) => {
       handleAtlasNodeKeyboard(
         event,
@@ -659,10 +662,7 @@ function useAtlasGraphSelectionHandlers(
       onSelect(nodeId);
     },
     [onSelect],
-  ),
-   handleHoverLeave = useCallback((nodeId: string) => {
-    setHoveredNodeId((current) => (current === nodeId ? null : current));
-  }, [setHoveredNodeId]);
+  );
 
   return { handleHoverLeave, handleNodeKeyboard, handleNodeSelect };
 }

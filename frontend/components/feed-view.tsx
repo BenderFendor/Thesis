@@ -344,8 +344,8 @@ function useFeedImageLoader({ activeIndex, visibleArticles }: FeedImageLoaderOpt
         requestedImagesRef.current.add(article.id)
       })
 
-      const pending = [...candidates],
-       newImages: Record<number, string> = {},
+      const newImages: Record<number, string> = {},
+       pending = [...candidates],
        worker = async (): Promise<void> => {
         while (pending.length > 0 && !cancelled) {
           const article = pending.shift()
@@ -403,7 +403,9 @@ function useFeedIntersectionObserver({
       return
     }
 
-    const observer = new IntersectionObserver(
+    const children = container.querySelectorAll("[data-index]"),
+
+     observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting || !(entry.target instanceof HTMLElement)) {
@@ -419,9 +421,7 @@ function useFeedIntersectionObserver({
         })
       },
       { root: container, threshold: 0.6 },
-    ),
-
-     children = container.querySelectorAll("[data-index]")
+    )
     children.forEach((child) =>{  observer.observe(child); })
     return () => {
       children.forEach((child) =>{  observer.unobserve(child); })

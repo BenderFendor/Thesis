@@ -148,8 +148,8 @@ const ATLAS_HREF = "/wiki/ownership",
   );
 },
  ControlCard = ({ entry }: ControlCardProps) => {
-  const profilePath = getNonEmptyText(entry.profile_path),
-   body = <ControlCardBody entry={entry} />;
+  const body = <ControlCardBody entry={entry} />,
+   profilePath = getNonEmptyText(entry.profile_path);
   if (profilePath === undefined) {
     return <div key={entry.entity_id}>{body}</div>;
   }

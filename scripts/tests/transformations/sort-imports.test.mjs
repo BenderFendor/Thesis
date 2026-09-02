@@ -5,9 +5,15 @@
 // Ordered by (syntax group, first local member name); side effects, namespace
 // And type-only imports follow the group rules; inter-import comments are
 // Preserved byte-for-byte; member sorting is skipped when the import specifier
-// List contains a comment (matching the rule's own fixer); files without
-// Leading imports and files starting with directives are left unchanged;
-// Every changed output parses cleanly again (TypeScript transpile check).
+// List contains a comment (matching the rule's own fixer); every contiguous
+// Top-level import run is sorted in place, including runs after non-import
+// Statements; side-effect imports keep their relative order within a run;
+// A run whose first import has comments in its specifier list stays
+// Untouched; imports after leading string directives are left unchanged while
+// Later runs in the same file still sort; declaration order keys follow the
+// Post-member-sort first local name (idempotent output); files without
+// Imports stay unchanged; every changed output parses cleanly again (TS
+// Transpile check).
 import assert from "node:assert/strict";
 import { runTransform } from "../../transformations/sort-imports.mjs";
 import { test } from "node:test";
@@ -166,4 +172,159 @@ import { b } from "b";
 import { a } from "a";
 `;
   assertUnchanged(source);
+});
+
+test("post-code import runs are sorted in place", () => {
+  const source = `const value = compute();
+export const result = value;
+
+import { b } from "b";
+import { a } from "a";
+`;
+  const expected = `const value = compute();
+export const result = value;
+
+import { a } from "a";
+import { b } from "b";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+
+test("post-code runs sort members and declarations together", () => {
+  const source = `const x = 1;
+import { b, a } from "mod";
+import { z } from "z";
+`;
+  const expected = `const x = 1;
+import { a, b } from "mod";
+import { z } from "z";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+
+test("side-effect imports keep their relative order within a run", () => {
+  const source = `import "./z";
+import { a } from "a";
+import "./c";
+`;
+  const expected = `import "./z";
+import "./c";
+import { a } from "a";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+
+test("a run is untouched when its first import has comments in its specifier list", () => {
+  const source = `const x = 1;
+
+import { b, /* keep */ a } from "m";
+import { aa } from "aa";
+`;
+  assertUnchanged(source);
+});
+
+test("both leading and post-code runs are sorted independently", () => {
+  const source = `import { z } from "z";
+import { a } from "a";
+
+const x = 1;
+
+import { y } from "y";
+import { b } from "b";
+`;
+  const expected = `import { a } from "a";
+import { z } from "z";
+
+const x = 1;
+
+import { b } from "b";
+import { y } from "y";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+
+test("imports after a leading directive stay put while later runs sort", () => {
+  const source = `"use client"
+import { z } from "z";
+import { a } from "a";
+
+const x = 1;
+
+import { y } from "y";
+import { b } from "b";
+`;
+  const expected = `"use client"
+import { z } from "z";
+import { a } from "a";
+
+const x = 1;
+
+import { b } from "b";
+import { y } from "y";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+
+test("page-tsx style run sorts default, type and grouped imports with mixed quotes", () => {
+  const source = `import {
+  Bell,
+  Bookmark,
+  Building2,
+} from "lucide-react"
+import type { ComponentProps, TouchEvent } from 'react';
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { useCallback, useEffect } from 'react';
+import { Button } from "@/components/ui/button"
+import { GlobalNavigation } from '@/components/global-navigation';
+import { GridView } from "@/components/grid-view"
+import Link from "next/link"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { ViewMode } from '@/components/global-navigation';
+import dynamic from "next/dynamic"
+import { useQuery } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
+import { ThemeToggle } from "@/components/theme-toggle"
+`;
+  const expected = `import {
+  Bell,
+  Bookmark,
+  Building2,
+} from "lucide-react"
+import type { ComponentProps, TouchEvent } from 'react';
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { useCallback, useEffect } from 'react';
+import { Button } from "@/components/ui/button"
+import { GlobalNavigation } from '@/components/global-navigation';
+import { GridView } from "@/components/grid-view"
+import Link from "next/link"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ThemeToggle } from "@/components/theme-toggle"
+import type { ViewMode } from '@/components/global-navigation';
+import dynamic from "next/dynamic"
+import { useQuery } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
+});
+test("member sorting stabilizes the declaration order of a run", () => {
+  const source = `const x = 1;
+
+import { filterArticlesByLens, getLensSourceIds, NEWS_LENSES } from "@/lib/news-lens";
+import type { NewsArticle } from "@/lib/api";
+import { fetchCacheStatus, fetchCategories } from "@/lib/api";
+`;
+  const expected = `const x = 1;
+
+import { NEWS_LENSES, filterArticlesByLens, getLensSourceIds } from "@/lib/news-lens";
+import { fetchCacheStatus, fetchCategories } from "@/lib/api";
+import type { NewsArticle } from "@/lib/api";
+`;
+  assertTransformed(source, expected);
+  assertParses(expected);
 });

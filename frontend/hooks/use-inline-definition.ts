@@ -56,8 +56,8 @@ async function requestInlineDefinitionForTerm(
   if (!selection) {return;}
   state.setAnchorPosition(getSelectionAnchorPosition(selection, event));
 
-  const now = Date.now(),
-   normalized = text.toLowerCase(),
+  const normalized = text.toLowerCase(),
+   now = Date.now(),
    recentlyRequested =
     state.lastTermRef.current === normalized && now - state.lastRequestAtRef.current < 4000;
   if (recentlyRequested) {
@@ -101,7 +101,12 @@ export function useInlineDefinition() {
     if (typeof navigator !== "undefined" && navigator.userAgent.includes("jsdom")) {
       return;
     }
-    const onMouseUp = async (event: MouseEvent) => {
+    const onKey = (e: KeyboardEvent) => {
+      // Close on Escape
+      if (e.key === "Escape") {setOpen(false);}
+    },
+
+     onMouseUp = async (event: MouseEvent) => {
       const text = selectedDefinitionTerm(event);
       if (!text) {return;}
       await requestInlineDefinitionForTerm(text, event, {
@@ -112,11 +117,6 @@ export function useInlineDefinition() {
         setOpen,
         setResult,
       });
-    },
-
-     onKey = (e: KeyboardEvent) => {
-      // Close on Escape
-      if (e.key === "Escape") {setOpen(false);}
     };
 
     document.addEventListener("mouseup", onMouseUp);

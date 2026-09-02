@@ -66,6 +66,46 @@ interface SourceIndexRequest {
 
 const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/70 p-4 backdrop-blur-xl",
   SURFACE_CLASS = "rounded-[1.2rem] border border-white/[0.08] bg-black/20 p-4",
+  averageSourceArticles = (sources: readonly SourceStats[]): number => {
+  if (sources.length === 0) {return 0;}
+  return Math.round(sources.reduce((total, source) => total + source.article_count, 0) / sources.length);
+},
+  buildRecentErrorEvents = (data: DebugErrorsResponse | undefined): NormalizedErrorEvent[] => [
+  ...(data?.log_file.entries ?? []).map<NormalizedErrorEvent>((entry, index) => ({
+    errorType: entry.error_type || "error",
+    key: `${entry.request_id || "log"}-${index}`,
+    message: entry.error_message || "No error message recorded.",
+    service: entry.service || "unknown service",
+  })),
+  ...(data?.recent_request_stream_errors ?? []).map<NormalizedErrorEvent>((entry, index) => ({
+    errorType: entry.error_type || entry.event_type || "error",
+    key: `${entry.request_id || "stream"}-${index}`,
+    message: entry.error_message || entry.message || "No error message recorded.",
+    service: entry.service || entry.component || "unknown service",
+  })),
+],
+  countSuccessfulLogs = (entries: readonly LlmLogEntry[], success: boolean): number =>
+  entries.filter((entry) => entry.success === success).length,
+  displaySourceValue = (value: string | number | null | undefined): string =>
+    value === null || value === undefined || value === "" ? "—" : String(value),
+  formatCheckedTime = (value: string | null | undefined): string =>
+    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+  indexSource = async ({
+  sourceName,
+  setIndexing,
+  onSourceProfileRefresh,
+  onRefreshAll,
+}: SourceIndexRequest): Promise<void> => {
+  if (!sourceName) {return;}
+  setIndexing(true);
+  try {
+    await triggerWikiIndex(sourceName);
+    await onSourceProfileRefresh();
+    onRefreshAll();
+  } finally {
+    setIndexing(false);
+  }
+},
   runParserTest = async ({
   url,
   endpoint,
@@ -84,47 +124,7 @@ const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/7
   } finally {
     setTesting(false);
   }
-},
-  indexSource = async ({
-  sourceName,
-  setIndexing,
-  onSourceProfileRefresh,
-  onRefreshAll,
-}: SourceIndexRequest): Promise<void> => {
-  if (!sourceName) {return;}
-  setIndexing(true);
-  try {
-    await triggerWikiIndex(sourceName);
-    await onSourceProfileRefresh();
-    onRefreshAll();
-  } finally {
-    setIndexing(false);
-  }
-},
-  averageSourceArticles = (sources: readonly SourceStats[]): number => {
-  if (sources.length === 0) {return 0;}
-  return Math.round(sources.reduce((total, source) => total + source.article_count, 0) / sources.length);
-},
-  countSuccessfulLogs = (entries: readonly LlmLogEntry[], success: boolean): number =>
-  entries.filter((entry) => entry.success === success).length,
-  buildRecentErrorEvents = (data: DebugErrorsResponse | undefined): NormalizedErrorEvent[] => [
-  ...(data?.log_file.entries ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-    errorType: entry.error_type || "error",
-    key: `${entry.request_id || "log"}-${index}`,
-    message: entry.error_message || "No error message recorded.",
-    service: entry.service || "unknown service",
-  })),
-  ...(data?.recent_request_stream_errors ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-    errorType: entry.error_type || entry.event_type || "error",
-    key: `${entry.request_id || "stream"}-${index}`,
-    message: entry.error_message || entry.message || "No error message recorded.",
-    service: entry.service || entry.component || "unknown service",
-  })),
-],
-  displaySourceValue = (value: string | number | null | undefined): string =>
-    value === null || value === undefined || value === "" ? "—" : String(value),
-  formatCheckedTime = (value: string | null | undefined): string =>
-    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+};
 
 function SourceIntelligenceOperations({
   activeTab,

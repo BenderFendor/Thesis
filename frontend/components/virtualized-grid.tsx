@@ -13,10 +13,14 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 
 // Configuration constants
-const CARD_HEIGHT = 380, // Height of each article card
- CARD_MIN_WIDTH = 280, // Minimum width of each article card
- GAP = 0, // Gap between cards
- OVERSCAN = 3; // Number of rows to render outside viewport
+// Height of each article card
+const CARD_HEIGHT = 380,
+ // Minimum width of each article card
+ CARD_MIN_WIDTH = 280,
+ // Gap between cards
+ GAP = 0,
+ // Number of rows to render outside viewport
+ OVERSCAN = 3;
 
 interface VirtualizedGridProps {
   articles: NewsArticle[];
@@ -212,7 +216,8 @@ export function VirtualizedGrid({
   useEffect(() => {
     const updateColumns = () => {
       if (!parentRef.current) {return;}
-      const width = parentRef.current.offsetWidth - GAP * 2, // Account for padding
+      // Account for padding
+      const width = parentRef.current.offsetWidth - GAP * 2,
        cols = Math.max(1, Math.floor(width / (CARD_MIN_WIDTH + GAP)));
       setColumnCount(cols);
     };
@@ -234,7 +239,8 @@ export function VirtualizedGrid({
   // TanStack Virtual returns imperative helpers; memoization warnings are expected here.
   // eslint-disable-next-line react-hooks/iuncompatible-library
    rowVirtualizer = useVirtualizer({
-    count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
+    // +1 for loading row
+    count: hasNextPage ? rowCount + 1 : rowCount,
     estimateSize: () => CARD_HEIGHT + GAP,
     getScrollElement: () => parentRef.current,
     overscan: OVERSCAN,

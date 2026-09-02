@@ -10,8 +10,10 @@ import { sendFrontendDebugReport } from './api';
 
 // Configuration
 const FLUSH_INTERVAL_MS = 30_000,
- MAX_EVENTS = 500, // 30 seconds
- SLOW_THRESHOLD_MS = 3000, // 3 seconds
+ // 30 seconds
+ MAX_EVENTS = 500,
+ // 3 seconds
+ SLOW_THRESHOLD_MS = 3000,
  ENABLE_AGENTIC_LOGGING =
   process.env.NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING === "true" ||
   process.env.NODE_ENV === "development",
@@ -463,8 +465,8 @@ class FrontendPerformanceLogger {
     url: string,
     requestFn: () => Promise<T>
   ): Promise<T> {
-    const startTime = Date.now(),
-     requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+     startTime = Date.now();
 
     this.logEvent("api_request_start", "api", operation, {
       details: { url },
@@ -504,8 +506,8 @@ class FrontendPerformanceLogger {
     this.logEvent("render_start", "render", componentName, {});
 
     try {
-      const result = renderFn(),
-       durationMs = Date.now() - startTime;
+      const durationMs = Date.now() - startTime,
+       result = renderFn();
       this.logEvent("render_end", "render", componentName, {
         details: { success: true },
         durationMs,
@@ -539,10 +541,10 @@ class FrontendPerformanceLogger {
     for (const [component, timings] of this.componentTimings.entries()) {
       if (timings.length === 0) {continue;}
       const avg = timings.reduce((a, b) => a + b, 0) / timings.length,
-       max = Math.max(...timings),
        errors = this.events.filter(
         (e) => e.component === component && e.error
-      ).length;
+      ).length,
+       max = Math.max(...timings);
 
       componentStats[component] = {
         avgDurationMs: Math.round(avg),

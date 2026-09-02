@@ -238,8 +238,8 @@ function buildNotifications({
   selectedSourceCount: number
 }>): Notification[] {
   const next: Notification[] = [],
-   notificationTimestamp = new Date().toISOString(),
-   notificationCategoryLabel = activeCategory === "all" ? "All" : activeCategory
+   notificationCategoryLabel = activeCategory === "all" ? "All" : activeCategory,
+   notificationTimestamp = new Date().toISOString()
 
   if (browseIndexLoading) {
     next.push(createLoadingNotification(notificationTimestamp, notificationCategoryLabel))

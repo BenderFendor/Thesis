@@ -74,8 +74,33 @@ type FetchBoundary = (
   init?: RequestInit,
 ) => Promise<FetchResponseFixture>
 
-const fetchMock = jest.fn<FetchBoundary>(),
- originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
+const createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFixture => ({
+  bias: article.bias,
+  category: article.category,
+  country: article.country,
+  credibility: article.credibility,
+  description: article.summary,
+  id: article.id,
+  image: article.image,
+  original_language: article.originalLanguage,
+  published_at: article.publishedAt,
+  source: article.source,
+  source_id: article.sourceId,
+  title: article.title,
+  translated: article.translated,
+  url: article.url,
+}),
+ createPagePayload = (
+  articles: readonly TestArticle[],
+  options: Readonly<PageResponseOptions>,
+): PagePayload => ({
+  articles: articles.map(createBackendArticle),
+  has_more: options.hasMore,
+  limit: options.limit,
+  next_cursor: options.nextCursor,
+  prev_cursor: null,
+  total: options.total,
+}),
 
  createWrapper = () => {
   const queryClient = new QueryClient({
@@ -91,6 +116,21 @@ const fetchMock = jest.fn<FetchBoundary>(),
   );
   QueryClientWrapper.displayName = "QueryClientWrapper";
   return QueryClientWrapper;
+},
+
+ fetchMock = jest.fn<FetchBoundary>(),
+
+ getRequestedUrl = (input: RequestInfo | URL | undefined): URL => {
+  if (input === undefined) {
+    throw new Error("Expected a paginated fetch request");
+  }
+  if (input instanceof URL) {
+    return input;
+  }
+  if (typeof input === "string") {
+    return new URL(input);
+  }
+  return new URL(input.url);
 },
 
  mockArticles: TestArticle[] = [
@@ -130,34 +170,7 @@ const fetchMock = jest.fn<FetchBoundary>(),
   },
 ],
 
- createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFixture => ({
-  bias: article.bias,
-  category: article.category,
-  country: article.country,
-  credibility: article.credibility,
-  description: article.summary,
-  id: article.id,
-  image: article.image,
-  original_language: article.originalLanguage,
-  published_at: article.publishedAt,
-  source: article.source,
-  source_id: article.sourceId,
-  title: article.title,
-  translated: article.translated,
-  url: article.url,
-}),
-
- createPagePayload = (
-  articles: readonly TestArticle[],
-  options: Readonly<PageResponseOptions>,
-): PagePayload => ({
-  articles: articles.map(createBackendArticle),
-  has_more: options.hasMore,
-  limit: options.limit,
-  next_cursor: options.nextCursor,
-  prev_cursor: null,
-  total: options.total,
-}),
+ originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
 
  respondWithPage = (payload: Readonly<PagePayload>): void => {
   fetchMock.mockResolvedValueOnce({
@@ -165,19 +178,6 @@ const fetchMock = jest.fn<FetchBoundary>(),
     ok: true,
     status: 200,
   });
-},
-
- getRequestedUrl = (input: RequestInfo | URL | undefined): URL => {
-  if (input === undefined) {
-    throw new Error("Expected a paginated fetch request");
-  }
-  if (input instanceof URL) {
-    return input;
-  }
-  if (typeof input === "string") {
-    return new URL(input);
-  }
-  return new URL(input.url);
 };
 
 describe("usePaginatedNews", () => {
@@ -373,7 +373,8 @@ describe("usePaginatedNews", () => {
         category: "technology",
         country: "United States",
         credibility: "high",
-        id: 1, // Same ID as above
+        // Same ID as above
+        id: 1,
         image: "/placeholder.svg",
         originalLanguage: "en",
         publishedAt: new Date().toISOString(),

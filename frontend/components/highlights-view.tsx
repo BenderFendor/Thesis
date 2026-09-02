@@ -31,20 +31,7 @@ export function HighlightsView() {
     fetchHighlights();
   }, []);
 
-  const handleDelete = async (highlightId: number | undefined) => {
-    if (!highlightId) {return;}
-
-    try {
-      await deleteHighlight(highlightId);
-      setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
-      toast.success("Highlight deleted");
-    } catch (error) {
-      console.error("Failed to delete highlight:", error);
-      toast.error("Failed to delete highlight");
-    }
-  },
-
-   colorMap = {
+  const colorMap = {
     blue: "bg-blue-200 border-blue-300",
     red: "bg-red-200 border-red-300",
     yellow: "bg-yellow-200 border-yellow-300",
@@ -56,7 +43,20 @@ export function HighlightsView() {
       (h) =>
         h.highlighted_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
         h.article_url.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    ),
+
+   handleDelete = async (highlightId: number | undefined) => {
+    if (!highlightId) {return;}
+
+    try {
+      await deleteHighlight(highlightId);
+      setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
+      toast.success("Highlight deleted");
+    } catch (error) {
+      console.error("Failed to delete highlight:", error);
+      toast.error("Failed to delete highlight");
+    }
+  };
 
   if (loading) {
     return (

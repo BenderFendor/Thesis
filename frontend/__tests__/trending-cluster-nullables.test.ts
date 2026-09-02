@@ -7,8 +7,7 @@ import {
 } from "@/lib/api";
 
 describe("cluster payload nullables", () => {
-  const originalFetch = global.fetch,
-   gdeltContext = {
+  const gdeltContext = {
     goldstein_avg: -1.8,
     goldstein_bucket: "conflict",
     goldstein_max: 0.8,
@@ -21,7 +20,8 @@ describe("cluster payload nullables", () => {
       { code: "05", count: 1, label: "Diplomatic engagement" },
     ],
     total_events: 3,
-  };
+  },
+   originalFetch = global.fetch;
 
   afterEach(() => {
     jest.restoreAllMocks();

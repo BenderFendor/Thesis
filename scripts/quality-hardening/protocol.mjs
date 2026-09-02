@@ -1,14 +1,14 @@
 // @ts-check
 
-const PROTOCOL_VERSION = 1,
- DECISIONS = new Set(["allow", "block"]),
+const DECISIONS = new Set(["allow", "block"]),
  EXIT_CODES = Object.freeze({
   analyzer: 4,
   claim: 3,
   configuration: 2,
   ok: 0,
   quality: 1,
-});
+}),
+ PROTOCOL_VERSION = 1;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isObject(value) {

@@ -122,9 +122,9 @@ function printTask(tasks, taskId, options) {
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
 async function runQueueCommand(argumentsList) {
- const subcommand = argumentsList.shift(),
-  taskId = subcommand === "inspect" ? argumentsList.shift() ?? "" : "",
-  options = parseOptions(argumentsList);
+ const options = parseOptions(argumentsList),
+  subcommand = argumentsList.shift(),
+  taskId = subcommand === "inspect" ? argumentsList.shift() ?? "" : "";
  if (subcommand === "rebuild") { return runQueue(options); }
  const policy = await loadPolicy(),
   tasks = await readTasks(policy.repositoryRoot);
@@ -179,8 +179,8 @@ async function runTaskCommand(argumentsList) {
  const subcommand = argumentsList.shift(),
   taskId = argumentsList.shift() ?? "";
  if (subcommand === "expand-scope") {
-  const path = argumentsList.shift() ?? "",
-   options = parseOptions(argumentsList);
+  const options = parseOptions(argumentsList),
+   path = argumentsList.shift() ?? "";
   if (!path) { throw new Error("scope expansion requires a path"); }
   const policy = await loadPolicy();
   await expandWriterClaim(policy.repositoryRoot, options.session, taskId, path);

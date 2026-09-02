@@ -37,10 +37,7 @@ interface FetchResponseFixture {
   readonly status: number
 }
 
-const fetchMock = jest.fn<FetchBoundary>(),
- originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
-
- createWrapper = () => {
+const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -56,7 +53,10 @@ const fetchMock = jest.fn<FetchBoundary>(),
 
   QueryClientWrapper.displayName = "QueryClientWrapper"
   return QueryClientWrapper
-}
+},
+ fetchMock = jest.fn<FetchBoundary>(),
+
+ originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch")
 
 describe("useBrowseIndex", () => {
   beforeEach(() => {

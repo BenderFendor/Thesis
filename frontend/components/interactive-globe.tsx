@@ -598,12 +598,12 @@ const CountryFeatureSchema = z.custom<CountryFeature>(),
  },
 
  createStarField = (count: number, spread: number): Points<BufferGeometry, PointsMaterial> => {
-  const positions = new Float32Array(count * 3),
-   colors = new Float32Array(count * 3)
+  const colors = new Float32Array(count * 3),
+   positions = new Float32Array(count * 3)
 
   for (let index = 0; index < count; index += 1) {
-    const cursor = index * 3,
-     brightness = 0.55 + Math.random() * 0.4,
+    const brightness = 0.55 + Math.random() * 0.4,
+     cursor = index * 3,
      warmth = Math.random() * 0.08
     positions[cursor] = (Math.random() - 0.5) * spread
     positions[cursor + 1] = (Math.random() - 0.5) * spread
@@ -699,8 +699,8 @@ const CountryFeatureSchema = z.custom<CountryFeature>(),
  getQualityTier = (width: number, height: number): QualityTier => {
   if (globalThis.window === undefined) { return HIGHER_QUALITY_TIER }
 
-  const minSide = Math.min(width || ZERO_COUNT, height || ZERO_COUNT),
-   dpr = globalThis.devicePixelRatio || DEFAULT_PIXEL_RATIO
+  const dpr = globalThis.devicePixelRatio || DEFAULT_PIXEL_RATIO,
+   minSide = Math.min(width || ZERO_COUNT, height || ZERO_COUNT)
 
   if (minSide < GLOBE_MIN_SIDE_LOW || dpr >= DPR_HIGH_CUTOFF) { return LOWER_QUALITY_TIER }
   if (minSide < GLOBE_MIN_SIDE_HIGH || dpr >= DPR_MEDIUM_CUTOFF) { return MIDDLE_QUALITY_TIER }
@@ -751,8 +751,8 @@ const CountryFeatureSchema = z.custom<CountryFeature>(),
     const {width} = sourceImage,
      {height} = sourceImage
     if (width > options.maxTextureSize || height > options.maxTextureSize) {
-      const scale = Math.min(options.maxTextureSize / width, options.maxTextureSize / height),
-       canvas = document.createElement("canvas")
+      const canvas = document.createElement("canvas"),
+       scale = Math.min(options.maxTextureSize / width, options.maxTextureSize / height)
       canvas.width = Math.max(MIN_TEXTURE_EDGE, Math.floor(width * scale))
       canvas.height = Math.max(MIN_TEXTURE_EDGE, Math.floor(height * scale))
 
@@ -780,12 +780,12 @@ const CountryFeatureSchema = z.custom<CountryFeature>(),
  },
 
  remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]): Record<string, number> => {
-  const nameToIso = new Map<string, string>(),
-   isoSet = new Set<string>()
+  const isoSet = new Set<string>(),
+   nameToIso = new Map<string, string>()
 
   visibleCountries.forEach((feature) => {
-    const iso = getCountryIso(feature),
-     countryName = typeof feature.properties.NAME === "string" ? feature.properties.NAME : null
+    const countryName = typeof feature.properties.NAME === "string" ? feature.properties.NAME : null,
+     iso = getCountryIso(feature)
     if (iso === null) { return }
     isoSet.add(iso)
     if (countryName !== null) {
@@ -1134,17 +1134,17 @@ export const InteractiveGlobe = ({
 
   useEffect(() => {
     if (globeInstance === null) { return }
-    const globe = globeInstance,
+    const ambientLight = new AmbientLight(0x15_21_31, 0.16),
+     globe = globeInstance,
+     globeRadius = globe.getGlobeRadius(),
+     hemisphereLight = new HemisphereLight(0x32_5D_87, 0x04_07_0D, 0.14),
      renderer = globe.renderer(),
      scene = globe.scene(),
-     sunDirection = globeUniforms.uSunDirection.value,
-     globeRadius = globe.getGlobeRadius(),
      setupQualityTier = getQualityTier(
       containerRef.current?.clientWidth ?? globalThis.innerWidth,
       containerRef.current?.clientHeight ?? globalThis.innerHeight,
      ),
-     ambientLight = new AmbientLight(0x15_21_31, 0.16),
-     hemisphereLight = new HemisphereLight(0x32_5D_87, 0x04_07_0D, 0.14),
+     sunDirection = globeUniforms.uSunDirection.value,
      sunLight = new DirectionalLight(0xFF_F4_DB, 2.4)
     sunLight.position.copy(sunDirection).multiplyScalar(EARTH_RADIUS * SUN_LIGHT_DISTANCE_FACTOR)
 
@@ -1152,13 +1152,13 @@ export const InteractiveGlobe = ({
     renderer.toneMapping = ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
 
-    const globeAnchor = findGlobeAnchor(scene),
-     sceneObjects: Object3D[] = [],
+    const clock = new Clock(),
+     globeAnchor = findGlobeAnchor(scene),
      sceneMaterials: Material[] = [],
+     sceneObjects: Object3D[] = [],
      sceneTextures: Texture[] = [],
-     textureLoader = new TextureLoader(),
-     clock = new Clock(),
-     starField = createStarField(setupQualityTier.starCount, globeRadius * STAR_FIELD_SPREAD_FACTOR)
+     starField = createStarField(setupQualityTier.starCount, globeRadius * STAR_FIELD_SPREAD_FACTOR),
+     textureLoader = new TextureLoader()
 
     scene.add(ambientLight)
     scene.add(hemisphereLight)
@@ -1359,6 +1359,8 @@ const computePolygonHeatFast = (polygon: Readonly<CountryFeature>, context: Read
   return polygonHeat(feature, context.displayCounts, context.mentionCounts, context.maxCount, context.maxMentionCount)
 },
 
+ countFeatures = (features: readonly CountryFeature[]): number => features.length,
+
  disposeSceneObject = (object: Object3D): void => {
   object.parent?.remove(object)
   if (object instanceof Mesh) {
@@ -1378,6 +1380,4 @@ const computePolygonHeatFast = (polygon: Readonly<CountryFeature>, context: Read
 
  restorePlaceholderGlobeTextures = (uniforms: GlobeUniforms): void => {
   void uniforms
-},
-
- countFeatures = (features: readonly CountryFeature[]): number => features.length
+}

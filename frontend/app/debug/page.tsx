@@ -1827,8 +1827,8 @@ DriftDanglingSamples = ({ ids }: Readonly<{
 ),
 
 DriftSamplesCard = ({ driftData }: Readonly<{ driftData: StorageDriftReport | undefined }>) => {
-  const missingSamples = driftData?.missing_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? [],
-    danglingSamples = driftData?.dangling_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? []
+  const danglingSamples = driftData?.dangling_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? [],
+    missingSamples = driftData?.missing_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? []
   return (
     <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
       <CardHeader><CardTitle className="font-serif">Drift samples</CardTitle></CardHeader>
@@ -3256,8 +3256,8 @@ useCoreDebugQueries = (options: DebugQueryOptions) => {
     ],
     retry: 1,
   }),
-   systemStatusQuery = useQuery<SystemStatusResponse>({ queryFn: fetchDebugSystemStatus, queryKey: ["debug-system-status"], retry: 1 }),
-   logLevelQuery = useQuery<LogLevelResponse>({ queryFn: fetchDebugLogLevel, queryKey: ["debug-log-level"], retry: 1 })
+   logLevelQuery = useQuery<LogLevelResponse>({ queryFn: fetchDebugLogLevel, queryKey: ["debug-log-level"], retry: 1 }),
+   systemStatusQuery = useQuery<SystemStatusResponse>({ queryFn: fetchDebugSystemStatus, queryKey: ["debug-system-status"], retry: 1 })
   return {
     dashboardDataQuery,
     logLevelQuery,
@@ -3266,22 +3266,10 @@ useCoreDebugQueries = (options: DebugQueryOptions) => {
 },
 
 useTabDebugQueries = (options: DebugQueryOptions) => {
-  const sourceStatsQuery = useQuery<SourceStats[]>({
-    enabled: options.activeTab === "sources",
-    queryFn: fetchSourceStats,
-    queryKey: ["debug-source-stats"],
-    retry: 1,
-  }),
-   cacheStatusQuery = useQuery<CacheStatus | null>({
+  const cacheStatusQuery = useQuery<CacheStatus | null>({
     enabled: options.activeTab === "sources",
     queryFn: fetchCacheStatus,
     queryKey: ["debug-cache-status"],
-    retry: 1,
-  }),
-   llmLogsQuery = useQuery<LlmLogResponse>({
-    enabled: options.activeTab === "llm",
-    queryFn: () => fetchLlmLogs({ limit: 50 }),
-    queryKey: ["debug-llm-logs"],
     retry: 1,
   }),
    debugErrorsQuery = useQuery<DebugErrorsResponse>({
@@ -3290,11 +3278,23 @@ useTabDebugQueries = (options: DebugQueryOptions) => {
     queryKey: ["debug-errors"],
     retry: 1,
   }),
+   llmLogsQuery = useQuery<LlmLogResponse>({
+    enabled: options.activeTab === "llm",
+    queryFn: () => fetchLlmLogs({ limit: 50 }),
+    queryKey: ["debug-llm-logs"],
+    retry: 1,
+  }),
    performanceDataQuery = useQuery<PerformanceDebugData>({
     enabled: options.activeTab === "performance",
     queryFn: fetchPerformanceDebugData,
     queryKey: ["debug-performance", options.activeTab],
     refetchInterval: options.activeTab === "performance" ? 5000 : false,
+    retry: 1,
+  }),
+   sourceStatsQuery = useQuery<SourceStats[]>({
+    enabled: options.activeTab === "sources",
+    queryFn: fetchSourceStats,
+    queryKey: ["debug-source-stats"],
     retry: 1,
   })
 

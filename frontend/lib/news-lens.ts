@@ -59,9 +59,9 @@ export const NEWS_LENSES: NewsLensPreset[] = [
   },
 ];
 
-const WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]),
+const LOCAL_TYPES = new Set(["local", "regional"]),
  PRIMARY_TYPES = new Set(["government", "academic", "primary", "official"]),
- LOCAL_TYPES = new Set(["local", "regional"]);
+ WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]);
 
 function normalize(value?: string | null): string {
   return (value || "").trim().toLowerCase();
@@ -79,19 +79,19 @@ const lensMatchers: Record<FilterLensId, (source: NewsSource) => boolean> = {
     return country !== "" && country !== "us" && country !== "united states";
   },
   local: (source) => {
-    const sourceType = normalize(source.sourceType),
-     category = source.category.map(normalize);
+    const category = source.category.map(normalize),
+     sourceType = normalize(source.sourceType);
     return LOCAL_TYPES.has(sourceType) || category.some((item) => LOCAL_TYPES.has(item));
   },
   "low-paywall": (source) => !source.isPaywalled,
   "opinion-off": (source) => {
-    const sourceType = normalize(source.sourceType),
-     category = source.category.map(normalize);
+    const category = source.category.map(normalize),
+     sourceType = normalize(source.sourceType);
     return sourceType !== "opinion" && !category.some((item) => item.includes("opinion"));
   },
   primary: (source) => {
-    const sourceType = normalize(source.sourceType),
-     category = source.category.map(normalize);
+    const category = source.category.map(normalize),
+     sourceType = normalize(source.sourceType);
     return PRIMARY_TYPES.has(sourceType) || category.some((item) => PRIMARY_TYPES.has(item));
   },
   wire: (source) => {

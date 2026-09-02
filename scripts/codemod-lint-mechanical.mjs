@@ -308,8 +308,8 @@ class Codemod {
     if (exportModifier === undefined) {
       return;
     }
-    const start = node.getStart(sourceFile),
-      end = node.getEnd(),
+    const end = node.getEnd(),
+      start = node.getStart(sourceFile),
       stripped = source.slice(start, exportModifier.getStart(sourceFile)) + source.slice(exportModifier.getEnd(), end);
     return {end, name, start, stripped};
   }
@@ -913,9 +913,9 @@ class Codemod {
    * @returns {Promise<string[]>} Changed file paths.
    */
   static async processTargets(options) {
-    const targetFiles = Codemod.getTargetFiles(options.filePath),
+    const filteredTargets = [],
       ownScriptPath = ts.sys.resolvePath(new URL(import.meta.url).pathname),
-      filteredTargets = [];
+      targetFiles = Codemod.getTargetFiles(options.filePath);
     for (const filePath of targetFiles) {
       if (ts.sys.resolvePath(filePath) !== ownScriptPath) {
         filteredTargets.push(filePath);
@@ -925,8 +925,8 @@ class Codemod {
     for (const filePath of filteredTargets) {
       tasks.push(Codemod.processFile(filePath, options));
     }
-    const results = await Promise.all(tasks),
-      changedFiles = [];
+    const changedFiles = [],
+      results = await Promise.all(tasks);
     for (const filePath of results) {
       if (filePath !== undefined) {
         changedFiles.push(filePath);
@@ -966,9 +966,9 @@ class Codemod {
     if (end - start <= BLOCK_INSERT_OFFSET) {
       return;
     }
-    const firstStatement = statements.at(start),
-      lastStatement = statements.at(end - BLOCK_INSERT_OFFSET),
-      declarations = [];
+    const declarations = [],
+      firstStatement = statements.at(start),
+      lastStatement = statements.at(end - BLOCK_INSERT_OFFSET);
     if (firstStatement === undefined || lastStatement === undefined) {
       return;
     }

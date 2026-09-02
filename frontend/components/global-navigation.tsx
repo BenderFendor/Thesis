@@ -79,9 +79,12 @@ export function GlobalNavigation({
     return () =>{  globalThis.removeEventListener("popstate", syncViewFromLocation); }
   }, [isHomeRoute, onViewChange])
 
-  const updateExpanded = useCallback((nextExpanded: boolean) => {
-    writeSidebarExpanded(nextExpanded)
-  }, []),
+  const handleSearch = useCallback(
+    (query: string) => {
+      push(buildSearchHref(query))
+    },
+    [push],
+  ),
 
    handleViewClick = useCallback(
     (view: ViewMode) => {
@@ -95,12 +98,9 @@ export function GlobalNavigation({
     [isHomeRoute, onViewChange, push, replace],
   ),
 
-   handleSearch = useCallback(
-    (query: string) => {
-      push(buildSearchHref(query))
-    },
-    [push],
-  )
+   updateExpanded = useCallback((nextExpanded: boolean) => {
+    writeSidebarExpanded(nextExpanded)
+  }, [])
 
   return (
     <aside

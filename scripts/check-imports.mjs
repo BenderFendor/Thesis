@@ -11,11 +11,11 @@ function kebab(seg) {
   return stem.replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase() + (seg === stem ? "" : seg.slice(stem.length));
 }
 
-const root = resolve("frontend"),
+const EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "tools"]),
  args = process.argv.slice(2),
  fix = args.includes("--fix"),
 
- EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "tools"]);
+ root = resolve("frontend");
 
 function collect(dir, out) {
   let entries;
@@ -42,8 +42,8 @@ function resolvesAt(rel) {
 
 const bad = [];
 for (const file of files) {
-  const src = readFileSync(file, "utf8"),
-   re = /(?:from\s+|import\s*\(\s*|require\(\s*)["'](@\/[^"']+)["']/g;
+  const re = /(?:from\s+|import\s*\(\s*|require\(\s*)["'](@\/[^"']+)["']/g,
+   src = readFileSync(file, "utf8");
   let m;
   while ((m = re.exec(src))) {
     const spec = m[1];

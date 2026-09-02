@@ -657,18 +657,7 @@ const AGENTIC_HISTORY_LIMIT = 5,
   readonly isOpen: boolean
   readonly progressTrackRef: { current: HTMLDivElement | null }
 }>): false => {
-  const scrollArticleContentToProgress = useCallback((nextProgress: number) => {
-    const container = contentScrollRef.current
-    if (!container) {return}
-
-    {
-      const clampedProgress = Math.min(PROGRESS_MAXIMUM, Math.max(EMPTY_COUNT, nextProgress)),
-       maxScroll = Math.max(EMPTY_COUNT, container.scrollHeight - container.clientHeight)
-      container.scrollTo({ behavior: "auto", top: maxScroll * clampedProgress })
-    }
-  }, [contentScrollRef]),
-
-   resolveProgressFromPointer = useCallback((clientY: number) => {
+  const resolveProgressFromPointer = useCallback((clientY: number) => {
     const track = progressTrackRef.current
     if (!track) {return}
 
@@ -677,7 +666,18 @@ const AGENTIC_HISTORY_LIMIT = 5,
       if (rect.height <= EMPTY_COUNT) {return}
       return (clientY - rect.top) / rect.height
     }
-  }, [progressTrackRef])
+  }, [progressTrackRef]),
+
+   scrollArticleContentToProgress = useCallback((nextProgress: number) => {
+    const container = contentScrollRef.current
+    if (!container) {return}
+
+    {
+      const clampedProgress = Math.min(PROGRESS_MAXIMUM, Math.max(EMPTY_COUNT, nextProgress)),
+       maxScroll = Math.max(EMPTY_COUNT, container.scrollHeight - container.clientHeight)
+      container.scrollTo({ behavior: "auto", top: maxScroll * clampedProgress })
+    }
+  }, [contentScrollRef])
 
   useEffect(() => {
     if (!isOpen) {return}
@@ -1717,21 +1717,10 @@ getPreviousHighlightHistory = (
   updateHighlightByStableId,
   updateHighlightsWithHistory,
 }: Readonly<ModalHighlightEditorActionsProps>) => {
-  const handleStartEdit = useCallback((highlight: LocalHighlight) => {
-    setSidebarEditingId(highlightStableId(highlight))
-    setSidebarEditingNote(highlight.note ?? "")
-  }, [setSidebarEditingId, setSidebarEditingNote]),
-
-   handleCancelEdit = useCallback(() => {
+  const handleCancelEdit = useCallback(() => {
     setSidebarEditingId(undefined)
     setSidebarEditingNote("")
   }, [setSidebarEditingId, setSidebarEditingNote]),
-
-   handleSaveNote = useCallback(async (stableId: string, note: string): Promise<void> => {
-    await handleSaveHighlightNote(stableId, note)
-    setSidebarEditingId(undefined)
-    setSidebarEditingNote("")
-  }, [handleSaveHighlightNote, setSidebarEditingId, setSidebarEditingNote]),
 
    handleHighlightDelete = useCallback((removed: LocalHighlight) => {
     deleteHighlightWithUndo({
@@ -1740,7 +1729,18 @@ getPreviousHighlightHistory = (
       updateHighlightByStableId,
       updateHighlightsWithHistory,
     })
-  }, [updateHighlightByStableId, updateHighlightsWithHistory])
+  }, [updateHighlightByStableId, updateHighlightsWithHistory]),
+
+   handleSaveNote = useCallback(async (stableId: string, note: string): Promise<void> => {
+    await handleSaveHighlightNote(stableId, note)
+    setSidebarEditingId(undefined)
+    setSidebarEditingNote("")
+  }, [handleSaveHighlightNote, setSidebarEditingId, setSidebarEditingNote]),
+
+   handleStartEdit = useCallback((highlight: LocalHighlight) => {
+    setSidebarEditingId(highlightStableId(highlight))
+    setSidebarEditingNote(highlight.note ?? "")
+  }, [setSidebarEditingId, setSidebarEditingNote])
 
   return { handleCancelEdit, handleHighlightDelete, handleSaveNote, handleStartEdit }
 },

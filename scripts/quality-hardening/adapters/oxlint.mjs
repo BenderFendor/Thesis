@@ -50,8 +50,8 @@ function parseFinding(value, repositoryRoot) {
 
 /** @param {string} text @param {string} repositoryRoot */
 function parseReport(text, repositoryRoot) {
-  const parsed = JSON.parse(text),
-   diagnostics = [];
+  const diagnostics = [],
+   parsed = JSON.parse(text);
   if (Array.isArray(parsed)) {
     for (const entry of parsed) {
       if (isObject(entry) && Array.isArray(entry.warnings)) {diagnostics.push(...entry.warnings);}

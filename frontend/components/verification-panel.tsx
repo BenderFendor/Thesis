@@ -250,11 +250,11 @@ interface ClaimCardProps {
 }
 
 function ClaimCard({ claim, sources, isExpanded, onToggle }: ClaimCardProps) {
-  const colorClass = getConfidenceColor(claim.confidence_level),
-   allSourceIds = [...claim.supporting_sources, ...claim.conflicting_sources],
+  const allSourceIds = [...claim.supporting_sources, ...claim.conflicting_sources],
    claimSources = allSourceIds
     .map((id) => sources[id]!)
-    .filter(Boolean);
+    .filter(Boolean),
+   colorClass = getConfidenceColor(claim.confidence_level);
 
   return (
     <div className="border rounded-md overflow-hidden">
@@ -303,10 +303,10 @@ interface SourceCardProps {
 }
 
 function SourceCard({ source }: SourceCardProps) {
-  const supportText = source.supports_claim ? "Supports" : "Contradicts",
-   supportColor = source.supports_claim
+  const supportColor = source.supports_claim
     ? "text-green-600 dark:text-green-400"
-    : "text-red-600 dark:text-red-400";
+    : "text-red-600 dark:text-red-400",
+   supportText = source.supports_claim ? "Supports" : "Contradicts";
 
   return (
     <a

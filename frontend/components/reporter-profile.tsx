@@ -20,34 +20,8 @@ interface ReporterProfilePanelProps {
   readonly compact?: boolean
 }
 
-const PROFILE_STALE_MS = 60 * 60 * 1000,
- CITATION_LIMIT = 4,
+const CITATION_LIMIT = 4,
  DOSSIER_ITEM_LIMIT = 4,
-
- statusBadgeClass: Readonly<Record<string, string>> = {
-  ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  none: "border-white/10 bg-muted/20 text-muted-foreground",
-},
-
- normalizeStatusLabel = (status?: string): string => {
-  if (status === "matched") {return "verified"}
-  if (status === "ambiguous") {return "ambiguous"}
-  return "no match"
-},
-
- hasUsefulData = (profile: ReporterProfile): boolean => {
-  if (profile.match_status === "matched") {return true}
-  if (profile.overview !== null && profile.overview !== undefined && profile.overview.length > 0) {return true}
-  return profile.dossier_sections?.some((section) => section.items.length > 0) === true
-},
-
- profileSearchUrl = (profile: ReporterProfile): string => {
-  const wikipedia = profile.search_links?.wikipedia
-  if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) {return wikipedia}
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
-},
-
  LoadingProfile = () => (
   <Card className="w-full max-w-md">
     <CardHeader className="py-3">
@@ -62,7 +36,33 @@ const PROFILE_STALE_MS = 60 * 60 * 1000,
       <Skeleton className="h-20 w-full" />
     </CardContent>
   </Card>
-)
+),
+
+ PROFILE_STALE_MS = 60 * 60 * 1000,
+
+ hasUsefulData = (profile: ReporterProfile): boolean => {
+  if (profile.match_status === "matched") {return true}
+  if (profile.overview !== null && profile.overview !== undefined && profile.overview.length > 0) {return true}
+  return profile.dossier_sections?.some((section) => section.items.length > 0) === true
+},
+
+ normalizeStatusLabel = (status?: string): string => {
+  if (status === "matched") {return "verified"}
+  if (status === "ambiguous") {return "ambiguous"}
+  return "no match"
+},
+
+ profileSearchUrl = (profile: ReporterProfile): string => {
+  const wikipedia = profile.search_links?.wikipedia
+  if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) {return wikipedia}
+  return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
+},
+
+ statusBadgeClass: Readonly<Record<string, string>> = {
+  ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  none: "border-white/10 bg-muted/20 text-muted-foreground",
+}
 
 interface ErrorProfileProps {
   readonly compact: boolean
@@ -127,8 +127,8 @@ interface ProfileHeaderProps {
 }
 
 const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: ProfileHeaderProps) => {
-  const statusClass = statusBadgeClass[profile.match_status || "none"] ?? statusBadgeClass.none,
-   showClose = onClose !== undefined && !compact
+  const showClose = onClose !== undefined && !compact,
+   statusClass = statusBadgeClass[profile.match_status || "none"] ?? statusBadgeClass.none
   return (
     <CardHeader className="pb-3">
       <div className="flex items-start justify-between gap-3">

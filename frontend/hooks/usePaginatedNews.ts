@@ -75,7 +75,8 @@ export function usePaginatedNews(
     refetch,
   } = useInfiniteQuery<PaginatedResponse>({
     enabled,
-    gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+    // 5 minutes (formerly cacheTime)
+    gcTime: 5 * 60 * 1000,
     getNextPageParam: (lastPage) => {
       if (!lastPage.has_more) {return}
 
@@ -110,7 +111,8 @@ export function usePaginatedNews(
     },
     queryKey,
     refetchOnWindowFocus: false,
-    staleTime: 30 * 1000, // 30 seconds,
+    // 30 seconds,
+    staleTime: 30 * 1000,
   }),
 
    articles = useMemo(() => {

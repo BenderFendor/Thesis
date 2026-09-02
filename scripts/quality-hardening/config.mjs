@@ -162,9 +162,9 @@ function stringArray(value, name) {
 
 /** @param {JsonObject} thresholds */
 function validateThresholds(thresholds) {
-  const mi = /** @type {JsonObject} */ (thresholds.mi ?? {}),
+  const cccc = /** @type {JsonObject} */ (thresholds.cccc ?? {}),
     crap = /** @type {JsonObject} */ (thresholds.crap ?? {}),
-    cccc = /** @type {JsonObject} */ (thresholds.cccc ?? {}),
+    mi = /** @type {JsonObject} */ (thresholds.mi ?? {}),
    required = [
     ["mi.cluster_floor", mi.cluster_floor],
     ["mi.final_floor", mi.final_floor],
@@ -177,8 +177,8 @@ function validateThresholds(thresholds) {
       throw new TypeError(`threshold ${name} must be a finite number`);
     }
   }
-  const finalFloor = mi.final_floor,
-    clusterFloor = mi.cluster_floor;
+  const clusterFloor = mi.cluster_floor,
+    finalFloor = mi.final_floor;
   if (typeof finalFloor === "number" && typeof clusterFloor === "number" && finalFloor < clusterFloor) {
     throw new Error("threshold mi.final_floor must be >= mi.cluster_floor");
   }

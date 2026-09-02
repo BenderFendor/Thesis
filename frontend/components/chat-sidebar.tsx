@@ -312,8 +312,8 @@ const useChatSidebarState = ({
     if (!searchTerm.trim()) {return chats;}
     const term = searchTerm.trim().toLowerCase();
     return chats.filter((chat) => {
-      const inTitle = chat.title?.toLowerCase().includes(term),
-       inMessage = chat.lastMessage?.toLowerCase().includes(term);
+      const inMessage = chat.lastMessage?.toLowerCase().includes(term),
+       inTitle = chat.title?.toLowerCase().includes(term);
       return inTitle || inMessage;
     });
   }, [chats, searchTerm]),

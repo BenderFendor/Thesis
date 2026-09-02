@@ -9,9 +9,9 @@ import { sourceUnitId } from "../source-units.mjs";
 /** @typedef {Readonly<{coverage: Readonly<{crap: number|null, percent?: number, state: string}>, kind: string, line?: number, metrics: Readonly<{crap_typescript: Readonly<{cyclomatic?: number, crap?: number}>}>, path: string, symbol: string, unit_id: string}>} CrapUnit */
 /** @typedef {Readonly<{analyzer: string, methods: readonly CrapMethod[], units: readonly CrapUnit[], violations: readonly CrapUnit[]}>} CrapNormalizedReport */
 
-const SUCCESS_EXIT = 0,
- FINDINGS_EXIT = 1,
- REPORT_EXIT = 2;
+const FINDINGS_EXIT = 1,
+ REPORT_EXIT = 2,
+ SUCCESS_EXIT = 0;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isObject(value) {
@@ -26,10 +26,10 @@ function repositoryPath(path, repositoryRoot) {
 
 /** @param {string} path @param {string} repositoryRoot @param {CrapMethod} method */
 function normalizeMethod(path, repositoryRoot, method) {
-  const relativePath = repositoryPath(path, repositoryRoot),
-   symbol = method.method ?? "<anonymous>",
-   coverage = typeof method.cov === "number" && Number.isFinite(method.cov) ? method.cov : undefined,
-   crap = typeof method.crap === "number" && Number.isFinite(method.crap) && coverage !== undefined ? method.crap : null;
+  const coverage = typeof method.cov === "number" && Number.isFinite(method.cov) ? method.cov : undefined,
+   crap = typeof method.crap === "number" && Number.isFinite(method.crap) && coverage !== undefined ? method.crap : null,
+   relativePath = repositoryPath(path, repositoryRoot),
+   symbol = method.method ?? "<anonymous>";
   return {
     coverage: { crap, ...(coverage === undefined ? {} : { percent: coverage }), state: coverage === undefined ? "unmapped" : "measured" },
     kind: "function",

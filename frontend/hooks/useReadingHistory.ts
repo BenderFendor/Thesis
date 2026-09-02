@@ -8,9 +8,9 @@ import {
   subscribeToStorageKey,
 } from "@/lib/storage";
 
-const MAX_HISTORY_SIZE = 100,
- STORAGE_KEY = "thesis_reading_history",
- EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [];
+const EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [],
+ MAX_HISTORY_SIZE = 100,
+ STORAGE_KEY = "thesis_reading_history";
 
 export interface ReadingHistoryEntry {
   articleId: number;
@@ -38,8 +38,8 @@ export function useReadingHistory() {
       ),
        exists = currentHistory.find((entry) => entry.articleId === articleId);
       if (exists) {
-        const nextTitle = exists.title ?? title,
-         nextSource = exists.source ?? source;
+        const nextSource = exists.source ?? source,
+         nextTitle = exists.title ?? title;
         if (nextTitle === exists.title && nextSource === exists.source) {
           return;
         }

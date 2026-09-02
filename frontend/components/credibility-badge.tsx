@@ -22,7 +22,13 @@ const DEFAULT_DIMENSION_COUNT = 6,
  STRONG_SCORE_THRESHOLD = 70;
 type BadgeSize = "lg" | "md" | "sm";
 
-const SKELETON_IDS: readonly string[] = [
+const ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+  lg: "h-4 w-4",
+  md: "h-3.5 w-3.5",
+  sm: "h-3 w-3",
+},
+
+ SKELETON_IDS: readonly string[] = [
   "ownership",
   "transparency",
   "corrections",
@@ -30,12 +36,6 @@ const SKELETON_IDS: readonly string[] = [
   "reporting",
   "history",
 ],
-
- ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
-  lg: "h-4 w-4",
-  md: "h-3.5 w-3.5",
-  sm: "h-3 w-3",
-},
 
  TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
   lg: "text-xs",

@@ -114,8 +114,8 @@ const sortSourcesByRecency = (
    filtered = query.length === EMPTY_RECENCY
     ? sources
     : sources.filter((source) => {
-        const sourceName = source.name.toLowerCase(),
-         sourceCountry = source.country.toLowerCase();
+        const sourceCountry = source.country.toLowerCase(),
+         sourceName = source.name.toLowerCase();
         return sourceName.includes(query) || sourceCountry.includes(query);
       });
   return sortSourcesByRecency(filtered, sourceRecency);

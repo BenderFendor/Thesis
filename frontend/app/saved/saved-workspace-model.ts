@@ -3,15 +3,15 @@ import { API_BASE_URL } from "@/lib/api";
 import type { NewsArticle } from "@/lib/api";
 import { z } from "zod";
 
-const STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
- UNCATEGORIZED_LABEL = "Uncategorized",
-
- QueueDigestResponseSchema = z
+const QueueDigestResponseSchema = z
   .object({
     content: z.string().optional(),
     digest: z.string().optional(),
   })
-  .passthrough();
+  .passthrough(),
+ STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
+
+ UNCATEGORIZED_LABEL = "Uncategorized";
 
 export type SavedArticleKind = "bookmark" | "liked" | "both";
 

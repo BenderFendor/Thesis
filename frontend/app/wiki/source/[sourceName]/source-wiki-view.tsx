@@ -47,16 +47,16 @@ function useEmbeddedFlag(): boolean {
   return embedded
 }
 
-const getOwnershipChain = (entity: { details: Record<string, unknown> } | undefined) =>
-  entity ? parseOwnershipChain(entity.details) : [],
+const getAverageScore = (axes: readonly WikiAnalysisAxis[] | undefined): number | null => {
+  if (!axes?.length) {return null}
+  return axes.reduce((sum, axis) => sum + axis.score, 0) / axes.length
+},
 
  getFundingAndBias = (entity: { details: Record<string, unknown> } | undefined) =>
   entity ? parseFundingAndBias(entity.details) : null,
 
- getAverageScore = (axes: readonly WikiAnalysisAxis[] | undefined): number | null => {
-  if (!axes?.length) {return null}
-  return axes.reduce((sum, axis) => sum + axis.score, 0) / axes.length
-},
+ getOwnershipChain = (entity: { details: Record<string, unknown> } | undefined) =>
+  entity ? parseOwnershipChain(entity.details) : [],
 
  runWikiIndex = async ({
   sourceName,

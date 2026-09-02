@@ -21,22 +21,7 @@ type LineageArticleEdge = StoryLineageResponse["article_edges"][number];
 type LineageClaim = StoryLineageResponse["claims"][number];
 type LineageCorrection = StoryLineageResponse["corrections"][number];
 
-const LineageRelationBadges = ({ counts }: Readonly<{ counts: Record<string, number> }>) =>
-  Object.keys(counts).length > 0 ? (
-    <div className="flex flex-wrap gap-2">
-      {Object.entries(counts).map(([relation, count]) => (
-        <Badge
-          key={relation}
-          variant="outline"
-          className="border-white/10 bg-black/20 text-[10px] uppercase tracking-widest"
-        >
-          {relationLabels[relation] ?? relation}: {count}
-        </Badge>
-      ))}
-    </div>
-  ) : undefined,
-
- LineageArticleEdges = ({ edges }: Readonly<{ edges: readonly LineageArticleEdge[] }>) =>
+const LineageArticleEdges = ({ edges }: Readonly<{ edges: readonly LineageArticleEdge[] }>) =>
   edges.length > 0 ? (
     <div className="space-y-2">
       {edges.slice(0, 4).map((edge) => (
@@ -106,6 +91,21 @@ const LineageRelationBadges = ({ counts }: Readonly<{ counts: Record<string, num
           </span>
           {correction.correction_text}
         </a>
+      ))}
+    </div>
+  ) : undefined,
+
+ LineageRelationBadges = ({ counts }: Readonly<{ counts: Record<string, number> }>) =>
+  Object.keys(counts).length > 0 ? (
+    <div className="flex flex-wrap gap-2">
+      {Object.entries(counts).map(([relation, count]) => (
+        <Badge
+          key={relation}
+          variant="outline"
+          className="border-white/10 bg-black/20 text-[10px] uppercase tracking-widest"
+        >
+          {relationLabels[relation] ?? relation}: {count}
+        </Badge>
       ))}
     </div>
   ) : undefined;
