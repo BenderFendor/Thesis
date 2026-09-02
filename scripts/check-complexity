@@ -12,20 +12,59 @@ CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cccc"
 BIN="$CACHE_DIR/cccc-v$VERSION"
 REPORT="$(mktemp)"
 CCCC_JSON="$(mktemp)"
+JSON_MODE=0
+REPORT_PATH=""
+INPUTS=()
+
+while (($# > 0)); do
+  case "$1" in
+    --json)
+      JSON_MODE=1
+      ;;
+    --report)
+      shift
+      REPORT_PATH="${1:?--report requires a path}"
+      ;;
+    --path)
+      shift
+      INPUTS+=("${1:?--path requires a path}")
+      ;;
+    --help|-h)
+      printf '%s\n' 'Usage: scripts/check-complexity [--json] [--report PATH] [--path PATH]...'
+      exit 0
+      ;;
+    *)
+      INPUTS+=("$1")
+      ;;
+  esac
+  shift
+done
+
+if ((${#INPUTS[@]} == 0)); then
+  INPUTS=(backend frontend scripts)
+fi
+
+cleanup() {
+  rm -f "$CCCC_JSON"
+  if [[ -z "$REPORT_PATH" ]]; then
+    rm -f "$REPORT"
+  fi
+}
+trap cleanup EXIT
 
 if [ ! -x "$BIN" ]; then
   mkdir -p "$CACHE_DIR"
   TARBALL="$CACHE_DIR/cccc.tar.gz"
   curl -fsSL -o "$TARBALL" "https://github.com/moznion/cccc/releases/download/v$VERSION/cccc-v$VERSION-x86_64-unknown-linux-musl.tar.gz"
-  echo "$SHA256  $TARBALL" | sha256sum -c -
+  echo "$SHA256  $TARBALL" | sha256sum -c - >/dev/null
   tar -xzf "$TARBALL" -C "$CACHE_DIR"
   chmod +x "$CACHE_DIR/cccc"
 fi
 
 cd "$ROOT"
-"$CACHE_DIR/cccc" backend frontend scripts --config cccc.toml --pretty > "$CCCC_JSON"
+"$CACHE_DIR/cccc" "${INPUTS[@]}" --config cccc.toml --pretty > "$CCCC_JSON"
 
-node - "$CCCC_JSON" "$REPORT" <<'NODE'
+CCCC_JSON_MODE="$JSON_MODE" node - "$CCCC_JSON" "$REPORT" <<'NODE'
 const fs = require("fs");
 const [jsonPath, reportPath] = process.argv.slice(2);
 const d = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
@@ -40,12 +79,24 @@ function walk(path, files) {
 }
 for (const file of d.files) walk(file.path, file.functions || []);
 rows.sort((a, b) => (b.cc + b.cog) - (a.cc + a.cog));
-console.log(`cccc: ${rows.length} hard violations (CC>10 || cognitive>15) out of ${d.summary.function_count} functions`);
-for (const r of rows.slice(0, 40)) console.log(`  ${r.path}:${r.line} ${r.name} CC=${r.cc} cog=${r.cog}`);
-if (rows.length > 40) console.log(`  ... ${rows.length - 40} more`);
+const result = {
+  analyzer: "cccc",
+  files: d.files || [],
+  summary: d.summary || {},
+  violations: rows,
+};
+if (process.env.CCCC_JSON_MODE === "1") {
+  process.stdout.write(JSON.stringify(result));
+} else {
+  console.log(`cccc: ${rows.length} hard violations (CC>10 || cognitive>15) out of ${d.summary.function_count} functions`);
+  for (const r of rows.slice(0, 40)) console.log(`  ${r.path}:${r.line} ${r.name} CC=${r.cc} cog=${r.cog}`);
+  if (rows.length > 40) console.log(`  ... ${rows.length - 40} more`);
+}
 fs.writeFileSync(reportPath, JSON.stringify(rows, null, 1));
-process.exit(rows.length > 0 ? 1 : 0);
+process.exitCode = rows.length > 0 ? 1 : 0;
 NODE
-status=$?
-rm -f "$CCCC_JSON"
-exit $status
+cccc_exit=$?
+if [[ -n "$REPORT_PATH" ]]; then
+  cp "$REPORT" "$REPORT_PATH"
+fi
+exit "$cccc_exit"

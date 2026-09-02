@@ -789,7 +789,7 @@ class Codemod {
       if ((ts.isCallExpression(child) && (Codemod.isArrayMethodMutation(child, parameterName) ||
         Codemod.isArrayPassedToCall(child, parameterName))) ||
         (ts.isBinaryExpression(child) && Codemod.isArrayElementMutation(child, parameterName))) {
-        return false;
+        return true;
       }
       pending.push(...child.getChildren());
     }
@@ -960,23 +960,29 @@ class Codemod {
    * @param {string} kind - Variable declaration kind.
    * @param {number} start - Run start index.
    * @param {number} end - Exclusive run end index.
-   * @returns {TextChange | undefined} Replacement for runs longer than one.
+   * @returns {TextChange | undefined} Replacement for safe runs longer than one.
    */
   static mergedVariableChange(source, statements, kind, start, end) {
     if (end - start <= BLOCK_INSERT_OFFSET) {
       return;
     }
     const firstStatement = statements.at(start),
-      lastStatement = statements.at(end - BLOCK_INSERT_OFFSET);
+      lastStatement = statements.at(end - BLOCK_INSERT_OFFSET),
+      declarations = [];
     if (firstStatement === undefined || lastStatement === undefined) {
       return;
     }
-    const declarations = [];
+    if (statements.slice(start, end).some((statement) =>
+      (Codemod.getNodeModifiers(statement)?.length ?? EMPTY_INDEX) > EMPTY_INDEX)) {
+      return;
+    }
     for (const statement of statements.slice(start, end)) {
       declarations.push(Codemod.stripVariableKeyword(source, statement));
     }
-    const replacement = `${kind} ${declarations.join(",\n")};`;
-    return {end: lastStatement.getEnd(), position: firstStatement.getStart(), replacement};
+    {
+      const replacement = `${kind} ${declarations.join(",\n")};`;
+      return {end: lastStatement.getEnd(), position: firstStatement.getStart(), replacement};
+    }
   }
 
   /**

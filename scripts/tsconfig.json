@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -11,5 +13,5 @@
     "typeRoots": ["../frontend/node_modules/@types"],
     "types": ["node"]
   },
-  "include": ["scoop.ts", "tests/**/*.ts"]
+  "include": ["quality-hardening.mjs", "quality-hardening/**/*.mjs", "scoop.ts", "tests/**/*.ts"]
 }
