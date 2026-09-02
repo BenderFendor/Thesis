@@ -1,5 +1,15 @@
 # Log
 
+## 2026-09-02: Structural iteration on useReadingQueueController
+
+- Extracted the reading-queue storage engine (hydration, cross-tab sync,
+  persistence effects) into `useQueuedArticlesStorage`; the public hook keeps
+  mutation callbacks. tsc 0, reading-queue tests 12/12, repo-wide cccc 0 hard;
+  file MI min 28 -> 33. Cluster floor 50 still open - the next iteration must
+  reduce `preloadMissingData`/`addArticleToQueue` branch density.
+  - Effect + attempt recorded in the ledger (`qh-campaign-03`); committed as
+  `6d28a57`.
+
 ## 2026-09-02: Campaign loop iteration and oxlint hang root cause
 
 - Root cause of the oxlint "hang": stale `tsgolint headless` workers from
