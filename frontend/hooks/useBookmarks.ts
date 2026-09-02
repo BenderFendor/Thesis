@@ -7,7 +7,7 @@ let bookmarkCache: Set<number> | null,
   bookmarkLoaded: boolean,
   bookmarkLoading: boolean
 
-export const bookmarkListeners = new Set<BookmarkListener>(),
+const bookmarkListeners = new Set<BookmarkListener>(),
   loadBookmarksFromApi = async () => {
     if (bookmarkLoading) {
       return
@@ -48,8 +48,9 @@ export const bookmarkListeners = new Set<BookmarkListener>(),
   },
   notifyBookmarkListeners = (ids: ReadonlySet<number>) => {
     bookmarkListeners.forEach((listener) =>{  listener(new Set(ids)); })
-  },
-  useBookmarks = () => {
+  };
+
+export const useBookmarks = () => {
     const [bookmarkIds, setBookmarkIds] = useState<Set<number>>(
         bookmarkCache === null || bookmarkCache === undefined
           ? new Set()

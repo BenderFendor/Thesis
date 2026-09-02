@@ -9,7 +9,7 @@ import {
 import type { NewsLensId } from "@/lib/news-lens"
 import { useSyncExternalStore } from "react"
 
-export const DEFAULT_NEWS_LENS: NewsLensId = "all",
+const DEFAULT_NEWS_LENS: NewsLensId = "all",
   NEWS_LENS_CANDIDATES = new Set<string>([
     "all",
     "wire",
@@ -27,18 +27,19 @@ export const DEFAULT_NEWS_LENS: NewsLensId = "all",
     return DEFAULT_NEWS_LENS
   },
   isNewsLensId = (value: string): value is NewsLensId =>
-    NEWS_LENS_CANDIDATES.has(value),
-  useNewsLens = () => {
-    const lens = useSyncExternalStore(
-      (onChange) => subscribeToStorageKey(STORAGE_KEYS.NEWS_LENS, onChange),
-      () =>
-        coerceLens(getStorageSnapshot(STORAGE_KEYS.NEWS_LENS, DEFAULT_NEWS_LENS)),
-      () => DEFAULT_NEWS_LENS,
-    )
+    NEWS_LENS_CANDIDATES.has(value);
 
-    return {
-      clearLens: () => saveToStorage(STORAGE_KEYS.NEWS_LENS, DEFAULT_NEWS_LENS),
-      lens,
-      setLens: (next: NewsLensId) => saveToStorage(STORAGE_KEYS.NEWS_LENS, next),
-    }
+export const useNewsLens = () => {
+  const lens = useSyncExternalStore(
+    (onChange) => subscribeToStorageKey(STORAGE_KEYS.NEWS_LENS, onChange),
+    () =>
+      coerceLens(getStorageSnapshot(STORAGE_KEYS.NEWS_LENS, DEFAULT_NEWS_LENS)),
+    () => DEFAULT_NEWS_LENS,
+  )
+
+  return {
+    clearLens: () => saveToStorage(STORAGE_KEYS.NEWS_LENS, DEFAULT_NEWS_LENS),
+    lens,
+    setLens: (next: NewsLensId) => saveToStorage(STORAGE_KEYS.NEWS_LENS, next),
   }
+}
