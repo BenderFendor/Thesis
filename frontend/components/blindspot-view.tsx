@@ -577,6 +577,36 @@ function BlindspotErrorState({
   )
 }
 
+function BlindspotOfflineState({
+  label,
+  reason,
+}: Readonly<{ label: string; reason?: string | null }>) {
+  return (
+    <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
+      <h3 className="font-serif text-2xl text-foreground/60">
+        {label} analyzer is offline
+      </h3>
+      <p className="mt-2 text-sm text-muted-foreground/40">
+        {reason || "Check back shortly for updated intelligence."}
+      </p>
+    </div>
+  )
+}
+
+function BlindspotClusterModal({
+  cluster,
+  onClose,
+}: Readonly<{ cluster: TrendingCluster | null; onClose: () => void }>) {
+  return (
+    <ClusterDetailModal
+      cluster={cluster}
+      isBreaking={false}
+      isOpen={cluster !== null}
+      onClose={onClose}
+    />
+  )
+}
+
 function BlindspotControls({
   availableLenses,
   selectedLens,
@@ -636,6 +666,65 @@ function BlindspotControls({
   )
 }
 
+function BlindspotLaneSection({
+  accentClass,
+  laneId,
+  emptyLabel,
+  expandedLanes,
+  laneMap,
+  onExpandLane,
+  onOpenCard,
+  poleLabels,
+  subtitle,
+  subtitleMobile,
+  title,
+  titleMobile,
+}: Readonly<{
+  accentClass: string;
+  emptyLabel: string;
+  expandedLanes: Record<BlindspotLane["id"], boolean>;
+  laneId: BlindspotLane["id"];
+  laneMap: Map<BlindspotLane["id"], BlindspotCard[]>;
+  onExpandLane: (laneId: BlindspotLane["id"]) => void;
+  onOpenCard: (card: BlindspotCard) => void;
+  poleLabels: { pole_a: string; pole_b: string };
+  subtitle: string;
+  subtitleMobile?: string;
+  title: string;
+  titleMobile?: string;
+}>) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="flex flex-col space-y-3 lg:space-y-8"
+    >
+      <div className={`space-y-1 border-l-2 ${accentClass} pl-3 lg:space-y-2 lg:pl-6`}>
+        <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
+          {titleMobile ? <span className="lg:hidden">{titleMobile}</span> : null}
+          <span className={titleMobile ? "hidden lg:inline" : ""}>{title}</span>
+        </h3>
+        <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+          {subtitleMobile ? <span className="lg:hidden">{subtitleMobile}</span> : null}
+          <span className={subtitleMobile ? "hidden lg:inline" : ""}>{subtitle}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-col space-y-3 lg:space-y-8">
+        <BlindspotLaneCards
+          cards={laneMap.get(laneId) ?? []}
+          emptyLabel={emptyLabel}
+          expanded={expandedLanes[laneId] ?? false}
+          onExpand={() => onExpandLane(laneId)}
+          onOpen={onOpenCard}
+          poleLabels={poleLabels}
+        />
+      </div>
+    </motion.section>
+  )
+}
+
 function BlindspotLaneSections({
   expandedLanes,
   laneMap,
@@ -649,80 +738,48 @@ function BlindspotLaneSections({
   onOpenCard: (card: BlindspotCard) => void;
   poleLabels: { pole_a: string; pole_b: string };
 }>) {
-  const renderLaneCards = (laneId: BlindspotLane["id"], emptyLabel: string) => (
-    <BlindspotLaneCards
-      cards={laneMap.get(laneId) ?? []}
-      emptyLabel={emptyLabel}
-      expanded={expandedLanes[laneId] ?? false}
-      onExpand={() => onExpandLane(laneId)}
-      onOpen={onOpenCard}
-      poleLabels={poleLabels}
-    />
-  )
-
   return (
     <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="flex flex-col space-y-3 lg:space-y-8"
-      >
-        <div className="space-y-1 border-l-2 border-red-500/40 pl-3 lg:space-y-2 lg:pl-6">
-          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
-            <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_a)}</span>
-            <span className="hidden lg:inline">Missed by {poleLabels.pole_a}</span>
-          </h3>
-          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-            <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_b).toLowerCase()} outlets</span>
-            <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets</span>
-          </p>
-        </div>
-
-        <div className="flex flex-col space-y-3 lg:space-y-8">
-          {renderLaneCards("pole_b", "No significant blindspots detected")}
-        </div>
-      </motion.section>
-
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
-        className="flex flex-col space-y-3 lg:space-y-8"
-      >
-        <div className="space-y-1 border-l-2 border-zinc-500/40 pl-3 lg:space-y-2 lg:pl-6">
-          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">Balanced & Center</h3>
-          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-            Stories with consensus or neutral coverage
-          </p>
-        </div>
-
-        <div className="flex flex-col space-y-3 lg:space-y-8">
-          {renderLaneCards("shared", "No balanced signals detected")}
-        </div>
-      </motion.section>
-
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
-        className="flex flex-col space-y-3 lg:space-y-8"
-      >
-        <div className="space-y-1 border-l-2 border-cyan-500/40 pl-3 lg:space-y-2 lg:pl-6">
-          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
-            <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_b)}</span>
-            <span className="hidden lg:inline">Missed by {poleLabels.pole_b}</span>
-          </h3>
-          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-            <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_a).toLowerCase()} outlets</span>
-            <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets</span>
-          </p>
-        </div>
-
-        <div className="flex flex-col space-y-3 lg:space-y-8">
-          {renderLaneCards("pole_a", "No significant blindspots detected")}
-        </div>
-      </motion.section>
+      <BlindspotLaneSection
+        accentClass="border-red-500/40"
+        emptyLabel="No significant blindspots detected"
+        expandedLanes={expandedLanes}
+        laneId="pole_b"
+        laneMap={laneMap}
+        onExpandLane={onExpandLane}
+        onOpenCard={onOpenCard}
+        poleLabels={poleLabels}
+        subtitle={`Reported primarily by ${poleLabels.pole_b.toLowerCase()} outlets`}
+        subtitleMobile={`Reported primarily by ${displayPoleLabel(poleLabels.pole_b).toLowerCase()} outlets`}
+        title={`Missed by ${poleLabels.pole_a}`}
+        titleMobile={`Missed by ${displayPoleLabel(poleLabels.pole_a)}`}
+      />
+      <BlindspotLaneSection
+        accentClass="border-zinc-500/40"
+        emptyLabel="No balanced signals detected"
+        expandedLanes={expandedLanes}
+        laneId="shared"
+        laneMap={laneMap}
+        onExpandLane={onExpandLane}
+        onOpenCard={onOpenCard}
+        poleLabels={poleLabels}
+        subtitle="Stories with consensus or neutral coverage"
+        title="Balanced & Center"
+      />
+      <BlindspotLaneSection
+        accentClass="border-cyan-500/40"
+        emptyLabel="No significant blindspots detected"
+        expandedLanes={expandedLanes}
+        laneId="pole_a"
+        laneMap={laneMap}
+        onExpandLane={onExpandLane}
+        onOpenCard={onOpenCard}
+        poleLabels={poleLabels}
+        subtitle={`Reported primarily by ${poleLabels.pole_a.toLowerCase()} outlets`}
+        subtitleMobile={`Reported primarily by ${displayPoleLabel(poleLabels.pole_a).toLowerCase()} outlets`}
+        title={`Missed by ${poleLabels.pole_b}`}
+        titleMobile={`Missed by ${displayPoleLabel(poleLabels.pole_b)}`}
+      />
     </div>
   )
 }
@@ -850,22 +907,13 @@ export function BlindspotView({
             poleLabels={poleLabels}
           />
         ) : (
-          <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
-            <h3 className="font-serif text-2xl text-foreground/60">
-              {data.selected_lens.label} analyzer is offline
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground/40">
-              {data.selected_lens.unavailable_reason || "Check back shortly for updated intelligence."}
-            </p>
-          </div>
+          <BlindspotOfflineState
+            label={data.selected_lens.label}
+            reason={data.selected_lens.unavailable_reason || undefined}
+          />
         )}
       </div>
-      <ClusterDetailModal
-        cluster={selectedCluster}
-        isBreaking={false}
-        isOpen={selectedCluster !== null}
-        onClose={() =>{  setSelectedCard(null); }}
-      />
+      <BlindspotClusterModal cluster={selectedCluster} onClose={() =>{ setSelectedCard(null); }} />
     </>
   )
 }
