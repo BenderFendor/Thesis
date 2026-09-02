@@ -1,5 +1,5 @@
-import { readdirSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
+import { readdirSync } from "node:fs";
 
 const FRONTEND_SOURCE_ROOTS = ["app", "components", "features", "hooks", "lib"],
  EXCLUDED_DIRECTORIES = new Set([

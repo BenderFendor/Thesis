@@ -1,12 +1,12 @@
 // @ts-check
 
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { normalizedExcess, priorityForFactor, scheduleTasks } from "./schedule.mjs";
+import { readLedger, writeCampaign } from "./ledger.mjs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { resolvedTaxonomyRule } from "./config.mjs";
-import { readLedger, writeCampaign } from "./ledger.mjs";
-import { normalizedExcess, priorityForFactor, scheduleTasks } from "./schedule.mjs";
 
 /** @typedef {Readonly<{config: Readonly<{policy_version: string, thresholds: Readonly<{cccc: Readonly<{cognitive_ceiling: number, cyclomatic_ceiling: number}>, crap: Readonly<{cluster_ceiling: number}>, mi: Readonly<{cluster_floor: number}>}>}>, taxonomy: Record<string, unknown>, repositoryRoot: string}>} QueuePolicy */
 /** @typedef {Readonly<{coverage?: Readonly<{crap?: number|null, state?: string}>, path: string, rule?: string, unit_id?: string, metrics?: Readonly<{cccc?: Readonly<{cognitive?: number, cyclomatic?: number}>, code_multivitals?: Readonly<{maintainability_index?: number}>}>}>} Unit */

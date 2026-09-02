@@ -1,11 +1,11 @@
-import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { test } from "node:test";
-import { analysisCacheKey } from "../../quality-hardening/cache-key.mjs";
 import { buildTasks, expandTaskScope, readTasks, rebuildQueue, transitionTask, writeTasks } from "../../quality-hardening/queue.mjs";
 import { claimWriter, expandWriterClaim, readWriterClaim, releaseWriter } from "../../quality-hardening/writer-claim.mjs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { analysisCacheKey } from "../../quality-hardening/cache-key.mjs";
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { test } from "node:test";
+import { tmpdir } from "node:os";
 
 const policy = {
   config: { policy_version: "1", thresholds: { cccc: { cognitive_ceiling: 15, cyclomatic_ceiling: 10 }, crap: { cluster_ceiling: 8 }, mi: { cluster_floor: 50 } } },

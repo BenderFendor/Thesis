@@ -1,9 +1,9 @@
 // @ts-check
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
 import { EXIT_CODES } from "./protocol.mjs";
+import { execFile } from "node:child_process";
+
+import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 

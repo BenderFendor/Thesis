@@ -1,6 +1,6 @@
+import { dominates, paretoFrontier, priorityForTask, scheduleTasks } from "../../quality-hardening/schedule.mjs";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dominates, paretoFrontier, priorityForTask, scheduleTasks } from "../../quality-hardening/schedule.mjs";
 
 /** @param {Partial<Record<string, unknown>> & {task_id: string}} [extra] */
 function task(extra = {}) {

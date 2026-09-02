@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /** Deterministic CLI for Scoop's OpenAPI and WebSocket contracts. */
 
-import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
