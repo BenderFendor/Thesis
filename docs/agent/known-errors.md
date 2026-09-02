@@ -1,5 +1,40 @@
 # Known Errors
 
+## Repo-pinned oxlint hangs >280s even on a single file
+
+Symptom:
+
+```txt
+PATH="$PWD/frontend/node_modules/.bin:$PATH" ./frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format unix <file>
+```
+
+never completes within 4-5 minutes (observed 2026-09-02 on
+`scripts/quality-hardening/schedule.mjs`); a stale `tsgolint` type-aware worker
+was previously observed running 90 minutes at 99% CPU.
+
+Cause:
+
+- oxlint starts a background TypeScript worker for type-aware rules; on this
+  machine the worker can hang or restart repeatedly instead of finishing.
+- Config lookup also loads the repository plugin set per invocation.
+
+Workaround:
+
+- Prefer the hook-injected per-file findings (the quality hook reports the
+  rule-level list) or `npm run cli:typecheck` + `node --test` for script files.
+- For TS source verification use `tsc -p frontend/tsconfig.json --noEmit`
+  (with `rm -f frontend/tsconfig.tsbuildinfo` first) and the focused Jest suites.
+- The full lint gate should be run in batch once, not per edit.
+
+## The Edit tool cannot match literal `<SM:FIND>` text in file content
+
+Symptom: edit payloads that must quote a line containing a literal
+`<SM:FIND>...` tag (e.g. after a botched edit left marker text in a file)
+keep failing with "Operation 1 has <SM:FIND> but no <SM:PUT>."
+
+Workaround: patch those regions with a small Python script (read, replace,
+write) instead; the Edit tool's XML wrapper cannot represent the literal tag.
+
 ## Atlas shows a raw datetime validation error instead of the graph
 
 Symptom:
@@ -170,6 +205,10 @@ Fix:
   failure, not a harmless style omission.
 - The Unicode-regexp mechanical codemod must operate on AST regex literals.
   A text scan can rewrite URL paths, imports, and JSX closing tags.
+- The readonly-parameter codemod must treat a mutating array call or direct
+  array handoff as unsafe. Keep the mutation detector returning `true` for an
+  unsafe use; TypeScript will catch the resulting `.push()` breakage, but the
+  codemod should filter it before writing.
 - The backend cycle check must remain clean. Shared evidence-table metadata
   belongs in `backend/app/models/evidence_tables.py`, which neither the
   database module nor the evidence model imports back through.

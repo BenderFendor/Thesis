@@ -920,3 +920,223 @@
 
 ---
 
+## 2026-09-01 19:46
+
+**What happened:** pre-edit-context returned no context output for the architecture document
+
+**Probable cause:** The repository wrapper completed without emitting the expected packet
+
+**Fix or workaround:** Run the scanner with an explicit existing source path or inspect its wrapper before relying on output
+
+---
+
+## 2026-09-01 19:49
+
+**What happened:** oxlint --rules returned no rule inventory
+
+**Probable cause:** The installed 1.80.0 binary accepted the flag but emitted no output
+
+**Fix or workaround:** Use configured diagnostics plus the printed config as the taxonomy inventory source
+
+---
+
+## 2026-09-01 19:50
+
+**What happened:** zsh rejected a temporary variable named status while probing Oxlint JSON
+
+**Probable cause:** status is read-only in this shell
+
+**Fix or workaround:** Use a task-specific variable name such as oxlint_exit
+
+---
+
+## 2026-09-01 19:53
+
+**What happened:** JSON validation probe printed p outside its loop
+
+**Probable cause:** The one-line Node check placed console.log after the for statement without braces
+
+**Fix or workaround:** Use a braced loop or node --input-type=module for validation probes
+
+---
+
+## 2026-09-01 20:29
+
+**What happened:** Direct MI probe used a stale frontend/node_modules path; code-multivitals is installed at the repository root node_modules.
+
+**Probable cause:** The quality hook resolves the package from the repository root, but the manual probe assumed the frontend install.
+
+**Fix or workaround:** Resolve the package through the repository root before ad hoc metric probes.
+
+---
+
+## 2026-09-01 20:30
+
+**What happened:** Direct code-multivitals analyseFile probe omitted its required threshold profile and failed before returning metrics.
+
+**Probable cause:** The installed API types require ThresholdConfig even though the wrapper had already learned the package path.
+
+**Fix or workaround:** Pass the pinned strict profile when probing per-file MI directly.
+
+---
+
+## 2026-09-01 21:17
+
+**What happened:** unittest was invoked with an absolute file path as a module name and ran zero tests
+
+**Probable cause:** python -m unittest interprets positional names as importable modules
+
+**Fix or workaround:** invoke the hook test file directly or use discover with a start directory
+
+---
+
+## 2026-09-01 21:28
+
+**What happened:** configured Oxlint type-aware probe failed before linting because oxlint-tsgolint is unavailable
+
+**Probable cause:** frontend Oxlint integration expects the optional tsgolint executable
+
+**Fix or workaround:** use the repository's supported type-aware command or install the configured companion before claiming a clean lint gate
+
+---
+
+## 2026-09-01 22:41
+
+**What happened:** Inline Python diagnostic wrapper failed with a syntax error
+
+**Probable cause:** Multiline function definition was packed into a one-line command
+
+**Fix or workaround:** Use the existing analyzer directly or a properly structured temporary probe
+
+---
+
+## 2026-09-01 23:13
+
+**What happened:** Maintainability --help probe started the full scan
+
+**Probable cause:** The script has no help mode and treated --help as a normal run
+
+**Fix or workaround:** Use the per-file hook metric probe instead of invoking the repository scan for help
+
+---
+
+## 2026-09-01 23:24
+
+**What happened:** Combined diagnostic wrapper failed before running checks due to nested shell quoting
+
+**Probable cause:** The command embedded a node -e script inside an orchestrated shell string
+
+**Fix or workaround:** Run focused diagnostics as separate commands or use a script file
+
+---
+
+## 2026-09-01 23:36
+
+**What happened:** Zsh diagnostic wrapper could not assign variable named status
+
+**Probable cause:** status is a read-only zsh special parameter
+
+**Fix or workaround:** Use a task-specific variable such as exit_code
+
+---
+
+## 2026-09-01 23:46
+
+**What happened:** SafeImage regression assertion expected a root-relative src but Next Image normalizes it to localhost
+
+**Probable cause:** The Next Image test adapter resolves relative URLs in jsdom
+
+**Fix or workaround:** Assert against the browser-normalized URL or use URL parsing
+
+---
+
+## 2026-09-02 00:14
+
+**What happened:** Oxlint JSON aggregate probe treated the report as an array and crashed while counting diagnostics
+
+**Probable cause:** Oxlint --format json emits an object with a diagnostics array
+
+**Fix or workaround:** Read report.diagnostics before aggregating and keep the probe separate from the lint exit code
+
+---
+
+## 2026-09-02 01:16
+
+**What happened:** pre-edit-context emitted no packet for article-detail-modal.tsx
+
+**Probable cause:** The vault wrapper completed silently for this target invocation
+
+**Fix or workaround:** Inspect the wrapper and fall back to rg plus bounded source reads before editing
+
+---
+
+## 2026-09-02 04:11
+
+**What happened:** A type-aware Oxlint probe left a tsgolint worker running for about 90 minutes at 99% CPU after the command output returned
+
+**Probable cause:** The optional type-aware worker outlived the parent probe
+
+**Fix or workaround:** Check child processes after direct type-aware probes and terminate only the stale probe tree before continuing
+
+---
+
+## 2026-09-02 04:24
+
+**What happened:** A compact Node JSON diagnostic one-liner had a syntax error and produced EPIPE
+
+**Probable cause:** Nested flatMap callback was malformed
+
+**Fix or workaround:** Use a checked-in or multiline parser for complexity reports
+
+---
+
+## 2026-09-02 05:21
+
+**What happened:** The repo quality verifier launched local Oxlint without frontend/node_modules/.bin on PATH and treated tsgolint startup text as JSON
+
+**Probable cause:** The adapter inherited the shell PATH while frontend/package.json adds the local binary directory only in its npm script
+
+**Fix or workaround:** Prepend the repository frontend/node_modules/.bin directory in the adapter environment before invoking Oxlint
+
+---
+
+## 2026-09-02 06:39
+
+**What happened:** A targeted adapter patch used an incorrect path and was rejected before changing files
+
+**Probable cause:** The provider adapter lives under scripts/quality-hardening, not frontend/tools
+
+**Fix or workaround:** Resolve the target with rg before applying the patch
+
+---
+
+## 2026-09-02 08:11
+
+**What happened:** Duplicating Oxlint diagnostic metadata in queue tasks raised controller complexity and lowered MI
+
+**Probable cause:** The measurement already preserves raw code, normalized rule, severity, path, line, and message
+
+**Fix or workaround:** Keep task records grouped by canonical rule and retain detailed diagnostics in the measurement
+
+---
+
+## 2026-09-02 10:45
+
+**What happened:** repo-pinned oxlint hangs >280s even on one file; type-aware tsgolint worker never finishes
+
+**Probable cause:** tsgolint background worker hangs/restarts on this machine; per-edit full lint was the cost driver
+
+**Fix or workaround:** verify scripts via cli:typecheck + node --test; run full lint gate in batch once, not per edit
+
+---
+
+## 2026-09-02 10:45
+
+**What happened:** Edit tool cannot quote literal <SM:FIND> text in file content
+
+**Probable cause:** XML wrapper cannot represent literal engine tag inside a FIND payload
+
+**Fix or workaround:** patch those regions with a small Python read/replace/write
+
+---
+

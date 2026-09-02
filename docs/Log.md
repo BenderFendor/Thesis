@@ -1,5 +1,194 @@
 # Log
 
+## 2026-09-02: Shared hook core, CI, and campaign start
+
+- Phase 4: harness-neutral quality core at
+  `~/.local/share/agent-quality/agent_quality/` (protocol envelope mapping for
+  Codex/Claude/OMP, registry trust with realpath/identity/owner checks, safe
+  subprocess adapter calls, WAL SQLite cache with the section-11 tables).
+  Registry at `~/.config/agent-quality/repos.json` (Thesis entry pinned to
+  the controller adapter). Codex and Claude quality events already point at
+  the shared `~/.codex/hooks` core; shadow-mode comparisons now log decision
+  mismatches to `~/.cache/agent-quality/shadow-mismatches.jsonl`. 12 core
+  tests pass (`~/.local/share/agent-quality/tests/test_core.py`).
+- Phase 5: parity + canaries as `scripts/tests/quality-hardening/canary.test.mjs`
+  (cold/warm task-order parity, queue-rebuild identity, structural tradeoff
+  declaration, mechanical isolation, unknown-coverage no-fabricated-CRAP).
+  Controller suite 22/22.
+- Phase 6: `.github/workflows/quality-gate.yml` hard gate (no
+  continue-on-error, no commit/push) and artifact-only `quality-audit.yml`.
+  Retired legacy machinery: 5 workflows, 3 patch payloads, 5 superseded
+  artifacts (inventory, driver, MI buckets, wave manifest, handoffs); Log.md
+  references updated; history keeps everything.
+- Phase 7 first loop iteration: claimed the P0 readonly cluster task
+  (`qh-task:154ebe26...`, 255 findings / 21 paths), verified the codemod
+  inventory is empty (3 distinct dry-runs, `files changed: 0`), recorded the
+  attempt + blocked it with the exact reason and next executable step
+  (contextual readonly-contract fixes starting at `useReadingQueue`). The
+  remaining 12.4k-oxlint-errors campaign continues.
+
+## 2026-09-02: Controller scheduling and advisory quality hook
+
+- Implemented section 14 scheduling in `scripts/quality-hardening/schedule.mjs`:
+  strict P0-P4 classes (correctness/type P0, structural+measured CRAP P1,
+  architecture P2, proven mechanical P3, contextual tail P4), Pareto dominance
+  within a class across gate-distance (L-infinity normalized deficit),
+  findings explained, blast radius, measured repair success, verification
+  cost, and rollback clarity, plus a deterministic 14.3 tie-break.
+- Queue tasks now carry `gate_distance` and `hard_findings` derived from
+  CCCC/code-multivitals/CRAP deficits; `queue rebuild` reads `effects.jsonl`
+  so effect history influences scheduling inside a class. Effect records from
+  `task close|block` now include `cluster_key` and `repair_class`.
+- Decided with the user: the quality hook is WARNING-LEVEL, never blocking.
+  `stop_dispatch.py` emits "Quality advisory (non-blocking)" as a
+  systemMessage; hard Stop checks (compile, lint, type, conflict markers)
+  remain blocking. This ends the edit loop where per-file metric deltas on
+  dirty files blocked structural work within a turn.
+- Added `scripts/tests/quality-hardening/schedule.test.mjs` (6 cases:
+  class strictness, dominance, deterministic tie-break, effect-history
+  frontier, no-dominance frontier). Controller suite: 17/17 pass;
+  `npm run cli:typecheck` clean; `quality-hardening.mjs validate` and
+  `summary` working against the live ledger (173 tasks).
+
+## 2026-09-02: Stop-gate semantics and per-file lint memoization (shared hook)
+
+- The shared quality stop gate (`~/.codex/hooks/quality_metrics.py::fmt_stop`)
+  now blocks only on floor-crossing regressions: MI drops below the cluster
+  floor 50, CC/cog cross above 10/15, or a below-floor file gets worse.
+  Deltas inside a floor (MI 52 -> 50.5, CC 6 -> 9) no longer block, per the
+  approved policy that the floor is the per-turn bound and final goals
+  (MI 60, CRAP 8) bind only at cluster close and repo finish. This removes
+  the "fix metric -> blocked -> churn back" micro-loop that cost whole turns.
+- `lint_changed_files` now memoizes python/JS/TS lint results per file, keyed
+  on content plus config signatures, so repeated edits re-run only files whose
+  bytes changed. Previously every edit re-ran type-aware oxlint over all
+  turn-changed files, which produced multi-minute hook latency and lingering
+  typechecker workers (one stale worker ran 90 minutes at 99% CPU).
+- Covered by 40 green hook tests (`~/.codex/hooks/test_hooks.py`), including
+  the new `StopQualitySemanticsTests` and `LintCacheTests`.
+
+## 2026-09-02: Modal reader and chrome rule clusters
+
+- Repaired the reader's max-lines and no-ternary cluster by extracting the
+  remaining chrome and language UI into focused boundaries. The reader and
+  chrome now pass direct Oxlint; the sync controller keeps its token view
+  readonly and exposes token mutation through an explicit setter.
+- Fixed related JSX depth, optional-return, import/sort, callback/object
+  performance, and readonly-parameter findings without changing the shared
+  hook or linter policy. The focused modal tests pass 4 suites and 11 tests,
+  and the frontend TypeScript check passes.
+- Refreshed changed-scope measurement `qh-measure:8c679685662ff3181e365e7d`
+  at 2,038 units, 1,984 Oxlint errors, 44 warnings, and 80 CRAP violations;
+  rebuilt the rule-grouped queue to 173 tasks. The full self-test remains red
+  at `qh-measure:0b378f00ffe356e99ebde442`: 12,331 Oxlint errors, 311 warnings,
+  and 288 CRAP violations, with CCCC at 0.
+
+## 2026-09-02: Rule-driven quality controller boundaries
+
+- Fixed the controller's changed scope so it measures Git-changed tracked and
+  untracked source files instead of falling back to every configured root.
+- Made verification commands and profiles come from
+  `quality-hardening.config.json`; `verify.mjs` no longer carries a second
+  command table.
+- Normalized real Oxlint provider codes such as `eslint(no-null)` to the
+  taxonomy form `eslint/no-null`, and read diagnostic-level `filename` values.
+  The queue now groups mechanical findings by factor, taxonomy cluster, and
+  exact rule while retaining every affected path on the task.
+- Extracted the modal's expanded sidebar into its own source boundary. The
+  layout and sidebar slices both pass direct Oxlint, frontend TypeScript, and
+  the focused modal behavior suites.
+- Exercised the existing readonly codemod by rule. Its mutation detector had
+  an inverted unsafe-use result; that was corrected, and the transform now
+  skips mutable array accumulators after TypeScript exposed the defect.
+- A grouped `unicorn/no-null` transform retained type-safe local replacements
+  and restored unsafe replacements after TypeScript identified real API, state,
+  ref, and cache `null` contracts; the remaining findings stay contextual.
+- Controller behavior tests, policy validation, changed-scope measurement, and
+  the rule-grouping probe pass. The repository-wide gate remains open on the
+  latest measured CCCC 0, Oxlint 12,331 errors and 311 warnings, and CRAP 288
+  violations; the external shared hook was not changed.
+
+## 2026-09-02: Modal response contracts and verifier execution
+
+- Made modal-facing API snapshots immutable at their data boundary:
+  \`NewsArticle\`, \`NewsSource\`, \`Highlight\`, \`FactCheckResult\`, language
+  diagnostics, and article analysis now expose readonly fields and collections.
+  React state and queue/cache containers remain the mutable boundaries.
+- Tightened the highlight loader and sync controller around readonly snapshots.
+  The shared modal data and type modules now report 0 Oxlint errors and
+  warnings. The parent and extracted modal component files fell from 528 to
+  391 direct errors while preserving TypeScript and behavior-test coverage.
+- Fixed the quality-hardening Oxlint adapter so it prepends
+  \`frontend/node_modules/.bin\` before launching the local binary. The adapter
+  now parses a real 0-error/0-warning report for the clean modal data module;
+  the full repository gate was not rerun after this runner fix.
+
+## 2026-09-02: Modal source boundaries and behavior checks
+
+- Continued the modal cleanup in source files. Shared contracts now live in
+  `frontend/lib/article-detail-modal-types.ts`; article extraction, default
+  services, and local/remote highlight loading live in
+  `frontend/lib/article-detail-modal-data.ts`; unrelated app-state hooks are
+  grouped in `frontend/hooks/use-modal-integrations.ts`.
+- Split the modal UI into reader, actions, analysis, layout, and wiki modules.
+  This lowered the parent modal from the earlier 30-dependency failure to
+  below the configured 10-dependency limit and removed its ref-in-render,
+  one-var, unused-import, and sync-name findings. The highlight loader now
+  keys its effect by `article.url`, so a new article object with the same URL
+  does not restart the load.
+- Moved the ordered highlight sync loop into the reader boundary and kept
+  each server operation sequential. The current direct reader check no longer
+  reports max-params, max-statements, await-in-loop, or no-sync findings.
+- Added or retained behavior coverage for modal rendering, highlight
+  activation/serialization, failed image fallback, and view-mode storage.
+  The focused Jest run passes 4 suites and 11 tests. Frontend TypeScript and
+  `git diff --check` pass.
+- The parent modal now has 102 direct Oxlint errors and 7 warnings; the
+  newly separated presentation modules still contain inherited strict-style
+  findings. Those are source follow-up work; no hook, threshold, exclusion,
+  or linter-only test was added to hide them.
+- The required `scripts/self-test` completed its single `verify.sh` run with
+  the repository gate failing. The focused source checks above remain green;
+  the full gate is still open on the repository-wide quality campaign.
+
+## 2026-09-02: Modal source slice follow-up
+
+- Kept the working quality hook unchanged and repaired the affected frontend
+  source instead. The modal scroll content now destructures its ref-bearing
+  fields before render, removing all 21 `react(refs)` findings from that
+  boundary. Its unused scroll-tracker inputs, stale state returns, and two
+  unnecessary non-null assertions were also removed.
+- Extracted the modal wiki sheet into
+  `frontend/components/article-detail-modal-wiki.tsx`. The new module has
+  zero direct Oxlint findings, preserves the existing modal behavior, and
+  reduces the parent modal's direct dependency count from 30 to 29. The
+  parent still has broader debt: 803 errors and 27 warnings in the direct
+  pinned Oxlint probe, led by readonly parameter types, variable ordering,
+  magic numbers, ternaries, and JSX depth.
+- Article content now has MI 67.5 with zero direct Oxlint findings, and view
+  mode storage has MI above 72 with zero direct findings. These strict
+  improvements address the stop-hook equality reports without changing lint
+  policy or adding linter-only tests.
+- The real article-modal, SafeImage, and view-mode suites pass 9 tests total;
+  frontend TypeScript and `git diff --check` also pass. The repository-wide
+  verifier remains open on existing broad quality and backend findings.
+
+## 2026-09-01: Focused frontend Oxlint source slice
+
+- Repaired `frontend/components/digest-card.tsx` by removing its unused refresh
+  prop, preserving the API item type through `getDailyDigest`, splitting the
+  dense JSX into semantic pieces, adding the missing time-input label, and
+  making the schedule callbacks explicit. Its direct Oxlint result is now 0
+  errors and 0 warnings; CCCC is CC 4 / cognitive 2 and MI 53.9.
+- Repaired `frontend/components/read-time-badge.tsx` by using an arrow
+  component with readonly props, explicit numeric guards, and consistent
+  rendered return values. Its direct Oxlint result is now 0 errors and 0
+  warnings; CCCC is CC 4 / cognitive 3 and MI 60.0.
+- The existing `frontend/__tests__/reading-queue.test.tsx` still passes all 12
+  tests, and the frontend TypeScript check passes. The repository-wide gate
+  remains red on unrelated maintainability, dead-code, CRAP, Oxlint, and
+  backend mypy findings; no rules or thresholds were weakened.
+
 ## 2026-09-01: Fresh repo-wide quality census and closure plan
 
 - The current baseline is CCCC green: 0 hard violations across 10,036
@@ -84,8 +273,9 @@ Verification:
 
 - Jest: 39 suites, 150 tests pass. Vitest oxlint rules: 13 files, 204 tests pass.
 - `npx tsc --noEmit` went from 22 errors at session start (peaked 149 during
-  the atlas typing regression) to 49 remaining at handoff; the queue per file
-  is in `docs/agents/quality-hardening/HANDOFF-2026-08-31.md`.
+  the atlas typing regression) to 49 remaining at handoff; the per-file queue
+  is superseded by the Pareto queue in `scripts/quality-hardening/` (see
+  `docs/agents/quality-hardening/QUALITY-HARDENING-MULTI-OBJECTIVE-AGENT-ARCHITECTURE.md`).
 - Codex global setup: removed the Serena MCP server (`~/.codex/config.toml`)
   and both `serena-hooks` entries (`~/.codex/hooks.json`); `codex mcp list`
   no longer shows Serena. Codex now runs on its native tools plus the
@@ -1647,9 +1837,10 @@ modules and typed inputs, and record metric deltas before integration.
 
 ## 2026-09-01 — WIP quality inventory for next session
 
-- Generated `docs/agents/quality-hardening/OXLINT-ERROR-INVENTORY-2026-09-01.md`
-  from the exact repo-wide Oxlint JSON gate. It contains all 13,394 diagnostics:
-  13,056 errors and 338 warnings across 147 files, grouped by rule and file.
+- Repo-wide Oxlint diagnostics were 13,394 (13,056 errors, 338 warnings across
+  147 files) at the 2026-09-01 snapshot; the inventory artifact was retired
+  with the legacy hardening machinery (git history keeps it). The live
+  inventory is `node scripts/quality-hardening.mjs measure --scope repo`.
 - Current metric targets are CCCC 0 hard violations, Oxlint 0 errors and 0
   warnings, MI 0 functions below 60, CRAP 0 methods above 30, Ruff 0, and
   mypy 0. The fresh snapshot is CCCC 0/10,236, MI 230 below 50 plus 499 below
@@ -1660,3 +1851,40 @@ modules and typed inputs, and record metric deltas before integration.
 - Frontend Jest, backend pytest, Oxlint rule tests, CLI tests and typecheck,
   the frontend build, schema parity, dependency cycles, and Rust checks pass.
   Strict Oxlint, strict mypy, MI, CRAP, and dead-code checks remain open.
+
+## 2026-09-02 — Focused frontend source slices
+
+- Repaired `safe-image.tsx`, `semantic-tags.tsx`, `theme-toggle.tsx`, and
+  `view-mode-storage.ts` against the real Oxlint configuration. Each now has
+  zero Oxlint errors and warnings in its direct pinned probe.
+- Replaced SafeImage's prop-to-state effect with render-derived source state,
+  removed its forbidden image prop spread, and added a fallback/source-change
+  behavior test.
+- Made SemanticTags' query key and empty list stable, split its tag list from
+  query state, and added valid/invalid storage behavior tests for the view-mode
+  module.
+- Tightened highlight anchor types to the read-only DOM capabilities used by
+  the popover. The article-detail and highlight utility slices dropped their
+  existing diagnostics without changing the DOM interaction contract.
+- Split `queue-overview-card.tsx` into focused render pieces and removed all 16
+  of its direct diagnostics. The novelty badge now has explicit thresholds,
+  readonly inputs, and a named presentation helper, removing its 20 direct
+  diagnostics without changing its query or badge behavior.
+- Split highlight normalization, DOM offsets, renderer behavior, and Obsidian
+  Markdown export into focused modules. Those four source files now pass
+  direct Oxlint, and behavior tests cover mouse/keyboard activation, offsets,
+  Markdown output, and export output.
+- Reworked the forwarded-ref boundary in `article-content.tsx` around a
+  read-only callback argument and runtime ref-shape check. The file now passes
+  direct Oxlint and TypeScript, and the real article-detail modal suite passes
+  all 6 tests.
+- Corrected six real hook-dependency findings in `article-detail-modal.tsx`:
+  the scroll action is memoized, the progress effect drops unused values, and
+  setter callbacks declare their dependencies. Its direct diagnostics fell
+  from 887 to 881 before the import-order cleanup.
+- Reordered the modal's import declarations to satisfy the configured
+  `sort-imports` rule. The remaining modal diagnostics are body-level debt;
+  its direct total is now 873.
+- The comparable `frontend scripts` Oxlint scope fell from 14,356 to 14,147
+  diagnostics. The remaining repository-wide Oxlint, maintainability,
+  dead-code, CRAP, and backend mypy gates remain open.
