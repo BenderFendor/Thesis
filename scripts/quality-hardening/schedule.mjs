@@ -39,7 +39,7 @@ const PRIORITY_LABELS = Object.freeze(["P0", "P1", "P2", "P3", "P4"]);
  * @param {string|undefined} repairClass
  * @returns {string} Priority class label.
  */
-function priorityForTask(factor, repairClass) {
+const priorityForTask = (factor, repairClass) => {
  const factorPriority = FACTOR_PRIORITY[factor] ?? PRIORITY_LABELS.length - 1;
  if (factorPriority < PRIORITY_LABELS.length - 1 && repairClass) {
   const classPriority = CLASS_PRIORITY[repairClass];
@@ -51,7 +51,7 @@ function priorityForTask(factor, repairClass) {
 }
 
 /** @param {string} factor @returns {string} */
-function priorityForFactor(factor) {
+const priorityForFactor = (factor) => {
  return priorityForTask(factor, undefined);
 }
 
@@ -61,35 +61,35 @@ function priorityForFactor(factor) {
  * @param {number} bound
  * @returns {number}
  */
-function normalizedExcess(observed, bound) {
+const normalizedExcess = (observed, bound) => {
  if (observed <= bound || bound <= 0) { return 0; }
  return (observed - bound) / bound;
 }
 
 /** @param {ScheduleTask} task */
-function gateDistance(task) {
+const gateDistance = (task) => {
  return typeof task.gate_distance === "number" ? task.gate_distance : 0;
 }
 
 /** @param {ScheduleTask} task */
-function explainedHardFindings(task) {
+const explainedHardFindings = (task) => {
  return typeof task.hard_findings === "number" ? task.hard_findings : 0;
 }
 
 /** @param {ScheduleTask} task */
-function blastRadius(task) {
+const blastRadius = (task) => {
  if (typeof task.source_unit_count === "number") { return task.source_unit_count; }
  if (Array.isArray(task.source_units)) { return task.source_units.length; }
  return Array.isArray(task.unit_ids) ? task.unit_ids.length : 1;
 }
 
 /** @param {ScheduleTask} task */
-function verificationCost(task) {
+const verificationCost = (task) => {
  return task.repair_class === "structural" ? 2 : 1;
 }
 
 /** @param {ScheduleTask} task */
-function rollbackClarity(task) {
+const rollbackClarity = (task) => {
  return task.repair_class === "mechanical_safe" ? 1 : 0;
 }
 
@@ -100,7 +100,7 @@ function rollbackClarity(task) {
  * @param {ScheduleTask} right
  * @returns {boolean}
  */
-function dominates(left, right) {
+const dominates = (left, right) => {
  /** @type {Array<(task: ScheduleTask) => number>} */
  const dimensions = [
   // gate distance: lower is better -> left better when smaller
@@ -132,7 +132,7 @@ function dominates(left, right) {
  * @param {ScheduleTask} right
  * @returns {number}
  */
-function tieBreak(left, right) {
+const tieBreak = (left, right) => {
  /** @type {Array<(task: ScheduleTask) => string | number>} */
  const ordered = [
   (task) => -explainedHardFindings(task),
@@ -159,7 +159,7 @@ function tieBreak(left, right) {
  * @param {ScheduleTask} task
  * @returns {number}
  */
-function successRateFor(effects, task) {
+const successRateFor = (effects, task) => {
  const key = task.cluster_key;
  if (!key) { return 0; }
  const byTask = new Map(effects.map((effect) => [effect.task_id ?? "", effect]));
@@ -177,7 +177,7 @@ function successRateFor(effects, task) {
  * @param {ScheduleTask[]} tasks
  * @returns {ScheduleTask[]}
  */
-function paretoFrontier(tasks) {
+const paretoFrontier = (tasks) => {
  const frontier = tasks.filter(
   (candidate) => !tasks.some((other) => other !== candidate && dominates(other, candidate)),
  );
@@ -189,7 +189,7 @@ function paretoFrontier(tasks) {
  * @param {readonly Effect[]} [effects]
  * @returns {ScheduleTask[]}
  */
-function scheduleTasks(tasks, effects = []) {
+const scheduleTasks = (tasks, effects = []) => {
  const annotated = /** @type {ScheduleTask[]} */ (tasks.map((task) => ({ ...task, success_rate: successRateFor(effects, task) })));
  const classes = new Map();
  for (const task of annotated) {

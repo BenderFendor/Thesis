@@ -47,7 +47,7 @@ const baseArticle: NewsArticle = {
   }),
 } satisfies ArticleDetailServices;
 
-function getArticleDetailScrollRegion(): HTMLDivElement {
+const getArticleDetailScrollRegion = (): HTMLDivElement => {
   const scrollRegion = document.querySelector<HTMLDivElement>("#article-detail-scroll-region");
   if (!scrollRegion) {
     throw new Error("Article detail scroll region was not rendered");
@@ -55,7 +55,7 @@ function getArticleDetailScrollRegion(): HTMLDivElement {
   return scrollRegion;
 }
 
-function renderArticleWithScrollControls() {
+const renderArticleWithScrollControls = () => {
   const onNavigate = jest.fn(),
    scrollBy = jest.fn();
 
@@ -83,7 +83,7 @@ function renderArticleWithScrollControls() {
   return { onNavigate, scrollBy };
 }
 
-function configureProgressRail(scrollTo: (options: { behavior: "auto"; top: number }) => void) {
+const configureProgressRail = (scrollTo: (options: { behavior: "auto"; top: number }) => void) => {
   const pointerDownEvent = new Event("pointerdown", {
       bubbles: true,
       cancelable: true,
@@ -121,7 +121,7 @@ function configureProgressRail(scrollTo: (options: { behavior: "auto"; top: numb
   return { pointerDownEvent, progressRail };
 }
 
-function prepareAnalysisTest() {
+const prepareAnalysisTest = () => {
   mockedApi.analyzeArticle.mockResolvedValueOnce({
     article_url: "article-6",
     bias_analysis: {

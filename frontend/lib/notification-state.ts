@@ -4,7 +4,7 @@ interface NotificationLike {
   id: string
 }
 
-function enqueueStateSync(callback: () => void): () => void {
+const enqueueStateSync = (callback: () => void): () => void => {
   let cancelled = false
   const schedule =
     typeof queueMicrotask === "function"

@@ -17,7 +17,7 @@ function getSharedViewArticles(
   return articles
 }
 
-function getSharedViewLoading(isLoading: boolean): boolean {
+const getSharedViewLoading = (isLoading: boolean): boolean => {
   return isLoading
 }
 

@@ -7,17 +7,17 @@ const ACTIVE_TASK_FILE = ".quality-hardening/active-task.json",
  CLAIM_FILE = ".quality-hardening/locks/writer.json";
 
 /** @param {string} repositoryRoot */
-function claimPath(repositoryRoot) {
+const claimPath = (repositoryRoot) => {
   return resolve(repositoryRoot, CLAIM_FILE);
 }
 
 /** @param {string} repositoryRoot */
-function activeTaskPath(repositoryRoot) {
+const activeTaskPath = (repositoryRoot) => {
   return resolve(repositoryRoot, ACTIVE_TASK_FILE);
 }
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths */
-function normalizePaths(repositoryRoot, paths) {
+const normalizePaths = (repositoryRoot, paths) => {
   return [...new Set(paths.map((path) => {
     const resolvedPath = resolve(repositoryRoot, path),
      relativePath = relative(resolve(repositoryRoot), resolvedPath);
@@ -29,7 +29,7 @@ function normalizePaths(repositoryRoot, paths) {
 }
 
 /** @param {string} repositoryRoot @param {{sessionId: string, taskId: string, paths: readonly string[]}} claim */
-async function claimWriter(repositoryRoot, claim) {
+const claimWriter = async (repositoryRoot, claim) => {
   const path = claimPath(repositoryRoot);
   await mkdir(resolve(repositoryRoot, ".quality-hardening/locks"), { recursive: true });
   const payload = {
@@ -55,7 +55,7 @@ async function claimWriter(repositoryRoot, claim) {
 }
 
 /** @param {string} repositoryRoot @returns {Promise<Record<string, unknown> | null>} */
-async function readWriterClaim(repositoryRoot) {
+const readWriterClaim = async (repositoryRoot) => {
   try {
     return JSON.parse(await readFile(claimPath(repositoryRoot), "utf8"));
   } catch (error) {
@@ -65,7 +65,7 @@ async function readWriterClaim(repositoryRoot) {
 }
 
 /** @param {string} repositoryRoot @param {Readonly<Record<string, unknown>>} task */
-async function writeActiveTask(repositoryRoot, task) {
+const writeActiveTask = async (repositoryRoot, task) => {
   const path = activeTaskPath(repositoryRoot),
    temporary = `${path}.tmp-${process.pid}`;
   await mkdir(resolve(repositoryRoot, ".quality-hardening"), { recursive: true });
@@ -74,7 +74,7 @@ async function writeActiveTask(repositoryRoot, task) {
 }
 
 /** @param {string} repositoryRoot @param {string} sessionId @param {string} taskId @param {string} path @returns {Promise<Record<string, unknown>>} */
-async function expandWriterClaim(repositoryRoot, sessionId, taskId, path) {
+const expandWriterClaim = async (repositoryRoot, sessionId, taskId, path) => {
   const claim = await readWriterClaim(repositoryRoot);
   if (!claim) {throw new Error("writer claim is required for scope expansion");}
   if (claim.session_id !== sessionId || claim.task_id !== taskId) {throw new Error("writer claim belongs to another task or session");}
@@ -92,7 +92,7 @@ async function expandWriterClaim(repositoryRoot, sessionId, taskId, path) {
 }
 
 /** @param {string} repositoryRoot @param {string} sessionId @param {string} taskId */
-async function clearActiveTask(repositoryRoot, sessionId, taskId) {
+const clearActiveTask = async (repositoryRoot, sessionId, taskId) => {
   try {
     const task = JSON.parse(await readFile(activeTaskPath(repositoryRoot), "utf8"));
     if (task.session_id !== sessionId || task.task_id !== taskId) {return false;}
@@ -105,7 +105,7 @@ async function clearActiveTask(repositoryRoot, sessionId, taskId) {
 }
 
 /** @param {string} repositoryRoot @param {string} sessionId @param {boolean} allowStale */
-async function releaseWriter(repositoryRoot, sessionId, allowStale = false) {
+const releaseWriter = async (repositoryRoot, sessionId, allowStale = false) => {
   const claim = await readWriterClaim(repositoryRoot);
   if (!claim) {return false;}
   if (!allowStale && claim.session_id !== sessionId) {

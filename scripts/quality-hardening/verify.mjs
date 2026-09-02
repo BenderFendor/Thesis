@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 /** @typedef {Readonly<{profiles: Readonly<Record<string, readonly string[]>>, verification: Readonly<{checks: Readonly<Record<string, Readonly<{command: readonly string[], label: string}>>>, defaults: Readonly<{output_limit_bytes: number, timeout_ms: number}>}>}>} VerificationPolicy */
 
 /** @param {string} repositoryRoot @returns {Promise<string>} */
-async function trackedStatus(repositoryRoot) {
+const trackedStatus = async (repositoryRoot) => {
   const result = await execFileAsync("git", ["status", "--porcelain=v1"], {
     cwd: repositoryRoot,
     encoding: "utf8",
@@ -21,7 +21,7 @@ async function trackedStatus(repositoryRoot) {
 }
 
 /** @param {Check} check @param {string} repositoryRoot @returns {Promise<Record<string, unknown>>} */
-async function runCheck(check, repositoryRoot) {
+const runCheck = async (check, repositoryRoot) => {
   const [executable, ...argumentsList] = check.command,
    started = Date.now();
   try {
@@ -58,7 +58,7 @@ const checksForScope = (scope, config) => config.profiles[scope].map((id) => {
 });
 
 /** @param {{config: VerificationPolicy, repositoryRoot: string, scope: "path"|"task"|"changed"|"repo", measure: () => Promise<Record<string, unknown>>}} options @returns {Promise<Record<string, unknown>>} */
-async function verify({ config, repositoryRoot, scope, measure }) {
+const verify = async ({ config, repositoryRoot, scope, measure }) => {
   const trackedBefore = await trackedStatus(repositoryRoot);
   let measurement;
   try {

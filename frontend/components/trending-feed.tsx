@@ -47,11 +47,11 @@ function handleCardKeyDown(
   activateCardFromKeyDown(event, onActivate);
 }
 
-function hasRealImage(src?: string | null): boolean {
+const hasRealImage = (src?: string | null): boolean => {
   return hasRealClusterImage(src);
 }
 
-function formatTimeAgo(dateStr?: string | null): string {
+const formatTimeAgo = (dateStr?: string | null): string => {
   if (!dateStr) {return "";}
   const date = new Date(dateStr),
    now = new Date(),
@@ -61,7 +61,7 @@ function formatTimeAgo(dateStr?: string | null): string {
   return `${Math.floor(diffHours / 24)}d`;
 }
 
-function extractKeyTerms(title?: string): Set<string> {
+const extractKeyTerms = (title?: string): Set<string> => {
   if (!title) {return new Set();}
   const stopWords = new Set([
     "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her",
@@ -120,7 +120,7 @@ function countSetOverlap(a: Set<string>, b: Set<string>): number {
   return count;
 }
 
-function trendingArticleToNewsArticle(article: TrendingArticle, clusterLabel?: string): NewsArticle {
+const trendingArticleToNewsArticle = (article: TrendingArticle, clusterLabel?: string): NewsArticle => {
   return {
     bias: "center" as const,
     category: "trending",

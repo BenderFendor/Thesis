@@ -131,15 +131,15 @@ const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
 
 type ArticleSortMode = "favorites" | "newest" | "oldest" | "source-freshness"
 
-function getArticleSourceKey(article: NewsArticle): string {
+const getArticleSourceKey = (article: NewsArticle): string => {
   return article.sourceId || article.source
 }
 
-function getArticleTimestamp(article: NewsArticle): number {
+const getArticleTimestamp = (article: NewsArticle): number => {
   return article._parsedTimestamp ?? 0
 }
 
-function getSourceRecency(articles: readonly NewsArticle[]): Record<string, number> {
+const getSourceRecency = (articles: readonly NewsArticle[]): Record<string, number> => {
   const recency: Record<string, number> = {}
   for (const article of articles) {
     const sourceKey = getArticleSourceKey(article),
@@ -200,7 +200,7 @@ function sortNewsArticles(
   return items
 }
 
-function formatLeadDate(date: string): string {
+const formatLeadDate = (date: string): string => {
   return new Date(date).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
@@ -305,7 +305,7 @@ function createEmptyFeedNotification(timestamp: string): Notification {
   }
 }
 
-function LoadingToast() {
+const LoadingToast = () => {
   return (
     <div className="fixed bottom-4 left-4 sm:bottom-8 sm:left-8 z-[100] pointer-events-none">
       <div className="pointer-events-auto w-64 overflow-hidden rounded-xl border border-white/10 bg-[var(--news-bg-secondary)]/90 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 animate-in slide-in-from-bottom-4">
@@ -522,7 +522,7 @@ function MobileHeaderActions({
   )
 }
 
-function HeaderResourceLinks({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView">) {
+const HeaderResourceLinks = ({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView">) => {
   return (
     <div className="contents lg:flex lg:items-center lg:gap-1.5">
       <div className="hidden lg:block">
@@ -713,7 +713,7 @@ function HeaderBar({
   )
 }
 
-function StatCell({ label, value, valueClassName }:Readonly< { label: string; value: string; valueClassName: string }>) {
+const StatCell = ({ label, value, valueClassName }:Readonly< { label: string; value: string; valueClassName: string }>) => {
   return (
     <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
       <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">{label}</span>
@@ -860,7 +860,7 @@ interface ActiveViewProps {
   selectedSourceIds: string[]
 }
 
-function GlobeActiveView({ categoryId, articles, loading }: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) {
+const GlobeActiveView = ({ categoryId, articles, loading }: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => {
   return <GlobeView key={`${categoryId}-globe`} articles={articles} loading={loading} />
 }
 
@@ -926,7 +926,7 @@ function LiveNewsActiveView({
   return <LiveNewsView key={`${categoryId}-live-news`} articles={articles} loading={loading} />
 }
 
-function ActiveView(props: ActiveViewProps) {
+const ActiveView = (props: ActiveViewProps) => {
   switch (props.currentView) {
     case "globe": {
       return <GlobeActiveView {...props} />
@@ -1124,7 +1124,7 @@ function useGridModeStorageSync(
   }, [setGridMode])
 }
 
-function useNewsPageState(): NewsPageState {
+const useNewsPageState = (): NewsPageState => {
   const [currentView, setCurrentView] = useState<ViewMode>("grid"),
     [activeCategory, setActiveCategory] = useState<string>("all"),
     [showNotifications, setShowNotifications] = useState(false),
@@ -1182,7 +1182,7 @@ interface NewsPageQueryData {
   cacheStatus: Awaited<ReturnType<typeof fetchCacheStatus>> | undefined
 }
 
-function useCategoriesQuery(): { id: string; icon: React.ElementType; label: string }[] {
+const useCategoriesQuery = (): { id: string; icon: React.ElementType; label: string }[] => {
   const categoriesQuery = useQuery<string[]>({
     queryFn: fetchCategories,
     queryKey: ["categories"],
@@ -1199,7 +1199,7 @@ function useCategoriesQuery(): { id: string; icon: React.ElementType; label: str
   }, [categoriesQuery.data])
 }
 
-function useCacheStatusQuery() {
+const useCacheStatusQuery = () => {
   const { data: cacheStatus } = useQuery({
     gcTime: 5 * 60 * 1000,
     queryFn: fetchCacheStatus,
@@ -1405,7 +1405,7 @@ function useNewsPageViewData(
   }
 }
 
-function preloadNewsView(view: ViewMode): void {
+const preloadNewsView = (view: ViewMode): void => {
   switch (view) {
     case "globe": {
       void loadGlobeView()
@@ -1429,7 +1429,7 @@ function preloadNewsView(view: ViewMode): void {
   }
 }
 
-function getAdjacentView(view: ViewMode, direction: 1 | -1): ViewMode {
+const getAdjacentView = (view: ViewMode, direction: 1 | -1): ViewMode => {
   const currentIndex = VIEW_OPTIONS.findIndex((option) => option.value === view),
     nextIndex = Math.min(VIEW_OPTIONS.length - 1, Math.max(0, currentIndex + direction))
   return VIEW_OPTIONS[nextIndex]?.value ?? view
@@ -1641,7 +1641,7 @@ function createPageSidebarProps({
   }
 }
 
-function buildNewsPageLayoutProps(parts: NewsPageControllerParts): NewsPageLayoutProps {
+const buildNewsPageLayoutProps = (parts: NewsPageControllerParts): NewsPageLayoutProps => {
   const { state, queries, view, navigation, actions } = parts
   return {
     activeCategory: state.activeCategory,
@@ -1667,7 +1667,7 @@ function buildNewsPageLayoutProps(parts: NewsPageControllerParts): NewsPageLayou
   }
 }
 
-function useNewsPageController(): NewsPageLayoutProps {
+const useNewsPageController = (): NewsPageLayoutProps => {
   const state = useNewsPageState(),
     queries = useNewsPageQueryData(state),
     view = useNewsPageViewData(state, queries),
@@ -1676,7 +1676,7 @@ function useNewsPageController(): NewsPageLayoutProps {
   return buildNewsPageLayoutProps({ actions, navigation, queries, state, view })
 }
 
-function NewsPageController() {
+const NewsPageController = () => {
   const props = useNewsPageController();
   return <NewsPageLayout {...props} />;
 }

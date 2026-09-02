@@ -5,7 +5,7 @@ import { PROTOCOL_VERSION, assertProtocol, hookResult } from "./protocol.mjs";
 const MAX_INPUT_BYTES = 256_000;
 
 /** @param {import("node:stream").Readable} input @returns {Promise<string>} */
-async function readInput(input) {
+const readInput = async (input) => {
  const chunks = [];
  let size = 0;
  for await (const chunk of input) {
@@ -18,7 +18,7 @@ async function readInput(input) {
 }
 
 /** @param {Record<string, unknown>} request */
-function touchedPaths(request) {
+const touchedPaths = (request) => {
  const { tool } = request;
  const toolObject = tool && typeof tool === "object" && !Array.isArray(tool)
   ? /** @type {Record<string, unknown>} */ (tool)
@@ -36,7 +36,7 @@ function touchedPaths(request) {
 }
 
 /** @param {"pre"|"post"|"stop"} event @param {import("node:stream").Readable} input */
-async function hook(event, input) {
+const hook = async (event, input) => {
  const text = await readInput(input),
   request = JSON.parse(text);
  assertProtocol(request, "hook request");
@@ -51,7 +51,7 @@ async function hook(event, input) {
 }
 
 /** @param {"pre"|"post"|"stop"} event @param {Record<string, unknown>} request */
-function requestFor(event, request) {
+const requestFor = (event, request) => {
  return { event, harness: "controller", protocol: PROTOCOL_VERSION, ...request };
 }
 

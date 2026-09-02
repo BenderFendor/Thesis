@@ -22,7 +22,7 @@ interface SourcePageProps {
   params: Promise<{ sourceId: string }>
 }
 
-function getBiasColor(bias: string): string {
+const getBiasColor = (bias: string): string => {
   switch (bias) {
     case "left": { return "bg-blue-500/10 text-blue-400 border-blue-500/20"
     }
@@ -35,7 +35,7 @@ function getBiasColor(bias: string): string {
   }
 }
 
-function getCredibilityColor(credibility: string): string {
+const getCredibilityColor = (credibility: string): string => {
   switch (credibility) {
     case "high": { return "bg-primary/10 text-primary border-primary/20"
     }
@@ -48,7 +48,7 @@ function getCredibilityColor(credibility: string): string {
   }
 }
 
-function hasRealImage(src?: string | null): boolean {
+const hasRealImage = (src?: string | null): boolean => {
   if (!src) {return false}
   const trimmed = src.trim()
   if (!trimmed || trimmed === "none") {return false}
@@ -56,7 +56,7 @@ function hasRealImage(src?: string | null): boolean {
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
 }
 
-function getWebsiteHostname(url?: string | null): string | undefined {
+const getWebsiteHostname = (url?: string | null): string | undefined => {
   if (!url) {return undefined}
   try {
     return new URL(url).hostname
@@ -65,7 +65,7 @@ function getWebsiteHostname(url?: string | null): string | undefined {
   }
 }
 
-function navigateBack(router: ReturnType<typeof useRouter>): void {
+const navigateBack = (router: ReturnType<typeof useRouter>): void => {
   if (typeof window !== "undefined" && globalThis.history.length > 1) {
     router.back()
     return

@@ -16,11 +16,11 @@ const READING_QUEUE_STORAGE_KEY = "readingQueue",
 type QueueListener = (articles:readonly  NewsArticle[]) => void;
 const queueListeners = new Set<QueueListener>();
 
-function notifyQueueListeners(articles:readonly  NewsArticle[]) {
+const notifyQueueListeners = (articles:readonly  NewsArticle[]) => {
   queueListeners.forEach((listener) =>{  listener(articles); });
 }
 
-function subscribeToQueueChanges(listener: QueueListener) {
+const subscribeToQueueChanges = (listener: QueueListener) => {
   queueListeners.add(listener);
   return () => queueListeners.delete(listener);
 }
@@ -32,7 +32,7 @@ function areQueueArticlesEqual(
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
-async function preloadFullText(article: NewsArticle): Promise<string | undefined> {
+const preloadFullText = async (article: NewsArticle): Promise<string | undefined> => {
   try {
     const response = await fetch(
       `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`
@@ -46,7 +46,7 @@ async function preloadFullText(article: NewsArticle): Promise<string | undefined
   }
 }
 
-async function preloadAiAnalysis(article: NewsArticle): Promise<Awaited<ReturnType<typeof analyzeArticle>> | undefined> {
+const preloadAiAnalysis = async (article: NewsArticle): Promise<Awaited<ReturnType<typeof analyzeArticle>> | undefined> => {
   try {
     return await analyzeArticle(article.url, article.source);
   } catch (error) {

@@ -21,7 +21,7 @@ type AtlasDossierStatement = AtlasDossierSection["statements"][number];
 type AtlasEvidence = AtlasEntityRecord["evidence"][number];
 type AtlasMeasurement = AtlasMeasurementsResponse["measurements"][number];
 
-function humanize(value: string): string {
+const humanize = (value: string): string => {
   return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
@@ -50,7 +50,7 @@ const displayArrayValue = (value: readonly unknown[]): string | null => {
   }
 };
 
-function dateLabel(value?: string | null): string {
+const dateLabel = (value?: string | null): string => {
   if (!value) {return "Not recorded";}
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {return "Not recorded";}

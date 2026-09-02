@@ -27,7 +27,7 @@ interface QueueArticleSummary {
   readonly url: string;
 }
 
-function normalizedCategory(category: string): string {
+const normalizedCategory = (category: string): string => {
   const trimmedCategory = category.trim();
   if (trimmedCategory.length === 0) {
     return UNCATEGORIZED_LABEL;
@@ -35,7 +35,7 @@ function normalizedCategory(category: string): string {
   return trimmedCategory;
 }
 
-function toQueueArticleSummary(article: Readonly<NewsArticle>): QueueArticleSummary {
+const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSummary => {
   return {
     category: normalizedCategory(article.category),
     source: article.source,
@@ -60,7 +60,7 @@ function groupArticleSummaries(
   return grouped;
 }
 
-function hasRealImage(source?: string | null): boolean {
+const hasRealImage = (source?: string | null): boolean => {
   if (source === undefined || source === null) {
     return false;
   }
@@ -93,7 +93,7 @@ function mergeSavedArticles(
   return [...articlesByUrl.values()];
 }
 
-function stripStructuredArticleBlock(digest: string): string {
+const stripStructuredArticleBlock = (digest: string): string => {
   return digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim();
 }
 

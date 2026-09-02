@@ -23,7 +23,7 @@ const DEFAULT_ARTICLE: NewsArticle = {
   url: "https://example.com/1",
 };
 
-function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+const makeArticle = (overrides: Partial<NewsArticle> = {}): NewsArticle => {
   const article = { ...DEFAULT_ARTICLE, ...overrides };
   return {
     ...article,

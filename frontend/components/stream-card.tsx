@@ -17,7 +17,7 @@ interface StreamCardProps {
   onBecameHidden: (sourceId: string) => void
 }
 
-function buildEmbedUrl(channelId: string, muted: boolean): string {
+const buildEmbedUrl = (channelId: string, muted: boolean): string => {
   const mute = muted ? "1" : "0"
   return (
     `https://www.youtube.com/embed/live_stream?channel=${channelId}` +

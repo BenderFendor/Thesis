@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 
 type ReporterActivity = NonNullable<WikiReporterDossier["activity_summary"]>;
 
-function ReporterLoadingState() {
+const ReporterLoadingState = () => {
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
       <GlobalNavigation />
@@ -31,7 +31,7 @@ function ReporterLoadingState() {
   );
 }
 
-function ReporterNotFoundState({ message }:Readonly< { message: string }>) {
+const ReporterNotFoundState = ({ message }:Readonly< { message: string }>) => {
   return (
     <div className="flex bg-background min-h-screen text-foreground overflow-hidden">
       <GlobalNavigation />
@@ -108,7 +108,7 @@ function QuickFactsCard({
   );
 }
 
-function OutletsCard({ outlets }:Readonly< { outlets?: ReporterActivity["outlets"] }>) {
+const OutletsCard = ({ outlets }:Readonly< { outlets?: ReporterActivity["outlets"] }>) => {
   return (
     <SidebarCard title="Outlets In Corpus">
       {outlets?.length ? (
@@ -131,7 +131,7 @@ function OutletsCard({ outlets }:Readonly< { outlets?: ReporterActivity["outlets
   );
 }
 
-function AuthorPagesCard({ authorPages }:Readonly< { authorPages?: ReporterActivity["author_pages"] }>) {
+const AuthorPagesCard = ({ authorPages }:Readonly< { authorPages?: ReporterActivity["author_pages"] }>) => {
   return (
     <SidebarCard title="Author Pages">
       {authorPages?.length ? (
@@ -191,7 +191,7 @@ function ExternalProfilesCard({
   );
 }
 
-function BeatsCard({ categories }:Readonly< { categories: ReporterActivity["categories"] }>) {
+const BeatsCard = ({ categories }:Readonly< { categories: ReporterActivity["categories"] }>) => {
   return (
     <SidebarCard title="Beats In Corpus">
       <div className="flex flex-wrap gap-2">
@@ -205,7 +205,7 @@ function BeatsCard({ categories }:Readonly< { categories: ReporterActivity["cate
   );
 }
 
-function OverviewPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
+const OverviewPanel = ({ data }:Readonly< { data: WikiReporterDossier }>) => {
   return (
     <Panel title="Overview" eyebrow="Deterministic identity and corpus view">
       <div className="rounded-2xl border border-white/10 bg-black/25 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
@@ -225,7 +225,7 @@ function OverviewPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
   );
 }
 
-function PublicRecordPanel({ sections }:Readonly< { sections: WikiReporterDossier["dossier_sections"] }>) {
+const PublicRecordPanel = ({ sections }:Readonly< { sections: WikiReporterDossier["dossier_sections"] }>) => {
   return (
     <Panel title="Public Record" eyebrow="Identity and external reference evidence">
       <div className="space-y-2">
@@ -255,7 +255,7 @@ function PublicRecordPanel({ sections }:Readonly< { sections: WikiReporterDossie
   );
 }
 
-function BackgroundPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
+const BackgroundPanel = ({ data }:Readonly< { data: WikiReporterDossier }>) => {
   return (
     <Panel title="Background" eyebrow="Stored employment and education records">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -305,7 +305,7 @@ function BackgroundPanel({ data }:Readonly< { data: WikiReporterDossier }>) {
   );
 }
 
-function CorpusActivityPanel({ activity }:Readonly< { activity: ReporterActivity }>) {
+const CorpusActivityPanel = ({ activity }:Readonly< { activity: ReporterActivity }>) => {
   return (
     <Panel title="Corpus Activity" eyebrow="Signals derived from your own article database">
       <div className="grid gap-4 lg:grid-cols-3">
@@ -326,7 +326,7 @@ function CorpusActivityPanel({ activity }:Readonly< { activity: ReporterActivity
   );
 }
 
-function RecentArticlesPanel({ articles }:Readonly< { articles: WikiReporterDossier["recent_articles"] }>) {
+const RecentArticlesPanel = ({ articles }:Readonly< { articles: WikiReporterDossier["recent_articles"] }>) => {
   return (
     <Panel title="Recent Articles" eyebrow="Latest work in the local corpus">
       <div className="space-y-3">
@@ -356,7 +356,7 @@ function RecentArticlesPanel({ articles }:Readonly< { articles: WikiReporterDoss
   );
 }
 
-function CitationsPanel({ citations }:Readonly< { citations: WikiReporterDossier["citations"] }>) {
+const CitationsPanel = ({ citations }:Readonly< { citations: WikiReporterDossier["citations"] }>) => {
   return (
     <Panel title="Citations" eyebrow="Public references used for this page">
       <div className="space-y-2 rounded-2xl border border-white/5 bg-black/20 p-5 text-sm transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">

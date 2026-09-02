@@ -31,7 +31,7 @@ export type {
 /**
  * Check if verification is enabled and get configuration.
  */
-async function fetchVerificationStatus(): Promise<VerificationStatus> {
+const fetchVerificationStatus = async (): Promise<VerificationStatus> => {
   const response = await fetch(`${API_BASE_URL}/api/verification/status`);
   if (!response.ok) {
     throw new Error(`Failed to fetch verification status: ${response.status}`);
@@ -139,7 +139,7 @@ async function* streamVerification(
 /**
  * Get display color class for confidence level.
  */
-function getConfidenceColor(level: ConfidenceLevel): string {
+const getConfidenceColor = (level: ConfidenceLevel): string => {
   switch (level) {
     case "high": {
       return "text-green-600 dark:text-green-400";
@@ -162,7 +162,7 @@ function getConfidenceColor(level: ConfidenceLevel): string {
 /**
  * Get background color class for confidence level.
  */
-function getConfidenceBgColor(level: ConfidenceLevel): string {
+const getConfidenceBgColor = (level: ConfidenceLevel): string => {
   switch (level) {
     case "high": {
       return "bg-green-500/15 border-green-500/40";
@@ -185,7 +185,7 @@ function getConfidenceBgColor(level: ConfidenceLevel): string {
 /**
  * Get label for confidence level.
  */
-function getConfidenceLabel(level: ConfidenceLevel): string {
+const getConfidenceLabel = (level: ConfidenceLevel): string => {
   switch (level) {
     case "high": {
       return "High";
@@ -208,7 +208,7 @@ function getConfidenceLabel(level: ConfidenceLevel): string {
 /**
  * Format confidence as percentage string.
  */
-function formatConfidence(confidence: number): string {
+const formatConfidence = (confidence: number): string => {
   return `${Math.round(confidence * 100)}%`;
 }
 export { fetchVerificationStatus, verifyResearch, verifyResearchJson, streamVerification, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };

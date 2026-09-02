@@ -11,26 +11,26 @@ const DECISIONS = new Set(["allow", "block"]),
  PROTOCOL_VERSION = 1;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isObject(value) {
+const isObject = (value) => {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /** @param {unknown} value @param {string} name */
-function assertProtocol(value, name) {
+const assertProtocol = (value, name) => {
   if (!isObject(value) || value.protocol !== PROTOCOL_VERSION) {
     throw new Error(`${name} protocol ${PROTOCOL_VERSION} is required`);
   }
 }
 
 /** @param {unknown} value */
-function assertDecision(value) {
+const assertDecision = (value) => {
   if (!isObject(value) || !DECISIONS.has(String(value.decision))) {
     throw new Error("hook result decision must be allow or block");
   }
 }
 
 /** @param {Readonly<Record<string, unknown>>} fields */
-function hookResult(fields) {
+const hookResult = (fields) => {
   const result = { decision: "allow", protocol: PROTOCOL_VERSION, severity: "advisory", ...fields };
   assertDecision(result);
   return result;

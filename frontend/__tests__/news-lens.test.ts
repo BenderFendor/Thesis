@@ -3,7 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { filterArticlesByLens, getLensSourceIds, getLensStats } from '@/lib/news-lens';
 import type { NewsLensId } from '@/lib/news-lens';
 
-function source(overrides: Partial<NewsSource>): NewsSource {
+const source = (overrides: Partial<NewsSource>): NewsSource => {
   return {
     bias: "center",
     category: ["general"],
@@ -20,7 +20,7 @@ function source(overrides: Partial<NewsSource>): NewsSource {
   };
 }
 
-function article(overrides: Partial<NewsArticle>): NewsArticle {
+const article = (overrides: Partial<NewsArticle>): NewsArticle => {
   return {
     bias: "center",
     category: "general",

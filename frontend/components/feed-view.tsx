@@ -89,7 +89,7 @@ interface FeedViewContentProps {
   onModalNavigate: (direction: "prev" | "next") => void
 }
 
-function formatRankingStatus(status: "basic" | "loading" | "ready" | "fallback"): string {
+const formatRankingStatus = (status: "basic" | "loading" | "ready" | "fallback"): string => {
   switch (status) {
     case "ready": {
       return "Personalized"
@@ -107,11 +107,11 @@ function formatRankingStatus(status: "basic" | "loading" | "ready" | "fallback")
   }
 }
 
-function formatScore(value: number): string {
+const formatScore = (value: number): string => {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
-function displayFeedSource(source: string | null | undefined): string {
+const displayFeedSource = (source: string | null | undefined): string => {
   if (!source) {
     return ""
   }
@@ -319,7 +319,7 @@ interface FeedImageLoaderOptions {
   readonly visibleArticles: readonly NewsArticle[]
 }
 
-function useFeedImageLoader({ activeIndex, visibleArticles }: FeedImageLoaderOptions): Record<number, string> {
+const useFeedImageLoader = ({ activeIndex, visibleArticles }: FeedImageLoaderOptions): Record<number, string> => {
   const requestedImagesRef = useRef<Set<number>>(new Set()),
    [ogImages, setOgImages] = useState<Record<number, string>>({})
 
@@ -642,7 +642,7 @@ function FeedStory({
   )
 }
 
-function FeedLoadingState(): React.JSX.Element {
+const FeedLoadingState = (): React.JSX.Element => {
   return (
     <div className="flex-1 h-full w-full flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
@@ -653,7 +653,7 @@ function FeedLoadingState(): React.JSX.Element {
   )
 }
 
-function FeedEmptyState(): React.JSX.Element {
+const FeedEmptyState = (): React.JSX.Element => {
   return (
     <div className="flex-1 h-full w-full flex items-center justify-center bg-background">
       <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">No coverage found for this category.</span>
@@ -868,7 +868,7 @@ interface FeedRankingStateOptions {
   readonly rankedArticles: readonly NewsArticle[]
 }
 
-function useFeedRankingState({ rankedArticles }: FeedRankingStateOptions): FeedRankingState {
+const useFeedRankingState = ({ rankedArticles }: FeedRankingStateOptions): FeedRankingState => {
   const [activeIndex, setActiveIndex] = useState(0),
    [activeArticleId, setActiveArticleId] = useState<number | null>(null),
    [renderCount, setRenderCount] = useState(SCROLL_INITIAL_RENDER_COUNT),

@@ -34,7 +34,7 @@ const REPO_TOOL_ENV = {
  PATH: `${join(ROOT, "frontend", "node_modules", ".bin")}:${process.env.PATH ?? ""}`,
 };
 
-function runSync(command, args) {
+const runSync = (command, args) => {
  try {
   return {
    code: 0,
@@ -57,7 +57,7 @@ function runSync(command, args) {
 }
 
 /** @param {string} output @returns {{ byRule: Record<string, number>, total: number, parseErrors: number }} */
-function oxlintStats(output) {
+const oxlintStats = (output) => {
  const byRule = {};
  let total = 0;
  let parseErrors = 0;
@@ -73,7 +73,7 @@ function oxlintStats(output) {
 }
 
 /** @param {string} file @returns {string | null} */
-function nearestTestFile(file) {
+const nearestTestFile = (file) => {
  const base = file.replace(/\.tsx?$/u, "");
  const candidates = [
   join(ROOT, "frontend", "__tests__", `${base.split("/").pop()}.test.ts`),

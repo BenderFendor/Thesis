@@ -12,13 +12,13 @@ interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
   articles: T[];
 }
 
-function normalizeSourceKey<T extends ComparisonCandidateArticle>(article: T): string {
+const normalizeSourceKey = function <T extends ComparisonCandidateArticle>(article: T): string {
   const explicit = article.source_id?.trim().toLowerCase();
   if (explicit) {return explicit;}
   return article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
 }
 
-function recencyValue<T extends ComparisonCandidateArticle>(article: T): number {
+const recencyValue = function <T extends ComparisonCandidateArticle>(article: T): number {
   if (typeof article._parsedTimestamp === "number") {
     return article._parsedTimestamp;
   }

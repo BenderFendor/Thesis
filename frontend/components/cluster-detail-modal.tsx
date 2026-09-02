@@ -66,7 +66,7 @@ type ComparisonArticle = Omit<ClusterArticle, "source_id"> & {
   source_id?: string;
 };
 
-function normalizeComparisonArticle(article: ClusterArticle): ComparisonArticle {
+const normalizeComparisonArticle = (article: ClusterArticle): ComparisonArticle => {
   return {
     ...article,
     source_id: article.source_id?.trim() || undefined,
@@ -158,11 +158,11 @@ interface ComparisonData {
   };
 }
 
-function buildComparisonRequestKey(articleIds:readonly  number[]): string {
+const buildComparisonRequestKey = (articleIds:readonly  number[]): string => {
   return [...articleIds].sort((a, b) => a - b).join(":");
 }
 
-function formatDate(dateStr?: string | null): string {
+const formatDate = (dateStr?: string | null): string => {
   if (!dateStr) {return "";}
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) {return dateStr;}
@@ -175,7 +175,7 @@ function formatDate(dateStr?: string | null): string {
   });
 }
 
-function formatSignedNumber(value?: number | null, digits = 1): string {
+const formatSignedNumber = (value?: number | null, digits = 1): string => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "—";
   }
@@ -183,7 +183,7 @@ function formatSignedNumber(value?: number | null, digits = 1): string {
   return `${prefix}${value.toFixed(digits)}`;
 }
 
-function toPct(value: number, min = -10, max = 10): number {
+const toPct = (value: number, min = -10, max = 10): number => {
   const clamped = Math.max(min, Math.min(max, value));
   return ((clamped - min) / (max - min)) * 100;
 }
@@ -205,14 +205,14 @@ function resolveToneView(
   };
 }
 
-function getCameoSummary(context?: GdeltContext | null): string | null {
+const getCameoSummary = (context?: GdeltContext | null): string | null => {
   const cameo = context?.top_cameo?.[0];
   if (!cameo) {return null;}
   const label = cameo.label || cameo.code || "CAMEO";
   return cameo.count > 1 ? `${label} · ${cameo.count}` : label;
 }
 
-function hasRealImage(src?: string | null): boolean {
+const hasRealImage = (src?: string | null): boolean => {
   if (!src) {return false;}
   const trimmed = src.trim();
   if (!trimmed || trimmed === "none") {return false;}
@@ -1341,7 +1341,7 @@ interface ComparisonTabProps {
   onSourceChange: (sourceId: string, articleId: string) => void;
 }
 
-function comparisonArticleSourceId(article: ComparisonArticle): string {
+const comparisonArticleSourceId = (article: ComparisonArticle): string => {
   return article.source_id || article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
 }
 
@@ -1534,7 +1534,7 @@ function ComparisonView({
   );
 }
 
-function ComparisonUnavailable({ detailArticleCount }:Readonly< { detailArticleCount: number | null }>) {
+const ComparisonUnavailable = ({ detailArticleCount }:Readonly< { detailArticleCount: number | null }>) => {
   return (
     <div className="flex flex-1 items-center justify-center text-muted-foreground">
       {!detailArticleCount || detailArticleCount < 2

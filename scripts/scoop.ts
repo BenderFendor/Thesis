@@ -148,11 +148,11 @@ class CliError extends Error {
   }
 }
 
-function fail(message: string, exitCode = 2): never {
+const fail = (message: string, exitCode = 2): never => {
   throw new CliError(message, exitCode);
 }
 
-function parseOptions(argv:readonly  string[]): CliOptions {
+const parseOptions = (argv:readonly  string[]): CliOptions => {
   const options: CliOptions = { _: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -187,11 +187,11 @@ function parseOption(
   return inlineValue === undefined ? index + 1 : index;
 }
 
-function loadSpec(specPath = DEFAULT_SPEC): OpenApiSpec {
+const loadSpec = (specPath = DEFAULT_SPEC): OpenApiSpec => {
   return JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec;
 }
 
-function listPathOperations(path: string, pathItem: PathItemObject): OperationDescriptor[] {
+const listPathOperations = (path: string, pathItem: PathItemObject): OperationDescriptor[] => {
   const operations: OperationDescriptor[] = [];
   for (const [method, value] of Object.entries(pathItem)) {
     if (!HTTP_METHODS[method] || Array.isArray(value) || value === undefined) {continue;}
@@ -210,32 +210,32 @@ function listPathOperations(path: string, pathItem: PathItemObject): OperationDe
   return operations;
 }
 
-function listOperations(spec: OpenApiSpec): OperationDescriptor[] {
+const listOperations = (spec: OpenApiSpec): OperationDescriptor[] => {
   const operations = Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) =>
     listPathOperations(path, pathItem),
   );
   return operations.sort((left, right) => left.operationId.localeCompare(right.operationId));
 }
 
-function listWebSockets(spec: OpenApiSpec): WebSocketOperation[] {
+const listWebSockets = (spec: OpenApiSpec): WebSocketOperation[] => {
   return [...(spec["x-scoop-websockets"] ?? [])].sort((left, right) =>
     left.operationId.localeCompare(right.operationId),
   );
 }
 
-function findOperation(spec: OpenApiSpec, operationId: string): OperationDescriptor {
+const findOperation = (spec: OpenApiSpec, operationId: string): OperationDescriptor => {
   const operation = listOperations(spec).find((item) => item.operationId === operationId);
   if (!operation) {fail(`Unknown operationId: ${operationId}`);}
   return operation;
 }
 
-function splitAssignment(value: string, label: string): [string, string] {
+const splitAssignment = (value: string, label: string): [string, string] => {
   const separator = value.indexOf("=");
   if (separator < 1) {fail(`${label} must use name=value: ${value}`);}
   return [value.slice(0, separator), value.slice(separator + 1)];
 }
 
-function assignments(values:readonly  string[] = []): Map<string, string[]> {
+const assignments = (values:readonly  string[] = []): Map<string, string[]> => {
   const result = new Map<string, string[]>();
   for (const item of values) {
     const [name, value] = splitAssignment(item, "Assignment");
@@ -244,11 +244,11 @@ function assignments(values:readonly  string[] = []): Map<string, string[]> {
   return result;
 }
 
-function schemaType(schema: SchemaObject = {}): string | undefined {
+const schemaType = (schema: SchemaObject = {}): string | undefined => {
   return Array.isArray(schema.type) ? schema.type.find((value) => value !== "null") : schema.type;
 }
 
-function coerceScalar(value: string, schema: SchemaObject, name: string): JsonValue {
+const coerceScalar = (value: string, schema: SchemaObject, name: string): JsonValue => {
   const type = schemaType(schema);
   if (type === "boolean") {
     if (value === "true") {return true;}
@@ -274,7 +274,7 @@ function coerceScalar(value: string, schema: SchemaObject, name: string): JsonVa
   return value;
 }
 
-function serializeParameter(parameter: ParameterObject, values:readonly  string[]): JsonValue | JsonValue[] {
+const serializeParameter = (parameter: ParameterObject, values:readonly  string[]): JsonValue | JsonValue[] => {
   const schema = parameter.schema ?? {};
   if (schemaType(schema) === "array") {
     return values
@@ -284,7 +284,7 @@ function serializeParameter(parameter: ParameterObject, values:readonly  string[
   return coerceScalar(values.at(-1) ?? "", schema, parameter.name);
 }
 
-function requestBody(rawBody: string | undefined): JsonValue | undefined {
+const requestBody = (rawBody: string | undefined): JsonValue | undefined => {
   if (rawBody === undefined) {return undefined;}
   const text = rawBody.startsWith("@")
     ? readFileSync(resolve(rawBody.slice(1)), "utf8")
@@ -353,7 +353,7 @@ function applyOperationParameters(
   }
 }
 
-function applyRequestHeaders(target: RequestTarget, options: CliOptions): void {
+const applyRequestHeaders = (target: RequestTarget, options: CliOptions): void => {
   for (const item of options.header ?? []) {
     const [name, value] = splitAssignment(item, "Header");
     target.headers.set(name, value);
@@ -408,7 +408,7 @@ function prepareRequest(
   };
 }
 
-async function responseBody(response: Response): Promise<JsonValue | string> {
+const responseBody = async (response: Response): Promise<JsonValue | string> => {
   const bytes = Buffer.from(await response.arrayBuffer()),
    text = bytes.toString("utf8");
   if (response.headers.get("content-type")?.includes("json")) {
@@ -421,7 +421,7 @@ async function responseBody(response: Response): Promise<JsonValue | string> {
   return text;
 }
 
-function printValue(value: unknown, output = "pretty"): void {
+const printValue = (value: unknown, output = "pretty"): void => {
   if (typeof value === "string") {
     process.stdout.write(value.endsWith("\n") ? value : `${value}\n`);
     return;
@@ -451,7 +451,7 @@ async function callOperation(
   return { body: await responseBody(response), request, response };
 }
 
-function jsonPointer(value: unknown, pointer: string): JsonValue | undefined {
+const jsonPointer = (value: unknown, pointer: string): JsonValue | undefined => {
   if (pointer === "") {return value as JsonValue;}
   if (!pointer.startsWith("/")) {fail(`JSON pointer must start with /: ${pointer}`);}
   let current: unknown = value;
@@ -468,7 +468,7 @@ function jsonPointer(value: unknown, pointer: string): JsonValue | undefined {
   return current as JsonValue | undefined;
 }
 
-function expectedValue(raw: string): JsonValue {
+const expectedValue = (raw: string): JsonValue => {
   try {
     return JSON.parse(raw) as JsonValue;
   } catch {
@@ -476,7 +476,7 @@ function expectedValue(raw: string): JsonValue {
   }
 }
 
-function evaluateSmoke(result: CallResult, options: CliOptions = { _: [] }): SmokeReport {
+const evaluateSmoke = (result: CallResult, options: CliOptions = { _: [] }): SmokeReport => {
   const expectedStatuses = String(options["expect-status"] ?? "200")
     .split(",")
     .map(Number),
@@ -562,7 +562,7 @@ async function listenWebSocket(
 }
 
 
-function runSchemaCommand(action: "check" | "export" | "refresh", options: CliOptions): number {
+const runSchemaCommand = (action: "check" | "export" | "refresh", options: CliOptions): number => {
   const args = ["-m", "scripts.export_openapi"];
   if (action === "check") {args.push("--check");}
   if (options.output) {args.push("--output", resolve(options.output));}
@@ -648,7 +648,7 @@ function investigateParameters(
   return params;
 }
 
-function investigateBody(workflow: InvestigateWorkflow, target: string, options: CliOptions): string | undefined {
+const investigateBody = (workflow: InvestigateWorkflow, target: string, options: CliOptions): string | undefined => {
   if (!workflow.useBody) {return undefined;}
   const body: Record<string, unknown> = { name: target };
   for (const optionKey of workflow.bodyOptionKeys ?? []) {
@@ -686,14 +686,14 @@ async function runInvestigateCommand(
   return result.response.ok ? 0 : 1;
 }
 
-function runSchemaGroup(action: string | undefined, options: CliOptions): number {
+const runSchemaGroup = (action: string | undefined, options: CliOptions): number => {
   if (action === "check" || action === "export" || action === "refresh") {
     return runSchemaCommand(action, options);
   }
   fail("schema requires check, export, or refresh");
 }
 
-function apiListCommand(spec: OpenApiSpec, options: CliOptions): number {
+const apiListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
   const operations = listOperations(spec).filter(
     (operation) => !options.tag || operation.tags.includes(options.tag),
   );
@@ -710,7 +710,7 @@ function apiListCommand(spec: OpenApiSpec, options: CliOptions): number {
   return 0;
 }
 
-function apiDescribeCommand(spec: OpenApiSpec, target: string | undefined): number {
+const apiDescribeCommand = (spec: OpenApiSpec, target: string | undefined): number => {
   if (!target) {fail("api describe requires an operationId");}
   const item = findOperation(spec, target);
   printValue({
@@ -726,7 +726,7 @@ function apiDescribeCommand(spec: OpenApiSpec, target: string | undefined): numb
   return 0;
 }
 
-async function apiCallCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+const apiCallCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
   if (!target) {fail("api call requires an operationId");}
   const result = await callOperation(spec, target, options),
    output = options["include-meta"]
@@ -742,7 +742,7 @@ async function apiCallCommand(spec: OpenApiSpec, target: string | undefined, opt
   return result.response.ok ? 0 : 1;
 }
 
-async function apiSmokeCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+const apiSmokeCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
   if (!target) {fail("api smoke requires an operationId");}
   const result = await callOperation(spec, target, options),
    report = evaluateSmoke(result, options);
@@ -763,7 +763,7 @@ async function runApiCommand(
   fail(`Unknown command: ${options._.join(" ")}`);
 }
 
-function wsListCommand(spec: OpenApiSpec, options: CliOptions): number {
+const wsListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
   const sockets = listWebSockets(spec);
   if (options.json) {printValue(sockets, "json");}
   else {
@@ -774,7 +774,7 @@ function wsListCommand(spec: OpenApiSpec, options: CliOptions): number {
   return 0;
 }
 
-async function wsListenCommand(spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> {
+const wsListenCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
   if (!target) {fail("ws listen requires an operationId or path");}
   const result = await listenWebSocket(spec, target, options);
   if (options["include-meta"] || Number(options.count ?? 1) === 0) {
@@ -805,7 +805,7 @@ function runInvestigateGroup(
   return runInvestigateCommand(spec, action, target, options);
 }
 
-function usage(): string {
+const usage = (): string => {
   const workflows = Object.entries(INVESTIGATE_WORKFLOWS)
     .map(([name, wf]) => {
       const args: string[] = [];
@@ -842,7 +842,7 @@ Common request options:
 `;
 }
 
-async function main(argv:readonly  string[] = process.argv.slice(2)): Promise<number> {
+const main = async (argv:readonly  string[] = process.argv.slice(2)): Promise<number> => {
   const options = parseOptions(argv),
    [group, action, target] = options._;
   if (options.help || !group) {

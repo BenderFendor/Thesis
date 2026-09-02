@@ -49,14 +49,14 @@ const EDGE_STROKE: Record<AtlasEdge["relation_type"], string> = {
   reporter: "#88a9ff",
 };
 
-function nodeRadius(node: AtlasNode): number {
+const nodeRadius = (node: AtlasNode): number => {
   const articles = Math.min(Math.log10(1 + node.article_count) * 0.8, 3),
    base = node.entity_type === "organization" ? 12 : node.entity_type === "outlet" ? 9 : node.entity_type === "person" ? 8 : 8,
    degree = Math.min(Math.log2(1 + node.connection_count) * 1.4, 8);
   return base + degree + articles;
 }
 
-function nodeShape(node: AtlasNode, radius: number) {
+const nodeShape = (node: AtlasNode, radius: number) => {
   if (node.entity_type === "outlet") {
     return <rect x={-radius} y={-radius} width={radius * 2} height={radius * 2} rx={radius * 0.35} />;
   }
@@ -109,7 +109,7 @@ interface AtlasNodeMarkProps {
   showLabel: boolean;
 }
 
-function NeedsReviewMarker({ radius, visible }:Readonly< { radius: number; visible: boolean }>) {
+const NeedsReviewMarker = ({ radius, visible }:Readonly< { radius: number; visible: boolean }>) => {
   if (!visible) {
     return;
   }
@@ -243,7 +243,7 @@ interface AtlasEdgeVisuals {
   width: number;
 }
 
-function atlasEdgeTouchesInteraction(edge: AtlasEdge, interactionNodeId: string | null): boolean {
+const atlasEdgeTouchesInteraction = (edge: AtlasEdge, interactionNodeId: string | null): boolean => {
   return Boolean(
     interactionNodeId && (edge.source_id === interactionNodeId || edge.target_id === interactionNodeId),
   );
@@ -263,13 +263,13 @@ function atlasEdgeIsDimmed(
   return focusDimmed || Boolean(interactionNodeId && !touchesInteraction);
 }
 
-function atlasEdgeIsDashed(edge: AtlasEdge): boolean {
+const atlasEdgeIsDashed = (edge: AtlasEdge): boolean => {
   return Boolean(
     edge.is_inferred || edge.confidence_tier === "likely" || edge.confidence_tier === "unresolved",
   );
 }
 
-function atlasEdgeMarker(edge: AtlasEdge): string | undefined {
+const atlasEdgeMarker = (edge: AtlasEdge): string | undefined => {
   if (edge.direction !== "directed") {
     return undefined;
   }
@@ -352,7 +352,7 @@ interface AtlasNodeLayerProps {
 
 type AtlasNodeLayerContext = Omit<AtlasNodeLayerProps, "nodes">;
 
-function isAtlasNodeDimmed(nodeId: string, context: AtlasNodeLayerContext): boolean {
+const isAtlasNodeDimmed = (nodeId: string, context: AtlasNodeLayerContext): boolean => {
   const outsideFocus = context.focus && context.selectedId && !context.selectedNeighbors.has(nodeId),
    outsideInteraction = context.interactionNodeId && !context.interactionNeighbors.has(nodeId);
   return Boolean(outsideFocus || outsideInteraction);
@@ -403,7 +403,7 @@ function getAtlasNodeMarkProps(
   };
 }
 
-function renderAtlasNode(node: AtlasNode, context: AtlasNodeLayerContext): ReactNode {
+const renderAtlasNode = (node: AtlasNode, context: AtlasNodeLayerContext): ReactNode => {
   const props = getAtlasNodeMarkProps(node, context);
   return props ? <AtlasNodeMark key={node.id} {...props} /> : null;
 }
@@ -463,7 +463,7 @@ interface PanState {
   originY: number;
 }
 
-function getAtlasGraphDimensions(rect: DOMRectReadOnly): AtlasGraphDimensions {
+const getAtlasGraphDimensions = (rect: DOMRectReadOnly): AtlasGraphDimensions => {
   return {
     height: Math.max(360, Math.round(rect.height)),
     width: Math.max(320, Math.round(rect.width)),
@@ -523,7 +523,7 @@ function useAtlasGraphLayout({
   return useAtlasLayout(layoutOptions);
 }
 
-function getAtlasNeighbors(edges:readonly AtlasEdge[], nodeId: string | null): Set<string> {
+const getAtlasNeighbors = (edges:readonly AtlasEdge[], nodeId: string | null): Set<string> => {
   const ids = new Set<string>();
   if (!nodeId) {
     return ids;
@@ -1040,7 +1040,7 @@ interface AtlasGraphSvgProps {
   transform: Transform;
 }
 
-function AtlasGraphMarkers(): ReactNode {
+const AtlasGraphMarkers = (): ReactNode => {
   return (
     <defs>
       <marker id="atlas-arrow-gold" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">

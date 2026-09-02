@@ -14,18 +14,18 @@ const FINDINGS_EXIT = 1,
  SUCCESS_EXIT = 0;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isObject(value) {
+const isObject = (value) => {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /** @param {string} path @param {string} repositoryRoot */
-function repositoryPath(path, repositoryRoot) {
+const repositoryPath = (path, repositoryRoot) => {
   const normalized = path.replaceAll("\\", "/");
   return normalized.startsWith(`${repositoryRoot}/`) ? normalized.slice(repositoryRoot.length + 1) : `frontend/${normalized}`;
 }
 
 /** @param {string} path @param {string} repositoryRoot @param {CrapMethod} method */
-function normalizeMethod(path, repositoryRoot, method) {
+const normalizeMethod = (path, repositoryRoot, method) => {
   const coverage = typeof method.cov === "number" && Number.isFinite(method.cov) ? method.cov : undefined,
    crap = typeof method.crap === "number" && Number.isFinite(method.crap) && coverage !== undefined ? method.crap : null,
    relativePath = repositoryPath(path, repositoryRoot),
@@ -42,14 +42,14 @@ function normalizeMethod(path, repositoryRoot, method) {
 }
 
 /** @param {string} text @returns {CrapReport} */
-function parseReport(text) {
+const parseReport = (text) => {
   const value = JSON.parse(text);
   if (!isObject(value) || !Array.isArray(value.methods)) {throw new Error("crap-typescript returned an invalid report envelope");}
   return /** @type {CrapReport} */ (value);
 }
 
 /** @param {CrapReport} report @param {string} repositoryRoot @returns {CrapNormalizedReport} */
-function normalizeReport(report, repositoryRoot) {
+const normalizeReport = (report, repositoryRoot) => {
   const methods = report.methods ?? [],
    units = methods.map((method) => normalizeMethod(method.src ?? "", repositoryRoot, method));
   return {
@@ -62,7 +62,7 @@ function normalizeReport(report, repositoryRoot) {
 
 /** @param {string} repositoryRoot @param {Readonly<CrapAnalyzer>} analyzer @param {readonly string[]} paths @returns {Promise<CrapNormalizedReport>} */
 /** @param {string} repositoryRoot @param {Readonly<CrapAnalyzer>} analyzer @param {readonly string[]} paths @param {number} threshold @returns {Promise<CrapNormalizedReport>} */
-async function runCrap(repositoryRoot, analyzer, paths, threshold = 8) {
+const runCrap = async (repositoryRoot, analyzer, paths, threshold = 8) => {
   const frontendPaths = paths.map((path) => path.replace(/^frontend\//u, "")),
    [executable, ...baseArguments] = analyzer.command,
    result = await new Promise((resolvePromise, rejectPromise) => {

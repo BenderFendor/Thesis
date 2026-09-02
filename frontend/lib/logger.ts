@@ -14,7 +14,7 @@ import { saveToStorage } from "@/lib/storage";
 /**
  * Check if debug mode is enabled.
  */
-function isDebugMode(): boolean {
+const isDebugMode = (): boolean => {
     if (typeof window === 'undefined') {
         // Server-side: check env var
         return process.env.NEXT_PUBLIC_DEBUG_DEFAULT === 'true';
@@ -32,7 +32,7 @@ function isDebugMode(): boolean {
 /**
  * Toggle debug mode in localStorage.
  */
-function setDebugMode(enabled: boolean): void {
+const setDebugMode = (enabled: boolean): void => {
     if (typeof window !== 'undefined') {
         saveToStorage('thesis_debug_mode', enabled);
     }

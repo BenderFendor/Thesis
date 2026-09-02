@@ -62,7 +62,7 @@ const CONFIG_NAME = "quality-hardening.config.json",
 /** @typedef {Readonly<{analyzers: AnalyzerConfig, policy_version: string, profiles: Readonly<Record<string, readonly string[]>>, schema_version: number, source_scope: SourceScopeConfig, thresholds: ThresholdConfig, verification: VerificationConfig}>} QualityConfig */
 
 /** @param {string} path @returns {Promise<JsonObject>} */
-async function readJson(path) {
+const readJson = async (path) => {
   const value = JSON.parse(await readFile(path, "utf8"));
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${path} must contain a JSON object`);
@@ -71,12 +71,12 @@ async function readJson(path) {
 }
 
 /** @param {string} value */
-function hashText(value) {
+const hashText = (value) => {
   return createHash("sha256").update(value).digest("hex");
 }
 
 /** @param {unknown} value */
-function isEnabledRule(value) {
+const isEnabledRule = (value) => {
   const severity = Array.isArray(value) ? value[0] : value;
   return severity !== "off" && severity !== 0;
 }
@@ -89,7 +89,7 @@ function asObject(value) {
 }
 
 /** @param {JsonObject} oxlint */
-function configuredRuleIds(oxlint) {
+const configuredRuleIds = (oxlint) => {
   /** @type {Set<string>} */
   const ids = new Set(),
   /** @type {(rules: unknown) => void} */
@@ -120,7 +120,7 @@ function normalizeRuleId(id) {
 }
 
 /** @param {string} id @param {JsonObject} taxonomy */
-function familyForRule(id, taxonomy) {
+const familyForRule = (id, taxonomy) => {
   const familyDefaults = taxonomy.family_defaults,
    families = Object.keys(
     familyDefaults !== null && typeof familyDefaults === "object" && !Array.isArray(familyDefaults)
@@ -133,7 +133,7 @@ function familyForRule(id, taxonomy) {
 }
 
 /** @param {string} id @param {JsonObject} taxonomy @returns {(JsonObject & {id: string})|undefined} */
-function resolvedTaxonomyRule(id, taxonomy) {
+const resolvedTaxonomyRule = (id, taxonomy) => {
   const family = familyForRule(id, taxonomy);
   if (family === undefined) {
     return;
@@ -146,7 +146,7 @@ function resolvedTaxonomyRule(id, taxonomy) {
 }
 
 /** @param {unknown} value @param {string} name */
-function assertArray(value, name) {
+const assertArray = (value, name) => {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${name} must be a non-empty array`);
   }
@@ -161,7 +161,7 @@ function stringArray(value, name) {
 }
 
 /** @param {JsonObject} thresholds */
-function validateThresholds(thresholds) {
+const validateThresholds = (thresholds) => {
   const cccc = /** @type {JsonObject} */ (thresholds.cccc ?? {}),
     crap = /** @type {JsonObject} */ (thresholds.crap ?? {}),
     mi = /** @type {JsonObject} */ (thresholds.mi ?? {}),
@@ -185,7 +185,7 @@ function validateThresholds(thresholds) {
 }
 
 /** @param {JsonObject} taxonomy @param {JsonObject} oxlint */
-function validateTaxonomy(taxonomy, oxlint) {
+const validateTaxonomy = (taxonomy, oxlint) => {
   if (taxonomy.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening taxonomy schema version is unsupported");
   }
@@ -207,7 +207,7 @@ function validateTaxonomy(taxonomy, oxlint) {
 }
 
 /** @param {QualityConfig} config @param {JsonObject} taxonomy @param {JsonObject} oxlint */
-function validateConfig(config, taxonomy, oxlint) {
+const validateConfig = (config, taxonomy, oxlint) => {
   if (config.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening config schema version is unsupported");
   }
@@ -223,7 +223,7 @@ function validateConfig(config, taxonomy, oxlint) {
 }
 
 /** @param {string} [repositoryRoot] @returns {Promise<Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Record<string, string>, oxlint: JsonObject, repositoryRoot: string, taxonomy: JsonObject, taxonomyHash: string}>>} */
-async function loadPolicy(repositoryRoot = process.cwd()) {
+const loadPolicy = async (repositoryRoot = process.cwd()) => {
   const root = resolve(repositoryRoot),
    config = /** @type {QualityConfig} */ (await readJson(resolve(root, CONFIG_NAME))),
    taxonomy = await readJson(resolve(root, RULES_NAME)),

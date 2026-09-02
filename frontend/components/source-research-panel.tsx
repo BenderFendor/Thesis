@@ -76,7 +76,7 @@ function useSourceResearchController({
   }
 }
 
-function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
+const SourceResearchPanel = ({ sourceName, website, autoRun = false }: SourceResearchPanelProps) => {
   const {
     data,
     error,

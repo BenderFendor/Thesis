@@ -38,7 +38,7 @@ const ANALYSIS_META: Record<string, { label: string; description: string }> = {
   "framing_omission",
 ] as const;
 
-function useEmbeddedFlag(): boolean {
+const useEmbeddedFlag = (): boolean => {
   const [embedded, setEmbedded] = useState(false)
   useEffect(() => {
     if (typeof window === "undefined") {return}
@@ -832,7 +832,7 @@ function LedgerFact({ label, value }:Readonly< { label: string; value: string }>
   );
 }
 
-function scoreColor(score: number): string {
+const scoreColor = (score: number): string => {
   return `hsl(${(5 - score) * 24}, 70%, 55%)`;
 }
 

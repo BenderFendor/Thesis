@@ -5,20 +5,20 @@ const SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change",
 SIDEBAR_EXPANDED_STORAGE_KEY = "scoop:sidebar-expanded";
 let sidebarExpandedFallback = false
 
-function buildViewHref(view: ViewMode): string {
+const buildViewHref = (view: ViewMode): string => {
   return `/?view=${view}`
 }
 
-function buildSearchHref(query: string): string {
+const buildSearchHref = (query: string): string => {
   return `/search?query=${encodeURIComponent(query.trim())}`
 }
 
-function getViewFromSearch(search: string): ViewMode | null {
+const getViewFromSearch = (search: string): ViewMode | null => {
   const requestedView = new URLSearchParams(search).get("view")
   return isViewMode(requestedView) ? requestedView : null
 }
 
-function readSidebarExpanded(): boolean {
+const readSidebarExpanded = (): boolean => {
   if (typeof window === "undefined") {return false}
 
   try {
@@ -31,7 +31,7 @@ function readSidebarExpanded(): boolean {
   return sidebarExpandedFallback
 }
 
-function writeSidebarExpanded(expanded: boolean): void {
+const writeSidebarExpanded = (expanded: boolean): void => {
   if (typeof window === "undefined") {return}
 
   sidebarExpandedFallback = expanded
@@ -43,7 +43,7 @@ function writeSidebarExpanded(expanded: boolean): void {
   globalThis.dispatchEvent(new Event(SIDEBAR_EXPANDED_CHANGE_EVENT))
 }
 
-function subscribeSidebarExpanded(onChange: () => void): () => void {
+const subscribeSidebarExpanded = (onChange: () => void): () => void => {
   if (typeof window === "undefined") {return () => {}}
 
   const handleStorage = (event: StorageEvent) => {

@@ -87,7 +87,7 @@ export interface SavedWorkspaceController {
   readonly toggleQueue: (article: Readonly<NewsArticle>) => void;
 }
 
-function useSavedLibraryState(): SavedLibraryState {
+const useSavedLibraryState = (): SavedLibraryState => {
   const [bookmarks, setBookmarks] = useState<readonly NewsArticle[]>([]),
    [likedArticles, setLikedArticles] = useState<readonly NewsArticle[]>([]),
    [highlightCount, setHighlightCount] = useState(0),
@@ -143,7 +143,7 @@ function useSavedLibraryState(): SavedLibraryState {
   };
 }
 
-function useShelfState(): ShelfState {
+const useShelfState = (): ShelfState => {
   const [newShelfName, setNewShelfName] = useState(""),
    queryClient = useQueryClient(),
    shelvesQuery = useQuery({
@@ -177,7 +177,7 @@ function useShelfState(): ShelfState {
   };
 }
 
-function useDigestState(queuedArticles: readonly NewsArticle[]): DigestState {
+const useDigestState = (queuedArticles: readonly NewsArticle[]): DigestState => {
   const [digest, setDigest] = useState<string>(),
    [loading, setLoading] = useState(false),
    [showDigest, setShowDigest] = useState(false),

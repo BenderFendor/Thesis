@@ -21,11 +21,11 @@ interface HighlightStoreState {
   highlights: LocalHighlight[]
 }
 
-function normalizeHighlightedText(text: string) {
+const normalizeHighlightedText = (text: string) => {
   return text.replaceAll(/\s+/gu, " ").trim().toLowerCase()
 }
 
-function getHighlightsStorageKey(articleUrl: string) {
+const getHighlightsStorageKey = (articleUrl: string) => {
   return `highlights:v1:${articleUrl}`
 }
 
@@ -39,7 +39,7 @@ function createHighlightFingerprint(highlight:Readonly< {
   )}`
 }
 
-function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
+const getHighlightRecencyValue = (highlight: Partial<LocalHighlight>) => {
   const timestamp =
     highlight.updated_at ??
     highlight.created_at ??
@@ -50,7 +50,7 @@ function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-function dedupeLocalHighlights(highlights:readonly  LocalHighlight[]): LocalHighlight[] {
+const dedupeLocalHighlights = (highlights:readonly  LocalHighlight[]): LocalHighlight[] => {
   const byFingerprint = new Map<string, LocalHighlight>()
 
   for (const highlight of highlights) {
@@ -80,11 +80,11 @@ function dedupeLocalHighlights(highlights:readonly  LocalHighlight[]): LocalHigh
   return [...byFingerprint.values()].toSorted((a, b) => a.character_start - b.character_start)
 }
 
-function safeNowIso() {
+const safeNowIso = () => {
   return new Date().toISOString()
 }
 
-function generateClientId() {
+const generateClientId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
@@ -96,7 +96,7 @@ function getServerId(highlight: Partial<LocalHighlight>) {
   return highlight.server_id ?? highlight.id
 }
 
-function loadHighlightStore(articleUrl: string): HighlightStoreState {
+const loadHighlightStore = (articleUrl: string): HighlightStoreState => {
   const key = getHighlightsStorageKey(articleUrl),
    stored = getFromStorage<HighlightStoreState | null>(key, null)
 
@@ -107,7 +107,7 @@ function loadHighlightStore(articleUrl: string): HighlightStoreState {
   return stored
 }
 
-function saveHighlightStore(state: HighlightStoreState) {
+const saveHighlightStore = (state: HighlightStoreState) => {
   const key = getHighlightsStorageKey(state.article_url)
   saveToStorage(key, state)
 }
@@ -117,7 +117,7 @@ interface HighlightIndexes {
   localByFingerprint: Map<string, LocalHighlight>
 }
 
-function indexLocalHighlights(local:readonly  LocalHighlight[]): HighlightIndexes {
+const indexLocalHighlights = (local:readonly  LocalHighlight[]): HighlightIndexes => {
   const localByFingerprint = new Map<string, LocalHighlight>(),
    localByServerId = new Map<number, LocalHighlight>()
   for (const item of local) {
@@ -261,7 +261,7 @@ function mergeHighlights({
   )
 }
 
-function toRemoteHighlights(local:readonly  LocalHighlight[]): Highlight[] {
+const toRemoteHighlights = (local:readonly  LocalHighlight[]): Highlight[] => {
   return dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {

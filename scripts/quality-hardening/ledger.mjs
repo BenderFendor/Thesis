@@ -6,19 +6,19 @@ import { resolve } from "node:path";
 const LEDGER_RELATIVE = "docs/agents/quality-hardening/ledger";
 
 /** @param {string} repositoryRoot @param {string} fileName */
-function ledgerPath(repositoryRoot, fileName) {
+const ledgerPath = (repositoryRoot, fileName) => {
   return resolve(repositoryRoot, LEDGER_RELATIVE, fileName);
 }
 
 /** @param {string} repositoryRoot @param {string} fileName @param {Readonly<Record<string, unknown>>} record */
-async function appendLedger(repositoryRoot, fileName, record) {
+const appendLedger = async (repositoryRoot, fileName, record) => {
   const path = ledgerPath(repositoryRoot, fileName);
   await mkdir(resolve(repositoryRoot, LEDGER_RELATIVE), { recursive: true });
   await appendFile(path, `${JSON.stringify(record)}\n`, "utf8");
 }
 
 /** @param {string} repositoryRoot @param {string} fileName @returns {Promise<Record<string, unknown>[]>} */
-async function readLedger(repositoryRoot, fileName) {
+const readLedger = async (repositoryRoot, fileName) => {
   try {
     const text = await readFile(ledgerPath(repositoryRoot, fileName), "utf8");
     return text.split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -29,7 +29,7 @@ async function readLedger(repositoryRoot, fileName) {
 }
 
 /** @param {string} repositoryRoot @param {Readonly<Record<string, unknown>>} campaign */
-async function writeCampaign(repositoryRoot, campaign) {
+const writeCampaign = async (repositoryRoot, campaign) => {
   const path = ledgerPath(repositoryRoot, "campaign.json");
   await mkdir(resolve(repositoryRoot, LEDGER_RELATIVE), { recursive: true });
   const temporary = `${path}.tmp-${process.pid}`;
@@ -38,7 +38,7 @@ async function writeCampaign(repositoryRoot, campaign) {
 }
 
 /** @param {string} repositoryRoot @returns {Promise<Record<string, unknown> | null>} */
-async function readCampaign(repositoryRoot) {
+const readCampaign = async (repositoryRoot) => {
   try {
     return JSON.parse(await readFile(ledgerPath(repositoryRoot, "campaign.json"), "utf8"));
   } catch (error) {

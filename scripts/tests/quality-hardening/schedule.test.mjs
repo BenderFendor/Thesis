@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 /** @param {Partial<Record<string, unknown>> & {task_id: string}} [extra] */
-function task(extra = {}) {
+const task = (extra = {}) => {
   return {
     cluster_key: "rule:default",
     factor: "structural_maintainability",

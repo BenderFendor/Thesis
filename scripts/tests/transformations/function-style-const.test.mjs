@@ -106,7 +106,14 @@ function Name() {
   return 1;
 }
 `;
-  assertUnchanged(source);
+  const expected = `const wrapper = () => {
+  return Name();
+}
+function Name() {
+  return 1;
+}
+`;
+  assertTransformed(source, expected);
 });
 
 test("exported and export-default functions stay untouched", () => {
@@ -339,5 +346,18 @@ function Name() {
   return 1;
 }
 `;
+  assertUnchanged(source);
+});
+
+
+
+
+test('multi-line signature stays unchanged (invalid arrow artifact regression)', () => {
+  const source = 'const useSelectedSourcesQuery = (\n  a: ReadonlySet<string>,\n  b: string,\n) => {\n  return a.size + b.length;\n};\n';
+  assertUnchanged(source);
+});
+
+test('multi-line function signature stays unchanged', () => {
+  const source = 'function useSelectedSourcesQuery(\n  selectedSources: ReadonlySet<string>,\n  lens: string,\n) {\n  return selectedSources.size + lens.length;\n}\n';
   assertUnchanged(source);
 });

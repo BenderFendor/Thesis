@@ -234,7 +234,7 @@ interface GridViewSearchBarProps {
   variant: "virtualized" | "main"
 }
 
-function GridViewSearchBar({ value, onChange, variant }: GridViewSearchBarProps) {
+const GridViewSearchBar = ({ value, onChange, variant }: GridViewSearchBarProps) => {
   const isVirtualized = variant === "virtualized"
   return (
     <div className={isVirtualized ? "relative" : "relative w-full max-w-xl"}>
@@ -267,7 +267,7 @@ interface ModeSwitcherProps {
   onClusterWindow: (value: "1d" | "1w" | "1m") => void
 }
 
-function ModeSwitcher({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) {
+const ModeSwitcher = ({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) => {
   return (
     <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
       <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
@@ -745,7 +745,7 @@ interface TrendingSectionProps {
   viewMode: GridViewMode
 }
 
-function TrendingSection({ showTrending, viewMode }: TrendingSectionProps) {
+const TrendingSection = ({ showTrending, viewMode }: TrendingSectionProps) => {
   if (!showTrending) {return}
   if (viewMode === "topic") {
     return (
@@ -763,7 +763,7 @@ interface MoreSourcesButtonProps {
   onLoadMore: () => void
 }
 
-function MoreSourcesButton({ visible, total, onLoadMore }: MoreSourcesButtonProps) {
+const MoreSourcesButton = ({ visible, total, onLoadMore }: MoreSourcesButtonProps) => {
   return (
     <div className="flex justify-center pb-8">
       <Button

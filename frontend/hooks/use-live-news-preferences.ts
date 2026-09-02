@@ -11,7 +11,7 @@ export interface LiveNewsPreferences {
 
 const STORAGE_KEY = "scoop_live_news_prefs"
 
-function loadPreferences(): LiveNewsPreferences | null {
+const loadPreferences = (): LiveNewsPreferences | null => {
   if (typeof window === "undefined") {return null}
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -33,7 +33,7 @@ function loadPreferences(): LiveNewsPreferences | null {
   }
 }
 
-function savePreferences(prefs: LiveNewsPreferences): void {
+const savePreferences = (prefs: LiveNewsPreferences): void => {
   if (typeof window === "undefined") {return}
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))

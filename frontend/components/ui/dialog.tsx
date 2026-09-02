@@ -80,7 +80,7 @@ function DialogContent({
   )
 }
 
-function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
+const DialogHeader = ({ className, ...props }: React.ComponentProps<'div'>) => {
   return (
     <div
       data-slot="dialog-header"
@@ -90,7 +90,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
+const DialogFooter = ({ className, ...props }: React.ComponentProps<'div'>) => {
   return (
     <div
       data-slot="dialog-footer"

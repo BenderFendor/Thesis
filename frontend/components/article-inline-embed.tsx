@@ -19,7 +19,7 @@ const DEFAULT_ARTICLE_INLINE_EMBED_SERVICES: ArticleInlineEmbedServices = {
   analyzeArticle,
 }
 
-function toSourceName(url: string): string {
+const toSourceName = (url: string): string => {
   try {
     const u = new URL(url)
     return u.hostname.replace("www.", "")
@@ -28,7 +28,7 @@ function toSourceName(url: string): string {
   }
 }
 
-function buildNewsArticle(url: string, analysis?: ArticleAnalysis): NewsArticle {
+const buildNewsArticle = (url: string, analysis?: ArticleAnalysis): NewsArticle => {
   const source = articleSource(analysis, url),
    summary = articleSummary(analysis),
    title = articleTitle(analysis, url)

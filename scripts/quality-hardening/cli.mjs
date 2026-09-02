@@ -12,7 +12,7 @@ import { verify } from "./verify.mjs";
 /** @typedef {Readonly<{repositoryRoot: string}>} QueuePolicy */
 
 /** @param {readonly string[]} argumentsList @returns {Options} */
-function parseOptions(argumentsList) {
+const parseOptions = (argumentsList) => {
  /** @type {Options} */
  const options = { from: "", json: false, paths: [], reason: "", scope: "repo", session: String(process.pid), stale: false, task: "" };
  for (let index = 0; index < argumentsList.length; index += 1) {
@@ -46,7 +46,7 @@ function parseOptions(argumentsList) {
  return options;
 }
 
-function usage() {
+const usage = () => {
  return [
   "node scripts/quality-hardening.mjs measure --scope repo|changed|task [--path PATH] [--json]",
   "node scripts/quality-hardening.mjs queue rebuild [--from MEASUREMENT_ID] [--json]",
@@ -61,7 +61,7 @@ function usage() {
 }
 
 /** @param {readonly string[]} argumentsList */
-async function runMeasure(argumentsList) {
+const runMeasure = async (argumentsList) => {
  const options = parseOptions(argumentsList);
  if (!["repo", "changed", "task"].includes(options.scope)) {
   throw new Error(`unsupported measurement scope: ${options.scope}`);
@@ -91,7 +91,7 @@ async function runMeasure(argumentsList) {
 }
 
 /** @param {Options} options */
-async function runQueue(options) {
+const runQueue = async (options) => {
  const policy = await loadPolicy();
  if (options.scope !== "repo") { throw new Error("queue rebuild currently requires --scope repo"); }
  const measurement = options.from
@@ -105,7 +105,7 @@ async function runQueue(options) {
 }
 
 /** @param {Task[]} tasks @param {Options} options */
-function printNextTask(tasks, options) {
+const printNextTask = (tasks, options) => {
  const task = tasks.find((candidate) => candidate.state === "queued");
  if (options.json) { console.log(JSON.stringify(task ?? null)); }
  else { console.error(task ? `${task.task_id}: ${task.factor} ${task.cluster_key}` : "queue empty"); }
@@ -113,7 +113,7 @@ function printNextTask(tasks, options) {
 }
 
 /** @param {Task[]} tasks @param {string} taskId @param {Options} options */
-function printTask(tasks, taskId, options) {
+const printTask = (tasks, taskId, options) => {
  const task = tasks.find((candidate) => candidate.task_id === taskId);
  if (!task) { throw new Error(`task not found: ${taskId}`); }
  console.log(options.json ? JSON.stringify(task) : JSON.stringify(task, null, 2));
@@ -121,7 +121,7 @@ function printTask(tasks, taskId, options) {
 }
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
-async function runQueueCommand(argumentsList) {
+const runQueueCommand = async (argumentsList) => {
  const options = parseOptions(argumentsList),
   subcommand = argumentsList.shift(),
   taskId = subcommand === "inspect" ? argumentsList.shift() ?? "" : "";
@@ -134,7 +134,7 @@ async function runQueueCommand(argumentsList) {
 }
 
 /** @param {QueuePolicy} policy @param {Task} task @param {Options} options @returns {Promise<number>} */
-async function claimTask(policy, task, options) {
+const claimTask = async (policy, task, options) => {
  const claim = await claimWriter(policy.repositoryRoot, { paths: task.paths, sessionId: options.session, taskId: task.task_id });
  await writeActiveTask(policy.repositoryRoot, { ...task, allowed_lint_rules: task.allowed_lint_rules ?? [], session_id: options.session });
  await transitionTask(policy.repositoryRoot, task.task_id, "claimed", { claimed_by: options.session });
@@ -144,7 +144,7 @@ async function claimTask(policy, task, options) {
 }
 
 /** @param {QueuePolicy} policy @param {Task} task @param {Options} options @returns {Promise<number>} */
-async function releaseTask(policy, task, options) {
+const releaseTask = async (policy, task, options) => {
  await transitionTask(policy.repositoryRoot, task.task_id, "queued", { claimed_by: null });
  await releaseWriter(policy.repositoryRoot, options.session, options.stale);
  await clearActiveTask(policy.repositoryRoot, options.session, task.task_id);
@@ -153,7 +153,7 @@ async function releaseTask(policy, task, options) {
 }
 
 /** @param {QueuePolicy} policy @param {Task} task @param {Options} options @param {"close"|"block"} subcommand @returns {Promise<number>} */
-async function finishTask(policy, task, options, subcommand) {
+const finishTask = async (policy, task, options, subcommand) => {
  const state = subcommand === "close" ? "accepted" : "blocked";
  if (state === "accepted" && ["claimed", "in_progress"].includes(task.state)) {
   await transitionTask(policy.repositoryRoot, task.task_id, "verifying");
@@ -167,7 +167,7 @@ async function finishTask(policy, task, options, subcommand) {
 }
 
 /** @param {string|undefined} subcommand @param {QueuePolicy} policy @param {Task} task @param {Options} options @returns {Promise<number>} */
-async function runTaskAction(subcommand, policy, task, options) {
+const runTaskAction = async (subcommand, policy, task, options) => {
  if (subcommand === "claim") { return claimTask(policy, task, options); }
  if (subcommand === "release") { return releaseTask(policy, task, options); }
  if (subcommand === "close" || subcommand === "block") { return finishTask(policy, task, options, subcommand); }
@@ -175,7 +175,7 @@ async function runTaskAction(subcommand, policy, task, options) {
 }
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
-async function runTaskCommand(argumentsList) {
+const runTaskCommand = async (argumentsList) => {
  const subcommand = argumentsList.shift(),
   taskId = argumentsList.shift() ?? "";
  if (subcommand === "expand-scope") {
@@ -203,7 +203,7 @@ async function runTaskCommand(argumentsList) {
 }
 
 /** @param {readonly string[]} argumentsList @returns {Promise<number>} */
-async function runVerify(argumentsList) {
+const runVerify = async (argumentsList) => {
  const options = parseOptions(argumentsList);
  if (!["path", "task", "changed", "repo"].includes(options.scope)) { throw new Error(`unsupported verification scope: ${options.scope}`); }
  const policy = await loadPolicy(),
@@ -220,7 +220,7 @@ async function runVerify(argumentsList) {
 }
 
 /** @param {boolean} json @param {string} repositoryRoot */
-async function runSummary(json, repositoryRoot) {
+const runSummary = async (json, repositoryRoot) => {
  const [campaign, tasks, attempts, effects] = await Promise.all([
   readCampaign(repositoryRoot),
   readTasks(repositoryRoot),
@@ -239,21 +239,21 @@ async function runSummary(json, repositoryRoot) {
 }
 
 /** @returns {Promise<number>} */
-async function runValidate() {
+const runValidate = async () => {
  await loadPolicy();
  console.error("quality-hardening policy and taxonomy are valid");
  return EXIT_CODES.ok;
 }
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
-async function runSummaryCommand(argumentsList) {
+const runSummaryCommand = async (argumentsList) => {
  const options = parseOptions(argumentsList),
   policy = await loadPolicy();
  return runSummary(options.json, policy.repositoryRoot);
 }
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
-async function runHookCommand(argumentsList) {
+const runHookCommand = async (argumentsList) => {
  const event = argumentsList.shift();
  if (!event || !["pre", "post", "stop"].includes(event)) { throw new Error("hook requires pre, post, or stop"); }
  const result = await hook(/** @type {"pre"|"post"|"stop"} */(event), process.stdin);
@@ -273,7 +273,7 @@ const commandHandlers = {
 };
 
 /** @param {readonly string[]} [argumentsList] */
-async function main(argumentsList = process.argv.slice(2)) {
+const main = async (argumentsList = process.argv.slice(2)) => {
  const command = argumentsList[0] ?? "",
   handler = commandHandlers[command];
  if (!handler) { throw new Error(`usage:\n${usage()}`); }

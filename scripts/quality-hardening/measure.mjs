@@ -22,19 +22,19 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 const EMPTY_PATH_COUNT = 0;
 
 /** @param {string} value */
-function runHash(value) {
+const runHash = (value) => {
   return createHash("sha256").update(value).digest("hex");
 }
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {Promise<Record<string, string>>} */
-async function fileHashes(repositoryRoot, paths) {
+const fileHashes = async (repositoryRoot, paths) => {
   /** @type {Promise<[string, string]>[]} */
   const entries = paths.map(async (path) => /** @type {[string, string]} */ ([path, runHash(await readFile(resolve(repositoryRoot, path), "utf8"))]));
   return Object.fromEntries(await Promise.all(entries));
 }
 
 /** @param {string} repositoryRoot @returns {Promise<string>} */
-async function gitHead(repositoryRoot) {
+const gitHead = async (repositoryRoot) => {
   const { stdout } = await import("node:child_process").then(
     ({ execFile }) =>
       new Promise((resolvePromise, reject) => {
@@ -51,7 +51,7 @@ async function gitHead(repositoryRoot) {
 }
 
 /** @param {Readonly<Record<string, string>>} hashes */
-function fingerprint(hashes) {
+const fingerprint = (hashes) => {
   return runHash(
     Object.entries(hashes)
       .sort(([left], [right]) => left.localeCompare(right))
@@ -61,13 +61,13 @@ function fingerprint(hashes) {
 }
 
 /** @param {JsonObject} record */
-function measurementId(record) {
+const measurementId = (record) => {
   const { measured_at: _measuredAt, ...stableRecord } = record;
   return `qh-measure:${hashText(JSON.stringify(stableRecord)).slice(0, 24)}`;
 }
 
 /** @param {string} root @param {Measurement} record @param {JsonObject} raw */
-async function storeMeasurement(root, record, raw) {
+const storeMeasurement = async (root, record, raw) => {
   const directory = resolve(root, ".quality-hardening/measurements");
   await mkdir(directory, { recursive: true });
   await writeFile(
@@ -77,7 +77,7 @@ async function storeMeasurement(root, record, raw) {
 }
 
 /** @param {string} repositoryRoot @param {string} measurementId @returns {Promise<Measurement>} */
-async function readMeasurement(repositoryRoot, measurementId) {
+const readMeasurement = async (repositoryRoot, measurementId) => {
   const shortId = measurementId.replace(/^qh-measure:/u, "");
   if (!/^[a-f0-9]{24}$/u.test(shortId)) {throw new Error(`invalid measurement ID: ${measurementId}`);}
   const path = resolve(repositoryRoot, ".quality-hardening/measurements", `${shortId}.json`),
@@ -87,12 +87,12 @@ async function readMeasurement(repositoryRoot, measurementId) {
 }
 
 /** @returns {MiRecord} */
-function emptyMiRecord() {
+const emptyMiRecord = () => {
   return { analyzer: "code-multivitals", status: "not_selected", units: [], warnings: [] };
 }
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {MiRecord} */
-function measureMi(repositoryRoot, paths) {
+const measureMi = (repositoryRoot, paths) => {
   if (paths.length === 0) {return emptyMiRecord();}
   try {
     return { ...runCodeMultivitals(repositoryRoot, paths), status: "passed" };
@@ -108,7 +108,7 @@ function measureMi(repositoryRoot, paths) {
 }
 
 /** @param {string} repositoryRoot @param {QualityConfig["analyzers"]["oxlint"]} analyzer @param {readonly string[]} paths @returns {Promise<{failure?: string, lint: LintRecord}>} */
-async function measureLint(repositoryRoot, analyzer, paths) {
+const measureLint = async (repositoryRoot, analyzer, paths) => {
   const empty = { by_rule: {}, errors: null, findings: [], status: "not_selected", warnings: null };
   if (paths.length === 0) {return { lint: empty };}
   try {
@@ -123,12 +123,12 @@ async function measureLint(repositoryRoot, analyzer, paths) {
 }
 
 /** @returns {CrapRecord} */
-function emptyCrapRecord() {
+const emptyCrapRecord = () => {
   return { analyzer: "crap-typescript", status: "not_selected", units: [], violations: [] };
 }
 
 /** @param {string} repositoryRoot @param {QualityConfig["analyzers"]["crap"]} analyzer @param {readonly string[]} paths @param {number} threshold @returns {Promise<{failure?: string, crap: CrapRecord}>} */
-async function measureCrap(repositoryRoot, analyzer, paths, threshold) {
+const measureCrap = async (repositoryRoot, analyzer, paths, threshold) => {
   if (paths.length === 0) {return { crap: emptyCrapRecord() };}
   try {
     const report = await runCrap(repositoryRoot, analyzer, paths, threshold);
@@ -142,13 +142,13 @@ async function measureCrap(repositoryRoot, analyzer, paths, threshold) {
 }
 
 /** @param {readonly QualityUnit[]} units @param {readonly QualityUnit[]} crapUnits @returns {QualityUnit[]} */
-function applyCoverage(units, crapUnits) {
+const applyCoverage = (units, crapUnits) => {
   const coverageByUnit = new Map(crapUnits.map((unit) => [`${unit.path}\0${unit.symbol}`, unit.coverage]));
   return units.map((unit) => ({ ...unit, coverage: coverageByUnit.get(`${unit.path}\0${unit.symbol}`) ?? unit.coverage }));
 }
 
 /** @param {Policy} policy @param {string} scope @param {readonly string[]} selectedPaths @param {Readonly<Record<string, string>>} hashes @param {CcccRecord} cccc @param {MiRecord} mi @param {LintRecord} lint @param {CrapRecord} crap @param {string|undefined} lintFailure @param {string|undefined} crapFailure */
-function createMeasurement(policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure) {
+const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure) => {
   const record = {
     crap: {
       analyzer: crap.analyzer,
@@ -210,7 +210,7 @@ function createMeasurement(policy, scope, selectedPaths, hashes, cccc, mi, lint,
 }
 
 /** @param {{policy: Policy, scope?: string, paths?: readonly string[]}} options @returns {Promise<Measurement>} */
-async function measureRepository({ policy, scope = "repo", paths = [] }) {
+const measureRepository = async ({ policy, scope = "repo", paths = [] }) => {
   let selectedPaths;
   if (scope === "changed" && paths.length === EMPTY_PATH_COUNT) {
     selectedPaths = await collectChangedSourceFiles(policy.repositoryRoot, policy.config);

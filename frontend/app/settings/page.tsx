@@ -27,7 +27,7 @@ const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [
   { label: "Roomy", scale: 1.1 },
 ] as const
 
-function percent(value: number): string {
+const percent = (value: number): string => {
   return `${Math.round(value * 100)}%`
 }
 
@@ -37,7 +37,7 @@ interface SettingsSectionProps {
   children: React.ReactNode
 }
 
-function SettingsSection({ title, description, children }: SettingsSectionProps) {
+const SettingsSection = ({ title, description, children }: SettingsSectionProps) => {
   return (
     <section className="rounded-md border border-border/70 bg-card/60 p-5 shadow-sm">
       <div className="mb-4">
@@ -62,7 +62,7 @@ interface SliderControlProps {
   onChange: (value: number) => void
 }
 
-function SliderControl({ label, value, min, max, step, display, disabled, onChange }: SliderControlProps) {
+const SliderControl = ({ label, value, min, max, step, display, disabled, onChange }: SliderControlProps) => {
   const id = useId()
   return (
     <div className="space-y-2">
@@ -96,7 +96,7 @@ interface ColorControlProps {
   onChange: (token: keyof AppearanceColorTokens, value: string) => void
 }
 
-function ColorControl({ label, token, value, onChange }: ColorControlProps) {
+const ColorControl = ({ label, token, value, onChange }: ColorControlProps) => {
   const id = useId()
   return (
     <div className="flex items-center justify-between gap-3">
@@ -125,7 +125,7 @@ interface SegmentedControlProps {
   onChange: (value: string) => void
 }
 
-function SegmentedControl({ label, options, value, onChange }: SegmentedControlProps) {
+const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlProps) => {
   return (
     <div className="space-y-2">
       <span className="text-sm text-foreground">{label}</span>
@@ -180,7 +180,7 @@ function useAppearanceSettingsActions(
   return { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography }
 }
 
-function useAppearanceFileActions(settings: AppearanceSettings) {
+const useAppearanceFileActions = (settings: AppearanceSettings) => {
   const handleExport = useCallback(() => {
     const anchor = document.createElement("a"),
      blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),

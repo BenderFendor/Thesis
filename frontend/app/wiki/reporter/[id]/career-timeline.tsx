@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { ReporterCareerTimeline } from "@/lib/api";
 
-function formatTimelineDate(value?: string | null): string | null {
+const formatTimelineDate = (value?: string | null): string | null => {
   if (!value) {return null;}
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {return null;}

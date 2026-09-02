@@ -94,7 +94,7 @@ const LOOP_MESSAGES = [
   }
 };
 
-function installLoopGuard() {
+const installLoopGuard = () => {
   const errorSpy = jest
       .spyOn(console, "error")
       .mockImplementation((...args: readonly unknown[]) => {
@@ -161,7 +161,7 @@ function ReadTrackingHarness({
   return <div>{history.length}</div>;
 }
 
-function StreamStartupHarness() {
+const StreamStartupHarness = () => {
   const [runs, setRuns] = useState(0),
     onUpdate = useCallback(() => {}, []),
     onComplete = useCallback(() => {}, []),

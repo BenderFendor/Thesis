@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-function kebab(seg) {
+const kebab = (seg) => {
   const stem = seg.replace(/\.(ts|tsx|js|jsx)$/, "");
   return stem.replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase() + (seg === stem ? "" : seg.slice(stem.length));
 }
@@ -17,7 +17,7 @@ const EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "too
 
  root = resolve("frontend");
 
-function collect(dir, out) {
+const collect = (dir, out) => {
   let entries;
   try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
   for (const e of entries) {
@@ -33,7 +33,7 @@ collect(root, files);
 
 const FILE_EXTS = [".ts", ".tsx", ".js", ".jsx"];
 
-function resolvesAt(rel) {
+const resolvesAt = (rel) => {
   if (existsSync(join(root, rel))) {return true;}
   for (const e of FILE_EXTS) {if (existsSync(join(root, rel + e))) {return true;}}
   for (const e of FILE_EXTS) {if (existsSync(join(root, rel, `index${  e}`))) {return true;}}

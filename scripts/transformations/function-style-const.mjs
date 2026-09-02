@@ -139,8 +139,28 @@ const
      * @param {ReadonlyMap<string, number>} bindingCounts - Binding counts per name.
      * @returns {boolean} True when the declaration must stay untouched.
      */
-    blocked(candidate, statements, bindingCounts) {
+    /**
+     * Reports whether the signature text spans multiple lines. The rebuild
+     * machinery relies on a single-line parameter list; multi-line signatures
+     * (annotations with newlines) produced invalid arrow artifacts, so they
+     * are skipped rather than guessed.
+     * @param {Candidate} candidate - Candidate declaration.
+     * @param {TsSourceFile} parsed - Parsed source file.
+     * @param {string} sourceText - Full source text.
+     * @returns {boolean} True when the signature contains a line break.
+     */
+    hasMultilineSignature(candidate, parsed, sourceText) {
+      const declaration = candidate.declaration;
+      const signatureEnd = FunctionStyleConst.signatureEnd(declaration);
+      const signature = sourceText.slice(declaration.name.end, signatureEnd);
+      return signature.includes("\n");
+    },
+
+    blocked(candidate, statements, bindingCounts, parsed, sourceText) {
       if ((bindingCounts.get(candidate.nameText) ?? EMPTY_INDEX) > FIRST_INDEX) {
+        return true;
+      }
+      if (FunctionStyleConst.hasMultilineSignature(candidate, parsed, sourceText)) {
         return true;
       }
       return FunctionStyleConst.hasEarlierReference(candidate, statements);
@@ -156,7 +176,7 @@ const
      * @returns {Replacement[]} Replacement plan, or none when locked.
      */
     candidateReplacement(candidate, parsed, sourceText, statements, bindingCounts) {
-      if (FunctionStyleConst.blocked(candidate, statements, bindingCounts)) {
+      if (FunctionStyleConst.blocked(candidate, statements, bindingCounts, parsed, sourceText)) {
         return [];
       }
       return [{

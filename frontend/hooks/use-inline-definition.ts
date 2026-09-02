@@ -15,7 +15,7 @@ interface AnchorPosition {
   readonly y: number;
 }
 
-function getSelectionAnchorPosition(selection: Selection, event: MouseEvent): AnchorPosition {
+const getSelectionAnchorPosition = (selection: Selection, event: MouseEvent): AnchorPosition => {
   try {
     const rect = selection.getRangeAt(0).getBoundingClientRect();
     return {
@@ -39,7 +39,7 @@ interface InlineDefinitionRequestState {
   setResult: Dispatch<SetStateAction<InlineDefinitionResult | null>>
 }
 
-function selectedDefinitionTerm(event: MouseEvent): string | undefined {
+const selectedDefinitionTerm = (event: MouseEvent): string | undefined => {
   if (!event.altKey) {return undefined;}
   const selection = globalThis.getSelection();
   if (!selection) {return undefined;}

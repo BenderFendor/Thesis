@@ -127,19 +127,19 @@ const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
   "--appearance-motion-speed": 1,
   };
 
-function getServerAppearanceSettings(): AppearanceSettings {
+const getServerAppearanceSettings = (): AppearanceSettings => {
   // Stable frozen reference required by useSyncExternalStore server snapshots.
   return APPEARANCE_DEFAULTS;
 }
 
-function clampNumber(value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number {
+const clampNumber = (value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
   return Math.min(range.max, Math.max(range.min, value));
 }
 
-function normalizeHexColor(value: unknown, fallback: string): string {
+const normalizeHexColor = (value: unknown, fallback: string): string => {
   if (typeof value !== "string" || !HEX_COLOR_PATTERN.test(value)) {
     return fallback;
   }
@@ -155,7 +155,7 @@ function normalizeHexColor(value: unknown, fallback: string): string {
  * keys are dropped, invalid fields fall back to their default, numbers are
  * clamped into range. Never throws.
  */
-function normalizeAppearanceSettings(input: unknown): AppearanceSettings {
+const normalizeAppearanceSettings = (input: unknown): AppearanceSettings => {
   const settings = appearanceInputGroups(input);
   if (settings.source.version !== 1) {
     return { ...APPEARANCE_DEFAULTS };
@@ -205,11 +205,11 @@ function normalizeAppearanceSettings(input: unknown): AppearanceSettings {
   };
 }
 
-function isPlainObject(value: unknown): boolean {
+const isPlainObject = (value: unknown): boolean => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function group(value: unknown): Record<string, unknown> {
+const group = (value: unknown): Record<string, unknown> => {
   return isPlainObject(value) ? (value as Record<string, unknown>) : {};
 }
 
@@ -233,7 +233,7 @@ function snapStep(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function readRawStorageValue(): string | null {
+const readRawStorageValue = (): string | null => {
   if (typeof window === "undefined") {
     return null;
   }
@@ -246,7 +246,7 @@ function readRawStorageValue(): string | null {
 
 let snapshotCache: { raw: string | null; value: AppearanceSettings } | null = null;
 
-function cacheAppearanceSettings(raw: string | null): AppearanceSettings {
+const cacheAppearanceSettings = (raw: string | null): AppearanceSettings => {
   const value = normalizeAppearanceSettings(parseAppearanceStorageValue(raw));
   snapshotCache = { raw, value };
   return value;
@@ -267,7 +267,7 @@ function parseAppearanceStorageValue(raw: string | null): unknown {
  * UseSyncExternalStore-compatible snapshot: parses and validates at most once
  * per stored value, so React sees a stable reference between renders.
  */
-function loadAppearanceSettings(): AppearanceSettings {
+const loadAppearanceSettings = (): AppearanceSettings => {
   const raw = readRawStorageValue();
   if (snapshotCache?.raw === raw) {
     return snapshotCache.value;
@@ -276,18 +276,18 @@ function loadAppearanceSettings(): AppearanceSettings {
   return cacheAppearanceSettings(raw);
 }
 
-function subscribeToAppearanceSettings(onChange: () => void): () => void {
+const subscribeToAppearanceSettings = (onChange: () => void): () => void => {
   // Reuses the shared storage bus: same-tab custom events plus cross-tab
   // Native storage events.
   return subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange);
 }
 
-function saveAppearanceSettings(settings: AppearanceSettings): boolean {
+const saveAppearanceSettings = (settings: AppearanceSettings): boolean => {
   return saveToStorage(APPEARANCE_STORAGE_KEY, settings);
 }
 
 /** Remove persisted overrides; the next snapshot falls back to defaults. */
-function resetAppearanceSettings(): boolean {
+const resetAppearanceSettings = (): boolean => {
   return removeFromStorage(APPEARANCE_STORAGE_KEY);
 }
 
@@ -297,7 +297,7 @@ interface AppliedProperty {
   neutral: boolean;
 }
 
-function colorProperties(colors: AppearanceColorsInput): AppliedProperty[] {
+const colorProperties = (colors: AppearanceColorsInput): AppliedProperty[] => {
   const entries: AppliedProperty[] = [];
   for (const token of Object.keys(COLOR_PROPERTY_BY_TOKEN) as (keyof AppearanceColorTokens)[]) {
     const propertyOrProperties = COLOR_PROPERTY_BY_TOKEN[token],
@@ -317,7 +317,7 @@ function colorProperties(colors: AppearanceColorsInput): AppliedProperty[] {
 
 type AppearanceColorsInput = AppearanceSettings["colors"];
 
-function numericProperties(settings: AppearanceSettings): AppliedProperty[] {
+const numericProperties = (settings: AppearanceSettings): AppliedProperty[] => {
   const radiusRem = `${snapStep(settings.layout.cornerRadius / 16)}rem`;
   return [
     {
@@ -366,7 +366,7 @@ function numericProperties(settings: AppearanceSettings): AppliedProperty[] {
  * default are removed instead of written, so untouched tokens keep following
  * the light/dark theme classes.
  */
-function applyAppearanceSettings(settings: AppearanceSettings): void {
+const applyAppearanceSettings = (settings: AppearanceSettings): void => {
   if (typeof document === "undefined") {
     return;
   }
@@ -392,7 +392,7 @@ function applyAppearanceSettings(settings: AppearanceSettings): void {
  * so a reload does not flash unstyled tokens. Keep the validation identical
  * to normalizeAppearanceSettings.
  */
-function buildAppearanceBootstrapScript(): string {
+const buildAppearanceBootstrapScript = (): string => {
   const d = JSON.stringify({
     colors: APPEARANCE_DEFAULTS.colors,
     cornerRadius: APPEARANCE_DEFAULTS.layout.cornerRadius,

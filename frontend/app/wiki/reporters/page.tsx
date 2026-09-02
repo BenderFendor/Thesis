@@ -24,7 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function leaningBadgeClass(leaning?: string): string {
+const leaningBadgeClass = (leaning?: string): string => {
   switch (leaning?.toLowerCase()) {
     case "left": { return "bg-blue-900/40 text-blue-300 border-blue-700/30";
     }
@@ -44,7 +44,7 @@ function leaningBadgeClass(leaning?: string): string {
   }
 }
 
-function confidenceLabel(conf?: string): string {
+const confidenceLabel = (conf?: string): string => {
   switch (conf?.toLowerCase()) {
     case "high": { return "verified";
     }
@@ -59,7 +59,7 @@ function confidenceLabel(conf?: string): string {
 
 // ── Reporter Card ────────────────────────────────────────────────────
 
-function ReporterCard({ reporter }:Readonly< { reporter: WikiReporterCard }>) {
+const ReporterCard = ({ reporter }:Readonly< { reporter: WikiReporterCard }>) => {
   return (
     <Link
       href={`/wiki/reporter/${reporter.id}`}
@@ -160,7 +160,7 @@ function ReporterCardFooter({ reporter }: Readonly<{ reporter: WikiReporterCard 
 
 // ── Main Page ────────────────────────────────────────────────────────
 
-function getLeaningOptions(reporters: readonly WikiReporterCard[]): string[] {
+const getLeaningOptions = (reporters: readonly WikiReporterCard[]): string[] => {
   const leanings = new Set<string>();
   reporters.forEach((reporter) => {
     if (reporter.political_leaning) {

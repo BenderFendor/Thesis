@@ -131,7 +131,7 @@ const AtlasFundingBiasFieldSchema = z.object({
 type AtlasFundingBiasField = z.infer<typeof AtlasFundingBiasFieldSchema>;
 type AtlasFundingAndBias = z.infer<typeof AtlasFundingAndBiasSchema>;
 
-function parseFundingAndBias(details: Record<string, unknown>): AtlasFundingAndBias | null {
+const parseFundingAndBias = (details: Record<string, unknown>): AtlasFundingAndBias | null => {
   const raw = details.funding_and_bias;
   if (!raw || typeof raw !== "object") {return null;}
   const parsed = AtlasFundingAndBiasSchema.safeParse(raw);
@@ -151,19 +151,19 @@ function parseArrayField<S extends z.ZodTypeAny>(
   });
 }
 
-function parseOwnershipChain(details: Record<string, unknown>): AtlasOwnershipChainHop[] {
+const parseOwnershipChain = (details: Record<string, unknown>): AtlasOwnershipChainHop[] => {
   return parseArrayField(details, "ownership_chain", AtlasOwnershipChainHopSchema);
 }
-function parseControls(details: Record<string, unknown>): AtlasControlsEntry[] {
+const parseControls = (details: Record<string, unknown>): AtlasControlsEntry[] => {
   return parseArrayField(details, "controls", AtlasControlsEntrySchema);
 }
-function parseSiblingsViaOwner(details: Record<string, unknown>): AtlasSiblingEntry[] {
+const parseSiblingsViaOwner = (details: Record<string, unknown>): AtlasSiblingEntry[] => {
   return parseArrayField(details, "siblings_via_owner", AtlasSiblingEntrySchema);
 }
-function parseExternalIds(details: Record<string, unknown>): AtlasExternalId[] {
+const parseExternalIds = (details: Record<string, unknown>): AtlasExternalId[] => {
   return parseArrayField(details, "external_ids", AtlasExternalIdSchema);
 }
-function parseRoleBreakdown(details: Record<string, unknown>): Record<string, number> {
+const parseRoleBreakdown = (details: Record<string, unknown>): Record<string, number> => {
   const raw = details.role_breakdown;
   if (!raw || typeof raw !== "object") {return {};}
   return Object.fromEntries(
@@ -240,7 +240,7 @@ type FundingBiasStatistic = z.infer<typeof FundingBiasStatisticSchema>;
 type FundingBiasAnalysisResponse = z.infer<typeof FundingBiasAnalysisResponseSchema>;
 type FundingBiasSpecification = z.infer<typeof FundingBiasSpecificationSchema>;
 
-function metricPercentage(metric:Readonly< { numerator: number; denominator: number }>): number {
+const metricPercentage = (metric:Readonly< { numerator: number; denominator: number }>): number => {
   if (metric.denominator <= 0) {return 0;}
   return Math.round((metric.numerator / metric.denominator) * 1000) / 10;
 }

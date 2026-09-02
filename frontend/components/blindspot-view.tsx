@@ -41,7 +41,7 @@ const CARDS_PER_LANE = 18,
   { label: "Most recent", value: "recent" },
 ]
 
-function formatDate(value?: string | null): string {
+const formatDate = (value?: string | null): string => {
   if (!value) {return "No timestamp"}
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {return value}
@@ -53,7 +53,7 @@ function formatDate(value?: string | null): string {
   })
 }
 
-function sortCards(cards:readonly  BlindspotCard[], sortMode: SortMode): BlindspotCard[] {
+const sortCards = (cards:readonly  BlindspotCard[], sortMode: SortMode): BlindspotCard[] => {
   const sorted = [...cards]
   switch (sortMode) {
     case "largest": {
@@ -73,7 +73,7 @@ function sortCards(cards:readonly  BlindspotCard[], sortMode: SortMode): Blindsp
   }
 }
 
-function coverageBar(card: BlindspotCard) {
+const coverageBar = (card: BlindspotCard) => {
   const entries: {
     key: keyof BlindspotCard["coverage_shares"]
     color: string
@@ -98,7 +98,7 @@ function coverageBar(card: BlindspotCard) {
   )
 }
 
-function cardToCluster(card: BlindspotCard): TrendingCluster {
+const cardToCluster = (card: BlindspotCard): TrendingCluster => {
   return {
     article_count: card.article_count,
     articles: card.articles.map((article) => ({
@@ -131,7 +131,7 @@ function cardToCluster(card: BlindspotCard): TrendingCluster {
   }
 }
 
-function geographySignalBadges(card: BlindspotCard) {
+const geographySignalBadges = (card: BlindspotCard) => {
   if (!card.geography_signals || card.geography_signals.length === 0) {
     return
   }
@@ -151,7 +151,7 @@ function geographySignalBadges(card: BlindspotCard) {
   )
 }
 
-function articleSourceSummary(card: BlindspotCard): string | null {
+const articleSourceSummary = (card: BlindspotCard): string | null => {
   const uniqueSources = [...new Set(card.articles.map((article) => article.source))]
   if (uniqueSources.length === 0) {
     return null
@@ -162,7 +162,7 @@ function articleSourceSummary(card: BlindspotCard): string | null {
   return remaining > 0 ? `${visibleSources} +${remaining} more` : visibleSources
 }
 
-function paywallLabel(card: BlindspotCard): string | null {
+const paywallLabel = (card: BlindspotCard): string | null => {
   const paywall = card.paywall_concentration
   if (!paywall || paywall.total_articles === 0 || paywall.status === "low") {
     return null
@@ -170,7 +170,7 @@ function paywallLabel(card: BlindspotCard): string | null {
   return `${Math.round(paywall.paywall_share * 100)}% paywalled`
 }
 
-function displayPoleLabel(label: string): string {
+const displayPoleLabel = (label: string): string => {
   return label.replace(/^For the\s+/iu, "the ").replace(/^For\s+/iu, "")
 }
 
@@ -530,7 +530,7 @@ function useBlindspotData(
   return { data, error, isLoading, laneMap, poleLabels, refetch, sortedCards }
 }
 
-function BlindspotLoadingState() {
+const BlindspotLoadingState = () => {
   return (
     <div className="space-y-12">
       <Skeleton className="h-12 w-full rounded-sm opacity-20" />

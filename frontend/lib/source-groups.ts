@@ -11,7 +11,7 @@ interface SourceGroup {
 
 const UNITED_STATES_PRIORITY_COUNTRIES = new Set(["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"])
 
-function isUnitedStatesSource(group: SourceGroup): boolean {
+const isUnitedStatesSource = (group: SourceGroup): boolean => {
   const sourceCountry = group.sourceCountry?.trim().toUpperCase()
   if (sourceCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(sourceCountry)) {
     return true
@@ -28,13 +28,13 @@ function isUnitedStatesSource(group: SourceGroup): boolean {
   })
 }
 
-function getArticleKey(article: NewsArticle): string {
+const getArticleKey = (article: NewsArticle): string => {
   const url = article.url?.trim()
   if (url) {return `url:${url}`}
   return `id:${article.id}`
 }
 
-function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup[] {
+const buildSourceGroups = (articles:readonly  NewsArticle[]): SourceGroup[] => {
   const groups = new Map<string, SourceGroup>(),
    seenArticles = new Set<string>()
 
@@ -66,7 +66,7 @@ function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup[] {
   return [...groups.values()]
 }
 
-function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): number {
+const compareSourceGroupsForGrid = (a: SourceGroup, b: SourceGroup): number => {
   const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0,
    bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
   if (aIsUnitedStates !== bIsUnitedStates) {

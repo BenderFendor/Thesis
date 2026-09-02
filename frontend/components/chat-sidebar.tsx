@@ -48,7 +48,7 @@ interface ChatListItemProps {
   toggleSelection: (id: string) => void;
 }
 
-function chatItemClassName(isSelectionMode: boolean, isSelected: boolean, isActive: boolean): string {
+const chatItemClassName = (isSelectionMode: boolean, isSelected: boolean, isActive: boolean): string => {
   if (isSelectionMode) {
     return isSelected
       ? "border-primary/40 bg-primary/10"
@@ -227,7 +227,7 @@ function ChatListItemActions({
   );
 }
 
-function ChatListItemCard(props: ChatListItemProps): React.JSX.Element {
+const ChatListItemCard = (props: ChatListItemProps): React.JSX.Element => {
   const {
     chat,
     activeId,
@@ -282,7 +282,7 @@ function ChatListItemCard(props: ChatListItemProps): React.JSX.Element {
   );
 }
 
-function ChatListItem({ chat, index, ...props }: ChatListItemProps): React.JSX.Element {
+const ChatListItem = ({ chat, index, ...props }: ChatListItemProps): React.JSX.Element => {
   return (
     <motion.li
       key={chat.id}

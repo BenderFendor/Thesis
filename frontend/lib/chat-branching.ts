@@ -27,7 +27,7 @@ function getMessageVersionGroupId(
   return message.retryOfMessageId ?? message.id;
 }
 
-function getVisibleMessages<T extends BranchableChatMessage>(messages:readonly  T[]): T[] {
+const getVisibleMessages = function <T extends BranchableChatMessage>(messages:readonly  T[]): T[] {
   return messages.filter(isVisibleConversationMessage);
 }
 

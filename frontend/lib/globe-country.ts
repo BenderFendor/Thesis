@@ -19,7 +19,7 @@ const GEOJSON_ISO_FALLBACKS: Record<string, string> = {
   NOR: "NO",
 }
 
-function getCountryIso(feature: CountryFeature | null): string | null {
+const getCountryIso = (feature: CountryFeature | null): string | null => {
   if (!feature) {return null}
   const iso = feature.properties.ISO_A2?.trim()
   if (iso && iso !== "-99") {return iso}

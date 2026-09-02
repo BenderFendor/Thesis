@@ -6,7 +6,7 @@ import type {
   TrendingCluster,
 } from "@/lib/api";
 
-function hasRealClusterImage(src?: string | null): boolean {
+const hasRealClusterImage = (src?: string | null): boolean => {
   if (!src) {return false;}
   const trimmed = src.trim();
   if (!trimmed || trimmed === "none") {return false;}

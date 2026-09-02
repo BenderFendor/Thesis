@@ -63,7 +63,7 @@ const LOCAL_TYPES = new Set(["local", "regional"]),
  PRIMARY_TYPES = new Set(["government", "academic", "primary", "official"]),
  WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]);
 
-function normalize(value?: string | null): string {
+const normalize = (value?: string | null): string => {
   return (value || "").trim().toLowerCase();
 }
 
@@ -100,14 +100,14 @@ const lensMatchers: Record<FilterLensId, (source: NewsSource) => boolean> = {
   },
 };
 
-function sourceMatchesLens(source: NewsSource, lensId: NewsLensId): boolean {
+const sourceMatchesLens = (source: NewsSource, lensId: NewsLensId): boolean => {
   if (lensId === "all") {
     return true;
   }
   return lensMatchers[lensId](source);
 }
 
-function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> {
+const getLensSourceIds = (sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> => {
   return new Set(
     sources
       .filter((source) => sourceMatchesLens(source, lensId))
@@ -115,7 +115,7 @@ function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLensId): S
   );
 }
 
-function getLensStats(sources:readonly  NewsSource[], lensId: NewsLensId) {
+const getLensStats = (sources:readonly  NewsSource[], lensId: NewsLensId) => {
   const includedIds = getLensSourceIds(sources, lensId),
    included = sources.filter(
     (source) => includedIds.has(source.id) || includedIds.has(source.slug),

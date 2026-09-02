@@ -108,7 +108,7 @@ interface StreamEventOptions {
   details?: Record<string, unknown>;
 }
 
-function applyEventError(event: PerformanceEvent, error: Error | string | undefined): void {
+const applyEventError = (event: PerformanceEvent, error: Error | string | undefined): void => {
   if (error instanceof Error) {
     event.error = error.message;
     event.stackTrace = error.stack;
@@ -131,7 +131,7 @@ function recordComponentTiming(
   componentTimings.set(component, timings);
 }
 
-function logDevelopmentEvent(event: PerformanceEvent): void {
+const logDevelopmentEvent = (event: PerformanceEvent): void => {
   if (process.env.NODE_ENV !== "development") {return;}
   const logFn = event.error ? console.error : (event.isSlow ? console.warn : console.debug);
   logFn(`[PerfLog] ${event.eventType} ${event.component}/${event.operation}`, {
@@ -181,7 +181,7 @@ function streamEventDetails(
   };
 }
 
-function logFlushSummary(sessionId: string, eventCount: number): void {
+const logFlushSummary = (sessionId: string, eventCount: number): void => {
   if (process.env.NODE_ENV !== "development" || eventCount === 0) {
     return;
   }
@@ -190,7 +190,7 @@ function logFlushSummary(sessionId: string, eventCount: number): void {
   );
 }
 
-function canFlushFrontendDebugEvents(): boolean {
+const canFlushFrontendDebugEvents = (): boolean => {
   return ENABLE_AGENTIC_LOGGING && typeof window !== "undefined";
 }
 

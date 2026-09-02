@@ -10,7 +10,7 @@ const DEFAULT_GEO_SIGNAL = {
   label: "Country mentions",
 } as const
 
-function getSourceCountry(article: NewsArticle): string | null {
+const getSourceCountry = (article: NewsArticle): string | null => {
   const country = article.source_country || article.country
   if (!country || country === "International") {
     return null
@@ -18,16 +18,16 @@ function getSourceCountry(article: NewsArticle): string | null {
   return country
 }
 
-function getArticleTimestamp(article: NewsArticle): number {
+const getArticleTimestamp = (article: NewsArticle): number => {
   const parsed = article._parsedTimestamp ?? Date.parse(article.publishedAt)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function sortByNewest(articles:readonly  NewsArticle[]): NewsArticle[] {
+const sortByNewest = (articles:readonly  NewsArticle[]): NewsArticle[] => {
   return [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
 }
 
-function dedupeArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
+const dedupeArticles = (articles:readonly  NewsArticle[]): NewsArticle[] => {
   const seenFallbackKeys = new Set<string>(),
    seenIds = new Set<number>()
 
@@ -46,7 +46,7 @@ function dedupeArticles(articles:readonly  NewsArticle[]): NewsArticle[] {
   })
 }
 
-function countDistinctSources(articles:readonly  NewsArticle[]): number {
+const countDistinctSources = (articles:readonly  NewsArticle[]): number => {
   return new Set(
     articles
       .map((article) => article.sourceId || article.source)

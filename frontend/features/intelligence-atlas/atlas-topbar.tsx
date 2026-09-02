@@ -17,16 +17,16 @@ import {
 import type { AtlasSearchItem } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";
 
-function humanize(value: string): string {
+const humanize = (value: string): string => {
   return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
-function pluralGroupLabel(type: string): string {
+const pluralGroupLabel = (type: string): string => {
   if (type === "person") {return "People";}
   return `${humanize(type)}s`;
 }
 
-function dateDistance(value?: string | null): string {
+const dateDistance = (value?: string | null): string => {
   if (!value) {return "Not indexed";}
   const timestamp = new Date(value).getTime();
   if (!Number.isFinite(timestamp)) {return "Not indexed";}

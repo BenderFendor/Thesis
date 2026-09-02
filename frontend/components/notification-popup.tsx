@@ -32,7 +32,7 @@ interface NotificationsPopupProps {
   anchorRef?: RefObject<HTMLButtonElement | null>
 }
 
-function getTypeIcon(type: Notification["type"]) {
+const getTypeIcon = (type: Notification["type"]) => {
   switch (type) {
     case "error": {
       return <XCircle className="h-4 w-4 text-primary" />

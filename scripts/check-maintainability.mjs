@@ -23,7 +23,7 @@ const EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "tar
 
  strict = args.includes("--strict");
 
-function collectFiles(dir, out) {
+const collectFiles = (dir, out) => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (EXCLUDED.has(entry.name)) {continue;}
     const full = join(dir, entry.name);
@@ -32,7 +32,7 @@ function collectFiles(dir, out) {
   }
 }
 
-function expand(pattern) {
+const expand = (pattern) => {
   const p = resolve(pattern);
   if (statSync(p).isFile()) {return [p];}
   const files = [];

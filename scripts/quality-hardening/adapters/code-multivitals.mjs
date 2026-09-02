@@ -8,14 +8,14 @@ import { sourceUnitId } from "../source-units.mjs";
 /** @typedef {Readonly<{analyzer: string, units: readonly Record<string, unknown>[], warnings: readonly string[]}>} MultivitalsReport */
 
 /** @param {string} path @param {string} repositoryRoot */
-function normalizePath(path, repositoryRoot) {
+const normalizePath = (path, repositoryRoot) => {
   const normalized = path.replaceAll("\\", "/"),
    prefix = `${repositoryRoot.replaceAll("\\", "/")}/`;
   return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized;
 }
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {MultivitalsReport} */
-function runCodeMultivitals(repositoryRoot, paths) {
+const runCodeMultivitals = (repositoryRoot, paths) => {
   if (paths.length === 0) {return { analyzer: "code-multivitals", units: [], warnings: [] };}
   const result = analyse(paths.map((path) => `${repositoryRoot}/${path}`), {}),
   /** @type {Record<string, unknown>[]} */

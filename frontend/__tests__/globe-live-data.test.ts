@@ -25,7 +25,7 @@ const DEFAULT_ARTICLE: NewsArticle = {
   url: "https://example.com/1",
 };
 
-function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+const makeArticle = (overrides: Partial<NewsArticle> = {}): NewsArticle => {
   const publishedAt = overrides.publishedAt ?? DEFAULT_ARTICLE.publishedAt,
    article = { ...DEFAULT_ARTICLE, ...overrides, publishedAt };
   return {

@@ -16,12 +16,12 @@ import { resolvedTaxonomyRule } from "./config.mjs";
 /** @typedef {Readonly<{units?: readonly Unit[], lint?: Readonly<{findings?: readonly Finding[]}> , measurement_id?: string}>} Measurement */
 
 /** @param {Readonly<Record<string, unknown>>} value */
-function taskHash(value) {
+const taskHash = (value) => {
  return `qh-task:${createHash("sha256").update(JSON.stringify(value, Object.keys(value).sort())).digest("hex").slice(0, 24)}`;
 }
 
 /** @param {string} value */
-function pathCluster(value) {
+const pathCluster = (value) => {
  return value.split("/").slice(0, -1).join("/") || ".";
 }
 
@@ -35,7 +35,7 @@ function pathCluster(value) {
  * @param {string} [groupKey] Optional cross-file grouping key.
  * @returns {TaskDraft} Updated task draft.
  */
-function addFinding(groups, factor, repairClass, clusterKey, path, finding, groupKey = path) {
+const addFinding = (groups, factor, repairClass, clusterKey, path, finding, groupKey = path) => {
  const key = `${factor}\0${clusterKey}\0${groupKey}`,
   task = groups.get(key) ?? /** @type {TaskDraft} */ ({
    allowed_lint_rules: [],
@@ -59,13 +59,13 @@ function addFinding(groups, factor, repairClass, clusterKey, path, finding, grou
 }
 
 /** @param {TaskDraft} task @param {number} value */
-function recordGate(task, value) {
+const recordGate = (task, value) => {
  task.gate_distance = Math.max(task.gate_distance ?? 0, value);
  task.hard_findings = (task.hard_findings ?? 0) + 1;
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
-function addComplexityFinding(groups, policy, unit) {
+const addComplexityFinding = (groups, policy, unit) => {
  const metrics = unit.metrics?.cccc ?? {},
   thresholds = policy.config.thresholds.cccc,
   gate = Math.max(
@@ -79,7 +79,7 @@ function addComplexityFinding(groups, policy, unit) {
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
-function addMiFinding(groups, policy, unit) {
+const addMiFinding = (groups, policy, unit) => {
  const floor = policy.config.thresholds.mi.cluster_floor,
   mi = unit.metrics?.code_multivitals?.maintainability_index;
  if (typeof mi === "number" && mi < floor) {
@@ -89,7 +89,7 @@ function addMiFinding(groups, policy, unit) {
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
-function addCrapFinding(groups, policy, unit) {
+const addCrapFinding = (groups, policy, unit) => {
  const ceiling = policy.config.thresholds.crap.cluster_ceiling,
   crap = unit.coverage?.crap;
  if (typeof crap === "number" && crap > ceiling) {
@@ -99,14 +99,14 @@ function addCrapFinding(groups, policy, unit) {
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Unit} unit */
-function addUnitFindings(groups, policy, unit) {
+const addUnitFindings = (groups, policy, unit) => {
  addComplexityFinding(groups, policy, unit);
  addMiFinding(groups, policy, unit);
  addCrapFinding(groups, policy, unit);
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {QueuePolicy} policy @param {Finding} finding */
-function addLintFinding(groups, policy, finding) {
+const addLintFinding = (groups, policy, finding) => {
  const ruleId = finding.rule;
  if (!ruleId) { throw new Error("lint finding has no rule ID"); }
  const taxonomy = resolvedTaxonomyRule(ruleId, policy.taxonomy);
@@ -120,7 +120,7 @@ function addLintFinding(groups, policy, finding) {
 }
 
 /** @param {TaskDraft} task @param {string|undefined} measurementId @returns {Task} */
-function materializeTask(task, measurementId) {
+const materializeTask = (task, measurementId) => {
  const clusterFingerprint = taskHash({ cluster_key: task.cluster_key, factor: task.factor, paths: task.paths, rules: task.rules, source_units: task.source_units });
  return {
   ...task,
@@ -137,7 +137,7 @@ function materializeTask(task, measurementId) {
 }
 
 /** @param {Map<string, TaskDraft>} groups @param {string|undefined} measurementId @param {readonly Record<string, unknown>[]} [effects] @returns {Task[]} */
-function materializeTasks(groups, measurementId, effects) {
+const materializeTasks = (groups, measurementId, effects) => {
  const tasks = [...groups.values()].map((task) => ({
   ...materializeTask(task, measurementId),
  }));
@@ -145,14 +145,14 @@ function materializeTasks(groups, measurementId, effects) {
 }
 
 /** @param {unknown} definition @returns {boolean} */
-function isTradeoff(definition) {
+const isTradeoff = (definition) => {
  if (definition === null || typeof definition !== "object" || Array.isArray(definition)) { return false; }
  const record = /** @type {Record<string, unknown>} */ (definition);
  return record.temporary_structural_tradeoff === true;
 }
 
 /** @param {Record<string, unknown>} families @param {readonly string[]} ruleIds @returns {string[]} */
-function familyTradeoffRules(families, ruleIds) {
+const familyTradeoffRules = (families, ruleIds) => {
  /** @type {string[]} */
  const rules = [];
  for (const [family, definition] of Object.entries(families)) {
@@ -166,7 +166,7 @@ function familyTradeoffRules(families, ruleIds) {
 }
 
 /** @param {Record<string, unknown>} overrides @returns {string[]} */
-function overrideTradeoffRules(overrides) {
+const overrideTradeoffRules = (overrides) => {
  /** @type {string[]} */
  const rules = [];
  for (const [id, definition] of Object.entries(overrides)) {
@@ -176,7 +176,7 @@ function overrideTradeoffRules(overrides) {
 }
 
 /** @param {Record<string, unknown>} taxonomy @returns {string[]} */
-function tradeoffRules(taxonomy) {
+const tradeoffRules = (taxonomy) => {
  const families = /** @type {Record<string, unknown>} */ (taxonomy.family_defaults ?? {}),
   overrides = /** @type {Record<string, unknown>} */ (taxonomy.overrides ?? {}),
   ruleIds = Array.isArray(taxonomy.rule_ids) ? taxonomy.rule_ids : [];
@@ -184,7 +184,7 @@ function tradeoffRules(taxonomy) {
 }
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement @param {readonly Record<string, unknown>[]} [effects] @returns {Task[]} */
-function buildTasks(policy, measurement, effects) {
+const buildTasks = (policy, measurement, effects) => {
  /** @type {Map<string, TaskDraft>} */
  const groups = new Map();
  for (const unit of measurement.units ?? []) { addUnitFindings(groups, policy, unit); }
@@ -199,7 +199,7 @@ function buildTasks(policy, measurement, effects) {
 }
 
 /** @param {string} repositoryRoot @returns {Promise<Task[]>} */
-async function readTasks(repositoryRoot) {
+const readTasks = async (repositoryRoot) => {
  const path = resolve(repositoryRoot, "docs/agents/quality-hardening/ledger/tasks.jsonl");
  try {
   return (await readFile(path, "utf8")).split("\n").filter(Boolean).map((line) => {
@@ -218,14 +218,14 @@ function stateFromLegacy(status) {
 }
 
 /** @param {string} repositoryRoot @param {readonly Task[]} tasks */
-async function writeTasks(repositoryRoot, tasks) {
+const writeTasks = async (repositoryRoot, tasks) => {
  const directory = resolve(repositoryRoot, "docs/agents/quality-hardening/ledger");
  await mkdir(directory, { recursive: true });
  await writeFile(resolve(directory, "tasks.jsonl"), tasks.map((task) => JSON.stringify(task)).join("\n") + (tasks.length > 0 ? "\n" : ""), "utf8");
 }
 
 /** @param {string} repositoryRoot @param {string} taskId @param {Readonly<Record<string, unknown>>} patch */
-async function updateTask(repositoryRoot, taskId, patch) {
+const updateTask = async (repositoryRoot, taskId, patch) => {
  const tasks = await readTasks(repositoryRoot),
   index = tasks.findIndex((task) => task.task_id === taskId);
  if (index === -1) { throw new Error(`task not found: ${taskId}`); }
@@ -246,12 +246,12 @@ const VALID_TRANSITIONS = Object.freeze({
 });
 
 /** @param {string} current @param {string} next */
-function assertTransition(current, next) {
+const assertTransition = (current, next) => {
  if (!(VALID_TRANSITIONS[current] ?? []).includes(next)) { throw new Error(`invalid task transition: ${current} -> ${next}`); }
 }
 
 /** @param {string} repositoryRoot @param {string} taskId @param {string} next @param {Readonly<Record<string, unknown>>} [extra] */
-async function transitionTask(repositoryRoot, taskId, next, extra = {}) {
+const transitionTask = async (repositoryRoot, taskId, next, extra = {}) => {
  const tasks = await readTasks(repositoryRoot),
   task = tasks.find((candidate) => candidate.task_id === taskId);
  if (!task) { throw new Error(`task not found: ${taskId}`); }
@@ -260,7 +260,7 @@ async function transitionTask(repositoryRoot, taskId, next, extra = {}) {
 }
 
 /** @param {string} repositoryRoot @param {string} taskId @param {string} path @param {string} reason */
-async function expandTaskScope(repositoryRoot, taskId, path, reason) {
+const expandTaskScope = async (repositoryRoot, taskId, path, reason) => {
  const tasks = await readTasks(repositoryRoot),
   task = tasks.find((candidate) => candidate.task_id === taskId);
  if (!task) { throw new Error(`task not found: ${taskId}`); }
@@ -274,7 +274,7 @@ async function expandTaskScope(repositoryRoot, taskId, path, reason) {
 }
 
 /** @param {string} repositoryRoot @returns {string|null} */
-function currentHead(repositoryRoot) {
+const currentHead = (repositoryRoot) => {
  try {
   return execFileSync("git", ["-C", repositoryRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
  } catch {
@@ -283,7 +283,7 @@ function currentHead(repositoryRoot) {
 }
 
 /** @param {readonly Task[]} tasks @param {readonly Task[]} previous @returns {Task[]} */
-function mergePreserved(tasks, previous) {
+const mergePreserved = (tasks, previous) => {
  return tasks.map((task) => {
   const old = previous.find((candidate) => candidate.task_id === task.task_id);
   return old ? { ...task, claimed_by: old.claimed_by, reason: old.reason, state: old.state } : task;
@@ -291,12 +291,12 @@ function mergePreserved(tasks, previous) {
 }
 
 /** @param {readonly Task[]} previous @param {Set<string>} currentIds @returns {Task[]} */
-function supersededStale(previous, currentIds) {
+const supersededStale = (previous, currentIds) => {
  return previous.filter((task) => !currentIds.has(task.task_id) && !["accepted", "stale"].includes(task.state)).map((task) => ({ ...task, reason: "superseded by queue rebuild", state: "stale" }));
 }
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement */
-async function rebuildQueue(policy, measurement) {
+const rebuildQueue = async (policy, measurement) => {
  const effects = await readLedger(policy.repositoryRoot, "effects.jsonl"),
   tasks = buildTasks(policy, measurement, effects),
   previous = await readTasks(policy.repositoryRoot),

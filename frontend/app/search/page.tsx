@@ -196,7 +196,7 @@ const ARTICLE_DESCRIPTION_FALLBACK = "No description",
   ).optional(),
 });
 
-function parseResearchStreamMessage(raw: string): ResearchStreamMessage {
+const parseResearchStreamMessage = (raw: string): ResearchStreamMessage => {
   const parsed = UnknownResearchMessageSchema.safeParse(JSON.parse(raw));
   if (!parsed.success) {
     throw new Error("Research stream message has no valid type.");
@@ -204,7 +204,7 @@ function parseResearchStreamMessage(raw: string): ResearchStreamMessage {
   return parsed.data;
 }
 
-function parseStructuredArticles(raw: string): StructuredArticlesPayload | undefined {
+const parseStructuredArticles = (raw: string): StructuredArticlesPayload | undefined => {
   try {
     const parsed = StructuredArticlesPayloadSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
@@ -216,7 +216,7 @@ function parseStructuredArticles(raw: string): StructuredArticlesPayload | undef
   }
 }
 
-function parseStructuredArticleBlock(raw: string): StructuredArticlesPayload | undefined {
+const parseStructuredArticleBlock = (raw: string): StructuredArticlesPayload | undefined => {
   const match = STRUCTURED_ARTICLE_BLOCK_PATTERN.exec(raw),
    json = match?.groups?.json;
   if (json === undefined || json.length === FIRST_INDEX) {
@@ -327,7 +327,7 @@ function processResearchComplete(
   context.focusInput();
 }
 
-function normalizeResearchError(message: string): string {
+const normalizeResearchError = (message: string): string => {
   const lowered = message.toLowerCase();
   if (
     lowered.includes("rate limit") ||
@@ -473,7 +473,7 @@ async function consumeResearchStream(
   }
 }
 
-function finishAbortedResearch(context: Readonly<ResearchStreamContext>): void {
+const finishAbortedResearch = (context: Readonly<ResearchStreamContext>): void => {
   updateAssistantMessage(context, (message) => ({
     ...message,
     content: message.content || "Research cancelled.",
@@ -1449,7 +1449,7 @@ interface MessageBodyProps {
   readonly onOpenArticle: (article: ReadonlyNewsArticle) => void;
 }
 
-function getMessageClass(message: Message): string {
+const getMessageClass = (message: Message): string => {
   if (message.type === "user") {
     return "border-border/5 bg-[var(--news-bg-secondary)]/30 ml-20";
   }
@@ -2070,7 +2070,7 @@ const SourceGroupEntry = ({
   );
 };
 
-function ResearchSidePanels(props: ResearchSidePanelsProps) {
+const ResearchSidePanels = (props: ResearchSidePanelsProps) => {
   const { thinkingSteps, latestAssistantMessage, latestUserMessage, latestSemanticMessage, groupedSources, expandedSourceIds, onToggleSource, onOpenArticle } = props;
   return (
     <div className="space-y-6 px-5 py-6 md:px-6">
@@ -2321,7 +2321,7 @@ const WorkspaceHomeLink = () => (
   );
 };
 
-function WorkspaceHeader(props: WorkspaceHeaderProps) {
+const WorkspaceHeader = (props: WorkspaceHeaderProps) => {
   const { sidebarCollapsed, onToggleSidebar, isEmpty, activeBriefTitle, messageCount, latestAssistantMessage, isSearching, onStop } = props;
   return (
           <header className="sticky top-0 z-20 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-2xl">
