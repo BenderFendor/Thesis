@@ -5,7 +5,8 @@ import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { LiveNewsToolbar } from "./live-news-toolbar"
 import { StreamCard } from "./stream-card"
 import { getDefaultSources } from "@/lib/live-news-sources"
-import { useLiveNewsPreferences } from "@/hooks/use-live-news-preferences"
+import { useLiveNewsPreferences, type LiveNewsPreferences } from "@/hooks/use-live-news-preferences"
+import type { Dispatch, SetStateAction } from "react"
 import type { NewsArticle } from "@/lib/api"
 
 interface LiveNewsViewProps {
@@ -15,6 +16,88 @@ interface LiveNewsViewProps {
 
 const MAX_LOADED_IFRAMES = 3,
  MIN_DESKTOP_WIDTH = 1024
+
+type LiveNewsLayout = LiveNewsPreferences["layout"]
+type LiveNewsPreferencesUpdater = (patch: Partial<LiveNewsPreferences>) => void
+
+const gridTemplateFor = (layout: LiveNewsLayout, sourceCount: number): string => {
+  if (layout === "2x2") {return "repeat(2, 1fr)";}
+  if (layout === "3x3") {return "repeat(3, 1fr)";}
+  return sourceCount <= 4 ? "repeat(2, 1fr)" : "repeat(3, 1fr)";
+}
+
+const useLiveNewsHandlers = (
+  prefs: LiveNewsPreferences,
+  updatePrefs: LiveNewsPreferencesUpdater,
+  fullscreenId: string | null,
+  setFullscreenId: React.Dispatch<React.SetStateAction<string | null>>,
+  setLoadedSources: React.Dispatch<React.SetStateAction<Set<string>>>,
+) => {
+  const handleBecameVisible = useCallback(
+    (sourceId: string) => {
+      setLoadedSources((prev) => {
+        const next = new Set(prev)
+        next.add(sourceId)
+        if (next.size > MAX_LOADED_IFRAMES) {
+          const toRemove = [...next].slice(0, next.size - MAX_LOADED_IFRAMES)
+          for (const id of toRemove) {
+            next.delete(id)
+          }
+        }
+        return next
+      })
+    },
+    [],
+  ),
+   handleBecameHidden = useCallback((sourceId: string) => {
+    setLoadedSources((prev) => {
+      const next = new Set(prev)
+      next.delete(sourceId)
+      return next
+    })
+  }, []),
+   handleToggleMute = useCallback((_sourceId: string) => {
+    if (prefs.muteState === "all-muted") {
+      updatePrefs({ muteState: "per-source" })
+    } else {
+      updatePrefs({ muteState: "all-muted" })
+    }
+  }, [prefs.muteState, updatePrefs]),
+   handleCloseSource = useCallback((sourceId: string) => {
+    const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
+    updatePrefs({ activeSourceIds: nextIds })
+    if (fullscreenId === sourceId) {setFullscreenId(null)}
+  }, [fullscreenId, prefs.activeSourceIds, setFullscreenId, updatePrefs]),
+   handleDoubleClick = useCallback((sourceId: string) => {
+    setFullscreenId((prev) => (prev === sourceId ? null : sourceId))
+  }, [setFullscreenId]),
+   handleMuteAll = useCallback(() => {
+    updatePrefs({ muteState: "all-muted" })
+  }, [updatePrefs]),
+   handleUnmuteAll = useCallback(() => {
+    updatePrefs({ muteState: "per-source" })
+  }, [updatePrefs]),
+   handleToggleSource = useCallback((sourceId: string) => {
+    const nextIds = prefs.activeSourceIds.includes(sourceId)
+      ? prefs.activeSourceIds.filter((id) => id !== sourceId)
+      : [...prefs.activeSourceIds, sourceId]
+    updatePrefs({ activeSourceIds: nextIds })
+  }, [prefs.activeSourceIds, updatePrefs]),
+   mutedForSource = useCallback((_sourceId: string) => prefs.muteState === "all-muted", [prefs.muteState])
+
+  return {
+    handleBecameHidden,
+    handleBecameVisible,
+    handleCloseSource,
+    handleDoubleClick,
+    handleMuteAll,
+    handleToggleMute,
+    handleToggleSource,
+    handleUnmuteAll,
+    mutedForSource,
+    setLoadedSources,
+  }
+}
 
 export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNewsViewProps) {
   const [prefs, updatePrefs, resetToDefaults] = useLiveNewsPreferences(),
@@ -45,83 +128,19 @@ export function LiveNewsView({ articles: _articles, loading: _loading }: LiveNew
     return () =>{  globalThis.removeEventListener("keydown", handleKey); }
   }, [])
 
-  const handleBecameVisible = useCallback((sourceId: string) => {
-    setLoadedSources((prev) => {
-      const next = new Set(prev)
-      next.add(sourceId)
-      if (next.size > MAX_LOADED_IFRAMES) {
-        const toRemove = [...next].slice(0, next.size - MAX_LOADED_IFRAMES)
-        for (const id of toRemove) {
-          next.delete(id)
-        }
-      }
-      return next
-    })
-  }, []),
+  const {
+    handleBecameHidden,
+    handleBecameVisible,
+    handleCloseSource,
+    handleDoubleClick,
+    handleMuteAll,
+    handleToggleMute,
+    handleToggleSource,
+    handleUnmuteAll,
+    mutedForSource,
+  } = useLiveNewsHandlers(prefs, updatePrefs, fullscreenId, setFullscreenId, setLoadedSources),
 
-   handleBecameHidden = useCallback((sourceId: string) => {
-    setLoadedSources((prev) => {
-      const next = new Set(prev)
-      next.delete(sourceId)
-      return next
-    })
-  }, []),
-
-   handleToggleMute = useCallback(
-    (_sourceId: string) => {
-      if (prefs.muteState === "all-muted") {
-        updatePrefs({ muteState: "per-source" })
-      } else {
-        updatePrefs({ muteState: "all-muted" })
-      }
-    },
-    [prefs.muteState, updatePrefs],
-  ),
-
-   handleCloseSource = useCallback(
-    (sourceId: string) => {
-      const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
-      updatePrefs({ activeSourceIds: nextIds })
-      if (fullscreenId === sourceId) {setFullscreenId(null)}
-    },
-    [prefs.activeSourceIds, fullscreenId, updatePrefs],
-  ),
-
-   handleDoubleClick = useCallback((sourceId: string) => {
-    setFullscreenId((prev) => (prev === sourceId ? null : sourceId))
-  }, []),
-
-   handleMuteAll = useCallback(() => {
-    updatePrefs({ muteState: "all-muted" })
-  }, [updatePrefs]),
-
-   handleUnmuteAll = useCallback(() => {
-    updatePrefs({ muteState: "per-source" })
-  }, [updatePrefs]),
-
-   handleToggleSource = useCallback(
-    (sourceId: string) => {
-      const nextIds = prefs.activeSourceIds.includes(sourceId)
-        ? prefs.activeSourceIds.filter((id) => id !== sourceId)
-        : [...prefs.activeSourceIds, sourceId]
-      updatePrefs({ activeSourceIds: nextIds })
-    },
-    [prefs.activeSourceIds, updatePrefs],
-  ),
-
-   mutedForSource = useCallback(
-    (_sourceId: string) => prefs.muteState === "all-muted",
-    [prefs.muteState],
-  ),
-
-   gridTemplateColumns =
-    prefs.layout === "2x2"
-      ? "repeat(2, 1fr)"
-      : prefs.layout === "3x3"
-        ? "repeat(3, 1fr)"
-        : activeSources.length <= 4
-          ? "repeat(2, 1fr)"
-          : "repeat(3, 1fr)"
+   gridTemplateColumns = gridTemplateFor(prefs.layout, activeSources.length)
 
   if (!isDesktop) {
     return (
