@@ -1381,5 +1381,5 @@ const computePolygonHeatFast = (polygon: Readonly<CountryFeature>, context: Read
  restorePlaceholderGlobeTextures = (uniforms: GlobeUniforms): void => {
   void uniforms
 }
-export { InteractiveGlobe };
+export { InteractiveGlobe, computePolygonHeatFast };
 export type { EarthLightingMode, InteractiveGlobeComponent };
