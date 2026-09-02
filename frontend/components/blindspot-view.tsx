@@ -463,6 +463,69 @@ function MobileBlindspotTile({
   )
 }
 
+function BlindspotLaneCards({
+  cards,
+  emptyLabel,
+  expanded,
+  onExpand,
+  onOpen,
+  poleLabels,
+}: Readonly<{
+  cards: readonly BlindspotCard[];
+  emptyLabel: string;
+  expanded: boolean;
+  onExpand: () => void;
+  onOpen: (card: BlindspotCard) => void;
+  poleLabels: { pole_a: string; pole_b: string };
+}>) {
+  const leadCard = cards[0],
+   visibleCount = expanded ? cards.length : DEFAULT_VISIBLE_PER_LANE,
+   listCards = cards.slice(1, visibleCount),
+   hiddenCount = Math.max(cards.length - visibleCount, 0)
+
+  if (!leadCard) {
+    return (
+      <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">
+        {emptyLabel}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 lg:hidden">
+        {cards.slice(0, visibleCount).map((card) => (
+          <MobileBlindspotTile
+            key={card.cluster_id}
+            card={card}
+            laneId={card.lane}
+            poleLabels={poleLabels}
+            onOpen={onOpen}
+          />
+        ))}
+      </div>
+      <div className="hidden lg:flex lg:flex-col lg:space-y-8">
+        <LeadStory card={leadCard} laneId={leadCard.lane} poleLabels={poleLabels} onOpen={onOpen} />
+        <div className="flex flex-col gap-3">
+          {listCards.map((card) => (
+            <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={onOpen} />
+          ))}
+        </div>
+      </div>
+      {hiddenCount > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onExpand}
+          className="w-full rounded-xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
+        >
+          Show {hiddenCount} more blindspots
+        </Button>
+      ) : null}
+    </>
+  )
+}
+
 export function BlindspotView({
   category,
   sources,
@@ -543,59 +606,19 @@ export function BlindspotView({
     }
   }, [data])
 
-  function renderLaneCards(
+  function laneCards(
     laneId: BlindspotLane["id"],
     emptyLabel: string,
   ) {
-    const cards = laneMap.get(laneId) ?? [],
-     leadCard = cards[0],
-     isExpanded = expandedLanes[laneId],
-     visibleCount = isExpanded ? cards.length : DEFAULT_VISIBLE_PER_LANE,
-     listCards = cards.slice(1, visibleCount),
-     hiddenCount = Math.max(cards.length - visibleCount, 0)
-
-    if (!leadCard) {
-      return (
-        <div className="bg-white/[0.01] py-12 text-center rounded-2xl text-xs font-mono text-muted-foreground/20">
-          {emptyLabel}
-        </div>
-      )
-    }
-
     return (
-      <>
-        <div className="grid grid-cols-2 gap-2 lg:hidden">
-          {cards.slice(0, visibleCount).map((card) => (
-            <MobileBlindspotTile
-              key={card.cluster_id}
-              card={card}
-              laneId={laneId}
-              poleLabels={poleLabels}
-              onOpen={setSelectedCard}
-            />
-          ))}
-        </div>
-        <div className="hidden lg:flex lg:flex-col lg:space-y-8">
-          <LeadStory card={leadCard} laneId={laneId} poleLabels={poleLabels} onOpen={setSelectedCard} />
-          <div className="flex flex-col gap-3">
-          {listCards.map((card) => (
-            <StoryRow key={card.cluster_id} card={card} poleLabels={poleLabels} onOpen={setSelectedCard} />
-          ))}
-          </div>
-        </div>
-        {hiddenCount > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>{ 
-              setExpandedLanes((current) => ({ ...current, [laneId]: true })); }
-            }
-            className="w-full rounded-xl border-white/10 bg-white/[0.02] py-6 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground"
-          >
-            Show {hiddenCount} more blindspots
-          </Button>
-        ) : null}
-      </>
+      <BlindspotLaneCards
+        cards={laneMap.get(laneId) ?? []}
+        emptyLabel={emptyLabel}
+        expanded={expandedLanes[laneId] ?? false}
+        onExpand={() => {setExpandedLanes((current) => ({ ...current, [laneId]: true }));}}
+        onOpen={setSelectedCard}
+        poleLabels={poleLabels}
+      />
     )
   }
 
@@ -719,7 +742,7 @@ export function BlindspotView({
               </div>
 
               <div className="flex flex-col space-y-3 lg:space-y-8">
-                {renderLaneCards("pole_b", "No significant blindspots detected")}
+                {laneCards("pole_b", "No significant blindspots detected")}
               </div>
             </motion.section>
 
@@ -738,7 +761,7 @@ export function BlindspotView({
               </div>
 
               <div className="flex flex-col space-y-3 lg:space-y-8">
-                {renderLaneCards("shared", "No balanced signals detected")}
+                {laneCards("shared", "No balanced signals detected")}
               </div>
             </motion.section>
 
@@ -761,7 +784,7 @@ export function BlindspotView({
               </div>
 
               <div className="flex flex-col space-y-3 lg:space-y-8">
-                {renderLaneCards("pole_a", "No significant blindspots detected")}
+                {laneCards("pole_a", "No significant blindspots detected")}
               </div>
             </motion.section>
           </div>
