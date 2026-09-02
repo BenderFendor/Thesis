@@ -38,5 +38,5 @@ export function InlineDefinitionPopover({
   );
 }
 
-export default InlineDefinitionPopover;
+
 // Single component kept
