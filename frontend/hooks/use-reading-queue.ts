@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import type { NewsArticle} from "@/lib/api";
-import { API_BASE_URL,
-  analyzeArticle,
+import {
   addToReadingQueue as apiAddToQueue,
-  removeFromReadingQueueByUrl as apiRemoveFromQueue } from "@/lib/api";
+  analyzeArticle,
+  API_BASE_URL,
+  removeFromReadingQueueByUrl as apiRemoveFromQueue,
+} from "@/lib/api";
+import type { NewsArticle } from "@/lib/api";
 import { toast } from "sonner";
 
-const READING_QUEUE_STORAGE_KEY = "readingQueue",
+const WORDS_PER_MINUTE_READING = 230,
+ READING_QUEUE_STORAGE_KEY = "readingQueue",
  USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true";
 
 // Event emitter for cross-component updates
@@ -69,7 +72,7 @@ async function preloadArticleData(
     const wordCount = fullText.trim().split(/\s+/u).length;
     enhancedArticle = withQueueData(enhancedArticle, {
       fullText,
-      readingTimeMinutes: Math.ceil(wordCount / 230),
+      readingTimeMinutes: Math.ceil(wordCount / WORDS_PER_MINUTE_READING),
     });
   }
 
@@ -180,7 +183,8 @@ const useQueueNavigation = (
     (currentIndex: number) => {
       const nextIndex = currentIndex + 1;
       if (nextIndex >= queuedArticles.length) {
-        return; // No next article
+        // No next article
+        return;
       }
       return queuedArticles[nextIndex];
     },
@@ -190,7 +194,8 @@ const useQueueNavigation = (
     (currentIndex: number) => {
       const prevIndex = currentIndex - 1;
       if (prevIndex < 0) {
-        return; // No previous article
+        // No previous article
+        return;
       }
       return queuedArticles[prevIndex];
     },
