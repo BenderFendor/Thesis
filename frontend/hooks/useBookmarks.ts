@@ -47,62 +47,62 @@ const bookmarkListeners = new Set<BookmarkListener>(),
     return { current, wasBookmarked }
   },
   notifyBookmarkListeners = (ids: ReadonlySet<number>) => {
-    bookmarkListeners.forEach((listener) =>{  listener(new Set(ids)); })
+    bookmarkListeners.forEach((listener) => { listener(new Set(ids)); })
   };
 
 export const useBookmarks = () => {
-    const [bookmarkIds, setBookmarkIds] = useState<Set<number>>(
-        bookmarkCache === null || bookmarkCache === undefined
-          ? new Set()
-          : new Set(bookmarkCache),
-      ),
-      [isLoaded, setIsLoaded] = useState(bookmarkLoaded)
+  const [bookmarkIds, setBookmarkIds] = useState<Set<number>>(
+    bookmarkCache === null || bookmarkCache === undefined
+      ? new Set()
+      : new Set(bookmarkCache),
+  ),
+    [isLoaded, setIsLoaded] = useState(bookmarkLoaded)
 
-    useEffect(() => {
-      const listener = (ids: ReadonlySet<number>) => {
-        setBookmarkIds(new Set(ids))
-        setIsLoaded(true)
-      }
-      bookmarkListeners.add(listener)
-
-      if (!bookmarkLoaded) {
-        void loadBookmarksFromApi()
-      }
-
-      return () => {
-        bookmarkListeners.delete(listener)
-      }
-    }, [])
-
-    const isBookmarked = useCallback(
-        (articleId: number) => bookmarkIds.has(articleId),
-        [bookmarkIds],
-      ),
-      refresh = useCallback(() => {
-        void loadBookmarksFromApi()
-      }, []),
-      toggleBookmark = useCallback(
-        async (articleId: number) => {
-          if (!articleId) {
-            return
-          }
-          const { current, wasBookmarked } = toggleBookmarkState(articleId)
-          try {
-            await persistBookmark(wasBookmarked, articleId)
-          } catch (error) {
-            console.error("Failed to toggle bookmark:", error)
-            bookmarkCache = new Set(current)
-            notifyBookmarkListeners(bookmarkCache)
-          }
-        },
-        [bookmarkIds],
-      )
-
-    return {
-      bookmarkIds,
-      isBookmarked,
-      isLoaded,
-      refresh,
-      toggleBookmark,
+  useEffect(() => {
+    const listener = (ids: ReadonlySet<number>) => {
+      setBookmarkIds(new Set(ids))
+      setIsLoaded(true)
     }
+    bookmarkListeners.add(listener)
+
+    if (!bookmarkLoaded) {
+      void loadBookmarksFromApi()
+    }
+
+    return () => {
+      bookmarkListeners.delete(listener)
+    }
+  }, [])
+
+  const isBookmarked = useCallback(
+    (articleId: number) => bookmarkIds.has(articleId),
+    [bookmarkIds],
+  ),
+    refresh = useCallback(() => {
+      void loadBookmarksFromApi()
+    }, []),
+    toggleBookmark = useCallback(
+      async (articleId: number) => {
+        if (!articleId) {
+          return
+        }
+        const { current, wasBookmarked } = toggleBookmarkState(articleId)
+        try {
+          await persistBookmark(wasBookmarked, articleId)
+        } catch (error) {
+          console.error("Failed to toggle bookmark:", error)
+          bookmarkCache = new Set(current)
+          notifyBookmarkListeners(bookmarkCache)
+        }
+      },
+      [],
+    )
+
+  return {
+    bookmarkIds,
+    isBookmarked,
+    isLoaded,
+    refresh,
+    toggleBookmark,
   }
+}

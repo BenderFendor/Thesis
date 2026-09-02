@@ -39,7 +39,7 @@ const useLiveNewsHandlers = (
       next.delete(sourceId)
       return next
     })
-  }, []),
+  }, [setLoadedSources]),
    handleBecameVisible = useCallback(
     (sourceId: string) => {
       setLoadedSources((prev) => {
@@ -54,7 +54,7 @@ const useLiveNewsHandlers = (
         return next
       })
     },
-    [],
+    [setLoadedSources],
   ),
    handleCloseSource = useCallback((sourceId: string) => {
     const nextIds = prefs.activeSourceIds.filter((id) => id !== sourceId)
