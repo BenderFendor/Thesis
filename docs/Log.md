@@ -1,5 +1,16 @@
 # Log
 
+## 2026-09-02: NewsPage cutover and worktree reconciliation
+
+- `Page()` now renders `NewsPageController` (useNewsPageController ->
+  buildNewsPageLayoutProps); the 268-line monolithic NewsPage with duplicated
+  state/query/handlers deleted. tsc 0, page-adjacent suites 14/14, file MI min
+  17.7 -> 40 (next min: useNewsPageQueryData 40.4).
+- Worktree reconciled: committed all previous-session integration state
+  (verify.sh delegation, package scripts, .gitignore, .oxlintrc resolutions,
+  scripts/check-complexity, codemod, traces) and the Phase 6 retirement
+  deletions. `git status` clean; ledger records `qh-campaign-04`.
+
 ## 2026-09-02: Reading queue cluster floor crossed (MI 51)
 
 - `useReadingQueueController` fully decomposed into cohesive hooks: storage
