@@ -1338,6 +1338,21 @@ interface NewsPageViewData extends NewsPageSortedData {
   sourceCount: number
 }
 
+function usePageNotificationState(
+  notifications: Notification[],
+) {
+  const dismissed = useDismissedNotifications(notifications),
+   actionableNotificationCount = dismissed.visibleNotifications.filter(
+    (item) => item.type === "error" || item.type === "warning",
+  ).length
+  return {
+    actionableNotificationCount,
+    dismissAll: dismissed.dismissAll,
+    dismissOne: dismissed.dismissOne,
+    visibleNotifications: dismissed.visibleNotifications,
+  }
+}
+
 function useNewsPageViewData(
   state: Pick<NewsPageState, "activeCategory" | "currentView" | "isFilterActive" | "selectedSources" | "sortMode" | "isFavorite" | "lens">,
   queries: Pick<NewsPageQueryData, "browseIndexArticles" | "browseIndexTotalCount" | "browseIndexLoading" | "browseIndexError" | "sources" | "cacheStatus">,
@@ -1361,10 +1376,12 @@ function useNewsPageViewData(
       loading,
       selectedSourceCount: state.selectedSources.size,
     }),
-    dismissed = useDismissedNotifications(notifications),
-    actionableNotificationCount = dismissed.visibleNotifications.filter(
-      (item) => item.type === "error" || item.type === "warning",
-    ).length,
+    {
+      actionableNotificationCount,
+      dismissAll,
+      dismissOne,
+      visibleNotifications,
+    } = usePageNotificationState(notifications),
     leadArticle = sorted.activeViewArticles[0] ?? null,
     articleCount = getSharedArticleCount(
       queries.cacheStatus,
@@ -1378,13 +1395,13 @@ function useNewsPageViewData(
     ...sorted,
     actionableNotificationCount,
     articleCount,
-    dismissAll: dismissed.dismissAll,
-    dismissOne: dismissed.dismissOne,
+    dismissAll,
+    dismissOne,
     filterActive,
     leadArticle,
     loading,
     sourceCount,
-    visibleNotifications: dismissed.visibleNotifications,
+    visibleNotifications,
   }
 }
 
