@@ -55,6 +55,46 @@ interface HighlightHistoryState {
   readonly previousState: LocalHighlight[] | undefined
 }
 
+function useArticleLanguageDiagnostics({
+  article,
+  articleTextForMetrics,
+  isOpen,
+  services,
+  wordCount,
+  aiAnalysis,
+}: Readonly<{
+  article: { source: string; title: string; url: string };
+  articleTextForMetrics: string;
+  isOpen: boolean;
+  services: NonNullable<ArticleDetailModalProps["services"]>;
+  wordCount: number;
+  aiAnalysis: ArticleAnalysis | null | undefined;
+}>) {
+  const {
+    data: languageDiagnostics,
+    isFetching: languageDiagnosticsLoading,
+    error: languageDiagnosticsQueryError,
+  } = useQuery<LanguageDiagnostics>({
+    enabled: isOpen && wordCount >= MIN_LANGUAGE_DIAGNOSTIC_WORD_COUNT,
+    queryFn: () =>
+      services.fetchLanguageDiagnostics({
+        sourceName: article.source,
+        text: articleTextForMetrics,
+        title: article.title,
+        url: article.url,
+      }),
+    queryKey: ["article-language-diagnostics", article.url, articleTextForMetrics.slice(EMPTY_COUNT, ARTICLE_TEXT_PREVIEW_LENGTH)],
+    retry: 1,
+    staleTime: MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * STALE_TIME_MINUTES,
+  })
+
+  return {
+    languageDiagnostics: getRenderedLanguageDiagnostics(aiAnalysis, languageDiagnostics),
+    languageDiagnosticsError: getLanguageDiagnosticsError(languageDiagnosticsQueryError, languageDiagnostics),
+    languageDiagnosticsLoading,
+  }
+}
+
 const AGENTIC_HISTORY_LIMIT = 5,
 
  AGENTIC_MAX_RESULTS = 10,
@@ -248,23 +288,17 @@ const AGENTIC_HISTORY_LIMIT = 5,
     wordCount,
   } = getArticleDetailArticleState(currentArticle, fullArticleText),
    {
-    data: languageDiagnostics,
-    isFetching: languageDiagnosticsLoading,
-    error: languageDiagnosticsQueryError,
-  } = useQuery<LanguageDiagnostics>({
-    enabled: isOpen && wordCount >= MIN_LANGUAGE_DIAGNOSTIC_WORD_COUNT,
-    queryFn: () =>
-      services.fetchLanguageDiagnostics({
-        sourceName: currentArticle.source,
-        text: articleTextForMetrics,
-        title: currentArticle.title,
-        url: currentArticle.url,
-      }),
-    queryKey: ["article-language-diagnostics", currentArticle.url, articleTextForMetrics.slice(EMPTY_COUNT, ARTICLE_TEXT_PREVIEW_LENGTH)],
-    retry: 1,
-    staleTime: MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * STALE_TIME_MINUTES,
+    languageDiagnostics,
+    languageDiagnosticsError,
+    languageDiagnosticsLoading,
+  } = useArticleLanguageDiagnostics({
+    article: currentArticle,
+    articleTextForMetrics,
+    aiAnalysis,
+    isOpen,
+    services,
+    wordCount,
   }),
-   renderedLanguageDiagnostics = getRenderedLanguageDiagnostics(aiAnalysis, languageDiagnostics),
    openSourceWiki = () => {
     openModalWikiPanel({ available: hasSourceWiki, setOpen: setWikiPanelOpen, setTab: setWikiPanelTab, tab: "source" })
   },
@@ -382,8 +416,8 @@ const AGENTIC_HISTORY_LIMIT = 5,
     isFavorite,
     isLiked,
     isOpen,
-    languageDiagnostics: renderedLanguageDiagnostics,
-    languageDiagnosticsError: getLanguageDiagnosticsError(languageDiagnosticsQueryError, renderedLanguageDiagnostics),
+    languageDiagnostics,
+    languageDiagnosticsError,
     languageDiagnosticsLoading,
     layoutIdPrefix,
     markAsRead,
