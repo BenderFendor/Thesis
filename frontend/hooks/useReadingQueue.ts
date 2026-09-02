@@ -52,29 +52,31 @@ async function preloadAiAnalysis(article: NewsArticle): Promise<Awaited<ReturnTy
   }
 }
 
+const withQueueData = (article: NewsArticle, patch: Readonly<Record<string, unknown>>): NewsArticle => {
+  const enhanced = { ...article };
+  enhanced._queueData = { ...(enhanced._queueData ?? {}), ...patch };
+  return enhanced;
+};
+
 async function preloadArticleData(
   article: NewsArticle,
   options:Readonly< { includeAiAnalysis?: boolean }> = {}
 ): Promise<NewsArticle> {
-  const { includeAiAnalysis = false } = options,
-   enhancedArticle = { ...article },
-   fullText = await preloadFullText(article);
+  const { includeAiAnalysis = false } = options;
+  let enhancedArticle = { ...article };
+  const fullText = await preloadFullText(article);
   if (fullText) {
-    const wordCount = fullText.trim().split(/\s+/u).length,
-     readingTimeMinutes = Math.ceil(wordCount / 230);
-    enhancedArticle._queueData ??= {};
-    enhancedArticle._queueData = {
-      ...enhancedArticle._queueData,
+    const wordCount = fullText.trim().split(/\s+/u).length;
+    enhancedArticle = withQueueData(enhancedArticle, {
       fullText,
-      readingTimeMinutes,
-    };
+      readingTimeMinutes: Math.ceil(wordCount / 230),
+    });
   }
 
   if (includeAiAnalysis) {
     const analysis = await preloadAiAnalysis(article);
     if (analysis) {
-      enhancedArticle._queueData ??= {};
-      enhancedArticle._queueData = { ...enhancedArticle._queueData, aiAnalysis: analysis };
+      enhancedArticle = withQueueData(enhancedArticle, { aiAnalysis: analysis });
     }
   }
 
@@ -84,79 +86,18 @@ async function preloadArticleData(
   return enhancedArticle;
 }
 
-const useQueuedArticlesStorage = () => {
-  const [queuedArticles, setQueuedArticles] = useState<NewsArticle[]>([]),
-   [isLoaded, setIsLoaded] = useState(false);
+const useQueueIndexers = (
+  queuedArticles: readonly NewsArticle[],
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+) => {
+  const { getArticleIndex, getCurrentArticle, isArticleInQueue } = useQueueSelectors(queuedArticles),
+   { goNext, goPrev, markAsRead } = useQueueNavigation(queuedArticles, setQueuedArticles);
+  return { getArticleIndex, getCurrentArticle, goNext, goPrev, isArticleInQueue, markAsRead };
+}
 
-  useEffect(() => {
-    // Prevent SSR errors by only accessing localStorage on the client
-    if (typeof window !== "undefined") {
-      try {
-        const storedItems = globalThis.localStorage.getItem(
-          READING_QUEUE_STORAGE_KEY
-        );
-        if (storedItems) {
-          const parsed = JSON.parse(storedItems);
-          setQueuedArticles(parsed);
-        }
-      } catch (error) {
-        console.error("Error reading from localStorage:", error);
-        toast.error("Could not load your reading queue.");
-      } finally {
-        setIsLoaded(true);
-      }
-
-      // Listen for storage changes from other tabs/windows
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === READING_QUEUE_STORAGE_KEY && e.newValue) {
-          try {
-            const updated = JSON.parse(e.newValue);
-            setQueuedArticles(updated);
-            notifyQueueListeners(updated);
-          } catch (error) {
-            console.error("Error parsing storage change:", error);
-          }
-        }
-      },
-
-      // Subscribe to our own event emitter for same-tab updates
-       unsubscribe = subscribeToQueueChanges((articles) => {
-        setQueuedArticles((current) =>
-          areQueueArticlesEqual(current, articles) ? current : [...articles],
-        );
-      });
-
-      globalThis.addEventListener("storage", handleStorageChange);
-      return () => {
-        globalThis.removeEventListener("storage", handleStorageChange);
-        unsubscribe();
-      };
-    }
-    return
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        globalThis.localStorage.setItem(
-          READING_QUEUE_STORAGE_KEY,
-          JSON.stringify(queuedArticles)
-        );
-        // Notify all listeners of the change
-        notifyQueueListeners(queuedArticles);
-      } catch (error) {
-        console.error("Error writing to localStorage:", error);
-        toast.error("Could not save an item to your reading queue.");
-      }
-    }
-  }, [queuedArticles, isLoaded]);
-
-  return { queuedArticles, setQueuedArticles, isLoaded };
-};
-
-export function useReadingQueue() {
-  const { queuedArticles, setQueuedArticles, isLoaded } = useQueuedArticlesStorage();
-
+const useQueueMutations = (
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+) => {
   const addArticleToQueue = useCallback(
     async (article: NewsArticle) => {
       setQueuedArticles((prev) => {
@@ -174,7 +115,7 @@ export function useReadingQueue() {
       const preloadedArticle = await preloadArticleData(article);
 
       // Update with preloaded data
-      setQueuedArticles((prev) => 
+      setQueuedArticles((prev) =>
         prev.map((a) =>
           a.url === article.url ? preloadedArticle : a
         )
@@ -207,23 +148,35 @@ export function useReadingQueue() {
       }
     },
     []
-  ),
+  )
 
-   isArticleInQueue = useCallback(
-    (articleUrl: string) => 
-      queuedArticles.some((a) => a.url === articleUrl)
-    ,
+  return { addArticleToQueue, removeArticleFromQueue };
+}
+
+const useQueueSelectors = (queuedArticles: readonly NewsArticle[]) => {
+  const isArticleInQueue = useCallback(
+    (articleUrl: string) =>
+      queuedArticles.some((a) => a.url === articleUrl),
     [queuedArticles]
   ),
-
    getCurrentArticle = useCallback(
-    (index: number) => 
-      queuedArticles[index] || null
-    ,
+    (index: number) =>
+      queuedArticles[index] || null,
     [queuedArticles]
   ),
+   getArticleIndex = useCallback(
+    (articleUrl: string) =>
+      queuedArticles.findIndex((a) => a.url === articleUrl),
+    [queuedArticles]
+  )
+  return { getArticleIndex, getCurrentArticle, isArticleInQueue };
+}
 
-   goNext = useCallback(
+const useQueueNavigation = (
+  queuedArticles: readonly NewsArticle[],
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+) => {
+  const goNext = useCallback(
     (currentIndex: number) => {
       const nextIndex = currentIndex + 1;
       if (nextIndex >= queuedArticles.length) {
@@ -233,7 +186,6 @@ export function useReadingQueue() {
     },
     [queuedArticles]
   ),
-
    goPrev = useCallback(
     (currentIndex: number) => {
       const prevIndex = currentIndex - 1;
@@ -244,14 +196,6 @@ export function useReadingQueue() {
     },
     [queuedArticles]
   ),
-
-   getArticleIndex = useCallback(
-    (articleUrl: string) => 
-      queuedArticles.findIndex((a) => a.url === articleUrl)
-    ,
-    [queuedArticles]
-  ),
-
    markAsRead = useCallback(
     (articleUrl: string) => {
       setQueuedArticles((prev) =>
@@ -261,9 +205,15 @@ export function useReadingQueue() {
       );
     },
     []
-  ),
+  )
+  return { goNext, goPrev, markAsRead };
+}
 
-   preloadMissingData = useCallback(async () => {
+const useQueuePreload = (
+  queuedArticles: readonly NewsArticle[],
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+) => {
+  const preloadMissingData = useCallback(async () => {
     // Check for articles that don't have preloaded data and preload them
     const articlesNeedingPreload = queuedArticles.filter(
       (a) => !a._queueData?.fullText || !a._queueData.aiAnalysis
@@ -292,6 +242,117 @@ export function useReadingQueue() {
       );
     }
   }, [queuedArticles]);
+
+  return { preloadMissingData };
+}
+
+const parseStoredQueue = (raw: string | null): NewsArticle[] | null => {
+  if (raw === null) { return null; }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("Error parsing storage queue:", error);
+    return null;
+  }
+};
+
+const useQueueListeners = (
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+) => {
+  useEffect(() => {
+    // Listen for storage changes from other tabs/windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === READING_QUEUE_STORAGE_KEY && e.newValue) {
+        try {
+          const updated = JSON.parse(e.newValue);
+          setQueuedArticles(updated);
+          notifyQueueListeners(updated);
+        } catch (error) {
+          console.error("Error parsing storage change:", error);
+        }
+      }
+    },
+
+    // Subscribe to our own event emitter for same-tab updates
+     unsubscribe = subscribeToQueueChanges((articles) => {
+      setQueuedArticles((current) =>
+        areQueueArticlesEqual(current, articles) ? current : [...articles],
+      );
+    });
+
+    globalThis.addEventListener("storage", handleStorageChange);
+    return () => {
+      globalThis.removeEventListener("storage", handleStorageChange);
+      unsubscribe();
+    };
+  }, [setQueuedArticles]);
+}
+
+const persistQueue = (queuedArticles: readonly NewsArticle[], isLoaded: boolean) => {
+  if (!isLoaded) { return; }
+  try {
+    globalThis.localStorage.setItem(
+      READING_QUEUE_STORAGE_KEY,
+      JSON.stringify(queuedArticles)
+    );
+    // Notify all listeners of the change
+    notifyQueueListeners(queuedArticles);
+  } catch (error) {
+    console.error("Error writing to localStorage:", error);
+    toast.error("Could not save an item to your reading queue.");
+  }
+};
+
+const useQueueHydration = (
+  setQueuedArticles: React.Dispatch<React.SetStateAction<NewsArticle[]>>,
+  setIsLoaded: React.Dispatch<React.SetStateAction<boolean>>,
+) => {
+  useEffect(() => {
+    // Prevent SSR errors by only accessing localStorage on the client
+    if (typeof window !== "undefined") {
+      try {
+        const parsed = parseStoredQueue(
+          globalThis.localStorage.getItem(READING_QUEUE_STORAGE_KEY)
+        );
+        if (parsed !== null) {
+          setQueuedArticles(parsed);
+        }
+      } catch (error) {
+        console.error("Error reading from localStorage:", error);
+        toast.error("Could not load your reading queue.");
+      } finally {
+        setIsLoaded(true);
+      }
+
+    }
+  }, [setQueuedArticles, setIsLoaded]);
+
+  useQueueListeners(setQueuedArticles);
+}
+
+const useQueuePersistence = (
+  queuedArticles: readonly NewsArticle[],
+  isLoaded: boolean,
+) => {
+  useEffect(() => {
+    persistQueue(queuedArticles, isLoaded);
+  }, [queuedArticles, isLoaded]);
+}
+
+const useQueuedArticlesStorage = () => {
+  const [queuedArticles, setQueuedArticles] = useState<NewsArticle[]>([]),
+   [isLoaded, setIsLoaded] = useState(false);
+  useQueueHydration(setQueuedArticles, setIsLoaded);
+  useQueuePersistence(queuedArticles, isLoaded);
+  return { queuedArticles, setQueuedArticles, isLoaded };
+};
+
+export function useReadingQueue() {
+  const { queuedArticles, setQueuedArticles, isLoaded } = useQueuedArticlesStorage();
+
+  const { addArticleToQueue, removeArticleFromQueue } = useQueueMutations(setQueuedArticles),
+   { getArticleIndex, getCurrentArticle, goNext, goPrev, isArticleInQueue, markAsRead } = useQueueIndexers(queuedArticles, setQueuedArticles),
+   { preloadMissingData } = useQueuePreload(queuedArticles, setQueuedArticles);
 
   // Auto-preload disabled to prevent rate limiting and unnecessary network calls on load.
   // Users can manually call preloadMissingData() when they want to preload articles.
