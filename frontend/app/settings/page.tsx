@@ -147,6 +147,67 @@ function SegmentedControl({ label, options, value, onChange }: SegmentedControlP
   )
 }
 
+function useAppearanceSettingsActions(
+  settings: AppearanceSettings,
+  save: (next: AppearanceSettings) => void,
+) {
+  const updateColorField = useCallback(
+    (token: keyof AppearanceColorTokens, value: string) => {
+      save({ ...settings, colors: { ...settings.colors, [token]: value } })
+    },
+    [save, settings],
+  ),
+   updateTypography = useCallback(
+    (patch: Partial<AppearanceTypographyTokens>) =>{
+      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
+    [save, settings],
+  ),
+   updateLayout = useCallback(
+    (patch: Partial<AppearanceLayoutTokens>) =>{
+      save({ ...settings, layout: { ...settings.layout, ...patch } }); },
+    [save, settings],
+  ),
+   updateShadows = useCallback(
+    (patch: Partial<AppearanceShadowTokens>) =>{
+      save({ ...settings, shadows: { ...settings.shadows, ...patch } }); },
+    [save, settings],
+  ),
+   updateMotion = useCallback(
+    (patch: Partial<AppearanceMotionTokens>) =>{
+      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
+    [save, settings],
+  )
+  return { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography }
+}
+
+function useAppearanceFileActions(settings: AppearanceSettings) {
+  const handleExport = useCallback(() => {
+    const blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
+     url = URL.createObjectURL(blob),
+     anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = "scoop-appearance-settings.json"
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }, [settings]),
+   handleImportFile = useCallback(
+    async (file: File) => {
+      try {
+        const parsed = normalizeAppearanceSettings(JSON.parse(await file.text()))
+        if (parsed.version !== 1) {
+          throw new Error("Unsupported settings version")
+        }
+        saveAppearanceSettings(parsed)
+        toast.success("Appearance settings imported")
+      } catch {
+        toast.error("Could not import settings: expected an exported appearance JSON file")
+      }
+    },
+    [],
+  )
+  return { handleExport, handleImportFile }
+}
+
 export default function AppearanceSettingsPage() {
   const settings = useSyncExternalStore(
     subscribeToAppearanceSettings,
@@ -162,67 +223,14 @@ export default function AppearanceSettingsPage() {
     [],
   ),
 
-   updateColorField = useCallback(
-    (token: keyof AppearanceColorTokens, value: string) => {
-      save({ ...settings, colors: { ...settings.colors, [token]: value } })
-    },
-    [save, settings],
-  ),
-
-   updateTypography = useCallback(
-    (patch: Partial<AppearanceTypographyTokens>) =>{
-      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
-    [save, settings],
-  ),
-
-   updateLayout = useCallback(
-    (patch: Partial<AppearanceLayoutTokens>) =>{
-      save({ ...settings, layout: { ...settings.layout, ...patch } }); },
-    [save, settings],
-  ),
-
-   updateShadows = useCallback(
-    (patch: Partial<AppearanceShadowTokens>) =>{
-      save({ ...settings, shadows: { ...settings.shadows, ...patch } }); },
-    [save, settings],
-  ),
-
-   updateMotion = useCallback(
-    (patch: Partial<AppearanceMotionTokens>) =>{
-      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
-    [save, settings],
-  ),
+   { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography } = useAppearanceSettingsActions(settings, save),
 
    handleReset = useCallback(() => {
     resetAppearanceSettings()
     toast.success("Appearance restored to defaults")
   }, []),
 
-   handleExport = useCallback(() => {
-    const blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
-     url = URL.createObjectURL(blob),
-     anchor = document.createElement("a")
-    anchor.href = url
-    anchor.download = "scoop-appearance-settings.json"
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }, [settings]),
-
-   handleImportFile = useCallback(
-    async (file: File) => {
-      try {
-        const parsed = normalizeAppearanceSettings(JSON.parse(await file.text()))
-        if (parsed.version !== 1) {
-          throw new Error("Unsupported settings version")
-        }
-        saveAppearanceSettings(parsed)
-        toast.success("Appearance settings imported")
-      } catch {
-        toast.error("Could not import settings: expected an exported appearance JSON file")
-      }
-    },
-    [],
-  ),
+   { handleExport, handleImportFile } = useAppearanceFileActions(settings),
 
    densityValue =
     DENSITY_OPTIONS.find((option) => option.scale === settings.layout.spaceScale)?.label ?? "Custom"
