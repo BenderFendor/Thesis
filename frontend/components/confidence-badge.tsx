@@ -34,7 +34,7 @@ const confidenceIcons = {
   very_low: ShieldQuestion,
 } satisfies Record<ConfidenceLevel, typeof Shield>;
 
-export function ConfidenceBadge({
+function ConfidenceBadge({
   confidence,
   level,
   claimCount,
@@ -111,7 +111,7 @@ interface ConfidenceBarProps {
   showPercentage?: boolean;
 }
 
-export function ConfidenceBar({
+function ConfidenceBar({
   confidence,
   level,
   className = "",
@@ -143,3 +143,4 @@ export function ConfidenceBar({
     </div>
   );
 }
+export { ConfidenceBadge, ConfidenceBar };

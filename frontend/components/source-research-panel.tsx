@@ -21,7 +21,7 @@ const statusBadgeClass: Record<string, string> = {
   none: "border-white/10 bg-muted/20 text-muted-foreground",
 }
 
-export function selectSourceResearchData<T>(
+function selectSourceResearchData<T>(
   cachedData?: T,
   researchData?: T,
 ): T | undefined {
@@ -76,7 +76,7 @@ function useSourceResearchController({
   }
 }
 
-export function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
+function SourceResearchPanel({ sourceName, website, autoRun = false }: SourceResearchPanelProps) {
   const {
     data,
     error,
@@ -370,3 +370,4 @@ function ResearchLinksRow({ data, sourceSearchUrl }:Readonly< { data: SourceRese
     </div>
   )
 }
+export { selectSourceResearchData, SourceResearchPanel };

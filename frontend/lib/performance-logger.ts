@@ -22,7 +22,7 @@ const FLUSH_INTERVAL_MS = 30_000,
   "ResizeObserver loop limit exceeded",
 ];
 
-export type EventType =
+type EventType =
   | "page_load"
   | "stream_start"
   | "stream_event"
@@ -38,7 +38,7 @@ export type EventType =
   | "performance_warning"
   | "error";
 
-export interface PerformanceEvent {
+interface PerformanceEvent {
   eventId: string;
   eventType: EventType;
   timestamp: string;
@@ -54,7 +54,7 @@ export interface PerformanceEvent {
   requestId?: string;
 }
 
-export interface StreamMetrics {
+interface StreamMetrics {
   streamId: string;
   startTime: number;
   firstEventTime?: number;
@@ -74,7 +74,7 @@ export interface StreamMetrics {
   }[];
 }
 
-export interface PerformanceSummary {
+interface PerformanceSummary {
   sessionId: string;
   startTime: string;
   totalEvents: number;
@@ -645,18 +645,18 @@ class FrontendPerformanceLogger {
 }
 
 // Singleton instance
-export const perfLogger = new FrontendPerformanceLogger();
+const perfLogger = new FrontendPerformanceLogger();
 
 // Convenience functions
-export const logEvent = perfLogger.logEvent.bind(perfLogger);
-export const logError = perfLogger.logError.bind(perfLogger);
-export const startStream = perfLogger.startStream.bind(perfLogger);
-export const logStreamEvent = perfLogger.logStreamEvent.bind(perfLogger);
-export const endStream = perfLogger.endStream.bind(perfLogger);
-export const trackApiRequest = perfLogger.trackApiRequest.bind(perfLogger);
-export const logUserAction = perfLogger.logUserAction.bind(perfLogger);
-export const getSummary = perfLogger.getSummary.bind(perfLogger);
-export const exportDebugData = perfLogger.exportDebugData.bind(perfLogger);
+const logEvent = perfLogger.logEvent.bind(perfLogger);
+const logError = perfLogger.logError.bind(perfLogger);
+const startStream = perfLogger.startStream.bind(perfLogger);
+const logStreamEvent = perfLogger.logStreamEvent.bind(perfLogger);
+const endStream = perfLogger.endStream.bind(perfLogger);
+const trackApiRequest = perfLogger.trackApiRequest.bind(perfLogger);
+const logUserAction = perfLogger.logUserAction.bind(perfLogger);
+const getSummary = perfLogger.getSummary.bind(perfLogger);
+const exportDebugData = perfLogger.exportDebugData.bind(perfLogger);
 
 declare global {
   interface Window {
@@ -670,3 +670,5 @@ if (typeof window !== "undefined") {
   globalThis.window.perfLogger = perfLogger;
   globalThis.window.exportDebugData = exportDebugData;
 }
+export { perfLogger, logEvent, logError, startStream, logStreamEvent, endStream, trackApiRequest, logUserAction, getSummary, exportDebugData };
+export type { EventType, PerformanceEvent, StreamMetrics, PerformanceSummary };

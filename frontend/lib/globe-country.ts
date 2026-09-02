@@ -1,16 +1,16 @@
-export interface CountryFeatureProperties {
+interface CountryFeatureProperties {
   ISO_A2?: string
   ADM0_A3?: string
   NAME?: string
   [key: string]: unknown
 }
 
-export interface CountryFeature {
+interface CountryFeature {
   properties: CountryFeatureProperties
   geometry?: { coordinates?: unknown } | null
 }
 
-export interface CountryFeatureCollection {
+interface CountryFeatureCollection {
   features: CountryFeature[]
 }
 
@@ -19,7 +19,7 @@ const GEOJSON_ISO_FALLBACKS: Record<string, string> = {
   NOR: "NO",
 }
 
-export function getCountryIso(feature: CountryFeature | null): string | null {
+function getCountryIso(feature: CountryFeature | null): string | null {
   if (!feature) {return null}
   const iso = feature.properties.ISO_A2?.trim()
   if (iso && iso !== "-99") {return iso}
@@ -28,3 +28,5 @@ export function getCountryIso(feature: CountryFeature | null): string | null {
   if (!adm0) {return null}
   return GEOJSON_ISO_FALLBACKS[adm0] ?? null
 }
+export { getCountryIso };
+export type { CountryFeatureProperties, CountryFeature, CountryFeatureCollection };

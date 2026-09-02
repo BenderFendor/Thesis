@@ -1,6 +1,6 @@
 import type { NewsArticle, NewsSource } from "@/lib/api";
 
-export type NewsLensId =
+type NewsLensId =
   | "all"
   | "wire"
   | "primary"
@@ -10,13 +10,13 @@ export type NewsLensId =
   | "high-factual"
   | "low-paywall";
 
-export interface NewsLensPreset {
+interface NewsLensPreset {
   id: NewsLensId;
   label: string;
   description: string;
 }
 
-export const NEWS_LENSES: NewsLensPreset[] = [
+const NEWS_LENSES: NewsLensPreset[] = [
   {
     description: "No lens filter.",
     id: "all",
@@ -107,7 +107,7 @@ function sourceMatchesLens(source: NewsSource, lensId: NewsLensId): boolean {
   return lensMatchers[lensId](source);
 }
 
-export function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> {
+function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> {
   return new Set(
     sources
       .filter((source) => sourceMatchesLens(source, lensId))
@@ -115,7 +115,7 @@ export function getLensSourceIds(sources:readonly  NewsSource[], lensId: NewsLen
   );
 }
 
-export function getLensStats(sources:readonly  NewsSource[], lensId: NewsLensId) {
+function getLensStats(sources:readonly  NewsSource[], lensId: NewsLensId) {
   const includedIds = getLensSourceIds(sources, lensId),
    included = sources.filter(
     (source) => includedIds.has(source.id) || includedIds.has(source.slug),
@@ -126,7 +126,7 @@ export function getLensStats(sources:readonly  NewsSource[], lensId: NewsLensId)
   };
 }
 
-export function filterArticlesByLens(
+function filterArticlesByLens(
   articles:readonly  NewsArticle[],
   sources:readonly  NewsSource[],
   lensId: NewsLensId,
@@ -142,3 +142,5 @@ export function filterArticlesByLens(
     return source ? includedIds.has(source.id) || includedIds.has(source.slug) : false;
   });
 }
+export { NEWS_LENSES, getLensSourceIds, getLensStats, filterArticlesByLens };
+export type { NewsLensId, NewsLensPreset };

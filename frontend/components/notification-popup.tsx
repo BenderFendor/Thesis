@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import type { RefObject } from 'react';
 import { createPortal } from "react-dom"
 
-export type NotificationActionType = "retry" | "open-debug" | "refresh"
+type NotificationActionType = "retry" | "open-debug" | "refresh"
 
-export interface Notification {
+interface Notification {
   id: string
   title: string
   description: string
@@ -49,7 +49,7 @@ function getTypeIcon(type: Notification["type"]) {
   }
 }
 
-export function NotificationsPopup({
+function NotificationsPopup({
   notifications,
   onClear,
   onClearAll,
@@ -219,3 +219,5 @@ export function NotificationsPopup({
     document.body,
   )
 }
+export { NotificationsPopup };
+export type { NotificationActionType, Notification };

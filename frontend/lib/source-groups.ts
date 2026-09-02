@@ -1,6 +1,6 @@
 import type { NewsArticle } from "@/lib/api"
 
-export interface SourceGroup {
+interface SourceGroup {
   sourceId: string
   sourceName: string
   articles: NewsArticle[]
@@ -34,7 +34,7 @@ function getArticleKey(article: NewsArticle): string {
   return `id:${article.id}`
 }
 
-export function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup[] {
+function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup[] {
   const groups = new Map<string, SourceGroup>(),
    seenArticles = new Set<string>()
 
@@ -66,7 +66,7 @@ export function buildSourceGroups(articles:readonly  NewsArticle[]): SourceGroup
   return [...groups.values()]
 }
 
-export function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): number {
+function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): number {
   const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0,
    bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
   if (aIsUnitedStates !== bIsUnitedStates) {
@@ -87,7 +87,7 @@ export function compareSourceGroupsForGrid(a: SourceGroup, b: SourceGroup): numb
   return a.sourceId.localeCompare(b.sourceId)
 }
 
-export function getVisibleSourceIds(
+function getVisibleSourceIds(
   sourceGroups:readonly  SourceGroup[],
   favoriteSourceIds: Set<string>,
   batchCount: number,
@@ -105,7 +105,7 @@ export function getVisibleSourceIds(
   return new Set([...visibleFavoriteIds, ...visibleNonFavoriteIds])
 }
 
-export function getCollapsedVisibleArticleCount(
+function getCollapsedVisibleArticleCount(
   sourceGroups:readonly  SourceGroup[],
   visibleSourceIds: Set<string>,
   collapsedArticleCount: number,
@@ -120,3 +120,5 @@ export function getCollapsedVisibleArticleCount(
     return total + Math.min(group.articles.length, safeCollapsedCount)
   }, 0)
 }
+export { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds, getCollapsedVisibleArticleCount };
+export type { SourceGroup };

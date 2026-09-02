@@ -1,4 +1,4 @@
-export interface BranchableChatMessage {
+interface BranchableChatMessage {
   id: string;
   type: "user" | "assistant";
   toolType?: string;
@@ -6,7 +6,7 @@ export interface BranchableChatMessage {
   parentMessageId?: string;
 }
 
-export interface MessageVersionInfo {
+interface MessageVersionInfo {
   groupId: string;
   currentIndex: number;
   totalVersions: number;
@@ -21,7 +21,7 @@ function isVisibleConversationMessage<T extends BranchableChatMessage>(
   return !message.toolType;
 }
 
-export function getMessageVersionGroupId(
+function getMessageVersionGroupId(
   message: Pick<BranchableChatMessage, "id" | "retryOfMessageId">,
 ): string {
   return message.retryOfMessageId ?? message.id;
@@ -79,7 +79,7 @@ function resolveActiveVersion<T extends BranchableChatMessage>(
   );
 }
 
-export function getVisibleConversationMessages<T extends BranchableChatMessage>(
+function getVisibleConversationMessages<T extends BranchableChatMessage>(
   messages:readonly  T[],
   activeVersionByGroup: Record<string, string>,
 ): T[] {
@@ -109,7 +109,7 @@ export function getVisibleConversationMessages<T extends BranchableChatMessage>(
   return path;
 }
 
-export function getMessageVersionInfo<T extends BranchableChatMessage>(
+function getMessageVersionInfo<T extends BranchableChatMessage>(
   messages:readonly  T[],
   messageId: string,
   activeVersionByGroup: Record<string, string>,
@@ -146,3 +146,5 @@ export function getMessageVersionInfo<T extends BranchableChatMessage>(
     versionIds: versions.map((message) => message.id),
   };
 }
+export { getMessageVersionGroupId, getVisibleConversationMessages, getMessageVersionInfo };
+export type { BranchableChatMessage, MessageVersionInfo };

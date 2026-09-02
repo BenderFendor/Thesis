@@ -36,7 +36,7 @@ interface VerificationPanelProps {
   className?: string;
 }
 
-export function VerificationPanel({
+function VerificationPanel({
   query,
   mainAnswer,
   onVerificationComplete,
@@ -348,7 +348,7 @@ interface VerificationToggleProps {
   className?: string;
 }
 
-export function VerificationToggle({
+function VerificationToggle({
   onClick,
   isLoading,
   hasResult,
@@ -382,3 +382,4 @@ export function VerificationToggle({
     </Button>
   );
 }
+export { VerificationPanel, VerificationToggle };

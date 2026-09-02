@@ -54,7 +54,7 @@ function countDistinctSources(articles:readonly  NewsArticle[]): number {
   ).size
 }
 
-export function buildCountryMetricsFromArticles(
+function buildCountryMetricsFromArticles(
   articles:readonly  NewsArticle[],
 ): CountryArticleCounts {
   const mentionCounts: Record<string, number> = {},
@@ -105,7 +105,7 @@ export function buildCountryMetricsFromArticles(
   }
 }
 
-export function buildCountryListFromArticles(
+function buildCountryListFromArticles(
   articles:readonly  NewsArticle[],
 ): CountryListResponse {
   const countryStats = new Map<string, { articleCount: number; latestTimestamp: number; latestArticle: string | null }>()
@@ -149,7 +149,7 @@ export function buildCountryListFromArticles(
   }
 }
 
-export function buildLocalLensFromArticles({
+function buildLocalLensFromArticles({
   articles,
   code,
   countryName,
@@ -216,3 +216,4 @@ export function buildLocalLensFromArticles({
     window_hours: null,
   }
 }
+export { buildCountryMetricsFromArticles, buildCountryListFromArticles, buildLocalLensFromArticles };

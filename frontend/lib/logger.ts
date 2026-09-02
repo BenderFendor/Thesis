@@ -14,7 +14,7 @@ import { saveToStorage } from "@/lib/storage";
 /**
  * Check if debug mode is enabled.
  */
-export function isDebugMode(): boolean {
+function isDebugMode(): boolean {
     if (typeof window === 'undefined') {
         // Server-side: check env var
         return process.env.NEXT_PUBLIC_DEBUG_DEFAULT === 'true';
@@ -32,7 +32,7 @@ export function isDebugMode(): boolean {
 /**
  * Toggle debug mode in localStorage.
  */
-export function setDebugMode(enabled: boolean): void {
+function setDebugMode(enabled: boolean): void {
     if (typeof window !== 'undefined') {
         saveToStorage('thesis_debug_mode', enabled);
     }
@@ -41,7 +41,7 @@ export function setDebugMode(enabled: boolean): void {
 /**
  * Logger that respects debug mode settings.
  */
-export const logger = {
+const logger = {
     /**
      * Log raw data (objects/arrays) in debug mode only.
      * Useful for API response inspection.
@@ -106,3 +106,4 @@ export const logger = {
 };
 
 export default logger;
+export { isDebugMode, setDebugMode, logger };

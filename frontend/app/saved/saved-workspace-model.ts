@@ -13,9 +13,9 @@ const QueueDigestResponseSchema = z
 
  UNCATEGORIZED_LABEL = "Uncategorized";
 
-export type SavedArticleKind = "bookmark" | "liked" | "both";
+type SavedArticleKind = "bookmark" | "liked" | "both";
 
-export interface SavedArticle extends NewsArticle {
+interface SavedArticle extends NewsArticle {
   readonly type: SavedArticleKind;
 }
 
@@ -60,7 +60,7 @@ function groupArticleSummaries(
   return grouped;
 }
 
-export function hasRealImage(source?: string | null): boolean {
+function hasRealImage(source?: string | null): boolean {
   if (source === undefined || source === null) {
     return false;
   }
@@ -74,7 +74,7 @@ export function hasRealImage(source?: string | null): boolean {
   );
 }
 
-export function mergeSavedArticles(
+function mergeSavedArticles(
   bookmarks: readonly NewsArticle[],
   likedArticles: readonly NewsArticle[],
 ): readonly SavedArticle[] {
@@ -93,11 +93,11 @@ export function mergeSavedArticles(
   return [...articlesByUrl.values()];
 }
 
-export function stripStructuredArticleBlock(digest: string): string {
+function stripStructuredArticleBlock(digest: string): string {
   return digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim();
 }
 
-export async function requestQueueDigest(
+async function requestQueueDigest(
   articles: readonly NewsArticle[],
 ): Promise<string> {
   const summaries = articles.map(toQueueArticleSummary),
@@ -121,3 +121,5 @@ export async function requestQueueDigest(
   const digest = parsed.data.digest ?? parsed.data.content ?? "";
   return stripStructuredArticleBlock(digest);
 }
+export { hasRealImage, mergeSavedArticles, stripStructuredArticleBlock, requestQueueDigest };
+export type { SavedArticleKind, SavedArticle };

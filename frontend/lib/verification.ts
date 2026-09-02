@@ -31,7 +31,7 @@ export type {
 /**
  * Check if verification is enabled and get configuration.
  */
-export async function fetchVerificationStatus(): Promise<VerificationStatus> {
+async function fetchVerificationStatus(): Promise<VerificationStatus> {
   const response = await fetch(`${API_BASE_URL}/api/verification/status`);
   if (!response.ok) {
     throw new Error(`Failed to fetch verification status: ${response.status}`);
@@ -42,7 +42,7 @@ export async function fetchVerificationStatus(): Promise<VerificationStatus> {
 /**
  * Verify claims from research output.
  */
-export async function verifyResearch(
+async function verifyResearch(
   request: VerificationRequest,
   signal?: AbortSignal
 ): Promise<VerificationResult> {
@@ -64,7 +64,7 @@ export async function verifyResearch(
 /**
  * Verify claims and get summary JSON response.
  */
-export async function verifyResearchJson(
+async function verifyResearchJson(
   request: VerificationRequest,
   signal?: AbortSignal
 ): Promise<VerificationSummary> {
@@ -86,7 +86,7 @@ export async function verifyResearchJson(
 /**
  * Stream verification progress via SSE.
  */
-export async function* streamVerification(
+async function* streamVerification(
   request: VerificationRequest,
   signal?: AbortSignal
 ): AsyncGenerator<VerificationStreamEvent> {
@@ -139,7 +139,7 @@ export async function* streamVerification(
 /**
  * Get display color class for confidence level.
  */
-export function getConfidenceColor(level: ConfidenceLevel): string {
+function getConfidenceColor(level: ConfidenceLevel): string {
   switch (level) {
     case "high": {
       return "text-green-600 dark:text-green-400";
@@ -162,7 +162,7 @@ export function getConfidenceColor(level: ConfidenceLevel): string {
 /**
  * Get background color class for confidence level.
  */
-export function getConfidenceBgColor(level: ConfidenceLevel): string {
+function getConfidenceBgColor(level: ConfidenceLevel): string {
   switch (level) {
     case "high": {
       return "bg-green-500/15 border-green-500/40";
@@ -185,7 +185,7 @@ export function getConfidenceBgColor(level: ConfidenceLevel): string {
 /**
  * Get label for confidence level.
  */
-export function getConfidenceLabel(level: ConfidenceLevel): string {
+function getConfidenceLabel(level: ConfidenceLevel): string {
   switch (level) {
     case "high": {
       return "High";
@@ -208,6 +208,7 @@ export function getConfidenceLabel(level: ConfidenceLevel): string {
 /**
  * Format confidence as percentage string.
  */
-export function formatConfidence(confidence: number): string {
+function formatConfidence(confidence: number): string {
   return `${Math.round(confidence * 100)}%`;
 }
+export { fetchVerificationStatus, verifyResearch, verifyResearchJson, streamVerification, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };

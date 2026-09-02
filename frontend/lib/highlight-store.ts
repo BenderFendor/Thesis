@@ -1,11 +1,11 @@
 import { getFromStorage, saveToStorage } from "@/lib/storage"
 import type { Highlight } from "@/lib/api"
 
-export type HighlightSyncStatus = "synced" | "pending" | "failed"
+type HighlightSyncStatus = "synced" | "pending" | "failed"
 
-export type HighlightOp = "create" | "update" | "delete"
+type HighlightOp = "create" | "update" | "delete"
 
-export interface LocalHighlight extends Highlight {
+interface LocalHighlight extends Highlight {
   readonly client_id: string
   readonly server_id?: number
   readonly sync_status: HighlightSyncStatus
@@ -15,7 +15,7 @@ export interface LocalHighlight extends Highlight {
   readonly deleted?: boolean
 }
 
-export interface HighlightStoreState {
+interface HighlightStoreState {
   version: 1
   article_url: string
   highlights: LocalHighlight[]
@@ -25,11 +25,11 @@ function normalizeHighlightedText(text: string) {
   return text.replaceAll(/\s+/gu, " ").trim().toLowerCase()
 }
 
-export function getHighlightsStorageKey(articleUrl: string) {
+function getHighlightsStorageKey(articleUrl: string) {
   return `highlights:v1:${articleUrl}`
 }
 
-export function createHighlightFingerprint(highlight:Readonly< {
+function createHighlightFingerprint(highlight:Readonly< {
   character_start: number
   character_end: number
   highlighted_text: string
@@ -50,7 +50,7 @@ function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-export function dedupeLocalHighlights(highlights:readonly  LocalHighlight[]): LocalHighlight[] {
+function dedupeLocalHighlights(highlights:readonly  LocalHighlight[]): LocalHighlight[] {
   const byFingerprint = new Map<string, LocalHighlight>()
 
   for (const highlight of highlights) {
@@ -84,7 +84,7 @@ function safeNowIso() {
   return new Date().toISOString()
 }
 
-export function generateClientId() {
+function generateClientId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
@@ -96,7 +96,7 @@ function getServerId(highlight: Partial<LocalHighlight>) {
   return highlight.server_id ?? highlight.id
 }
 
-export function loadHighlightStore(articleUrl: string): HighlightStoreState {
+function loadHighlightStore(articleUrl: string): HighlightStoreState {
   const key = getHighlightsStorageKey(articleUrl),
    stored = getFromStorage<HighlightStoreState | null>(key, null)
 
@@ -107,7 +107,7 @@ export function loadHighlightStore(articleUrl: string): HighlightStoreState {
   return stored
 }
 
-export function saveHighlightStore(state: HighlightStoreState) {
+function saveHighlightStore(state: HighlightStoreState) {
   const key = getHighlightsStorageKey(state.article_url)
   saveToStorage(key, state)
 }
@@ -235,7 +235,7 @@ function appendUnmatchedLocalHighlights(
   }
 }
 
-export function mergeHighlights({
+function mergeHighlights({
   articleUrl,
   local,
   server,
@@ -261,7 +261,7 @@ export function mergeHighlights({
   )
 }
 
-export function toRemoteHighlights(local:readonly  LocalHighlight[]): Highlight[] {
+function toRemoteHighlights(local:readonly  LocalHighlight[]): Highlight[] {
   return dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
@@ -278,7 +278,7 @@ export function toRemoteHighlights(local:readonly  LocalHighlight[]): Highlight[
     })
 }
 
-export function markPending({
+function markPending({
   highlight,
   op,
 }:Readonly< {
@@ -295,7 +295,7 @@ export function markPending({
   }
 }
 
-export function markSynced({
+function markSynced({
   highlight,
   server,
 }:Readonly< {
@@ -315,7 +315,7 @@ export function markSynced({
   }
 }
 
-export function markFailed({
+function markFailed({
   highlight,
   error,
 }:Readonly< {
@@ -336,3 +336,5 @@ export function markFailed({
     sync_status: "failed",
   }
 }
+export { getHighlightsStorageKey, createHighlightFingerprint, dedupeLocalHighlights, generateClientId, loadHighlightStore, saveHighlightStore, mergeHighlights, toRemoteHighlights, markPending, markSynced, markFailed };
+export type { HighlightSyncStatus, HighlightOp, LocalHighlight, HighlightStoreState };

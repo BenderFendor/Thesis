@@ -1,24 +1,24 @@
 import type { ViewMode } from '@/components/navigation/navigation-config';
 import { isViewMode } from '@/components/navigation/navigation-config';
 
-export const SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change",
+const SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change",
 SIDEBAR_EXPANDED_STORAGE_KEY = "scoop:sidebar-expanded";
 let sidebarExpandedFallback = false
 
-export function buildViewHref(view: ViewMode): string {
+function buildViewHref(view: ViewMode): string {
   return `/?view=${view}`
 }
 
-export function buildSearchHref(query: string): string {
+function buildSearchHref(query: string): string {
   return `/search?query=${encodeURIComponent(query.trim())}`
 }
 
-export function getViewFromSearch(search: string): ViewMode | null {
+function getViewFromSearch(search: string): ViewMode | null {
   const requestedView = new URLSearchParams(search).get("view")
   return isViewMode(requestedView) ? requestedView : null
 }
 
-export function readSidebarExpanded(): boolean {
+function readSidebarExpanded(): boolean {
   if (typeof window === "undefined") {return false}
 
   try {
@@ -31,7 +31,7 @@ export function readSidebarExpanded(): boolean {
   return sidebarExpandedFallback
 }
 
-export function writeSidebarExpanded(expanded: boolean): void {
+function writeSidebarExpanded(expanded: boolean): void {
   if (typeof window === "undefined") {return}
 
   sidebarExpandedFallback = expanded
@@ -43,7 +43,7 @@ export function writeSidebarExpanded(expanded: boolean): void {
   globalThis.dispatchEvent(new Event(SIDEBAR_EXPANDED_CHANGE_EVENT))
 }
 
-export function subscribeSidebarExpanded(onChange: () => void): () => void {
+function subscribeSidebarExpanded(onChange: () => void): () => void {
   if (typeof window === "undefined") {return () => {}}
 
   const handleStorage = (event: StorageEvent) => {
@@ -59,3 +59,4 @@ export function subscribeSidebarExpanded(onChange: () => void): () => void {
     globalThis.removeEventListener(SIDEBAR_EXPANDED_CHANGE_EVENT, onChange)
   }
 }
+export { SIDEBAR_EXPANDED_CHANGE_EVENT, SIDEBAR_EXPANDED_STORAGE_KEY, buildViewHref, buildSearchHref, getViewFromSearch, readSidebarExpanded, writeSidebarExpanded, subscribeSidebarExpanded };

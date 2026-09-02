@@ -1,4 +1,4 @@
-export interface ComparisonCandidateArticle {
+interface ComparisonCandidateArticle {
   id: number;
   source: string;
   source_id?: string;
@@ -6,7 +6,7 @@ export interface ComparisonCandidateArticle {
   _parsedTimestamp?: number;
 }
 
-export interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
+interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
   sourceId: string;
   sourceName: string;
   articles: T[];
@@ -27,7 +27,7 @@ function recencyValue<T extends ComparisonCandidateArticle>(article: T): number 
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-export function buildComparisonSourceOptions<
+function buildComparisonSourceOptions<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): ComparisonSourceOption<T>[] {
   const groups = new Map<string, ComparisonSourceOption<T>>();
@@ -55,7 +55,7 @@ export function buildComparisonSourceOptions<
     .sort((a, b) => b.articles.length - a.articles.length);
 }
 
-export function getDefaultComparisonArticleIds<
+function getDefaultComparisonArticleIds<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): number[] {
   const groups = buildComparisonSourceOptions(articles);
@@ -69,7 +69,7 @@ export function getDefaultComparisonArticleIds<
     .filter((value): value is number => typeof value === "number");
 }
 
-export function getSelectedComparisonArticles<
+function getSelectedComparisonArticles<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[], selectedIds: readonly number[]): T[] {
   const articleById = new Map(articles.map((article) => [article.id, article]));
@@ -77,3 +77,5 @@ export function getSelectedComparisonArticles<
     .map((id) => articleById.get(id))
     .filter((article): article is T => Boolean(article));
 }
+export { buildComparisonSourceOptions, getDefaultComparisonArticleIds, getSelectedComparisonArticles };
+export type { ComparisonCandidateArticle, ComparisonSourceOption };

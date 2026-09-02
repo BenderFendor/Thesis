@@ -6,7 +6,7 @@ import type {
   TrendingCluster,
 } from "@/lib/api";
 
-export function hasRealClusterImage(src?: string | null): boolean {
+function hasRealClusterImage(src?: string | null): boolean {
   if (!src) {return false;}
   const trimmed = src.trim();
   if (!trimmed || trimmed === "none") {return false;}
@@ -14,7 +14,7 @@ export function hasRealClusterImage(src?: string | null): boolean {
   return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
 }
 
-export function pickClusterImageUrl(cluster:Readonly< {
+function pickClusterImageUrl(cluster:Readonly< {
   representative_article?: TrendingArticle | null;
   articles?: TrendingArticle[];
 }>): string | null {
@@ -26,7 +26,7 @@ export function pickClusterImageUrl(cluster:Readonly< {
   return imageCandidates.find((src) => hasRealClusterImage(src)) ?? null;
 }
 
-export function filterTrendingClusters(
+function filterTrendingClusters(
   trending:readonly  TrendingCluster[],
   breaking:readonly  BreakingCluster[],
 ): TrendingCluster[] {
@@ -34,7 +34,7 @@ export function filterTrendingClusters(
   return trending.filter((cluster) => !breakingIds.has(cluster.cluster_id));
 }
 
-export function clusterArticlesToNewsArticles(
+function clusterArticlesToNewsArticles(
   articles?:readonly  TrendingArticle[],
 ): NewsArticle[] {
   if (!articles) {return [];}
@@ -58,7 +58,7 @@ export function clusterArticlesToNewsArticles(
   }));
 }
 
-export function getClusterPreviewStats(cluster:Readonly< {
+function getClusterPreviewStats(cluster:Readonly< {
   article_count: number;
   source_diversity: number;
   representative_article?: TrendingArticle | null;
@@ -83,4 +83,6 @@ export function getClusterPreviewStats(cluster:Readonly< {
   };
 }
 
-export type TopicLikeCluster = AllCluster | TrendingCluster | BreakingCluster;
+type TopicLikeCluster = AllCluster | TrendingCluster | BreakingCluster;
+export { hasRealClusterImage, pickClusterImageUrl, filterTrendingClusters, clusterArticlesToNewsArticles, getClusterPreviewStats };
+export type { TopicLikeCluster };

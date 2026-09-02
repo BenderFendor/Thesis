@@ -1,27 +1,27 @@
 import type { CacheStatus, NewsArticle } from "@/lib/api"
 
-export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
+type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
-export function getSharedViewArticles(
+function getSharedViewArticles(
   _view: UnifiedNewsView,
   articles:readonly  NewsArticle[],
 ): NewsArticle[]
-export function getSharedViewArticles(
+function getSharedViewArticles(
   _view: UnifiedNewsView,
   articles:readonly  NewsArticle[],
 ): readonly NewsArticle[]
-export function getSharedViewArticles(
+function getSharedViewArticles(
   _view: UnifiedNewsView,
   articles: readonly NewsArticle[],
 ): readonly NewsArticle[] {
   return articles
 }
 
-export function getSharedViewLoading(isLoading: boolean): boolean {
+function getSharedViewLoading(isLoading: boolean): boolean {
   return isLoading
 }
 
-export function getSharedArticleCount(
+function getSharedArticleCount(
   cacheStatus: CacheStatus | null | undefined,
   totalCount: number,
   articles:readonly  NewsArticle[],
@@ -38,7 +38,7 @@ export function getSharedArticleCount(
   return cacheStatus?.total_articles ?? 0
 }
 
-export function getSharedSourceCount(
+function getSharedSourceCount(
   cacheStatus: CacheStatus | null | undefined,
   articles:readonly  NewsArticle[],
   isLoading: boolean,
@@ -55,3 +55,5 @@ export function getSharedSourceCount(
 
   return cacheStatus?.sources_working ?? 0
 }
+export { getSharedViewArticles, getSharedViewLoading, getSharedArticleCount, getSharedSourceCount };
+export type { UnifiedNewsView };

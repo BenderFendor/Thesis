@@ -24,7 +24,7 @@ function enqueueStateSync(callback: () => void): () => void {
   }
 }
 
-export function dismissNotification(
+function dismissNotification(
   dismissedIds: Set<string>,
   notificationId: string,
 ): Set<string> {
@@ -33,7 +33,7 @@ export function dismissNotification(
   return next
 }
 
-export function dismissAllNotifications<T extends NotificationLike>(
+function dismissAllNotifications<T extends NotificationLike>(
   dismissedIds: Set<string>,
   notifications:readonly  T[],
 ): Set<string> {
@@ -42,7 +42,7 @@ export function dismissAllNotifications<T extends NotificationLike>(
   return next
 }
 
-export function retainActiveDismissedNotifications<T extends NotificationLike>(
+function retainActiveDismissedNotifications<T extends NotificationLike>(
   dismissedIds: Set<string>,
   notifications:readonly  T[],
 ): Set<string> {
@@ -59,14 +59,14 @@ export function retainActiveDismissedNotifications<T extends NotificationLike>(
   return new Set(retainedIds)
 }
 
-export function getVisibleNotifications<T extends NotificationLike>(
+function getVisibleNotifications<T extends NotificationLike>(
   notifications:readonly  T[],
   dismissedIds: Set<string>,
 ): T[] {
   return notifications.filter((notification) => !dismissedIds.has(notification.id))
 }
 
-export function useDismissedNotifications<T extends NotificationLike>(
+function useDismissedNotifications<T extends NotificationLike>(
   notifications:readonly  T[],
 ) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set()),
@@ -119,3 +119,4 @@ export function useDismissedNotifications<T extends NotificationLike>(
     visibleNotifications,
   }
 }
+export { dismissNotification, dismissAllNotifications, retainActiveDismissedNotifications, getVisibleNotifications, useDismissedNotifications };

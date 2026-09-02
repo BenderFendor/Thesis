@@ -45,9 +45,9 @@ import { getCountryIso } from "@/lib/globe-country"
 import { useQuery } from "@tanstack/react-query"
 import { z } from "zod"
 
-export type EarthLightingMode = "all-lit" | "day-night"
+type EarthLightingMode = "all-lit" | "day-night"
 
-export type InteractiveGlobeComponent = ComponentType<
+type InteractiveGlobeComponent = ComponentType<
   GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
 >
 
@@ -1039,7 +1039,7 @@ const usePolygonPresentation = (context: Readonly<{
 }
 
 
-export const InteractiveGlobe = ({
+const InteractiveGlobe = ({
   articles,
   countryMetrics,
   globeComponent: GlobeComponent = Globe,
@@ -1381,3 +1381,5 @@ const computePolygonHeatFast = (polygon: Readonly<CountryFeature>, context: Read
  restorePlaceholderGlobeTextures = (uniforms: GlobeUniforms): void => {
   void uniforms
 }
+export { InteractiveGlobe };
+export type { EarthLightingMode, InteractiveGlobeComponent };

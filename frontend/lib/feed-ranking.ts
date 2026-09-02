@@ -1,25 +1,25 @@
 import type { ArticleTopic, NewsArticle } from "@/lib/api";
 
-export const SCROLL_PAGE_SIZE = 500;
-export const SCROLL_INITIAL_RENDER_COUNT = 60;
-export const SCROLL_RENDER_CHUNK_SIZE = 40;
-export const SCROLL_REVEAL_THRESHOLD = 8;
-export const SCROLL_BUFFER_FETCH_THRESHOLD = 120;
-export const MAX_PERSONALIZATION_SEEDS = 60;
+const SCROLL_PAGE_SIZE = 500;
+const SCROLL_INITIAL_RENDER_COUNT = 60;
+const SCROLL_RENDER_CHUNK_SIZE = 40;
+const SCROLL_REVEAL_THRESHOLD = 8;
+const SCROLL_BUFFER_FETCH_THRESHOLD = 120;
+const MAX_PERSONALIZATION_SEEDS = 60;
 
-export const BOOKMARK_SIGNAL_WEIGHT = 2;
-export const LIKE_SIGNAL_WEIGHT = 1;
-export const PROFILE_CLUSTER_BOOKMARK_WEIGHT = 8;
-export const PROFILE_CLUSTER_LIKE_WEIGHT = 4;
-export const PROFILE_KEYWORD_BOOKMARK_WEIGHT = 3;
-export const PROFILE_KEYWORD_LIKE_WEIGHT = 1.5;
-export const PROFILE_CATEGORY_BOOKMARK_WEIGHT = 2;
-export const PROFILE_CATEGORY_LIKE_WEIGHT = 1;
-export const PROFILE_SOURCE_BOOKMARK_WEIGHT = 2;
-export const PROFILE_SOURCE_LIKE_WEIGHT = 1;
-export const KEYWORD_SCORE_CAP = 10;
-export const CATEGORY_SCORE_CAP = 4;
-export const SOURCE_SCORE_CAP = 2;
+const BOOKMARK_SIGNAL_WEIGHT = 2;
+const LIKE_SIGNAL_WEIGHT = 1;
+const PROFILE_CLUSTER_BOOKMARK_WEIGHT = 8;
+const PROFILE_CLUSTER_LIKE_WEIGHT = 4;
+const PROFILE_KEYWORD_BOOKMARK_WEIGHT = 3;
+const PROFILE_KEYWORD_LIKE_WEIGHT = 1.5;
+const PROFILE_CATEGORY_BOOKMARK_WEIGHT = 2;
+const PROFILE_CATEGORY_LIKE_WEIGHT = 1;
+const PROFILE_SOURCE_BOOKMARK_WEIGHT = 2;
+const PROFILE_SOURCE_LIKE_WEIGHT = 1;
+const KEYWORD_SCORE_CAP = 10;
+const CATEGORY_SCORE_CAP = 4;
+const SOURCE_SCORE_CAP = 2;
 
 const DEFAULT_BUCKET_RANK = 0,
  FAVORITE_BUCKET_RANK = 2,
@@ -67,19 +67,19 @@ const DEFAULT_BUCKET_RANK = 0,
 
  TOP_KEYWORD_LIMIT = 8;
 
-export interface PersonalizationSeed {
+interface PersonalizationSeed {
   readonly article: Readonly<NewsArticle>;
   readonly bookmarked: boolean;
   readonly createdAt?: string;
   readonly liked: boolean;
 }
 
-export interface WeightedCluster {
+interface WeightedCluster {
   readonly label: string;
   readonly weight: number;
 }
 
-export interface InterestProfile {
+interface InterestProfile {
   readonly bookmarkCount: number;
   readonly categoryWeights: Readonly<Record<string, number>>;
   readonly clusterWeights: Readonly<Record<number, number>>;
@@ -91,13 +91,13 @@ export interface InterestProfile {
   readonly topKeywords: readonly string[];
 }
 
-export interface FeedScoreComponents {
+interface FeedScoreComponents {
   readonly categoryScore: number;
   readonly keywordScore: number;
   readonly sourceScore: number;
 }
 
-export interface FeedScoreBreakdown {
+interface FeedScoreBreakdown {
   readonly articleId: number;
   readonly bucketLabel: string;
   readonly bucketRank: number;
@@ -109,12 +109,12 @@ export interface FeedScoreBreakdown {
   readonly totalScore: number;
 }
 
-export interface RankedFeedResult {
+interface RankedFeedResult {
   readonly articles: NewsArticle[];
   readonly breakdowns: Readonly<Record<number, FeedScoreBreakdown>>;
 }
 
-export interface RankingWeights {
+interface RankingWeights {
   readonly bookmarkWeight: number;
   readonly categoryCap: number;
   readonly keywordCap: number;
@@ -143,7 +143,7 @@ interface RankedArticle {
   readonly originalIndex: number;
 }
 
-export const RANKING_WEIGHTS: Readonly<RankingWeights> = {
+const RANKING_WEIGHTS: Readonly<RankingWeights> = {
   bookmarkWeight: BOOKMARK_SIGNAL_WEIGHT,
   categoryCap: CATEGORY_SCORE_CAP,
   keywordCap: KEYWORD_SCORE_CAP,
@@ -151,7 +151,7 @@ export const RANKING_WEIGHTS: Readonly<RankingWeights> = {
   sourceCap: SOURCE_SCORE_CAP,
 };
 
-export const hasRealFeedImage = (image: NewsArticle["image"]): boolean => {
+const hasRealFeedImage = (image: NewsArticle["image"]): boolean => {
   if (typeof image !== "string") {
     return false;
   }
@@ -167,9 +167,9 @@ export const hasRealFeedImage = (image: NewsArticle["image"]): boolean => {
   return !blockedMarkers.some((marker) => lower.includes(marker));
 };
 
-export const normalizeToken = (value: string): string => value.trim().toLowerCase();
+const normalizeToken = (value: string): string => value.trim().toLowerCase();
 
-export const tokenizeArticle = (article: Readonly<NewsArticle>): string[] => {
+const tokenizeArticle = (article: Readonly<NewsArticle>): string[] => {
   const parts = [
     article.title,
     article.summary,
@@ -316,7 +316,7 @@ const addWeight = (
   topKeywords: topEntries(accumulator.keywordWeights, TOP_KEYWORD_LIMIT),
 });
 
-export const buildInterestProfile = (
+const buildInterestProfile = (
   seeds: readonly PersonalizationSeed[],
   topicsByArticleId: Readonly<Record<number, readonly ArticleTopic[]>>,
 ): InterestProfile | undefined => {
@@ -389,7 +389,7 @@ const clamp = (value: number, maximum: number): number => Math.min(value, maximu
 
  roundScore = (score: number): number => Number(score.toFixed(SCORE_DECIMAL_PLACES));
 
-export const scoreArticle = (
+const scoreArticle = (
   article: Readonly<NewsArticle>,
   profile: Readonly<InterestProfile> | undefined,
   isFavorite: (sourceId: string) => boolean,
@@ -439,7 +439,7 @@ const compareRankedArticles = (left: Readonly<RankedArticle>, right: Readonly<Ra
   return left.originalIndex - right.originalIndex;
 };
 
-export const rankFeedArticles = (
+const rankFeedArticles = (
   articles: readonly NewsArticle[],
   profile: Readonly<InterestProfile> | undefined,
   isFavorite: (sourceId: string) => boolean,
@@ -456,3 +456,5 @@ export const rankFeedArticles = (
     breakdowns,
   };
 };
+export { SCROLL_PAGE_SIZE, SCROLL_INITIAL_RENDER_COUNT, SCROLL_RENDER_CHUNK_SIZE, SCROLL_REVEAL_THRESHOLD, SCROLL_BUFFER_FETCH_THRESHOLD, MAX_PERSONALIZATION_SEEDS, BOOKMARK_SIGNAL_WEIGHT, LIKE_SIGNAL_WEIGHT, PROFILE_CLUSTER_BOOKMARK_WEIGHT, PROFILE_CLUSTER_LIKE_WEIGHT, PROFILE_KEYWORD_BOOKMARK_WEIGHT, PROFILE_KEYWORD_LIKE_WEIGHT, PROFILE_CATEGORY_BOOKMARK_WEIGHT, PROFILE_CATEGORY_LIKE_WEIGHT, PROFILE_SOURCE_BOOKMARK_WEIGHT, PROFILE_SOURCE_LIKE_WEIGHT, KEYWORD_SCORE_CAP, CATEGORY_SCORE_CAP, SOURCE_SCORE_CAP, RANKING_WEIGHTS, hasRealFeedImage, normalizeToken, tokenizeArticle, buildInterestProfile, scoreArticle, rankFeedArticles };
+export type { PersonalizationSeed, WeightedCluster, InterestProfile, FeedScoreComponents, FeedScoreBreakdown, RankedFeedResult, RankingWeights };

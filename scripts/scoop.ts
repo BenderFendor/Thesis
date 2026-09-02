@@ -65,19 +65,19 @@ interface PathItemObject {
   [key: string]: OperationObject | ParameterObject[] | undefined;
 }
 
-export interface WebSocketOperation {
+interface WebSocketOperation {
   operationId: string;
   path: string;
   summary?: string;
 }
 
-export interface OpenApiSpec {
+interface OpenApiSpec {
   paths?: Record<string, PathItemObject>;
   "x-scoop-websockets"?: WebSocketOperation[];
   [key: string]: unknown;
 }
 
-export interface OperationDescriptor {
+interface OperationDescriptor {
   operationId: string;
   method: string;
   path: string;
@@ -89,7 +89,7 @@ export interface OperationDescriptor {
 
 type OptionValue = string | boolean | string[] | undefined;
 
-export interface CliOptions {
+interface CliOptions {
   _: string[];
   help?: boolean;
   json?: boolean;
@@ -116,7 +116,7 @@ interface PreparedRequest {
   init: RequestInit;
 }
 
-export interface CallResult {
+interface CallResult {
   request: PreparedRequest;
   response: Response;
   body: JsonValue | string | undefined;
@@ -129,7 +129,7 @@ interface SmokeCheck {
   ok: boolean;
 }
 
-export interface SmokeReport {
+interface SmokeReport {
   ok: boolean;
   operationId: string;
   method: string;
@@ -152,7 +152,7 @@ function fail(message: string, exitCode = 2): never {
   throw new CliError(message, exitCode);
 }
 
-export function parseOptions(argv:readonly  string[]): CliOptions {
+function parseOptions(argv:readonly  string[]): CliOptions {
   const options: CliOptions = { _: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -187,7 +187,7 @@ function parseOption(
   return inlineValue === undefined ? index + 1 : index;
 }
 
-export function loadSpec(specPath = DEFAULT_SPEC): OpenApiSpec {
+function loadSpec(specPath = DEFAULT_SPEC): OpenApiSpec {
   return JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec;
 }
 
@@ -210,14 +210,14 @@ function listPathOperations(path: string, pathItem: PathItemObject): OperationDe
   return operations;
 }
 
-export function listOperations(spec: OpenApiSpec): OperationDescriptor[] {
+function listOperations(spec: OpenApiSpec): OperationDescriptor[] {
   const operations = Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) =>
     listPathOperations(path, pathItem),
   );
   return operations.sort((left, right) => left.operationId.localeCompare(right.operationId));
 }
 
-export function listWebSockets(spec: OpenApiSpec): WebSocketOperation[] {
+function listWebSockets(spec: OpenApiSpec): WebSocketOperation[] {
   return [...(spec["x-scoop-websockets"] ?? [])].sort((left, right) =>
     left.operationId.localeCompare(right.operationId),
   );
@@ -375,7 +375,7 @@ function applyRequestBody(
   return body;
 }
 
-export function prepareRequest(
+function prepareRequest(
   spec: OpenApiSpec,
   operationId: string,
   options: CliOptions = { _: [] },
@@ -429,7 +429,7 @@ function printValue(value: unknown, output = "pretty"): void {
   process.stdout.write(`${JSON.stringify(value, undefined, output === "json" ? 0 : 2)}\n`);
 }
 
-export async function callOperation(
+async function callOperation(
   spec: OpenApiSpec,
   operationId: string,
   options: CliOptions = { _: [] },
@@ -476,7 +476,7 @@ function expectedValue(raw: string): JsonValue {
   }
 }
 
-export function evaluateSmoke(result: CallResult, options: CliOptions = { _: [] }): SmokeReport {
+function evaluateSmoke(result: CallResult, options: CliOptions = { _: [] }): SmokeReport {
   const expectedStatuses = String(options["expect-status"] ?? "200")
     .split(",")
     .map(Number),
@@ -658,7 +658,7 @@ function investigateBody(workflow: InvestigateWorkflow, target: string, options:
   return JSON.stringify(body);
 }
 
-export async function runInvestigateCommand(
+async function runInvestigateCommand(
   spec: OpenApiSpec,
   subcommand: string,
   target: string,
@@ -842,7 +842,7 @@ Common request options:
 `;
 }
 
-export async function main(argv:readonly  string[] = process.argv.slice(2)): Promise<number> {
+async function main(argv:readonly  string[] = process.argv.slice(2)): Promise<number> {
   const options = parseOptions(argv),
    [group, action, target] = options._;
   if (options.help || !group) {
@@ -870,3 +870,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     },
   );
 }
+export { parseOptions, loadSpec, listOperations, listWebSockets, prepareRequest, callOperation, evaluateSmoke, runInvestigateCommand, main };
+export type { WebSocketOperation, OpenApiSpec, OperationDescriptor, CliOptions, CallResult, SmokeReport };
