@@ -1182,11 +1182,39 @@ interface NewsPageQueryData {
   cacheStatus: Awaited<ReturnType<typeof fetchCacheStatus>> | undefined
 }
 
-function useNewsPageQueryData({
-  activeCategory,
-  lens,
-  selectedSources,
-}: Pick<NewsPageState, "activeCategory" | "lens" | "selectedSources">): NewsPageQueryData {
+function useCategoriesQuery(): { id: string; icon: React.ElementType; label: string }[] {
+  const categoriesQuery = useQuery<string[]>({
+    queryFn: fetchCategories,
+    queryKey: ["categories"],
+    retry: 1,
+  })
+  return useMemo(() => {
+    const backendCategories = categoriesQuery.data ?? [],
+      uniqueCategories = [...new Set(["all", ...backendCategories])]
+    return uniqueCategories.map((cat) => ({
+      icon: categoryIcons[cat] || Newspaper,
+      id: cat,
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+    }))
+  }, [categoriesQuery.data])
+}
+
+function useCacheStatusQuery() {
+  const { data: cacheStatus } = useQuery({
+    gcTime: 5 * 60 * 1000,
+    queryFn: fetchCacheStatus,
+    queryKey: ["news", "cache-status"],
+    refetchInterval: 15 * 1000,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 1000,
+  })
+  return cacheStatus
+}
+
+function useSelectedSourcesQuery(
+  selectedSources: ReadonlySet<string>,
+  lens: ReturnType<typeof useNewsLens>["lens"],
+) {
   const selectedSourceIds = useMemo(() => [...selectedSources], [selectedSources]),
     sourcesQuery = useQuery({
       queryFn: fetchSources,
@@ -1199,7 +1227,16 @@ function useNewsPageQueryData({
     combinedSourceIds = useMemo(
       () => combineSourceIds(lens, selectedSourceIds, lensSourceIds),
       [lens, lensSourceIds, selectedSourceIds],
-    ),
+    )
+  return { combinedSourceIds, selectedSourceIds, sources }
+}
+
+function useNewsPageQueryData({
+  activeCategory,
+  lens,
+  selectedSources,
+}: Pick<NewsPageState, "activeCategory" | "lens" | "selectedSources">): NewsPageQueryData {
+  const { combinedSourceIds, selectedSourceIds, sources } = useSelectedSourcesQuery(selectedSources, lens),
     {
       articles: browseIndexArticles,
       totalCount: browseIndexTotalCount,
@@ -1211,28 +1248,8 @@ function useNewsPageQueryData({
       enabled: true,
       sources: combinedSourceIds.length > 0 ? combinedSourceIds : undefined,
     }),
-    { data: cacheStatus } = useQuery({
-      gcTime: 5 * 60 * 1000,
-      queryFn: fetchCacheStatus,
-      queryKey: ["news", "cache-status"],
-      refetchInterval: 15 * 1000,
-      refetchOnWindowFocus: false,
-      staleTime: 5 * 1000,
-    }),
-    categoriesQuery = useQuery<string[]>({
-      queryFn: fetchCategories,
-      queryKey: ["categories"],
-      retry: 1,
-    }),
-    categories = useMemo(() => {
-      const backendCategories = categoriesQuery.data ?? [],
-        uniqueCategories = [...new Set(["all", ...backendCategories])]
-      return uniqueCategories.map((cat) => ({
-        icon: categoryIcons[cat] || Newspaper,
-        id: cat,
-        label: cat.charAt(0).toUpperCase() + cat.slice(1),
-      }))
-    }, [categoriesQuery.data])
+    cacheStatus = useCacheStatusQuery(),
+    categories = useCategoriesQuery()
 
   return {
     browseIndexArticles,
