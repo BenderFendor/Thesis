@@ -122,9 +122,9 @@ const printTask = (tasks, taskId, options) => {
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
 const runQueueCommand = async (argumentsList) => {
- const options = parseOptions(argumentsList),
-  subcommand = argumentsList.shift(),
-  taskId = subcommand === "inspect" ? argumentsList.shift() ?? "" : "";
+ const subcommand = argumentsList.shift(),
+  taskId = subcommand === "inspect" ? argumentsList.shift() ?? "" : "",
+  options = parseOptions(argumentsList);
  if (subcommand === "rebuild") { return runQueue(options); }
  const policy = await loadPolicy(),
   tasks = await readTasks(policy.repositoryRoot);
