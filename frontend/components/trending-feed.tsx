@@ -333,19 +333,19 @@ function BreakingCard({
   isLiked: Set<number>;
 }>) {
   const article = cluster.representative_article,
-   imageUrl = pickClusterImageUrl(cluster),
    label = cluster.label || cluster.keywords.slice(0, 3).join(" "),
+   imageUrl = pickClusterImageUrl(cluster),
    showImage = hasRealImage(imageUrl);
 
   if (!article) {return;}
 
-  const handleClick = () => {
-    onClusterClick(cluster, true);
-  },
+  const newsArticle = trendingArticleToNewsArticle(article, label),
    inQueue = isInQueue(article.url),
    liked = isLiked.has(article.id),
 
-   newsArticle = trendingArticleToNewsArticle(article, label);
+   handleClick = () => {
+    onClusterClick(cluster, true);
+  };
 
   return (
     <article
@@ -445,19 +445,19 @@ function TrendingCard({
   isLiked: Set<number>;
 }>) {
   const article = cluster.representative_article,
-   imageUrl = pickClusterImageUrl(cluster),
    label = cluster.label || cluster.keywords.slice(0, 3).join(" "),
+   imageUrl = pickClusterImageUrl(cluster),
    showImage = hasRealImage(imageUrl);
 
   if (!article) {return;}
 
-  const handleClick = () => {
-    onClusterClick(cluster, false);
-  },
+  const newsArticle = trendingArticleToNewsArticle(article, label),
    inQueue = isInQueue(article.url),
    liked = isLiked.has(article.id),
 
-   newsArticle = trendingArticleToNewsArticle(article, label);
+   handleClick = () => {
+    onClusterClick(cluster, false);
+  };
 
   return (
     <article

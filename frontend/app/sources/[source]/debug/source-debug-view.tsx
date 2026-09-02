@@ -270,8 +270,8 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
  ImageAnalysisSection = ({
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
-  const analysis = debugData.image_analysis,
-   percentage = getImagePercentage(debugData);
+  const percentage = getImagePercentage(debugData),
+   analysis = debugData.image_analysis;
   return (
     <details>
       <SectionHeader icon={ImageIcon} title="Image Parsing Analysis" />
@@ -377,12 +377,12 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   onSearchQueryChange,
   searchQuery,
 }: Readonly<DebugJsonSectionProps>) => {
-  const filteredData = filterSourceDebugData(debugData, searchQuery),
-   handleSearchChange: NonNullable<ComponentProps<"input">["onChange"]> = (
+  const handleSearchChange: NonNullable<ComponentProps<"input">["onChange"]> = (
     event,
   ) => {
     onSearchQueryChange(event.target.value);
-  };
+  },
+   filteredData = filterSourceDebugData(debugData, searchQuery);
   return (
     <details open>
       <SectionHeader icon={Code} title="Complete Debug JSON" />

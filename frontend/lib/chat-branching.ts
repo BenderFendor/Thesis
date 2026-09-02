@@ -52,8 +52,8 @@ const getBranchGroupMap = function <T extends BranchableChatMessage>(
   branchGroups: BranchGroupMap<T>;
   resolvedParents: Map<string, string | null>;
 } {
-  const branchGroups: BranchGroupMap<T> = new Map(),
-   resolvedParents = getResolvedParentMap(messages);
+  const resolvedParents = getResolvedParentMap(messages),
+   branchGroups: BranchGroupMap<T> = new Map();
 
   getVisibleMessages(messages).forEach((message) => {
     const parentId = resolvedParents.get(message.id) ?? null,
@@ -123,8 +123,8 @@ const getMessageVersionInfo = function <T extends BranchableChatMessage>(
     return null;
   }
 
-  const groupId = getMessageVersionGroupId(targetMessage),
-   parentId = resolvedParents.get(targetMessage.id) ?? null,
+  const parentId = resolvedParents.get(targetMessage.id) ?? null,
+   groupId = getMessageVersionGroupId(targetMessage),
    versions = branchGroups.get(parentId)?.get(groupId);
 
   if (!versions || versions.length <= 1) {

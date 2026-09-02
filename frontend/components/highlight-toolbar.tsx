@@ -13,9 +13,9 @@ import { toast } from "sonner";
 
 const EMPTY_RANGE_COUNT = 0,
  FIRST_RANGE_INDEX = 0,
+ INVALID_OFFSET = -1,
  HALF_DIVISOR = 2,
  HIGHLIGHT_DEBUG = true,
- INVALID_OFFSET = -1,
  SELECTION_RESET_DELAY_MS = 120,
  TEXT_PREVIEW_LENGTH = 80,
  TEXT_PREVIEW_START = 0,
@@ -93,10 +93,10 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   snapshot: Readonly<SelectionSnapshot>,
 ): boolean => {
   const anchor = snapshot.selection.anchorNode,
-   anchorInside = anchor !== null && container.contains(anchor),
-   commonInside = container.contains(snapshot.range.commonAncestorContainer),
    focus = snapshot.selection.focusNode,
-   focusInside = focus !== null && container.contains(focus);
+   anchorInside = anchor !== null && container.contains(anchor),
+   focusInside = focus !== null && container.contains(focus),
+   commonInside = container.contains(snapshot.range.commonAncestorContainer);
   return anchorInside || focusInside || commonInside;
 },
 
@@ -104,15 +104,15 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   container: HTMLElement,
   snapshot: Readonly<SelectionSnapshot>,
 ): OffsetResult => {
-  const endOffset = getGlobalOffset(
-    container,
-    snapshot.range.endContainer,
-    snapshot.range.endOffset,
-  ),
-   startOffset = getGlobalOffset(
+  const startOffset = getGlobalOffset(
     container,
     snapshot.range.startContainer,
     snapshot.range.startOffset,
+  ),
+   endOffset = getGlobalOffset(
+    container,
+    snapshot.range.endContainer,
+    snapshot.range.endOffset,
   );
   if (HIGHLIGHT_DEBUG) {
     console.debug("[HighlightToolbar] computed offsets", {
@@ -124,8 +124,8 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   if (startOffset === INVALID_OFFSET || endOffset === INVALID_OFFSET) {
     return { message: "Selection outside of article content", ok: false };
   }
-  const end = Math.max(startOffset, endOffset),
-   start = Math.min(startOffset, endOffset);
+  const start = Math.min(startOffset, endOffset),
+   end = Math.max(startOffset, endOffset);
   if (start === end) {
     return { message: "Empty selection", ok: false };
   }
@@ -172,8 +172,8 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   range: Range,
   container: HTMLElement,
 ): void => {
-  const containerRect = container.getBoundingClientRect(),
-   rect = getRangeRect(range);
+  const rect = getRangeRect(range),
+   containerRect = container.getBoundingClientRect();
   if (HIGHLIGHT_DEBUG) {
     console.debug("[HighlightToolbar] positioning", {
       containerClientHeight: container.clientHeight,
@@ -184,8 +184,8 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
       rectTop: rect?.top,
     });
   }
-  let left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX,
-   top = globalThis.innerHeight / HALF_DIVISOR;
+  let top = globalThis.innerHeight / HALF_DIVISOR,
+   left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX;
   if (rect !== undefined) {
     top = rect.top - TOOLBAR_VERTICAL_OFFSET_PX;
     left = rect.left;
@@ -287,8 +287,8 @@ export const HighlightToolbar = ({
       if (HIGHLIGHT_DEBUG) {
         console.debug("[HighlightToolbar] handleSelection fired");
       }
-      const container = containerRef.current,
-       snapshot = getSelectionSnapshot();
+      const snapshot = getSelectionSnapshot(),
+       container = containerRef.current;
       if (snapshot === undefined || container === null) {
         hideToolbar(toolbarRef.current);
         return;

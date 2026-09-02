@@ -84,33 +84,11 @@ const DOCK_LIMIT = 7,
   "media",
 ],
 
- asError = (value: unknown): Error | null => (value instanceof Error ? value : null),
+ isWorkspaceTab = (value: string): value is WorkspaceTab => WORKSPACE_TABS.some((tab) => tab === value),
 
- buildDockNodes = (
-  nodes: readonly AtlasNode[],
-  nodesById: ReadonlyMap<string, AtlasNode>,
-  recentIds: readonly string[],
-  selectedNode: AtlasNode | null,
-): AtlasNode[] => {
-  const result: AtlasNode[] = [],
-   seen = new Set<string>(),
-   recent = recentIds.flatMap((id) => {
-    const node = nodesById.get(id)
-    return node === undefined ? [] : [node]
-  }),
-   popular = [...nodes]
-    .sort((left, right) => right.connection_count - left.connection_count)
-    .slice(0, POPULAR_NODE_LIMIT),
-   selected = selectedNode === null ? [] : [selectedNode]
-
-  for (const node of [...selected, ...recent, ...popular]) {
-    if (seen.has(node.id)) {continue}
-    seen.add(node.id)
-    result.push(node)
-    if (result.length >= DOCK_LIMIT) {break}
-  }
-  return result
-},
+ resolveOperationsTab = (value: string): WorkspaceTab => (
+  isWorkspaceTab(value) ? value : "ingestion"
+),
 
  buildGraphFilters = (state: AtlasQueryState): AtlasGraphFilters => ({
   bias: state.bias,
@@ -138,25 +116,6 @@ const DOCK_LIMIT = 7,
   return [...data.outlets, ...data.organizations, ...data.people, ...data.reporters]
 },
 
- focusPatch = (state: AtlasQueryState): Partial<AtlasQueryState> => ({
-  focus: !state.focus,
-  neighbors: state.focus ? 0 : 1,
-}),
-
- isWorkspaceTab = (value: string): value is WorkspaceTab => WORKSPACE_TABS.some((tab) => tab === value),
-
- nextSearchIndex = (current: number, direction: number, itemCount: number): number => (
-  (current + direction + itemCount) % itemCount
-),
-
- resolveCoverage = (stats: AtlasGraphResponse["stats"] | undefined): number => (
-  stats === undefined ? 0 : metricPercentage(stats.ownership_coverage)
-),
-
- resolveOperationsTab = (value: string): WorkspaceTab => (
-  isWorkspaceTab(value) ? value : "ingestion"
-),
-
  resolveSelectedNode = (
   selectedId: string | null,
   nodesById: ReadonlyMap<string, AtlasNode>,
@@ -164,6 +123,45 @@ const DOCK_LIMIT = 7,
   if (selectedId === null) {return null}
   return nodesById.get(selectedId) ?? null
 },
+
+ updateRecentIds = (current: readonly string[], selectedId: string): string[] => (
+  [selectedId, ...current.filter((id) => id !== selectedId)].slice(0, RECENT_NODE_LIMIT)
+),
+
+ buildDockNodes = (
+  nodes: readonly AtlasNode[],
+  nodesById: ReadonlyMap<string, AtlasNode>,
+  recentIds: readonly string[],
+  selectedNode: AtlasNode | null,
+): AtlasNode[] => {
+  const result: AtlasNode[] = [],
+   seen = new Set<string>(),
+   recent = recentIds.flatMap((id) => {
+    const node = nodesById.get(id)
+    return node === undefined ? [] : [node]
+  }),
+   popular = [...nodes]
+    .sort((left, right) => right.connection_count - left.connection_count)
+    .slice(0, POPULAR_NODE_LIMIT),
+   selected = selectedNode === null ? [] : [selectedNode]
+
+  for (const node of [...selected, ...recent, ...popular]) {
+    if (seen.has(node.id)) {continue}
+    seen.add(node.id)
+    result.push(node)
+    if (result.length >= DOCK_LIMIT) {break}
+  }
+  return result
+},
+
+ resolveTotalStats = (
+  statsData: AtlasStatsResponse | undefined,
+  graphData: AtlasGraphResponse | undefined,
+): AtlasGraphResponse["stats"] | undefined => statsData?.stats ?? graphData?.stats,
+
+ resolveCoverage = (stats: AtlasGraphResponse["stats"] | undefined): number => (
+  stats === undefined ? 0 : metricPercentage(stats.ownership_coverage)
+),
 
  resolveSelectedSourceName = (
   entity: AtlasEntityRecord | undefined,
@@ -174,13 +172,15 @@ const DOCK_LIMIT = 7,
   return null
 },
 
- resolveTotalStats = (
-  statsData: AtlasStatsResponse | undefined,
-  graphData: AtlasGraphResponse | undefined,
-): AtlasGraphResponse["stats"] | undefined => statsData?.stats ?? graphData?.stats,
+ asError = (value: unknown): Error | null => (value instanceof Error ? value : null),
 
- updateRecentIds = (current: readonly string[], selectedId: string): string[] => (
-  [selectedId, ...current.filter((id) => id !== selectedId)].slice(0, RECENT_NODE_LIMIT)
+ focusPatch = (state: AtlasQueryState): Partial<AtlasQueryState> => ({
+  focus: !state.focus,
+  neighbors: state.focus ? 0 : 1,
+}),
+
+ nextSearchIndex = (current: number, direction: number, itemCount: number): number => (
+  (current + direction + itemCount) % itemCount
 ),
 
  useAtlasNavigationState = () => {
@@ -223,101 +223,7 @@ interface SearchController {
   readonly handleSearchKeyboard: (event: KeyboardEvent<HTMLInputElement>) => void
 }
 
-const useAtlasData = (state: AtlasQueryState) => {
-  const graphFilters = useMemo(() => buildGraphFilters(state), [state]),
-   isGraphView = state.view === "graph",
-
-   graphQuery = useQuery<AtlasGraphResponse>({
-    enabled: isGraphView,
-    placeholderData: (previous) => previous,
-    queryFn: ({ signal }) => fetchAtlasGraph(graphFilters, signal),
-    queryKey: ["atlas", "graph", graphFilters],
-    retry: 1,
-    staleTime: GRAPH_STALE_MS,
-  }),
-   statsQuery = useQuery<AtlasStatsResponse>({
-    queryFn: ({ signal }) => fetchAtlasStats(signal),
-    queryKey: ["atlas", "stats"],
-    retry: 1,
-    staleTime: STATUS_STALE_MS,
-  }),
-   ingestStatusQuery = useQuery<AtlasIngestStatus>({
-    queryFn: ({ signal }) => fetchAtlasIngestStatus(signal),
-    queryKey: ["atlas", "ingestion-status"],
-    retry: 1,
-    staleTime: STATUS_STALE_MS,
-  }),
-   entityQuery = useQuery<AtlasEntityRecord>({
-    enabled: state.selected !== null,
-    queryFn: ({ signal }) => fetchAtlasEntity(state.selected ?? "", signal),
-    queryKey: ["atlas", "entity", state.selected],
-    retry: 1,
-    staleTime: ENTITY_STALE_MS,
-  }),
-
-   nodes = graphQuery.data?.nodes ?? [],
-   nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]),
-   selectedNode = resolveSelectedNode(state.selected, nodesById),
-   totalStats = resolveTotalStats(statsQuery.data, graphQuery.data),
-   selectedSourceName = resolveSelectedSourceName(entityQuery.data, selectedNode),
-
-   measurementsQuery = useQuery<AtlasMediaMeasurements>({
-    enabled: selectedSourceName !== null,
-    queryFn: ({ signal }) => fetchMediaMeasurements(selectedSourceName ?? "", signal),
-    queryKey: ["atlas", "media-measurements", selectedSourceName],
-    retry: 1,
-    staleTime: ENTITY_STALE_MS,
-  })
-
-  return {
-    entityQuery,
-    graphFilters,
-    graphQuery,
-    ingestStatusQuery,
-    isGraphView,
-    measurementsQuery,
-    nodes,
-    nodesById,
-    selectedNode,
-    selectedSourceName,
-    statsQuery,
-    totalStats,
-  }
-},
-
- useAtlasGlobalKeyboard = (
-  state: AtlasQueryState,
-  searchOpen: boolean,
-  setSearchOpen: (value: boolean) => void,
-  searchInputRef: RefObject<HTMLInputElement | null>,
-  writeState: WriteState,
-) => {
-  useEffect(() => {
-    const handleGlobalKeyboard = (event: globalThis.KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault()
-        searchInputRef.current?.focus()
-        setSearchOpen(true)
-        return
-      }
-      if (event.key !== "Escape") {return}
-      if (searchOpen) {
-        setSearchOpen(false)
-        return
-      }
-      if (state.panel !== "none") {
-        writeState({ panel: "none" }, "replace")
-        return
-      }
-      if (state.focus) {writeState({ focus: false, neighbors: 0 }, "replace")}
-    }
-
-    globalThis.addEventListener("keydown", handleGlobalKeyboard)
-    return () =>{  globalThis.removeEventListener("keydown", handleGlobalKeyboard); }
-  }, [searchInputRef, searchOpen, setSearchOpen, state.focus, state.panel, writeState])
-},
-
- useAtlasSearch = (state: AtlasQueryState, writeState: WriteState): SearchController => {
+const useAtlasSearch = (state: AtlasQueryState, writeState: WriteState): SearchController => {
   const [searchText, setSearchText] = useState(state.q),
    [searchOpen, setSearchOpen] = useState(false),
    [activeSearchIndex, setActiveSearchIndex] = useState(0),
@@ -385,6 +291,100 @@ const useAtlasData = (state: AtlasQueryState) => {
     setActiveSearchIndex,
     setSearchOpen,
     setSearchText: handleSearchTextChange,
+  }
+},
+
+ useAtlasGlobalKeyboard = (
+  state: AtlasQueryState,
+  searchOpen: boolean,
+  setSearchOpen: (value: boolean) => void,
+  searchInputRef: RefObject<HTMLInputElement | null>,
+  writeState: WriteState,
+) => {
+  useEffect(() => {
+    const handleGlobalKeyboard = (event: globalThis.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        setSearchOpen(true)
+        return
+      }
+      if (event.key !== "Escape") {return}
+      if (searchOpen) {
+        setSearchOpen(false)
+        return
+      }
+      if (state.panel !== "none") {
+        writeState({ panel: "none" }, "replace")
+        return
+      }
+      if (state.focus) {writeState({ focus: false, neighbors: 0 }, "replace")}
+    }
+
+    globalThis.addEventListener("keydown", handleGlobalKeyboard)
+    return () =>{  globalThis.removeEventListener("keydown", handleGlobalKeyboard); }
+  }, [searchInputRef, searchOpen, setSearchOpen, state.focus, state.panel, writeState])
+},
+
+ useAtlasData = (state: AtlasQueryState) => {
+  const graphFilters = useMemo(() => buildGraphFilters(state), [state]),
+   isGraphView = state.view === "graph",
+
+   graphQuery = useQuery<AtlasGraphResponse>({
+    enabled: isGraphView,
+    placeholderData: (previous) => previous,
+    queryFn: ({ signal }) => fetchAtlasGraph(graphFilters, signal),
+    queryKey: ["atlas", "graph", graphFilters],
+    retry: 1,
+    staleTime: GRAPH_STALE_MS,
+  }),
+   statsQuery = useQuery<AtlasStatsResponse>({
+    queryFn: ({ signal }) => fetchAtlasStats(signal),
+    queryKey: ["atlas", "stats"],
+    retry: 1,
+    staleTime: STATUS_STALE_MS,
+  }),
+   ingestStatusQuery = useQuery<AtlasIngestStatus>({
+    queryFn: ({ signal }) => fetchAtlasIngestStatus(signal),
+    queryKey: ["atlas", "ingestion-status"],
+    retry: 1,
+    staleTime: STATUS_STALE_MS,
+  }),
+   entityQuery = useQuery<AtlasEntityRecord>({
+    enabled: state.selected !== null,
+    queryFn: ({ signal }) => fetchAtlasEntity(state.selected ?? "", signal),
+    queryKey: ["atlas", "entity", state.selected],
+    retry: 1,
+    staleTime: ENTITY_STALE_MS,
+  }),
+
+   nodes = graphQuery.data?.nodes ?? [],
+   nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]),
+   selectedNode = resolveSelectedNode(state.selected, nodesById),
+   totalStats = resolveTotalStats(statsQuery.data, graphQuery.data),
+   selectedSourceName = resolveSelectedSourceName(entityQuery.data, selectedNode),
+
+   measurementsQuery = useQuery<AtlasMediaMeasurements>({
+    enabled: selectedSourceName !== null,
+    queryFn: ({ signal }) => fetchMediaMeasurements(selectedSourceName ?? "", signal),
+    queryKey: ["atlas", "media-measurements", selectedSourceName],
+    retry: 1,
+    staleTime: ENTITY_STALE_MS,
+  })
+
+  return {
+    entityQuery,
+    graphFilters,
+    graphQuery,
+    ingestStatusQuery,
+    isGraphView,
+    measurementsQuery,
+    nodes,
+    nodesById,
+    selectedNode,
+    selectedSourceName,
+    statsQuery,
+    totalStats,
   }
 },
 
@@ -581,17 +581,15 @@ export const IntelligenceAtlasWorkspace = () => {
 
   const atlas = useAtlasData(state),
    dockNodes = useDockNodes(state.selected, atlas.nodes, atlas.nodesById, atlas.selectedNode),
-   handleExport = async () => {
-    setExporting(true)
-    try {
-      await exportAtlas(atlas.graphFilters)
-    } finally {
-      setExporting(false)
-    }
-  },
-   handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    search.setSearchText(event.target.value)
-    search.setSearchOpen(true)
+   ownershipCoverage = resolveCoverage(atlas.totalStats),
+   operationsTab = resolveOperationsTab(state.tab),
+
+   selectEntity = (entityId: string, entityType?: AtlasEntityType) => {
+    const entities = entityType !== undefined && !state.entities.includes(entityType)
+      ? [...state.entities, entityType]
+      : state.entities
+    writeState({ entities, neighbors: 1, panel: "inspector", selected: entityId })
+    search.setSearchOpen(false)
   },
 
    openDirectoryRow = (node: AtlasNode) => {
@@ -608,10 +606,6 @@ export const IntelligenceAtlasWorkspace = () => {
     })
   },
 
-   operationsTab = resolveOperationsTab(state.tab),
-
-   ownershipCoverage = resolveCoverage(atlas.totalStats),
-
    refreshData = async () => {
     const requests = [
       queryClient.invalidateQueries({ queryKey: ["atlas", "graph"] }),
@@ -624,14 +618,20 @@ export const IntelligenceAtlasWorkspace = () => {
     await Promise.all(requests)
   },
 
-   selectEntity = (entityId: string, entityType?: AtlasEntityType) => {
-    const entities = entityType !== undefined && !state.entities.includes(entityType)
-      ? [...state.entities, entityType]
-      : state.entities
-    writeState({ entities, neighbors: 1, panel: "inspector", selected: entityId })
-    search.setSearchOpen(false)
+   handleExport = async () => {
+    setExporting(true)
+    try {
+      await exportAtlas(atlas.graphFilters)
+    } finally {
+      setExporting(false)
+    }
   },
-   setPanel = (panel: AtlasPanel) =>{  writeState({ panel }, "replace"); }
+
+   setPanel = (panel: AtlasPanel) =>{  writeState({ panel }, "replace"); },
+   handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    search.setSearchText(event.target.value)
+    search.setSearchOpen(true)
+  }
 
   return (
     <main className={styles.atlas}>

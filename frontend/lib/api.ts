@@ -3408,20 +3408,21 @@ applyBrowserProtocol = (url: Readonly<URL>, protocol: string): URL => {
 buildBlindspotViewerQuery = (
   params?: Readonly<BlindspotViewerParams>,
 ): string => {
-  const category = resolveBlindspotCategory(params?.category),
+  const searchParams = new URLSearchParams(),
+   category = resolveBlindspotCategory(params?.category),
    parameters: readonly QueryParameter[] = [
     { key: "lens", value: params?.lens },
     { key: "window", value: params?.window },
     { key: "category", value: category },
     { key: "sources", value: params?.sources },
     { key: "per_lane", value: params?.perLane },
-  ],
-   searchParams = new URLSearchParams();
+  ];
   parameters.forEach((parameter) =>{  appendQueryParameter(searchParams, parameter); });
   return searchParams.toString();
 },
 buildDatabaseDebugQuery = (params?: Readonly<DatabaseDebugParams>): URLSearchParams => {
-  const parameters: readonly QueryParameter[] = [
+  const searchParams = new URLSearchParams(),
+   parameters: readonly QueryParameter[] = [
     { key: "limit", value: params?.limit },
     { key: "offset", value: params?.offset },
     { key: "source", value: params?.source },
@@ -3429,8 +3430,7 @@ buildDatabaseDebugQuery = (params?: Readonly<DatabaseDebugParams>): URLSearchPar
     { key: "sort_direction", value: params?.sort_direction },
     { key: "published_before", value: params?.published_before },
     { key: "published_after", value: params?.published_after },
-  ],
-   searchParams = new URLSearchParams();
+  ];
   parameters.forEach((parameter) =>{  appendQueryParameter(searchParams, parameter); });
   return searchParams;
 },
@@ -3482,7 +3482,8 @@ buildNewsRequestUrl = (params?: Readonly<FetchNewsParams>): string => {
   }
 },
 buildPageQuery = (params: Readonly<PageQueryParams>): string => {
-  const parameters: readonly QueryParameter[] = [
+  const query = new URLSearchParams(),
+   parameters: readonly QueryParameter[] = [
     { key: "limit", value: params.limit },
     { key: "offset", value: params.offset },
     { key: "cursor", value: params.cursor },
@@ -3492,8 +3493,7 @@ buildPageQuery = (params: Readonly<PageQueryParams>): string => {
       value: resolveSourceParameter(params),
     },
     { key: "search", value: params.search },
-  ],
-   query = new URLSearchParams();
+  ];
   parameters.forEach((parameter) =>{  appendQueryParameter(query, parameter); });
   return query.toString();
 },
@@ -3750,8 +3750,8 @@ createStreamRuntime = (
   reject: StreamRejectHandler,
 ): StreamRuntime => {
   const articles: NewsArticle[] = [],
-   errors: string[] = [],
-   sources = new Set<string>();
+   sources = new Set<string>(),
+   errors: string[] = [];
   return {
     abort: () => {},
     addArticles: (...newArticles) => { articles.push(...newArticles); },
@@ -4878,8 +4878,8 @@ filterNewsArticles = (
 ): NewsArticle[] => {
   let filteredArticles = [...articles];
   if (params?.search !== undefined && params.search.trim().length > 0) {
-    const beforeFilterCount = filteredArticles.length,
-     searchTerm = params.search.toLowerCase();
+    const searchTerm = params.search.toLowerCase(),
+     beforeFilterCount = filteredArticles.length;
     filteredArticles = filteredArticles.filter(
       (article) =>
         article.title.toLowerCase().includes(searchTerm) ||
@@ -4890,8 +4890,8 @@ filterNewsArticles = (
     );
   }
   if (params?.category !== undefined && params.category.trim().length > 0) {
-    const beforeFilterCount = filteredArticles.length,
-     category = params.category.toLowerCase();
+    const category = params.category.toLowerCase(),
+     beforeFilterCount = filteredArticles.length;
     filteredArticles = filteredArticles.filter(
       (article) => article.category.toLowerCase() === category,
     );
@@ -5163,8 +5163,8 @@ handleCacheDataEvent = (
 ): void => {
   Object.assign(rt, { hasReceivedData: true });
   if (data.articles && Array.isArray(data.articles)) {
-    const cacheAge = data.cache_age_seconds || 999,
-     mappedArticles = mapBackendArticles(data.articles);
+    const mappedArticles = mapBackendArticles(data.articles),
+     cacheAge = data.cache_age_seconds || 999;
     logger.debug(
       `Stream ${rt.streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
     );
@@ -5249,8 +5249,8 @@ handleInitialEvent = (
 ): void => {
   Object.assign(rt, { hasReceivedData: true });
   if (data.articles && Array.isArray(data.articles)) {
-    const cacheAge = data.cache_age_seconds || 999,
-     mappedArticles = mapBackendArticles(data.articles);
+    const mappedArticles = mapBackendArticles(data.articles),
+     cacheAge = data.cache_age_seconds || 999;
     logger.debug(
       `Stream ${rt.streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
     );

@@ -32,10 +32,10 @@ import type { SavedWorkspaceController } from "@/app/saved/use-saved-workspace-c
 import { cn } from "@/lib/utils";
 import { hasRealImage } from "@/app/saved/saved-workspace-model";
 
-const ARTICLE_THUMBNAIL_SIZE = 64,
- CARD_OFFSET_LIMIT_PX = 16,
+const CARD_OFFSET_LIMIT_PX = 16,
  CARD_OFFSET_STEP_PX = 4,
  CARD_OVERLAP_PX = -8,
+ ARTICLE_THUMBNAIL_SIZE = 64,
  LIST_POSITION_OFFSET = 1,
  QUEUE_PREVIEW_LIMIT = 5,
  QUEUE_THUMBNAIL_SIZE = 80;
@@ -244,8 +244,8 @@ const getCardFrameStyle = (isExpanded: boolean): CSSProperties => {
   article: Readonly<SavedArticle>;
   isExpanded: boolean;
 }>) => {
-  const readTime = article._queueData?.readingTimeMinutes,
-   showImage = hasRealImage(article.image);
+  const showImage = hasRealImage(article.image),
+   readTime = article._queueData?.readingTimeMinutes;
   return (
     <div className="flex items-start gap-3">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
@@ -304,12 +304,12 @@ const getCardFrameStyle = (isExpanded: boolean): CSSProperties => {
   onRead,
   onToggleQueue,
 }: Readonly<ArticleActionProps>) => {
-  const handleBookmark = () => void onBookmark(article.id),
-   handleLike = () => void onLike(article.id),
-   handleQueue = () =>{  onToggleQueue(article); },
-   handleRead = () =>{  onRead(article); },
+  const isLiked = likedIds.has(article.id),
    isBookmarked = bookmarkIds.has(article.id),
-   isLiked = likedIds.has(article.id);
+   handleRead = () =>{  onRead(article); },
+   handleQueue = () =>{  onToggleQueue(article); },
+   handleLike = () => void onLike(article.id),
+   handleBookmark = () => void onBookmark(article.id);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" onClick={handleRead}>Read Article</Button>
