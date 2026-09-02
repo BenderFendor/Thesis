@@ -211,4 +211,4 @@ const getConfidenceLabel = (level: ConfidenceLevel): string => {
 const formatConfidence = (confidence: number): string => {
   return `${Math.round(confidence * 100)}%`;
 }
-export { fetchVerificationStatus, verifyResearch, verifyResearchJson, streamVerification, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };
+export { verifyResearch, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };

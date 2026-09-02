@@ -668,5 +668,5 @@ if (typeof window !== "undefined") {
   globalThis.window.perfLogger = perfLogger;
   globalThis.window.exportDebugData = exportDebugData;
 }
-export { perfLogger, logEvent, logError, startStream, logStreamEvent, endStream, trackApiRequest, logUserAction, getSummary, exportDebugData };
-export type { EventType, PerformanceEvent, StreamMetrics, PerformanceSummary };
+export { perfLogger, startStream, logStreamEvent, endStream, logUserAction, exportDebugData };
+

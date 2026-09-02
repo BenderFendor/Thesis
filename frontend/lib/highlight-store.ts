@@ -336,5 +336,5 @@ const markFailed = ({
     sync_status: "failed",
   }
 }
-export { getHighlightsStorageKey, createHighlightFingerprint, dedupeLocalHighlights, generateClientId, loadHighlightStore, saveHighlightStore, mergeHighlights, toRemoteHighlights, markPending, markSynced, markFailed };
-export type { HighlightSyncStatus, HighlightOp, LocalHighlight, HighlightStoreState };
+export { createHighlightFingerprint, dedupeLocalHighlights, generateClientId, loadHighlightStore, saveHighlightStore, mergeHighlights, toRemoteHighlights, markPending, markSynced, markFailed };
+export type { LocalHighlight };

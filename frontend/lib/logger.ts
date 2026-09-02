@@ -106,4 +106,4 @@ const logger = {
 };
 
 export default logger;
-export { isDebugMode, setDebugMode, logger };
+export { setDebugMode, logger };
