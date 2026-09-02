@@ -4,6 +4,7 @@
 // Adaptive labeling handles Bias (Left/Right), Credibility, and other lenses while following the borderless "Scoop" aesthetic.
 
 import { useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { RefreshCcw, ShieldAlert } from "lucide-react"
@@ -463,6 +464,139 @@ function MobileBlindspotTile({
   )
 }
 
+function BlindspotControls({
+  availableLenses,
+  selectedLens,
+  sortMode,
+  onLensChange,
+  onSortChange,
+}: Readonly<{
+  availableLenses: readonly BlindspotLens[];
+  selectedLens: BlindspotLens["id"];
+  sortMode: SortMode;
+  onLensChange: (lens: BlindspotLens["id"]) => void;
+  onSortChange: (mode: SortMode) => void;
+}>) {
+  return (
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+      <div className="space-y-1.5 lg:space-y-2">
+        <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground/90 lg:text-4xl">
+          Media Blindspots
+        </h2>
+        <p className="max-w-xl text-sm italic leading-snug text-muted-foreground/50 lg:leading-relaxed">
+          Detecting asymmetric reporting where one perspective is missing.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
+      <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+        <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
+        <select
+          value={selectedLens}
+          onChange={(e) => { onLensChange(e.target.value as BlindspotLens["id"]); }}
+          className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+        >
+          {availableLenses.map((lens) => (
+            <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[var(--card)]">
+              {lens.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
+        <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</span>
+        <select
+          value={sortMode}
+          onChange={(e) => { onSortChange(e.target.value as SortMode); }}
+          className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value} className="bg-[var(--card)]">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      </div>
+    </div>
+  )
+}
+
+function BlindspotLaneSections({
+  poleLabels,
+  renderLaneCards,
+}: Readonly<{
+  poleLabels: { pole_a: string; pole_b: string };
+  renderLaneCards: (laneId: BlindspotLane["id"], emptyLabel: string) => ReactNode;
+}>) {
+  return (
+    <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="flex flex-col space-y-3 lg:space-y-8"
+      >
+        <div className="space-y-1 border-l-2 border-red-500/40 pl-3 lg:space-y-2 lg:pl-6">
+          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
+            <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_a)}</span>
+            <span className="hidden lg:inline">Missed by {poleLabels.pole_a}</span>
+          </h3>
+          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+            <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_b).toLowerCase()} outlets</span>
+            <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets</span>
+          </p>
+        </div>
+
+        <div className="flex flex-col space-y-3 lg:space-y-8">
+          {renderLaneCards("pole_b", "No significant blindspots detected")}
+        </div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+        className="flex flex-col space-y-3 lg:space-y-8"
+      >
+        <div className="space-y-1 border-l-2 border-zinc-500/40 pl-3 lg:space-y-2 lg:pl-6">
+          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">Balanced & Center</h3>
+          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+            Stories with consensus or neutral coverage
+          </p>
+        </div>
+
+        <div className="flex flex-col space-y-3 lg:space-y-8">
+          {renderLaneCards("shared", "No balanced signals detected")}
+        </div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
+        className="flex flex-col space-y-3 lg:space-y-8"
+      >
+        <div className="space-y-1 border-l-2 border-cyan-500/40 pl-3 lg:space-y-2 lg:pl-6">
+          <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
+            <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_b)}</span>
+            <span className="hidden lg:inline">Missed by {poleLabels.pole_b}</span>
+          </h3>
+          <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
+            <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_a).toLowerCase()} outlets</span>
+            <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets</span>
+          </p>
+        </div>
+
+        <div className="flex flex-col space-y-3 lg:space-y-8">
+          {renderLaneCards("pole_a", "No significant blindspots detected")}
+        </div>
+      </motion.section>
+    </div>
+  )
+}
+
 function BlindspotLaneCards({
   cards,
   emptyLabel,
@@ -674,120 +808,19 @@ export function BlindspotView({
     <>
       <div className="flex flex-col space-y-10 p-4 sm:p-6 lg:space-y-16 lg:p-10">
         {/* Compact Controls Area */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6"
-        >
-          <div className="space-y-1.5 lg:space-y-2">
-            <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground/90 lg:text-4xl">
-              Media Blindspots
-            </h2>
-            <p className="max-w-xl text-sm italic leading-snug text-muted-foreground/50 lg:leading-relaxed">
-              Detecting asymmetric reporting where one perspective is missing.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-4">
-            <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-          <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Perspective</span>
-              <select
-                value={selectedLens}
-                onChange={(e) =>{  setSelectedLens(e.target.value as BlindspotLens["id"]); }}
-                className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
-              >
-                {data.available_lenses.map((lens) => (
-                  <option key={lens.id} value={lens.id} disabled={!lens.available} className="bg-[var(--card)]">
-                    {lens.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex min-w-0 items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1">
-              <span className="sr-only px-1.5 text-[8px] font-mono uppercase tracking-widest text-muted-foreground/40 lg:not-sr-only lg:px-2">Rank By</span>
-              <select
-                value={sortMode}
-                onChange={(e) =>{  setSortMode(e.target.value as SortMode); }}
-                className="min-w-0 flex-1 cursor-pointer border-none bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-foreground/80 focus:ring-0"
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-[var(--card)]">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </motion.div>
+        <BlindspotControls
+          availableLenses={data.available_lenses}
+          selectedLens={selectedLens}
+          sortMode={sortMode}
+          onLensChange={setSelectedLens}
+          onSortChange={setSortMode}
+        />
 
         {data.selected_lens.available ? (
-          <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
-            {/* Missed by Pole A (Covered by Pole B) */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="flex flex-col space-y-3 lg:space-y-8"
-            >
-              <div className="space-y-1 border-l-2 border-red-500/40 pl-3 lg:space-y-2 lg:pl-6">
-                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
-                  <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_a)}</span>
-                  <span className="hidden lg:inline">Missed by {poleLabels.pole_a}</span>
-                </h3>
-                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-                  <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_b).toLowerCase()} outlets</span>
-                  <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_b.toLowerCase()} outlets</span>
-                </p>
-              </div>
-
-              <div className="flex flex-col space-y-3 lg:space-y-8">
-                {laneCards("pole_b", "No significant blindspots detected")}
-              </div>
-            </motion.section>
-
-            {/* Balanced / Center Coverage */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
-              className="flex flex-col space-y-3 lg:space-y-8"
-            >
-              <div className="space-y-1 border-l-2 border-zinc-500/40 pl-3 lg:space-y-2 lg:pl-6">
-                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">Balanced & Center</h3>
-                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-                  Stories with consensus or neutral coverage
-                </p>
-              </div>
-
-              <div className="flex flex-col space-y-3 lg:space-y-8">
-                {laneCards("shared", "No balanced signals detected")}
-              </div>
-            </motion.section>
-
-            {/* Missed by Pole B (Covered by Pole A) */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
-              className="flex flex-col space-y-3 lg:space-y-8"
-            >
-              <div className="space-y-1 border-l-2 border-cyan-500/40 pl-3 lg:space-y-2 lg:pl-6">
-                <h3 className="font-serif text-xl font-medium text-foreground/90 text-balance lg:text-3xl">
-                  <span className="lg:hidden">Missed by {displayPoleLabel(poleLabels.pole_b)}</span>
-                  <span className="hidden lg:inline">Missed by {poleLabels.pole_b}</span>
-                </h3>
-                <p className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-wider lg:text-[10px] lg:tracking-widest">
-                  <span className="lg:hidden">Reported primarily by {displayPoleLabel(poleLabels.pole_a).toLowerCase()} outlets</span>
-                  <span className="hidden lg:inline">Reported primarily by {poleLabels.pole_a.toLowerCase()} outlets</span>
-                </p>
-              </div>
-
-              <div className="flex flex-col space-y-3 lg:space-y-8">
-                {laneCards("pole_a", "No significant blindspots detected")}
-              </div>
-            </motion.section>
-          </div>
+          <BlindspotLaneSections
+            poleLabels={poleLabels}
+            renderLaneCards={laneCards}
+          />
         ) : (
           <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
             <h3 className="font-serif text-2xl text-foreground/60">
