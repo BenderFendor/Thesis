@@ -297,36 +297,27 @@ function ChatListItem({ chat, index, ...props }: ChatListItemProps): React.JSX.E
   );
 }
 
-export function ChatSidebar({
+const useChatSidebarState = ({
   chats,
-  onSelect,
-  onNewChat,
-  onRename,
   onDelete,
   onDeleteMultiple,
-  activeId,
-  collapsed = false,
-  onToggle,
-}: ChatSidebarProps) {
+  onRename,
+}: Pick<ChatSidebarProps, "chats" | "onDelete" | "onDeleteMultiple" | "onRename">) => {
   const [searchTerm, setSearchTerm] = useState(""),
    [editingId, setEditingId] = useState<string | null>(null),
    [draftTitle, setDraftTitle] = useState(""),
    [isSelectionMode, setIsSelectionMode] = useState(false),
    [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
-
    filteredChats = useMemo(() => {
     if (!searchTerm.trim()) {return chats;}
     const term = searchTerm.trim().toLowerCase();
-
     return chats.filter((chat) => {
       const inTitle = chat.title?.toLowerCase().includes(term),
        inMessage = chat.lastMessage?.toLowerCase().includes(term);
       return inTitle || inMessage;
     });
   }, [chats, searchTerm]),
-
-   allFilteredSelected =
-    filteredChats.length > 0 && selectedIds.size === filteredChats.length,
+   allFilteredSelected = filteredChats.length > 0 && selectedIds.size === filteredChats.length,
 
    startRename = (chat: ChatSummary) => {
     setEditingId(chat.id);
@@ -367,7 +358,6 @@ export function ChatSidebar({
 
    handleDeleteSelected = () => {
     if (selectedIds.size === 0) {return;}
-
     if (
       globalThis.confirm(
         `Delete ${selectedIds.size} selected chats? This action cannot be undone.`,
@@ -376,7 +366,7 @@ export function ChatSidebar({
       if (onDeleteMultiple) {
         onDeleteMultiple([...selectedIds]);
       } else {
-        selectedIds.forEach((id) =>{  onDelete(id); });
+        selectedIds.forEach((id) =>{ onDelete(id); });
       }
       setIsSelectionMode(false);
       setSelectedIds(new Set());
@@ -385,7 +375,6 @@ export function ChatSidebar({
 
    handleDeleteAll = () => {
     if (chats.length === 0) {return;}
-
     if (
       globalThis.confirm(
         `Delete all ${chats.length} chats? This action cannot be undone.`,
@@ -395,7 +384,7 @@ export function ChatSidebar({
       if (onDeleteMultiple) {
         onDeleteMultiple(ids);
       } else {
-        ids.forEach((id) =>{  onDelete(id); });
+        ids.forEach((id) =>{ onDelete(id); });
       }
       setIsSelectionMode(false);
       setSelectedIds(new Set());
@@ -407,9 +396,66 @@ export function ChatSidebar({
       setSelectedIds(new Set());
       return;
     }
-
     setSelectedIds(new Set(filteredChats.map((chat) => chat.id)));
-  };
+  }
+
+  return {
+    allFilteredSelected,
+    cancelRename,
+    commitRename,
+    draftTitle,
+    editingId,
+    filteredChats,
+    handleDeleteAll,
+    handleDeleteSelected,
+    isSelectionMode,
+    searchTerm,
+    selectedIds,
+    setDraftTitle,
+    setEditingId,
+    setSearchTerm,
+    setIsSelectionMode,
+    setSelectedIds,
+    startRename,
+    toggleSelectAll,
+    toggleSelection,
+    toggleSelectionMode,
+  }
+}
+
+export function ChatSidebar({
+  chats,
+  onSelect,
+  onNewChat,
+  onRename,
+  onDelete,
+  onDeleteMultiple,
+  activeId,
+  collapsed = false,
+  onToggle,
+}: ChatSidebarProps) {
+  const {
+    allFilteredSelected,
+    cancelRename,
+    commitRename,
+    draftTitle,
+    editingId,
+    filteredChats,
+    handleDeleteAll,
+    handleDeleteSelected,
+    isSelectionMode,
+    searchTerm,
+    selectedIds,
+    setDraftTitle,
+    setEditingId,
+    setSearchTerm,
+    setIsSelectionMode,
+    setSelectedIds,
+    startRename,
+    toggleSelectAll,
+    toggleSelection,
+    toggleSelectionMode,
+  } = useChatSidebarState({ chats, onDelete, onDeleteMultiple, onRename });
 
   if (collapsed) {
     return (
