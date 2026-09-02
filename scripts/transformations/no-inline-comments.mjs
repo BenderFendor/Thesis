@@ -848,10 +848,16 @@ class InlineCommentRewriter {
    * @param {ScanState} state - Live scanner state.
    * @returns {void}
    */
+  static isDirectiveComment(text, start, end) {
+    const body = text.slice(start + STEP, end).trim();
+    const directives = ["eslint-disable", "eslint-enable", "ts-expect-error", "ts-ignore", "ts-nocheck", "ts-check", "oxlint-disable", "oxlint-enable", "istanbul", "c8", "knip"];
+    return directives.some((prefix) => body.startsWith(prefix));
+  }
+
   static stepLineComment(state) {
     const end = InlineCommentRewriter.commentEndOf(state.text, state.pos),
       start = state.pos;
-    if (InlineCommentRewriter.hasCodeBeforeOnLine(state)) {
+    if (InlineCommentRewriter.hasCodeBeforeOnLine(state) && !InlineCommentRewriter.isDirectiveComment(state.text, start, end)) {
       state.moved.push({ end, line: state.line + INCREMENT, start });
     } else {
       state.leftAlone.push({ line: state.line + INCREMENT, start });
