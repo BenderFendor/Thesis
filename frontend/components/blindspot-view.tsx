@@ -464,6 +464,73 @@ function MobileBlindspotTile({
   )
 }
 
+function useBlindspotData(
+  category: string | undefined,
+  selectedLens: BlindspotLens["id"],
+  sortMode: SortMode,
+  sources: string[] | undefined,
+  services: BlindspotViewServices,
+) {
+  const serializedSources = useMemo(() => serializeSources(sources), [sources]),
+    {
+      data,
+      isLoading,
+      error,
+      refetch,
+    } = useQuery({
+      gcTime: 5 * 60 * 1000,
+      queryFn: () =>
+        services.fetchBlindspotViewer({
+          category,
+          lens: selectedLens,
+          perLane: CARDS_PER_LANE,
+          sources: serializedSources,
+          window: DEFAULT_WINDOW,
+        }),
+      queryKey: [
+        "blindspots",
+        "viewer",
+        {
+          category: category || "all",
+          lens: selectedLens,
+          sources: serializedSources,
+        },
+      ],
+      refetchOnWindowFocus: false,
+      staleTime: 30 * 1000,
+    }),
+    sortedCards = useMemo(
+      () => (data ? sortCards(data.cards, sortMode) : []),
+      [data, sortMode],
+    ),
+    laneMap = useMemo(() => {
+      const grouped = new Map<BlindspotLane["id"], BlindspotCard[]>()
+      if (!data) {
+        return grouped
+      }
+      for (const lane of data.lanes) {
+        grouped.set(lane.id, [])
+      }
+      for (const card of sortedCards) {
+        const cards = grouped.get(card.lane)
+        if (!cards) {continue}
+        cards.push(card)
+      }
+      return grouped
+    }, [data, sortedCards]),
+    poleLabels = useMemo(() => {
+      if (!data) {return { pole_a: "Pole A", pole_b: "Pole B" }}
+      const laneA = data.lanes.find(l => l.id === "pole_a"),
+        laneB = data.lanes.find(l => l.id === "pole_b")
+      return {
+        pole_a: laneA?.label || "Pole A",
+        pole_b: laneB?.label || "Pole B"
+      }
+    }, [data])
+
+  return { data, error, isLoading, laneMap, poleLabels, refetch, sortedCards }
+}
+
 function BlindspotControls({
   availableLenses,
   selectedLens,
@@ -674,71 +741,17 @@ export function BlindspotView({
     shared: false,
   }),
 
-   serializedSources = useMemo(() => serializeSources(sources), [sources]),
-
-   {
-    data,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    gcTime: 5 * 60 * 1000,
-    queryFn: () =>
-      services.fetchBlindspotViewer({
-        category,
-        lens: selectedLens,
-        perLane: CARDS_PER_LANE,
-        sources: serializedSources,
-        window: DEFAULT_WINDOW,
-      }),
-    queryKey: [
-      "blindspots",
-      "viewer",
-      {
-        category: category || "all",
-        lens: selectedLens,
-        sources: serializedSources,
-      },
-    ],
-    refetchOnWindowFocus: false,
-    staleTime: 30 * 1000,
-  }),
-
-   sortedCards = useMemo(
-    () => (data ? sortCards(data.cards, sortMode) : []),
-    [data, sortMode],
+   { data, error, isLoading, laneMap, poleLabels, refetch } = useBlindspotData(
+    category,
+    selectedLens,
+    sortMode,
+    sources,
+    services,
   ),
-
-   laneMap = useMemo(() => {
-    const grouped = new Map<BlindspotLane["id"], BlindspotCard[]>()
-    if (!data) {
-      return grouped
-    }
-    for (const lane of data.lanes) {
-      grouped.set(lane.id, [])
-    }
-    for (const card of sortedCards) {
-      const cards = grouped.get(card.lane)
-      if (!cards) {continue}
-      cards.push(card)
-    }
-    return grouped
-  }, [data, sortedCards]),
-
    selectedCluster = useMemo(
     () => (selectedCard ? cardToCluster(selectedCard) : null),
     [selectedCard],
-  ),
-
-   poleLabels = useMemo(() => {
-    if (!data) {return { pole_a: "Pole A", pole_b: "Pole B" }}
-    const laneA = data.lanes.find(l => l.id === "pole_a"),
-     laneB = data.lanes.find(l => l.id === "pole_b")
-    return {
-      pole_a: laneA?.label || "Pole A",
-      pole_b: laneB?.label || "Pole B"
-    }
-  }, [data])
+  )
 
   function laneCards(
     laneId: BlindspotLane["id"],
