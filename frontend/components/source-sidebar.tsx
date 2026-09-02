@@ -1,7 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BookOpen,
@@ -12,18 +10,20 @@ import {
   Users,
   X,
 } from "lucide-react";
-import Link from "next/link";
-
+import { useMemo, useState } from "react";
 import { AddRssDialog } from "@/components/add-rss-dialog";
-import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
 import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import type { NewsSource } from "@/lib/api";
+import { SourceCoverageComparison } from "@/components/source-coverage-comparison";
+import { fetchSources } from "@/lib/api";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useNewsLens } from "@/hooks/use-news-lens";
+import { useQuery } from "@tanstack/react-query";
 import { useSourceFilter } from "@/hooks/use-source-filter";
-import type { NewsSource } from "@/lib/api";
-import { fetchSources } from "@/lib/api";
 import { NEWS_LENSES, getLensStats } from "@/lib/news-lens";
 
 const COVERAGE_COMPARISON_MIN_SOURCES = 2,

@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
+import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
 import { fileURLToPath } from "node:url";
 
-import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
+import { spawnSync } from "node:child_process";
 
 const scriptDirectory = import.meta.dirname,
  repositoryRoot = resolve(scriptDirectory, ".."),

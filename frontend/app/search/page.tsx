@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { API_BASE_URL, semanticSearch } from "@/lib/api";
 import {
   ArrowRight,
   ChevronDown,
@@ -18,21 +18,21 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
+import type { NewsArticle, SemanticSearchResult, ThinkingStep } from '@/lib/api';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import remarkGfm from "remark-gfm";
-import { z } from "zod";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
+import { Button } from "@/components/ui/button";
 import { ChatSidebar } from '@/components/chat-sidebar';
 import type { ChatSummary } from '@/components/chat-sidebar';
-import { SearchSuggestions } from "@/components/search-suggestions";
+import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { SafeImage } from "@/components/safe-image";
-import { Button } from "@/components/ui/button";
+import { SearchSuggestions } from "@/components/search-suggestions";
 import { VerificationPanel } from "@/components/verification-panel";
-import { API_BASE_URL, semanticSearch } from "@/lib/api";
-import type { NewsArticle, SemanticSearchResult, ThinkingStep } from '@/lib/api';
+import { motion } from "framer-motion";
+import remarkGfm from "remark-gfm";
+import { z } from "zod";
 import {
   getMessageVersionGroupId,
   getMessageVersionInfo,

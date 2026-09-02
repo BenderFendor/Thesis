@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Highlight} from "@/lib/api";
-import { deleteHighlight, getAllHighlights } from "@/lib/api";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Highlighter, X } from "lucide-react";
+import { deleteHighlight, getAllHighlights } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import type { Highlight} from "@/lib/api";
 import { toast } from "sonner";
 
 export function HighlightsView() {

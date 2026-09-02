@@ -1,12 +1,5 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentProps, TouchEvent } from 'react';
-import dynamic from "next/dynamic"
-import { useQuery } from "@tanstack/react-query"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Bell,
   Bookmark,
@@ -21,11 +14,18 @@ import {
   Shirt,
   Trophy,
 } from "lucide-react"
+import type { ComponentProps, TouchEvent } from 'react';
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from "@/components/ui/button"
 import { GlobalNavigation } from '@/components/global-navigation';
-import type { ViewMode } from '@/components/global-navigation';
-import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { GridView } from "@/components/grid-view"
+import Link from "next/link"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { ViewMode } from '@/components/global-navigation';
+import dynamic from "next/dynamic"
+import { useQuery } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 const loadGlobeView = () => import("@/components/globe-view").then((mod) => mod.GlobeView),

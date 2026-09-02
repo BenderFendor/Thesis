@@ -1,10 +1,10 @@
 "use client"
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import dynamic from "next/dynamic"
+import type { ReactNode} from "react";
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
-import type { ReactNode} from "react";
+import dynamic from "next/dynamic"
 import { useState } from "react"
 
 const AppearanceSettingsSync = dynamic(

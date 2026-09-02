@@ -1,5 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
 import type { CacheStatus, NewsArticle } from "@/lib/api"
+import { describe, expect, it } from '@jest/globals';
 import { getSharedArticleCount, getSharedSourceCount, getSharedViewArticles, getSharedViewLoading } from '@/lib/news-view-state';
 import type { UnifiedNewsView } from '@/lib/news-view-state';
 

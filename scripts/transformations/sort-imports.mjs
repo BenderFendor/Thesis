@@ -324,10 +324,25 @@ const
      * @param {readonly TsStatement[]} statements - Top-level statements.
      * @returns {number} Number of leading import statements.
      */
+    isDirectiveStatement(statement) {
+      return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
+    },
+
+    /**
+     * Counts the contiguous import statements that begin after optional
+     * "use strict"/"use client"-style directives and JSDoc preceding them.
+     * @param {readonly TsStatement[]} statements - Top-level statements.
+     * @returns {number} Number of import statements in the first run.
+     */
     leadingImportLength(statements) {
+      let index = EMPTY_INDEX;
+      while (index < statements.length && SortImports.isDirectiveStatement(statements[index])) {
+        index += FIRST_INDEX;
+      }
       let length = EMPTY_INDEX;
-      while (length < statements.length && ts.isImportDeclaration(statements[length])) {
+      while (index < statements.length && ts.isImportDeclaration(statements[index])) {
         length += FIRST_INDEX;
+        index += FIRST_INDEX;
       }
       return length;
     },

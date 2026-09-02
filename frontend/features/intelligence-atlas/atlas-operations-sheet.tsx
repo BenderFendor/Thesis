@@ -1,8 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-
 import {
   Dialog,
   DialogContent,
@@ -11,8 +8,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { fetchCacheStatus, fetchSourceStats, fetchWikiIndexStatus, fetchWikiSource } from '@/lib/api';
-import type { WikiSourceProfile } from '@/lib/api';
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SourceIntelligenceOperations } from "@/app/wiki/ownership/source-intelligence-operations";
+import type { WikiSourceProfile } from '@/lib/api';
+import { useMemo } from "react";
 import workspaceSupport from "@/app/wiki/ownership/source-intelligence-support";
 
 type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];

@@ -1,11 +1,11 @@
-import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { createServer } from 'node:http';
-import type { Server } from 'node:http';
-import type { AddressInfo } from "node:net";
-
 import { callOperation, evaluateSmoke, listOperations, listWebSockets, parseOptions, prepareRequest, runInvestigateCommand } from '../scoop.ts';
+import type { AddressInfo } from "node:net";
 import type { OpenApiSpec } from '../scoop.ts';
+import type { Server } from 'node:http';
+
+import assert from "node:assert/strict";
+import { createServer } from 'node:http';
 
 const SPEC: OpenApiSpec = {
   openapi: "3.1.0",

@@ -1,9 +1,9 @@
 "use client"
 
-import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
-import { fetchLiveBrowseIndex } from '@/lib/api';
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { NewsArticle } from '@/lib/api';
+import { fetchLiveBrowseIndex } from '@/lib/api';
 import { serializeSources } from "@/lib/utils"
 
 interface UseLiveBrowseIndexOptions {

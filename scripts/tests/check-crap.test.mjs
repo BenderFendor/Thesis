@@ -1,8 +1,8 @@
+import { dirname, resolve } from "node:path";
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(import.meta.dirname, "../.."),
   checkCrap = resolve(repositoryRoot, "scripts/check-crap.mjs");

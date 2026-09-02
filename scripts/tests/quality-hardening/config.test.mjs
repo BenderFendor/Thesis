@@ -1,12 +1,12 @@
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { test } from "node:test";
-import { resolve } from "node:path";
 import {
   configuredRuleIds,
   loadPolicy,
   resolvedTaxonomyRule,
 } from "../../quality-hardening/config.mjs";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { test } from "node:test";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..");
 

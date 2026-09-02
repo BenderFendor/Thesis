@@ -1,24 +1,5 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SafeImage } from "@/components/safe-image";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Clock,
-  Heart,
-  MinusCircle,
-  PlusCircle,
-  TrendingUp,
-} from "lucide-react";
 import type {
   BreakingCluster,
   BreakingResponse,
@@ -26,6 +7,20 @@ import type {
   TrendingArticle,
   TrendingCluster,
   TrendingResponse} from "@/lib/api";
+import {
+  Clock,
+  Heart,
+  MinusCircle,
+  PlusCircle,
+  TrendingUp,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   fetchBreaking,
   fetchTrending
@@ -35,9 +30,14 @@ import {
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
+import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ClusterDetailModal } from "./cluster-detail-modal";
-import { useReadingQueue } from "@/hooks/use-reading-queue";
+import { SafeImage } from "@/components/safe-image";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
+import { useQuery } from "@tanstack/react-query";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 function handleCardKeyDown(

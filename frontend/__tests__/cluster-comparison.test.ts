@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import fc from "fast-check";
-
 import {
   getDefaultComparisonArticleIds,
   getSelectedComparisonArticles,
 } from "@/lib/cluster-comparison";
+
+import fc from "fast-check";
 
 describe("cluster comparison helpers", () => {
   it("prefers two different sources when a cluster has multi-outlet coverage", () => {  expect.hasAssertions();

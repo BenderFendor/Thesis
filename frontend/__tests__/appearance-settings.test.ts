@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
 import {
   APPEARANCE_DEFAULTS,
   APPEARANCE_RANGES,
@@ -12,6 +11,7 @@ import {
   saveAppearanceSettings,
   subscribeToAppearanceSettings,
 } from "@/lib/appearance-settings";
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import { STORAGE_KEYS } from "@/lib/storage";
 
 describe("normalizeAppearanceSettings", () => {

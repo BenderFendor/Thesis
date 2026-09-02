@@ -1,8 +1,5 @@
 "use client";
 
-import type { ReactNode } from 'react';
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ExternalLink,
@@ -11,10 +8,13 @@ import {
   Newspaper,
   UserRound,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { fetchWikiReporter, parseReporterCareerTimeline } from '@/lib/api';
-import type { WikiReporterDossier } from '@/lib/api';
+import { Badge } from "@/components/ui/badge";
 import { GlobalNavigation } from "@/components/global-navigation";
+import Link from "next/link";
+import type { ReactNode } from 'react';
+import type { WikiReporterDossier } from '@/lib/api';
+import { useQuery } from "@tanstack/react-query";
 import { CareerTimeline } from "./career-timeline";
 
 type ReporterActivity = NonNullable<WikiReporterDossier["activity_summary"]>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { AlertCircle, CheckCircle, Loader2, Plus, Rss } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { promoteRssSource, validateRssUrl } from '@/lib/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, CheckCircle, Loader2, Plus, Rss } from "lucide-react";
-import { promoteRssSource, validateRssUrl } from '@/lib/api';
+import { useState } from "react";
 import type { AddRssResponse } from '@/lib/api';
 
 interface AddRssDialogProps {

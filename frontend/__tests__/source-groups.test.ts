@@ -1,5 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
 import { buildSourceGroups, compareSourceGroupsForGrid } from "@/lib/source-groups"
+import { describe, expect, it } from '@jest/globals';
 import type { NewsArticle } from "@/lib/api"
 
 const DEFAULT_ARTICLE: NewsArticle = {

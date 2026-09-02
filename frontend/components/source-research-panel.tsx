@@ -1,12 +1,12 @@
 "use client"
 
-import Link from "next/link"
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { checkSourceProfileCache, researchSourceProfile } from "@/lib/api"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import type { SourceResearchProfile } from "@/lib/api"
 
 interface SourceResearchPanelProps {

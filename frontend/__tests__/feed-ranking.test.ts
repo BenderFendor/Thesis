@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
-import fc from "fast-check"
-
-import { buildInterestProfile, rankFeedArticles } from '@/lib/feed-ranking';
-import type { PersonalizationSeed } from '@/lib/feed-ranking';
 import type { ArticleTopic, NewsArticle } from "@/lib/api"
+import { buildInterestProfile, rankFeedArticles } from '@/lib/feed-ranking';
+
+import { describe, expect, it } from '@jest/globals';
+import type { PersonalizationSeed } from '@/lib/feed-ranking';
+import fc from "fast-check"
 
 const DEFAULT_ARTICLE: NewsArticle = {
   bias: "center",

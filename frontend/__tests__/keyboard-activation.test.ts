@@ -1,5 +1,5 @@
-import { describe, expect, it, jest } from '@jest/globals';
 import { activateCardFromKeyDown, shouldActivateCardFromKeyDown } from "@/lib/keyboard-activation"
+import { describe, expect, it, jest } from '@jest/globals';
 
 describe("keyboard activation helpers", () => {
   const currentTarget = { id: "card" },

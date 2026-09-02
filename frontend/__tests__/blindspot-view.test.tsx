@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { BlindspotView } from "@/components/blindspot-view"
 import type { BlindspotViewServices } from "@/components/blindspot-view"
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client"
+import userEvent from "@testing-library/user-event"
 
 const fetchBlindspotViewer = jest.fn<
   BlindspotViewServices["fetchBlindspotViewer"]

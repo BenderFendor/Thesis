@@ -1,13 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useSyncExternalStore } from "react"
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
 import { Bell, ChevronLeft, ChevronRight } from "lucide-react"
-
-import { SafeImage } from "@/components/safe-image"
 import { LIBRARY_NAVIGATION, VIEW_NAVIGATION, WIKI_NAVIGATION } from '@/components/navigation/navigation-config';
-import type { ViewMode } from '@/components/navigation/navigation-config';
 import {
   buildSearchHref,
   buildViewHref,
@@ -16,8 +10,14 @@ import {
   subscribeSidebarExpanded,
   writeSidebarExpanded,
 } from "@/components/navigation/navigation-state"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
+
+import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
+import { SafeImage } from "@/components/safe-image"
 import { SidebarNavigationItem } from "@/components/navigation/sidebar-navigation-item"
 import { SidebarSection } from "@/components/navigation/sidebar-section"
+import type { ViewMode } from '@/components/navigation/navigation-config';
 import { WorkspaceSearch } from "@/components/navigation/workspace-search"
 import { cn } from "@/lib/utils"
 

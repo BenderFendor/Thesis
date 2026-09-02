@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { normalizeReport } from "../../quality-hardening/adapters/cccc.mjs";
 import { parseReport } from "../../quality-hardening/adapters/oxlint.mjs";
+import { test } from "node:test";
 
 test("CCCC normalization emits stable namespaced source units", () => {
   const report = normalizeReport(

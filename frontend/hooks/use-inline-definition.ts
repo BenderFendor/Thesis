@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestInlineDefinition } from "../lib/api";
 
 export interface InlineDefinitionResult {

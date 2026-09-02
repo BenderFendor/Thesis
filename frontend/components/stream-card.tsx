@@ -1,8 +1,8 @@
 "use client"
 
+import { AlertTriangle, Volume2, VolumeX, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { AlertTriangle, Volume2, VolumeX, X } from "lucide-react"
 import type { LiveNewsSource } from "@/lib/live-news-sources"
 
 interface StreamCardProps {

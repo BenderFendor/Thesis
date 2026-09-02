@@ -1,13 +1,13 @@
 "use client";
 
 import { Shield, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import type {
   ConfidenceLevel} from "@/lib/verification";
 import {

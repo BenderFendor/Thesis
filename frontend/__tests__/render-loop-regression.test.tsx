@@ -1,14 +1,14 @@
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { useCallback, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import { act, render, renderHook, waitFor } from "@testing-library/react";
+import type { NewsArticle } from "@/lib/api";
 
+import type { ReactNode } from 'react';
 import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useNewsStream } from "@/hooks/useNewsStream";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useSourceFilter } from "@/hooks/use-source-filter";
-import type { NewsArticle } from "@/lib/api";
 
 interface FetchResponseFixture {
   readonly body?: {

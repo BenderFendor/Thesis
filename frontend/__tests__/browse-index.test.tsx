@@ -1,10 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, waitFor } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 
-import { useBrowseIndex } from "@/hooks/use-browse-index"
 import { mapBackendArticles } from "@/lib/api"
+import { useBrowseIndex } from "@/hooks/use-browse-index"
 
 interface BrowseResponse {
   readonly articles: readonly {

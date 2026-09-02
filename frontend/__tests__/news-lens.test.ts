@@ -1,7 +1,7 @@
+import type { NewsArticle, NewsSource } from "@/lib/api";
 import { describe, expect, it } from '@jest/globals';
 import { filterArticlesByLens, getLensSourceIds, getLensStats } from '@/lib/news-lens';
 import type { NewsLensId } from '@/lib/news-lens';
-import type { NewsArticle, NewsSource } from "@/lib/api";
 
 function source(overrides: Partial<NewsSource>): NewsSource {
   return {

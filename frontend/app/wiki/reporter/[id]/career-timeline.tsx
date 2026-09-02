@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import type { ReporterCareerTimeline } from "@/lib/api";
 
 function formatTimelineDate(value?: string | null): string | null {

@@ -1,8 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { HighlightNotePopover } from "@/components/highlight-note-popover";
 import type { Highlight } from "@/lib/api";
+import { HighlightNotePopover } from "@/components/highlight-note-popover";
 
 describe("highlightNotePopover", () => {
   it("saves notes for client-only highlights", async () => {expect.hasAssertions();

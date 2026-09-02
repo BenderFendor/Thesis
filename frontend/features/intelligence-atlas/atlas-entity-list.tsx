@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useInfiniteQuery } from "@tanstack/react-query"
-import type { InfiniteData } from "@tanstack/react-query"
-import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownAZ, Loader2, Search } from "lucide-react"
-
+import type { AtlasEntityType, AtlasIndexResponse, AtlasNode } from "./lib/atlas-schema"
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { InfiniteData } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 
 import { fetchAtlasIndex } from "./lib/atlas-api"
-import type { AtlasEntityType, AtlasIndexResponse, AtlasNode } from "./lib/atlas-schema"
+
+import { useInfiniteQuery } from "@tanstack/react-query"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import styles from "./atlas.module.css"
 
 type EntityTypeTab = "all" | AtlasEntityType

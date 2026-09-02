@@ -18,6 +18,7 @@ import type { CacheDebugResponse, CacheDeltaResponse, CacheStatus, ChromaDebugRe
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { ChangeEvent, ComponentProps, ReactNode } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Suspense, useMemo, useState } from "react"
 import {
   Table,
   TableBody,
@@ -29,7 +30,6 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { logger, setDebugMode } from "@/lib/logger"
-import { Suspense, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { GlobalNavigation } from "@/components/global-navigation"

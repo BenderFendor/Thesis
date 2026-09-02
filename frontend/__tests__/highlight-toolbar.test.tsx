@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
-import type { ComponentProps } from "react";
 import { fireEvent, render } from "@testing-library/react";
+import type { ComponentProps } from "react";
 
 import { HighlightToolbar } from "@/components/highlight-toolbar";
 

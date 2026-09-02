@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowUpRight, Clock3, ExternalLink, Network, ShieldCheck } from "lucide-react";
-
 import type { AtlasEntityRecord, AtlasMeasurementsResponse } from "./lib/atlas-schema";
+
+import Link from "next/link";
 import styles from "./atlas.module.css";
 
 interface AtlasInspectorProps {

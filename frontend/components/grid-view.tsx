@@ -1,23 +1,8 @@
 "use client"
 
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AllCluster, NewsArticle, TrendingCluster } from "@/lib/api"
+import { AnimatePresence, motion } from "framer-motion"
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
-import dynamic from "next/dynamic"
-import Link from "next/link"
-import { SafeImage } from "@/components/safe-image"
-import { ContradictionPanel } from "@/components/contradiction-panel"
-import { StoryLineagePanel } from "@/components/story-lineage-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { CardContent } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   ChevronDown,
   ChevronRight,
@@ -33,23 +18,38 @@ import {
   Search,
   Star,
 } from "lucide-react"
-import { AnimatePresence, motion } from "framer-motion"
-import { TrendingFeed } from "./trending-feed"
-import type { AllCluster, NewsArticle, TrendingCluster } from "@/lib/api"
-import { cn, getLogger } from "@/lib/utils"
-import { useReadingQueue } from "@/hooks/use-reading-queue"
-import { useLikedArticles } from "@/hooks/use-liked-articles"
-import { useFavorites } from "@/hooks/use-favorites"
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds } from '@/lib/source-groups';
 import {
   clusterArticlesToNewsArticles,
   getClusterPreviewStats,
   hasRealClusterImage,
   pickClusterImageUrl,
 } from "@/lib/cluster-display"
-import { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds } from '@/lib/source-groups';
-import type { SourceGroup } from '@/lib/source-groups';
+import { cn, getLogger } from "@/lib/utils"
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
 import { getStoredGridViewMode, setStoredGridViewMode } from '@/lib/view-mode-storage';
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { CardContent } from "@/components/ui/card"
+import { ContradictionPanel } from "@/components/contradiction-panel"
+import Link from "next/link"
+import { SafeImage } from "@/components/safe-image"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { SourceGroup } from '@/lib/source-groups';
+import { StoryLineagePanel } from "@/components/story-lineage-panel"
+import { TrendingFeed } from "./trending-feed"
+import dynamic from "next/dynamic"
+import { useFavorites } from "@/hooks/use-favorites"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
+import { useReadingQueue } from "@/hooks/use-reading-queue"
 import type { GridViewMode } from '@/lib/view-mode-storage';
 
 const VirtualizedGrid = lazy(() =>

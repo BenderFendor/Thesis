@@ -1,15 +1,15 @@
 "use client"
 
-import Link from "next/link"
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, ExternalLink, RefreshCw, Search, User } from "lucide-react"
-
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { profileReporter } from "@/lib/api"
+import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import type { ReporterProfile } from "@/lib/api"
 
 interface ReporterProfilePanelProps {

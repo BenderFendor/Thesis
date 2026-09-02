@@ -1,15 +1,15 @@
 "use client";
 
-import type { ReactNode } from 'react';
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ExternalLink, Loader2, Network } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { GlobalNavigation } from "@/components/global-navigation";
-import { fetchAtlasEntity } from "@/features/intelligence-atlas/lib/atlas-api";
 import { parseControls, parseExternalIds, parseOwnershipChain, parseRoleBreakdown } from '@/features/intelligence-atlas/lib/atlas-schema';
 import type { AtlasEntityRecord } from '@/features/intelligence-atlas/lib/atlas-schema';
+import { Badge } from "@/components/ui/badge";
+import { GlobalNavigation } from "@/components/global-navigation";
+import Link from "next/link";
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
+import type { ReactNode } from 'react';
+import { fetchAtlasEntity } from "@/features/intelligence-atlas/lib/atlas-api";
+import { useQuery } from "@tanstack/react-query";
 import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
 
 export function PersonWikiView({ entityId }:Readonly< { entityId: string }>) {

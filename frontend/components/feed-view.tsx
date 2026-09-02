@@ -1,12 +1,5 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { Dispatch, RefObject, SetStateAction } from "react"
-import dynamic from "next/dynamic"
-import { fetchOGImage } from '@/lib/api';
-import type { NewsArticle } from '@/lib/api';
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Bookmark,
   Brain,
@@ -18,12 +11,7 @@ import {
   Sparkles,
   Star,
 } from "lucide-react"
-import { useFavorites } from "@/hooks/use-favorites"
-import { useLikedArticles } from "@/hooks/use-liked-articles"
-import { useBookmarks } from "@/hooks/useBookmarks"
-import { useScrollPersonalization } from "@/hooks/use-scroll-personalization"
-import type {
-  FeedScoreBreakdown} from "@/lib/feed-ranking";
+import type { Dispatch, RefObject, SetStateAction } from "react"
 import {
   RANKING_WEIGHTS,
   SCROLL_INITIAL_RENDER_COUNT,
@@ -31,8 +19,20 @@ import {
   SCROLL_REVEAL_THRESHOLD,
   hasRealFeedImage,
 } from "@/lib/feed-ranking"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import type {
+  FeedScoreBreakdown} from "@/lib/feed-ranking";
+import type { NewsArticle } from '@/lib/api';
 import { cn } from "@/lib/utils"
+import dynamic from "next/dynamic"
+import { fetchOGImage } from '@/lib/api';
 import { motion } from "framer-motion"
+import { useBookmarks } from "@/hooks/useBookmarks"
+import { useFavorites } from "@/hooks/use-favorites"
+import { useLikedArticles } from "@/hooks/use-liked-articles"
+import { useScrollPersonalization } from "@/hooks/use-scroll-personalization"
 import {
   Collapsible,
   CollapsibleContent,

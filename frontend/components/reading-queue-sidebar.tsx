@@ -1,6 +1,12 @@
 "use client";
 
 import {
+  API_BASE_URL,
+  analyzeArticle,
+  fetchSourceDebugData,
+  getSourceById,
+} from "@/lib/api";
+import {
   AlertTriangle,
   Bookmark,
   Bug,
@@ -14,7 +20,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Children, useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  ArticleAnalysis,
+  NewsArticle,
+  NewsSource,
+  SourceDebugData,
+} from "@/lib/api";
 import type {
   CSSProperties,
   KeyboardEvent,
@@ -22,14 +33,7 @@ import type {
   ReactElement,
   ReactNode,
 } from "react";
-import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
-import { z } from "zod";
-
-import { ArticleDetailModal } from "@/components/article-detail-modal";
-import { ArticleInlineEmbed } from "@/components/article-inline-embed";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Children, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Sheet,
   SheetClose,
@@ -38,26 +42,22 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+
+import { ArticleDetailModal } from "@/components/article-detail-modal";
+import { ArticleInlineEmbed } from "@/components/article-inline-embed";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { Components } from 'react-markdown';
 import { NoveltyBadge } from "@/components/novelty-badge";
+import ReactMarkdown from 'react-markdown';
 import { SafeImage } from "@/components/safe-image";
 import { SemanticTags } from "@/components/semantic-tags";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
-import { useFavorites } from "@/hooks/use-favorites";
-import {
-  API_BASE_URL,
-  analyzeArticle,
-  fetchSourceDebugData,
-  getSourceById,
-} from "@/lib/api";
-import type {
-  ArticleAnalysis,
-  NewsArticle,
-  NewsSource,
-  SourceDebugData,
-} from "@/lib/api";
+import { z } from "zod";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 const ARTICLE_IMAGE_HEIGHT = 384,

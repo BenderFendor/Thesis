@@ -1,13 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { useEffect } from "react";
-import { waitFor } from "@testing-library/react";
 import type { GlobeMethods, GlobeProps } from "react-globe.gl";
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { InteractiveGlobe } from '@/components/interactive-globe';
+import type { InteractiveGlobeComponent } from '@/components/interactive-globe';
 import type { MutableRefObject } from "react";
 import { Scene } from "three";
 
-import { InteractiveGlobe } from '@/components/interactive-globe';
-import type { InteractiveGlobeComponent } from '@/components/interactive-globe';
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
+import { useEffect } from "react";
+import { waitFor } from "@testing-library/react";
 
 const testControls = {
     autoRotate: false,

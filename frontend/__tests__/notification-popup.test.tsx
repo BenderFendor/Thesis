@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import type { Notification } from '@/components/notification-popup';
 
 import { NotificationsPopup } from '@/components/notification-popup';
-import type { Notification } from '@/components/notification-popup';
+import userEvent from "@testing-library/user-event"
 
 const notification: Notification = {
   action: {

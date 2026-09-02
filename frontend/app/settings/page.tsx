@@ -1,15 +1,15 @@
 "use client"
 
-import { useCallback, useId, useRef, useSyncExternalStore } from "react"
-import Link from "next/link"
-import { ArrowLeft, Download, RotateCcw, Upload } from "lucide-react"
-import { toast } from "sonner"
-
-import { GlobalNavigation } from "@/components/global-navigation"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { APPEARANCE_RANGES, getServerAppearanceSettings, loadAppearanceSettings, normalizeAppearanceSettings, resetAppearanceSettings, saveAppearanceSettings, subscribeToAppearanceSettings } from '@/lib/appearance-settings';
+import { ArrowLeft, Download, RotateCcw, Upload } from "lucide-react"
+import { useCallback, useId, useRef, useSyncExternalStore } from "react"
+import { Badge } from "@/components/ui/badge"
+
+import { Button } from "@/components/ui/button"
+import { GlobalNavigation } from "@/components/global-navigation"
+import { Input } from "@/components/ui/input"
+import Link from "next/link"
+import { toast } from "sonner"
 import type { AppearanceColorTokens, AppearanceLayoutTokens, AppearanceMotionTokens, AppearanceSettings, AppearanceShadowTokens, AppearanceTypographyTokens } from '@/lib/appearance-settings';
 
 const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [

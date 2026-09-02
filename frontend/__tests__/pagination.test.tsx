@@ -1,13 +1,13 @@
 
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
  * Tests for pagination hooks and components
  * Run with: npm test -- --testPathPattern=pagination
  */
 
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { usePaginatedNews } from "@/hooks/usePaginatedNews";

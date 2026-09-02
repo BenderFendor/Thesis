@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useRef } from 'react';
-import type { RefObject } from 'react';
-import { createPortal } from "react-dom"
 import { AlertTriangle, Bell, CheckCircle2, Info, X, XCircle } from "lucide-react"
-
+import { useEffect, useRef } from 'react';
 import { Badge } from "@/components/ui/badge"
+import type { RefObject } from 'react';
+
+import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export type NotificationActionType = "retry" | "open-debug" | "refresh"

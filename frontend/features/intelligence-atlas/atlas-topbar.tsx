@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  ChangeEvent,
+  KeyboardEvent,
+  RefObject,
+} from "react";
 import {
   Copy,
   Download,
@@ -8,11 +13,6 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import type {
-  ChangeEvent,
-  KeyboardEvent,
-  RefObject,
-} from "react";
 
 import type { AtlasSearchItem } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";

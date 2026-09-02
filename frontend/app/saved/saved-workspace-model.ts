@@ -1,7 +1,7 @@
-import { z } from "zod";
-
 import { API_BASE_URL } from "@/lib/api";
+
 import type { NewsArticle } from "@/lib/api";
+import { z } from "zod";
 
 const STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
  UNCATEGORIZED_LABEL = "Uncategorized",

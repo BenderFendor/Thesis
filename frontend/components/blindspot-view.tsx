@@ -3,17 +3,17 @@
 // Design thesis: Refactor the Blindspot View into a dynamic 2-column layout focusing on asymmetric coverage gaps.
 // Adaptive labeling handles Bias (Left/Right), Credibility, and other lenses while following the borderless "Scoop" aesthetic.
 
-import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
+import type { BlindspotCard, BlindspotLane, BlindspotLens, TrendingCluster } from '@/lib/api';
 import { RefreshCcw, ShieldAlert } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { ClusterDetailModal } from "@/components/cluster-detail-modal"
 import { SafeImage } from "@/components/safe-image"
+import { Skeleton } from "@/components/ui/skeleton"
 import { fetchBlindspotViewer } from '@/lib/api';
-import type { BlindspotCard, BlindspotLane, BlindspotLens, TrendingCluster } from '@/lib/api';
+import { motion } from "framer-motion"
+import { useQuery } from "@tanstack/react-query"
 import { cn, serializeSources } from "@/lib/utils"
 
 interface BlindspotViewProps {

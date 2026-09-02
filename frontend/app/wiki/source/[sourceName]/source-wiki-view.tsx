@@ -1,9 +1,5 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   ChevronLeft,
@@ -12,14 +8,18 @@ import {
   Network,
   RefreshCw,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { GlobalNavigation } from "@/components/global-navigation";
-import { fetchWikiSource, triggerWikiIndex } from '@/lib/api';
 import type { SourceLedger, SourceLedgerMetric, WikiAnalysisAxis, WikiSourceProfile } from '@/lib/api';
 import { fetchAtlasEntity, searchAtlas } from "@/features/intelligence-atlas/lib/atlas-api";
+import { fetchWikiSource, triggerWikiIndex } from '@/lib/api';
 import { parseFundingAndBias, parseOwnershipChain } from "@/features/intelligence-atlas/lib/atlas-schema";
-import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
+import { useEffect, useState } from 'react';
+import { Badge } from "@/components/ui/badge";
 import { FundingBiasPanel } from "@/features/intelligence-atlas/funding-bias-panel";
+import { GlobalNavigation } from "@/components/global-navigation";
+import Link from "next/link";
+import type { ReactNode } from 'react';
+import { buildAtlasNeighborhoodHref } from "@/features/intelligence-atlas/lib/atlas-query-state";
+import { useQuery } from "@tanstack/react-query";
 import { OwnershipChain } from "@/features/intelligence-atlas/ownership-chain";
 
 const ANALYSIS_META: Record<string, { label: string; description: string }> = {

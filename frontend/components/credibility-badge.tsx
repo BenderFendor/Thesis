@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart3 } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+
+import { BarChart3 } from "lucide-react";
+import { useState } from "react";
 import type {
   CredibilityDimension,
   SourceCredibilityProfile,

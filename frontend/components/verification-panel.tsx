@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import {
   AlertTriangle,
   ChevronDown,
@@ -10,13 +9,11 @@ import {
   RefreshCw,
   Shield,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfidenceBadge, ConfidenceBar } from "./confidence-badge";
 import type {
   SourceInfo,
@@ -27,6 +24,9 @@ import {
   getConfidenceColor,
   verifyResearch,
 } from "@/lib/verification";
+import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { logger } from "@/lib/logger";
 
 interface VerificationPanelProps {

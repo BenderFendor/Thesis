@@ -1,24 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
 import type {
   ArticleTopic,
   BookmarkEntry,
   LikedEntry,
   NewsArticle,
 } from "@/lib/api";
-import {
-  fetchBookmarks,
-  fetchBulkArticleTopics,
-  fetchLikedArticles,
-} from "@/lib/api";
+
 import type {
   FeedScoreBreakdown,
   InterestProfile,
   PersonalizationSeed,
   RankedFeedResult,
 } from "@/lib/feed-ranking";
+import {
+  fetchBookmarks,
+  fetchBulkArticleTopics,
+  fetchLikedArticles,
+} from "@/lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MAX_PERSONALIZATION_SEEDS,
   buildInterestProfile,

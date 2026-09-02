@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-
 import { GlobalNavigation } from "@/components/global-navigation"
+
 import type { GlobalNavigationServices } from "@/components/global-navigation"
+import userEvent from "@testing-library/user-event"
 
 const push = jest.fn(),
  replace = jest.fn(),

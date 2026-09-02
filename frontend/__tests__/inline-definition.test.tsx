@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
-import React from "react";
 import { render, screen } from "@testing-library/react";
-
 import { InlineDefinitionPopover } from "@/components/inline-definition";
+
+import React from "react";
 
 describe("inlineDefinitionPopover", () => {
   afterEach(() => {

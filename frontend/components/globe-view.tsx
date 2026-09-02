@@ -1,10 +1,5 @@
 "use client"
 
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react"
-import { useCallback, useMemo, useRef, useState } from "react"
-import { ArticleDetailModal } from "./article-detail-modal"
-import { InteractiveGlobe } from "./interactive-globe"
-import { useQuery } from "@tanstack/react-query"
 import {
   AlertCircle,
   Bookmark,
@@ -20,18 +15,23 @@ import {
   Signal,
   X
 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { SafeImage } from "@/components/safe-image"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
 import type { CountryArticleCounts, CountryListItem, LocalLensResponse, NewsArticle } from '@/lib/api';
-import { fetchCountryGeoData } from '@/lib/api';
+import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   buildCountryListFromArticles,
   buildCountryMetricsFromArticles,
   buildLocalLensFromArticles,
 } from "@/lib/globe-live-data"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { ArticleDetailModal } from "./article-detail-modal"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { InteractiveGlobe } from "./interactive-globe"
+import { SafeImage } from "@/components/safe-image"
+import { cn } from "@/lib/utils"
+import { fetchCountryGeoData } from '@/lib/api';
+import { useQuery } from "@tanstack/react-query"
 import { useBookmarks } from "@/hooks/useBookmarks"
 
 interface GlobeViewProps {

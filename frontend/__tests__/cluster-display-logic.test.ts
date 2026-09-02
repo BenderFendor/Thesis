@@ -1,12 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
-import fc from "fast-check";
+import type { BreakingCluster, TrendingArticle, TrendingCluster } from "@/lib/api";
 import {
   clusterArticlesToNewsArticles,
   filterTrendingClusters,
   getClusterPreviewStats,
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
-import type { BreakingCluster, TrendingArticle, TrendingCluster } from "@/lib/api";
+import { describe, expect, it } from '@jest/globals';
+import fc from "fast-check";
 
 describe("cluster display logic", () => {
   it("removes trending clusters that already appear in breaking", () => {  expect.hasAssertions();

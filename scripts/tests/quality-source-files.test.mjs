@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
 import { dirname, resolve } from "node:path";
+import assert from "node:assert/strict";
+import { collectOwnedFrontendFiles } from "../quality-source-files.mjs";
 import { fileURLToPath } from "node:url";
 
-import { collectOwnedFrontendFiles } from "../quality-source-files.mjs";
+import { test } from "node:test";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 

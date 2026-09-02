@@ -1,11 +1,11 @@
-import { describe, expect, it } from '@jest/globals';
-import fc from "fast-check"
-import type { NewsArticle } from "@/lib/api"
 import {
   buildCountryListFromArticles,
   buildCountryMetricsFromArticles,
   buildLocalLensFromArticles,
 } from "@/lib/globe-live-data"
+import { describe, expect, it } from '@jest/globals';
+import type { NewsArticle } from "@/lib/api"
+import fc from "fast-check"
 
 const DEFAULT_ARTICLE: NewsArticle = {
   bias: "center",

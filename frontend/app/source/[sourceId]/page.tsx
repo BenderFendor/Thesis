@@ -1,21 +1,21 @@
 "use client"
 
-import { use, useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { AnimatePresence, motion } from "framer-motion"
 import { AlertTriangle, ArrowLeft, BookOpen, Bug, Clock, ExternalLink, Globe, MapPin, Newspaper, Star } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { AnimatePresence, motion } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
+import { use, useState } from "react"
 import { ArticleDetailModal } from "@/components/article-detail-modal"
-import { SourceResearchPanel } from "@/components/source-research-panel"
-import { SafeImage } from "@/components/safe-image"
-import { getSourceById } from '@/lib/api';
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import type { NewsArticle } from '@/lib/api';
+import { SafeImage } from "@/components/safe-image"
+import { SourceResearchPanel } from "@/components/source-research-panel"
+import { getSourceById } from '@/lib/api';
 import { useBrowseIndex } from "@/hooks/use-browse-index"
 import { useDebugMode } from "@/hooks/use-debug-mode"
+import { useQuery } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import { useFavorites } from "@/hooks/use-favorites"
 
 interface SourcePageProps {

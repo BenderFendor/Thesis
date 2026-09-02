@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SearchSuggestion } from "@/lib/api";
 import { fetchSearchSuggestions } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 
 interface SearchSuggestionsProps {

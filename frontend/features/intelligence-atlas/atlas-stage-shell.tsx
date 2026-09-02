@@ -14,9 +14,9 @@ import type {
   ReadonlyAtlasQueryState,
 } from "./lib/atlas-query-state"
 import { useCallback, useMemo } from "react"
-import { DEFAULT_ATLAS_QUERY_STATE } from "./lib/atlas-query-state"
 import { AtlasContextPanel } from "./atlas-context-panel"
 import { AtlasGraph } from "./atlas-graph"
+import { DEFAULT_ATLAS_QUERY_STATE } from "./lib/atlas-query-state"
 import styles from "./atlas.module.css"
 
 type AtlasGraphStats = AtlasGraphResponse["stats"]

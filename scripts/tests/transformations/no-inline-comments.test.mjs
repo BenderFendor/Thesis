@@ -1,10 +1,10 @@
-import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import assert from "node:assert/strict";
 import { join } from "node:path";
-import { test } from "node:test";
-import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
 import { runTransform } from "../../transformations/no-inline-comments.mjs";
+import { test } from "node:test";
+import { tmpdir } from "node:os";
+import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
 
 /**
  * Type-check a source text with the repository TypeScript compiler.

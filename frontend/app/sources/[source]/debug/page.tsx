@@ -1,14 +1,14 @@
 "use client";
 
-import { use, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-
-import { SourceDebugView } from "@/app/sources/[source]/debug/source-debug-view";
+import { use, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useDebugMode } from "@/hooks/use-debug-mode";
-import { fetchSourceDebugData } from "@/lib/api";
+
 import type { SourceDebugData } from "@/lib/api";
+import { SourceDebugView } from "@/app/sources/[source]/debug/source-debug-view";
+import { fetchSourceDebugData } from "@/lib/api";
+import { useDebugMode } from "@/hooks/use-debug-mode";
+import { useQuery } from "@tanstack/react-query";
 import { setDebugMode } from "@/lib/logger";
 
 const DEFAULT_ERROR_MESSAGE =
