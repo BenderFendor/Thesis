@@ -1,5 +1,108 @@
 # Learnings
 
+## 2026-09-02 — Fix the rule cluster at the component boundary
+
+- The hook's `max-lines` and `no-ternary` findings in the reader were symptoms
+  of a mixed rendering boundary. Extracting chrome and language UI reduced the
+  source unit and let each exact Oxlint rule be repaired in its own boundary.
+- `prefer-readonly-parameter-types` checks nested object properties. A shallow
+  `Readonly<Controller>` does not make a mutable ref readonly; expose a
+  readonly token view and a named setter for the intentional mutation.
+- `jsx-max-depth`, inline-handler performance, and `consistent-return` are
+  easier to fix with child components and memoized callbacks than with JSX
+  suppression or wider prop objects.
+- The direct modal slice is green while the repo gate remains red. Keep both
+  results in the measurement record and queue; do not report a targeted pass
+  as repository completion.
+
+## 2026-09-02 — Provider codes and root-cause queues
+
+- Inspect actual Oxlint JSON before designing the adapter. Its diagnostic code
+  uses `namespace(rule)` while the repository taxonomy uses `namespace/rule`,
+  and its path is carried by `filename`.
+- A taxonomy is not enough if the task key still contains the file path.
+  Mechanical lint tasks should group by exact rule and preserve all affected
+  paths as scope; structural tasks should remain source-unit scoped.
+- A changed-file measurement must derive its candidates from Git tracked and
+  untracked changes. An empty path list for `changed` must never mean all source
+  roots.
+- Keep verification commands in the canonical repository policy. Tests for
+  profile resolution and queue grouping protect controller behavior; tests that
+  only assert linter output do not add confidence.
+- When no separate Codemode capability is available, use the repository's
+  existing AST codemod and select transforms from normalized rule IDs. Keep raw
+  provider codes in measurements instead of duplicating them in task metadata.
+
+## 2026-09-02 — Keep immutable response models separate from mutable state
+
+- API response records used by the modal are snapshots. Mark their nested
+  fields and collections readonly so component and helper parameters describe
+  the real ownership boundary.
+- Keep React setters, queue enrichment, and cache arrays mutable where code
+  intentionally updates them. A broad readonly conversion that makes those
+  operations awkward is the wrong abstraction.
+- Repository quality adapters must reproduce the package-manager environment.
+  The local Oxlint binary needs \`frontend/node_modules/.bin\` on \`PATH\` so its
+  optional type-aware worker can be found and its JSON output can be parsed.
+
+## 2026-09-02 — Dependency findings require real feature boundaries
+
+- A modal dependency-limit failure was architectural: one controller owned
+  API services, app-state hooks, highlight persistence, and five UI regions.
+  Extract contracts and data flow first, then split reader, actions, analysis,
+  and layout by the dependencies each region actually uses.
+- An effect that loads local state and then merges remote state is easier to
+  reason about when the async merge belongs to a data boundary. Keep the
+  React effect responsible for lifecycle inputs and key it by the stable
+  article URL, not an object whose identity may change.
+- Tests added during a lint cleanup must prove user-visible or data behavior.
+  Modal rendering, highlight serialization and activation, image fallback, and
+  view-mode storage are valid regression surfaces; invoking Oxlint or asserting
+  source formatting is not.
+- When a strict rule remains after a structural extraction, record the direct
+  file count and continue from the real source boundary. Do not alter the hook
+  or reduce the rule set to make the report disappear.
+- Mechanical nullish-coalescing suggestions need behavior checks: an empty
+  author string is a meaningful "try the authors list" signal, not the same as
+  a missing value.
+
+## 2026-09-02 — Ref-bearing props and modal dependency slices
+
+- A React refs diagnostic can come from reading `props.*` on a large payload
+  that also carries mutable ref objects; destructure those refs at the render
+  boundary before passing the remaining readonly view payload to children.
+- A giant modal's dependency finding is an architecture signal. Move a
+  cohesive view such as the wiki sheet into its own module with its own
+  behavior-preserving tests and direct lint check; do not replace the finding
+  with a broad re-export barrel or a rule suppression.
+- Quality stop hooks can report equality as a regression when a file is edited.
+  Make a small, behavior-neutral source improvement only when it also keeps
+  the file's direct Oxlint result clean; never change the thresholds to hide
+  the equality.
+
+## 2026-09-01 — Fix Oxlint by source slice, not hook expansion
+
+Context:
+- The quality controller and hook were already working, but broad controller
+  changes did not reduce the frontend findings that mattered.
+- `digest-card.tsx` and `read-time-badge.tsx` mixed real component behavior with
+  dense JSX, mutable prop types, implicit returns, and strict-boolean errors.
+
+What worked:
+- Read each component's callers and existing behavior tests before editing.
+- Extracted semantic presentational pieces from the digest card, derived its
+  item type from the API function, and kept the existing scheduling flow.
+- Replaced nullable-number truthiness with a typed positive-measurement guard
+  and kept zero values behaving as missing data in the read-time badge.
+- Measured each file directly after the edit, then ran the real component test
+  suite and TypeScript compiler.
+
+Future agents should:
+- Treat the hook's per-file findings as a source work queue, not a reason to
+  keep expanding the controller.
+- Apply all applicable rule families in one understood file, then verify its
+  behavior before selecting the next file.
+
 ## 2026-07-21: Media profiles need dated, source-specific semantics
 
 Context:
@@ -593,6 +696,34 @@ browser boundary is still acceptable, but a module mock or mock component is
 not evidence for CRAP or behavior correctness. Re-run dead-code and
 duplication only after export and component boundaries stabilize; otherwise
 the inventory describes moving targets.
+
+## 2026-09-02 — Source slices must preserve behavior contracts
+
+- Replace prop-derived state effects with render derivation plus state that
+  represents only an external event, such as an image source that actually
+  failed. Test the failure and prop-change path with the real component.
+- When readonly parameter checks meet DOM objects, type the narrow capability
+  the consumer uses (`contains` and `getBoundingClientRect`) instead of passing
+  a mutable `HTMLElement` through every layer.
+- Stable empty values and query-key helpers avoid new array/JSX props without
+  suppressing the performance rules. Tests should cover the storage or UI
+  behavior, not the lint configuration.
+- For small badges, named thresholds and a presentation helper make the
+  display branches readable while keeping the query/loading/error contract
+  unchanged. Check the exported component after declaration refactors; a
+  missing export can look like a lint-only unused-variable failure.
+- When a utility combines DOM traversal, render assembly, normalization, and
+  export formatting, split those responsibilities before chasing MI. Keep the
+  old import surface as direct re-exports, then test each observable contract
+  through the real DOM or serialized output.
+- React's `ForwardedRef` is mutable by design and conflicts with this repo's
+  readonly-parameter rule. Keep the render callback's input tuple readonly,
+  validate the ref shape at that boundary, and retain the real ref forwarding
+  behavior; verify the consuming modal rather than adding a linter-only test.
+- Treat hook-dependency diagnostics as semantic work: memoize local event
+  actions before listing them in effects, remove values an effect does not
+  read, and include setter callbacks when the configured rule requires them.
+  This removed six modal findings without changing the user flow.
 # 2026-07-21 — Background ingestion needs source-level truth
 
 Context:

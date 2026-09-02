@@ -112,6 +112,17 @@
     "anti-slop/require-safety-comment-for-type-assertion": "error",
     "react/react-in-jsx-scope": "off",
     "typescript/no-explicit-any": "error",
+    "typescript/prefer-readonly-parameter-types": [
+      "error",
+      {
+        "allow": [
+          {
+            "from": "lib",
+            "name": "HTMLDivElement"
+          }
+        ]
+      }
+    ],
     "typescript/consistent-type-imports": "error",
     "typescript/consistent-type-definitions": ["error", "interface"],
     "typescript/no-non-null-assertion": "error",
@@ -201,6 +212,12 @@
         "node": true
       },
       "rules": {
+        "import/no-nodejs-modules": [
+          "error",
+          {
+            "allow": ["node:child_process", "node:crypto", "node:events", "node:fs", "node:fs/promises", "node:path", "node:stream", "node:url", "node:util"]
+          }
+        ],
         "import/no-unassigned-import": "off"
       }
     }

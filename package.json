@@ -10,8 +10,10 @@
     "cli:schema:check": "./scripts/scoop schema check",
     "deps:cycles": "bash ./scripts/check-cycles",
     "quality:duplicates": "jscpd --config .jscpd.json -p '**/*.{ts,tsx,js,mjs,py,rs}' frontend backend scripts",
+    "quality:controller:test": "node --test scripts/tests/quality-hardening/*.test.mjs",
+    "quality:controller:validate": "node scripts/quality-hardening.mjs validate",
     "quality:maintainability": "node scripts/check-maintainability.mjs",
-    "quality:all": "bash ./scripts/check-cycles && npm run quality:duplicates && npm run quality:maintainability -- --strict && bash ./scripts/check-complexity && npm --prefix frontend run deadcode && npm --prefix frontend run crap"
+    "quality:all": "node scripts/quality-hardening.mjs verify --scope repo"
   },
   "devDependencies": {
     "@types/d3-geo": "^3.1.0",
