@@ -1,17 +1,19 @@
-name: Quality advisory audit (artifact only)
+name: Quality hard gate
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * 0"
+  pull_request:
+  push:
+    branches:
+      - main
+      - quality/crap-mi-oxlint-hardening
 
 permissions:
   contents: read
 
 jobs:
-  audit:
+  quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +26,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions-rust-lang/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
       - name: Install repository analyzers
         run: |
           npm ci --no-audit --no-fund
@@ -36,16 +42,13 @@ jobs:
           CCCC="$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)"
           test -n "$CCCC"
           sudo cp "$CCCC" /usr/local/bin/cccc
-      - name: Measure repository
-        run: node scripts/quality-hardening.mjs measure --scope repo --json > /tmp/qh-measurement.json
-      - name: Show compact summary
-        run: node scripts/quality-hardening.mjs summary --json
-      - name: Upload measurement artifact
+      - name: Run repository quality gate
+        run: node scripts/quality-hardening.mjs verify --scope repo
+      - name: Upload failure logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: quality-audit-measurement
-          path: |
-            /tmp/qh-measurement.json
-            .quality-hardening/measurements/*.json
+          name: quality-gate-logs
+          path: .quality-hardening/measurements/*.json
           if-no-files-found: warn
           retention-days: 7

@@ -849,6 +849,196 @@ const CountryFeatureSchema = z.custom<CountryFeature>(),
  STAR_WARMTH_RANGE = 0.08,
  STAR_WARMTH_SHIFT = 0.5
 
+type PolygonContext = Readonly<{
+  displayCounts: Record<string, number>;
+  maxCount: number;
+  maxMentionCount: number;
+  mentionCounts: Record<string, number>;
+}>
+
+const useGlobeCounts = (
+  articles: readonly NewsArticle[],
+  countryMetrics: CountryArticleCounts | null | undefined,
+  visibleCountries: readonly CountryFeature[],
+): PolygonContext => {
+  const fallbackSourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    articles.forEach((article) => {
+      const sourceCountry = article.source_country || article.country
+      if (!sourceCountry || sourceCountry === "International") { return }
+      counts[sourceCountry] = (counts[sourceCountry] ?? ZERO_COUNT) + 1
+    })
+    return counts
+  }, [articles]),
+   sourceOriginCounts =
+    countryMetrics?.source_counts && Object.keys(countryMetrics.source_counts).length > ZERO_COUNT
+      ? countryMetrics.source_counts
+      : fallbackSourceCounts,
+   displayCounts = useMemo(
+    () => remapCountryCounts(sourceOriginCounts, visibleCountries),
+    [sourceOriginCounts, visibleCountries],
+  ),
+   mentionCounts = useMemo(
+    () => remapCountryCounts(countryMetrics?.counts ?? {}, visibleCountries),
+    [countryMetrics?.counts, visibleCountries],
+  ),
+   maxCount = useMemo(() => maxValue(displayCounts), [displayCounts]),
+   maxMentionCount = useMemo(() => maxValue(mentionCounts), [mentionCounts])
+  return { displayCounts, maxCount, maxMentionCount, mentionCounts }
+}
+
+/** @returns {{countries: CountryFeatureCollection, countryCenters: Record<string, CountryCenter>, visibleCountries: CountryFeature[]}} */
+const useGlobeCountryData = () => {
+  const countriesQuery = useQuery<CountryFeatureCollection>({
+    gcTime: Infinity,
+    queryFn: async () => {
+      const response = await fetch(LOCAL_COUNTRY_GEOJSON_URL),
+       parsed = CountryCollectionSchema.safeParse(await response.json())
+      return parsed.success ? parsed.data : EMPTY_COUNTRY_COLLECTION
+    },
+    queryKey: ["globe-countries"],
+    refetchOnWindowFocus: false,
+    retry: 1,
+    staleTime: Infinity,
+  }),
+   countries = countriesQuery.data ?? EMPTY_COUNTRY_COLLECTION,
+   visibleCountries = useMemo(
+    () => countries.features.filter((feature) => Boolean(feature) && getCountryIso(feature) !== ANTLARCTICA_USER_ISO),
+    [countries.features],
+  ),
+   countryCenters = useMemo(() => {
+    const centers: Record<string, CountryCenter> = {}
+    countries.features.forEach((feature) => {
+      const iso = getCountryIso(feature)
+      if (iso === null) { return }
+      const center = getFeatureCenter(feature.geometry)
+      if (center) {
+        centers[iso] = center
+      }
+    })
+    return centers
+  }, [countries])
+  return { countries, countryCenters, visibleCountries }
+}
+
+const usePolygonPresentation = (context: Readonly<{
+  displayCounts: Record<string, number>;
+  globeInstance: GlobeMethods | null;
+  maxCount: number;
+  maxMentionCount: number;
+  mentionCounts: Record<string, number>;
+  onCountrySelect: InteractiveGlobeProps["onCountrySelect"];
+  selectedCountry: string | null;
+}>): Readonly<{
+  handlePolygonClick: (polygon: object) => void;
+  handlePolygonHover: (polygon: object | null) => void;
+  polygonAltitude: (polygon: object) => number;
+  polygonCapColor: (polygon: object) => string;
+  polygonLabel: (polygon: object) => string;
+  polygonSideColor: (polygon: object) => string;
+  polygonStrokeColor: (polygon: object) => string;
+}> => {
+  const { displayCounts, globeInstance, maxCount, maxMentionCount, mentionCounts, onCountrySelect, selectedCountry } = context,
+   [hoverD, setHoverD] = useState<CountryFeature | null>(null),
+   polygonStyleContext = useMemo<PolygonContext>(
+    () => ({ displayCounts, maxCount, maxMentionCount, mentionCounts }),
+    [displayCounts, maxCount, maxMentionCount, mentionCounts],
+  ),
+   handlePolygonHover = useMemo(
+    () => (polygon: object | null): void => {
+      setHoverD(toCountryFeature(polygon))
+    },
+    [],
+  ),
+   handlePolygonClick = useMemo(
+    () => (polygon: object): void => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return }
+      const iso = getCountryIso(feature)
+      if (iso === null) { return }
+      const countryName = feature.properties.NAME
+      if (selectedCountry === iso) {
+        onCountrySelect(null, null)
+        globeInstance?.pointOfView(
+          { altitude: globalThis.innerWidth < MOBILE_BREAKPOINT ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_DESELECT_ALTITUDE },
+          FOCUS_TRANSITION_MS,
+        )
+        return
+      }
+
+      onCountrySelect(iso, countryName)
+      // Zoom with a slight latitude offset so the country is not hidden behind the bottom UI drawer.
+      const centroid = geoCentroid(feature),
+       [lng, lat] = centroid,
+       isMobile = globalThis.innerWidth < MOBILE_BREAKPOINT,
+       latOffset = isMobile ? MOBILE_LAT_OFFSET : DESKTOP_LAT_OFFSET,
+       zoomAltitude = isMobile ? MOBILE_CLICK_ALTITUDE : DESKTOP_CLICK_ALTITUDE
+      globeInstance?.pointOfView({ altitude: zoomAltitude, lat: lat + latOffset, lng }, FOCUS_TRANSITION_MS)
+    },
+    [globeInstance, onCountrySelect, selectedCountry],
+  ),
+   polygonAltitude = useMemo(
+    () => (polygon: object): number => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return DEFAULT_POLYGON_ALTITUDE }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
+      if (heat === null) { return DEFAULT_POLYGON_ALTITUDE }
+      return computePolygonAltitude(feature, heat, hoverD, selectedCountry)
+    },
+    [hoverD, polygonStyleContext, selectedCountry],
+  ),
+   polygonCapColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return CAP_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
+      if (heat === null) { return CAP_DEFAULT_COLOR }
+      return computeCapColor(feature, heat, polygonStyleContext.maxCount, polygonStyleContext.maxMentionCount, hoverD, selectedCountry)
+    },
+    [hoverD, polygonStyleContext, selectedCountry],
+  ),
+   polygonSideColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return SIDE_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
+      if (heat === null) { return SIDE_DEFAULT_COLOR }
+      return computeSideColor(feature, heat, hoverD, selectedCountry)
+    },
+    [hoverD, polygonStyleContext, selectedCountry],
+  ),
+   polygonStrokeColor = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return STROKE_DEFAULT_COLOR }
+      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
+      if (heat === null) { return STROKE_DEFAULT_COLOR }
+      return computeStrokeColor(feature, heat, hoverD, selectedCountry)
+    },
+    [hoverD, polygonStyleContext, selectedCountry],
+  ),
+   polygonLabel = useMemo(
+    () => (polygon: object): string => {
+      const feature = toCountryFeature(polygon)
+      if (feature === null) { return "" }
+      const iso = getCountryIso(feature) ?? UNKNOWN_ISO_LABEL
+      if (selectedCountry === iso) { return "" }
+      return buildCountryLabel(feature, polygonStyleContext.displayCounts, polygonStyleContext.mentionCounts)
+    },
+    [polygonStyleContext, selectedCountry],
+  )
+  return {
+    handlePolygonClick,
+    handlePolygonHover,
+    polygonAltitude,
+    polygonCapColor,
+    polygonLabel,
+    polygonSideColor,
+    polygonStrokeColor,
+  }
+}
+
+
 export const InteractiveGlobe = ({
   articles,
   countryMetrics,
@@ -859,7 +1049,6 @@ export const InteractiveGlobe = ({
 }: InteractiveGlobeProps) => {
   const containerRef = useRef<HTMLDivElement>(null),
    [dimensions, setDimensions] = useState({ height: ZERO_COUNT, width: ZERO_COUNT }),
-   [hoverD, setHoverD] = useState<CountryFeature | null>(null),
    [globeInstance, setGlobeInstance] = useState<GlobeMethods | null>(null),
    globeRef = useMemo<MutableRefObject<GlobeMethods | undefined>>(() => {
     let current: GlobeMethods | undefined
@@ -875,23 +1064,7 @@ export const InteractiveGlobe = ({
     }
   }, []),
    qualityTier = useMemo(() => getQualityTier(dimensions.width, dimensions.height), [dimensions.height, dimensions.width]),
-   countriesQuery = useQuery<CountryFeatureCollection>({
-    gcTime: Infinity,
-    queryFn: async () => {
-      const response = await fetch(LOCAL_COUNTRY_GEOJSON_URL),
-       parsed = CountryCollectionSchema.safeParse(await response.json())
-      return parsed.success ? parsed.data : EMPTY_COUNTRY_COLLECTION
-    },
-    queryKey: ["globe-countries"],
-    refetchOnWindowFocus: false,
-    retry: 1,
-    staleTime: Infinity,
-   }),
-   countries = countriesQuery.data ?? EMPTY_COUNTRY_COLLECTION,
-   visibleCountries = useMemo(
-    () => countries.features.filter((feature) => Boolean(feature) && getCountryIso(feature) !== ANTLARCTICA_USER_ISO),
-    [countries.features],
-   ),
+   { countryCenters, visibleCountries } = useGlobeCountryData(),
    globeSetup = useMemo(() => createGlobeMaterial(), []),
    customGlobeMaterial = globeSetup.material,
    globeUniforms = globeSetup.uniforms
@@ -900,42 +1073,7 @@ export const InteractiveGlobe = ({
     setLightingModeUniform(globeUniforms, lightingMode)
   }, [globeUniforms, lightingMode])
 
-  const fallbackSourceCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    articles.forEach((article) => {
-      const sourceCountry = article.source_country || article.country
-      if (!sourceCountry || sourceCountry === "International") { return }
-      counts[sourceCountry] = (counts[sourceCountry] ?? ZERO_COUNT) + 1
-    })
-    return counts
-  }, [articles]),
-
-   sourceOriginCounts =
-    countryMetrics?.source_counts && Object.keys(countryMetrics.source_counts).length > ZERO_COUNT
-      ? countryMetrics.source_counts
-      : fallbackSourceCounts,
-   displayCounts = useMemo(
-    () => remapCountryCounts(sourceOriginCounts, visibleCountries),
-    [sourceOriginCounts, visibleCountries],
-  ),
-   mentionCounts = useMemo(
-    () => remapCountryCounts(countryMetrics?.counts ?? {}, visibleCountries),
-    [countryMetrics?.counts, visibleCountries],
-  ),
-   maxCount = useMemo(() => maxValue(displayCounts), [displayCounts]),
-   maxMentionCount = useMemo(() => maxValue(mentionCounts), [mentionCounts]),
-   countryCenters = useMemo(() => {
-    const centers: Record<string, CountryCenter> = {}
-    countries.features.forEach((feature) => {
-      const iso = getCountryIso(feature)
-      if (iso === null) { return }
-      const center = getFeatureCenter(feature.geometry)
-      if (center) {
-        centers[iso] = center
-      }
-    })
-    return centers
-  }, [countries])
+  const { displayCounts, maxCount, maxMentionCount, mentionCounts } = useGlobeCounts(articles, countryMetrics, visibleCountries)
 
   useEffect(() => {
     if (globeInstance === null) { return }
@@ -1169,100 +1307,25 @@ export const InteractiveGlobe = ({
     [customGlobeMaterial, globeSetup],
   )
 
-  const polygonStyleContext = useMemo<Readonly<{ displayCounts: Record<string, number>; maxCount: number; maxMentionCount: number; mentionCounts: Record<string, number> }>>(
-    () => ({ displayCounts, maxCount, maxMentionCount, mentionCounts }),
-    [displayCounts, maxCount, maxMentionCount, mentionCounts],
-  ),
+  const presentation = usePolygonPresentation({
+    displayCounts,
+    globeInstance,
+    maxCount,
+    maxMentionCount,
+    mentionCounts,
+    onCountrySelect,
+    selectedCountry,
+  })
 
-   handlePolygonHover = useMemo(
-    () => (polygon: object | null): void => {
-      setHoverD(toCountryFeature(polygon))
-    },
-    [],
-  ),
-
-   handlePolygonClick = useMemo(
-    () => (polygon: object): void => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return }
-      const iso = getCountryIso(feature)
-      if (iso === null) { return }
-      const countryName = feature.properties.NAME
-      if (selectedCountry === iso) {
-        onCountrySelect(null, null)
-        globeInstance?.pointOfView(
-          { altitude: globalThis.innerWidth < MOBILE_BREAKPOINT ? MOBILE_OVERVIEW_ALTITUDE : DESKTOP_DESELECT_ALTITUDE },
-          FOCUS_TRANSITION_MS,
-        )
-        return
-      }
-
-      onCountrySelect(iso, countryName)
-      // Zoom with a slight latitude offset so the country is not hidden behind the bottom UI drawer.
-      const centroid = geoCentroid(feature),
-       [lng, lat] = centroid,
-       isMobile = globalThis.innerWidth < MOBILE_BREAKPOINT,
-       latOffset = isMobile ? MOBILE_LAT_OFFSET : DESKTOP_LAT_OFFSET,
-       zoomAltitude = isMobile ? MOBILE_CLICK_ALTITUDE : DESKTOP_CLICK_ALTITUDE
-      globeInstance?.pointOfView({ altitude: zoomAltitude, lat: lat + latOffset, lng }, FOCUS_TRANSITION_MS)
-    },
-    [globeInstance, onCountrySelect, selectedCountry],
-  ),
-
-   polygonAltitude = useMemo(
-    () => (polygon: object): number => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return DEFAULT_POLYGON_ALTITUDE }
-      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
-      if (heat === null) { return DEFAULT_POLYGON_ALTITUDE }
-      return computePolygonAltitude(feature, heat, hoverD, selectedCountry)
-    },
-    [hoverD, polygonStyleContext, selectedCountry],
-  ),
-
-   polygonCapColor = useMemo(
-    () => (polygon: object): string => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return CAP_DEFAULT_COLOR }
-      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
-      if (heat === null) { return CAP_DEFAULT_COLOR }
-      return computeCapColor(feature, heat, polygonStyleContext.maxCount, polygonStyleContext.maxMentionCount, hoverD, selectedCountry)
-    },
-    [hoverD, polygonStyleContext, selectedCountry],
-  ),
-
-   polygonSideColor = useMemo(
-    () => (polygon: object): string => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return SIDE_DEFAULT_COLOR }
-      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
-      if (heat === null) { return SIDE_DEFAULT_COLOR }
-      return computeSideColor(feature, heat, hoverD, selectedCountry)
-    },
-    [hoverD, polygonStyleContext, selectedCountry],
-  ),
-
-   polygonStrokeColor = useMemo(
-    () => (polygon: object): string => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return STROKE_DEFAULT_COLOR }
-      const heat = polygonStyleContext && computePolygonHeatFast(feature, polygonStyleContext)
-      if (heat === null) { return STROKE_DEFAULT_COLOR }
-      return computeStrokeColor(feature, heat, hoverD, selectedCountry)
-    },
-    [hoverD, polygonStyleContext, selectedCountry],
-  ),
-
-   polygonLabel = useMemo(
-    () => (polygon: object): string => {
-      const feature = toCountryFeature(polygon)
-      if (feature === null) { return "" }
-      const iso = getCountryIso(feature) ?? UNKNOWN_ISO_LABEL
-      if (selectedCountry === iso) { return "" }
-      return buildCountryLabel(feature, polygonStyleContext.displayCounts, polygonStyleContext.mentionCounts)
-    },
-    [polygonStyleContext, selectedCountry],
-  )
+  const {
+    handlePolygonClick,
+    handlePolygonHover,
+    polygonAltitude,
+    polygonCapColor,
+    polygonLabel,
+    polygonSideColor,
+    polygonStrokeColor,
+  } = presentation
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[var(--news-bg-primary)]">

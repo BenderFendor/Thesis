@@ -1,0 +1,2 @@
+{"cluster_key":"type-boundary:typescript/prefer-readonly-parameter-types","recorded_at":"2026-09-02T15:02:56.331Z","repair_class":"mechanical_contextual","session_id":"qh-campaign-01","status":"blocked","task_id":"qh-task:154ebe26fc2cc15b08ab3cfe"}
+{"cluster_key":"type-boundary:typescript/no-redundant-type-constituents","recorded_at":"2026-09-02T15:15:48.986Z","repair_class":"mechanical_contextual","session_id":"qh-campaign-02","status":"accepted","task_id":"qh-task:07c44967354c408a972a622b"}
