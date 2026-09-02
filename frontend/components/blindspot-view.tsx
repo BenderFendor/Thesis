@@ -4,7 +4,6 @@
 // Adaptive labeling handles Bias (Left/Right), Credibility, and other lenses while following the borderless "Scoop" aesthetic.
 
 import { useMemo, useState } from "react"
-import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { RefreshCcw, ShieldAlert } from "lucide-react"
@@ -531,6 +530,53 @@ function useBlindspotData(
   return { data, error, isLoading, laneMap, poleLabels, refetch, sortedCards }
 }
 
+function BlindspotLoadingState() {
+  return (
+    <div className="space-y-12">
+      <Skeleton className="h-12 w-full rounded-sm opacity-20" />
+      <div className="grid gap-12 xl:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="space-y-6">
+            <Skeleton className="h-10 w-48 opacity-20" />
+            <Skeleton className="h-64 w-full rounded-2xl opacity-10" />
+            <div className="space-y-3">
+              <Skeleton className="h-20 w-full rounded-xl opacity-5" />
+              <Skeleton className="h-20 w-full rounded-xl opacity-5" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BlindspotErrorState({
+  message,
+  onRetry,
+}: Readonly<{ message: string; onRetry: () => void }>) {
+  return (
+    <div className="flex min-h-[32rem] items-center justify-center p-6">
+      <div className="max-w-xl bg-white/[0.02] p-12 text-center rounded-2xl">
+        <div className="flex flex-col items-center gap-4 text-foreground">
+          <ShieldAlert className="h-12 w-12 text-primary/40" />
+          <h2 className="font-serif text-3xl">Viewer unavailable</h2>
+        </div>
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+          {message}
+        </p>
+        <Button
+          onClick={onRetry}
+          variant="outline"
+          className="mt-8 border-white/10 bg-white/[0.03] text-[10px] font-mono uppercase tracking-widest px-8"
+        >
+          <RefreshCcw className="mr-2 h-3.5 w-3.5" />
+          Retry
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function BlindspotControls({
   availableLenses,
   selectedLens,
@@ -591,12 +637,29 @@ function BlindspotControls({
 }
 
 function BlindspotLaneSections({
+  expandedLanes,
+  laneMap,
+  onExpandLane,
+  onOpenCard,
   poleLabels,
-  renderLaneCards,
 }: Readonly<{
+  expandedLanes: Record<BlindspotLane["id"], boolean>;
+  laneMap: Map<BlindspotLane["id"], BlindspotCard[]>;
+  onExpandLane: (laneId: BlindspotLane["id"]) => void;
+  onOpenCard: (card: BlindspotCard) => void;
   poleLabels: { pole_a: string; pole_b: string };
-  renderLaneCards: (laneId: BlindspotLane["id"], emptyLabel: string) => ReactNode;
 }>) {
+  const renderLaneCards = (laneId: BlindspotLane["id"], emptyLabel: string) => (
+    <BlindspotLaneCards
+      cards={laneMap.get(laneId) ?? []}
+      emptyLabel={emptyLabel}
+      expanded={expandedLanes[laneId] ?? false}
+      onExpand={() => onExpandLane(laneId)}
+      onOpen={onOpenCard}
+      poleLabels={poleLabels}
+    />
+  )
+
   return (
     <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
       <motion.section
@@ -753,64 +816,13 @@ export function BlindspotView({
     [selectedCard],
   )
 
-  function laneCards(
-    laneId: BlindspotLane["id"],
-    emptyLabel: string,
-  ) {
-    return (
-      <BlindspotLaneCards
-        cards={laneMap.get(laneId) ?? []}
-        emptyLabel={emptyLabel}
-        expanded={expandedLanes[laneId] ?? false}
-        onExpand={() => {setExpandedLanes((current) => ({ ...current, [laneId]: true }));}}
-        onOpen={setSelectedCard}
-        poleLabels={poleLabels}
-      />
-    )
-  }
 
   if (isLoading && !data) {
-    return (
-      <div className="space-y-12">
-        <Skeleton className="h-12 w-full rounded-sm opacity-20" />
-        <div className="grid gap-12 xl:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, index) => (
-            <div key={index} className="space-y-6">
-              <Skeleton className="h-10 w-48 opacity-20" />
-              <Skeleton className="h-64 w-full rounded-2xl opacity-10" />
-              <div className="space-y-3">
-                <Skeleton className="h-20 w-full rounded-xl opacity-5" />
-                <Skeleton className="h-20 w-full rounded-xl opacity-5" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    return <BlindspotLoadingState />
   }
 
   if (error instanceof Error) {
-    return (
-      <div className="flex min-h-[32rem] items-center justify-center p-6">
-        <div className="max-w-xl bg-white/[0.02] p-12 text-center rounded-2xl">
-          <div className="flex flex-col items-center gap-4 text-foreground">
-            <ShieldAlert className="h-12 w-12 text-primary/40" />
-            <h2 className="font-serif text-3xl">Viewer unavailable</h2>
-          </div>
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
-            {error.message}
-          </p>
-          <Button
-            onClick={() => void refetch()}
-            variant="outline"
-            className="mt-8 border-white/10 bg-white/[0.03] text-[10px] font-mono uppercase tracking-widest px-8"
-          >
-            <RefreshCcw className="mr-2 h-3.5 w-3.5" />
-            Retry
-          </Button>
-        </div>
-      </div>
-    )
+    return <BlindspotErrorState message={error.message} onRetry={() => void refetch()} />
   }
 
   if (!data) {
@@ -831,8 +843,11 @@ export function BlindspotView({
 
         {data.selected_lens.available ? (
           <BlindspotLaneSections
+            expandedLanes={expandedLanes}
+            laneMap={laneMap}
+            onExpandLane={(laneId) => {setExpandedLanes((current) => ({ ...current, [laneId]: true }));}}
+            onOpenCard={setSelectedCard}
             poleLabels={poleLabels}
-            renderLaneCards={laneCards}
           />
         ) : (
           <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
