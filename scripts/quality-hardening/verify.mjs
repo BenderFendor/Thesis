@@ -71,8 +71,8 @@ async function verify({ config, repositoryRoot, scope, measure }) {
   }
   const checks = [];
   for (const check of checksForScope(scope, config)) {checks.push(await runCheck(check, repositoryRoot));}
-  const checksPassed = checks.every((check) => check.status === "passed"),
-   trackedAfter = await trackedStatus(repositoryRoot),
+  const trackedAfter = await trackedStatus(repositoryRoot),
+   checksPassed = checks.every((check) => check.status === "passed"),
    worktreeClean = trackedBefore === trackedAfter;
   return {
     checks,

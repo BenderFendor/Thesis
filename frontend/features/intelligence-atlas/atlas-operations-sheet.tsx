@@ -33,7 +33,14 @@ export function AtlasOperationsSheet({
   onTabChange,
   selectedSourceName,
 }: AtlasOperationsSheetProps) {
-  const cacheStatusQuery = useQuery({
+  const queryClient = useQueryClient(),
+   sourceStatsQuery = useQuery({
+    enabled: open,
+    queryFn: fetchSourceStats,
+    queryKey: ["debug-source-stats-summary"],
+    retry: 1,
+  }),
+   cacheStatusQuery = useQuery({
     enabled: open,
     queryFn: fetchCacheStatus,
     queryKey: ["debug-cache-status-summary"],
@@ -45,17 +52,10 @@ export function AtlasOperationsSheet({
     queryKey: ["wiki-index-status"],
     retry: 1,
   }),
-   queryClient = useQueryClient(),
    sourceProfileQuery = useQuery<WikiSourceProfile>({
     enabled: open && Boolean(selectedSourceName),
     queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
     queryKey: ["wiki-source-profile", selectedSourceName],
-    retry: 1,
-  }),
-   sourceStatsQuery = useQuery({
-    enabled: open,
-    queryFn: fetchSourceStats,
-    queryKey: ["debug-source-stats-summary"],
     retry: 1,
   }),
 

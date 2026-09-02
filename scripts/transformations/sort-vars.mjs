@@ -46,6 +46,28 @@ const
      * @param {string} sourceText - Full source text.
      * @returns {ChainReplacement[]} Replacement plan list, or none.
      */
+    /**
+     * Reports whether any member initializer executes at initialization time
+     * (call, construction, or await). Reordering such members changes
+     * evaluation order (network/timing, subscription order), so the whole
+     * chain stays untouched - the safety contract is reference-only plus
+     * no-execution-order change.
+     * @param {readonly TsVariableDeclaration[]} declarations - Chain members.
+     * @returns {boolean} True when any initializer executes.
+     */
+    hasExecutingInitializer(declarations) {
+      return declarations.some((declaration) => {
+        const initializer = declaration.initializer;
+        if (initializer === undefined) {
+          return false;
+        }
+        if (ts.isCallExpression(initializer) || ts.isNewExpression(initializer)) {
+          return true;
+        }
+        return ts.isAwaitExpression(initializer);
+      });
+    },
+
     analyzeChain(statement, parsed, sourceText) {
       const {declarationList: {declarations}} = statement;
       const nameTexts = SortVars.chainNames(declarations);
@@ -53,6 +75,9 @@ const
       if (nameTexts.length === EMPTY_INDEX
         || SortVars.isAlreadyOrdered(sorted)
         || SortVars.hasChainComment(statement, declarations, parsed, sourceText)) {
+        return [];
+      }
+      if (SortVars.hasExecutingInitializer(declarations)) {
         return [];
       }
       const refsPerMember = SortVars.chainRefs(declarations, nameTexts);

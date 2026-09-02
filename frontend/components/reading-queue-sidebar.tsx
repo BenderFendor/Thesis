@@ -52,73 +52,41 @@ import { NoveltyBadge } from "@/components/novelty-badge";
 import ReactMarkdown from 'react-markdown';
 import { SafeImage } from "@/components/safe-image";
 import { SemanticTags } from "@/components/semantic-tags";
-import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { z } from "zod";
+import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 const ARTICLE_IMAGE_HEIGHT = 384,
  ARTICLE_IMAGE_WIDTH = 1280,
- ARTICLE_META_STYLE: CSSProperties = {
-  borderColor: "var(--border)",
-  color: "var(--muted-foreground)",
-},
- ARTICLE_READ_TIME_STYLE: CSSProperties = {
-  backgroundColor: "rgba(168, 85, 247, 0.2)",
-  border: "1px solid rgba(168, 85, 247, 0.3)",
-  color: "var(--primary)",
-},
- BLOCKQUOTE_STYLE: CSSProperties = {
-  borderColor: "var(--primary)",
-  color: "var(--muted-foreground)",
-},
  CARD_IMAGE_HEIGHT = 160,
  CARD_IMAGE_WIDTH = 640,
  CARD_INDENT_LIMIT = 16,
  CARD_INDENT_STEP = 4,
  CARD_OVERLAP = -8,
- CARD_STYLE: CSSProperties = {
-  backgroundColor: "var(--card)",
-  borderColor: "var(--border)",
-},
+ DIGEST_IMAGE_HEIGHT = 48,
+ DIGEST_IMAGE_WIDTH = 64,
+ MAX_SEMANTIC_TAGS = 3,
+ NO_ARTICLE_INDEX = -1,
+ PREVIEW_WORD_LIMIT = 150,
+ READ_SPEED_WPM = 230,
+ ZERO = 0,
+
  CODE_STYLE: CSSProperties = {
   backgroundColor: "rgba(0, 0, 0, 0.3)",
   color: "rgb(168, 85, 247)",
 },
- COLLAPSED_CARD_STYLE: CSSProperties = {
+ PRIMARY_BUTTON_STYLE: CSSProperties = {
+  backgroundColor: "var(--primary)",
+  color: "var(--primary-foreground)",
+},
+ CARD_STYLE: CSSProperties = {
   backgroundColor: "var(--card)",
   borderColor: "var(--border)",
-  outlineOffset: "0px",
-  outlineWidth: "0px",
 },
- DARK_CARD_STYLE: CSSProperties = {
-  backgroundColor: "rgba(0, 0, 0, 0.4)",
-  borderColor: "var(--border)",
-},
-
- DIGEST_CARD_STYLE: CSSProperties = {
-  backgroundColor: "rgba(168, 85, 247, 0.1)",
-  borderColor: "rgba(168, 85, 247, 0.3)",
-},
- DIGEST_CONTENT_STYLE: CSSProperties = {
-  color: "var(--foreground)",
-},
- DIGEST_HEADER_STYLE: CSSProperties = {
-  borderColor: "var(--border)",
-},
- DIGEST_IMAGE_HEIGHT = 48,
- DIGEST_IMAGE_WIDTH = 64,
- DIGEST_PRE_STYLE: CSSProperties = {
-  backgroundColor: "rgba(0, 0, 0, 0.4)",
-  color: "var(--foreground)",
-},
- DigestResponseSchema = z.object({
-  content: z.string().optional(),
-  digest: z.string().optional(),
-}),
  EXPANDED_CARD_STYLE: CSSProperties = {
   backgroundColor: "var(--news-bg-secondary)",
   borderColor: "var(--primary)",
@@ -126,52 +94,84 @@ const ARTICLE_IMAGE_HEIGHT = 384,
   outlineOffset: "0px",
   outlineWidth: "2px",
 },
- FOREGROUND_TEXT_STYLE: CSSProperties = {
-  color: "var(--foreground)",
+ COLLAPSED_CARD_STYLE: CSSProperties = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  outlineOffset: "0px",
+  outlineWidth: "0px",
 },
- FullArticleResponseSchema = z.object({
-  full_text: z.string().optional(),
-  text: z.string().optional(),
-}),
- LOADING_BADGE_STYLE: CSSProperties = {
-  backgroundColor: "rgba(59, 130, 246, 0.15)",
-  color: "rgb(59, 130, 246)",
-},
- MAX_SEMANTIC_TAGS = 3,
  MUTED_TEXT_STYLE: CSSProperties = {
   color: "var(--muted-foreground)",
 },
- NO_ARTICLE_INDEX = -1,
- PREVIEW_WORD_LIMIT = 150,
- PRIMARY_BUTTON_STYLE: CSSProperties = {
-  backgroundColor: "var(--primary)",
-  color: "var(--primary-foreground)",
+ FOREGROUND_TEXT_STYLE: CSSProperties = {
+  color: "var(--foreground)",
 },
  QUEUE_COUNT_STYLE: CSSProperties = {
   backgroundColor: "var(--primary)",
   color: "var(--primary-foreground)",
 },
- READ_SPEED_WPM = 230,
  READ_TIME_STYLE: CSSProperties = {
   backgroundColor: "var(--primary)",
   color: "var(--primary)",
 },
+ ARTICLE_READ_TIME_STYLE: CSSProperties = {
+  backgroundColor: "rgba(168, 85, 247, 0.2)",
+  border: "1px solid rgba(168, 85, 247, 0.3)",
+  color: "var(--primary)",
+},
+ LOADING_BADGE_STYLE: CSSProperties = {
+  backgroundColor: "rgba(59, 130, 246, 0.15)",
+  color: "rgb(59, 130, 246)",
+},
+ DIGEST_CARD_STYLE: CSSProperties = {
+  backgroundColor: "rgba(168, 85, 247, 0.1)",
+  borderColor: "rgba(168, 85, 247, 0.3)",
+},
+ DARK_CARD_STYLE: CSSProperties = {
+  backgroundColor: "rgba(0, 0, 0, 0.4)",
+  borderColor: "var(--border)",
+},
+ DIGEST_PRE_STYLE: CSSProperties = {
+  backgroundColor: "rgba(0, 0, 0, 0.4)",
+  color: "var(--foreground)",
+},
+ BLOCKQUOTE_STYLE: CSSProperties = {
+  borderColor: "var(--primary)",
+  color: "var(--muted-foreground)",
+},
  SHEET_STYLE: CSSProperties = {
   backgroundColor: "var(--news-bg-primary)",
 },
-
  SOURCE_DEBUG_STYLE: CSSProperties = {
   backgroundColor: "rgba(0, 0, 0, 0.4)",
   borderColor: "var(--border)",
 },
+ ARTICLE_META_STYLE: CSSProperties = {
+  borderColor: "var(--border)",
+  color: "var(--muted-foreground)",
+},
+ DIGEST_HEADER_STYLE: CSSProperties = {
+  borderColor: "var(--border)",
+},
+ DIGEST_CONTENT_STYLE: CSSProperties = {
+  color: "var(--foreground)",
+},
+
+ DigestResponseSchema = z.object({
+  content: z.string().optional(),
+  digest: z.string().optional(),
+}),
+ FullArticleResponseSchema = z.object({
+  full_text: z.string().optional(),
+  text: z.string().optional(),
+}),
  StructuredArticleSchema = z.object({
   link: z.string().optional(),
   url: z.string().optional(),
 }),
  StructuredArticlesResponseSchema = z.object({
   articles: z.array(StructuredArticleSchema).optional(),
-}),
- ZERO = 0;
+});
 
 type DigestResponse = z.infer<typeof DigestResponseSchema>;
 type FullArticleResponse = z.infer<typeof FullArticleResponseSchema>;
@@ -432,11 +432,11 @@ const StructuredArticleEmbeds = ({
   estimatedReadTime,
   readingHistoryIds,
 }: QueueCardMetaProps): ReactElement => {
-  const hasPreloadedData =
+  const hasReadTime =
+    estimatedReadTime !== undefined && estimatedReadTime > ZERO,
+   hasPreloadedData =
     article._queueData?.preloadedAt !== undefined &&
-    article._queueData.preloadedAt !== ZERO,
-   hasReadTime =
-    estimatedReadTime !== undefined && estimatedReadTime > ZERO;
+    article._queueData.preloadedAt !== ZERO;
   return (
     <div className="flex items-center gap-2 mt-1">
       <QueueCardSource article={article} />
@@ -1708,22 +1708,6 @@ const ArticleDetailGrid = ({
   </div>
 ),
 
- DigestBlockquote = ({
-  children,
-}: MarkdownChildrenProps): ReactElement => (
-  <blockquote className="border-l-4 pl-4 italic my-3" style={BLOCKQUOTE_STYLE}>
-    {children}
-  </blockquote>
-),
-
- DigestEmphasis = ({
-  children,
-}: MarkdownChildrenProps): ReactElement => (
-  <em className="italic" style={FOREGROUND_TEXT_STYLE}>
-    {children}
-  </em>
-),
-
  DigestHeadingOne = ({
   children,
 }: MarkdownChildrenProps): ReactElement => (
@@ -1733,17 +1717,6 @@ const ArticleDetailGrid = ({
   >
     {children}
   </h1>
-),
-
- DigestHeadingThree = ({
-  children,
-}: MarkdownChildrenProps): ReactElement => (
-  <h3
-    className="font-semibold font-serif text-lg mt-4 mb-2"
-    style={FOREGROUND_TEXT_STYLE}
-  >
-    {children}
-  </h3>
 ),
 
  DigestHeadingTwo = ({
@@ -1757,12 +1730,31 @@ const ArticleDetailGrid = ({
   </h2>
 ),
 
- DigestListItem = ({
+ DigestHeadingThree = ({
   children,
 }: MarkdownChildrenProps): ReactElement => (
-  <li className="ml-2" style={FOREGROUND_TEXT_STYLE}>
+  <h3
+    className="font-semibold font-serif text-lg mt-4 mb-2"
+    style={FOREGROUND_TEXT_STYLE}
+  >
     {children}
-  </li>
+  </h3>
+),
+
+ DigestParagraph = ({
+  children,
+}: MarkdownChildrenProps): ReactElement => (
+  <p className="mb-3 leading-relaxed text-base" style={FOREGROUND_TEXT_STYLE}>
+    {children}
+  </p>
+),
+
+ DigestUnorderedList = ({
+  children,
+}: MarkdownChildrenProps): ReactElement => (
+  <ul className="list-disc list-inside mb-3 space-y-1" style={FOREGROUND_TEXT_STYLE}>
+    {children}
+  </ul>
 ),
 
  DigestOrderedList = ({
@@ -1773,12 +1765,20 @@ const ArticleDetailGrid = ({
   </ol>
 ),
 
- DigestParagraph = ({
+ DigestListItem = ({
   children,
 }: MarkdownChildrenProps): ReactElement => (
-  <p className="mb-3 leading-relaxed text-base" style={FOREGROUND_TEXT_STYLE}>
+  <li className="ml-2" style={FOREGROUND_TEXT_STYLE}>
     {children}
-  </p>
+  </li>
+),
+
+ DigestBlockquote = ({
+  children,
+}: MarkdownChildrenProps): ReactElement => (
+  <blockquote className="border-l-4 pl-4 italic my-3" style={BLOCKQUOTE_STYLE}>
+    {children}
+  </blockquote>
 ),
 
  DigestPre = ({
@@ -1797,12 +1797,12 @@ const ArticleDetailGrid = ({
   </strong>
 ),
 
- DigestUnorderedList = ({
+ DigestEmphasis = ({
   children,
 }: MarkdownChildrenProps): ReactElement => (
-  <ul className="list-disc list-inside mb-3 space-y-1" style={FOREGROUND_TEXT_STYLE}>
+  <em className="italic" style={FOREGROUND_TEXT_STYLE}>
     {children}
-  </ul>
+  </em>
 );
 
 type MarkdownCodeProps = Readonly<{
@@ -1810,26 +1810,7 @@ type MarkdownCodeProps = Readonly<{
   className?: string;
 }>;
 
-const EmbedArticleModal = ({
-  article,
-  isOpen,
-  onClose,
-  onNavigate,
-}: Readonly<{
-  article: Readonly<NewsArticle>;
-  isOpen: boolean;
-  onClose: () => void;
-  onNavigate: (direction: "next" | "prev") => void;
-}>): ReactElement => (
-  <ArticleDetailModal
-    article={article}
-    isOpen={isOpen}
-    onClose={onClose}
-    onNavigate={onNavigate}
-  />
-),
-
- createDigestComponents = (
+const createDigestComponents = (
   onOpenArticle: (article: NewsArticle) => void,
 ): Components => ({
   blockquote: DigestBlockquote,
@@ -1850,7 +1831,26 @@ const EmbedArticleModal = ({
   pre: DigestPre,
   strong: DigestStrong,
   ul: DigestUnorderedList,
-});
+}),
+
+ EmbedArticleModal = ({
+  article,
+  isOpen,
+  onClose,
+  onNavigate,
+}: Readonly<{
+  article: Readonly<NewsArticle>;
+  isOpen: boolean;
+  onClose: () => void;
+  onNavigate: (direction: "next" | "prev") => void;
+}>): ReactElement => (
+  <ArticleDetailModal
+    article={article}
+    isOpen={isOpen}
+    onClose={onClose}
+    onNavigate={onNavigate}
+  />
+);
 
 interface DigestMarkdownContentProps {
   readonly digest: string;
@@ -2185,17 +2185,17 @@ const QueueArticleListItem = ({
   onToggleArticle,
   readingHistoryIds,
 }: QueueArticleListItemProps): ReactElement => {
-  const handleOpen = useCallback(
+  const handleToggle = useCallback(
+    () =>{  onToggleArticle(index); },
+    [index, onToggleArticle],
+  ),
+   handleOpen = useCallback(
     () =>{  onOpenArticle(article.url); },
     [article.url, onOpenArticle],
   ),
    handleRemove = useCallback(
     () =>{  onRemoveArticle(article.url); },
     [article.url, onRemoveArticle],
-  ),
-   handleToggle = useCallback(
-    () =>{  onToggleArticle(index); },
-    [index, onToggleArticle],
   );
   return (
     <QueueCard
@@ -2317,16 +2317,6 @@ interface DigestArticleSummary {
 const DIGEST_FENCE_PATTERN = /```json:articles\n[\s\S]*?\n```/gu,
  READING_HISTORY_LIMIT = 50,
 
- getArticleIdState = (
-  article: Readonly<NewsArticle> | undefined,
-  getState: (articleId: number) => boolean,
-): boolean => {
-  if (article === undefined || article.id === ZERO) {
-    return false;
-  }
-  return getState(article.id);
-},
-
  getDigestArticleSummaries = (
   articles: readonly NewsArticle[],
 ): readonly DigestArticleSummary[] =>
@@ -2337,6 +2327,42 @@ const DIGEST_FENCE_PATTERN = /```json:articles\n[\s\S]*?\n```/gu,
     title: article.title,
     url: article.url,
   })),
+
+ groupDigestArticles = (
+  articles: readonly DigestArticleSummary[],
+): Readonly<Record<string, readonly DigestArticleSummary[]>> => {
+  const grouped: Record<string, DigestArticleSummary[]> = {};
+  articles.forEach((article) => {
+    const {category} = article;
+    if (grouped[category] === undefined) {
+      grouped[category] = [];
+    }
+    grouped[category].push(article);
+  });
+  return grouped;
+},
+
+ requestQueueDigest = async (
+  articles: readonly NewsArticle[],
+): Promise<string | undefined> => {
+  const articleSummaries = getDigestArticleSummaries(articles),
+   grouped = groupDigestArticles(articleSummaries),
+   response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
+    body: JSON.stringify({ articles: articleSummaries, grouped }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    console.error("Failed to generate digest");
+    return undefined;
+  }
+  const data = await readJsonResponse(response, DigestResponseSchema);
+  if (data === undefined) {
+    return undefined;
+  }
+  const raw = data.digest ?? data.content ?? "";
+  return raw.replace(DIGEST_FENCE_PATTERN, "").trim();
+},
 
  getFullArticleText = async (
   article: Readonly<NewsArticle>,
@@ -2374,40 +2400,14 @@ const DIGEST_FENCE_PATTERN = /```json:articles\n[\s\S]*?\n```/gu,
   };
 },
 
- groupDigestArticles = (
-  articles: readonly DigestArticleSummary[],
-): Readonly<Record<string, readonly DigestArticleSummary[]>> => {
-  const grouped: Record<string, DigestArticleSummary[]> = {};
-  articles.forEach((article) => {
-    const {category} = article;
-    if (grouped[category] === undefined) {
-      grouped[category] = [];
-    }
-    grouped[category].push(article);
-  });
-  return grouped;
-},
-
- requestQueueDigest = async (
-  articles: readonly NewsArticle[],
-): Promise<string | undefined> => {
-  const articleSummaries = getDigestArticleSummaries(articles),
-   grouped = groupDigestArticles(articleSummaries),
-   response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
-    body: JSON.stringify({ articles: articleSummaries, grouped }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) {
-    console.error("Failed to generate digest");
-    return undefined;
+ getArticleIdState = (
+  article: Readonly<NewsArticle> | undefined,
+  getState: (articleId: number) => boolean,
+): boolean => {
+  if (article === undefined || article.id === ZERO) {
+    return false;
   }
-  const data = await readJsonResponse(response, DigestResponseSchema);
-  if (data === undefined) {
-    return undefined;
-  }
-  const raw = data.digest ?? data.content ?? "";
-  return raw.replace(DIGEST_FENCE_PATTERN, "").trim();
+  return getState(article.id);
 };
 
 interface ReadingQueueController {
@@ -2457,120 +2457,7 @@ interface ReadingQueueController {
   readonly onNavigateArticle: (direction: DigestDirection) => void;
 }
 
-const QueueSheetBody = ({
-  controller,
-}: Readonly<{ controller: Readonly<ReadingQueueController> }>): ReactElement => {
-  const {selectedArticle} = controller;
-  if (selectedArticle !== undefined) {
-    return (
-      <ArticleDetailView
-        aiAnalysis={controller.aiAnalysis}
-        aiAnalysisLoading={controller.aiAnalysisLoading}
-        article={selectedArticle}
-        articleLoading={controller.articleLoading}
-        count={controller.queuedArticles.length}
-        debugData={controller.debugData}
-        debugLoading={controller.debugLoading}
-        debugOpen={controller.debugOpen}
-        fullArticleText={controller.fullArticleText}
-        index={controller.selectedArticleIndex}
-        isBookmarked={getArticleIdState(selectedArticle, controller.isBookmarked)}
-        isFavorite={controller.isFavorite(selectedArticle.sourceId)}
-        isLiked={getArticleIdState(selectedArticle, controller.isLiked)}
-        isRead={controller.readArticles.has(selectedArticle.url)}
-        onBookmark={controller.onBookmark}
-        onClose={controller.onCloseArticle}
-        onFavorite={controller.onFavorite}
-        onLike={controller.onLike}
-        onMarkRead={controller.onMarkRead}
-        onNext={controller.onNext}
-        onPrevious={controller.onPrevious}
-        onRemove={controller.onRemoveSelected}
-        onToggleDebug={controller.onToggleDebug}
-        onToggleSourceDetails={controller.onToggleSourceDetails}
-        readTime={controller.estimatedReadTimes[selectedArticle.url]}
-        showSourceDetails={controller.showSourceDetails}
-        source={controller.source}
-        sourceLoading={controller.sourceLoading}
-      />
-    );
-  }
-  if (controller.showQueueOverview) {
-    return (
-      <QueueDigestView
-        articleCount={controller.queuedArticles.length}
-        digestLoading={controller.digestLoading}
-        embedModalArticle={controller.embedModalArticle}
-        embedModalOpen={controller.embedModalOpen}
-        onClose={controller.onCloseOverview}
-        onEmbedClose={controller.onCloseEmbedded}
-        onNavigateArticle={controller.onNavigateArticle}
-        onOpenArticle={controller.onOpenEmbeddedArticle}
-        queueDigest={controller.queueDigest}
-      />
-    );
-  }
-  return (
-    <QueueListView
-      estimatedReadTimes={controller.estimatedReadTimes}
-      expandedIndex={controller.expandedIndex}
-      isLoaded={controller.isLoaded}
-      onOpenArticle={controller.onOpenArticle}
-      onOpenDigest={controller.onOpenDigest}
-      onRemoveArticle={controller.onRemoveArticle}
-      onToggleArticle={controller.onToggleArticle}
-      queuedArticles={controller.queuedArticles}
-      readingHistoryIds={controller.readingHistoryIds}
-    />
-  );
-},
-
- QueueTriggerBadge = ({
-  count,
-}: Readonly<{ count: number }>): ReactElement => (
-  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white font-semibold">
-    {count}
-  </span>
-),
-
- QueueTriggerButton = ({
-  isLoaded,
-  queuedArticleCount,
-}: Readonly<{ isLoaded: boolean; queuedArticleCount: number }>): ReactElement => (
-  <Button
-    variant="outline"
-    size="icon"
-    className="fixed bottom-4 right-4 z-50 h-12 w-12 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-    style={PRIMARY_BUTTON_STYLE}
-    aria-label="Open reading queue"
-  >
-    <List className="h-6 w-6 text-primary-foreground" />
-    {isLoaded && queuedArticleCount > ZERO && (
-      <QueueTriggerBadge count={queuedArticleCount} />
-    )}
-  </Button>
-),
-
- ReadingQueueSheet = ({
-  controller,
-}: Readonly<{ controller: Readonly<ReadingQueueController> }>): ReactElement => (
-  <Sheet>
-    <SheetTrigger asChild>
-      <QueueTriggerButton
-        isLoaded={controller.isLoaded}
-        queuedArticleCount={controller.queuedArticles.length}
-      />
-    </SheetTrigger>
-    <SheetContent
-      className="flex flex-col p-0"
-      style={getSheetContentStyle(controller.selectedArticle)}
-    >
-      <QueueSheetBody controller={controller} />
-    </SheetContent>
-  </Sheet>
-),
-
- useReadingQueueController = (): ReadingQueueController => {
+const useReadingQueueController = (): ReadingQueueController => {
   const { isLoaded, queuedArticles, removeArticleFromQueue } = useReadingQueue(),
    { isFavorite, toggleFavorite } = useFavorites(),
    { getRecentIds } = useReadingHistory(),
@@ -2904,7 +2791,120 @@ const QueueSheetBody = ({
     source,
     sourceLoading,
   };
-};
+},
+
+ QueueTriggerBadge = ({
+  count,
+}: Readonly<{ count: number }>): ReactElement => (
+  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white font-semibold">
+    {count}
+  </span>
+),
+
+ QueueTriggerButton = ({
+  isLoaded,
+  queuedArticleCount,
+}: Readonly<{ isLoaded: boolean; queuedArticleCount: number }>): ReactElement => (
+  <Button
+    variant="outline"
+    size="icon"
+    className="fixed bottom-4 right-4 z-50 h-12 w-12 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+    style={PRIMARY_BUTTON_STYLE}
+    aria-label="Open reading queue"
+  >
+    <List className="h-6 w-6 text-primary-foreground" />
+    {isLoaded && queuedArticleCount > ZERO && (
+      <QueueTriggerBadge count={queuedArticleCount} />
+    )}
+  </Button>
+),
+
+ QueueSheetBody = ({
+  controller,
+}: Readonly<{ controller: Readonly<ReadingQueueController> }>): ReactElement => {
+  const {selectedArticle} = controller;
+  if (selectedArticle !== undefined) {
+    return (
+      <ArticleDetailView
+        aiAnalysis={controller.aiAnalysis}
+        aiAnalysisLoading={controller.aiAnalysisLoading}
+        article={selectedArticle}
+        articleLoading={controller.articleLoading}
+        count={controller.queuedArticles.length}
+        debugData={controller.debugData}
+        debugLoading={controller.debugLoading}
+        debugOpen={controller.debugOpen}
+        fullArticleText={controller.fullArticleText}
+        index={controller.selectedArticleIndex}
+        isBookmarked={getArticleIdState(selectedArticle, controller.isBookmarked)}
+        isFavorite={controller.isFavorite(selectedArticle.sourceId)}
+        isLiked={getArticleIdState(selectedArticle, controller.isLiked)}
+        isRead={controller.readArticles.has(selectedArticle.url)}
+        onBookmark={controller.onBookmark}
+        onClose={controller.onCloseArticle}
+        onFavorite={controller.onFavorite}
+        onLike={controller.onLike}
+        onMarkRead={controller.onMarkRead}
+        onNext={controller.onNext}
+        onPrevious={controller.onPrevious}
+        onRemove={controller.onRemoveSelected}
+        onToggleDebug={controller.onToggleDebug}
+        onToggleSourceDetails={controller.onToggleSourceDetails}
+        readTime={controller.estimatedReadTimes[selectedArticle.url]}
+        showSourceDetails={controller.showSourceDetails}
+        source={controller.source}
+        sourceLoading={controller.sourceLoading}
+      />
+    );
+  }
+  if (controller.showQueueOverview) {
+    return (
+      <QueueDigestView
+        articleCount={controller.queuedArticles.length}
+        digestLoading={controller.digestLoading}
+        embedModalArticle={controller.embedModalArticle}
+        embedModalOpen={controller.embedModalOpen}
+        onClose={controller.onCloseOverview}
+        onEmbedClose={controller.onCloseEmbedded}
+        onNavigateArticle={controller.onNavigateArticle}
+        onOpenArticle={controller.onOpenEmbeddedArticle}
+        queueDigest={controller.queueDigest}
+      />
+    );
+  }
+  return (
+    <QueueListView
+      estimatedReadTimes={controller.estimatedReadTimes}
+      expandedIndex={controller.expandedIndex}
+      isLoaded={controller.isLoaded}
+      onOpenArticle={controller.onOpenArticle}
+      onOpenDigest={controller.onOpenDigest}
+      onRemoveArticle={controller.onRemoveArticle}
+      onToggleArticle={controller.onToggleArticle}
+      queuedArticles={controller.queuedArticles}
+      readingHistoryIds={controller.readingHistoryIds}
+    />
+  );
+},
+
+ ReadingQueueSheet = ({
+  controller,
+}: Readonly<{ controller: Readonly<ReadingQueueController> }>): ReactElement => (
+  <Sheet>
+    <SheetTrigger asChild>
+      <QueueTriggerButton
+        isLoaded={controller.isLoaded}
+        queuedArticleCount={controller.queuedArticles.length}
+      />
+    </SheetTrigger>
+    <SheetContent
+      className="flex flex-col p-0"
+      style={getSheetContentStyle(controller.selectedArticle)}
+    >
+      <QueueSheetBody controller={controller} />
+    </SheetContent>
+  </Sheet>
+);
 
 export const ReadingQueueSidebar = (): ReactElement => {
   const controller = useReadingQueueController();

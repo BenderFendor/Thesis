@@ -202,3 +202,16 @@ test("member without initializer reorders with the chain", () => {
 `;
   assertTransformed(source, expected);
 });
+
+
+test("chains with executing initializers are left untouched", () => {
+  const source = `const zebra = fetch("/x"), alpha = 1;
+`;
+  assertUnchanged(source);
+});
+
+test("chains with async awaiting initializers are left untouched", () => {
+  const source = `const zebra = await loadItems(), alpha = 1;
+`;
+  assertUnchanged(source);
+});
