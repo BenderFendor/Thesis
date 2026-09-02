@@ -1,4 +1,3 @@
-import type { ArticleCore, SourceCore } from "@/lib/types/core";
 import type {
   components as OpenApiComponents,
   paths as OpenApiPaths,
@@ -18,54 +17,60 @@ import { z } from "zod";
 
 // Data types
 
-interface NewsSource extends Pick<SourceCore, "id" | "name"> {
-  slug: string;
-  country: string;
-  url: string;
-  rssUrl: string;
-  credibility: "high" | "medium" | "low";
-  bias: "left" | "center" | "right";
-  category: string[];
-  language: string;
-  funding: string[];
-  sourceType?: string | null;
-  isPaywalled?: boolean;
-  credibilityScore?: number;
-  factualRating?: string;
+interface NewsSource {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly country: string;
+  readonly url: string;
+  readonly rssUrl: string;
+  readonly credibility: "high" | "medium" | "low";
+  readonly bias: "left" | "center" | "right";
+  readonly category: readonly string[];
+  readonly language: string;
+  readonly funding: readonly string[];
+  readonly sourceType?: string | null;
+  readonly isPaywalled?: boolean;
+  readonly credibilityScore?: number;
+  readonly factualRating?: string;
 }
 
-interface NewsArticle
-  extends Pick<ArticleCore, "title" | "source" | "sourceId" | "url" | "publishedAt"> {
-  id: number;
-  country: string;
-  credibility: "high" | "medium" | "low";
-  bias: "left" | "center" | "right";
-  summary: string;
-  content?: string;
-  image: string;
-  _parsedTimestamp?: number;
-  category: string;
-  tags: string[];
-  originalLanguage: string;
-  translated: boolean;
+interface NewsArticle {
+  readonly title: string;
+  readonly source: string;
+  readonly sourceId: string;
+  readonly url: string;
+  readonly publishedAt: string;
+  readonly id: number;
+  readonly country: string;
+  readonly credibility: "high" | "medium" | "low";
+  readonly bias: "left" | "center" | "right";
+  readonly summary: string;
+  readonly content?: string;
+  readonly image: string;
+  readonly _parsedTimestamp?: number;
+  readonly category: string;
+  readonly tags: readonly string[];
+  readonly originalLanguage: string;
+  readonly translated: boolean;
   // Phase 5 Fields
-  source_country?: string;
-  mentioned_countries?: string[];
-  geo_signal?: {
-    id: string;
-    label: string;
+  readonly source_country?: string;
+  readonly mentioned_countries?: readonly string[];
+  readonly geo_signal?: {
+    readonly id: string;
+    readonly label: string;
   };
-  author?: string;
-  authors?: string[];
+  readonly author?: string;
+  readonly authors?: readonly string[];
   // Preloaded queue data
-  _queueData?: {
-    fullText?: string;
-    readingTimeMinutes?: number;
-    aiAnalysis?: ArticleAnalysis;
-    preloadedAt?: number;
+  readonly _queueData?: {
+    readonly fullText?: string;
+    readonly readingTimeMinutes?: number;
+    readonly aiAnalysis?: ArticleAnalysis;
+    readonly preloadedAt?: number;
   };
-  hasFullContent?: boolean;
-  isPersisted?: boolean;
+  readonly hasFullContent?: boolean;
+  readonly isPersisted?: boolean;
 }
 
 interface ApiCacheState {
@@ -131,7 +136,8 @@ interface CountryNameMap {
   readonly [countryName: string]: string;
 }
 
-interface ApiOpaqueObject extends Record<string, unknown> {
+interface ApiOpaqueObject {
+  readonly [key: string]: unknown;
   readonly __apiOpaqueObject?: never;
 }
 
@@ -351,65 +357,65 @@ interface AddRssResponse {
 }
 
 interface SourceDebugData {
-  source_name: string;
-  source_config: ApiOpaqueObject | null;
-  rss_url: string;
-  all_urls?: string[];
-  feed_metadata: {
-    title: string;
-    description: string;
-    link: string;
-    language: string;
-    updated: string;
-    generator: string;
+  readonly source_name: string;
+  readonly source_config: Readonly<ApiOpaqueObject> | null;
+  readonly rss_url: string;
+  readonly all_urls?: readonly string[];
+  readonly feed_metadata: {
+    readonly title: string;
+    readonly description: string;
+    readonly link: string;
+    readonly language: string;
+    readonly updated: string;
+    readonly generator: string;
   };
-  feed_status: {
-    http_status: number | string;
-    bozo: boolean;
-    bozo_exception: string;
-    entries_count: number;
+  readonly feed_status: {
+    readonly http_status: number | string;
+    readonly bozo: boolean;
+    readonly bozo_exception: string;
+    readonly entries_count: number;
   };
-  parsed_entries: {
-    index: number;
-    title: string;
-    link: string;
-    description: string;
-    published: string;
-    author: string;
-    tags: unknown[];
-    has_images: boolean;
-    image_sources: unknown[];
-    content_images: string[];
-    description_images: string[];
-    raw_entry_keys: string[];
+  readonly parsed_entries: readonly {
+    readonly index: number;
+    readonly title: string;
+    readonly link: string;
+    readonly description: string;
+    readonly published: string;
+    readonly author: string;
+    readonly tags: readonly unknown[];
+    readonly has_images: boolean;
+    readonly image_sources: readonly unknown[];
+    readonly content_images: readonly string[];
+    readonly description_images: readonly string[];
+    readonly raw_entry_keys: readonly string[];
   }[];
-  cached_articles: ApiOpaqueObject[];
-  source_statistics?: {
-    name: string;
-    url: string | string[];
-    category: string;
-    country: string;
-    funding_type: string;
-    bias_rating: string;
-    article_count: number;
-    status: string;
-    error_message: string | null;
-    last_checked: string;
-    is_consolidated?: boolean;
-    sub_feeds?: {
-      url: string;
-      status: "success" | "warning" | "error";
-      article_count: number;
-      error?: string;
+  readonly cached_articles: readonly Readonly<ApiOpaqueObject>[];
+  readonly source_statistics?: {
+    readonly name: string;
+    readonly url: string | readonly string[];
+    readonly category: string;
+    readonly country: string;
+    readonly funding_type: string;
+    readonly bias_rating: string;
+    readonly article_count: number;
+    readonly status: string;
+    readonly error_message: string | null;
+    readonly last_checked: string;
+    readonly is_consolidated?: boolean;
+    readonly sub_feeds?: readonly {
+      readonly url: string;
+      readonly status: "success" | "warning" | "error";
+      readonly article_count: number;
+      readonly error?: string;
     }[];
   } | null;
-  debug_timestamp: string;
-  image_analysis: {
-    total_entries: number;
-    entries_with_images: number;
-    image_sources: unknown[];
+  readonly debug_timestamp: string;
+  readonly image_analysis: {
+    readonly total_entries: number;
+    readonly entries_with_images: number;
+    readonly image_sources: readonly unknown[];
   };
-  error?: string;
+  readonly error?: string;
 }
 
 interface SourceDebugFallbackOptions {
@@ -699,50 +705,50 @@ interface FrontendDebugReportPayload {
 
 // Article Analysis Types
 interface FactCheckResult {
-  claim: string;
-  verification_status:
+  readonly claim: string;
+  readonly verification_status:
     | "verified"
     | "partially-verified"
     | "unverified"
     | "false";
-  evidence: string;
-  sources: string[];
-  confidence: "high" | "medium" | "low";
-  notes?: string;
+  readonly evidence: string;
+  readonly sources: readonly string[];
+  readonly confidence: "high" | "medium" | "low";
+  readonly notes?: string;
 }
 
 interface LanguageDiagnosticExample {
-  sentence: string;
-  term?: string | null;
-  pattern?: string | null;
-  category?: string | null;
+  readonly sentence: string;
+  readonly term?: string | null;
+  readonly pattern?: string | null;
+  readonly category?: string | null;
 }
 
 interface LanguageDiagnosticMetric {
-  count: number;
-  rate: number;
-  status: "low" | "medium" | "high";
-  examples: LanguageDiagnosticExample[];
+  readonly count: number;
+  readonly rate: number;
+  readonly status: "low" | "medium" | "high";
+  readonly examples: readonly LanguageDiagnosticExample[];
 }
 
 interface LanguageDiagnosticOverall {
-  score: number;
-  status: "low" | "medium" | "high";
-  summary: string;
+  readonly score: number;
+  readonly status: "low" | "medium" | "high";
+  readonly summary: string;
 }
 
 interface LanguageDiagnostics {
-  success: boolean;
-  article_url: string;
-  title?: string | null;
-  sentence_count: number;
-  word_count: number;
-  passive_voice?: LanguageDiagnosticMetric | null;
-  actor_omission?: LanguageDiagnosticMetric | null;
-  euphemisms?: LanguageDiagnosticMetric | null;
-  sanitized_language?: LanguageDiagnosticMetric | null;
-  overall?: LanguageDiagnosticOverall | null;
-  error?: string | null;
+  readonly success: boolean;
+  readonly article_url: string;
+  readonly title?: string | null;
+  readonly sentence_count: number;
+  readonly word_count: number;
+  readonly passive_voice?: LanguageDiagnosticMetric | null;
+  readonly actor_omission?: LanguageDiagnosticMetric | null;
+  readonly euphemisms?: LanguageDiagnosticMetric | null;
+  readonly sanitized_language?: LanguageDiagnosticMetric | null;
+  readonly overall?: LanguageDiagnosticOverall | null;
+  readonly error?: string | null;
 }
 
 // --- Trending & Breaking News ---
@@ -756,42 +762,42 @@ interface LanguageDiagnostics {
 // Are now consolidated at the bottom of this file (Phase 6 section) to avoid duplication.
 
 interface ArticleAnalysis {
-  success: boolean;
-  article_url: string;
-  full_text?: string;
-  title?: string;
-  authors?: string[];
-  publish_date?: string;
-  source_analysis?: {
-    credibility_assessment: string;
-    ownership: string;
-    funding_model: string;
-    political_leaning: string;
-    reputation: string;
+  readonly success: boolean;
+  readonly article_url: string;
+  readonly full_text?: string;
+  readonly title?: string;
+  readonly authors?: readonly string[];
+  readonly publish_date?: string;
+  readonly source_analysis?: {
+    readonly credibility_assessment: string;
+    readonly ownership: string;
+    readonly funding_model: string;
+    readonly political_leaning: string;
+    readonly reputation: string;
   };
-  reporter_analysis?: {
-    background: string;
-    expertise: string;
-    known_biases: string;
-    track_record: string;
+  readonly reporter_analysis?: {
+    readonly background: string;
+    readonly expertise: string;
+    readonly known_biases: string;
+    readonly track_record: string;
   };
-  bias_analysis?: {
-    tone_bias: string;
-    framing_bias: string;
-    selection_bias: string;
-    source_diversity: string;
-    overall_bias_score: string;
+  readonly bias_analysis?: {
+    readonly tone_bias: string;
+    readonly framing_bias: string;
+    readonly selection_bias: string;
+    readonly source_diversity: string;
+    readonly overall_bias_score: string;
   };
-  fact_check_suggestions?: string[];
-  fact_check_results?: FactCheckResult[];
-  grounding_metadata?: {
-    grounding_chunks?: { uri?: string; title?: string }[];
-    grounding_supports?: unknown[];
-    web_search_queries?: string[];
+  readonly fact_check_suggestions?: readonly string[];
+  readonly fact_check_results?: readonly FactCheckResult[];
+  readonly grounding_metadata?: {
+    readonly grounding_chunks?: readonly { readonly uri?: string; readonly title?: string }[];
+    readonly grounding_supports?: readonly unknown[];
+    readonly web_search_queries?: readonly string[];
   };
-  language_diagnostics?: LanguageDiagnostics | null;
-  summary?: string;
-  error?: string;
+  readonly language_diagnostics?: LanguageDiagnostics | null;
+  readonly summary?: string;
+  readonly error?: string;
 }
 
 // News Research Agent Types
@@ -896,17 +902,17 @@ interface ReadingShelf {
 
 // Highlights API
 interface Highlight {
-  id?: number;
-  user_id?: number;
-  client_id?: string;
-  article_url: string;
-  highlighted_text: string;
-  color: "yellow" | "blue" | "red" | "green" | "purple";
-  note?: string;
-  character_start: number;
-  character_end: number;
-  created_at?: string;
-  updated_at?: string;
+  readonly id?: number;
+  readonly user_id?: number;
+  readonly client_id?: string;
+  readonly article_url: string;
+  readonly highlighted_text: string;
+  readonly color: "yellow" | "blue" | "red" | "green" | "purple";
+  readonly note?: string;
+  readonly character_start: number;
+  readonly character_end: number;
+  readonly created_at?: string;
+  readonly updated_at?: string;
 }
 
 // --- Reading Queue Content & Digest ---
@@ -3292,9 +3298,11 @@ addToReadingQueue = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.readingQueueItem);
-    logger.debug("Article added to reading queue:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.readingQueueItem);
+      logger.debug("Article added to reading queue:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to add article to reading queue:", error);
     throw error;
@@ -3321,9 +3329,11 @@ analyzeArticle = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.articleAnalysis);
-    logger.debug("Article analysis complete:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.articleAnalysis);
+      logger.debug("Article analysis complete:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to analyze article:", error);
     throw error;
@@ -3355,10 +3365,12 @@ analyzeMaterialContext = async (
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const payload: unknown = await response.json(),
-   parsed = MaterialContextSchema.parse(payload);
-  parsed satisfies OpenApiMaterialContextResponse;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = MaterialContextSchema.parse(payload);
+    parsed satisfies OpenApiMaterialContextResponse;
+    return parsed;
+  }
 },
 appendQueryParameter = (query: URLSearchParams, parameter: QueryParameter): void => {
   const { key, value } = parameter;
@@ -3461,11 +3473,13 @@ buildNewsRequestUrl = (params?: Readonly<FetchNewsParams>): string => {
   if (params?.category !== undefined && params.category.length > 0) {
     searchParams.set("category", params.category);
   }
-  const query = searchParams.toString();
-  if (query.length === apiNumericConstants.zero) {
-    return `${resolvedApiBaseUrl}/news/stream`;
+  {
+    const query = searchParams.toString();
+    if (query.length === apiNumericConstants.zero) {
+      return `${resolvedApiBaseUrl}/news/stream`;
+    }
+    return `${resolvedApiBaseUrl}/news/stream?${query}`;
   }
-  return `${resolvedApiBaseUrl}/news/stream?${query}`;
 },
 buildPageQuery = (params: Readonly<PageQueryParams>): string => {
   const query = new URLSearchParams(),
@@ -3499,11 +3513,13 @@ buildSemanticSearchUrl = (
   if (options?.category !== undefined && options.category.length > apiNumericConstants.zero) {
     params.set("category", options.category);
   }
-  const queryString = params.toString();
-  if (queryString.length === apiNumericConstants.zero) {
-    return `${resolvedApiBaseUrl}/api/search/semantic`;
+  {
+    const queryString = params.toString();
+    if (queryString.length === apiNumericConstants.zero) {
+      return `${resolvedApiBaseUrl}/api/search/semantic`;
+    }
+    return `${resolvedApiBaseUrl}/api/search/semantic?${queryString}`;
   }
-  return `${resolvedApiBaseUrl}/api/search/semantic?${queryString}`;
 },
 buildSourceDebugUrl = (sourceName: string): string => {
   let decodedSourceName: string;
@@ -3569,25 +3585,27 @@ connectAndPumpStream = async (
       rt.abort();
       streamResolve(rt, ["Aborted before connection"]);
       return;
+  }
+  signal.addEventListener("abort", rt.abort, { once: true });
+  }
+  {
+    const response = await fetch(sseUrl, {
+      headers: { Accept: "text/event-stream" },
+      method: "GET",
+      signal: abortController.signal,
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Stream request failed with status ${response.status}: ${response.statusText}`,
+      );
     }
-    signal.addEventListener("abort", rt.abort, { once: true });
+    if (!response.body) {
+      throw new Error("No response body received from stream");
+    }
+    logger.debug("Stream connection opened, reading body...");
+    installStreamTimers(rt);
+    await pumpStreamEvents(rt, response.body.getReader());
   }
-  const response = await fetch(sseUrl, {
-    headers: { Accept: "text/event-stream" },
-    method: "GET",
-    signal: abortController.signal,
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Stream request failed with status ${response.status}: ${response.statusText}`,
-    );
-  }
-  if (!response.body) {
-    throw new Error("No response body received from stream");
-  }
-  logger.debug("Stream connection opened, reading body...");
-  installStreamTimers(rt);
-  await pumpStreamEvents(rt, response.body.getReader());
 },
 consumeCacheRefreshStream = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -3644,9 +3662,11 @@ createHighlight = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.highlight);
-    logger.debug("Highlight created:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.highlight);
+      logger.debug("Highlight created:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to create highlight:", error);
     throw error;
@@ -3840,10 +3860,12 @@ fetchAllClusters = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json(),
-   parsed = AllClustersResponseSchema.parse(payload);
-  parsed satisfies OpenApiAllClustersResponse;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = AllClustersResponseSchema.parse(payload);
+    parsed satisfies OpenApiAllClustersResponse;
+    return parsed;
+  }
 },
 fetchArticleCountsByCountry = async (): Promise<CountryArticleCounts> => {
   const response = await fetch(`${resolvedApiBaseUrl}/news/by-country?hours=24`);
@@ -3885,8 +3907,10 @@ fetchBlindspotViewer = async (
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const payload: unknown = await response.json();
-  return BlindspotViewerResponseSchema.parse(payload);
+  {
+    const payload: unknown = await response.json();
+    return BlindspotViewerResponseSchema.parse(payload);
+  }
 },
 fetchBookmark = async (
   articleId: number,
@@ -3900,17 +3924,19 @@ fetchBookmark = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.bookmark),
-     [article] = mapBackendArticles([data]);
-    if (article === undefined) {
-      throw new Error("Bookmark response did not contain an article");
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.bookmark),
+       [article] = mapBackendArticles([data]);
+      if (article === undefined) {
+        throw new Error("Bookmark response did not contain an article");
+      }
+      return {
+        article,
+        articleId: data.article_id,
+        bookmarkId: data.bookmark_id,
+        createdAt: data.created_at,
+      };
     }
-    return {
-      article,
-      articleId: data.article_id,
-      bookmarkId: data.bookmark_id,
-      createdAt: data.created_at,
-    };
   } catch (error) {
     console.error("Failed to fetch bookmark:", error);
     return A_NULL_VALUE;
@@ -3923,22 +3949,24 @@ fetchBookmarks = async (): Promise<BookmarkEntry[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.bookmarks),
-     {bookmarks} = data,
-     mappedArticles = mapBackendArticles(bookmarks);
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.bookmarks),
+       {bookmarks} = data,
+       mappedArticles = mapBackendArticles(bookmarks);
 
-    return mappedArticles.flatMap((article, index) => {
-      const bookmark = bookmarks[index];
-      if (bookmark === undefined) {
-        return [];
-      }
-      return [{
-        article,
-        articleId: bookmark.article_id,
-        bookmarkId: bookmark.bookmark_id,
-        createdAt: bookmark.created_at,
-      }];
-    });
+      return mappedArticles.flatMap((article, index) => {
+        const bookmark = bookmarks[index];
+        if (bookmark === undefined) {
+          return [];
+        }
+        return [{
+          article,
+          articleId: bookmark.article_id,
+          bookmarkId: bookmark.bookmark_id,
+          createdAt: bookmark.created_at,
+        }];
+      });
+    }
   } catch (error) {
     const normalizedError = (() => {
       if (error instanceof Error) {
@@ -3965,10 +3993,12 @@ fetchBreaking = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json(),
-   parsed = BreakingResponseSchema.parse(payload);
-  parsed satisfies OpenApiBreakingResponse;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = BreakingResponseSchema.parse(payload);
+    parsed satisfies OpenApiBreakingResponse;
+    return parsed;
+  }
 },
 fetchBrowseIndex = (
   params: BrowseIndexParams = {},
@@ -3980,14 +4010,18 @@ fetchBrowseIndexAtPath = async (
 ): Promise<BrowseIndexResponse> => {
   const url = buildPageUrl(path, params);
   logger.debug(`[${label}] Fetching browse index: ${url}`);
-  const response = await fetch(url);
-  if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`);}
-  const parsed = PaginatedPayloadSchema.safeParse(await response.json());
-  if (!parsed.success) {throw new Error("Browse index response is invalid.");}
-  return {
-    articles: mapBackendArticles(parsed.data.articles ?? []),
-    total: parsed.data.total ?? 0,
-  };
+  {
+    const response = await fetch(url);
+    if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`);}
+    {
+      const parsed = PaginatedPayloadSchema.safeParse(await response.json());
+      if (!parsed.success) {throw new Error("Browse index response is invalid.");}
+      return {
+        articles: mapBackendArticles(parsed.data.articles ?? []),
+        total: parsed.data.total ?? 0,
+      };
+    }
+  }
 },
 fetchBulkArticleTopics = async (
   articleIds:readonly  number[],
@@ -4071,12 +4105,14 @@ fetchCategories = async (): Promise<string[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.categories);
-    // Backend returns { categories: [...] }
-    if (Array.isArray(data)) {
-      return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.categories);
+      // Backend returns { categories: [...] }
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return data.categories;
     }
-    return data.categories;
   } catch (error) {
     console.error("Failed to fetch categories:", error);
     return [];
@@ -4133,8 +4169,10 @@ fetchClusterContradictions = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  return ContradictionPanelResponseSchema.parse(payload);
+  {
+    const payload: unknown = await response.json();
+    return ContradictionPanelResponseSchema.parse(payload);
+  }
 },
 fetchClusterDetail = async (
   clusterId: number,
@@ -4145,10 +4183,12 @@ fetchClusterDetail = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json(),
-   parsed = ClusterDetailSchema.parse(payload);
-  parsed satisfies OpenApiClusterDetailResponse;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = ClusterDetailSchema.parse(payload);
+    parsed satisfies OpenApiClusterDetailResponse;
+    return parsed;
+  }
 },
 fetchClusterLineage = async (
   clusterId: number,
@@ -4159,8 +4199,10 @@ fetchClusterLineage = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json();
-  return StoryLineageResponseSchema.parse(payload);
+  {
+    const payload: unknown = await response.json();
+    return StoryLineageResponseSchema.parse(payload);
+  }
 },
 fetchCountryGeoData = async (): Promise<CountryGeoData> => {
   const response = await fetch(`${resolvedApiBaseUrl}/news/countries/geo`);
@@ -4216,13 +4258,15 @@ fetchDebugErrors = async (
     params.set("include_request_stream_events", String(options.includeRequestStreamEvents));
   }
 
-  const response = await fetch(
-    withDebugQuery("/debug/logs/errors", params),
-  );
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+  {
+    const response = await fetch(
+      withDebugQuery("/debug/logs/errors", params),
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return parseResponseJson(response, zApiResponseSchemas.debugErrors);
   }
-  return parseResponseJson(response, zApiResponseSchemas.debugErrors);
 },
 fetchDebugJson = async <T>(
   path: string,
@@ -4314,22 +4358,24 @@ fetchLikedArticles = async (): Promise<LikedEntry[]> => {
     throw new Error(`Failed to load liked articles (${response.status})`);
   }
 
-  const data = await parseResponseJson(response, zApiResponseSchemas.likedArticles),
-   {liked} = data,
-   mappedArticles = mapBackendArticles(liked);
+  {
+    const data = await parseResponseJson(response, zApiResponseSchemas.likedArticles),
+     {liked} = data,
+     mappedArticles = mapBackendArticles(liked);
 
-  return mappedArticles.flatMap((article, index) => {
-    const likedEntry = liked[index];
-    if (likedEntry === undefined) {
-      return [];
-    }
-    return [{
-      article,
-      articleId: likedEntry.article_id,
-      createdAt: likedEntry.created_at,
-      likedId: likedEntry.liked_id,
-    }];
-  });
+    return mappedArticles.flatMap((article, index) => {
+      const likedEntry = liked[index];
+      if (likedEntry === undefined) {
+        return [];
+      }
+      return [{
+        article,
+        articleId: likedEntry.article_id,
+        createdAt: likedEntry.created_at,
+        likedId: likedEntry.liked_id,
+      }];
+    });
+  }
 },
 fetchLiveBrowseIndex = (
   params: BrowseIndexParams = {},
@@ -4350,37 +4396,47 @@ fetchLlmLogs = async (
   }
   if (options.success !== undefined) {params.set("success", String(options.success));}
 
-  const response = await fetch(
-    withDebugQuery("/debug/logs/llm", params),
-  );
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+  {
+    const response = await fetch(
+      withDebugQuery("/debug/logs/llm", params),
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return parseResponseJson(response, zApiResponseSchemas.llmLogs);
   }
-  return parseResponseJson(response, zApiResponseSchemas.llmLogs);
 },
 fetchNews = async (params?: Readonly<FetchNewsParams>): Promise<NewsArticle[]> => {
   try {
     const url = buildNewsRequestUrl(params);
     logger.debug(`Fetching news from unified endpoint: ${url}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      {
+        const data: unknown = await response.json();
+        logger.debug("Backend response:", data);
+        {
+          const backendArticles = parseNewsPayload(data);
+          if (backendArticles.length === 0) {
+            logger.debug("No articles received from backend. Full response:", JSON.stringify(data, null, 2));
+          } else {
+            logger.debug(
+              `Received ${backendArticles.length} articles from unified backend endpoint`,
+            );
+          }
+          {
+            const articles = filterNewsArticles(mapBackendArticles(backendArticles), params);
+            if (articles.length === 0) {
+              logger.debug("No articles to return after processing. Params:", params);
+            }
+            return articles;
+          }
+        }
+      }
     }
-    const data: unknown = await response.json();
-    logger.debug("Backend response:", data);
-    const backendArticles = parseNewsPayload(data);
-    if (backendArticles.length === 0) {
-      logger.debug("No articles received from backend. Full response:", JSON.stringify(data, null, 2));
-    } else {
-      logger.debug(
-        `Received ${backendArticles.length} articles from unified backend endpoint`,
-      );
-    }
-    const articles = filterNewsArticles(mapBackendArticles(backendArticles), params);
-    if (articles.length === 0) {
-      logger.debug("No articles to return after processing. Params:", params);
-    }
-    return articles;
   } catch (error) {
     console.error("Failed to fetch news from unified endpoint:", error);
     throw error;
@@ -4407,19 +4463,23 @@ fetchNewsForCountry = async (
     params.set("hours", hours.toString());
   }
 
-  const response = await fetch(
-    `${resolvedApiBaseUrl}/news/country/${normalizeCountryCode(code)}?${params}`,
-  );
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+  {
+    const response = await fetch(
+      `${resolvedApiBaseUrl}/news/country/${normalizeCountryCode(code)}?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.localLens);
+
+      return {
+        ...data,
+        articles: mapBackendArticles(data.articles),
+      };
+    }
   }
-
-  const data = await parseResponseJson(response, zApiResponseSchemas.localLens);
-
-  return {
-    ...data,
-    articles: mapBackendArticles(data.articles),
-  };
 },
 fetchNewsFromSource = async (
   sourceId: string,
@@ -4454,26 +4514,32 @@ fetchNoveltyScore = async (
 fetchOGImage = async (url: string): Promise<string | null> => {
   const now = Date.now();
   ogImageMetrics.total += 1;
-  const cachedImage = readCachedOgImage(url, now);
-  if (cachedImage !== undefined) {
-    return cachedImage;
-  }
+  {
+    const cachedImage = readCachedOgImage(url, now);
+    if (cachedImage !== undefined) {
+      return cachedImage;
+    }
 
-  const inFlight = ogImageInFlight.get(url);
-  if (inFlight) {
-    ogImageMetrics.inFlightHit += 1;
-    return inFlight;
-  }
+    {
+      const inFlight = ogImageInFlight.get(url);
+      if (inFlight) {
+        ogImageMetrics.inFlightHit += 1;
+        return inFlight;
+      }
 
-  pruneOgImageCache();
-  const requestPromise = requestOgImage(url);
+      pruneOgImageCache();
+      {
+        const requestPromise = requestOgImage(url);
 
-  ogImageInFlight.set(url, requestPromise);
+        ogImageInFlight.set(url, requestPromise);
 
-  try {
-    return await requestPromise;
-  } finally {
-    pruneOgImageCache();
+        try {
+          return await requestPromise;
+        } finally {
+          pruneOgImageCache();
+        }
+      }
+    }
   }
 },
 fetchPaginated = async (
@@ -4483,9 +4549,11 @@ fetchPaginated = async (
 ): Promise<PaginatedResponse> => {
   const url = buildPageUrl(path, params);
   logger.debug(`[${label}] Fetching paginated news: ${url}`);
-  const response = await fetch(url);
-  if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`);}
-  return parsePaginatedPayload(await response.json());
+  {
+    const response = await fetch(url);
+    if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`);}
+    return parsePaginatedPayload(await response.json());
+  }
 },
 fetchRelatedArticles = async (
   articleId: number,
@@ -4574,14 +4642,16 @@ fetchSourceDebugData = async (
       });
     }
 
-    const debugData = await parseResponseJson(response, zApiResponseSchemas.sourceDebug);
-    logger.debug(`Debug data received for ${sourceName}:`, {
-      cachedArticles: debugData.cached_articles?.length,
-      entriesCount: debugData.feed_status?.entries_count,
-      hasError: Boolean(debugData.error),
-    });
+    {
+      const debugData = await parseResponseJson(response, zApiResponseSchemas.sourceDebug);
+      logger.debug(`Debug data received for ${sourceName}:`, {
+        cachedArticles: debugData.cached_articles?.length,
+        entriesCount: debugData.feed_status?.entries_count,
+        hasError: Boolean(debugData.error),
+      });
 
-    return debugData;
+      return debugData;
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown fetch error";
     console.error("Error fetching source debug data:", error);
@@ -4600,8 +4670,10 @@ fetchSourceStats = async (): Promise<SourceStats[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.sourceStats);
-    return data.sources;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.sourceStats);
+      return data.sources;
+    }
   } catch (error) {
     console.error("Failed to fetch source stats:", error);
     return [];
@@ -4615,13 +4687,15 @@ fetchSources = async (): Promise<NewsSource[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const payload: unknown = await response.json(),
-     parsedSources = z.array(BackendSourceSchema).safeParse(payload);
-    if (!parsedSources.success) {
-      logger.warn("fetchSources received malformed payload");
-      return [];
+    {
+      const payload: unknown = await response.json(),
+       parsedSources = z.array(BackendSourceSchema).safeParse(payload);
+      if (!parsedSources.success) {
+        logger.warn("fetchSources received malformed payload");
+        return [];
+      }
+      return parsedSources.data.map(mapBackendSource);
     }
-    return parsedSources.data.map(mapBackendSource);
   } catch (error) {
     console.error("Failed to fetch sources:", error);
     return [];
@@ -4633,16 +4707,18 @@ fetchStartupMetrics = async (): Promise<StartupMetricsResponse> => {
     throw new Error(`Failed to fetch startup metrics (${response.status})`);
   }
 
-  const data = StartupMetricsPayloadSchema.parse(await response.json()),
-   events = data.events.map(mapStartupEventMetric);
+  {
+    const data = StartupMetricsPayloadSchema.parse(await response.json()),
+     events = data.events.map(mapStartupEventMetric);
 
-  return {
-    completedAt: data.completed_at,
-    durationSeconds: data.duration_seconds,
-    events,
-    notes: data.notes,
-    startedAt: data.started_at,
-  };
+    return {
+      completedAt: data.completed_at,
+      durationSeconds: data.duration_seconds,
+      events,
+      notes: data.notes,
+      startedAt: data.started_at,
+    };
+  }
 },
 fetchStorageDrift = async (
   sampleLimit: number = apiNumericConstants.fifty,
@@ -4665,9 +4741,11 @@ fetchStreamStatus = async (): Promise<ApiOpaqueObject | null> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.streamStatus);
-    logger.debug("Stream status:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.streamStatus);
+      logger.debug("Stream status:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch stream status:", error);
     return A_NULL_VALUE;
@@ -4686,20 +4764,24 @@ fetchTrending = async (
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json(),
-   parsed = TrendingResponseSchema.parse(payload);
-  parsed satisfies OpenApiTrendingResponse;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = TrendingResponseSchema.parse(payload);
+    parsed satisfies OpenApiTrendingResponse;
+    return parsed;
+  }
 },
 fetchTrendingStats = async (): Promise<TrendingStats> => {
   const response = await fetch(`${resolvedApiBaseUrl}/trending/stats`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const payload: unknown = await response.json(),
-   parsed = TrendingStatsSchema.parse(payload);
-  parsed satisfies OpenApiTrendingStats;
-  return parsed;
+  {
+    const payload: unknown = await response.json(),
+      parsed = TrendingStatsSchema.parse(payload);
+    parsed satisfies OpenApiTrendingStats;
+    return parsed;
+  }
 },
 fetchWikiIndexStatus = async (): Promise<WikiIndexStatus> => {
   const response = await fetch(`${resolvedApiBaseUrl}/api/wiki/index/status`);
@@ -4830,9 +4912,11 @@ getAllHighlights = async (): Promise<Highlight[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.highlights);
-    logger.debug("All highlights retrieved:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.highlights);
+      logger.debug("All highlights retrieved:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch highlights:", error);
     throw error;
@@ -4905,9 +4989,11 @@ getDailyDigest = async (): Promise<QueueDigest> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.queueDigest);
-    logger.debug("Daily digest retrieved:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.queueDigest);
+      logger.debug("Daily digest retrieved:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch daily digest:", error);
     throw error;
@@ -4924,18 +5010,22 @@ getHighlightsForArticle = async (
       logger.debug(`[Highlights] GET ${url}`);
     }
 
-    const response = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
-      method: "GET",
-    });
+    {
+      const response = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        method: "GET",
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      {
+        const data = await parseResponseJson(response, zApiResponseSchemas.highlights);
+        logger.debug("Highlights retrieved:", data);
+        return data;
+      }
     }
-
-    const data = await parseResponseJson(response, zApiResponseSchemas.highlights);
-    logger.debug("Highlights retrieved:", data);
-    return data;
   } catch (error) {
     console.error("Failed to fetch highlights:", error);
     throw error;
@@ -4981,9 +5071,11 @@ getQueueItemContent = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.queueItemContent);
-    logger.debug("Queue item content retrieved:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.queueItemContent);
+      logger.debug("Queue item content retrieved:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch queue item content:", error);
     throw error;
@@ -5000,9 +5092,11 @@ getQueueOverview = async (): Promise<QueueOverview> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.queueOverview);
-    logger.debug("Queue overview retrieved:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.queueOverview);
+      logger.debug("Queue overview retrieved:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch queue overview:", error);
     throw error;
@@ -5019,9 +5113,11 @@ getReadingQueue = async (): Promise<QueueResponse> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.queueResponse);
-    logger.debug("Reading queue retrieved:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.queueResponse);
+      logger.debug("Reading queue retrieved:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to fetch reading queue:", error);
     throw error;
@@ -5439,18 +5535,19 @@ normalizeCountryCode = (value?: string | null): string => {
   if (!trimmed) {return "International";}
   if (trimmed === "International") {return trimmed;}
 
-  const compactUpper = trimmed.toUpperCase();
-  if (/^[A-Z]{2}$/u.test(compactUpper)) {
-    return compactUpper;
+  {
+    const compactUpper = trimmed.toUpperCase(),
+     normalizedName = trimmed
+      .toLowerCase()
+      .replaceAll(/[.]/gu, "")
+      .replaceAll(/\s+/gu, " ")
+      .trim(),
+     noSpace = normalizedName.replaceAll(/\s+/gu, "");
+    if (/^[A-Z]{2}$/u.test(compactUpper)) {
+      return compactUpper;
+    }
+    return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
   }
-
-  const normalizedName = trimmed
-    .toLowerCase()
-    .replaceAll(/[.]/gu, "")
-    .replaceAll(/\s+/gu, " ")
-    .trim(),
-   noSpace = normalizedName.replaceAll(/\s+/gu, "");
-  return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
 },
 normalizeOgImageUrl = (imageUrl: string | null | undefined): string | null =>
   imageUrl !== undefined && imageUrl !== null && imageUrl.length > 0
@@ -5487,16 +5584,18 @@ parseNewsPayload = (payload: unknown): BackendArticle[] => {
     logger.warn("fetchNews received a malformed response payload");
     return [];
   }
-  const parsedArticles = BackendArticleSchema.array().safeParse(
-    parsedPayload.data.articles ?? [],
-  );
-  if (!parsedArticles.success) {
-    logger.warn(
-      "fetchNews received malformed article payload, dropping invalid entries",
+  {
+    const parsedArticles = BackendArticleSchema.array().safeParse(
+      parsedPayload.data.articles ?? [],
     );
-    return [];
+    if (!parsedArticles.success) {
+      logger.warn(
+        "fetchNews received malformed article payload, dropping invalid entries",
+      );
+      return [];
+    }
+    return parsedArticles.data;
   }
-  return parsedArticles.data;
 },
 parsePaginatedPayload = (payload: unknown): PaginatedResponse => {
   const parsed = PaginatedPayloadSchema.safeParse(payload);
@@ -5544,14 +5643,15 @@ performAgenticSearch = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const researchResponse = await parseResponseJson(response, zApiResponseSchemas.researchResponse);
-
-    return {
-      answer: researchResponse.answer,
-      citations: researchResponse.referenced_articles,
-      reasoning: researchResponse.thinking_steps,
-      success: researchResponse.success,
-    };
+    {
+      const researchResponse = await parseResponseJson(response, zApiResponseSchemas.researchResponse);
+      return {
+        answer: researchResponse.answer,
+        citations: researchResponse.referenced_articles,
+        reasoning: researchResponse.thinking_steps,
+        success: researchResponse.success,
+      };
+    }
   } catch (error) {
     console.error("Agentic search failed:", error);
     throw error;
@@ -5578,12 +5678,14 @@ performNewsResearch = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.researchResponse);
-    logger.debug("News research complete:", data);
-    return {
-      ...data,
-      articles_searched: data.articles_searched ?? apiNumericConstants.zero,
-    };
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.researchResponse);
+      logger.debug("News research complete:", data);
+      return {
+        ...data,
+        articles_searched: data.articles_searched ?? apiNumericConstants.zero,
+      };
+    }
   } catch (error) {
     console.error("Failed to perform news research:", error);
     throw error;
@@ -5600,11 +5702,13 @@ processCacheRefreshLine = (
   if (json.length === 0) {
     return undefined;
   }
-  const event = parseCacheRefreshEvent(json);
-  if (event === undefined || !handleCacheRefreshEvent(event, onProgress)) {
-    return undefined;
+  {
+    const event = parseCacheRefreshEvent(json);
+    if (event === undefined || !handleCacheRefreshEvent(event, onProgress)) {
+      return undefined;
+    }
+    return event.status === "complete";
   }
-  return event.status === "complete";
 },
 processStreamChunk = (
   buffer: string,
@@ -5695,10 +5799,12 @@ pruneOgImageCache = () => {
     return;
   }
 
-  const keys = [...ogImageCache.keys()],
-   overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
-  for (let i = 0; i < overflow; i += 1) {
-    ogImageCache.delete(keys[i]!);
+  {
+    const keys = [...ogImageCache.keys()],
+     overflow = ogImageCache.size - OG_IMAGE_MAX_CACHE_ENTRIES;
+    for (let i = 0; i < overflow; i += 1) {
+      ogImageCache.delete(keys[i]!);
+    }
   }
 },
 pumpStreamEvents = async (
@@ -5879,13 +5985,15 @@ requestInlineDefinition = async (
       throw new Error(`HTTP ${resp.status}: ${text}`);
     }
 
-    const data = await parseResponseJson(resp, zApiResponseSchemas.inlineDefinition);
-    return {
-      definition: data.definition ?? A_NULL_VALUE,
-      error: data.error ?? A_NULL_VALUE,
-      success: true,
-      term,
-    };
+    {
+      const data = await parseResponseJson(resp, zApiResponseSchemas.inlineDefinition);
+      return {
+        definition: data.definition ?? A_NULL_VALUE,
+        error: data.error ?? A_NULL_VALUE,
+        success: true,
+        term,
+      };
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("requestInlineDefinition failed", error);
@@ -5919,9 +6027,11 @@ requestOgImage = async (url: string): Promise<string | null> => {
       }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const parsed = OgImageResponseSchema.safeParse(await response.json()),
-     imageUrl = parsed.success ? normalizeOgImageUrl(parsed.data.image_url) : null;
-    return cacheOgImage(url, imageUrl, OG_IMAGE_SUCCESS_TTL_MS);
+    {
+      const parsed = OgImageResponseSchema.safeParse(await response.json()),
+       imageUrl = parsed.success ? normalizeOgImageUrl(parsed.data.image_url) : null;
+      return cacheOgImage(url, imageUrl, OG_IMAGE_SUCCESS_TTL_MS);
+    }
   } catch (error) {
     console.error("Failed to fetch OG image:", error);
     return cacheOgImage(url, null, OG_IMAGE_ERROR_TTL_MS);
@@ -6204,11 +6314,13 @@ resolveRemoteBackendUrl = (url: Readonly<URL>): string | null => {
     return null;
   }
 
-  const rewrittenUrl = new URL(url.toString());
-  rewrittenUrl.hostname = browserHostname;
-  return applyBrowserProtocol(rewrittenUrl, browserLocation.protocol)
-    .toString()
-    .replace(/\/+$/u, "");
+  {
+    const rewrittenUrl = new URL(url.toString());
+    rewrittenUrl.hostname = browserHostname;
+    return applyBrowserProtocol(rewrittenUrl, browserLocation.protocol)
+      .toString()
+      .replace(/\/+$/u, "");
+  }
 },
 resolveSourceParameter = (params: Readonly<PageQueryParams>): string | null | undefined => {
   if (params.sources !== undefined && params.sources !== null && params.sources.length > 0) {
@@ -6234,26 +6346,34 @@ semanticSearch = async (
   if (!response.ok) {
     throw new Error(`Semantic search failed with status ${response.status}`);
   }
-  const parsed = SemanticSearchPayloadSchema.safeParse(await response.json());
-  if (!parsed.success) {
-    throw new Error("Semantic search returned an invalid response.");
+  {
+    const parsed = SemanticSearchPayloadSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new Error("Semantic search returned an invalid response.");
+    }
+    {
+      const rawResults = parsed.data.results ?? [],
+       mappedArticles = mapBackendArticles(rawResults),
+       results = mappedArticles.map((article, index) => ({
+        article,
+        distance: rawResults[index]?.distance ?? null,
+        similarityScore: rawResults[index]?.similarity_score ?? null,
+      }));
+      {
+        let responseQuery = query;
+        if (parsed.data.query !== undefined && parsed.data.query.length > 0) {
+          responseQuery = parsed.data.query;
+        }
+        {
+          let total = results.length;
+          if (parsed.data.total !== undefined) {
+            total = parsed.data.total;
+          }
+          return { query: responseQuery, results, total };
+        }
+      }
+    }
   }
-  const rawResults = parsed.data.results ?? [],
-   mappedArticles = mapBackendArticles(rawResults),
-   results = mappedArticles.map((article, index) => ({
-    article,
-    distance: rawResults[index]?.distance ?? null,
-    similarityScore: rawResults[index]?.similarity_score ?? null,
-  }));
-  let responseQuery = query;
-  if (parsed.data.query !== undefined && parsed.data.query.length > 0) {
-    responseQuery = parsed.data.query;
-  }
-  let total = results.length;
-  if (parsed.data.total !== undefined) {
-    total = parsed.data.total;
-  }
-  return { query: responseQuery, results, total };
 },
 sendFrontendDebugReport = async (
   payload: FrontendDebugReportPayload,
@@ -6354,9 +6474,11 @@ streamNews = (options: StreamOptions = {}): {
   logger.debug(
     `Starting news stream with useCache=${options.useCache ?? true} and category=${options.category}`,
   );
-  const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
-  startStreamConnection(sseUrl, options, createStreamRuntime(options, resolve, reject));
-  return { promise, url: sseUrl };
+  {
+    const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
+    startStreamConnection(sseUrl, options, createStreamRuntime(options, resolve, reject));
+    return { promise, url: sseUrl };
+  }
 },
 streamReject = (rt: Readonly<StreamRuntime>, error: Error): void => {
   if (rt.settled) {return;}
@@ -6429,9 +6551,11 @@ updateHighlight = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.highlight);
-    logger.debug("Highlight updated:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.highlight);
+      logger.debug("Highlight updated:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to update highlight:", error);
     throw error;
@@ -6452,9 +6576,11 @@ updateReadingQueueItem = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await parseResponseJson(response, zApiResponseSchemas.readingQueueItem);
-    logger.debug("Queue item updated:", data);
-    return data;
+    {
+      const data = await parseResponseJson(response, zApiResponseSchemas.readingQueueItem);
+      logger.debug("Queue item updated:", data);
+      return data;
+    }
   } catch (error) {
     console.error("Failed to update queue item:", error);
     throw error;

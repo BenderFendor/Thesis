@@ -6,13 +6,13 @@ export type HighlightSyncStatus = "synced" | "pending" | "failed"
 export type HighlightOp = "create" | "update" | "delete"
 
 export interface LocalHighlight extends Highlight {
-  client_id: string
-  server_id?: number
-  sync_status: HighlightSyncStatus
-  pending_op?: HighlightOp
-  last_error?: string
-  local_updated_at: string
-  deleted?: boolean
+  readonly client_id: string
+  readonly server_id?: number
+  readonly sync_status: HighlightSyncStatus
+  readonly pending_op?: HighlightOp
+  readonly last_error?: string
+  readonly local_updated_at: string
+  readonly deleted?: boolean
 }
 
 export interface HighlightStoreState {

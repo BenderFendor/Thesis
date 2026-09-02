@@ -36,7 +36,7 @@ import {
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
 import { ClusterDetailModal } from "./cluster-detail-modal";
-import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 

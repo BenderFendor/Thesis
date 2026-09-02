@@ -10,8 +10,8 @@ import { highlightStableId } from "@/lib/highlight-utils";
 
 interface HighlightNotePopoverProps {
   readonly open: boolean;
-  readonly highlight: Readonly<Highlight> | null;
-  readonly anchorEl: Readonly<AnchorElement> | null;
+  readonly highlight: Readonly<Highlight> | undefined;
+  readonly anchorEl: Readonly<AnchorElement> | undefined;
   readonly onClose: () => void;
   readonly onSave: (highlightId: string, note: string) => Promise<void>;
   readonly articleTitle?: string;
@@ -19,7 +19,7 @@ interface HighlightNotePopoverProps {
 }
 
 interface HighlightNoteBodyProps {
-  readonly highlight: Readonly<Highlight> | null;
+  readonly highlight: Readonly<Highlight> | undefined;
   readonly noteDraft: string;
   readonly onChange: (event: Readonly<TextareaChangeEvent>) => void;
   readonly onClose: () => void;
@@ -126,7 +126,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       researchQuery,
       saving,
     } = props;
-    if (highlight === null) {
+    if (highlight === undefined) {
       return <div />;
     }
     return (
@@ -182,7 +182,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
     return (
       <dialog
         ref={popoverRef}
-        open={open && highlight !== null && anchorEl !== null}
+        open={open && highlight !== undefined && anchorEl !== undefined}
         className="fixed z-[110] w-[min(420px,calc(100vw-24px))]"
         aria-label="Highlight note"
       >
@@ -241,11 +241,11 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
   },
 
   buildResearchQuery = (
-    highlight: Readonly<Highlight> | null,
+    highlight: Readonly<Highlight> | undefined,
     articleTitle: string | undefined,
     articleSource: string | undefined,
   ): string | undefined => {
-    if (highlight === null) {
+    if (highlight === undefined) {
       return void ZERO;
     }
     const context = buildResearchContext(articleTitle, articleSource);
@@ -292,7 +292,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
     popoverContainsTarget || anchorContainsTarget,
 
   useHighlightNoteDraft = (
-    highlight: Readonly<Highlight> | null,
+    highlight: Readonly<Highlight> | undefined,
     onClose: () => void,
     onSave: (highlightId: string, note: string) => Promise<void>,
   ): HighlightNoteDraftController => {
@@ -307,7 +307,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
         void handleSave();
       },
       handleSave = async (): Promise<void> => {
-        if (highlight === null) {
+        if (highlight === undefined) {
           return;
         }
         try {
@@ -339,7 +339,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
 
   useHighlightPopoverDismissal = (
     open: boolean,
-    anchorEl: Readonly<AnchorElement | null>,
+    anchorEl: Readonly<AnchorElement | undefined>,
     onClose: () => void,
     popoverRef: DialogElementRef,
   ): void => {
@@ -387,11 +387,11 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
 
   useHighlightPopoverPosition = (
     open: boolean,
-    anchorEl: Readonly<AnchorElement | null>,
+    anchorEl: Readonly<AnchorElement | undefined>,
     popoverRef: DialogElementRef,
   ): void => {
     useEffect((): (() => void) | undefined => {
-      if (!open || anchorEl === null) {
+      if (!open || anchorEl === undefined) {
         return void ZERO;
       }
       const updatePosition = (): void => {

@@ -33,7 +33,7 @@ import {
   API_BASE_URL,
   fetchClusterDetail,
 } from "@/lib/api";
-import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { ArticleContent } from "@/components/article-content";
 import { buildComparisonSourceOptions, getDefaultComparisonArticleIds, getSelectedComparisonArticles } from '@/lib/cluster-comparison';

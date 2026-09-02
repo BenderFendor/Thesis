@@ -44,7 +44,7 @@ import { SemanticTags } from "@/components/semantic-tags";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
-import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useFavorites } from "@/hooks/use-favorites";
 import {
   API_BASE_URL,

@@ -37,7 +37,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { TrendingFeed } from "./trending-feed"
 import type { AllCluster, NewsArticle, TrendingCluster } from "@/lib/api"
 import { cn, getLogger } from "@/lib/utils"
-import { useReadingQueue } from "@/hooks/useReadingQueue"
+import { useReadingQueue } from "@/hooks/use-reading-queue"
 import { useLikedArticles } from "@/hooks/use-liked-articles"
 import { useFavorites } from "@/hooks/use-favorites"
 import {

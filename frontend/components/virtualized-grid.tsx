@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Heart, Loader2, MinusCircle, PlusCircle } from "lucide-react";
 import type { NewsArticle } from "@/lib/api";
-import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 
 // Configuration constants

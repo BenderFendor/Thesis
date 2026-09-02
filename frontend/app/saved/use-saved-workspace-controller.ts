@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
-import { useReadingQueue } from "@/hooks/useReadingQueue";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 import {
   createReadingShelf,
   fetchBookmarks,

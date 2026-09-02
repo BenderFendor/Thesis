@@ -5,14 +5,14 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { requestInlineDefinition } from "../lib/api";
 
 export interface InlineDefinitionResult {
-  term: string;
-  definition?: string | null;
-  error?: string | null;
+  readonly term: string;
+  readonly definition?: string | null;
+  readonly error?: string | null;
 }
 
 interface AnchorPosition {
-  x: number;
-  y: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 function getSelectionAnchorPosition(selection: Selection, event: MouseEvent): AnchorPosition {
@@ -90,7 +90,7 @@ async function requestInlineDefinitionForTerm(
 export function useInlineDefinition() {
   const [result, setResult] = useState<InlineDefinitionResult | null>(null),
    [open, setOpen] = useState(false),
-   [anchorPosition, setAnchorPosition] = useState<{ x: number; y: number } | null>(null),
+   [anchorPosition, setAnchorPosition] = useState<AnchorPosition | null>(null),
    abortRef = useRef<AbortController | null>(null),
    lastTermRef = useRef<string | null>(null),
    lastRequestAtRef = useRef<number>(0);
