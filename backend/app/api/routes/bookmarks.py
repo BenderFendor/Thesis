@@ -19,11 +19,12 @@ from app.api.routes.saved_article_helpers import (
 )
 from app.database import Bookmark as BookmarkRecord, get_db
 from app.models.news import BookmarkCreateRequest
+from app.models.api_contracts import BookmarkListResponse
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
 
 
-@router.get("")
+@router.get("", response_model=BookmarkListResponse)
 async def list_bookmarks(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
     """List Bookmarks."""
     bookmarks_stmt = build_saved_article_list_stmt(BookmarkRecord, "bookmark_id")

@@ -27,9 +27,9 @@ const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [
   { label: "Roomy", scale: 1.1 },
 ] as const
 
-const percent = (value: number): string => {
-  return `${Math.round(value * 100)}%`
-}
+const percent = (value: number): string => 
+  `${Math.round(value * 100)}%`
+
 
 interface SettingsSectionProps {
   title: string
@@ -37,8 +37,8 @@ interface SettingsSectionProps {
   children: React.ReactNode
 }
 
-const SettingsSection = ({ title, description, children }: SettingsSectionProps) => {
-  return (
+const SettingsSection = ({ title, description, children }: SettingsSectionProps) => 
+  (
     <section className="rounded-md border border-border/70 bg-card/60 p-5 shadow-sm">
       <div className="mb-4">
         <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{title}</h2>
@@ -49,7 +49,7 @@ const SettingsSection = ({ title, description, children }: SettingsSectionProps)
       <div className="space-y-5">{children}</div>
     </section>
   )
-}
+
 
 interface SliderControlProps {
   label: string
@@ -125,8 +125,8 @@ interface SegmentedControlProps {
   onChange: (value: string) => void
 }
 
-const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlProps) => {
-  return (
+const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlProps) => 
+  (
     <div className="space-y-2">
       <span className="text-sm text-foreground">{label}</span>
       <div className="flex gap-2" role="group" aria-label={label}>
@@ -145,7 +145,7 @@ const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlP
       </div>
     </div>
   )
-}
+
 
 const useAppearanceSettingsActions = (
   settings: AppearanceSettings,
@@ -177,7 +177,7 @@ const useAppearanceSettingsActions = (
       save({ ...settings, typography: { ...settings.typography, ...patch } }); },
     [save, settings],
   )
-  return { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography }
+  return { updateColorField, updateLayout, updateMotion, updateShadows, updateTypography }
 }
 
 const useAppearanceFileActions = (settings: AppearanceSettings) => {

@@ -3,8 +3,8 @@ import { describe, expect, it } from '@jest/globals';
 import { filterArticlesByLens, getLensSourceIds, getLensStats } from '@/lib/news-lens';
 import type { NewsLensId } from '@/lib/news-lens';
 
-const source = (overrides: Partial<NewsSource>): NewsSource => {
-  return {
+const source = (overrides: Partial<NewsSource>): NewsSource => (
+  {
     bias: "center",
     category: ["general"],
     country: "US",
@@ -17,11 +17,11 @@ const source = (overrides: Partial<NewsSource>): NewsSource => {
     slug: "source",
     url: "https://example.com",
     ...overrides,
-  };
-}
+  }
+)
 
-const article = (overrides: Partial<NewsArticle>): NewsArticle => {
-  return {
+const article = (overrides: Partial<NewsArticle>): NewsArticle => (
+  {
     bias: "center",
     category: "general",
     country: "US",
@@ -38,8 +38,8 @@ const article = (overrides: Partial<NewsArticle>): NewsArticle => {
     translated: false,
     url: "https://example.com/article",
     ...overrides,
-  };
-}
+  }
+)
 
 describe("news lens filtering", () => {
   const sources = [

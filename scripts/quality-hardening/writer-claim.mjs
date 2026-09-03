@@ -7,26 +7,26 @@ const ACTIVE_TASK_FILE = ".quality-hardening/active-task.json",
  CLAIM_FILE = ".quality-hardening/locks/writer.json";
 
 /** @param {string} repositoryRoot */
-const claimPath = (repositoryRoot) => {
-  return resolve(repositoryRoot, CLAIM_FILE);
-}
+const claimPath = (repositoryRoot) => 
+  resolve(repositoryRoot, CLAIM_FILE)
+
 
 /** @param {string} repositoryRoot */
-const activeTaskPath = (repositoryRoot) => {
-  return resolve(repositoryRoot, ACTIVE_TASK_FILE);
-}
+const activeTaskPath = (repositoryRoot) => 
+  resolve(repositoryRoot, ACTIVE_TASK_FILE)
+
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths */
-const normalizePaths = (repositoryRoot, paths) => {
-  return [...new Set(paths.map((path) => {
+const normalizePaths = (repositoryRoot, paths) => 
+  [...new Set(paths.map((path) => {
     const resolvedPath = resolve(repositoryRoot, path),
      relativePath = relative(resolve(repositoryRoot), resolvedPath);
     if (!relativePath || relativePath === ".." || relativePath.startsWith("../")) {
       throw new Error(`claim path is outside the repository: ${path}`);
     }
     return relativePath.split("\\").join("/");
-  }))].sort((left, right) => left.localeCompare(right));
-}
+  }))].sort((left, right) => left.localeCompare(right))
+
 
 /** @param {string} repositoryRoot @param {{sessionId: string, taskId: string, paths: readonly string[]}} claim */
 const claimWriter = async (repositoryRoot, claim) => {

@@ -176,7 +176,23 @@ const NO_ITEMS = 0,
   let bookmarks: BookmarkEntry[],
    likes: LikedEntry[];
   try {
-    [bookmarks, likes] = await Promise.all([fetchBookmarks(), fetchLikedArticles()]);
+    const [bookmarkResponse, likedResponse] = await Promise.all([fetchBookmarks(), fetchLikedArticles()]);
+    // SAFETY: the backend returns full NewsArticle objects inside bookmark/like
+    // entries; the OpenAPI schema only narrows them to opaque objects.
+    [bookmarks, likes] = [
+      bookmarkResponse.bookmarks.map((entry) => ({
+        article: entry.article as unknown as NewsArticle,
+        articleId: entry.articleId,
+        bookmarkId: entry.bookmarkId,
+        createdAt: entry.createdAt ?? undefined,
+      })),
+      likedResponse.liked.map((entry) => ({
+        article: entry.article as unknown as NewsArticle,
+        articleId: entry.articleId,
+        createdAt: entry.createdAt ?? undefined,
+        likedId: entry.likedId,
+      })),
+    ];
   } catch {
     return createFallbackResult();
   }

@@ -669,7 +669,7 @@ const AnalysisActionButton = ({
 },
 
  ModalPersistenceNotice = ({ canPersist }: Readonly<{ canPersist: boolean }>) => {
-  if (canPersist) {return undefined}
+  if (canPersist) {return}
   return <span className="text-xs text-muted-foreground">This article is readable here, but likes and bookmarks only work for indexed archive items.</span>
 },
 

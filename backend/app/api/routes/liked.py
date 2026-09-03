@@ -21,11 +21,12 @@ from app.database import (
     get_db,
 )
 from app.models.news import BookmarkCreateRequest
+from app.models.api_contracts import LikedListResponse
 
 router = APIRouter(prefix="/api/liked", tags=["liked"])
 
 
-@router.get("")
+@router.get("", response_model=LikedListResponse)
 async def list_liked_articles(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
     """List Liked Articles."""
     liked_stmt = build_saved_article_list_stmt(LikedArticleRecord, "liked_id")

@@ -427,7 +427,11 @@ const useSheetDragCallbacks = (
     handleCountrySelect = useCallback((country: CountrySelection, name?: string | null): void => {
       let resolvedName = name
       if (country !== null && country !== "") {
-        resolvedName = geoData?.countries?.[country]?.name ?? name ?? country
+        const wireName = geoData?.countries?.[country]?.name
+        resolvedName =
+          typeof wireName === "string"
+            ? wireName
+            : (name ?? country ?? null)
       }
       setSelectedCountry(country)
       setSelectedCountryName(resolvedName ?? null)
@@ -568,7 +572,10 @@ const getLensArticles = (
     globalSourceSummary = useMemo(() => buildSourceSummary(articles).slice(0, TOP_SOURCE_LIMIT), [articles]),
     localLensData = useMemo(() => {
       if (selectedCountry === null || selectedCountry === "") {return}
-      const countryName = geoData?.countries?.[selectedCountry]?.name ?? selectedCountryName ?? selectedCountry
+      const countryName =
+        typeof geoData?.countries?.[selectedCountry]?.name === "string"
+          ? (geoData.countries[selectedCountry].name)
+          : (selectedCountryName ?? selectedCountry)
       return buildLocalLensFromArticles({
         articles,
         code: selectedCountry,
@@ -2716,8 +2723,8 @@ const ExpandedRightSidebar = ({
   countryMetrics: CountryArticleCounts
   onScrollTo: (ref: RefObject<HTMLDivElement | null>) => void
   lensBriefRef: RefObject<HTMLDivElement | null>
-}>) => {
-  return (
+}>) => 
+  (
     <div className="w-[320px] border-l border-white/10 p-5 flex flex-col overflow-y-auto custom-scrollbar bg-black/35 backdrop-blur-xl">
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Focus</h3>
       <h2 className="font-serif text-2xl mb-2 text-foreground">{focusLabel}</h2>
@@ -2813,7 +2820,7 @@ const ExpandedRightSidebar = ({
       </div>
     </div>
   )
-}
+
 
 type GlobeViewExpandedDashboardProps = Readonly<{
   isFocusExpanded: boolean

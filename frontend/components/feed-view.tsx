@@ -107,9 +107,9 @@ const formatRankingStatus = (status: "basic" | "loading" | "ready" | "fallback")
   }
 }
 
-const formatScore = (value: number): string => {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1)
-}
+const formatScore = (value: number): string => 
+  Number.isInteger(value) ? String(value) : value.toFixed(1)
+
 
 const displayFeedSource = (source: string | null | undefined): string => {
   if (!source) {
@@ -498,8 +498,8 @@ const FeedActionButtons = ({
   onLike,
   onFavorite,
   onBookmark,
-}: FeedActionButtonsProps): React.JSX.Element => {
-  return (
+}: FeedActionButtonsProps): React.JSX.Element => 
+  (
     <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4 bg-black/40 backdrop-blur-xl p-2 md:p-3 border border-white/20 rounded-xl self-start md:self-auto">
       <Button
         variant="ghost"
@@ -536,7 +536,7 @@ const FeedActionButtons = ({
       </Button>
     </div>
   )
-}
+
 
 interface FeedStoryProps {
   readonly article: NewsArticle
@@ -642,8 +642,8 @@ const FeedStory = ({
   )
 }
 
-const FeedLoadingState = (): React.JSX.Element => {
-  return (
+const FeedLoadingState = (): React.JSX.Element => 
+  (
     <div className="flex-1 h-full w-full flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -651,15 +651,15 @@ const FeedLoadingState = (): React.JSX.Element => {
       </div>
     </div>
   )
-}
 
-const FeedEmptyState = (): React.JSX.Element => {
-  return (
+
+const FeedEmptyState = (): React.JSX.Element => 
+  (
     <div className="flex-1 h-full w-full flex items-center justify-center bg-background">
       <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">No coverage found for this category.</span>
     </div>
   )
-}
+
 
 interface FeedScrollControlsProps {
   readonly activeIndex: number
@@ -673,8 +673,8 @@ const FeedScrollControls = ({
   visibleCount,
   onPrevious,
   onNext,
-}: FeedScrollControlsProps): React.JSX.Element => {
-  return (
+}: FeedScrollControlsProps): React.JSX.Element => 
+  (
     <div className="absolute right-6 lg:right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20 hidden md:flex">
       <Button
         variant="outline"
@@ -696,7 +696,7 @@ const FeedScrollControls = ({
       </Button>
     </div>
   )
-}
+
 
 interface FeedResultsProps {
   readonly containerRef: RefObject<HTMLDivElement | null>
@@ -734,8 +734,8 @@ const FeedResults = ({
   onNext,
   activeIndex,
   totalCount,
-}: FeedResultsProps): React.JSX.Element => {
-  return (
+}: FeedResultsProps): React.JSX.Element => 
+  (
     <>
       <div ref={containerRef} className="h-full w-full overflow-y-auto snap-y snap-proximity no-scrollbar">
         {visibleArticles.map((article, index) => (
@@ -768,7 +768,7 @@ const FeedResults = ({
       />
     </>
   )
-}
+
 
 interface FeedActionHandlersOptions {
   readonly bookmarkIds: ReadonlySet<number>
@@ -986,11 +986,11 @@ export function FeedView({
     bookmarkIds,
     rankedArticles,
     selectedArticleIndex,
-    toggleLike,
-    toggleBookmark,
+    setIsArticleModalOpen,
     setSelectedArticle,
     setSelectedArticleIndex,
-    setIsArticleModalOpen,
+    toggleBookmark,
+    toggleLike,
   })
 
   return (

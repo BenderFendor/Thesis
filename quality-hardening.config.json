@@ -15,7 +15,16 @@
       "frontend/lib",
       "scripts"
     ],
-    "extensions": [".cjs", ".js", ".jsx", ".mjs", ".py", ".rs", ".ts", ".tsx"],
+    "extensions": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".py",
+      ".rs",
+      ".ts",
+      ".tsx"
+    ],
     "exclude_directories": [
       ".next",
       ".quality-hardening",
@@ -34,19 +43,31 @@
     "cccc": {
       "version": "1.6.0",
       "native_config": "cccc.toml",
-      "command": ["bash", "scripts/check-complexity", "--json"],
+      "command": [
+        "bash",
+        "scripts/check-complexity",
+        "--json"
+      ],
       "output_limit_bytes": 52428800
     },
     "oxlint": {
       "version": "1.80.0",
       "native_config": ".oxlintrc.json",
-      "command": ["frontend/node_modules/.bin/oxlint", "-c", ".oxlintrc.json", "--format", "json"],
+      "command": [
+        "frontend/node_modules/.bin/oxlint",
+        "-c",
+        ".oxlintrc.json",
+        "--format",
+        "json"
+      ],
       "output_limit_bytes": 52428800
     },
     "crap": {
       "version": "0.5.0",
       "working_directory": "frontend",
-      "command": ["node_modules/.bin/crap-typescript"],
+      "command": [
+        "node_modules/.bin/crap-typescript"
+      ],
       "output_limit_bytes": 52428800
     }
   },
@@ -77,108 +98,266 @@
     },
     "checks": {
       "backend-mypy": {
-        "command": ["bash", "-lc", "cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict"],
+        "command": [
+          "bash",
+          "-lc",
+          "cd backend && MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict"
+        ],
         "label": "backend mypy"
       },
       "backend-tests": {
-        "command": ["bash", "-lc", "cd backend && .venv/bin/pytest tests -m 'not slow'"],
+        "command": [
+          "bash",
+          "-lc",
+          "cd backend && .venv/bin/pytest tests -m 'not slow'"
+        ],
         "label": "backend tests"
       },
       "cccc": {
-        "command": ["bash", "scripts/check-complexity"],
+        "command": [
+          "bash",
+          "scripts/check-complexity"
+        ],
         "label": "CCCC complexity"
       },
       "cli-schema": {
-        "command": ["npm", "run", "cli:schema:check"],
+        "command": [
+          "npm",
+          "run",
+          "cli:schema:check"
+        ],
         "label": "CLI schema parity"
       },
       "cli-tests": {
-        "command": ["npm", "run", "cli:test"],
+        "command": [
+          "npm",
+          "run",
+          "cli:test"
+        ],
         "label": "CLI tests"
       },
       "cli-typecheck": {
-        "command": ["npm", "run", "cli:typecheck"],
+        "command": [
+          "npm",
+          "run",
+          "cli:typecheck"
+        ],
         "label": "CLI typecheck"
       },
       "controller-tests": {
-        "command": ["npm", "run", "quality:controller:test"],
+        "command": [
+          "npm",
+          "run",
+          "quality:controller:test"
+        ],
         "label": "controller tests"
       },
       "controller-typecheck": {
-        "command": ["npm", "run", "cli:typecheck"],
+        "command": [
+          "npm",
+          "run",
+          "cli:typecheck"
+        ],
         "label": "controller typecheck"
       },
       "crap": {
-        "command": ["npm", "--prefix", "frontend", "run", "crap"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "run",
+          "crap"
+        ],
         "label": "CRAP"
       },
       "cycles": {
-        "command": ["bash", "scripts/check-cycles"],
+        "command": [
+          "bash",
+          "scripts/check-cycles"
+        ],
         "label": "cycles"
       },
       "deadcode": {
-        "command": ["npm", "--prefix", "frontend", "run", "deadcode"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "run",
+          "deadcode"
+        ],
         "label": "dead code"
       },
       "duplication": {
-        "command": ["npm", "run", "quality:duplicates"],
+        "command": [
+          "npm",
+          "run",
+          "quality:duplicates"
+        ],
         "label": "duplication"
       },
       "frontend-build": {
-        "command": ["npm", "--prefix", "frontend", "run", "build"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "run",
+          "build"
+        ],
         "label": "frontend build"
       },
       "frontend-tests": {
-        "command": ["npm", "--prefix", "frontend", "test", "--", "--runInBand"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "test",
+          "--",
+          "--runInBand"
+        ],
         "label": "frontend tests"
       },
       "frontend-typecheck": {
-        "command": ["npm", "--prefix", "frontend", "exec", "--", "tsc", "-p", "frontend/tsconfig.json", "--noEmit"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "exec",
+          "--",
+          "tsc",
+          "-p",
+          "frontend/tsconfig.json",
+          "--noEmit"
+        ],
         "label": "frontend typecheck"
       },
       "frontend-lint": {
-        "command": ["npm", "--prefix", "frontend", "run", "lint"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "run",
+          "lint"
+        ],
         "label": "Oxlint"
       },
-      "imports": {
-        "command": ["node", "scripts/check-imports.mjs"],
-        "label": "imports"
-      },
-      "maintainability": {
-        "command": ["node", "scripts/check-maintainability.mjs", "--strict"],
-        "label": "maintainability"
-      },
       "rust-clippy": {
-        "command": ["cargo", "clippy", "--manifest-path", "backend/rss_parser_rust/Cargo.toml", "--", "-D", "warnings"],
+        "command": [
+          "cargo",
+          "clippy",
+          "--manifest-path",
+          "backend/rss_parser_rust/Cargo.toml",
+          "--",
+          "-D",
+          "warnings"
+        ],
         "label": "Rust clippy"
       },
       "rust-extension": {
-        "command": ["bash", "-lc", "cd backend/rss_parser_rust && uv run maturin develop --release"],
+        "command": [
+          "bash",
+          "-lc",
+          "cd backend/rss_parser_rust && uv run maturin develop --release"
+        ],
         "label": "Rust extension"
       },
       "rust-format": {
-        "command": ["cargo", "fmt", "--manifest-path", "backend/rss_parser_rust/Cargo.toml", "--all", "--", "--check"],
+        "command": [
+          "cargo",
+          "fmt",
+          "--manifest-path",
+          "backend/rss_parser_rust/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
         "label": "Rust format"
       },
       "ruff": {
-        "command": ["uvx", "ruff@0.15.22", "check", "backend/"],
+        "command": [
+          "uvx",
+          "ruff@0.15.22",
+          "check",
+          "backend/"
+        ],
         "label": "Ruff check"
       },
       "ruff-format": {
-        "command": ["uvx", "ruff@0.15.22", "format", "--check", "backend/"],
+        "command": [
+          "uvx",
+          "ruff@0.15.22",
+          "format",
+          "--check",
+          "backend/"
+        ],
         "label": "Ruff format"
       },
       "custom-oxlint-tests": {
-        "command": ["npm", "--prefix", "frontend", "run", "test:oxlint-rules"],
+        "command": [
+          "npm",
+          "--prefix",
+          "frontend",
+          "run",
+          "test:oxlint-rules"
+        ],
         "label": "custom Oxlint tests"
+      },
+      "maintainability": {
+        "command": [
+          "node",
+          "scripts/check-maintainability.mjs",
+          "--strict"
+        ],
+        "label": "maintainability"
+      },
+      "file-lines": {
+        "command": [
+          "node",
+          "scripts/check-file-lines.mjs"
+        ],
+        "label": "source line limits"
       }
     }
   },
   "profiles": {
-    "path": ["controller-tests", "controller-typecheck"],
-    "task": ["controller-tests", "controller-typecheck"],
-    "changed": ["cycles", "cli-typecheck", "cli-tests", "cli-schema"],
-    "repo": ["imports", "cycles", "duplication", "maintainability", "cccc", "deadcode", "crap", "frontend-typecheck", "frontend-build", "frontend-lint", "cli-typecheck", "cli-tests", "cli-schema", "backend-mypy", "ruff", "ruff-format", "rust-clippy", "rust-format", "rust-extension", "frontend-tests", "custom-oxlint-tests", "backend-tests"]
+    "path": [
+      "controller-tests",
+      "controller-typecheck"
+    ],
+    "task": [
+      "controller-tests",
+      "controller-typecheck"
+    ],
+    "changed": [
+      "cycles",
+      "cli-typecheck",
+      "cli-tests",
+      "cli-schema"
+    ],
+    "repo": [
+      "file-lines",
+      "imports",
+      "cycles",
+      "duplication",
+      "maintainability",
+      "cccc",
+      "deadcode",
+      "crap",
+      "frontend-typecheck",
+      "frontend-build",
+      "frontend-lint",
+      "cli-typecheck",
+      "cli-tests",
+      "cli-schema",
+      "backend-mypy",
+      "ruff",
+      "ruff-format",
+      "rust-clippy",
+      "rust-format",
+      "rust-extension",
+      "frontend-tests",
+      "custom-oxlint-tests",
+      "backend-tests"
+    ]
   },
   "ledger": {
     "directory": "docs/agents/quality-hardening/ledger",

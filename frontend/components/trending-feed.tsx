@@ -4,7 +4,6 @@ import type {
   BreakingCluster,
   BreakingResponse,
   NewsArticle,
-  TrendingArticle,
   TrendingCluster,
   TrendingResponse} from "@/lib/api";
 import {
@@ -47,9 +46,9 @@ const handleCardKeyDown = (
   activateCardFromKeyDown(event, onActivate);
 }
 
-const hasRealImage = (src?: string | null): boolean => {
-  return hasRealClusterImage(src);
-}
+const hasRealImage = (src?: string | null): boolean => 
+  hasRealClusterImage(src)
+
 
 const formatTimeAgo = (dateStr?: string | null): string => {
   if (!dateStr) {return "";}
@@ -83,7 +82,7 @@ const extractKeyTerms = (title?: string): Set<string> => {
   return new Set(words);
 }
 
-const deduplicateClusters = function <T extends { representative_article?: { title?: string } | null; label?: string | null; keywords?: string[] }>(
+const deduplicateClusters = function  deduplicateClusters<T extends { representative_article?: { title?: string } | null; label?: string | null; keywords?: string[] }>(
   clusters:readonly  T[]
 ): T[] {
   const seen: { terms: Set<string>; title: string }[] = [];
@@ -120,8 +119,21 @@ function countSetOverlap(a: Set<string>, b: Set<string>): number {
   return count;
 }
 
-const trendingArticleToNewsArticle = (article: TrendingArticle, clusterLabel?: string): NewsArticle => {
-  return {
+type TrendingWireArticle = Readonly<{
+  id: number;
+  title: string;
+  source: string;
+  source_id?: string | null;
+  url: string;
+  image_url?: string | null;
+  published_at?: string | null;
+  summary?: string | null;
+  author?: string | null;
+  authors?: string[];
+}>;
+
+const trendingArticleToNewsArticle = (article: TrendingWireArticle, clusterLabel?: string): NewsArticle => (
+  {
     bias: "center" as const,
     category: "trending",
     country: "US",
@@ -137,8 +149,8 @@ const trendingArticleToNewsArticle = (article: TrendingArticle, clusterLabel?: s
     title: article.title,
     translated: false,
     url: article.url,
-  };
-}
+  }
+)
 
 export function TrendingFeed() {
   const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | BreakingCluster | null>(null),

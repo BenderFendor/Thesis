@@ -98,8 +98,8 @@ const coverageBar = (card: BlindspotCard) => {
   )
 }
 
-const cardToCluster = (card: BlindspotCard): TrendingCluster => {
-  return {
+const cardToCluster = (card: BlindspotCard): TrendingCluster => (
+  {
     article_count: card.article_count,
     articles: card.articles.map((article) => ({
       id: article.id,
@@ -129,7 +129,7 @@ const cardToCluster = (card: BlindspotCard): TrendingCluster => {
     velocity: card.balance_score,
     window_count: card.article_count,
   }
-}
+)
 
 const geographySignalBadges = (card: BlindspotCard) => {
   if (!card.geography_signals || card.geography_signals.length === 0) {
@@ -170,9 +170,9 @@ const paywallLabel = (card: BlindspotCard): string | null => {
   return `${Math.round(paywall.paywall_share * 100)}% paywalled`
 }
 
-const displayPoleLabel = (label: string): string => {
-  return label.replace(/^For the\s+/iu, "the ").replace(/^For\s+/iu, "")
-}
+const displayPoleLabel = (label: string): string => 
+  label.replace(/^For the\s+/iu, "the ").replace(/^For\s+/iu, "")
+
 
 interface LeadStoryMeta {
   imageUrl?: string | null
@@ -530,8 +530,8 @@ const useBlindspotData = (
   return { data, error, isLoading, laneMap, poleLabels, refetch, sortedCards }
 }
 
-const BlindspotLoadingState = () => {
-  return (
+const BlindspotLoadingState = () => 
+  (
     <div className="space-y-12">
       <Skeleton className="h-12 w-full rounded-sm opacity-20" />
       <div className="grid gap-12 xl:grid-cols-2">
@@ -548,13 +548,13 @@ const BlindspotLoadingState = () => {
       </div>
     </div>
   )
-}
+
 
 const BlindspotErrorState = ({
   message,
   onRetry,
-}: Readonly<{ message: string; onRetry: () => void }>) => {
-  return (
+}: Readonly<{ message: string; onRetry: () => void }>) => 
+  (
     <div className="flex min-h-[32rem] items-center justify-center p-6">
       <div className="max-w-xl bg-white/[0.02] p-12 text-center rounded-2xl">
         <div className="flex flex-col items-center gap-4 text-foreground">
@@ -575,13 +575,13 @@ const BlindspotErrorState = ({
       </div>
     </div>
   )
-}
+
 
 const BlindspotOfflineState = ({
   label,
   reason,
-}: Readonly<{ label: string; reason?: string | null }>) => {
-  return (
+}: Readonly<{ label: string; reason?: string | null }>) => 
+  (
     <div className="bg-white/[0.01] py-32 text-center rounded-2xl border border-dashed border-white/5">
       <h3 className="font-serif text-2xl text-foreground/60">
         {label} analyzer is offline
@@ -591,13 +591,13 @@ const BlindspotOfflineState = ({
       </p>
     </div>
   )
-}
+
 
 const BlindspotClusterModal = ({
   cluster,
   onClose,
-}: Readonly<{ cluster: TrendingCluster | null; onClose: () => void }>) => {
-  return (
+}: Readonly<{ cluster: TrendingCluster | null; onClose: () => void }>) => 
+  (
     <ClusterDetailModal
       cluster={cluster}
       isBreaking={false}
@@ -605,7 +605,7 @@ const BlindspotClusterModal = ({
       onClose={onClose}
     />
   )
-}
+
 
 const BlindspotControls = ({
   availableLenses,
@@ -619,8 +619,8 @@ const BlindspotControls = ({
   sortMode: SortMode;
   onLensChange: (lens: BlindspotLens["id"]) => void;
   onSortChange: (mode: SortMode) => void;
-}>) => {
-  return (
+}>) => 
+  (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="space-y-1.5 lg:space-y-2">
         <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground/90 lg:text-4xl">
@@ -664,7 +664,7 @@ const BlindspotControls = ({
       </div>
     </div>
   )
-}
+
 
 const BlindspotLaneSection = ({
   accentClass,
@@ -692,8 +692,8 @@ const BlindspotLaneSection = ({
   subtitleMobile?: string;
   title: string;
   titleMobile?: string;
-}>) => {
-  return (
+}>) => 
+  (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -716,14 +716,14 @@ const BlindspotLaneSection = ({
           cards={laneMap.get(laneId) ?? []}
           emptyLabel={emptyLabel}
           expanded={expandedLanes[laneId] ?? false}
-          onExpand={() => onExpandLane(laneId)}
+          onExpand={() =>{  onExpandLane(laneId); }}
           onOpen={onOpenCard}
           poleLabels={poleLabels}
         />
       </div>
     </motion.section>
   )
-}
+
 
 const BlindspotLaneSections = ({
   expandedLanes,
@@ -737,8 +737,8 @@ const BlindspotLaneSections = ({
   onExpandLane: (laneId: BlindspotLane["id"]) => void;
   onOpenCard: (card: BlindspotCard) => void;
   poleLabels: { pole_a: string; pole_b: string };
-}>) => {
-  return (
+}>) => 
+  (
     <div className="grid gap-7 xl:grid-cols-3 xl:gap-12">
       <BlindspotLaneSection
         accentClass="border-red-500/40"
@@ -782,7 +782,7 @@ const BlindspotLaneSections = ({
       />
     </div>
   )
-}
+
 
 function BlindspotLaneCards({
   cards,

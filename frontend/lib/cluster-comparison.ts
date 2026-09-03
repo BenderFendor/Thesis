@@ -12,13 +12,13 @@ interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
   articles: T[];
 }
 
-const normalizeSourceKey = function <T extends ComparisonCandidateArticle>(article: T): string {
+const normalizeSourceKey = function  normalizeSourceKey<T extends ComparisonCandidateArticle>(article: T): string {
   const explicit = article.source_id?.trim().toLowerCase();
   if (explicit) {return explicit;}
   return article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
 }
 
-const recencyValue = function <T extends ComparisonCandidateArticle>(article: T): number {
+const recencyValue = function  recencyValue<T extends ComparisonCandidateArticle>(article: T): number {
   if (typeof article._parsedTimestamp === "number") {
     return article._parsedTimestamp;
   }
@@ -27,7 +27,7 @@ const recencyValue = function <T extends ComparisonCandidateArticle>(article: T)
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-const buildComparisonSourceOptions = function <
+const buildComparisonSourceOptions = function  buildComparisonSourceOptions<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): ComparisonSourceOption<T>[] {
   const groups = new Map<string, ComparisonSourceOption<T>>();
@@ -55,7 +55,7 @@ const buildComparisonSourceOptions = function <
     .sort((a, b) => b.articles.length - a.articles.length);
 }
 
-const getDefaultComparisonArticleIds = function <
+const getDefaultComparisonArticleIds = function  getDefaultComparisonArticleIds<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[]): number[] {
   const groups = buildComparisonSourceOptions(articles);
@@ -69,7 +69,7 @@ const getDefaultComparisonArticleIds = function <
     .filter((value): value is number => typeof value === "number");
 }
 
-const getSelectedComparisonArticles = function <
+const getSelectedComparisonArticles = function  getSelectedComparisonArticles<
   T extends ComparisonCandidateArticle,
 >(articles: readonly T[], selectedIds: readonly number[]): T[] {
   const articleById = new Map(articles.map((article) => [article.id, article]));

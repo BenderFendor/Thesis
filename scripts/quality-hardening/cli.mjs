@@ -46,8 +46,8 @@ const parseOptions = (argumentsList) => {
  return options;
 }
 
-const usage = () => {
- return [
+const usage = () => 
+ [
   "node scripts/quality-hardening.mjs measure --scope repo|changed|task [--path PATH] [--json]",
   "node scripts/quality-hardening.mjs queue rebuild [--from MEASUREMENT_ID] [--json]",
   "node scripts/quality-hardening.mjs queue next|inspect TASK_ID [--json]",
@@ -57,8 +57,8 @@ const usage = () => {
   "node scripts/quality-hardening.mjs summary [--json]",
   "node scripts/quality-hardening.mjs hook pre|post|stop --payload -",
   "node scripts/quality-hardening.mjs validate",
- ].join("\n");
-}
+ ].join("\n")
+
 
 /** @param {readonly string[]} argumentsList */
 const runMeasure = async (argumentsList) => {

@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.filters import normalize_category
 from app.data.rss_sources import get_rss_sources
 from app.database import (
     Article,
@@ -32,6 +33,7 @@ from app.models.news import NewsArticle, NewsResponse, SourceInfo
 from app.services.cache import news_cache
 from app.services.country_mentions import country_name
 from app.services.rss_parser_rust_bindings import rank_articles as rust_rank_articles
+from app.models.api_contracts import SourceStatsList
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -548,6 +550,7 @@ async def get_news_paginated(
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse:
     """Return a cursor-paginated article page with optional source/search filters."""
+    category = normalize_category(category)
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     response.headers["Vary"] = "Accept-Encoding"
     dialect = _page_dialect(db, search)
@@ -575,6 +578,7 @@ async def get_cached_news_paginated(
     search: str | None = Query(default=None),
 ) -> PaginatedResponse:
     """Return a filtered page from the in-memory news cache."""
+    category = normalize_category(category)
     filtered = _filter_cached_articles(
         category=category, source=source, sources=sources, search=search
     )
@@ -601,6 +605,7 @@ async def get_cached_browse_index(
     search: str | None = Query(default=None),
 ) -> BrowseIndexResponse:
     """Return a filtered lightweight index from the in-memory cache."""
+    category = normalize_category(category)
     response.headers["Cache-Control"] = "public, max-age=5, stale-while-revalidate=15"
     response.headers["Vary"] = "Accept-Encoding"
     articles = _filter_cached_articles(
@@ -693,6 +698,7 @@ async def get_browse_index(
     db: AsyncSession = Depends(get_db),
 ) -> BrowseIndexResponse:
     """Return lightweight article cards from the persisted browse corpus."""
+    category = normalize_category(category)
     response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     response.headers["Vary"] = "Accept-Encoding"
     rows = await _browse_rows(db, _base_filters(category, source, sources), search)
@@ -723,6 +729,7 @@ async def get_recent_news(
     db: AsyncSession = Depends(get_db),
 ) -> RecentPageResponse:
     """Return a cursor-paginated page of recent articles."""
+    category = normalize_category(category)
     filters = _recent_filters(category, source, cursor)
     rows = await _plain_page_rows(db, filters, "desc", limit)
     rows, _, has_more = _trim_page(rows, [], limit)
@@ -909,7 +916,7 @@ def _pending_source_stat(source_name: str, source_info: dict[str, Any]) -> dict[
     }
 
 
-@router.get("/sources/stats")
+@router.get("/sources/stats", response_model=SourceStatsList)
 async def get_source_stats() -> dict[str, object]:
     """Return cache statistics for configured sources."""
     configured = get_rss_sources()

@@ -17,9 +17,9 @@ import {
 import type { AtlasSearchItem } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";
 
-const humanize = (value: string): string => {
-  return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
-}
+const humanize = (value: string): string => 
+  value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase())
+
 
 const pluralGroupLabel = (type: string): string => {
   if (type === "person") {return "People";}

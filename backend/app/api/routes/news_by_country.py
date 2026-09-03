@@ -16,6 +16,7 @@ from app.database import (
     get_session_dialect_name,
 )
 from app.services.country_mentions import country_name, get_country_geo_data
+from app.models.api_contracts import CountryGeoData
 
 logger = get_logger(__name__)
 
@@ -165,7 +166,7 @@ async def _fetch_country_filtered_articles(
     )
 
 
-@router.get("/countries/geo")
+@router.get("/countries/geo", response_model=CountryGeoData)
 async def get_countries_geo_data_route() -> dict[str, object]:
     """Get Countries Geo Data Route."""
     countries = get_country_geo_data()

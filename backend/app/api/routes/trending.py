@@ -15,6 +15,7 @@ from app.services.cluster_cache import get_latest_snapshot
 from app.services.contradiction_extractor import build_contradiction_panel
 from app.services.story_lineage import build_story_lineage
 from app.vector_store import is_chroma_reachable
+from app.models.api_contracts import TrendingStats
 
 logger = get_logger("trending_routes")
 router = APIRouter(prefix="/trending", tags=["trending"])
@@ -385,7 +386,7 @@ async def get_cluster_lineage(
     return StoryLineageResponse(**await build_story_lineage(db, detail))
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=TrendingStats)
 async def get_trending_stats(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:

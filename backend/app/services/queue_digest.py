@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -43,7 +44,8 @@ async def generate_queue_digest(
         raise RuntimeError("OpenRouter API key not configured")
 
     try:
-        response = llm_client.chat_completions_create(
+        response = await asyncio.to_thread(
+            llm_client.chat_completions_create,
             service_name="queue_digest",
             messages=[
                 {"role": "system", "content": DIGEST_SYSTEM_PROMPT},

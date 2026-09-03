@@ -66,12 +66,12 @@ type ComparisonArticle = Omit<ClusterArticle, "source_id"> & {
   source_id?: string;
 };
 
-const normalizeComparisonArticle = (article: ClusterArticle): ComparisonArticle => {
-  return {
+const normalizeComparisonArticle = (article: ClusterArticle): ComparisonArticle => (
+  {
     ...article,
     source_id: article.source_id?.trim() || undefined,
-  };
-}
+  }
+)
 
 interface ClusterDetailModalProps {
   cluster: (TrendingCluster | BreakingCluster | AllCluster) | null;
@@ -158,9 +158,9 @@ interface ComparisonData {
   };
 }
 
-const buildComparisonRequestKey = (articleIds:readonly  number[]): string => {
-  return [...articleIds].sort((a, b) => a - b).join(":");
-}
+const buildComparisonRequestKey = (articleIds:readonly  number[]): string => 
+  [...articleIds].sort((a, b) => a - b).join(":")
+
 
 const formatDate = (dateStr?: string | null): string => {
   if (!dateStr) {return "";}
@@ -183,29 +183,44 @@ const formatSignedNumber = (value?: number | null, digits = 1): string => {
   return `${prefix}${value.toFixed(digits)}`;
 }
 
+interface GdeltContextLike {
+  total_events?: number;
+  top_cameo?: ReadonlyArray<{
+    code?: string | null;
+    label?: string | null;
+    count: number;
+  }> | null;
+  goldstein_avg?: number | null;
+  goldstein_min?: number | null;
+  goldstein_max?: number | null;
+  goldstein_bucket?: string | null;
+  tone_avg?: number | null;
+  tone_delta_vs_cluster?: number | null;
+}
+
 const toPct = (value: number, min = -10, max = 10): number => {
   const clamped = Math.max(min, Math.min(max, value));
   return ((clamped - min) / (max - min)) * 100;
 }
 
 const clusterContextOf = (
-  clusterDetail: { gdelt_context?: GdeltContext | null } | null | undefined,
-  cluster:Readonly< { gdelt_context?: GdeltContext | null }>,
-): GdeltContext | null => {
-  return clusterDetail?.gdelt_context ?? cluster.gdelt_context ?? null;
-}
+  clusterDetail: { gdelt_context?: GdeltContextLike | null } | null | undefined,
+  cluster:Readonly< { gdelt_context?: GdeltContextLike | null }>,
+): GdeltContextLike | null => 
+  clusterDetail?.gdelt_context ?? cluster.gdelt_context ?? null
+
 
 const resolveToneView = (
-  activeContext: GdeltContext | null | undefined,
-  clusterContext: GdeltContext | null,
-): { toneDelta: number | null; toneAvg: number | null } => {
-  return {
+  activeContext: GdeltContextLike | null | undefined,
+  clusterContext: GdeltContextLike | null,
+): { toneDelta: number | null; toneAvg: number | null } => (
+  {
     toneAvg: activeContext?.tone_avg ?? clusterContext?.tone_avg ?? null,
     toneDelta: activeContext?.tone_delta_vs_cluster ?? null,
-  };
-}
+  }
+)
 
-const getCameoSummary = (context?: GdeltContext | null): string | null => {
+const getCameoSummary = (context?: GdeltContextLike | null): string | null => {
   const cameo = context?.top_cameo?.[0];
   if (!cameo) {return null;}
   const label = cameo.label || cameo.code || "CAMEO";
@@ -689,7 +704,7 @@ function ClusterHeader({
 }
 
 interface GdeltContextStripProps {
-  context: GdeltContext;
+  context: GdeltContextLike;
   cameoSummary: string | null;
   toneAvg: number | null;
   toneDelta: number | null;
@@ -712,7 +727,7 @@ function GdeltContextStrip({
   );
 }
 
-function GdeltCameoMetric({ context, summary }: { context: GdeltContext; summary: string | null }) {
+function GdeltCameoMetric({ context, summary }: { context: GdeltContextLike; summary: string | null }) {
   return (
     <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
       <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">CAMEO</div>
@@ -726,7 +741,7 @@ function GdeltCameoMetric({ context, summary }: { context: GdeltContext; summary
   )
 }
 
-function GdeltGoldsteinMetric({ context }: { context: GdeltContext }) {
+function GdeltGoldsteinMetric({ context }: { context: GdeltContextLike }) {
   const hasRange = typeof context.goldstein_min === "number" && typeof context.goldstein_max === "number"
   return (
     <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
@@ -749,7 +764,7 @@ function GdeltGoldsteinMetric({ context }: { context: GdeltContext }) {
   )
 }
 
-function GdeltGoldsteinRange({ context }: { context: GdeltContext }) {
+function GdeltGoldsteinRange({ context }: { context: GdeltContextLike }) {
   if (typeof context.goldstein_min !== "number" || typeof context.goldstein_max !== "number") {return null}
   return (
     <div
@@ -770,7 +785,7 @@ function GdeltToneMetric({
   toneAvg,
   toneDelta,
 }: {
-  context: GdeltContext
+  context: GdeltContextLike
   toneAvg: number | null
   toneDelta: number | null
 }) {
@@ -893,7 +908,7 @@ function ArticleTabHeader({
   );
 }
 
-function ArticleGdeltBadges({ context }: { context: GdeltContext }) {
+function ArticleGdeltBadges({ context }: { context: GdeltContextLike }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <Badge
@@ -1010,8 +1025,8 @@ const ComparisonArticleColumn = ({
   content,
   loading,
   comparisonData,
-}: ComparisonArticleColumnProps) => {
-  return (
+}: ComparisonArticleColumnProps) => 
+  (
     <div className="space-y-4">
       {/* Article Header */}
       <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
@@ -1102,8 +1117,8 @@ const ComparisonArticleColumn = ({
         </Button>
       </div>
     </div>
-  );
-}
+  )
+
 
 interface EntitiesBlockProps {
   comparisonData: ComparisonData;
@@ -1196,8 +1211,8 @@ const KeywordsBlock = ({
   comparisonData,
   primarySource,
   secondarySource,
-}: KeywordsBlockProps) => {
-  return (
+}: KeywordsBlockProps) => 
+  (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
       <h4 className="font-bold mb-4">Keyword Analysis</h4>
 
@@ -1257,8 +1272,8 @@ const KeywordsBlock = ({
         </div>
       </div>
     </div>
-  );
-}
+  )
+
 
 interface ComparisonSummaryProps {
   comparisonData: ComparisonData;
@@ -1270,8 +1285,8 @@ const ComparisonSummary = ({
   comparisonData,
   primarySource,
   secondarySource,
-}: ComparisonSummaryProps) => {
-  return (
+}: ComparisonSummaryProps) => 
+  (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
       <h4 className="font-bold mb-4">Comparison Summary</h4>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -1301,8 +1316,8 @@ const ComparisonSummary = ({
         </div>
       </div>
     </div>
-  );
-}
+  )
+
 
 interface KeywordsFooterProps {
   keywords: string[];
@@ -1341,9 +1356,9 @@ interface ComparisonTabProps {
   onSourceChange: (sourceId: string, articleId: string) => void;
 }
 
-const comparisonArticleSourceId = (article: ComparisonArticle): string => {
-  return article.source_id || article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
-}
+const comparisonArticleSourceId = (article: ComparisonArticle): string => 
+  article.source_id || article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-")
+
 
 const ComparisonSourcePicker = ({
   articles,
@@ -1353,8 +1368,8 @@ const ComparisonSourcePicker = ({
   articles: ComparisonArticle[];
   options: ComparisonSourceOption<ComparisonArticle>[];
   onSourceChange: (sourceId: string, articleId: string) => void;
-}>) => {
-  return (
+}>) => 
+  (
     <div className="grid gap-4 border border-border/50 bg-[var(--news-bg-secondary)]/70 p-4 md:grid-cols-2">
       {options.slice(0, 2).map((sourceOption) => {
         const selectedArticleId = articles
@@ -1383,8 +1398,8 @@ const ComparisonSourcePicker = ({
         );
       })}
     </div>
-  );
-}
+  )
+
 
 const ComparisonPairHeader = ({
   comparisonData,
@@ -1394,8 +1409,8 @@ const ComparisonPairHeader = ({
   comparisonData: ComparisonData | null;
   primaryArticle: ComparisonArticle;
   secondaryArticle: ComparisonArticle;
-}>) => {
-  return (
+}>) => 
+  (
     <div className="mb-6 text-center">
       <h3 className="mb-2 font-serif text-2xl font-bold">
         Compare: {primaryArticle.source} vs {secondaryArticle.source}
@@ -1403,8 +1418,8 @@ const ComparisonPairHeader = ({
       <p className="text-sm text-muted-foreground">How different sources report the same story</p>
       {comparisonData ? <ComparisonSimilarityBadge value={comparisonData.similarity.overall_match_percent} /> : null}
     </div>
-  );
-}
+  )
+
 
 function ComparisonSimilarityBadge({ value }:Readonly< { value: number }>) {
   const color = value > 70 ? "text-green-400" : (value > 40 ? "text-yellow-400" : "text-red-400");
@@ -1534,15 +1549,15 @@ const ComparisonView = ({
   );
 }
 
-const ComparisonUnavailable = ({ detailArticleCount }:Readonly< { detailArticleCount: number | null }>) => {
-  return (
+const ComparisonUnavailable = ({ detailArticleCount }:Readonly< { detailArticleCount: number | null }>) => 
+  (
     <div className="flex flex-1 items-center justify-center text-muted-foreground">
       {!detailArticleCount || detailArticleCount < 2
         ? "Need at least 2 articles to compare"
         : "Compare Sources needs coverage from at least two outlets."}
     </div>
-  );
-}
+  )
+
 
 function ComparisonTab({
   comparisonMode,

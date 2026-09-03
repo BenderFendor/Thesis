@@ -39,35 +39,6 @@ const
   FIRST_INDEX = 1,
   MIN_MEMBER_COUNT = 2,
   SortVars = {
-    /**
-     * Analyses one declaration chain and returns its replacement plan.
-     * @param {TsVariableStatement} statement - Variable statement.
-     * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {string} sourceText - Full source text.
-     * @returns {ChainReplacement[]} Replacement plan list, or none.
-     */
-    /**
-     * Reports whether any member initializer executes at initialization time
-     * (call, construction, or await). Reordering such members changes
-     * evaluation order (network/timing, subscription order), so the whole
-     * chain stays untouched - the safety contract is reference-only plus
-     * no-execution-order change.
-     * @param {readonly TsVariableDeclaration[]} declarations - Chain members.
-     * @returns {boolean} True when any initializer executes.
-     */
-    hasExecutingInitializer(declarations) {
-      return declarations.some((declaration) => {
-        const initializer = declaration.initializer;
-        if (initializer === undefined) {
-          return false;
-        }
-        if (ts.isCallExpression(initializer) || ts.isNewExpression(initializer)) {
-          return true;
-        }
-        return ts.isAwaitExpression(initializer);
-      });
-    },
-
     analyzeChain(statement, parsed, sourceText) {
       const {declarationList: {declarations}} = statement;
       const nameTexts = SortVars.chainNames(declarations);
@@ -134,27 +105,6 @@ const
     },
 
     /**
-     * Collects every replacement plan of one parsed source file.
-     * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {string} sourceText - Full source text.
-     * @returns {ChainReplacement[]} Replacement plans in source order.
-     */
-    chainReplacements(parsed, sourceText) {
-      /** @type {TsVariableStatement[]} */
-      const statements = [];
-      SortVars.collectVariableStatements(parsed, statements);
-      /** @type {ChainReplacement[]} */
-      const replacements = [];
-      for (const statement of statements) {
-        const replacement = SortVars.analyzeChain(statement, parsed, sourceText);
-        if (replacement.length > EMPTY_INDEX) {
-          replacements.push(...replacement);
-        }
-      }
-      return replacements;
-    },
-
-    /**
      * Builds the replacement text for one sorted chain.
      * @param {TsVariableStatement} statement - Variable statement.
      * @param {readonly TsVariableDeclaration[]} declarations - Chain members in source order.
@@ -183,19 +133,24 @@ const
     },
 
     /**
-     * Compares two binding names with the rule's case-sensitive ordering.
-     * @param {string} left - Left name.
-     * @param {string} right - Right name.
-     * @returns {number} Negative, zero, or positive comparison result.
+     * Collects every replacement plan of one parsed source file.
+     * @param {TsSourceFile} parsed - Parsed source file.
+     * @param {string} sourceText - Full source text.
+     * @returns {ChainReplacement[]} Replacement plans in source order.
      */
-    compareNames(left, right) {
-      if (left < right) {
-        return COMPARE_LESS;
+    chainReplacements(parsed, sourceText) {
+      /** @type {TsVariableStatement[]} */
+      const statements = [];
+      SortVars.collectVariableStatements(parsed, statements);
+      /** @type {ChainReplacement[]} */
+      const replacements = [];
+      for (const statement of statements) {
+        const replacement = SortVars.analyzeChain(statement, parsed, sourceText);
+        if (replacement.length > EMPTY_INDEX) {
+          replacements.push(...replacement);
+        }
       }
-      if (left > right) {
-        return COMPARE_GREATER;
-      }
-      return COMPARE_EQUAL;
+      return replacements;
     },
 
     /**
@@ -237,6 +192,22 @@ const
       ts.forEachChild(node, (child) => {
         SortVars.collectVariableStatements(child, out);
       });
+    },
+
+    /**
+     * Compares two binding names with the rule's case-sensitive ordering.
+     * @param {string} left - Left name.
+     * @param {string} right - Right name.
+     * @returns {number} Negative, zero, or positive comparison result.
+     */
+    compareNames(left, right) {
+      if (left < right) {
+        return COMPARE_LESS;
+      }
+      if (left > right) {
+        return COMPARE_GREATER;
+      }
+      return COMPARE_EQUAL;
     },
 
     /**
@@ -292,6 +263,35 @@ const
       regions.push([declarations[declarations.length - FIRST_INDEX].getEnd(), statement.getEnd()]);
       return regions.some(([regionStart, regionEnd]) =>
         /\/(?:\/|\*)/u.test(sourceText.slice(regionStart, regionEnd)));
+    },
+
+    /**
+     * Analyses one declaration chain and returns its replacement plan.
+     * @param {TsVariableStatement} statement - Variable statement.
+     * @param {TsSourceFile} parsed - Parsed source file.
+     * @param {string} sourceText - Full source text.
+     * @returns {ChainReplacement[]} Replacement plan list, or none.
+     */
+    /**
+     * Reports whether any member initializer executes at initialization time
+     * (call, construction, or await). Reordering such members changes
+     * evaluation order (network/timing, subscription order), so the whole
+     * chain stays untouched - the safety contract is reference-only plus
+     * no-execution-order change.
+     * @param {readonly TsVariableDeclaration[]} declarations - Chain members.
+     * @returns {boolean} True when any initializer executes.
+     */
+    hasExecutingInitializer(declarations) {
+      return declarations.some((declaration) => {
+        const initializer = declaration.initializer;
+        if (initializer === undefined) {
+          return false;
+        }
+        if (ts.isCallExpression(initializer) || ts.isNewExpression(initializer)) {
+          return true;
+        }
+        return ts.isAwaitExpression(initializer);
+      });
     },
 
     /**

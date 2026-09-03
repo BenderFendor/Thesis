@@ -17,9 +17,9 @@ function getSharedViewArticles(
   return articles
 }
 
-const getSharedViewLoading = (isLoading: boolean): boolean => {
-  return isLoading
-}
+const getSharedViewLoading = (isLoading: boolean): boolean => 
+  isLoading
+
 
 const getSharedArticleCount = (
   cacheStatus: CacheStatus | null | undefined,

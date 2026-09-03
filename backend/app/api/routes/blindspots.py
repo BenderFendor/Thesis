@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.filters import normalize_category
 from app.database import get_db
 from app.services.blind_spots import (
     get_blind_spots_analyzer,
@@ -347,6 +348,7 @@ async def get_blindspot_viewer(
     session: AsyncSession = Depends(get_db),
 ) -> BlindspotViewerResponse:
     """Get a multi-lens blindspot viewer payload."""
+    category = normalize_category(category)
     try:
         service = get_blindspot_viewer_service()
         payload = await service.build_viewer(

@@ -474,7 +474,8 @@ Return ONLY valid JSON:
 {COPY_STYLE_GUIDE}"""
 
         try:
-            response = self.llm_client.chat_completions_create(
+            response = await asyncio.to_thread(
+                self.llm_client.chat_completions_create,
                 service_name="material",
                 messages=[
                     {"role": "system", "content": MATERIAL_INTEREST_SYSTEM_PROMPT},

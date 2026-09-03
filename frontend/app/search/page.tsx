@@ -591,8 +591,8 @@ const buildResearchStreamUrl = (
 
 const buildChatHistoryPayload = (
  items: readonly Message[],
-): { content: string; type: Message["type"] }[] => {
- return items
+): { content: string; type: Message["type"] }[] => 
+ items
   .filter(
    (message) =>
     (message.type === "user" || message.type === "assistant") &&
@@ -603,8 +603,8 @@ const buildChatHistoryPayload = (
    content: message.content,
    type: message.type,
   }))
-  .filter((entry) => entry.content.trim().length > 0);
-}
+  .filter((entry) => entry.content.trim().length > 0)
+
 
 interface SubmitPromptParameters {
  readonly prompt: string;
@@ -3300,7 +3300,7 @@ interface ResearchStreamRunContext {
 }
 
 const createResearchStreamState = (): ResearchStreamState => {
- let clearStallTimeout = (): void => { },
+ let clearStallTimeout = (): void => {},
   structuredArticles: StructuredArticlesPayload | undefined;
  const thinkingSteps: ReadonlyThinkingStep[] = [];
  return {

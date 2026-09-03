@@ -14,9 +14,9 @@ const FINDINGS_EXIT = 1,
  SUCCESS_EXIT = 0;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-const isObject = (value) => {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+const isObject = (value) => 
+  value !== null && typeof value === "object" && !Array.isArray(value)
+
 
 /** @param {string} path @param {string} repositoryRoot */
 const repositoryPath = (path, repositoryRoot) => {

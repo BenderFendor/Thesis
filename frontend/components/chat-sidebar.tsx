@@ -104,8 +104,8 @@ const ChatListItemBody = ({
   cancelRename,
   commitRename,
   toggleSelection,
-}: ChatListItemBodyProps): React.JSX.Element => {
-  return (
+}: ChatListItemBodyProps): React.JSX.Element => 
+  (
     <div className="min-w-0 flex-1">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -168,8 +168,8 @@ const ChatListItemBody = ({
         </button>
       )}
     </div>
-  );
-}
+  )
+
 
 interface ChatListItemActionsProps {
   chat: ChatSummary;
@@ -282,8 +282,8 @@ const ChatListItemCard = (props: ChatListItemProps): React.JSX.Element => {
   );
 }
 
-const ChatListItem = ({ chat, index, ...props }: ChatListItemProps): React.JSX.Element => {
-  return (
+const ChatListItem = ({ chat, index, ...props }: ChatListItemProps): React.JSX.Element => 
+  (
     <motion.li
       key={chat.id}
       layout
@@ -294,8 +294,8 @@ const ChatListItem = ({ chat, index, ...props }: ChatListItemProps): React.JSX.E
     >
       <ChatListItemCard chat={chat} index={index} {...props} />
     </motion.li>
-  );
-}
+  )
+
 
 const useChatSidebarState = ({
   chats,
@@ -413,8 +413,8 @@ const useChatSidebarState = ({
     selectedIds,
     setDraftTitle,
     setEditingId,
-    setSearchTerm,
     setIsSelectionMode,
+    setSearchTerm,
     setSelectedIds,
     startRename,
     toggleSelectAll,

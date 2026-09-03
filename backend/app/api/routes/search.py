@@ -1,5 +1,6 @@
 """Search."""
 
+import asyncio
 from collections.abc import Sequence
 from typing import Any
 
@@ -60,7 +61,8 @@ async def semantic_search(
     if vector_store is None:
         raise HTTPException(status_code=503, detail="Vector store is not available")
 
-    chroma_results = vector_store.search_similar(
+    chroma_results = await asyncio.to_thread(
+        vector_store.search_similar,
         query=query,
         limit=limit,
         filter_metadata=_semantic_filter_metadata(category),

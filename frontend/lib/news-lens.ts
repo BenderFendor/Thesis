@@ -63,9 +63,9 @@ const LOCAL_TYPES = new Set(["local", "regional"]),
  PRIMARY_TYPES = new Set(["government", "academic", "primary", "official"]),
  WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]);
 
-const normalize = (value?: string | null): string => {
-  return (value || "").trim().toLowerCase();
-}
+const normalize = (value?: string | null): string => 
+  (value || "").trim().toLowerCase()
+
 
 type FilterLensId = Exclude<NewsLensId, "all">;
 
@@ -107,13 +107,13 @@ const sourceMatchesLens = (source: NewsSource, lensId: NewsLensId): boolean => {
   return lensMatchers[lensId](source);
 }
 
-const getLensSourceIds = (sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> => {
-  return new Set(
+const getLensSourceIds = (sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> => 
+  new Set(
     sources
       .filter((source) => sourceMatchesLens(source, lensId))
       .flatMap((source) => [source.id, source.slug]),
-  );
-}
+  )
+
 
 const getLensStats = (sources:readonly  NewsSource[], lensId: NewsLensId) => {
   const includedIds = getLensSourceIds(sources, lensId),

@@ -115,10 +115,10 @@ export function SourceWikiView({ sourceName }:Readonly< { sourceName: string }>)
     embedded,
     error,
     fundingAndBias,
-    isLoading,
     indexing,
-    outletEntityId,
+    isLoading,
     onIndex: () => void runWikiIndex({ refetch, setIndexing, sourceName }),
+    outletEntityId,
     ownershipChain,
   });
 }
@@ -183,8 +183,8 @@ const SourceSidebar = ({
   avgScore: number | null;
   indexing: boolean;
   onIndex: () => void;
-}>) => {
-  return (
+}>) => 
+  (
     <>
       {!embedded && (
         <Link href="/wiki/ownership" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -220,8 +220,8 @@ const SourceSidebar = ({
 
       <SourceIndexButton data={data} indexing={indexing} onIndex={onIndex} />
     </>
-  );
-}
+  )
+
 
 function SourceIdentityBadges({ data }: { data: WikiSourceProfile }) {
   return (
@@ -393,8 +393,8 @@ const SourcePageBody = ({
   outletEntityId?: string;
   ownershipChain: ReturnType<typeof parseOwnershipChain>;
   fundingAndBias: ReturnType<typeof parseFundingAndBias>;
-}>) => {
-  return (
+}>) => 
+  (
     <>
       <OverviewPanel data={data} />
       {data.source_ledger && <SourceLedgerPanel ledger={data.source_ledger} />}
@@ -420,8 +420,8 @@ const SourcePageBody = ({
       {data.analysis_axes.length > 0 && <StoredAnalysisPanel axes={data.analysis_axes} />}
       {data.citations.length > 0 && <CitationsPanel citations={data.citations} />}
     </>
-  );
-}
+  )
+
 
 function SourceWikiLoading({ embedded }: Readonly<{ embedded: boolean }>) {
   return (
@@ -832,9 +832,9 @@ function LedgerFact({ label, value }:Readonly< { label: string; value: string }>
   );
 }
 
-const scoreColor = (score: number): string => {
-  return `hsl(${(5 - score) * 24}, 70%, 55%)`;
-}
+const scoreColor = (score: number): string => 
+  `hsl(${(5 - score) * 24}, 70%, 55%)`
+
 
 function AnalysisAxisCard({ score }:Readonly< { score: WikiAnalysisAxis }>) {
   const meta = ANALYSIS_META[score.axis_name] || {

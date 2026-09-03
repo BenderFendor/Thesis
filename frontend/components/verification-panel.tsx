@@ -354,8 +354,8 @@ const VerificationToggle = ({
   hasResult,
   confidence,
   className = "",
-}: VerificationToggleProps) => {
-  return (
+}: VerificationToggleProps) => 
+  (
     <Button
       variant="outline"
       size="sm"
@@ -380,6 +380,6 @@ const VerificationToggle = ({
         </>
       ))}
     </Button>
-  );
-}
+  )
+
 export { VerificationPanel, VerificationToggle };

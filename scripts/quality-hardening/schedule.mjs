@@ -51,9 +51,9 @@ const priorityForTask = (factor, repairClass) => {
 }
 
 /** @param {string} factor @returns {string} */
-const priorityForFactor = (factor) => {
- return priorityForTask(factor, undefined);
-}
+const priorityForFactor = (factor) => 
+ priorityForTask(factor, undefined)
+
 
 /**
  * Normalized deficit of a single metric beyond its hard bound.
@@ -67,14 +67,14 @@ const normalizedExcess = (observed, bound) => {
 }
 
 /** @param {ScheduleTask} task */
-const gateDistance = (task) => {
- return typeof task.gate_distance === "number" ? task.gate_distance : 0;
-}
+const gateDistance = (task) => 
+ typeof task.gate_distance === "number" ? task.gate_distance : 0
+
 
 /** @param {ScheduleTask} task */
-const explainedHardFindings = (task) => {
- return typeof task.hard_findings === "number" ? task.hard_findings : 0;
-}
+const explainedHardFindings = (task) => 
+ typeof task.hard_findings === "number" ? task.hard_findings : 0
+
 
 /** @param {ScheduleTask} task */
 const blastRadius = (task) => {
@@ -84,14 +84,14 @@ const blastRadius = (task) => {
 }
 
 /** @param {ScheduleTask} task */
-const verificationCost = (task) => {
- return task.repair_class === "structural" ? 2 : 1;
-}
+const verificationCost = (task) => 
+ task.repair_class === "structural" ? 2 : 1
+
 
 /** @param {ScheduleTask} task */
-const rollbackClarity = (task) => {
- return task.repair_class === "mechanical_safe" ? 1 : 0;
-}
+const rollbackClarity = (task) => 
+ task.repair_class === "mechanical_safe" ? 1 : 0
+
 
 /**
  * A dominates B when it is no worse on every selected dimension and strictly
@@ -203,7 +203,7 @@ const scheduleTasks = (tasks, effects = []) => {
  for (const label of labels) {
   ordered.push(...paretoFrontier(classes.get(label) ?? []));
  }
- return /** @type {ScheduleTask[]} */ (ordered);
+ return (ordered);
 }
 
 export { dominates, gateDistance, normalizedExcess, paretoFrontier, priorityForFactor, priorityForTask, scheduleTasks, successRateFor, tieBreak };

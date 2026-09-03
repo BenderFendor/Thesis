@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, cast
 
@@ -65,7 +66,8 @@ async def analyze_with_gemini(
     try:
         prompt = _build_analysis_prompt(article_data, source_name)
 
-        response = _generate_content_safe(
+        response = await asyncio.to_thread(
+            _generate_content_safe,
             llm_client=llm_client,
             model=resolve_opencode_model(settings.open_router_model),
             messages=[

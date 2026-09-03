@@ -35,15 +35,15 @@ const normalizedCategory = (category: string): string => {
   return trimmedCategory;
 }
 
-const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSummary => {
-  return {
+const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSummary => (
+  {
     category: normalizedCategory(article.category),
     source: article.source,
     summary: article.summary,
     title: article.title,
     url: article.url,
-  };
-}
+  }
+)
 
 const groupArticleSummaries = (
   summaries: readonly QueueArticleSummary[],
@@ -93,9 +93,9 @@ const mergeSavedArticles = (
   return [...articlesByUrl.values()];
 }
 
-const stripStructuredArticleBlock = (digest: string): string => {
-  return digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim();
-}
+const stripStructuredArticleBlock = (digest: string): string => 
+  digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim()
+
 
 const requestQueueDigest = async (
   articles: readonly NewsArticle[],

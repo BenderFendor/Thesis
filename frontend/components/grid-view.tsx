@@ -267,8 +267,8 @@ interface ModeSwitcherProps {
   onClusterWindow: (value: "1d" | "1w" | "1m") => void
 }
 
-const ModeSwitcher = ({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) => {
-  return (
+const ModeSwitcher = ({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) => 
+  (
     <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
       <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
         <Button
@@ -324,7 +324,7 @@ const ModeSwitcher = ({ viewMode, clusterWindow, onModeSelect, onClusterWindow }
       )}
     </div>
   )
-}
+
 
 interface SourceGroupSectionProps {
   group: SourceGroup
@@ -569,8 +569,8 @@ const ExpandedTopicPanel = ({
   onLike,
   onQueueToggle,
   onClose,
-}: ExpandedTopicPanelProps) => {
-  return (
+}: ExpandedTopicPanelProps) => 
+  (
     <div
       data-cluster-expanded-for={cluster.cluster_id}
       className="col-span-full overflow-hidden rounded-lg border border-primary/30 bg-black/20"
@@ -650,7 +650,7 @@ const ExpandedTopicPanel = ({
       </div>
     </div>
   )
-}
+
 
 interface TopicFeedProps {
   clustersLoading: boolean
@@ -690,8 +690,8 @@ const TopicFeed = ({
   onLike,
   onQueueToggle,
   onCloseExpanded,
-}: TopicFeedProps) => {
-  return (
+}: TopicFeedProps) => 
+  (
     <div className="space-y-4 sm:space-y-6">
       {clustersLoading ? (
         <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
@@ -738,7 +738,7 @@ const TopicFeed = ({
       ))}
     </div>
   )
-}
+
 
 interface TrendingSectionProps {
   showTrending: boolean
@@ -763,8 +763,8 @@ interface MoreSourcesButtonProps {
   onLoadMore: () => void
 }
 
-const MoreSourcesButton = ({ visible, total, onLoadMore }: MoreSourcesButtonProps) => {
-  return (
+const MoreSourcesButton = ({ visible, total, onLoadMore }: MoreSourcesButtonProps) => 
+  (
     <div className="flex justify-center pb-8">
       <Button
         variant="outline"
@@ -775,7 +775,7 @@ const MoreSourcesButton = ({ visible, total, onLoadMore }: MoreSourcesButtonProp
       </Button>
     </div>
   )
-}
+
 
 interface VirtualizedModeViewProps {
   searchTerm: string
@@ -801,8 +801,8 @@ const VirtualizedModeView = ({
   onArticleClick,
   onModalClose,
   onModalNavigate,
-}: VirtualizedModeViewProps) => {
-  return (
+}: VirtualizedModeViewProps) => 
+  (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
         <div className="px-4 py-3 sm:px-6 lg:px-8">
@@ -840,7 +840,7 @@ const VirtualizedModeView = ({
       )}
     </div>
   )
-}
+
 
 interface GridViewHeaderProps {
   searchTerm: string
@@ -858,8 +858,8 @@ const GridViewHeader = ({
   onSearchChange,
   onModeSelect,
   onClusterWindow,
-}: GridViewHeaderProps) => {
-  return (
+}: GridViewHeaderProps) => 
+  (
     <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
         <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -874,7 +874,7 @@ const GridViewHeader = ({
       </div>
     </div>
   )
-}
+
 
 interface GridViewSourceResultProps {
   expandedSourceId: string | null
@@ -981,8 +981,8 @@ const GridViewModalOverlays = ({
   isClusterModalOpen,
   selectedCluster,
   onClusterModalClose,
-}: GridViewModalOverlayProps) => {
-  return (
+}: GridViewModalOverlayProps) => 
+  (
     <>
       {isArticleModalOpen && selectedArticle ? (
         <ArticleDetailModal
@@ -1012,7 +1012,7 @@ const GridViewModalOverlays = ({
       ) : null}
     </>
   )
-}
+
 
 interface GridViewContentProps {
   searchTerm: string
@@ -1036,8 +1036,8 @@ const GridViewContent = ({
   containerRef,
   results,
   overlays,
-}: GridViewContentProps) => {
-  return (
+}: GridViewContentProps) => 
+  (
     <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
       <GridViewHeader
         searchTerm={searchTerm}
@@ -1053,7 +1053,7 @@ const GridViewContent = ({
       <GridViewModalOverlays {...overlays} />
     </div>
   )
-}
+
 
 const formatGridKeywordLabel = (keywords?: readonly string[]) => {
   if (!keywords || keywords.length === 0) {return}

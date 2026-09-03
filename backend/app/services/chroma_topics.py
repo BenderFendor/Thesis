@@ -12,6 +12,7 @@ to the user.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -743,7 +744,7 @@ class ChromaTopicService:
         vector_store = self._get_vector_store()
         if not vector_store or not article_ids:
             return {}
-        query_result = _query_anchor_embeddings(vector_store, article_ids)
+        query_result = await asyncio.to_thread(_query_anchor_embeddings, vector_store, article_ids)
         if query_result is None:
             return {}
         resolved_article_ids, result = query_result
@@ -756,7 +757,7 @@ class ChromaTopicService:
         vector_store = self._get_vector_store()
         if not vector_store:
             return []
-        results = vector_store.search_similar(query, limit=limit * 2)
+        results = await asyncio.to_thread(vector_store.search_similar, query, limit * 2)
         suggestions = []
         for result in results:
             article_id = result.get("article_id")
@@ -1086,7 +1087,8 @@ class ChromaTopicService:
             return None
         chroma_id = f"article_{article_id}"
         try:
-            embedded = vector_store.collection.get(
+            embedded = await asyncio.to_thread(
+                vector_store.collection.get,
                 ids=[chroma_id],
                 include=_get_chroma_include("embeddings"),
             )
@@ -1094,7 +1096,8 @@ class ChromaTopicService:
             if query_embedding is None:
                 return None
 
-            result = vector_store.collection.query(
+            result = await asyncio.to_thread(
+                vector_store.collection.query,
                 query_embeddings=cast(
                     "list[Sequence[float] | Sequence[int]]",
                     [query_embedding],

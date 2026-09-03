@@ -14,8 +14,8 @@ const bookmarkListeners = new Set<BookmarkListener>(),
     }
     bookmarkLoading = true
     try {
-      const entries = await fetchBookmarks()
-      bookmarkCache = new Set(entries.map((entry) => entry.articleId))
+      const response = await fetchBookmarks()
+      bookmarkCache = new Set(response.bookmarks.map((entry) => entry.articleId))
       bookmarkLoaded = true
       notifyBookmarkListeners(bookmarkCache)
     } catch (error) {

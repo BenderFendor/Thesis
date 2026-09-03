@@ -11,9 +11,9 @@ const DECISIONS = new Set(["allow", "block"]),
  PROTOCOL_VERSION = 1;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-const isObject = (value) => {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+const isObject = (value) => 
+  value !== null && typeof value === "object" && !Array.isArray(value)
+
 
 /** @param {unknown} value @param {string} name */
 const assertProtocol = (value, name) => {

@@ -21,7 +21,7 @@ const statusBadgeClass: Record<string, string> = {
   none: "border-white/10 bg-muted/20 text-muted-foreground",
 }
 
-const selectSourceResearchData = function <T>(
+const selectSourceResearchData = function  selectSourceResearchData<T>(
   cachedData?: T,
   researchData?: T,
 ): T | undefined {

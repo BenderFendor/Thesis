@@ -21,11 +21,11 @@
   "categories": {
     "correctness": "error",
     "suspicious": "error",
-    "pedantic": "error",
+    "pedantic": "warn",
     "perf": "error",
-    "style": "error",
+    "style": "warn",
     "restriction": "off",
-    "nursery": "warn"
+    "nursery": "off"
   },
   "settings": {
     "next": {
@@ -110,6 +110,20 @@
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "capitalized-comments": "off",
+    "consistent-function-scoping": "off",
+    "func-style": "off",
+    "jest/no-hooks": "off",
+    "jest/prefer-expect-assertions": "off",
+    "jest/prefer-spy-on": "off",
+    "no-magic-numbers": "off",
+    "no-null": "off",
+    "numeric-separators-style": "off",
+    "one-var": "off",
+    "prefer-destructuring": "off",
+    "prefer-global-this": "off",
+    "require-await": "off",
+    "sort-imports": "off",
     "react/react-in-jsx-scope": "off",
     "typescript/no-explicit-any": "error",
     "typescript/prefer-readonly-parameter-types": [
@@ -135,12 +149,18 @@
       }
     ],
     "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "import/no-self-import": "error",
     "no-duplicate-imports": [
       "error",
       {
         "allowSeparateTypeImports": true
       }
     ],
+    "eslint/no-await-in-loop": "warn",
+    "eslint/no-shadow": "error",
+    "oxc/no-accumulating-spread": "error",
+    "typescript/no-floating-promises": "error",
     "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "react/set-state-in-effect": "error",

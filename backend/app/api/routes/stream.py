@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from app.core.filters import normalize_category
 from app.core.logging import get_logger
 from app.data.rss_sources import get_rss_sources
 from app.models.news import NewsArticle
@@ -470,7 +471,7 @@ async def stream_news(
     category: str | None = None,
 ) -> StreamingResponse:
     """Stream cached news immediately, then source-by-source fresh updates."""
-    context = _StreamContext(_stream_id(), request, category, use_cache)
+    context = _StreamContext(_stream_id(), request, normalize_category(category), use_cache)
     stream_logger.info("NEWS REQUEST: %s, use_cache=%s", context.stream_id, use_cache)
     _start_trace(context)
 

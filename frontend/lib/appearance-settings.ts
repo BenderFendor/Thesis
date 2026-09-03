@@ -127,10 +127,10 @@ const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
   "--appearance-motion-speed": 1,
   };
 
-const getServerAppearanceSettings = (): AppearanceSettings => {
+const getServerAppearanceSettings = (): AppearanceSettings => 
   // Stable frozen reference required by useSyncExternalStore server snapshots.
-  return APPEARANCE_DEFAULTS;
-}
+  APPEARANCE_DEFAULTS
+
 
 const clampNumber = (value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -205,13 +205,13 @@ const normalizeAppearanceSettings = (input: unknown): AppearanceSettings => {
   };
 }
 
-const isPlainObject = (value: unknown): boolean => {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const isPlainObject = (value: unknown): boolean => 
+  typeof value === "object" && value !== null && !Array.isArray(value)
 
-const group = (value: unknown): Record<string, unknown> => {
-  return isPlainObject(value) ? (value as Record<string, unknown>) : {};
-}
+
+const group = (value: unknown): Record<string, unknown> => 
+  isPlainObject(value) ? (value as Record<string, unknown>) : {}
+
 
 function appearanceInputGroups(input: unknown) {
   const source = isPlainObject(input) ? (input as Record<string, unknown>) : {};
@@ -276,20 +276,20 @@ const loadAppearanceSettings = (): AppearanceSettings => {
   return cacheAppearanceSettings(raw);
 }
 
-const subscribeToAppearanceSettings = (onChange: () => void): () => void => {
+const subscribeToAppearanceSettings = (onChange: () => void): () => void => 
   // Reuses the shared storage bus: same-tab custom events plus cross-tab
   // Native storage events.
-  return subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange);
-}
+  subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange)
 
-const saveAppearanceSettings = (settings: AppearanceSettings): boolean => {
-  return saveToStorage(APPEARANCE_STORAGE_KEY, settings);
-}
+
+const saveAppearanceSettings = (settings: AppearanceSettings): boolean => 
+  saveToStorage(APPEARANCE_STORAGE_KEY, settings)
+
 
 /** Remove persisted overrides; the next snapshot falls back to defaults. */
-const resetAppearanceSettings = (): boolean => {
-  return removeFromStorage(APPEARANCE_STORAGE_KEY);
-}
+const resetAppearanceSettings = (): boolean => 
+  removeFromStorage(APPEARANCE_STORAGE_KEY)
+
 
 interface AppliedProperty {
   property: string;

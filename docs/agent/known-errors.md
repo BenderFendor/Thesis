@@ -1,5 +1,118 @@
 # Known Errors
 
+## Frontend API schema `.optional()` rejects backend `null` values
+
+Symptom:
+
+```txt
+[WARN] fetchSources received malformed payload        (frontend console)
+```
+
+with a grid that renders trending/breaking cards but an empty browse
+section, lead "Loading coverage...", LIVE ARTICLES 0 / LIVE SOURCES 0 /
+BIAS UNKNOWN / SIGNAL UNKNOWN. Network shows all 200s.
+
+Cause: FastAPI emits `null` for unset dimensions (e.g.
+`credibility_score: null`, `factual_rating: null` on every source). zod
+`.optional()` accepts `undefined` but NOT `null`; one null anywhere fails
+the whole array parse. The frontend then silently falls back to `[]`.
+
+Fix:
+
+- Schema fields that the backend can null: use `.optional().nullable()`.
+- Mappers feeding typed functions: coalesce with `?? undefined` before
+  handing to `number | undefined` / `string | undefined` parameters.
+- Checked on 2026-09-03: `/news/sources` (all 261 entries), `/cache/status`
+  (clean), `/trending` (already nullable'd), blindspot viewer (already
+  nullable'd), `/news/index/cached` (10k articles, clean).
+
+Check:
+
+```bash
+curl -s https://api.jordandgreen.com/news/sources | python3 -c \
+  "import json,sys; d=json.load(sys.stdin); \
+   print(any('credibility_score' in s and s['credibility_score'] is None for s in d))"
+# True -> frontend schema must allow null for that field
+```
+
+## Backend worker killed by WORKER TIMEOUT every ~184s (event loop blocked by sync I/O)
+
+Symptom:
+
+```txt
+[CRITICAL] WORKER TIMEOUT (pid:...)   # exactly ~184s after boot
+[ERROR] Worker (pid:...) was sent SIGKILL! Perhaps out of memory?
+```
+
+API requests take 28-30s+ or time out; the frontend stays on "Loading
+coverage..." / "Indexing articles..." despite the RSS refresh log showing
+"RSS ready: N articles".
+
+Cause (VERIFIED 2026-09-03): several startup/background async tasks called
+synchronous I/O directly on the event loop: the embedding worker's sync
+`vector_store.batch_add_articles` (which is a synchronous httpx POST to the
+embedding service), sync `embedding_model.encode`/`search_similar` calls in
+routes and workers, and direct sync `llm_client.chat_completions_create`
+calls (LLM backends with long timeouts; one stuck sync HTTPS write was
+observed with Send-Q 84KB). Each call blocked the loop up to the 120s
+gunicorn timeout -> SIGKILL -> the cycle repeated every 3 minutes.
+
+Diagnosis recipe:
+
+```bash
+# Confirm the hang window and cadence
+ss -tnp | grep <worker_pid>          # stuck Send-Q or SYN-SENT socket
+for t in /proc/<pid>/task/*; do cat "$t/wchan"; echo; done   # futex/poll state
+```
+
+Note: `py-spy` is NOT installed in the backend venv; `strace` attach is
+blocked by ptrace restrictions on this machine. Socket + wchan inspection is
+the reliable fallback.
+
+Fix:
+
+- Move every sync I/O call behind `asyncio.to_thread` (the pattern
+  `services/chroma_sync.py` already used). Covered: persistence embedding
+  batch, search routes, blindspot viewer, chroma topics, and all direct LLM
+  call sites (material interest, article analysis, inline definition, queue
+  digest, source analysis scorer, funding researcher).
+- Keep the event loop free of sync network calls for Chroma (8001), the
+  embedding service (8002), Postgres, and external LLM APIs.
+
+Check:
+
+```bash
+cd backend && uv run pytest tests/test_embedding_batch_loop_block.py -q
+# plus: curl -m 3 http://localhost:8000/news/index/cached?category=all
+# through a full refresh cycle (~5 min) - responses must stay sub-second and
+# the worker pid must survive past +184s.
+```
+
+## Category sentinel "all"/"All" returns zero articles
+
+Symptom:
+
+```txt
+GET /news/index/cached?category=all   -> {"articles": [], "total": 0}
+GET /news/stream?category=All          -> "Successfully loaded 0 articles from 0 sources"
+```
+
+Cause: category-filtered routes treat the UI's "all" sentinel as a literal
+category name; no article/source matches it.
+
+Fix: `app/core/filters.py::normalize_category` (maps "all"/"" to None,
+preserves real category names case-sensitively) applied at every route entry
+that accepts `category` (news page/index/recent routes, news stream,
+blindspot viewer). The frontend already omits the sentinel for its browse
+index, but the public API must accept it.
+
+Check:
+
+```bash
+curl -s 'http://localhost:8000/news/index/cached?category=all' | jq '.total'  # 10000
+curl -s -N 'http://localhost:8000/news/stream?use_cache=true&category=All' | head -1  # starts with "initial" and articles
+```
+
 ## Repo-pinned oxlint appears to hang (>280s) on a single file
 
 Symptom:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections import OrderedDict
@@ -1158,7 +1159,8 @@ async def _score_reporter_entities(
     label_map = await _resolve_labels(client, _collect_label_ids(entity_candidates))
     scored: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
     for entity in entity_candidates:
-        total_score, metadata = _score_reporter_candidate(
+        total_score, metadata = await asyncio.to_thread(
+            _score_reporter_candidate,
             normalized_name,
             organization,
             article_context,

@@ -21,9 +21,9 @@ type AtlasDossierStatement = AtlasDossierSection["statements"][number];
 type AtlasEvidence = AtlasEntityRecord["evidence"][number];
 type AtlasMeasurement = AtlasMeasurementsResponse["measurements"][number];
 
-const humanize = (value: string): string => {
-  return value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
-}
+const humanize = (value: string): string => 
+  value.replaceAll("_", " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase())
+
 
 const displayArrayValue = (value: readonly unknown[]): string | null => {
   const simpleValues = value.filter((item) => ["string", "number", "boolean"].includes(typeof item));

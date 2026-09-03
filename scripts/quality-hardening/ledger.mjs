@@ -6,9 +6,9 @@ import { resolve } from "node:path";
 const LEDGER_RELATIVE = "docs/agents/quality-hardening/ledger";
 
 /** @param {string} repositoryRoot @param {string} fileName */
-const ledgerPath = (repositoryRoot, fileName) => {
-  return resolve(repositoryRoot, LEDGER_RELATIVE, fileName);
-}
+const ledgerPath = (repositoryRoot, fileName) => 
+  resolve(repositoryRoot, LEDGER_RELATIVE, fileName)
+
 
 /** @param {string} repositoryRoot @param {string} fileName @param {Readonly<Record<string, unknown>>} record */
 const appendLedger = async (repositoryRoot, fileName, record) => {

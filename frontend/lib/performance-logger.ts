@@ -188,17 +188,17 @@ const logFlushSummary = (sessionId: string, eventCount: number): void => {
   );
 }
 
-const canFlushFrontendDebugEvents = (): boolean => {
-  return ENABLE_AGENTIC_LOGGING && typeof window !== "undefined";
-}
+const canFlushFrontendDebugEvents = (): boolean => 
+  ENABLE_AGENTIC_LOGGING && typeof window !== "undefined"
+
 
 const buildFrontendDebugReport = (
   summary: Readonly<PerformanceSummary>,
   recentEvents:readonly PerformanceEvent[],
   slowOperations:readonly PerformanceEvent[],
   errors:readonly PerformanceEvent[],
-): FrontendDebugReportPayload => {
-  return {
+): FrontendDebugReportPayload => (
+  {
     dom_stats: {
       body_text_length: document.body?.textContent?.length ?? 0,
       node_count: document.querySelectorAll("*").length,
@@ -224,8 +224,8 @@ const buildFrontendDebugReport = (
       totalEvents: summary.totalEvents,
     },
     user_agent: navigator.userAgent,
-  };
-}
+  }
+)
 
 class FrontendPerformanceLogger {
   private readonly events: PerformanceEvent[] = [];

@@ -5,13 +5,13 @@ const SIDEBAR_EXPANDED_CHANGE_EVENT = "scoop:sidebar-expanded-change",
 SIDEBAR_EXPANDED_STORAGE_KEY = "scoop:sidebar-expanded";
 let sidebarExpandedFallback = false
 
-const buildViewHref = (view: ViewMode): string => {
-  return `/?view=${view}`
-}
+const buildViewHref = (view: ViewMode): string => 
+  `/?view=${view}`
 
-const buildSearchHref = (query: string): string => {
-  return `/search?query=${encodeURIComponent(query.trim())}`
-}
+
+const buildSearchHref = (query: string): string => 
+  `/search?query=${encodeURIComponent(query.trim())}`
+
 
 const getViewFromSearch = (search: string): ViewMode | null => {
   const requestedView = new URLSearchParams(search).get("view")

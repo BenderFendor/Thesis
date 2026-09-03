@@ -23,9 +23,9 @@ const getArticleTimestamp = (article: NewsArticle): number => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-const sortByNewest = (articles:readonly  NewsArticle[]): NewsArticle[] => {
-  return [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
-}
+const sortByNewest = (articles:readonly  NewsArticle[]): NewsArticle[] => 
+  [...articles].sort((left, right) => getArticleTimestamp(right) - getArticleTimestamp(left))
+
 
 const dedupeArticles = (articles:readonly  NewsArticle[]): NewsArticle[] => {
   const seenFallbackKeys = new Set<string>(),
@@ -46,13 +46,13 @@ const dedupeArticles = (articles:readonly  NewsArticle[]): NewsArticle[] => {
   })
 }
 
-const countDistinctSources = (articles:readonly  NewsArticle[]): number => {
-  return new Set(
+const countDistinctSources = (articles:readonly  NewsArticle[]): number => 
+  new Set(
     articles
       .map((article) => article.sourceId || article.source)
       .filter((value): value is string => Boolean(value)),
   ).size
-}
+
 
 const buildCountryMetricsFromArticles = (
   articles:readonly  NewsArticle[],

@@ -28,9 +28,9 @@ const subscribeToQueueChanges = (listener: QueueListener) => {
 const areQueueArticlesEqual = (
  left: readonly NewsArticle[],
  right: readonly NewsArticle[],
-) => {
- return JSON.stringify(left) === JSON.stringify(right)
-}
+) => 
+ JSON.stringify(left) === JSON.stringify(right)
+
 
 const preloadFullText = async (article: NewsArticle): Promise<string | undefined> => {
  try {
@@ -57,7 +57,7 @@ const preloadAiAnalysis = async (article: NewsArticle): Promise<Awaited<ReturnTy
 
 const withQueueData = (article: NewsArticle, patch: Readonly<Record<string, unknown>>): NewsArticle => {
  const enhanced = { ...article };
- enhanced._queueData = { ...(enhanced._queueData ?? {}), ...patch };
+ enhanced._queueData = { ...enhanced._queueData, ...patch };
  return enhanced;
 };
 
@@ -349,7 +349,7 @@ const useQueuedArticlesStorage = () => {
   [isLoaded, setIsLoaded] = useState(false);
  useQueueHydration(setQueuedArticles, setIsLoaded);
  useQueuePersistence(queuedArticles, isLoaded);
- return { queuedArticles, setQueuedArticles, isLoaded };
+ return { isLoaded, queuedArticles, setQueuedArticles };
 };
 
 export function useReadingQueue() {

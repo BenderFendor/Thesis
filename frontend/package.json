@@ -14,6 +14,7 @@
     "openapi:types": "openapi-typescript ../backend/openapi.json -o lib/generated/openapi.ts",
     "openapi:refresh": "curl -sS http://localhost:8000/openapi.json -o ../backend/openapi.json && npm run openapi:types",
     "lint:fix": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend scripts",
+    "lint:lines": "node ../scripts/check-file-lines.mjs",
     "deadcode": "knip --config knip.json",
     "crap": "node ../scripts/check-crap.mjs"
   },

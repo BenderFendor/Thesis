@@ -33,6 +33,9 @@ from app.services.rss_parser_rust_bindings import parse_feeds_parallel
 from app.services.startup_metrics import startup_metrics
 from app.services.stream_manager import stream_manager
 from app.vector_store import get_vector_store
+from app.models.api_contracts import StartupMetricsResponse
+from app.models.api_contracts import DatabaseDebugResponse
+from app.models.api_contracts import CacheDebugResponse
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -290,7 +293,7 @@ async def get_pipeline_metrics() -> dict[str, object]:
     }
 
 
-@router.get("/startup")
+@router.get("/startup", response_model=StartupMetricsResponse)
 async def get_startup_metrics() -> dict[str, object]:
     """Expose recorded startup timings and notes."""
     return startup_metrics.to_dict()
@@ -334,7 +337,7 @@ async def list_chromadb_articles(
     }
 
 
-@router.get("/database/articles")
+@router.get("/database/articles", response_model=DatabaseDebugResponse)
 async def list_database_articles(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -382,7 +385,7 @@ async def list_database_articles(
     }
 
 
-@router.get("/cache/articles")
+@router.get("/cache/articles", response_model=CacheDebugResponse)
 async def list_cached_articles(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),

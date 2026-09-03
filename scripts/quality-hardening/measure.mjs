@@ -22,9 +22,9 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 const EMPTY_PATH_COUNT = 0;
 
 /** @param {string} value */
-const runHash = (value) => {
-  return createHash("sha256").update(value).digest("hex");
-}
+const runHash = (value) => 
+  createHash("sha256").update(value).digest("hex")
+
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {Promise<Record<string, string>>} */
 const fileHashes = async (repositoryRoot, paths) => {
@@ -51,14 +51,14 @@ const gitHead = async (repositoryRoot) => {
 }
 
 /** @param {Readonly<Record<string, string>>} hashes */
-const fingerprint = (hashes) => {
-  return runHash(
+const fingerprint = (hashes) => 
+  runHash(
     Object.entries(hashes)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([path, hash]) => `${path}\0${hash}`)
       .join("\n"),
-  );
-}
+  )
+
 
 /** @param {JsonObject} record */
 const measurementId = (record) => {
@@ -87,9 +87,9 @@ const readMeasurement = async (repositoryRoot, measurementId) => {
 }
 
 /** @returns {MiRecord} */
-const emptyMiRecord = () => {
-  return { analyzer: "code-multivitals", status: "not_selected", units: [], warnings: [] };
-}
+const emptyMiRecord = () => (
+  { analyzer: "code-multivitals", status: "not_selected", units: [], warnings: [] }
+)
 
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {MiRecord} */
 const measureMi = (repositoryRoot, paths) => {
@@ -123,9 +123,9 @@ const measureLint = async (repositoryRoot, analyzer, paths) => {
 }
 
 /** @returns {CrapRecord} */
-const emptyCrapRecord = () => {
-  return { analyzer: "crap-typescript", status: "not_selected", units: [], violations: [] };
-}
+const emptyCrapRecord = () => (
+  { analyzer: "crap-typescript", status: "not_selected", units: [], violations: [] }
+)
 
 /** @param {string} repositoryRoot @param {QualityConfig["analyzers"]["crap"]} analyzer @param {readonly string[]} paths @param {number} threshold @returns {Promise<{failure?: string, crap: CrapRecord}>} */
 const measureCrap = async (repositoryRoot, analyzer, paths, threshold) => {
@@ -193,8 +193,8 @@ const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint,
       },
       {
         analyzer: "oxlint",
-        status: lint.status,
         errors: lint.errors,
+        status: lint.status,
         warnings: lint.warnings,
         ...(lintFailure ? { message: lintFailure } : {}),
       },

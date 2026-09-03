@@ -7,7 +7,7 @@ import type {
   AtlasNode,
   AtlasSearchItem,
 } from "./lib/atlas-schema"
-import type { AtlasPanel, AtlasQueryState, AtlasView } from "./lib/atlas-query-state"
+import type { AtlasPanel, AtlasQueryState, AtlasView,ReadonlyAtlasQueryState } from "./lib/atlas-query-state"
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react"
 import { Compass, Network } from "lucide-react"
 import {
@@ -38,7 +38,6 @@ import { AtlasOperationsSheet } from "./atlas-operations-sheet"
 import { AtlasStageShell } from "./atlas-stage-shell"
 import { AtlasTopbar } from "./atlas-topbar"
 import { GlobalNavigation } from "@/components/global-navigation"
-import type { ReadonlyAtlasQueryState } from "./lib/atlas-query-state"
 import { metricPercentage } from "./lib/atlas-schema"
 import styles from "./atlas.module.css"
 import type workspaceSupport from "@/app/wiki/ownership/source-intelligence-support"

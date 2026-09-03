@@ -1140,3 +1140,43 @@
 
 ---
 
+## 2026-09-03 11:46
+
+**What happened:** Backend fails to boot with LLM_BACKEND=llamacpp when no llama-server is running (Connection refused, worker exits code 3)
+
+**Probable cause:** backend/.env had LLM_BACKEND=llamacpp; on_startup hard-requires llama-server health at :8080
+
+**Fix or workaround:** Set LLM_BACKEND=openrouter (uses OPEN_ROUTER_API_KEY) or start llama-server; opencode backend needs OPENCODE_API_KEY which is not configured
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Integration tests repeatedly hit rate limits (143x 429, 11x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
+
+**Probable cause:** External API rate limiting not handled in test mode.
+
+**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Agents collided on shared files (4x references to another agent's changes).
+
+**Probable cause:** Multiple subagents editing the same file or crate simultaneously.
+
+**Fix or workaround:** Assign disjoint file ownership in task specs. Watchdog should detect cross-agent file contention.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** API returned HTML/empty body instead of JSON (6x).
+
+**Probable cause:** Missing auth headers, wrong endpoint URL, or Cloudflare challenge page.
+
+**Fix or workaround:** Curl the endpoint directly first to verify response shape. Check for auth/UA requirements.
+
+---
+

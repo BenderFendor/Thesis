@@ -50,7 +50,7 @@ const runSync = (command, args) => {
   /** @type {Record<string, unknown>} */
   const record = /** @type {Record<string, unknown>} */ (error);
   return {
-   code: typeof record.code === "number" ? /** @type {number} */ (record.code) : 1,
+   code: typeof record.code === "number" ? (record.code) : 1,
    stdout: `${String(record.stdout ?? "")}\n${String(record.stderr ?? "")}`,
   };
  }
@@ -99,14 +99,14 @@ export async function oneShotPlan(file) {
  const bytes = (await import("node:fs/promises")).readFile(join(ROOT, file));
  const lines = (await bytes).toString().split("\n").length;
  return {
-  file,
-  lines,
-  oxlint: oxlintStats(oxlint.stdout),
-  metrics: extractMetricSummary(metric.stdout),
-  test: nearestTestFile(file),
   clean:
    oxlintStats(oxlint.stdout).total === 0 &&
    extractMetricSummary(metric.stdout).minMi >= 50,
+  file,
+  lines,
+  metrics: extractMetricSummary(metric.stdout),
+  oxlint: oxlintStats(oxlint.stdout),
+  test: nearestTestFile(file),
  };
 }
 
@@ -116,14 +116,14 @@ function extractMetricSummary(text) {
  let cognitive = -1;
  let minMi = -1;
  let worst = "";
- const head = text.match(/CC ([0-9]+) cog ([0-9]+)/u);
+ const head = /CC ([0-9]+) cog ([0-9]+)/u.exec(text);
  if (head) {
   cc = Number(head[1]);
   cognitive = Number(head[2]);
  }
- const mi = text.match(/MI ([0-9]+)/u);
+ const mi = /MI ([0-9]+)/u.exec(text);
  if (mi) { minMi = Number(mi[1]); }
- const worstLine = text.match(/@L?([0-9]+) MI ([0-9.]+)</u);
+ const worstLine = /@L?([0-9]+) MI ([0-9.]+)</u.exec(text);
  if (worstLine) { worst = `L${worstLine[1]} MI ${worstLine[2]}`; }
  return { cc, cognitive, minMi, worst };
 }

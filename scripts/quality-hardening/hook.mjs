@@ -51,8 +51,8 @@ const hook = async (event, input) => {
 }
 
 /** @param {"pre"|"post"|"stop"} event @param {Record<string, unknown>} request */
-const requestFor = (event, request) => {
- return { event, harness: "controller", protocol: PROTOCOL_VERSION, ...request };
-}
+const requestFor = (event, request) => (
+ { event, harness: "controller", protocol: PROTOCOL_VERSION, ...request }
+)
 
 export { hook, readInput, requestFor, touchedPaths };

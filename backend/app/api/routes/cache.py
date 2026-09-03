@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from app.models.news import NewsArticle
 from app.services.cache import news_cache
 from app.services.rss_ingestion import refresh_news_cache
+from app.models.api_contracts import CacheStatus
 
 router = APIRouter(prefix="/cache", tags=["cache"])
 
@@ -158,7 +159,7 @@ async def stream_cache_refresh() -> StreamingResponse:
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@router.get("/status")
+@router.get("/status", response_model=CacheStatus)
 async def get_cache_status() -> dict[str, object]:
     """Get Cache Status."""
     articles = news_cache.get_articles()

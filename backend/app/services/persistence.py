@@ -428,10 +428,12 @@ async def _process_embedding_batch(
     if vector_store is None:
         logger.warning("Vector store unavailable; skipping embedding batch")
         return
-    _delete_vectors(vector_store, delete_ids)
+    await asyncio.to_thread(_delete_vectors, vector_store, delete_ids)
     if not payloads:
         return
-    added_count = vector_store.batch_add_articles(cast(list[BatchArticlePayload], payloads))
+    added_count = await asyncio.to_thread(
+        vector_store.batch_add_articles, cast(list[BatchArticlePayload], payloads)
+    )
     if added_count:
         await _mark_embeddings_generated(payloads)
     await _apply_embedding_rate_limit(len(payloads))

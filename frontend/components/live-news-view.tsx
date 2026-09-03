@@ -1,7 +1,8 @@
 "use client"
 
 import type { Dispatch, SetStateAction } from "react"
-import { type LiveNewsPreferences, useLiveNewsPreferences } from "@/hooks/use-live-news-preferences"
+import { useLiveNewsPreferences } from '@/hooks/use-live-news-preferences';
+import type { LiveNewsPreferences } from '@/hooks/use-live-news-preferences';
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LiveNewsSourcePicker } from "./live-news-source-picker"
 import { LiveNewsToolbar } from "./live-news-toolbar"

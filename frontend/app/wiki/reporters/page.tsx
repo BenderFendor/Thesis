@@ -59,8 +59,8 @@ const confidenceLabel = (conf?: string): string => {
 
 // ── Reporter Card ────────────────────────────────────────────────────
 
-const ReporterCard = ({ reporter }:Readonly< { reporter: WikiReporterCard }>) => {
-  return (
+const ReporterCard = ({ reporter }:Readonly< { reporter: WikiReporterCard }>) => 
+  (
     <Link
       href={`/wiki/reporter/${reporter.id}`}
       className="group block border border-white/10 bg-zinc-950/50 hover:bg-zinc-900/60 transition-colors p-4"
@@ -79,8 +79,8 @@ const ReporterCard = ({ reporter }:Readonly< { reporter: WikiReporterCard }>) =>
       <ReporterTopics reporter={reporter} />
       <ReporterCardFooter reporter={reporter} />
     </Link>
-  );
-}
+  )
+
 
 function ReporterCardIdentity({ reporter }: Readonly<{ reporter: WikiReporterCard }>) {
   return (

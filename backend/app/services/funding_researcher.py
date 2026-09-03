@@ -1299,15 +1299,16 @@ class FundingResearcher:
         if not self.client:
             return org
         org_name = org["name"]
-        staleness_flags = _collect_staleness_flags(
-            self.client, org_name, self._normalize_name(org_name)
+        staleness_flags = await asyncio.to_thread(
+            _collect_staleness_flags, self.client, org_name, self._normalize_name(org_name)
         )
         missing_fields = _missing_org_fields(org)
         if not missing_fields and not staleness_flags:
             return org
         prompt = _org_enrichment_prompt(org, missing_fields, staleness_flags)
         try:
-            response = self.client.chat.completions.create(
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model=(
                     get_llamacpp_model()
                     if settings.llm_backend == "llamacpp"

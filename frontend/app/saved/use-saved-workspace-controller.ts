@@ -107,12 +107,20 @@ const useSavedLibraryState = (): SavedLibraryState => {
      [bookmarksResult, likedResult, highlightsResult] = results;
 
     if (bookmarksResult.status === "fulfilled") {
-      setBookmarks(bookmarksResult.value.map((entry) => entry.article));
+      // SAFETY: backend returns full NewsArticle objects inside bookmark entries;
+      // the OpenAPI schema only narrows them to opaque objects.
+      setBookmarks(
+        bookmarksResult.value.bookmarks.map((entry) => entry.article as unknown as NewsArticle),
+      );
     } else {
       issues.push("Bookmarks could not be loaded.");
     }
     if (likedResult.status === "fulfilled") {
-      setLikedArticles(likedResult.value.map((entry) => entry.article));
+      // SAFETY: backend returns full NewsArticle objects inside liked entries;
+      // the OpenAPI schema only narrows them to opaque objects.
+      setLikedArticles(
+        likedResult.value.liked.map((entry) => entry.article as unknown as NewsArticle),
+      );
     } else {
       issues.push("Liked articles could not be loaded.");
     }

@@ -187,9 +187,9 @@ function parseOption(
   return inlineValue === undefined ? index + 1 : index;
 }
 
-const loadSpec = (specPath = DEFAULT_SPEC): OpenApiSpec => {
-  return JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec;
-}
+const loadSpec = (specPath = DEFAULT_SPEC): OpenApiSpec => 
+  JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec
+
 
 const listPathOperations = (path: string, pathItem: PathItemObject): OperationDescriptor[] => {
   const operations: OperationDescriptor[] = [];
@@ -217,11 +217,11 @@ const listOperations = (spec: OpenApiSpec): OperationDescriptor[] => {
   return operations.sort((left, right) => left.operationId.localeCompare(right.operationId));
 }
 
-const listWebSockets = (spec: OpenApiSpec): WebSocketOperation[] => {
-  return [...(spec["x-scoop-websockets"] ?? [])].sort((left, right) =>
+const listWebSockets = (spec: OpenApiSpec): WebSocketOperation[] => 
+  [...(spec["x-scoop-websockets"] ?? [])].sort((left, right) =>
     left.operationId.localeCompare(right.operationId),
-  );
-}
+  )
+
 
 const findOperation = (spec: OpenApiSpec, operationId: string): OperationDescriptor => {
   const operation = listOperations(spec).find((item) => item.operationId === operationId);
@@ -244,9 +244,9 @@ const assignments = (values:readonly  string[] = []): Map<string, string[]> => {
   return result;
 }
 
-const schemaType = (schema: SchemaObject = {}): string | undefined => {
-  return Array.isArray(schema.type) ? schema.type.find((value) => value !== "null") : schema.type;
-}
+const schemaType = (schema: SchemaObject = {}): string | undefined => 
+  Array.isArray(schema.type) ? schema.type.find((value) => value !== "null") : schema.type
+
 
 const coerceScalar = (value: string, schema: SchemaObject, name: string): JsonValue => {
   const type = schemaType(schema);

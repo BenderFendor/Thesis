@@ -138,7 +138,7 @@ const parseFundingAndBias = (details: Record<string, unknown>): AtlasFundingAndB
   return parsed.success ? parsed.data : null;
 }
 
-const parseArrayField = function <S extends z.ZodTypeAny>(
+const parseArrayField = function  parseArrayField<S extends z.ZodTypeAny>(
   details: Record<string, unknown>,
   key: string,
   schema: S,
@@ -151,18 +151,18 @@ const parseArrayField = function <S extends z.ZodTypeAny>(
   });
 }
 
-const parseOwnershipChain = (details: Record<string, unknown>): AtlasOwnershipChainHop[] => {
-  return parseArrayField(details, "ownership_chain", AtlasOwnershipChainHopSchema);
-}
-const parseControls = (details: Record<string, unknown>): AtlasControlsEntry[] => {
-  return parseArrayField(details, "controls", AtlasControlsEntrySchema);
-}
-const parseSiblingsViaOwner = (details: Record<string, unknown>): AtlasSiblingEntry[] => {
-  return parseArrayField(details, "siblings_via_owner", AtlasSiblingEntrySchema);
-}
-const parseExternalIds = (details: Record<string, unknown>): AtlasExternalId[] => {
-  return parseArrayField(details, "external_ids", AtlasExternalIdSchema);
-}
+const parseOwnershipChain = (details: Record<string, unknown>): AtlasOwnershipChainHop[] => 
+  parseArrayField(details, "ownership_chain", AtlasOwnershipChainHopSchema)
+
+const parseControls = (details: Record<string, unknown>): AtlasControlsEntry[] => 
+  parseArrayField(details, "controls", AtlasControlsEntrySchema)
+
+const parseSiblingsViaOwner = (details: Record<string, unknown>): AtlasSiblingEntry[] => 
+  parseArrayField(details, "siblings_via_owner", AtlasSiblingEntrySchema)
+
+const parseExternalIds = (details: Record<string, unknown>): AtlasExternalId[] => 
+  parseArrayField(details, "external_ids", AtlasExternalIdSchema)
+
 const parseRoleBreakdown = (details: Record<string, unknown>): Record<string, number> => {
   const raw = details.role_breakdown;
   if (!raw || typeof raw !== "object") {return {};}

@@ -16,14 +16,14 @@ import { resolvedTaxonomyRule } from "./config.mjs";
 /** @typedef {Readonly<{units?: readonly Unit[], lint?: Readonly<{findings?: readonly Finding[]}> , measurement_id?: string}>} Measurement */
 
 /** @param {Readonly<Record<string, unknown>>} value */
-const taskHash = (value) => {
- return `qh-task:${createHash("sha256").update(JSON.stringify(value, Object.keys(value).sort())).digest("hex").slice(0, 24)}`;
-}
+const taskHash = (value) => 
+ `qh-task:${createHash("sha256").update(JSON.stringify(value, Object.keys(value).sort())).digest("hex").slice(0, 24)}`
+
 
 /** @param {string} value */
-const pathCluster = (value) => {
- return value.split("/").slice(0, -1).join("/") || ".";
-}
+const pathCluster = (value) => 
+ value.split("/").slice(0, -1).join("/") || "."
+
 
 /**
  * @param {Map<string, TaskDraft>} groups Finding groups.
@@ -180,7 +180,7 @@ const tradeoffRules = (taxonomy) => {
  const families = /** @type {Record<string, unknown>} */ (taxonomy.family_defaults ?? {}),
   overrides = /** @type {Record<string, unknown>} */ (taxonomy.overrides ?? {}),
   ruleIds = Array.isArray(taxonomy.rule_ids) ? taxonomy.rule_ids : [];
- return Array.from(new Set([...familyTradeoffRules(families, ruleIds), ...overrideTradeoffRules(overrides)]));
+ return [...new Set([...familyTradeoffRules(families, ruleIds), ...overrideTradeoffRules(overrides)])];
 }
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement @param {readonly Record<string, unknown>[]} [effects] @returns {Task[]} */
@@ -192,7 +192,7 @@ const buildTasks = (policy, measurement, effects) => {
  const tradeoffs = tradeoffRules(policy.taxonomy);
  for (const task of groups.values()) {
   if (task.repair_class === "structural" && tradeoffs.length > 0) {
-   task.allowed_lint_rules = Array.from(new Set([...task.allowed_lint_rules, ...tradeoffs]));
+   task.allowed_lint_rules = [...new Set([...task.allowed_lint_rules, ...tradeoffs])];
   }
  }
  return materializeTasks(groups, measurement.measurement_id, effects);
@@ -283,17 +283,17 @@ const currentHead = (repositoryRoot) => {
 }
 
 /** @param {readonly Task[]} tasks @param {readonly Task[]} previous @returns {Task[]} */
-const mergePreserved = (tasks, previous) => {
- return tasks.map((task) => {
+const mergePreserved = (tasks, previous) => 
+ tasks.map((task) => {
   const old = previous.find((candidate) => candidate.task_id === task.task_id);
   return old ? { ...task, claimed_by: old.claimed_by, reason: old.reason, state: old.state } : task;
- });
-}
+ })
+
 
 /** @param {readonly Task[]} previous @param {Set<string>} currentIds @returns {Task[]} */
-const supersededStale = (previous, currentIds) => {
- return previous.filter((task) => !currentIds.has(task.task_id) && !["accepted", "stale"].includes(task.state)).map((task) => ({ ...task, reason: "superseded by queue rebuild", state: "stale" }));
-}
+const supersededStale = (previous, currentIds) => 
+ previous.filter((task) => !currentIds.has(task.task_id) && !["accepted", "stale"].includes(task.state)).map((task) => ({ ...task, reason: "superseded by queue rebuild", state: "stale" }))
+
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement */
 const rebuildQueue = async (policy, measurement) => {

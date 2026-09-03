@@ -1030,7 +1030,7 @@ class InlineCommentRewriter {
  * @param {string} filePath - Path used for script-kind detection.
  * @returns {TransformResult} Transform outcome.
  */
-if (import.meta.main === true) {
+if (import.meta.main) {
   await new InlineCommentRewriter().main().catch((error) => {
     if (error instanceof Error) {
       console.error(error.message);

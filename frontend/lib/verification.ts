@@ -77,7 +77,7 @@ const verifyResearchJson = async (
 /**
  * Stream verification progress via SSE.
  */
-const streamVerification = async function* (
+const streamVerification = async function*  streamVerification(
   request: VerificationRequest,
   signal?: AbortSignal
 ): AsyncGenerator<VerificationStreamEvent> {
@@ -199,7 +199,7 @@ const getConfidenceLabel = (level: ConfidenceLevel): string => {
 /**
  * Format confidence as percentage string.
  */
-const formatConfidence = (confidence: number): string => {
-  return `${Math.round(confidence * 100)}%`;
-}
+const formatConfidence = (confidence: number): string => 
+  `${Math.round(confidence * 100)}%`
+
 export { verifyResearch, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };

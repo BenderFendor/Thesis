@@ -29,7 +29,7 @@ async function typeCheck(sourceText, extension) {
       .getPreEmitDiagnostics(program)
       .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   }
 }
 

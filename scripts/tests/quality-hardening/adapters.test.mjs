@@ -6,7 +6,7 @@ import { test } from "node:test";
 test("CCCC normalization emits stable namespaced source units", () => {
   const report = normalizeReport(
     {
-      files: [{ path: "/repo/src/app.ts", functions: [{ name: "render", line: 4, cyclomatic: 2, cognitive: 1 }] }],
+      files: [{ functions: [{ name: "render", line: 4, cyclomatic: 2, cognitive: 1 }], path: "/repo/src/app.ts" }],
       summary: {},
       violations: [],
     },
@@ -22,8 +22,8 @@ test("Oxlint normalization preserves severity and rule counts", () => {
   const report = parseReport(
     JSON.stringify({
       diagnostics: [
-        { code: "eslint(no-null)", filename: "/repo/src/app.ts", message: "avoid null", severity: "error", labels: [{ span: { line: 3 } }] },
-        { code: "eslint(no-warning)", filename: "/repo/src/app.ts", message: "warning", severity: "warning", labels: [{ span: { line: 4 } }] },
+        { code: "eslint(no-null)", filename: "/repo/src/app.ts", labels: [{ span: { line: 3 } }], message: "avoid null", severity: "error" },
+        { code: "eslint(no-warning)", filename: "/repo/src/app.ts", labels: [{ span: { line: 4 } }], message: "warning", severity: "warning" },
       ],
     }),
     "/repo",

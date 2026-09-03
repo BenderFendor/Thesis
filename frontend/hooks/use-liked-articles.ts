@@ -29,11 +29,11 @@ const likedListeners = new Set<LikedListener>(),
   likedError = null
   notifyErrorListeners(null)
   try {
-    const entries = await fetchLikedArticles()
-    likedCache = new Set(entries.map((entry) => entry.articleId))
+    const response = await fetchLikedArticles()
+    likedCache = new Set(response.liked.map((entry) => entry.articleId))
     likedLoaded = true
     notifyLikedListeners(likedCache)
-    return entries
+    return response.liked
   } catch (error) {
     likedError = error instanceof Error ? error.message : "Failed to load liked articles"
     notifyErrorListeners(likedError)

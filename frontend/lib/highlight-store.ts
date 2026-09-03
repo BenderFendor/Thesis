@@ -21,23 +21,23 @@ interface HighlightStoreState {
   highlights: LocalHighlight[]
 }
 
-const normalizeHighlightedText = (text: string) => {
-  return text.replaceAll(/\s+/gu, " ").trim().toLowerCase()
-}
+const normalizeHighlightedText = (text: string) => 
+  text.replaceAll(/\s+/gu, " ").trim().toLowerCase()
 
-const getHighlightsStorageKey = (articleUrl: string) => {
-  return `highlights:v1:${articleUrl}`
-}
+
+const getHighlightsStorageKey = (articleUrl: string) => 
+  `highlights:v1:${articleUrl}`
+
 
 const createHighlightFingerprint = (highlight:Readonly< {
   character_start: number
   character_end: number
   highlighted_text: string
-}>) => {
-  return `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
+}>) => 
+  `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
     highlight.highlighted_text
   )}`
-}
+
 
 const getHighlightRecencyValue = (highlight: Partial<LocalHighlight>) => {
   const timestamp =
@@ -80,9 +80,9 @@ const dedupeLocalHighlights = (highlights:readonly  LocalHighlight[]): LocalHigh
   return [...byFingerprint.values()].toSorted((a, b) => a.character_start - b.character_start)
 }
 
-const safeNowIso = () => {
-  return new Date().toISOString()
-}
+const safeNowIso = () => 
+  new Date().toISOString()
+
 
 const generateClientId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -261,8 +261,8 @@ const mergeHighlights = ({
   )
 }
 
-const toRemoteHighlights = (local:readonly  LocalHighlight[]): Highlight[] => {
-  return dedupeLocalHighlights(local)
+const toRemoteHighlights = (local:readonly  LocalHighlight[]): Highlight[] => 
+  dedupeLocalHighlights(local)
     .filter((item) => !item.deleted)
     .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
       void sync_status
@@ -276,7 +276,7 @@ const toRemoteHighlights = (local:readonly  LocalHighlight[]): Highlight[] => {
 	id
 }) : Object.assign(rest, { client_id })
     })
-}
+
 
 const markPending = ({
   highlight,
@@ -284,8 +284,8 @@ const markPending = ({
 }:Readonly< {
   highlight: LocalHighlight
   op: HighlightOp
-}>): LocalHighlight => {
-  return {
+}>): LocalHighlight => (
+  {
     ...highlight,
     deleted: op === "delete" ? true : highlight.deleted,
     last_error: undefined,
@@ -293,7 +293,7 @@ const markPending = ({
     pending_op: op,
     sync_status: "pending",
   }
-}
+)
 
 const markSynced = ({
   highlight,
@@ -301,8 +301,8 @@ const markSynced = ({
 }:Readonly< {
   highlight: LocalHighlight
   server: Highlight
-}>): LocalHighlight => {
-  return {
+}>): LocalHighlight => (
+  {
     ...highlight,
     ...server,
     deleted: false,
@@ -313,7 +313,7 @@ const markSynced = ({
     server_id: server.id,
     sync_status: "synced",
   }
-}
+)
 
 const markFailed = ({
   highlight,

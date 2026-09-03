@@ -131,13 +131,13 @@ const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
 
 type ArticleSortMode = "favorites" | "newest" | "oldest" | "source-freshness"
 
-const getArticleSourceKey = (article: NewsArticle): string => {
-  return article.sourceId || article.source
-}
+const getArticleSourceKey = (article: NewsArticle): string => 
+  article.sourceId || article.source
 
-const getArticleTimestamp = (article: NewsArticle): number => {
-  return article._parsedTimestamp ?? 0
-}
+
+const getArticleTimestamp = (article: NewsArticle): number => 
+  article._parsedTimestamp ?? 0
+
 
 const getSourceRecency = (articles: readonly NewsArticle[]): Record<string, number> => {
   const recency: Record<string, number> = {}
@@ -200,13 +200,13 @@ const sortNewsArticles = (
   return items
 }
 
-const formatLeadDate = (date: string): string => {
-  return new Date(date).toLocaleDateString("en-US", {
+const formatLeadDate = (date: string): string => 
+  new Date(date).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
   })
-}
+
 
 const combineSourceIds = (
   lens: string,
@@ -305,8 +305,8 @@ function createEmptyFeedNotification(timestamp: string): Notification {
   }
 }
 
-const LoadingToast = () => {
-  return (
+const LoadingToast = () => 
+  (
     <div className="fixed bottom-4 left-4 sm:bottom-8 sm:left-8 z-[100] pointer-events-none">
       <div className="pointer-events-auto w-64 overflow-hidden rounded-xl border border-white/10 bg-[var(--news-bg-secondary)]/90 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 animate-in slide-in-from-bottom-4">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
@@ -324,7 +324,7 @@ const LoadingToast = () => {
       </div>
     </div>
   )
-}
+
 
 const MobileViewTabs = ({
   currentView,
@@ -334,8 +334,8 @@ const MobileViewTabs = ({
   currentView: ViewMode
   onViewChange: (view: ViewMode) => void
   onViewPreload: (view: ViewMode) => void
-}>) => {
-  return (
+}>) => 
+  (
     <nav
       aria-label="Mobile view tabs"
       className={cn(
@@ -362,7 +362,7 @@ const MobileViewTabs = ({
       ))}
     </nav>
   )
-}
+
 
 const CategorySelect = ({
   categories,
@@ -374,8 +374,8 @@ const CategorySelect = ({
   activeCategory: string
   onCategoryChange: (category: string) => void
   isGlobeView: boolean
-}>) => {
-  return (
+}>) => 
+  (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
       isGlobeView && "bg-black/25 backdrop-blur-xl",
@@ -400,7 +400,7 @@ const CategorySelect = ({
       </select>
     </div>
   )
-}
+
 
 const SortSelect = ({
   isGlobeView,
@@ -412,8 +412,8 @@ const SortSelect = ({
   isTopicMode: boolean
   sortValue: string
   onSortModeChange: (value: string) => void
-}>) => {
-  return (
+}>) => 
+  (
     <div className={cn(
       "flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] p-1",
       isGlobeView && "bg-black/25 backdrop-blur-xl",
@@ -445,7 +445,7 @@ const SortSelect = ({
       </select>
     </div>
   )
-}
+
 
 interface HeaderBarProps {
   isGlobeView: boolean
@@ -472,8 +472,8 @@ const HeaderIdentity = ({
   isGlobeView,
   currentView,
   articleCount,
-}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "articleCount">) => {
-  return (
+}: Pick<HeaderBarProps, "isGlobeView" | "currentView" | "articleCount">) => 
+  (
     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
       <h3
         className={cn(
@@ -492,14 +492,14 @@ const HeaderIdentity = ({
       </span>
     </div>
   )
-}
+
 
 const MobileHeaderActions = ({
   alertsButtonRef,
   actionableNotificationCount,
   onAlertsClick,
-}: Pick<HeaderBarProps, "alertsButtonRef" | "actionableNotificationCount" | "onAlertsClick">) => {
-  return (
+}: Pick<HeaderBarProps, "alertsButtonRef" | "actionableNotificationCount" | "onAlertsClick">) => 
+  (
     <div className="flex shrink-0 items-center gap-2 lg:hidden">
       <Button
         ref={alertsButtonRef}
@@ -520,10 +520,10 @@ const MobileHeaderActions = ({
       <ThemeToggle />
     </div>
   )
-}
 
-const HeaderResourceLinks = ({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView">) => {
-  return (
+
+const HeaderResourceLinks = ({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView">) => 
+  (
     <div className="contents lg:flex lg:items-center lg:gap-1.5">
       <div className="hidden lg:block">
         <ThemeToggle />
@@ -548,15 +548,15 @@ const HeaderResourceLinks = ({ isGlobeView }: Pick<HeaderBarProps, "isGlobeView"
       </Button>
     </div>
   )
-}
+
 
 const HeaderSourceFilterButton = ({
   isGlobeView,
   lens,
   activeLensLabel,
   onOpenSidebar,
-}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => {
-  return (
+}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => 
+  (
     <Button
       variant="outline"
       size="sm"
@@ -569,15 +569,15 @@ const HeaderSourceFilterButton = ({
       {lens === "all" ? "Sources" : activeLensLabel}
     </Button>
   )
-}
+
 
 const HeaderResourceActions = ({
   isGlobeView,
   lens,
   activeLensLabel,
   onOpenSidebar,
-}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => {
-  return (
+}: Pick<HeaderBarProps, "isGlobeView" | "lens" | "activeLensLabel" | "onOpenSidebar">) => 
+  (
     <div className={cn("grid grid-cols-3 gap-2 sm:flex sm:items-center", isGlobeView && "gap-1.5")}>
       <div className="hidden h-4 w-px bg-white/10 lg:block" />
       <HeaderResourceLinks isGlobeView={isGlobeView} />
@@ -589,7 +589,7 @@ const HeaderResourceActions = ({
       />
     </div>
   )
-}
+
 
 const HeaderControls = ({
   isGlobeView,
@@ -656,8 +656,8 @@ const HeaderBar = ({
   onOpenSidebar,
   onViewChange,
   onViewPreload,
-}: HeaderBarProps) => {
-  return (
+}: HeaderBarProps) => 
+  (
     <header
       className={cn(
         "z-40 px-3 py-3 backdrop-blur sm:px-4 lg:sticky lg:top-0 lg:border-b-0 lg:bg-[var(--news-bg-primary)]/95 lg:px-6 lg:py-4 supports-[backdrop-filter]:lg:bg-[var(--news-bg-primary)]/80",
@@ -711,16 +711,16 @@ const HeaderBar = ({
       </div>
     </header>
   )
-}
 
-const StatCell = ({ label, value, valueClassName }:Readonly< { label: string; value: string; valueClassName: string }>) => {
-  return (
+
+const StatCell = ({ label, value, valueClassName }:Readonly< { label: string; value: string; valueClassName: string }>) => 
+  (
     <div className="bg-[var(--news-bg-secondary)] p-2 space-y-0.5 sm:p-2.5 sm:space-y-1">
       <span className="block text-[7px] font-mono uppercase tracking-widest text-muted-foreground/50 sm:text-[8px]">{label}</span>
       <span className={`block ${valueClassName}`}>{value}</span>
     </div>
   )
-}
+
 
 const LeadStory = ({
   leadArticle,
@@ -730,8 +730,8 @@ const LeadStory = ({
   leadArticle: NewsArticle | null
   leadDateLabel: string
   leadSummary: string
-}) => {
-  return (
+}) => 
+  (
     <div className="flex-1 min-w-0">
       <div className="mb-2 flex items-center gap-2 sm:mb-3 sm:gap-3">
         <span className="border bg-primary/10 px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.28em] text-primary border-primary/30 sm:text-[9px] sm:tracking-[0.4em]">
@@ -751,7 +751,7 @@ const LeadStory = ({
       </p>
     </div>
   )
-}
+
 
 const LeadMetadata = ({
   leadArticle,
@@ -765,8 +765,8 @@ const LeadMetadata = ({
   sourceCount: number
   leadBias: string
   leadCredibility: string
-}) => {
-  return (
+}) => 
+  (
     <div className="shrink-0 flex flex-col gap-1 w-full sm:w-64 lg:w-72">
       <div className="grid grid-cols-2 gap-px bg-white/5 border border-white/10 overflow-hidden">
         <StatCell label="Live articles" value={String(articleCount)} valueClassName="text-sm font-semibold tabular-nums" />
@@ -787,21 +787,21 @@ const LeadMetadata = ({
       )}
     </div>
   )
-}
+
 
 const getLeadDetails = (leadArticle: NewsArticle | null): {
   dateLabel: string
   summary: string
   credibility: string
   bias: string
-} => {
-  return {
+} => (
+  {
     bias: leadArticle?.bias ? leadArticle.bias.replace("-", " ").toUpperCase() : "UNKNOWN",
     credibility: leadArticle?.credibility ? leadArticle.credibility.toUpperCase() : "UNKNOWN",
     dateLabel: leadArticle ? formatLeadDate(leadArticle.publishedAt) : "Updating feed",
     summary: leadArticle?.summary?.trim() || "Story summary unavailable.",
   }
-}
+)
 
 const LeadSection = ({
   leadArticle,
@@ -860,9 +860,9 @@ interface ActiveViewProps {
   selectedSourceIds: string[]
 }
 
-const GlobeActiveView = ({ categoryId, articles, loading }: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => {
-  return <GlobeView key={`${categoryId}-globe`} articles={articles} loading={loading} />
-}
+const GlobeActiveView = ({ categoryId, articles, loading }: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => 
+  <GlobeView key={`${categoryId}-globe`} articles={articles} loading={loading} />
+
 
 const GridActiveView = ({
   articles,
@@ -871,8 +871,8 @@ const GridActiveView = ({
   gridMode,
   onGridModeChange,
   totalCount,
-}: Pick<ActiveViewProps, "articles" | "loading" | "topicSortMode" | "gridMode" | "onGridModeChange" | "totalCount">) => {
-  return (
+}: Pick<ActiveViewProps, "articles" | "loading" | "topicSortMode" | "gridMode" | "onGridModeChange" | "totalCount">) => 
+  (
     <GridView
       articles={articles}
       loading={loading}
@@ -884,7 +884,7 @@ const GridActiveView = ({
       totalCount={totalCount}
     />
   )
-}
+
 
 const ScrollActiveView = ({
   categoryId,
@@ -892,8 +892,8 @@ const ScrollActiveView = ({
   loading,
   totalCount,
   debugMode,
-}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading" | "totalCount" | "debugMode">) => {
-  return (
+}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading" | "totalCount" | "debugMode">) => 
+  (
     <FeedView
       key={`${categoryId}-scroll`}
       articles={articles}
@@ -902,29 +902,29 @@ const ScrollActiveView = ({
       debugMode={debugMode}
     />
   )
-}
+
 
 const BlindspotActiveView = ({
   categoryId,
   activeCategory,
   selectedSourceIds,
-}: Pick<ActiveViewProps, "categoryId" | "activeCategory" | "selectedSourceIds">) => {
-  return (
+}: Pick<ActiveViewProps, "categoryId" | "activeCategory" | "selectedSourceIds">) => 
+  (
     <BlindspotView
       key={`${categoryId}-blindspot`}
       category={activeCategory}
       sources={selectedSourceIds}
     />
   )
-}
+
 
 const LiveNewsActiveView = ({
   categoryId,
   articles,
   loading,
-}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => {
-  return <LiveNewsView key={`${categoryId}-live-news`} articles={articles} loading={loading} />
-}
+}: Pick<ActiveViewProps, "categoryId" | "articles" | "loading">) => 
+  <LiveNewsView key={`${categoryId}-live-news`} articles={articles} loading={loading} />
+
 
 const ActiveView = (props: ActiveViewProps) => {
   switch (props.currentView) {
@@ -1051,8 +1051,8 @@ const NewsPageLayout = ({
   onOpenSidebar,
   sourceSidebar,
   leadModal,
-}: NewsPageLayoutProps) => {
-  return (
+}: NewsPageLayoutProps) => 
+  (
     <div className="min-h-screen overflow-x-hidden flex bg-[var(--news-bg-primary)] text-foreground">
       <HalftoneOverlay />
       {loading && activeViewArticles.length === 0 && <LoadingToast />}
@@ -1081,7 +1081,7 @@ const NewsPageLayout = ({
       ) : null}
     </div>
   )
-}
+
 
 interface NewsPageState {
   currentView: ViewMode
@@ -1311,8 +1311,8 @@ const usePageNotifications = ({
   filterActive: boolean
   loading: boolean
   selectedSourceCount: number
-}): Notification[] => {
-  return useMemo(
+}): Notification[] => 
+  useMemo(
     () => buildNotifications({
       activeCategory,
       activeViewArticleCount: activeViewArticles.length,
@@ -1324,7 +1324,7 @@ const usePageNotifications = ({
     }),
     [activeCategory, activeViewArticles.length, browseIndexError, browseIndexLoading, filterActive, loading, selectedSourceCount],
   )
-}
+
 
 interface NewsPageViewData extends NewsPageSortedData {
   loading: boolean
@@ -1541,22 +1541,22 @@ const createPageNavigationProps = ({
   view,
   navigation,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof GlobalNavigation> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof GlobalNavigation> => (
+  {
     alertCount: view.actionableNotificationCount,
     currentView: state.currentView,
     onAlertsClick: actions.toggleNotifications,
     onViewChange: navigation.handleViewChange,
     onViewPreload: navigation.preloadView,
   }
-}
+)
 
 const createPageNotificationProps = ({
   state,
   view,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof NotificationsPopup> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof NotificationsPopup> => (
+  {
     anchorRef: state.alertsButtonRef,
     notifications: view.visibleNotifications,
     onAction: actions.handleNotificationAction,
@@ -1564,7 +1564,7 @@ const createPageNotificationProps = ({
     onClearAll: view.dismissAll,
     onClose: actions.closeNotifications,
   }
-}
+)
 
 const createPageHeaderProps = ({
   state,
@@ -1572,8 +1572,8 @@ const createPageHeaderProps = ({
   view,
   navigation,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof HeaderBar> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof HeaderBar> => (
+  {
     actionableNotificationCount: view.actionableNotificationCount,
     activeCategory: state.activeCategory,
     activeLensLabel: view.activeLensLabel,
@@ -1593,13 +1593,13 @@ const createPageHeaderProps = ({
     sortMode: state.sortMode,
     topicSortMode: state.topicSortMode,
   }
-}
+)
 
 const createPageLeadProps = ({
   state,
   view,
-}: NewsPageControllerParts): ComponentProps<typeof LeadSection> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof LeadSection> => (
+  {
     articleCount: view.articleCount,
     currentView: state.currentView,
     isBlindspotView: state.currentView === "blindspot",
@@ -1607,14 +1607,14 @@ const createPageLeadProps = ({
     leadArticle: view.leadArticle,
     sourceCount: view.sourceCount,
   }
-}
+)
 
 const createPageActiveViewProps = ({
   state,
   queries,
   view,
-}: NewsPageControllerParts): ComponentProps<typeof ActiveView> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof ActiveView> => (
+  {
     activeCategory: state.activeCategory,
     articles: view.browseArticles,
     categoryId: state.activeCategory,
@@ -1627,19 +1627,19 @@ const createPageActiveViewProps = ({
     topicSortMode: state.topicSortMode,
     totalCount: queries.browseIndexTotalCount,
   }
-}
+)
 
 const createPageSidebarProps = ({
   state,
   view,
   actions,
-}: NewsPageControllerParts): ComponentProps<typeof SourceSidebar> => {
-  return {
+}: NewsPageControllerParts): ComponentProps<typeof SourceSidebar> => (
+  {
     isOpen: state.sidebarOpen,
     onClose: actions.closeSidebar,
     sourceRecency: view.sourceRecency,
   }
-}
+)
 
 const buildNewsPageLayoutProps = (parts: NewsPageControllerParts): NewsPageLayoutProps => {
   const { state, queries, view, navigation, actions } = parts

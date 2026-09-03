@@ -14,9 +14,9 @@ const policy = {
 };
 
 const measurement = {
+  lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-null" }] },
   measurement_id: "qh-measure:parity",
   units: [{ path: "src/app.ts", unit_id: "u1", metrics: { cccc: { cognitive: 20, cyclomatic: 2 }, code_multivitals: { maintainability_index: 40 } } }],
-  lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-null" }] },
 };
 
 test("cold and warm cache generate identical task order (repo parity)", () => {
@@ -35,7 +35,7 @@ test("queue rebuild twice on an unchanged fixture keeps task state and identity"
     assert.equal(second[0].state, "queued");
     assert.equal((await readTasks(repositoryRoot)).length, second.length);
   } finally {
-    await rm(repositoryRoot, { recursive: true, force: true });
+    await rm(repositoryRoot, { force: true, recursive: true });
   }
 });
 
@@ -47,9 +47,9 @@ test("structural canary: structural family declares the lint tradeoff it may cre
   const tasks = buildTasks(
     { ...policy, taxonomy: structuralTaxonomy },
     {
+      lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-ternary" }] },
       measurement_id: "m",
       units: [{ path: "src/app.ts", unit_id: "u1", metrics: { cccc: { cognitive: 20, cyclomatic: 2 } } }],
-      lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-ternary" }] },
     },
   );
   const root = tasks.find((task) => task.unit_ids.includes("u1"));
@@ -65,9 +65,9 @@ test("structural canary: structural family declares the lint tradeoff it may cre
 
 test("mechanical canary: one isolated rule closes without structural fallout", () => {
   const tasks = buildTasks(policy, {
+    lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-null" }] },
     measurement_id: "m",
     units: [{ path: "src/app.ts", unit_id: "u1", metrics: {} }],
-    lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-null" }] },
   });
   assert.equal(tasks.length, 1);
   assert.equal(tasks[0].factor, "mechanical_convention");
@@ -78,8 +78,8 @@ test("coverage canary: unknown coverage stays unknown, never fabricated CRAP", (
   const tasks = buildTasks(policy, {
     measurement_id: "m",
     units: [
-      { path: "src/app.ts", unit_id: "u1", coverage: { state: "unmapped" }, metrics: { cccc: { cognitive: 30, cyclomatic: 8 } } },
-      { path: "src/api.ts", unit_id: "u2", coverage: { state: "measured", crap: 40 }, metrics: {} },
+      { coverage: { state: "unmapped" }, metrics: { cccc: { cognitive: 30, cyclomatic: 8 } }, path: "src/app.ts", unit_id: "u1" },
+      { coverage: { crap: 40, state: "measured" }, metrics: {}, path: "src/api.ts", unit_id: "u2" },
     ],
   });
   const crapTasks = tasks.filter((task) => task.factor === "testing");

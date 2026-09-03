@@ -185,6 +185,22 @@ const
     },
 
     /**
+     * Returns a scan result for one single-name exported declaration.
+     * @param {TsStatement} statement - Exported declaration statement.
+     * @returns {Partial<ScanResult>} One entry or a skip marker.
+     */
+    declarationEntry(statement) {
+      const name = statement.name === undefined ? "" : statement.name.text;
+      if (name.length === EMPTY_INDEX) {
+        return {skip: true};
+      }
+      return {
+        entries: [{name, typeOnly: GroupExports.isTypeOnlyDeclaration(statement)}],
+        names: [name],
+      };
+    },
+
+    /**
      * Returns the top-level binding names declared by one statement.
      * @param {TsStatement} statement - Top-level statement.
      * @returns {string[]} Declared binding names.
@@ -204,6 +220,78 @@ const
         return statement.name === undefined ? [] : [statement.name.text];
       }
       return [];
+    },
+
+    /**
+     * Applies or reports the transform result for one file.
+     * @param {TransformResult} result - Transform result.
+     * @param {string} filePath - File path.
+     * @param {boolean} dryRun - Whether to skip writing.
+     * @returns {void} Always ends after handling the result.
+     */
+    emitResult(result, filePath, dryRun) {
+      if (dryRun) {
+        GroupExports.reportDry(result, filePath);
+        return;
+      }
+      if (result.changed) {
+        ts.sys.writeFile(filePath, result.text);
+      }
+      GroupExports.reportApplied(result, filePath);
+    },
+
+    /**
+     * Returns the unique names of one export entry list in source order.
+     * @param {readonly ExportEntry[]} entries - Collected entries.
+     * @param {boolean} typeOnly - Filter kind.
+     * @returns {string[]} Deduplicated member names.
+     */
+    entriesNames(entries, typeOnly) {
+      /** @type {string[]} */
+      const names = [];
+      for (const entry of entries) {
+        if (entry.typeOnly === typeOnly && !names.includes(entry.name)) {
+          names.push(entry.name);
+        }
+      }
+      return names;
+    },
+
+    /**
+     * Escapes one identifier for use inside a regular expression.
+     * @param {string} name - Identifier text.
+     * @returns {string} Regex-safe text.
+     */
+    escapeRegex(name) {
+      return name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    },
+
+    /**
+     * Transforms one source file and returns its result.
+     * @param {string} sourceText - Source text to transform.
+     * @param {string} filePath - Source file path (used for script kind).
+     * @returns {TransformResult} Transformed text plus changed flag.
+     */
+    fileTransform(sourceText, filePath) {
+      const parsed = GroupExports.parseSource(sourceText, filePath);
+      if (parsed.parseDiagnostics.length > EMPTY_INDEX) {
+        return GroupExports.unchangedResult(sourceText);
+      }
+      const scan = GroupExports.plan(parsed, sourceText);
+      const valueNames = GroupExports.entriesNames(scan.entries, false);
+      const typeNames = GroupExports.entriesNames(scan.entries, true);
+      if (!GroupExports.hasGroup(scan.entries)) {
+        return GroupExports.unchangedResult(sourceText);
+      }
+      if (GroupExports.hasAmbiguity(scan, scan.entries)) {
+        return GroupExports.unchangedResult(sourceText);
+      }
+      if (GroupExports.hasJsDocReference(parsed, sourceText, [
+        ...valueNames, ...typeNames])) {
+        return GroupExports.unchangedResult(sourceText);
+      }
+      const suffix = GroupExports.buildSuffix(valueNames, typeNames, sourceText);
+      return {changed: true, text: GroupExports.applyEdits(sourceText, scan.removals, suffix)};
     },
 
     /**
@@ -266,46 +354,119 @@ const
     },
 
     /**
-     * Reports whether a JSDoc body matches any name in a link or type group.
-     * @param {string} text - JSDoc comment text.
-     * @param {readonly string[]} names - Collected export names.
-     * @returns {boolean} True when any name is referenced.
+     * Reports whether one export statement is exempt from collection.
+     * @param {TsStatement} statement - Exported top-level statement.
+     * @returns {boolean} True for default or declare exports.
      */
-    someReferencedName(text, names) {
+    isExemptExport(statement) {
+      return (statement.modifiers ?? []).some((modifier) =>
+        modifier.kind === ts.SyntaxKind.DefaultKeyword
+        || modifier.kind === ts.SyntaxKind.DeclareKeyword);
+    },
+
+    /**
+     * Reports whether one statement carries an export modifier.
+     * @param {TsStatement} statement - Top-level statement.
+     * @returns {boolean} True when the statement is exported.
+     */
+    isExported(statement) {
+      return (statement.modifiers ?? []).some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
+    },
+
+    /**
+     * Reports whether one statement is a collectable declaration kind.
+     * @param {TsStatement} statement - Exported top-level statement.
+     * @returns {boolean} True for function, class, enum, interface, type.
+     */
+    isNamedDeclaration(statement) {
+      return ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)
+        || ts.isEnumDeclaration(statement) || ts.isInterfaceDeclaration(statement)
+        || ts.isTypeAliasDeclaration(statement);
+    },
+
+    /**
+     * Reports whether one declaration exports only a type.
+     * @param {TsStatement} statement - Exported declaration statement.
+     * @returns {boolean} True for interface and type-alias declarations.
+     */
+    isTypeOnlyDeclaration(statement) {
+      return ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement);
+    },
+
+    /**
+     * Runs the transform CLI over one target file.
+     * @returns {void} Always ends after the file is processed.
+     */
+    main() {
+      const {dryRun, filePath} = GroupExports.parseCliArgs(ts.sys.args);
+      const sourceText = GroupExports.readTarget(filePath);
+      if (sourceText === UNCHANGED) {
+        return;
+      }
+      const result = GroupExports.fileTransform(sourceText, filePath);
+      GroupExports.emitResult(result, filePath, dryRun);
+    },
+
+    /**
+     * Returns the counted occurrences of one name list.
+     * @param {readonly string[]} names - Name list.
+     * @returns {Map<string, number>} Name occurrence counts.
+     */
+    nameCounts(names) {
+      /** @type {Map<string, number>} */
+      const counts = new Map();
       for (const name of names) {
-        const escaped = GroupExports.escapeRegex(name);
-        if (new RegExp(`\\{[^}]*\\b${escaped}\\b[^}]*\\}`, "u").test(text)) {
-          return true;
+        counts.set(name, (counts.get(name) ?? EMPTY_INDEX) + FIRST_INDEX);
+      }
+      return counts;
+    },
+
+    /**
+     * Parses CLI arguments for the transform.
+     * @param {readonly string[]} args - Process arguments after the script name.
+     * @returns {CliOptions} Parsed CLI options.
+     */
+    parseCliArgs(args) {
+      let dryRun = false;
+      let filePath = "";
+      for (let index = EMPTY_INDEX; index < args.length; index += FIRST_INDEX) {
+        const arg = args[index];
+        if (arg === "--dry") {
+          dryRun = true;
         }
-        if (new RegExp(`@(?:link|see)\\s+\\b${escaped}\\b`, "u").test(text)) {
-          return true;
+        if (arg === "--file" && index < args.length - FIRST_INDEX) {
+          filePath = args[index + FIRST_INDEX];
+          index += FIRST_INDEX;
         }
       }
-      return false;
+      return {dryRun, filePath};
     },
 
     /**
-     * Escapes one identifier for use inside a regular expression.
-     * @param {string} name - Identifier text.
-     * @returns {string} Regex-safe text.
+     * Parses one source file with the TypeScript AST.
+     * @param {string} sourceText - Source text.
+     * @param {string} filePath - Source file path.
+     * @returns {TsSourceFile} Parsed source file.
      */
-    escapeRegex(name) {
-      return name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    parseSource(sourceText, filePath) {
+      return ts.createSourceFile(
+        filePath, sourceText, ts.ScriptTarget.Latest, true, GroupExports.scriptKindFor(filePath));
     },
 
     /**
-     * Returns the unique names of one export entry list in source order.
-     * @param {readonly ExportEntry[]} entries - Collected entries.
-     * @param {boolean} typeOnly - Filter kind.
-     * @returns {string[]} Deduplicated member names.
+     * Returns the binding names of one declaration pattern.
+     * @param {TsNode} pattern - Declaration name pattern.
+     * @returns {string[]} Binding names.
      */
-    entriesNames(entries, typeOnly) {
+    patternNames(pattern) {
+      if (ts.isIdentifier(pattern)) {
+        return [pattern.text];
+      }
       /** @type {string[]} */
       const names = [];
-      for (const entry of entries) {
-        if (entry.typeOnly === typeOnly && !names.includes(entry.name)) {
-          names.push(entry.name);
-        }
+      for (const element of pattern.elements) {
+        names.push(...GroupExports.patternNames(element.name));
       }
       return names;
     },
@@ -350,223 +511,6 @@ const
     },
 
     /**
-     * Returns an empty file scan state.
-     * @returns {ScanResult} Empty scan state.
-     */
-    scanState() {
-      return {
-        entries: [],
-        names: new Map(),
-        reexportNames: new Set(),
-        removals: [],
-        skip: false,
-      };
-    },
-
-    /**
-     * Returns a scan result for one single-name exported declaration.
-     * @param {TsStatement} statement - Exported declaration statement.
-     * @returns {Partial<ScanResult>} One entry or a skip marker.
-     */
-    declarationEntry(statement) {
-      const name = statement.name === undefined ? "" : statement.name.text;
-      if (name.length === EMPTY_INDEX) {
-        return {skip: true};
-      }
-      return {
-        entries: [{name, typeOnly: GroupExports.isTypeOnlyDeclaration(statement)}],
-        names: [name],
-      };
-    },
-
-    /**
-     * Reports whether one statement carries an export modifier.
-     * @param {TsStatement} statement - Top-level statement.
-     * @returns {boolean} True when the statement is exported.
-     */
-    isExported(statement) {
-      return (statement.modifiers ?? []).some(
-        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-    },
-
-    /**
-     * Reports whether one export statement is exempt from collection.
-     * @param {TsStatement} statement - Exported top-level statement.
-     * @returns {boolean} True for default or declare exports.
-     */
-    isExemptExport(statement) {
-      return (statement.modifiers ?? []).some((modifier) =>
-        modifier.kind === ts.SyntaxKind.DefaultKeyword
-        || modifier.kind === ts.SyntaxKind.DeclareKeyword);
-    },
-
-    /**
-     * Reports whether one statement is a collectable declaration kind.
-     * @param {TsStatement} statement - Exported top-level statement.
-     * @returns {boolean} True for function, class, enum, interface, type.
-     */
-    isNamedDeclaration(statement) {
-      return ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)
-        || ts.isEnumDeclaration(statement) || ts.isInterfaceDeclaration(statement)
-        || ts.isTypeAliasDeclaration(statement);
-    },
-
-    /**
-     * Reports whether one declaration exports only a type.
-     * @param {TsStatement} statement - Exported declaration statement.
-     * @returns {boolean} True for interface and type-alias declarations.
-     */
-    isTypeOnlyDeclaration(statement) {
-      return ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement);
-    },
-
-    /**
-     * Returns the binding names of one declaration pattern.
-     * @param {TsNode} pattern - Declaration name pattern.
-     * @returns {string[]} Binding names.
-     */
-    patternNames(pattern) {
-      if (ts.isIdentifier(pattern)) {
-        return [pattern.text];
-      }
-      /** @type {string[]} */
-      const names = [];
-      for (const element of pattern.elements) {
-        names.push(...GroupExports.patternNames(element.name));
-      }
-      return names;
-    },
-
-    /**
-     * Builds the export-keyword removal span of one statement.
-     * @param {TsStatement} statement - Exported declaration statement.
-     * @param {TsSourceFile} parsed - Parsed source file.
-     * @param {string} sourceText - Full source text.
-     * @returns {EditSpan} Removal span including the following whitespace.
-     */
-    removalSpan(statement, parsed, sourceText) {
-      const exportKeyword = (statement.modifiers ?? [])
-        .find((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-      if (exportKeyword === undefined) {
-        return {start: EMPTY_INDEX, end: EMPTY_INDEX};
-      }
-      let end = exportKeyword.getEnd();
-      while (end < sourceText.length && /\s/u.test(sourceText[end])) {
-        end += FIRST_INDEX;
-      }
-      return {end, start: exportKeyword.getStart(parsed)};
-    },
-
-    /**
-     * Transforms one source file and returns its result.
-     * @param {string} sourceText - Source text to transform.
-     * @param {string} filePath - Source file path (used for script kind).
-     * @returns {TransformResult} Transformed text plus changed flag.
-     */
-    fileTransform(sourceText, filePath) {
-      const parsed = GroupExports.parseSource(sourceText, filePath);
-      if (parsed.parseDiagnostics.length > EMPTY_INDEX) {
-        return GroupExports.unchangedResult(sourceText);
-      }
-      const scan = GroupExports.plan(parsed, sourceText);
-      const valueNames = GroupExports.entriesNames(scan.entries, false);
-      const typeNames = GroupExports.entriesNames(scan.entries, true);
-      if (!GroupExports.hasGroup(scan.entries)) {
-        return GroupExports.unchangedResult(sourceText);
-      }
-      if (GroupExports.hasAmbiguity(scan, scan.entries)) {
-        return GroupExports.unchangedResult(sourceText);
-      }
-      if (GroupExports.hasJsDocReference(parsed, sourceText, [
-        ...valueNames, ...typeNames])) {
-        return GroupExports.unchangedResult(sourceText);
-      }
-      const suffix = GroupExports.buildSuffix(valueNames, typeNames, sourceText);
-      return {changed: true, text: GroupExports.applyEdits(sourceText, scan.removals, suffix)};
-    },
-
-    /**
-     * Returns the counted occurrences of one name list.
-     * @param {readonly string[]} names - Name list.
-     * @returns {Map<string, number>} Name occurrence counts.
-     */
-    nameCounts(names) {
-      /** @type {Map<string, number>} */
-      const counts = new Map();
-      for (const name of names) {
-        counts.set(name, (counts.get(name) ?? EMPTY_INDEX) + FIRST_INDEX);
-      }
-      return counts;
-    },
-
-    /**
-     * Parses one source file with the TypeScript AST.
-     * @param {string} sourceText - Source text.
-     * @param {string} filePath - Source file path.
-     * @returns {TsSourceFile} Parsed source file.
-     */
-    parseSource(sourceText, filePath) {
-      return ts.createSourceFile(
-        filePath, sourceText, ts.ScriptTarget.Latest, true, GroupExports.scriptKindFor(filePath));
-    },
-
-    /**
-     * Returns an unchanged transform result.
-     * @param {string} text - Source text.
-     * @returns {TransformResult} Unchanged result.
-     */
-    unchangedResult(text) {
-      return {changed: false, text};
-    },
-
-    /**
-     * Returns the TypeScript script kind matching one file path.
-     * @param {string} filePath - Source file path.
-     * @returns {number} TypeScript script kind.
-     */
-    scriptKindFor(filePath) {
-      if (filePath.endsWith(".tsx") || filePath.endsWith(".jsx")) {
-        return ts.ScriptKind.TSX;
-      }
-      return ts.ScriptKind.TS;
-    },
-
-    /**
-     * Runs the transform CLI over one target file.
-     * @returns {void} Always ends after the file is processed.
-     */
-    main() {
-      const {dryRun, filePath} = GroupExports.parseCliArgs(ts.sys.args);
-      const sourceText = GroupExports.readTarget(filePath);
-      if (sourceText === UNCHANGED) {
-        return;
-      }
-      const result = GroupExports.fileTransform(sourceText, filePath);
-      GroupExports.emitResult(result, filePath, dryRun);
-    },
-
-    /**
-     * Parses CLI arguments for the transform.
-     * @param {readonly string[]} args - Process arguments after the script name.
-     * @returns {CliOptions} Parsed CLI options.
-     */
-    parseCliArgs(args) {
-      let dryRun = false;
-      let filePath = "";
-      for (let index = EMPTY_INDEX; index < args.length; index += FIRST_INDEX) {
-        const arg = args[index];
-        if (arg === "--dry") {
-          dryRun = true;
-        }
-        if (arg === "--file" && index < args.length - FIRST_INDEX) {
-          filePath = args[index + FIRST_INDEX];
-          index += FIRST_INDEX;
-        }
-      }
-      return {dryRun, filePath};
-    },
-
-    /**
      * Reads and validates one CLI target file.
      * @param {string} filePath - Target file path.
      * @returns {string} File text, or the UNCHANGED sentinel on failure.
@@ -587,21 +531,23 @@ const
     },
 
     /**
-     * Applies or reports the transform result for one file.
-     * @param {TransformResult} result - Transform result.
-     * @param {string} filePath - File path.
-     * @param {boolean} dryRun - Whether to skip writing.
-     * @returns {void} Always ends after handling the result.
+     * Builds the export-keyword removal span of one statement.
+     * @param {TsStatement} statement - Exported declaration statement.
+     * @param {TsSourceFile} parsed - Parsed source file.
+     * @param {string} sourceText - Full source text.
+     * @returns {EditSpan} Removal span including the following whitespace.
      */
-    emitResult(result, filePath, dryRun) {
-      if (dryRun) {
-        GroupExports.reportDry(result, filePath);
-        return;
+    removalSpan(statement, parsed, sourceText) {
+      const exportKeyword = (statement.modifiers ?? [])
+        .find((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
+      if (exportKeyword === undefined) {
+        return {start: EMPTY_INDEX, end: EMPTY_INDEX};
       }
-      if (result.changed) {
-        ts.sys.writeFile(filePath, result.text);
+      let end = exportKeyword.getEnd();
+      while (end < sourceText.length && /\s/u.test(sourceText[end])) {
+        end += FIRST_INDEX;
       }
-      GroupExports.reportApplied(result, filePath);
+      return {end, start: exportKeyword.getStart(parsed)};
     },
 
     /**
@@ -630,6 +576,60 @@ const
         return;
       }
       console.log(`Unchanged: ${filePath}`);
+    },
+
+    /**
+     * Returns an empty file scan state.
+     * @returns {ScanResult} Empty scan state.
+     */
+    scanState() {
+      return {
+        entries: [],
+        names: new Map(),
+        reexportNames: new Set(),
+        removals: [],
+        skip: false,
+      };
+    },
+
+    /**
+     * Returns the TypeScript script kind matching one file path.
+     * @param {string} filePath - Source file path.
+     * @returns {number} TypeScript script kind.
+     */
+    scriptKindFor(filePath) {
+      if (filePath.endsWith(".tsx") || filePath.endsWith(".jsx")) {
+        return ts.ScriptKind.TSX;
+      }
+      return ts.ScriptKind.TS;
+    },
+
+    /**
+     * Reports whether a JSDoc body matches any name in a link or type group.
+     * @param {string} text - JSDoc comment text.
+     * @param {readonly string[]} names - Collected export names.
+     * @returns {boolean} True when any name is referenced.
+     */
+    someReferencedName(text, names) {
+      for (const name of names) {
+        const escaped = GroupExports.escapeRegex(name);
+        if (new RegExp(`\\{[^}]*\\b${escaped}\\b[^}]*\\}`, "u").test(text)) {
+          return true;
+        }
+        if (new RegExp(`@(?:link|see)\\s+\\b${escaped}\\b`, "u").test(text)) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    /**
+     * Returns an unchanged transform result.
+     * @param {string} text - Source text.
+     * @returns {TransformResult} Unchanged result.
+     */
+    unchangedResult(text) {
+      return {changed: false, text};
     },
   },
   MIN_GROUP_SIZE = 2,

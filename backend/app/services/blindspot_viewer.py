@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -918,13 +919,16 @@ async def _load_embeddings_for_articles(
         return None
 
     article_ids = list(articles_by_id.keys())
-    embeddings = _chroma_embeddings(vector_store, article_ids)
+    embeddings = await asyncio.to_thread(_chroma_embeddings, vector_store, article_ids)
 
     missing_articles = [
         article for article_id, article in articles_by_id.items() if article_id not in embeddings
     ]
+
     articles_to_encode = [article for article in missing_articles if _embedding_text(article) != ""]
-    return _encode_missing_embeddings(vector_store, articles_to_encode, embeddings)
+    return await asyncio.to_thread(
+        _encode_missing_embeddings, vector_store, articles_to_encode, embeddings
+    )
 
 
 def _cluster_source_scores(
@@ -998,13 +1002,15 @@ async def _embed_pole_vectors(
     vector_store: Any,
 ) -> tuple[list[list[float]], list[list[float]]] | None:
     try:
-        positive_encoded = vector_store.embedding_model.encode(
+        positive_encoded = await asyncio.to_thread(
+            vector_store.embedding_model.encode,
             INSTITUTIONAL_POLE_WORDS,
             batch_size=len(INSTITUTIONAL_POLE_WORDS),
             show_progress_bar=False,
             convert_to_numpy=False,
         )
-        negative_encoded = vector_store.embedding_model.encode(
+        negative_encoded = await asyncio.to_thread(
+            vector_store.embedding_model.encode,
             POPULIST_POLE_WORDS,
             batch_size=len(POPULIST_POLE_WORDS),
             show_progress_bar=False,

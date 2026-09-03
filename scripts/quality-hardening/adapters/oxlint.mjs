@@ -11,14 +11,14 @@ const FINDINGS_EXIT = 1,
   SUCCESS_EXIT = 0;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-const isObject = (value) => {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+const isObject = (value) => 
+  value !== null && typeof value === "object" && !Array.isArray(value)
+
 
 /** @param {unknown} value @param {string} fallback */
-const stringValue = (value, fallback) => {
-  return typeof value === "string" && value.length > 0 ? value : fallback;
-}
+const stringValue = (value, fallback) => 
+  typeof value === "string" && value.length > 0 ? value : fallback
+
 
 /** @param {unknown} value @returns {"warning"|"error"} */
 const severityFor = (value) => {
@@ -77,8 +77,8 @@ const parseReport = (text, repositoryRoot) => {
 }
 
 /** @param {string} executable @param {readonly string[]} argumentsList @param {string} cwd @param {number} maxBuffer @returns {Promise<Readonly<{code: number, stderr: string, stdout: string}>>} */
-const runProcess = (executable, argumentsList, cwd, maxBuffer) => {
-  return new Promise((resolvePromise, reject) => {
+const runProcess = (executable, argumentsList, cwd, maxBuffer) => 
+  new Promise((resolvePromise, reject) => {
     const localBin = resolve(cwd, "frontend", "node_modules", ".bin"),
       nodePath = [localBin, process.env.PATH ?? ""].filter(Boolean).join(delimiter),
       processEnvironment = { ...process.env, PATH: nodePath };
@@ -93,8 +93,8 @@ const runProcess = (executable, argumentsList, cwd, maxBuffer) => {
         stdout: String(stdout),
       });
     });
-  });
-}
+  })
+
 
 /** @param {string} repositoryRoot @param {Readonly<OxlintAnalyzer>} analyzer @param {readonly string[]} [paths] @returns {Promise<OxlintReport>} */
 const runOxlint = async (repositoryRoot, analyzer, paths = []) => {

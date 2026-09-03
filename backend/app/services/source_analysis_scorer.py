@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import Callable, Iterable
@@ -519,7 +520,7 @@ class SourceAnalysisScorer:
         try:
             return self._parsed_llm_output(
                 source_name,
-                self._invoke_llm(prompt, include_org_metadata),
+                await asyncio.to_thread(self._invoke_llm, prompt, include_org_metadata),
                 include_org_metadata,
             )
         except Exception as exc:

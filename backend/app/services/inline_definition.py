@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.core.config import resolve_opencode_model, settings
@@ -30,7 +31,8 @@ async def define_term_with_gemini(term: str, context: str | None = None) -> dict
             "Please provide a short, one-paragraph definition or explanation for this term in context."
         )
 
-        response = llm_client.chat_completions_create(
+        response = await asyncio.to_thread(
+            llm_client.chat_completions_create,
             service_name="inline_def",
             messages=[
                 {

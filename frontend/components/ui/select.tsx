@@ -8,21 +8,21 @@ import { cn } from '@/lib/utils'
 
 const Select = ({
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Root>) => {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
-}
+}: React.ComponentProps<typeof SelectPrimitive.Root>) => 
+  <SelectPrimitive.Root data-slot="select" {...props} />
+
 
 const SelectGroup = ({
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Group>) => {
-  return <SelectPrimitive.Group data-slot="select-group" {...props} />
-}
+}: React.ComponentProps<typeof SelectPrimitive.Group>) => 
+  <SelectPrimitive.Group data-slot="select-group" {...props} />
+
 
 const SelectValue = ({
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Value>) => {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />
-}
+}: React.ComponentProps<typeof SelectPrimitive.Value>) => 
+  <SelectPrimitive.Value data-slot="select-value" {...props} />
+
 
 const SelectTrigger = ({
   className,
@@ -31,8 +31,8 @@ const SelectTrigger = ({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: 'sm' | 'default'
-}) => {
-  return (
+}) => 
+  (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
@@ -48,15 +48,15 @@ const SelectTrigger = ({
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
-}
+
 
 const SelectContent = ({
   className,
   children,
   position = 'popper',
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) => {
-  return (
+}: React.ComponentProps<typeof SelectPrimitive.Content>) => 
+  (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         data-slot="select-content"
@@ -83,27 +83,27 @@ const SelectContent = ({
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   )
-}
+
 
 const SelectLabel = ({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Label>) => {
-  return (
+}: React.ComponentProps<typeof SelectPrimitive.Label>) => 
+  (
     <SelectPrimitive.Label
       data-slot="select-label"
       className={cn('text-muted-foreground px-2 py-1.5 text-xs', className)}
       {...props}
     />
   )
-}
+
 
 const SelectItem = ({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) => {
-  return (
+}: React.ComponentProps<typeof SelectPrimitive.Item>) => 
+  (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
@@ -120,20 +120,20 @@ const SelectItem = ({
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   )
-}
+
 
 const SelectSeparator = ({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Separator>) => {
-  return (
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) => 
+  (
     <SelectPrimitive.Separator
       data-slot="select-separator"
       className={cn('bg-border pointer-events-none -mx-1 my-1 h-px', className)}
       {...props}
     />
   )
-}
+
 
 function SelectScrollUpButton({
   className,

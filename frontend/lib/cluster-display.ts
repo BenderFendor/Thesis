@@ -2,9 +2,16 @@ import type {
   AllCluster,
   BreakingCluster,
   NewsArticle,
-  TrendingArticle,
   TrendingCluster,
 } from "@/lib/api";
+
+type ClusterImageArticle = Readonly<{
+  id?: number;
+  title?: string;
+  source?: string;
+  url?: string;
+  image_url?: string | null;
+}>;
 
 const hasRealClusterImage = (src?: string | null): boolean => {
   if (!src) {return false;}
@@ -15,8 +22,8 @@ const hasRealClusterImage = (src?: string | null): boolean => {
 }
 
 const pickClusterImageUrl = (cluster:Readonly< {
-  representative_article?: TrendingArticle | null;
-  articles?: TrendingArticle[];
+  representative_article?: ClusterImageArticle | null;
+  articles?: readonly ClusterImageArticle[];
 }>): string | null => {
   const imageCandidates = [
     cluster.representative_article?.image_url,
@@ -34,8 +41,19 @@ const filterTrendingClusters = (
   return trending.filter((cluster) => !breakingIds.has(cluster.cluster_id));
 }
 
+type ClusterPreviewArticle = Readonly<{
+  id: number;
+  title: string;
+  source: string;
+  source_id?: string | null;
+  url: string;
+  image_url?: string | null;
+  published_at?: string | null;
+  summary?: string | null;
+}>;
+
 const clusterArticlesToNewsArticles = (
-  articles?:readonly  TrendingArticle[],
+  articles?:readonly  ClusterPreviewArticle[],
 ): NewsArticle[] => {
   if (!articles) {return [];}
 
@@ -61,8 +79,8 @@ const clusterArticlesToNewsArticles = (
 const getClusterPreviewStats = (cluster:Readonly< {
   article_count: number;
   source_diversity: number;
-  representative_article?: TrendingArticle | null;
-  articles?: TrendingArticle[];
+  representative_article?: ClusterPreviewArticle | null;
+  articles?: readonly ClusterPreviewArticle[];
 }>): { articleCount: number; sourceCount: number } => {
   const previewArticles =
     cluster.articles && cluster.articles.length > 0

@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const CONFIG_NAME = "quality-hardening.config.json",
- RULES_NAME = "quality-hardening.rules.json",
  OXLINT_NAME = ".oxlintrc.json",
  REQUIRED_SCHEMA_VERSION = 1,
+ RULES_NAME = "quality-hardening.rules.json",
  /** @type {Readonly<{validate: (config: QualityConfig) => void}>} */
  verification = {
    validate: (config) => {
@@ -71,9 +71,9 @@ const readJson = async (path) => {
 }
 
 /** @param {string} value */
-const hashText = (value) => {
-  return createHash("sha256").update(value).digest("hex");
-}
+const hashText = (value) => 
+  createHash("sha256").update(value).digest("hex")
+
 
 /** @param {unknown} value */
 const isEnabledRule = (value) => {
