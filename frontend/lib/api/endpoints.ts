@@ -235,8 +235,8 @@ export const fetchSources = async (): Promise<NewsSource[]> => {
 };
 
 export const fetchCategories = async (): Promise<string[]> => {
-  const payload = await api<string[]>("/categories");
-  return payload;
+  const payload = await api<{ categories: string[] }>("/categories");
+  return payload.categories;
 };
 
 export const getSourceById = async (id: string): Promise<NewsSource | undefined> => {
