@@ -92,10 +92,10 @@ export const StreamEventSchema = z
     message: z.string().optional(),
     progress: z.object({
       completed: z.number(),
-      total: z.number(),
-      percentage: z.number(),
       currentSource: z.string().optional(),
       message: z.string().optional(),
+      percentage: z.number(),
+      total: z.number(),
     }).optional(),
     source: z.string().optional(),
     source_stat: z.record(z.string(), z.unknown()).optional(),

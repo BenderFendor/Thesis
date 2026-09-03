@@ -28,7 +28,7 @@ describe("performAgenticSearch", () => {
       "http://localhost:8000/api/news/research",
       {
         body: JSON.stringify({
-          include_thinking: false,
+          max_steps: 10,
           query: "fact check this",
         }),
         headers: { "Content-Type": "application/json" },

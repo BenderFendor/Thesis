@@ -442,7 +442,7 @@ export function ReporterWikiView({ reporterId }:Readonly< { reporterId: number }
   }
 
   const activity = data.activity_summary,
-   careerTimeline = parseReporterCareerTimeline(data.career_timeline),
+   careerTimeline = parseReporterCareerTimeline(data.career_timeline ?? null),
    primaryOutlet = activity?.outlets?.[0]?.name;
 
   return (

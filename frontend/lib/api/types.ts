@@ -1,7 +1,6 @@
-// Frontend API types.
-// Wire-contract shapes are aliased onto the generated OpenAPI contract
-// (frontend/lib/generated/openapi.ts) - generated from backend/openapi.json.
-// Only frontend-only concepts are hand-declared below.
+// Frontend API types: wire shapes alias the generated OpenAPI contract; frontend-only concepts are hand-declared.
+
+import type { ApiOpaqueObject } from "./primitives";
 
 import type {
   components,
@@ -66,16 +65,12 @@ export interface AdsTxtSummary {
   resellers: number;
   duplicate_records: number;
   invalid_lines: number;
-  owner_domains: string[];
-  manager_domains: string[];
-  contact: string[];
+  owner_domains: string[]
+  manager_domains: string[]
+  contact: string[]
 }
 
-export interface ApiOpaqueObject {
-  readonly [key: string]: unknown;
-  readonly __apiOpaqueObject?: never;
-}
-
+export type { ApiJsonValue, ApiOpaqueObject, StreamReader, ApiRequestInit } from "./primitives";
 export interface ArticleAnalysis {
   readonly success: boolean;
   readonly article_url: string;
@@ -119,13 +114,21 @@ export interface ArticleTopic {
   cluster_id: number;
   label: string;
   similarity: number | null;
-  keywords?: string[];
+  keywords?: string[]
+}
+
+export interface BlindspotSummary {
+  readonly category?: string | null;
+  readonly eligible_clusters: number;
+  readonly generated_at: string;
+  readonly source_filters: readonly string[];
+  readonly window: string;
 }
 
 export interface BlindspotCard {
   cluster_id: number;
   cluster_label: string;
-  keywords: string[];
+  keywords: string[]
   article_count: number;
   source_count: number;
   lane: "pole_a" | "shared" | "pole_b";
@@ -158,7 +161,7 @@ export interface BlindspotCard {
     best_free_sources: string[];
   };
   representative_article?: BlindspotPreviewArticle | null;
-  articles: BlindspotPreviewArticle[];
+  articles: BlindspotPreviewArticle[]
 }
 
 export interface BlindspotLane {
@@ -192,7 +195,7 @@ export interface BlindspotPreviewArticle {
   bias?: string | null;
   credibility?: string | null;
   author?: string | null;
-  authors?: string[];
+  authors?: string[]
 }
 
 export interface BookmarkEntry {
@@ -219,7 +222,7 @@ export interface CacheDeltaResponse {
   cache_sampled: number;
   db_total: number;
   missing_in_db_count: number;
-  missing_in_db_sample: string[];
+  missing_in_db_sample: string[]
   source?: string | null;
   sample_offset: number;
   sample_limit: number;
@@ -236,7 +239,7 @@ export interface ChromaDebugResponse {
   offset: number;
   returned: number;
   total?: number;
-  articles: ChromaDebugArticle[];
+  articles: ChromaDebugArticle[]
 }
 
 export interface CountryArticleCounts {
@@ -264,7 +267,7 @@ export interface CountryListItem {
 }
 
 export interface CountryListResponse {
-  countries: CountryListItem[];
+  countries: CountryListItem[]
   total_countries: number;
 }
 
@@ -301,7 +304,7 @@ export interface DebugErrorEntry {
 
 export interface DebugErrorsResponse {
   log_file: LlmLogResponse;
-  recent_request_stream_errors: DebugErrorEntry[];
+  recent_request_stream_errors: DebugErrorEntry[]
   returned_recent_errors: number;
   include_request_stream_events: boolean;
 }
@@ -403,7 +406,7 @@ export interface FrontendDebugReportPayload {
 
 export interface GdeltContext {
   total_events: number;
-  top_cameo: GdeltTopCameo[];
+  top_cameo: GdeltTopCameo[]
   goldstein_avg?: number | null;
   goldstein_min?: number | null;
   goldstein_max?: number | null;
@@ -445,7 +448,7 @@ export interface LlmLogEntry {
   request_id?: string;
   service?: string;
   model?: string;
-  messages?: ApiOpaqueObject[];
+  messages?: ApiOpaqueObject[]
   duration_ms?: number;
   success?: boolean;
   finish_reason?: string;
@@ -458,7 +461,7 @@ export interface LlmLogResponse {
   path: string;
   returned: number;
   total: number;
-  entries: LlmLogEntry[];
+  entries: LlmLogEntry[]
   service?: string | null;
   success_filter?: boolean | null;
 }
@@ -480,7 +483,7 @@ export interface LocalLensResponse {
     id: string;
     label: string;
   };
-  articles: NewsArticle[];
+  articles: NewsArticle[]
 }
 
 export interface NewsArticle {
@@ -555,7 +558,7 @@ export interface NoveltyScoreResponse {
 export type OpenApiPaginatedResponse = OpenApiComponents["schemas"]["PaginatedResponse"];
 
 export interface PaginatedResponse {
-  articles: NewsArticle[];
+  articles: NewsArticle[]
   total: OpenApiPaginatedResponse["total"];
   limit: OpenApiPaginatedResponse["limit"];
   next_cursor: NonNullable<OpenApiPaginatedResponse["next_cursor"]> | null;
@@ -572,14 +575,14 @@ export interface PolicyTransparencySignal {
   id: string;
   label: string;
   status: "available";
-  sources: string[];
-  matched_terms: string[];
+  sources: string[]
+  matched_terms: string[]
 }
 
 export interface PolicyTransparencySummary {
   checked_pages: number;
   available_signals: number;
-  signals: PolicyTransparencySignal[];
+  signals: PolicyTransparencySignal[]
 }
 
 export interface QueueOverview {
@@ -607,7 +610,6 @@ export interface RelatedArticle {
   similarity_score: number;
 }
 
-
 export interface ReporterProfile {
   id?: number;
   name: string;
@@ -618,8 +620,8 @@ export interface ReporterProfile {
     role?: string;
     source?: string;
   }[];
-  topics?: string[];
-  education?: ApiOpaqueObject[];
+  topics?: string[]
+  education?: ApiOpaqueObject[]
   political_leaning?: string;
   leaning_confidence?: string;
   twitter_handle?: string;
@@ -648,7 +650,7 @@ export interface ReporterProfile {
   }[];
   search_links?: Record<string, string>;
   match_explanation?: string;
-  research_sources?: string[];
+  research_sources?: string[]
   research_confidence?: string;
   cached: boolean;
 }
@@ -667,7 +669,7 @@ export interface SellersJsonSummary {
   missing_seller_ids: number;
   owner_domain_matches: number;
   manager_domain_matches: number;
-  systems: SellersJsonSystemSummary[];
+  systems: SellersJsonSystemSummary[]
 }
 
 export interface SellersJsonSystemSummary {
@@ -804,7 +806,7 @@ export interface SourceLedger {
     last_successful_fetch_at?: unknown;
     last_error?: unknown;
   };
-  metrics: SourceLedgerMetric[];
+  metrics: SourceLedgerMetric[]
 }
 
 export interface SourceLedgerMetric {
@@ -823,7 +825,7 @@ export interface SourceResearchProfile {
   fetched_at?: string;
   cached?: boolean;
   fields: Record<string, SourceResearchValue[]>;
-  key_reporters?: SourceReporterSummary[];
+  key_reporters?: SourceReporterSummary[]
   overview?: string;
   match_status?: "matched" | "ambiguous" | "none";
   wikipedia_url?: string;
@@ -886,7 +888,7 @@ export interface StorageDriftReport {
     chroma_id?: string | null;
     embedding_generated?: boolean | null;
   }[];
-  dangling_in_chroma: string[];
+  dangling_in_chroma: string[]
 }
 
 export type StreamErrorHandler = (error: string) => void;
@@ -934,7 +936,7 @@ export interface StreamProgress {
 export type StreamProgressHandler = (progress: Readonly<StreamProgress>) => void;
 
 export interface StreamResult {
-  readonly articles: NewsArticle[];
+  readonly articles: readonly NewsArticle[];
   readonly sources: readonly string[];
   readonly streamId?: string;
   readonly errors: readonly string[];
@@ -942,7 +944,7 @@ export interface StreamResult {
 
 export interface StreamRuntime {
   readonly articles: readonly NewsArticle[];
-  readonly sources: ReadonlySet<string>;
+  readonly sources: readonly string[];
   readonly errors: readonly string[];
   readonly streamId: string | undefined;
   readonly hasReceivedData: boolean;
@@ -975,7 +977,7 @@ export interface TrendingArticle {
   published_at?: string | null;
   summary?: string | null;
   author?: string | null;
-  authors?: string[];
+  authors?: string[]
   gdelt_context?: GdeltContext | null;
 }
 
@@ -1001,7 +1003,7 @@ export interface WikiReporterCard {
   name: string;
   normalized_name?: string;
   bio?: string;
-  topics?: string[];
+  topics?: string[]
   political_leaning?: string;
   leaning_confidence?: string;
   article_count: number;
@@ -1018,8 +1020,8 @@ export interface WikiReporterDossier extends WikiReporterCard {
     role?: string;
     source?: string;
   }[];
-  education?: ApiOpaqueObject[];
-  leaning_sources?: string[];
+  education?: ApiOpaqueObject[]
+  leaning_sources?: string[]
   twitter_handle?: string;
   linkedin_url?: string;
   wikidata_qid?: string;
@@ -1049,8 +1051,8 @@ export interface WikiReporterDossier extends WikiReporterCard {
   topics_avoided?: ApiOpaqueObject;
   advertiser_alignment?: ApiOpaqueObject;
   revolving_door?: ApiOpaqueObject;
-  controversies?: ApiOpaqueObject[];
-  institutional_affiliations?: ApiOpaqueObject[];
+  controversies?: ApiOpaqueObject[]
+  institutional_affiliations?: ApiOpaqueObject[]
   coverage_comparison?: ApiOpaqueObject;
   /** Loosely typed on the wire; parse with `parseReporterCareerTimeline`. */
   career_timeline?: ApiOpaqueObject | null;
@@ -1076,7 +1078,7 @@ export interface WikiReporterDossier extends WikiReporterCard {
     external_profiles: { url: string; domain?: string | null; source: string }[];
     meta_author_matches: number;
   };
-  research_sources?: string[];
+  research_sources?: string[]
 }
 
 export interface WikiSourceProfile {
@@ -1122,7 +1124,7 @@ export interface WikiSourceProfile {
   source_ledger?: SourceLedger | null;
   search_links?: Record<string, string>;
   match_explanation?: string;
-  analysis_axes: WikiAnalysisAxis[];
+  analysis_axes: WikiAnalysisAxis[]
   reporters: {
     id: number;
     name: string;
@@ -1149,8 +1151,8 @@ export interface WikiSourceProfile {
     ownership_percentage?: number;
   }[];
   article_count: number;
-  geographic_focus: string[];
-  topic_focus: string[];
+  geographic_focus: string[]
+  topic_focus: string[]
   index_status?: string;
   last_indexed_at?: string;
 }
@@ -1237,7 +1239,6 @@ export type CacheStatus = components["schemas"]["CacheStatus"];
 
 export type SourceStatsList = components["schemas"]["SourceStatsList"];
 
-
 export type CacheDebugResponse = components["schemas"]["CacheDebugResponse"];
 
 export type DatabaseDebugResponse = components["schemas"]["DatabaseDebugResponse"];
@@ -1276,7 +1277,7 @@ export interface StartupMetricsResponse {
   startedAt?: string | null;
   completedAt?: string | null;
   durationSeconds?: number | null;
-  events: StartupEventMetric[];
+  events: StartupEventMetric[]
   notes: ApiOpaqueObject;
 }
 
@@ -1292,10 +1293,10 @@ export interface BackendArticleMapping {
   resolvedId: number;
   isPersisted: boolean;
   author: string | undefined;
-  authors: string[];
+  authors: string[]
   country: string;
   sourceCountry: string;
-  mentionedCountries: string[];
+  mentionedCountries: string[]
   credibility: "high" | "medium" | "low";
   bias: "left" | "center" | "right";
   normalizedSourceId: string;
@@ -1317,7 +1318,7 @@ export interface CacheRefreshProgress {
 export interface ClusterDetail {
   id: number;
   label?: string | null;
-  keywords: string[];
+  keywords: string[]
   article_count: number;
   first_seen?: string | null;
   last_seen?: string | null;
@@ -1340,7 +1341,7 @@ export interface ClusterDetail {
 }
 
 export interface QueueDigest {
-  digest_items: ReadingQueueItem[];
+  digest_items: ReadingQueueItem[]
   total_items: number;
   estimated_read_time_minutes: number;
   generated_at: string;
@@ -1348,27 +1349,27 @@ export interface QueueDigest {
 
 export interface RelatedArticlesResponse {
   article_id: number;
-  related: RelatedArticle[];
+  related: RelatedArticle[]
   total: number;
 }
 
 export interface SearchSuggestionsResponse {
   query: string;
-  suggestions: SearchSuggestion[];
+  suggestions: SearchSuggestion[]
 }
 
 export interface SemanticSearchResponse {
   query: string;
-  results: SemanticSearchResult[];
+  results: SemanticSearchResult[]
   total: number;
 }
 
 export type StreamResolveHandler = (value: StreamResult) => void;
 
-export type StreamRejectHandler = (error: Error) => void;
+export type StreamRejectHandler = (error: Readonly<Error>) => void;
 
 export type StreamEventHandler = (
-  data: StreamEvent,
-  runtime: StreamRuntime,
+  data: Readonly<StreamEvent>,
+  runtime: Readonly<StreamRuntime>,
 ) => void;
 

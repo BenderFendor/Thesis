@@ -6,6 +6,8 @@ import { API_BASE_URL } from "./client";
 import { StreamEventSchema } from "./schemas";
 import { mapBackendArticles } from "./article";
 import type {
+ReadonlyNewsArticle,
+StreamReader,
   StreamOptions,
   StreamProgress,
   StreamResult,
@@ -128,7 +130,7 @@ const createStreamRuntime = (
     reject,
     resolve,
     settled: false,
-    sources,
+    get sources(): readonly string[] { return [...sources]; },
     streamId: undefined,
   };
 };
@@ -162,7 +164,7 @@ const dispatchStreamEvent = (
 };
 
 const settleStreamConnectionError = (
-  error: Error,
+  error: Readonly<Error>,
   rt: Readonly<StreamRuntime>,
 ): void => {
   if (rt.settled) {
@@ -183,17 +185,17 @@ const settleStreamConnectionError = (
 };
 
 const reportStreamParseError = (
-  parseError: unknown,
+  error: Error,
   eventData: string,
   rt: Readonly<StreamRuntime>,
 ): void => {
   console.error(
     "Error parsing stream event:",
-    parseError,
+    error,
     "Raw data:",
     eventData,
   );
-  const message = parseError instanceof Error ? parseError.message : String(parseError);
+  const message = error.message;
   rt.onError?.(`Parse error: ${message}`);
 };
 
@@ -232,7 +234,7 @@ const streamResolve = (
   });
 };
 
-const streamReject = (rt: Readonly<StreamRuntime>, error: Error): void => {
+const streamReject = (rt: Readonly<StreamRuntime>, error: Readonly<Error>): void => {
   if (rt.settled) { return; }
   Object.assign(rt, { settled: true });
   rt.clearTimers();
@@ -241,7 +243,7 @@ const streamReject = (rt: Readonly<StreamRuntime>, error: Error): void => {
 
 const pumpStreamEvents = async (
   rt: Readonly<StreamRuntime>,
-  reader: Readonly<ReadableStreamDefaultReader<Uint8Array>>,
+  reader: StreamReader,
 ): Promise<void> => {
   const decoder = new TextDecoder();
   let buffer = "";
@@ -312,10 +314,10 @@ const handleCacheDataEvent = (
       `Stream ${rt.streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
     );
     queueStreamBatches(mappedArticles, rt, "cache-batch", () => ({
-      completed: rt.sources.size,
+      completed: rt.sources.length,
       message: `Loaded ${mappedArticles.length} cached articles`,
       percentage: 0,
-      total: rt.sources.size,
+      total: rt.sources.length,
     }));
     if (cacheAge < 120) {
       console.debug(
@@ -427,7 +429,7 @@ const handleStartingEvent = (
   });
 };
 
-const streamEventHandlers: Record<StreamEvent["status"], StreamEventHandler> = {
+const streamEventHandlers = {
   cache_data: handleCacheDataEvent,
   complete: handleCompleteEvent,
   error: handleErrorEvent,
@@ -438,7 +440,7 @@ const streamEventHandlers: Record<StreamEvent["status"], StreamEventHandler> = {
 };
 
 const queueStreamBatches = (
-  articlesToQueue: readonly Readonly<NewsArticle>[],
+  articlesToQueue: readonly ReadonlyNewsArticle[],
   rt: Readonly<StreamRuntime>,
   batchLabel: string,
   finalProgress: () => StreamProgress,
@@ -482,12 +484,12 @@ const processStreamDataLine = (line: string, rt: Readonly<StreamRuntime>): void 
   try {
     dispatchStreamEvent(parseStreamEvent(eventData), rt);
   } catch (parseError) {
-    reportStreamParseError(parseError, eventData, rt);
+    reportStreamParseError(parseError instanceof Error ? parseError : new Error(String(parseError)), eventData, rt);
   }
 };
 
 const handleStreamReadError = (
-  readError: Error,
+  readError: Readonly<Error>,
   rt: Readonly<StreamRuntime>,
 ): void => {
   rt.clearTimers();
@@ -504,7 +506,7 @@ const handleStreamReadError = (
   streamReject(rt, readError);
 };
 
-const isLikelyNetworkError = (error: Error): boolean => {
+const isLikelyNetworkError = (error: Readonly<Error>): boolean => {
   const message = error.message.toLowerCase();
   return (
     error.name === "TypeError" ||

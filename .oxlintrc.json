@@ -67,12 +67,28 @@
     }
   ],
   "rules": {
-     "import/no-named-export": "off",
-     "import/prefer-default-export": "off",
+    "import/no-named-export": "off",
+    "import/prefer-default-export": "off",
     "react/preserve-manual-memoization": "off",
-     "react/function-component-definition": ["error", { "namedComponents": "arrow-function", "unnamedComponents": "arrow-function" }],
-    "max-depth": ["error", { "max": 4 }],
-    "max-params": ["error", { "max": 5 }],
+    "react/function-component-definition": [
+      "error",
+      {
+        "namedComponents": "arrow-function",
+        "unnamedComponents": "arrow-function"
+      }
+    ],
+    "max-depth": [
+      "error",
+      {
+        "max": 4
+      }
+    ],
+    "max-params": [
+      "error",
+      {
+        "max": 5
+      }
+    ],
     "max-lines": [
       "warn",
       {
@@ -133,12 +149,50 @@
           {
             "from": "lib",
             "name": "HTMLDivElement"
+          },
+          {
+            "from": "lib",
+            "name": [
+              "Error",
+              "Uint8Array",
+              "RequestInit",
+              "AbortSignal",
+              "ReadableStreamDefaultReader",
+              "Promise",
+              "Set"
+            ]
+          },
+          {
+            "from": "file",
+            "name": [
+              "StreamEvent",
+              "StreamRuntime",
+              "StreamOptions",
+              "StreamProgress",
+              "StreamResult",
+              "NewsArticle",
+              "ReadonlyBackendArticle",
+              "BackendArticleMapping",
+              "ApiOpaqueObject",
+              "FrontendDebugReportPayload",
+              "CacheRefreshProgress",
+              "ReporterCareerTimelineInput",
+              "SourceStatsList",
+              "NextCursor",
+              "ReadonlyNewsArticle",
+              "ReporterCareerTimelineCandidate"
+            ]
           }
-        ]
+        ],
+        "treatMethodsAsReadonly": true,
+        "ignoreInferredTypes": true
       }
     ],
     "typescript/consistent-type-imports": "error",
-    "typescript/consistent-type-definitions": ["error", "interface"],
+    "typescript/consistent-type-definitions": [
+      "error",
+      "interface"
+    ],
     "typescript/no-non-null-assertion": "error",
     "typescript/no-unused-vars": [
       "error",
@@ -235,7 +289,17 @@
         "import/no-nodejs-modules": [
           "error",
           {
-            "allow": ["node:child_process", "node:crypto", "node:events", "node:fs", "node:fs/promises", "node:path", "node:stream", "node:url", "node:util"]
+            "allow": [
+              "node:child_process",
+              "node:crypto",
+              "node:events",
+              "node:fs",
+              "node:fs/promises",
+              "node:path",
+              "node:stream",
+              "node:url",
+              "node:util"
+            ]
           }
         ],
         "import/no-unassigned-import": "off"

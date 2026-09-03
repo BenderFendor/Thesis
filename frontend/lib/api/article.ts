@@ -14,7 +14,7 @@ import type {
   ReadonlyBackendArticle,
 } from "./types";
 
-const COUNTRY_NAME_TO_CODE: CountryNameMap = {
+const COUNTRY_NAME_TO_CODE = new Map<string, string>(Object.entries({
   america: "US",
   argentina: "AR",
   australia: "AU",
@@ -60,11 +60,11 @@ const COUNTRY_NAME_TO_CODE: CountryNameMap = {
   usa: "US",
   venezuela: "VE",
   vietnam: "VN",
-}
+}));
 
 const buildNewsArticle = (
   article: ReadonlyBackendArticle,
-  mapping: Readonly<BackendArticleMapping>,
+  mapping: BackendArticleMapping,
 ): NewsArticle => (
   {
     _parsedTimestamp: resolveParsedTimestamp(mapping.published),
@@ -159,7 +159,7 @@ const mapCredibilityScoreToLevel = (
   factualRating?: string | null,
   biasRating?: string,
 ): "high" | "medium" | "low" => {
-  if (typeof score === "number") {
+  if (score != null) {
     return mapCredibilityScore(score);
   }
 
@@ -176,7 +176,7 @@ const mapFactualRating = (rating?: string | null): "high" | "low" | undefined =>
 }
 
 const normalizeCountryCode = (value?: string | null): string => {
-  if (typeof value !== "string") {return "International";}
+  if (value == null) {return "International";}
   const trimmed = value.trim();
   if (!trimmed) {return "International";}
   if (trimmed === "International") {return trimmed;}
@@ -192,7 +192,10 @@ const normalizeCountryCode = (value?: string | null): string => {
     if (/^[A-Z]{2}$/u.test(compactUpper)) {
       return compactUpper;
     }
-    return COUNTRY_NAME_TO_CODE[normalizedName] || COUNTRY_NAME_TO_CODE[noSpace] || compactUpper;
+        const countryCode =
+      COUNTRY_NAME_TO_CODE.get(normalizedName) ?? COUNTRY_NAME_TO_CODE.get(noSpace);
+    // SAFETY: unknown country names fall back to the compact uppercase code.
+    return countryCode || compactUpper;
   }
 }
 
@@ -209,8 +212,9 @@ const hasArticleContent = (article: ReadonlyBackendArticle): boolean =>
   article.content != null && article.content.trim().length > 0;
 
 const resolveArticleAuthor = (article: ReadonlyBackendArticle): string | undefined => {
-  if (typeof article.author === "string" && article.author.length > 0) {
-    return article.author;
+  const author = article.author ?? "";
+  if (author.length > 0) {
+    return author;
   }
   return article.authors?.[0];
 }
@@ -222,27 +226,30 @@ const resolveArticleAuthors = (
   if (Array.isArray(article.authors)) {
     return article.authors.filter(
       (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
+        String(value ?? "").trim().length > 0,
     );
   }
   return author ? [author] : [];
 }
 
+const isBiasValue = (value: string): value is "left" | "center" | "right" =>
+  ["left", "center", "right"].includes(value);
+
 const resolveArticleBias = (
   article: ReadonlyBackendArticle,
   sourceName: string,
 ): "left" | "center" | "right" => {
-  const biasValue =
-    typeof article.bias === "string" ? article.bias.toLowerCase() : undefined;
-  if (biasValue && ["left", "center", "right"].includes(biasValue)) {
-    return biasValue as "left" | "center" | "right";
+  const biasValue = article.bias?.toLowerCase();
+  if (biasValue && isBiasValue(biasValue)) {
+    return biasValue;
   }
   return getBiasFromSource(sourceName);
 }
 
 const resolveArticleCategory = (article: ReadonlyBackendArticle): string => {
-  if (typeof article.category === "string" && article.category.length > 0) {
-    return article.category;
+  const category = article.category ?? "";
+  if (category.length > 0) {
+    return category;
   }
   return "general";
 }
@@ -250,44 +257,40 @@ const resolveArticleCategory = (article: ReadonlyBackendArticle): string => {
 const resolveArticleCountries = (
   article: ReadonlyBackendArticle,
   sourceName: string,
-): { country: string; sourceCountry: string; mentionedCountries: string[] } => {
+) => {
   const rawCountry =
-    typeof article.country === "string" ? article.country : undefined,
+    article.country ?? undefined,
    fallbackCountry = rawCountry || getCountryFromSource(sourceName),
    country = normalizeCountryCode(fallbackCountry),
    sourceCountry = normalizeCountryCode(
-    typeof article.source_country === "string"
-      ? article.source_country
-      : fallbackCountry,
+    article.source_country ?? fallbackCountry,
   ),
    mentionedCountries = Array.isArray(article.mentioned_countries)
     ? article.mentioned_countries
-        .filter((value): value is string => typeof value === "string")
+        .filter((value): value is string => value != null)
         .map((value) => normalizeCountryCode(value))
     : [];
   return { country, mentionedCountries, sourceCountry };
 }
+
+const isCredibilityValue = (value: string): value is "high" | "medium" | "low" =>
+  ["high", "medium", "low"].includes(value);
 
 const resolveArticleCredibility = (
   article: ReadonlyBackendArticle,
   sourceName: string,
 ): "high" | "medium" | "low" => {
   const credibilityValue =
-    typeof article.credibility === "string"
-      ? article.credibility.toLowerCase()
-      : undefined;
-  if (
-    credibilityValue &&
-    ["high", "medium", "low"].includes(credibilityValue)
-  ) {
-    return credibilityValue as "high" | "medium" | "low";
+    article.credibility?.toLowerCase();
+  if (credibilityValue && isCredibilityValue(credibilityValue)) {
+    return credibilityValue;
   }
   return getCredibilityFromSource(sourceName);
 }
 
 const resolveArticleId = (article: ReadonlyBackendArticle, stableKey: string): number => {
-  if (typeof article.id === "number") {return article.id;}
-  if (typeof article.article_id === "number") {return article.article_id;}
+  if (article.id != null) {return article.id;}
+  if (article.article_id != null) {return article.article_id;}
   return hashStringToInt(stableKey);
 }
 
@@ -298,7 +301,7 @@ const resolveArticleImage = (article: ReadonlyBackendArticle): string => {
 
 const resolveArticlePersistence = (article: ReadonlyBackendArticle): boolean => {
   const hasBackendId =
-    typeof article.id === "number" || typeof article.article_id === "number";
+    article.id != null || article.article_id != null;
   return hasBackendId && article.is_persisted !== false;
 }
 
@@ -313,25 +316,29 @@ const resolveArticlePublished = (article: ReadonlyBackendArticle): string =>
 const resolveArticleSourceId = (
   article: ReadonlyBackendArticle,
   sourceName: string,
-): string =>
-  typeof article.source_id === "string" &&
-    article.source_id.trim().length > 0
-    ? article.source_id.trim().toLowerCase()
+): string => {
+  const sourceId = (article.source_id ?? "").trim().toLowerCase();
+  return sourceId.length > 0
+    ? sourceId
     : sourceName.toLowerCase().replaceAll(/\s+/gu, "-");
+}
 
 const resolveArticleSourceName = (article: ReadonlyBackendArticle): string => {
-  if (typeof article.source === "string" && article.source.length > 0) {
-    return article.source;
+  const source = article.source ?? "";
+  if (source.length > 0) {
+    return source;
   }
-  if (typeof article.source_name === "string" && article.source_name.length > 0) {
-    return article.source_name;
+  const sourceName = article.source_name ?? "";
+  if (sourceName.length > 0) {
+    return sourceName;
   }
   return "Unknown";
 }
 
 const resolveArticleSummary = (article: ReadonlyBackendArticle): string => {
-  if (typeof article.summary === "string" && article.summary.length > 0) {
-    return article.summary;
+  const summary = article.summary ?? "";
+  if (summary.length > 0) {
+    return summary;
   }
   return article.description ?? "";
 }
@@ -340,7 +347,7 @@ const resolveArticleUrlKey = (
   article: ReadonlyBackendArticle,
   sourceName: string,
   published: string,
-): { url: string; stableKey: string } => {
+) => {
   const url =
     article.url ||
     article.link ||
@@ -397,37 +404,40 @@ const resolveParsedTimestamp = (published: string): number => {
 }
 
 const getCountryFromSource = (source: string): string => {
-  const countryMap: Record<string, string> = {
+  const countryMap = new Map<string, string>(Object.entries({
     "Associated Press": "US",
     BBC: "GB",
     CNN: "US",
     "Fox News": "US",
     NPR: "US",
     Reuters: "GB",
-  };
-  return countryMap[source] || "US";
+  }));
+  // SAFETY: unknown sources fall back to the US default country.
+  return countryMap.get(source) ?? "US";
 }
 
 const getBiasFromSource = (source: string): "left" | "center" | "right" => {
-  const biasMap: Record<string, "left" | "center" | "right"> = {
+  const biasMap = new Map<string, "left" | "center" | "right">(Object.entries({
     "Associated Press": "center",
     BBC: "center",
     CNN: "left",
     "Fox News": "right",
     NPR: "left",
     Reuters: "center",
-  };
-  return biasMap[source] || "center";
+}))
+    // SAFETY: unknown sources fall back to the neutral center label.
+  return biasMap.get(source) ?? "center";
 }
 
 const getCredibilityFromSource = (source: string): "high" | "medium" | "low" => {
-  const credibilityMap: Record<string, "high" | "medium" | "low"> = {
+  const credibilityMap = new Map<string, "high" | "medium" | "low">(Object.entries({
     "Associated Press": "high",
     BBC: "high",
     CNN: "medium",
     "Fox News": "medium",
     NPR: "high",
     Reuters: "high",
-  };
-  return credibilityMap[source] || "medium";
+}))
+    // SAFETY: unknown sources fall back to the medium credibility label.
+  return credibilityMap.get(source) ?? "medium";
 }

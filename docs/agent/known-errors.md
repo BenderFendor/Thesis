@@ -1,5 +1,27 @@
 # Known Errors
 
+## 2026-09-03: object-literal prototype pollution in source maps
+
+- Symptom: `mapBackendArticles` throws `TypeError: value.trim is not a
+  function` for articles whose `source` is a name like "toString",
+  "constructor", or "hasOwnProperty".
+- Cause: `Record<string, string>` lookup `countryMap[source]` on an object
+  literal inherits `Object.prototype`; `countryMap["toString"]` returns the
+  inherited function, which flows into `normalizeCountryCode` -> `.trim()`.
+- Fix: convert literal maps to `Map<string, ...>(Object.entries({...}))` with
+  `.get(key) ?? fallback` (also satisfies anti-slop no-unsafe-dictionary).
+- Lesson: never index object literals with untrusted strings; Map or
+  `Object.hasOwn` guard is the default.
+
+## 2026-09-03: oxlint prefer-readonly-parameter-types false positives
+
+- The rule flags `Readonly<StreamRuntime>`-style params even though every
+  member is readonly-declared: it treats function-typed members as mutable
+  unless `treatMethodsAsReadonly: true`, and flags inferred map-callback
+  params unless `ignoreInferredTypes: true`. With both options plus a scoped
+  allow-list (`from: "lib"` for libs, `from: "file"` for project types) the
+  noise goes to zero while explicit non-readonly params stay enforced.
+
 ## Frontend API schema `.optional()` rejects backend `null` values
 
 Symptom:

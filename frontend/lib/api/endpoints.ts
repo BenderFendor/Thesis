@@ -3,105 +3,88 @@
 
 import { z } from "zod";
 
+import type { AgenticResearchCitation, AgenticResearchResult } from "./primitives";
 import { api, query } from "./client";
 import { BackendSourceSchema, CacheStatusSchema, PaginatedPayloadSchema } from "./schemas";
 import { mapBackendArticles, mapBackendSource } from "./article";
 import { fetchOGImage } from "./og-image";
 import type {
-  AddRssResponse,
-  AllCluster,
-  ApiOpaqueObject,
-  ArticleAnalysis,
-  ArticleTopic,
-  BackendArticleMapping,
-  BlindspotCard,
-  BlindspotLane,
-  BlindspotLens,
-  BookmarkEntry,
-  BreakingCluster,
-  BreakingResponse,
-  CacheDebugResponse,
-  CacheDeltaResponse,
-  CacheRefreshProgress,
-  CacheStatus,
-  ChromaDebugResponse,
-  CountryArticleCounts,
-  CountryGeoData,
-  ClusterDetail,
-  ContradictionPanelResponse,
-  AllClustersResponse,
-  CountryListItem,
-  CountryListResponse,
-  CredibilityDimension,
-  DatabaseDebugResponse,
-  DebugErrorEntry,
-  DebugErrorsResponse,
-  GdeltContext,
-  Highlight,
-  LikedEntry,
-  LlmLogEntry,
-  LlmLogResponse,
-  LocalLensResponse,
-  NewsArticle,
-  NewsSource,
-  NoveltyScoreResponse,
-  PaginatedResponse,
-  PaginationParams,
-  QueueDigest,
-  QueueOverview,
-  ReadingQueueItem,
-  ReadingShelf,
-  ReadonlyBackendArticle,
-  RelatedArticle,
-  RelatedArticlesResponse,
-  ReporterCareerTimeline,
-  ReporterProfile,
-  SearchSuggestion,
-  SearchSuggestionsResponse,
-  SemanticSearchResponse,
-  SemanticSearchResult,
-  SourceCoverageResponse,
-  SourceCredibilityProfile,
-  SourceDebugData,
-  SourceLedger,
-  SourceLedgerMetric,
-  SourceResearchProfile,
-  SourceStats,
-  SourceStatsList,
-  BookmarkListResponse,
-  LikedListResponse,
-  FrontendDebugReportPayload,
-  LanguageDiagnostics,
-  FactCheckResult,
-  StartupEventMetric,
-  StartupMetricsResponse,
-  StorageDriftReport,
-  StoryLineageResponse,
-  StreamOptions,
-  StreamProgress,
-  ThinkingStep,
-  TrendingArticle,
-  TrendingCluster,
-  TrendingResponse,
-  WikiAnalysisAxis,
-  WikiIndexStatus,
-  WikiReporterCard,
-  WikiReporterDossier,
-  WikiSourceProfile,
+AddRssResponse,
+ReadonlyNewsArticle,
+ApiOpaqueObject,
+ArticleAnalysis,
+ArticleTopic,
+BlindspotCard,
+BlindspotLane,
+BlindspotLens,
+BlindspotSummary,
+BookmarkEntry,
+BreakingResponse,
+CacheDebugResponse,
+CacheDeltaResponse,
+CacheRefreshProgress,
+CacheStatus,
+ChromaDebugResponse,
+CountryGeoData,
+ClusterDetail,
+ContradictionPanelResponse,
+AllClustersResponse,
+CountryListResponse,
+DatabaseDebugResponse,
+DebugErrorsResponse,
+Highlight,
+LikedEntry,
+LlmLogResponse,
+LocalLensResponse,
+NewsArticle,
+NewsSource,
+NoveltyScoreResponse,
+PaginatedResponse,
+QueueDigest,
+QueueOverview,
+ReadingQueueItem,
+ReadingShelf,
+ReadonlyBackendArticle,
+RelatedArticlesResponse,
+ReporterCareerTimeline,
+ReporterProfile,
+SearchSuggestionsResponse,
+SemanticSearchResponse,
+SourceCoverageResponse,
+SourceCredibilityProfile,
+SourceDebugData,
+SourceResearchProfile,
+SourceStats,
+SourceStatsList,
+BookmarkListResponse,
+LikedListResponse,
+FrontendDebugReportPayload,
+LanguageDiagnostics,
+StartupMetricsResponse,
+StorageDriftReport,
+StoryLineageResponse,
+TrendingResponse,
+WikiIndexStatus,
+WikiReporterCard,
+WikiReporterDossier,
+WikiSourceProfile,
 } from "./types";
-
 const NOT_FOUND = 404;
 const UNAVAILABLE = 503;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // --- Feature flags & shared cache ---
-
 export { API_BASE_URL, ENABLE_DIGEST, ENABLE_HIGHLIGHTS } from "./client";
+
+export type { AgenticResearchCitation, AgenticResearchResult } from "./primitives";
 export { fetchOGImage };
 
+export interface SourceCacheState {
+  sources: NewsSource[];
+}
 
-const sourceCache: { sources: NewsSource[] } = { sources: [] };
+const sourceCache: SourceCacheState = { sources: [] };
 
 export async function fetchNewsIndex(
   params: Readonly<{
@@ -124,6 +107,7 @@ export async function fetchNewsIndex(
     throw new Error("Browse index response is invalid.");
   }
   return {
+    // SAFETY: schema permits null article entries; non-null entries match ReadonlyBackendArticle.
     articles: mapBackendArticles((parsed.data.articles ?? []) as ReadonlyBackendArticle[]),
     has_more: parsed.data.has_more ?? false,
     limit: 0,
@@ -156,6 +140,7 @@ export const fetchBrowseIndex = async (
     throw new Error("Browse index response is invalid.");
   }
   return {
+    // SAFETY: schema permits null article entries; non-null entries match ReadonlyBackendArticle.
     articles: mapBackendArticles((parsed.data.articles ?? []) as ReadonlyBackendArticle[]),
     has_more: parsed.data.has_more ?? false,
     limit: 0,
@@ -190,6 +175,7 @@ export const fetchCachedNewsPaginated = async (
     throw new Error("Browse index response is invalid.");
   }
   return {
+    // SAFETY: schema permits null article entries; non-null entries match ReadonlyBackendArticle.
     articles: mapBackendArticles((parsed.data.articles ?? []) as ReadonlyBackendArticle[]),
     has_more: parsed.data.has_more ?? false,
     limit: parsed.data.limit ?? 0,
@@ -226,6 +212,7 @@ export const fetchNewsPaginated = async (
     throw new Error("Browse index response is invalid.");
   }
   return {
+    // SAFETY: schema permits null article entries; non-null entries match ReadonlyBackendArticle.
     articles: mapBackendArticles((parsed.data.articles ?? []) as ReadonlyBackendArticle[]),
     has_more: parsed.data.has_more ?? false,
     limit: parsed.data.limit ?? 0,
@@ -260,10 +247,11 @@ export const getSourceById = async (id: string): Promise<NewsSource | undefined>
   return sourceCache.sources.find((source) => source.id === normalized);
 };
 
+const isSourceStatsStatus = (value: string): value is SourceStats["status"] =>
+  ["success", "warning", "error"].includes(value);
+
 export const fetchSourceStats = async (): Promise<SourceStats[]> => {
   const payload = await api<SourceStatsList>("/news/sources/stats");
-  // SAFETY: the OpenAPI schema's status is a free string; the frontend type
-  // narrows it to the three observed values.
   return payload.sources.map((source) => ({
     article_count: source.article_count,
     bias_rating: source.bias_rating ?? undefined,
@@ -273,9 +261,7 @@ export const fetchSourceStats = async (): Promise<SourceStats[]> => {
     funding_type: source.funding_type ?? undefined,
     last_checked: source.last_checked,
     name: source.name,
-    status: ["success", "warning", "error"].includes(source.status)
-      ? (source.status as SourceStats["status"])
-      : "error",
+    status: isSourceStatsStatus(source.status) ? source.status : "error",
     url: source.url,
   }));
 };
@@ -346,6 +332,7 @@ export const refreshCache = async (
         continue;
       }
       try {
+        // SAFETY: the SSE cache_stream wire format matches CacheRefreshProgress.
         const event = JSON.parse(line.slice(5).trim()) as CacheRefreshProgress;
         onProgress?.(event);
       } catch {
@@ -444,7 +431,7 @@ export const createReadingShelf = (
   });
 
 export const addToReadingQueue = (
-  article: Readonly<NewsArticle>,
+  article: ReadonlyNewsArticle,
   queueType: "daily" | "permanent" = "daily",
 ): Promise<ReadingQueueItem> =>
   api("/api/queue/add", {
@@ -537,7 +524,6 @@ export const semanticSearch = async (
     throw new Error("Semantic search is currently unavailable.");
   }
   const payload: unknown = await response.json();
-  // SAFETY: generated OpenAPI types describe the search response contract.
   return payload as SemanticSearchResponse;
 };
 
@@ -552,7 +538,6 @@ export const fetchSearchSuggestions = async (
     throw new Error("Search suggestions unavailable");
   }
   const payload: unknown = await response.json();
-  // SAFETY: generated OpenAPI types describe the suggestions contract.
   return payload as SearchSuggestionsResponse;
 };
 
@@ -583,7 +568,6 @@ export const fetchSourceCoverage = async (
     throw new Error("Source coverage unavailable");
   }
   const payload: unknown = await response.json();
-  // SAFETY: generated OpenAPI types describe the coverage contract.
   return payload as SourceCoverageResponse;
 };
 
@@ -605,7 +589,6 @@ export const fetchArticleTopics = async (
     throw new Error("Topic lookup unavailable");
   }
   const payload: unknown = await response.json();
-  // SAFETY: generated OpenAPI types describe the topics contract.
   return payload as { article_id: number; topics: ArticleTopic[] };
 };
 
@@ -644,7 +627,7 @@ export const fetchBlindspotViewer = (
 ): Promise<{
   available_lenses: BlindspotLens[];
   selected_lens: BlindspotLens;
-  summary: Record<string, unknown>;
+  summary: BlindspotSummary;
   lanes: BlindspotLane[];
   cards: BlindspotCard[];
   status: string;
@@ -664,20 +647,33 @@ export const analyzeArticle = (
   sourceName?: string,
 ): Promise<ArticleAnalysis> =>
   api("/api/article/analyze", {
-    body: JSON.stringify({ url, source_name: sourceName }),
+    body: JSON.stringify({ source_name: sourceName, url }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
 
-export const performAgenticSearch = (
+export const performAgenticSearch = async (
   queryText: string,
   maxSteps = 8,
-): Promise<{ success: boolean; answer: string; reasoning?: unknown[]; citations?: unknown[] }> =>
-  api("/api/news/research", {
-    body: JSON.stringify({ query: queryText, max_steps: maxSteps }),
+): Promise<AgenticResearchResult> => {
+  const payload = await api<{
+    readonly answer: string;
+    readonly query?: string;
+    readonly referenced_articles?: readonly AgenticResearchCitation[];
+    readonly success: boolean;
+    readonly thinking_steps?: readonly unknown[];
+  }>("/api/news/research", {
+    body: JSON.stringify({ max_steps: maxSteps, query: queryText }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
+  return {
+    answer: payload.answer,
+    citations: payload.referenced_articles,
+    reasoning: payload.thinking_steps,
+    success: payload.success,
+  };
+};
 
 export const researchSourceProfile = (
   name: string,
@@ -707,11 +703,10 @@ export const profileReporter = (
   forceRefresh = false,
 ): Promise<ReporterProfile> =>
   api(`/research/entity/reporter/profile${forceRefresh ? "?force_refresh=true" : ""}`, {
-    body: JSON.stringify({ name, organization, article_context: articleContext }),
+    body: JSON.stringify({ article_context: articleContext, name, organization }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
 
 export const fetchSourceCredibility = (
   domain: string,
@@ -759,8 +754,12 @@ const ReporterCareerTimelineSchema = z.object({
   timeline: z.array(ReporterTimelineEntrySchema),
 });
 
+export type ReporterCareerTimelineInput = z.input<typeof ReporterCareerTimelineSchema>;
+
+export type ReporterCareerTimelineCandidate = ReporterCareerTimelineInput | ApiOpaqueObject | null;
+
 export const parseReporterCareerTimeline = (
-  raw: unknown,
+  raw: ReporterCareerTimelineCandidate,
 ): ReporterCareerTimeline | null => {
   if (!raw) {
     return null;
@@ -828,10 +827,10 @@ export const fetchLanguageDiagnostics = (
 ): Promise<LanguageDiagnostics> =>
   api("/api/article/language-diagnostics", {
     body: JSON.stringify({
-      url: request.url,
       source_name: request.sourceName,
       text: request.text,
       title: request.title,
+      url: request.url,
     }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -847,7 +846,7 @@ export const requestInlineDefinition = (
   error?: string | null;
 }> =>
   api("/api/inline/define", {
-    body: JSON.stringify({ term, context }),
+    body: JSON.stringify({ context, term }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
@@ -910,12 +909,12 @@ export const fetchStartupMetrics = async (): Promise<StartupMetricsResponse> => 
     completedAt: raw.completed_at ?? null,
     durationSeconds: raw.duration_seconds ?? null,
     events: raw.events.map((event) => ({
+      completedAt: event.completed_at ?? null,
+      detail: event.detail ?? null,
+      durationSeconds: event.duration_seconds ?? null,
+      metadata: event.metadata,
       name: event.name,
       startedAt: event.started_at ?? null,
-      completedAt: event.completed_at ?? null,
-      durationSeconds: event.duration_seconds ?? null,
-      detail: event.detail ?? null,
-      metadata: event.metadata,
     })),
     notes: raw.notes,
     startedAt: raw.started_at ?? null,
@@ -1041,7 +1040,8 @@ export type {
   CountryListResponse,
   LocalLensResponse,
   AllCluster,
-  BookmarkEntry,
+  BlindspotSummary,
+BookmarkEntry,
   BreakingCluster,
   CredibilityDimension,
   DebugErrorsResponse,

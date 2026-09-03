@@ -1,5 +1,26 @@
 # Log
 
+## 2026-09-03: lib/api lint zero pass and rule-config baseline
+
+- `frontend/lib/api/` lint errors 126 -> 0. Fixed: unused imports (23),
+  no-runtime-typeof (21 -> null-safe `?? ""` idioms), wide-then-assert
+  (Map-based lookups + type predicates), anonymous-return-types (inference),
+  explicit open dicts (named interfaces), safety-comment placement, and
+  readonly-param compliance.
+- `typescript/prefer-readonly-parameter-types` configured with
+  `treatMethodsAsReadonly: true`, `ignoreInferredTypes: true`, and a scoped
+  allow-list (lib + file specs). Rationale: all flagged params were already
+  `Readonly`-typed; the rule penalizes method-bearing handler interfaces
+  (StreamRuntime) and inferred map-callback params regardless.
+- Bugs found by the fix pass (property tests): prototype-pollution in
+  `getCountryFromSource` (`countryMap["toString"]` returns the inherited
+  function; articles with source "toString"-style keys crashed mapping) ->
+  converted to `Map<string, string>` with `.get()`; null-vs-undefined id
+  checks in article resolvers (`!= null`); `performAgenticSearch` restored
+  response normalization (citations/reasoning); api() no longer passes a
+  trailing `undefined` init (fetch test contract).
+- tsc 0, api suites 5/5 (property flake root-caused and fixed), LOC guard green.
+
 ## 2026-09-03: Oxlint --fix pass and final debt numbers
 
 - `oxlint --fix` applied 353 auto-fixable findings across frontend+scripts

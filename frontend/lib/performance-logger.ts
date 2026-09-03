@@ -5,7 +5,7 @@
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import type { FrontendDebugReportPayload } from './api';
+import type { ApiOpaqueObject, FrontendDebugReportPayload } from './api';
 import { sendFrontendDebugReport } from './api';
 
 // Configuration
@@ -44,7 +44,7 @@ interface PerformanceEvent {
   operation: string;
   message?: string;
   durationMs?: number;
-  details?: Record<string, unknown>;
+  details?: ApiOpaqueObject;
   error?: string;
   stackTrace?: string;
   isSlow?: boolean;
@@ -93,7 +93,7 @@ interface PerformanceSummary {
 interface LogEventOptions {
   message?: string;
   durationMs?: number;
-  details?: Record<string, unknown>;
+  details?: ApiOpaqueObject;
   error?: Error | string;
   streamId?: string;
   requestId?: string;
@@ -103,7 +103,7 @@ interface StreamEventOptions {
   articleCount?: number;
   source?: string;
   isError?: boolean;
-  details?: Record<string, unknown>;
+  details?: ApiOpaqueObject;
 }
 
 const applyEventError = (event: PerformanceEvent, error: Error | string | undefined): void => {
@@ -167,7 +167,7 @@ const streamEventDetails = (
   metrics: StreamMetrics,
   options: StreamEventOptions,
   now: number,
-): Record<string, unknown> => {
+): ApiOpaqueObject => {
   const previousEvent = metrics.events.at(-2);
   return {
     ...options.details,
@@ -524,7 +524,7 @@ class FrontendPerformanceLogger {
 
   // --- User Action Tracking ---
 
-  logUserAction(action: string, details?: Record<string, unknown>): void {
+  logUserAction(action: string, details?: ApiOpaqueObject): void {
     this.logEvent("user_action", "user", action, {
       details,
       message: `User action: ${action}`,

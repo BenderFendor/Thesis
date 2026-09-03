@@ -3143,7 +3143,7 @@ formatMilliseconds = (value?: number | null): string => {
   return `${Math.round(value)}ms`
 },
 
-formatMetadataValue = (value: NonNullable<StartupEventMetric["metadata"]>[string]): string | undefined => {
+formatMetadataValue = (value: NonNullable<StartupEventMetric["metadata"]>[string] | undefined): string | undefined => {
     const primitive = z.union([z.boolean(), z.number(), z.string()]).safeParse(value)
     if (primitive.success) {return String(primitive.data)}
     try {

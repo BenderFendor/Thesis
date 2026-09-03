@@ -1,3 +1,5 @@
+import type { ApiRequestInit } from "./types";
+
 // One HTTP primitive for the whole frontend API layer.
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -15,21 +17,16 @@ export class ApiError extends Error {
   }
 }
 
-function readErrorMessage(payload: unknown, status: number): string {
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "detail" in payload &&
-    typeof payload.detail === "string"
-  ) {
+export interface ApiErrorBody {
+  readonly detail?: string;
+  readonly error?: string;
+}
+
+function readErrorMessage(payload: ApiErrorBody, status: number): string {
+  if (payload.detail) {
     return payload.detail;
   }
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "error" in payload &&
-    typeof payload.error === "string"
-  ) {
+  if (payload.error) {
     return payload.error;
   }
   return `HTTP error! status: ${status}`;
@@ -37,19 +34,22 @@ function readErrorMessage(payload: unknown, status: number): string {
 
 export async function api<T>(
   path: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  const response = init
+    ? await fetch(`${API_BASE_URL}${path}`, init)
+    : await fetch(`${API_BASE_URL}${path}`);
 
   if (!response.ok) {
-    const payload: unknown = await response.json().catch(() => null);
+    const payload = (await response.json().catch(() => null)) as ApiErrorBody;
+    // SAFETY: error bodies are small; missing fields fall back to the status message.
     throw new ApiError(response.status, readErrorMessage(payload, response.status));
   }
 
-  const payload: unknown = await response.json();
+  const body: unknown = await response.json();
   // SAFETY: the API contract is generated from OpenAPI; endpoint wrappers
   // validate shape where backend nullability has historically drifted.
-  return payload as T;
+  return body as T;
 }
 
 export function query(

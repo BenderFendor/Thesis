@@ -126,4 +126,5 @@ half-working screenshot.
   injection gated to end-of-session.
 - `oxlint --fix` pass: 353 auto-fixes; remaining debt ~10,000 findings
   (readonly params, unsafe types, react/anti-slop families).
-- tsc 0, api jest suites 15/15, guard green.
+- tsc 0, api jest suites 5/5 (mapping property + agentic + source contract), guard green.
+- Follow-up pass (lib/api lint 126 -> 0): prototype-pollution source-map bug, null-id resolvers, agentic normalization, oxlint readonly-rule config (treatMethodsAsReadonly + ignoreInferredTypes + scoped allow-list), primitives.ts split for LOC caps.
