@@ -169,11 +169,11 @@ const formatSignedNumber = (value?: number | null, digits = 1): string => {
     return "—";
   }
   const prefix = (() => {
-  if (value > 0) {
-    return "+";
-  }
-  return "";
-})();
+    if (value > 0) {
+      return "+";
+    }
+    return "";
+  })();
   return `${prefix}${value.toFixed(digits)}`;
 };
 
@@ -238,11 +238,11 @@ const getCameoSummary = (context?: GdeltContextLike | null): string | null => {
   if (!cameo) {
     return null;
   }
-  const label = (cameo.label ?? cameo.code) ?? "CAMEO";
+  const label = cameo.label ?? cameo.code ?? "CAMEO";
   if (cameo.count > 1) {
-  return `${label} · ${cameo.count}`;
-}
-return label;
+    return `${label} · ${cameo.count}`;
+  }
+  return label;
 };
 
 interface ComparisonRequestResult {
@@ -320,12 +320,7 @@ const requestComparison = async (
   return { contentEntries, data };
 };
 
-const ClusterDetailModal = ({
-  cluster,
-  isBreaking,
-  isOpen,
-  onClose,
-}: ClusterDetailModalProps) => {
+const ClusterDetailModal = ({ cluster, isBreaking, isOpen, onClose }: ClusterDetailModalProps) => {
   if (!isOpen || !cluster) {
     return null;
   }
@@ -333,11 +328,11 @@ const ClusterDetailModal = ({
   return (
     <ClusterDetailModalContent
       key={`${cluster.cluster_id}-${(() => {
-  if (isOpen) {
-    return "open";
-  }
-  return "closed";
-})()}`}
+        if (isOpen) {
+          return "open";
+        }
+        return "closed";
+      })()}`}
       cluster={cluster}
       isBreaking={isBreaking}
       onClose={onClose}
@@ -357,6 +352,20 @@ type ClusterDetailCluster = TrendingCluster | BreakingCluster | AllCluster;
 const isBreakingCluster = (cluster: ClusterDetailCluster): cluster is BreakingCluster =>
   "article_count_3h" in cluster;
 
+const getClusterSourceCount = (cluster: ClusterDetailCluster): number => {
+  if ("source_diversity" in cluster) {
+    return cluster.source_diversity;
+  }
+  return cluster.source_count_3h;
+};
+
+const getClusterArticleCount = (cluster: ClusterDetailCluster): number => {
+  if ("article_count" in cluster) {
+    return cluster.article_count;
+  }
+  return 0;
+};
+
 const useClusterArticleController = (clusterDetail: ClusterDetailResponse | undefined) => {
   const queryClient = useQueryClient();
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
@@ -364,28 +373,28 @@ const useClusterArticleController = (clusterDetail: ClusterDetailResponse | unde
   const [loadingArticle, setLoadingArticle] = useState<number | null>(null);
   const articleContentRef = useRef<HTMLDivElement>(null);
   const resolvedActiveArticleId =
-      activeArticleId ?? clusterDetail?.articles?.[0]?.id.toString() ?? null;
+    activeArticleId ?? clusterDetail?.articles?.[0]?.id.toString() ?? null;
   const loadArticleContent = useCallback(
-      async (article: Pick<ClusterArticle, "id" | "url">): Promise<string | null> => {
-        setLoadingArticle(article.id);
-        try {
-          const text = await queryClient.fetchQuery<string | null>({
-            queryFn: ({ signal }) => fetchArticleContentText(article.url, signal),
-            queryKey: articleContentQueryKey(article.url),
-            staleTime: 5 * 60 * 1000,
-          });
-          setArticleContents((previous) => new Map(previous).set(article.id, text));
-          return text;
-        } catch (error) {
-          console.error("Failed to extract article:", error);
-          setArticleContents((previous) => new Map(previous).set(article.id, null));
-          return null;
-        } finally {
-          setLoadingArticle(null);
-        }
-      },
-      [queryClient],
-    );
+    async (article: Pick<ClusterArticle, "id" | "url">): Promise<string | null> => {
+      setLoadingArticle(article.id);
+      try {
+        const text = await queryClient.fetchQuery<string | null>({
+          queryFn: ({ signal }) => fetchArticleContentText(article.url, signal),
+          queryKey: articleContentQueryKey(article.url),
+          staleTime: 5 * 60 * 1000,
+        });
+        setArticleContents((previous) => new Map(previous).set(article.id, text));
+        return text;
+      } catch (error) {
+        console.error("Failed to extract article:", error);
+        setArticleContents((previous) => new Map(previous).set(article.id, null));
+        return null;
+      } finally {
+        setLoadingArticle(null);
+      }
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     if (!hasText(resolvedActiveArticleId) || !clusterDetail) {
@@ -405,11 +414,11 @@ const useClusterArticleController = (clusterDetail: ClusterDetailResponse | unde
   return {
     activeArticle,
     activeContent: (() => {
-  if (activeArticle) {
-    return articleContents.get(activeArticle.id);
-  }
-  return null;
-})(),
+      if (activeArticle) {
+        return articleContents.get(activeArticle.id);
+      }
+      return null;
+    })(),
     articleContentRef,
     articleContents,
     loadArticleContent,
@@ -440,121 +449,117 @@ const useClusterComparisonController = ({
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [comparisonRequestKey, setComparisonRequestKey] = useState<string | null>(null);
   const comparisonClusterArticles: ComparisonArticle[] = useMemo(
-      () => (clusterDetail?.articles ?? []).map((article) => normalizeComparisonArticle(article)),
-      [clusterDetail],
-    );
+    () => (clusterDetail?.articles ?? []).map((article) => normalizeComparisonArticle(article)),
+    [clusterDetail],
+  );
   const loadComparisonData = useCallback(
-      async (articleIds: readonly number[]) => {
-        if (articleIds.length < 2 || !clusterDetail) {
-          return;
-        }
-        const requestKey = buildComparisonRequestKey(articleIds);
-        if (comparisonRequestKey === requestKey) {
-          return;
-        }
-
-        setComparisonError(null);
-        const selectedArticles = getSelectedComparisonArticles(
-          comparisonClusterArticles,
-          articleIds,
-        );
-        const selectedPair = getComparisonPair(selectedArticles);
-        if (selectedPair === null) {
-          setComparisonData(null);
-          setComparisonError("Select one article from two distinct outlets.");
-          return;
-        }
-
-        const [sourceOne, sourceTwo] = selectedPair;
-        if (sourceOne.source.trim().toLowerCase() === sourceTwo.source.trim().toLowerCase()) {
-          setComparisonData(null);
-          const message = "Compare Sources needs coverage from at least two outlets.";
-          setComparisonError(message);
-          toast.error(message);
-          return;
-        }
-
-        setComparisonRequestKey(requestKey);
-        setComparisonLoading(true);
-        try {
-          const { contentEntries, data } = await requestComparison(
-            selectedArticles,
-            articleContents,
-            loadArticleContent,
-          );
-          setArticleContents((previous) => {
-            const next = new Map(previous);
-            for (const [articleId, text] of contentEntries) {
-              next.set(articleId, text);
-            }
-            return next;
-          });
-          setComparisonData(data);
-        } catch (error) {
-          console.error("Failed to load comparison:", error);
-          setComparisonRequestKey(null);
-          setComparisonData(null);
-          const message =
-            (() => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "Failed to compare the selected sources.";
-})();
-          setComparisonError(message);
-          toast.error(message);
-        } finally {
-          setComparisonLoading(false);
-        }
-      },
-      [
-        articleContents,
-        comparisonRequestKey,
-        clusterDetail,
-        comparisonClusterArticles,
-        loadArticleContent,
-        setComparisonRequestKey,
-        setArticleContents,
-      ],
-    );
-  const handleTabChange = useCallback((value: string) => {
-      setComparisonMode(value === "compare");
-    }, []);
-  const handleOpenComparison = useCallback(() => {
-      if (!clusterDetail) {
+    async (articleIds: readonly number[]) => {
+      if (articleIds.length < 2 || !clusterDetail) {
         return;
       }
+      const requestKey = buildComparisonRequestKey(articleIds);
+      if (comparisonRequestKey === requestKey) {
+        return;
+      }
+
       setComparisonError(null);
-      const comparisonIds = getDefaultComparisonArticleIds(comparisonClusterArticles);
-      if (comparisonIds.length < 2) {
+      const selectedArticles = getSelectedComparisonArticles(comparisonClusterArticles, articleIds);
+      const selectedPair = getComparisonPair(selectedArticles);
+      if (selectedPair === null) {
+        setComparisonData(null);
+        setComparisonError("Select one article from two distinct outlets.");
+        return;
+      }
+
+      const [sourceOne, sourceTwo] = selectedPair;
+      if (sourceOne.source.trim().toLowerCase() === sourceTwo.source.trim().toLowerCase()) {
         setComparisonData(null);
         const message = "Compare Sources needs coverage from at least two outlets.";
         setComparisonError(message);
         toast.error(message);
         return;
       }
-      setSelectedArticlesForComparison(comparisonIds);
-      setComparisonData(null);
-      setComparisonMode(true);
-      setComparisonRequestKey(null);
-    }, [clusterDetail, comparisonClusterArticles, setComparisonRequestKey]);
-  const handleComparisonSourceChange = useCallback(
-      (sourceId: string, nextArticleId: string) => {
-        const parsedId = Number(nextArticleId);
-        if (!Number.isFinite(parsedId)) {
-          return;
-        }
-        setSelectedArticlesForComparison((previous) => {
-          const nextArticles = getSelectedComparisonArticles(
-            comparisonClusterArticles,
-            previous,
-          ).filter((article) => comparisonArticleSourceId(article) !== sourceId);
-          setComparisonRequestKey(null);
-          return [...nextArticles.map((article) => article.id), parsedId];
+
+      setComparisonRequestKey(requestKey);
+      setComparisonLoading(true);
+      try {
+        const { contentEntries, data } = await requestComparison(
+          selectedArticles,
+          articleContents,
+          loadArticleContent,
+        );
+        setArticleContents((previous) => {
+          const next = new Map(previous);
+          for (const [articleId, text] of contentEntries) {
+            next.set(articleId, text);
+          }
+          return next;
         });
-      },
-      [comparisonClusterArticles, setComparisonRequestKey],
-    );
+        setComparisonData(data);
+      } catch (error) {
+        console.error("Failed to load comparison:", error);
+        setComparisonRequestKey(null);
+        setComparisonData(null);
+        const message = (() => {
+          if (error instanceof Error) {
+            return error.message;
+          }
+          return "Failed to compare the selected sources.";
+        })();
+        setComparisonError(message);
+        toast.error(message);
+      } finally {
+        setComparisonLoading(false);
+      }
+    },
+    [
+      articleContents,
+      comparisonRequestKey,
+      clusterDetail,
+      comparisonClusterArticles,
+      loadArticleContent,
+      setComparisonRequestKey,
+      setArticleContents,
+    ],
+  );
+  const handleTabChange = useCallback((value: string) => {
+    setComparisonMode(value === "compare");
+  }, []);
+  const handleOpenComparison = useCallback(() => {
+    if (!clusterDetail) {
+      return;
+    }
+    setComparisonError(null);
+    const comparisonIds = getDefaultComparisonArticleIds(comparisonClusterArticles);
+    if (comparisonIds.length < 2) {
+      setComparisonData(null);
+      const message = "Compare Sources needs coverage from at least two outlets.";
+      setComparisonError(message);
+      toast.error(message);
+      return;
+    }
+    setSelectedArticlesForComparison(comparisonIds);
+    setComparisonData(null);
+    setComparisonMode(true);
+    setComparisonRequestKey(null);
+  }, [clusterDetail, comparisonClusterArticles, setComparisonRequestKey]);
+  const handleComparisonSourceChange = useCallback(
+    (sourceId: string, nextArticleId: string) => {
+      const parsedId = Number(nextArticleId);
+      if (!Number.isFinite(parsedId)) {
+        return;
+      }
+      setSelectedArticlesForComparison((previous) => {
+        const nextArticles = getSelectedComparisonArticles(
+          comparisonClusterArticles,
+          previous,
+        ).filter((article) => comparisonArticleSourceId(article) !== sourceId);
+        setComparisonRequestKey(null);
+        return [...nextArticles.map((article) => article.id), parsedId];
+      });
+    },
+    [comparisonClusterArticles, setComparisonRequestKey],
+  );
 
   useEffect(() => {
     if (comparisonMode && selectedArticlesForComparison.length >= 2) {
@@ -564,21 +569,24 @@ const useClusterComparisonController = ({
 
   return {
     comparisonArticles: (() => {
-  if (clusterDetail) {
-    return getSelectedComparisonArticles(comparisonClusterArticles, selectedArticlesForComparison);
-  }
-  return [];
-})(),
+      if (clusterDetail) {
+        return getSelectedComparisonArticles(
+          comparisonClusterArticles,
+          selectedArticlesForComparison,
+        );
+      }
+      return [];
+    })(),
     comparisonData,
     comparisonError,
     comparisonLoading,
     comparisonMode,
     comparisonSourceOptions: (() => {
-  if (clusterDetail) {
-    return buildComparisonSourceOptions(comparisonClusterArticles);
-  }
-  return [];
-})(),
+      if (clusterDetail) {
+        return buildComparisonSourceOptions(comparisonClusterArticles);
+      }
+      return [];
+    })(),
     handleComparisonSourceChange,
     handleOpenComparison,
     handleTabChange,
@@ -609,6 +617,260 @@ interface ClusterDetailViewProps {
   readonly comparison: ComparisonTabProps;
 }
 
+const getClusterPanelSize = (isExpanded: boolean): string => {
+  if (isExpanded) {
+    return "w-full h-full max-w-none max-h-none";
+  }
+  return "max-w-5xl w-full max-h-[90vh]";
+};
+
+interface ClusterTabNavigationProps {
+  readonly articles: readonly ClusterArticle[];
+  readonly onOpenComparison: () => void;
+}
+
+const ClusterTabTrigger = ({ article }: Readonly<{ article: ClusterArticle }>) => (
+  <TabsTrigger
+    value={article.id.toString()}
+    className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium"
+  >
+    <Newspaper className="w-3 h-3 mr-2" />
+    {article.source}
+  </TabsTrigger>
+);
+
+const ClusterCompareTabTrigger = ({
+  onOpenComparison,
+}: Readonly<{ onOpenComparison: () => void }>) => (
+  <TabsTrigger
+    value="compare"
+    className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium"
+    onClick={onOpenComparison}
+  >
+    <ArrowRightLeft className="w-3 h-3 mr-2" />
+    Compare Sources
+  </TabsTrigger>
+);
+
+const ClusterTabList = ({ articles, onOpenComparison }: ClusterTabNavigationProps) => (
+  <TabsList className="h-auto p-1 bg-transparent gap-1">
+    {articles.map((article) => (
+      <ClusterTabTrigger key={`${article.id}-${article.url}`} article={article} />
+    ))}
+    <ClusterCompareTabTrigger onOpenComparison={onOpenComparison} />
+  </TabsList>
+);
+
+const ClusterTabNavigation = ({ articles, onOpenComparison }: ClusterTabNavigationProps) => (
+  <div className="border-b border-border/60 px-4 flex-shrink-0 overflow-x-auto">
+    <ClusterTabList articles={articles} onOpenComparison={onOpenComparison} />
+  </div>
+);
+
+interface ClusterArticleTabsProps {
+  readonly articles: readonly ClusterArticle[];
+  readonly activeArticleId: string | null;
+  readonly activeContent: string | null | undefined;
+  readonly loadingArticle: number | null;
+  readonly likedIds: ReadonlySet<number>;
+  readonly isArticleInQueue: (url: string) => boolean;
+  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly onLike: (articleId: number) => void;
+  readonly onQueueToggle: (article: ClusterArticle) => void;
+  readonly onClose: () => void;
+  readonly onTabChange: (value: string) => void;
+  readonly onOpenComparison: () => void;
+  readonly comparison: ComparisonTabProps;
+}
+
+const ClusterArticleTabs = ({
+  articles,
+  activeArticleId,
+  activeContent,
+  loadingArticle,
+  likedIds,
+  isArticleInQueue,
+  contentRef,
+  onLike,
+  onQueueToggle,
+  onClose,
+  onTabChange,
+  onOpenComparison,
+  comparison,
+}: ClusterArticleTabsProps) => (
+  <Tabs
+    value={activeArticleId ?? ""}
+    onValueChange={onTabChange}
+    className="flex-1 flex flex-col overflow-hidden"
+  >
+    <ClusterTabNavigation articles={articles} onOpenComparison={onOpenComparison} />
+    {articles.map((article) => (
+      <ArticleTab
+        key={`${article.id}-${article.url}`}
+        article={article}
+        activeContent={activeContent}
+        loadingArticleId={loadingArticle}
+        likedIds={likedIds}
+        isArticleInQueue={isArticleInQueue}
+        contentRef={contentRef}
+        onLike={onLike}
+        onQueueToggle={onQueueToggle}
+        onClose={onClose}
+      />
+    ))}
+    <ComparisonTab {...comparison} />
+  </Tabs>
+);
+
+const ClusterLoadingState = () => (
+  <div className="flex-1 flex items-center justify-center">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <span className="ml-3 text-muted-foreground">Loading sources...</span>
+  </div>
+);
+
+const ClusterEmptyState = ({ loadError }: Readonly<{ loadError: string | null }>) => (
+  <div className="flex-1 flex items-center justify-center text-muted-foreground">
+    {loadError ?? "No articles found for this cluster."}
+  </div>
+);
+
+const ClusterContextMetrics = ({
+  context,
+}: Readonly<{ context: ComponentProps<typeof GdeltContextStrip> | null }>) => {
+  if (context === null) {
+    return null;
+  }
+  return (
+    <GdeltContextStrip
+      context={context.context}
+      cameoSummary={context.cameoSummary}
+      toneAvg={context.toneAvg}
+      toneDelta={context.toneDelta}
+    />
+  );
+};
+
+const ClusterDetailBody = ({
+  loading,
+  articles,
+  loadError,
+  activeArticleId,
+  activeContent,
+  loadingArticle,
+  likedIds,
+  isArticleInQueue,
+  contentRef,
+  onLike,
+  onQueueToggle,
+  onClose,
+  onTabChange,
+  onOpenComparison,
+  comparison,
+}: Readonly<{
+  readonly loading: boolean;
+  readonly articles: readonly ClusterArticle[];
+  readonly loadError: string | null;
+  readonly activeArticleId: string | null;
+  readonly activeContent: string | null | undefined;
+  readonly loadingArticle: number | null;
+  readonly likedIds: ReadonlySet<number>;
+  readonly isArticleInQueue: (url: string) => boolean;
+  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly onLike: (articleId: number) => void;
+  readonly onQueueToggle: (article: ClusterArticle) => void;
+  readonly onClose: () => void;
+  readonly onTabChange: (value: string) => void;
+  readonly onOpenComparison: () => void;
+  readonly comparison: ComparisonTabProps;
+}>) => {
+  if (loading) {
+    return <ClusterLoadingState />;
+  }
+  if (articles.length === 0) {
+    return <ClusterEmptyState loadError={loadError} />;
+  }
+  return (
+    <ClusterArticleTabs
+      articles={articles}
+      activeArticleId={activeArticleId}
+      activeContent={activeContent}
+      loadingArticle={loadingArticle}
+      likedIds={likedIds}
+      isArticleInQueue={isArticleInQueue}
+      contentRef={contentRef}
+      onLike={onLike}
+      onQueueToggle={onQueueToggle}
+      onClose={onClose}
+      onTabChange={onTabChange}
+      onOpenComparison={onOpenComparison}
+      comparison={comparison}
+    />
+  );
+};
+
+const ClusterDetailPanelContent = (props: DeepReadonly<ClusterDetailViewProps>) => (
+  <div className="flex-1 overflow-hidden flex flex-col">
+    <ClusterContextMetrics context={props.context} />
+    <ClusterDetailBody
+      loading={props.loading}
+      articles={props.clusterDetail?.articles ?? []}
+      loadError={props.loadError}
+      activeArticleId={props.resolvedActiveArticleId}
+      activeContent={props.activeContent}
+      loadingArticle={props.loadingArticle}
+      likedIds={props.likedIds}
+      isArticleInQueue={props.isArticleInQueue}
+      contentRef={props.contentRef}
+      onLike={props.onLike}
+      onQueueToggle={props.onQueueToggle}
+      onClose={props.onClose}
+      onTabChange={props.onTabChange}
+      onOpenComparison={props.onOpenComparison}
+      comparison={props.comparison}
+    />
+  </div>
+);
+
+const ClusterDetailPanel = (props: DeepReadonly<ClusterDetailViewProps>) => (
+  <div
+    className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 flex flex-col ${getClusterPanelSize(props.isExpanded)}`}
+  >
+    <ClusterHeader
+      isBreaking={props.isBreaking}
+      label={props.label}
+      cluster={props.cluster}
+      isExpanded={props.isExpanded}
+      onToggleExpand={props.onToggleExpand}
+      onClose={props.onClose}
+    />
+    <ClusterDetailPanelContent
+      cluster={props.cluster}
+      isBreaking={props.isBreaking}
+      label={props.label}
+      isExpanded={props.isExpanded}
+      onToggleExpand={props.onToggleExpand}
+      onClose={props.onClose}
+      context={props.context}
+      loading={props.loading}
+      clusterDetail={props.clusterDetail}
+      loadError={props.loadError}
+      resolvedActiveArticleId={props.resolvedActiveArticleId}
+      activeContent={props.activeContent}
+      loadingArticle={props.loadingArticle}
+      likedIds={props.likedIds}
+      isArticleInQueue={props.isArticleInQueue}
+      contentRef={props.contentRef}
+      onLike={props.onLike}
+      onQueueToggle={props.onQueueToggle}
+      onTabChange={props.onTabChange}
+      onOpenComparison={props.onOpenComparison}
+      comparison={props.comparison}
+    />
+    <KeywordsFooter keywords={props.cluster.keywords} />
+  </div>
+);
+
 const ClusterDetailView = ({
   cluster,
   isBreaking,
@@ -632,70 +894,31 @@ const ClusterDetailView = ({
   onOpenComparison,
   comparison,
 }: DeepReadonly<ClusterDetailViewProps>) => {
-  const detailArticles = clusterDetail?.articles ?? [];
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
-      <div
-        className={`bg-[var(--news-bg-primary)] border border-border/60 rounded-xl shadow-2xl shadow-black/40 transition-all duration-300 animate-in zoom-in-95 fade-in-0 duration-200 flex flex-col ${
-          (() => {
-  if (isExpanded) {
-    return "w-full h-full max-w-none max-h-none";
-  }
-  return "max-w-5xl w-full max-h-[90vh]";
-})()
-        }`}
-      >
-        <ClusterHeader
-          isBreaking={isBreaking}
-          label={label}
-          cluster={cluster}
-          isExpanded={isExpanded}
-          onToggleExpand={onToggleExpand}
-          onClose={onClose}
-        />
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {context !== undefined && context !== null && <GdeltContextStrip {...context} />}
-          {(() => {
-  if (loading) {
-    return <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="ml-3 text-muted-foreground">Loading sources...</span>
-            </div>;
-  }
-  return (() => {
-    if (detailArticles.length > 0) {
-      return <Tabs value={resolvedActiveArticleId ?? ""} onValueChange={onTabChange} className="flex-1 flex flex-col overflow-hidden">
-              <div className="border-b border-border/60 px-4 flex-shrink-0 overflow-x-auto">
-                <TabsList className="h-auto p-1 bg-transparent gap-1">
-                  {detailArticles.map(article => <TabsTrigger key={`${article.id}-${article.url}`} value={article.id.toString()} className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium">
-                      <Newspaper className="w-3 h-3 mr-2" />
-                      {article.source}
-                    </TabsTrigger>)}
-                  <TabsTrigger value="compare" className="data-[state=active]:bg-[var(--news-bg-secondary)] data-[state=active]:border-primary/40 border border-transparent px-4 py-2 text-xs font-medium" onClick={onOpenComparison}>
-                    <ArrowRightLeft className="w-3 h-3 mr-2" />
-                    Compare Sources
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              {detailArticles.map(article => <ArticleTab key={`${article.id}-${article.url}`} article={article} activeContent={activeContent} loadingArticleId={loadingArticle} likedIds={likedIds} isArticleInQueue={isArticleInQueue} contentRef={contentRef} onLike={onLike} onQueueToggle={onQueueToggle} onClose={onClose} />)}
-              <ComparisonTab {...comparison} />
-            </Tabs>;
-    }
-    return (() => {
-      if (hasText(loadError)) {
-        return <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              {loadError}
-            </div>;
-      }
-      return <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              No articles found for this cluster.
-            </div>;
-    })();
-  })();
-})()}
-        </div>
-        <KeywordsFooter keywords={cluster.keywords} />
-      </div>
+      <ClusterDetailPanel
+        cluster={cluster}
+        isBreaking={isBreaking}
+        label={label}
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+        onClose={onClose}
+        context={context}
+        loading={loading}
+        clusterDetail={clusterDetail}
+        loadError={loadError}
+        resolvedActiveArticleId={resolvedActiveArticleId}
+        activeContent={activeContent}
+        loadingArticle={loadingArticle}
+        likedIds={likedIds}
+        isArticleInQueue={isArticleInQueue}
+        contentRef={contentRef}
+        onLike={onLike}
+        onQueueToggle={onQueueToggle}
+        onTabChange={onTabChange}
+        onOpenComparison={onOpenComparison}
+        comparison={comparison}
+      />
     </div>
   );
 };
@@ -709,86 +932,126 @@ interface ClusterHeaderProps {
   readonly onClose: () => void;
 }
 
-const ClusterHeader = ({
+const ClusterHeaderStatus = ({
+  cluster,
+  isBreaking,
+  sourceCount,
+}: Readonly<{
+  readonly cluster: ClusterDetailCluster;
+  readonly isBreaking: boolean;
+  readonly sourceCount: number;
+}>) => {
+  if (isBreaking && isBreakingCluster(cluster)) {
+    return (
+      <>
+        <Badge variant="destructive" className="text-[9px]">
+          BREAKING
+        </Badge>
+        <span>{cluster.article_count_3h} articles in 3h</span>
+        <span>|</span>
+        <span>{cluster.spike_magnitude?.toFixed(1)}x spike</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <Badge variant="outline" className="text-[9px]">
+        TRENDING
+      </Badge>
+      <span>{getClusterArticleCount(cluster)} articles</span>
+      <span>|</span>
+      <span>{sourceCount} sources</span>
+    </>
+  );
+};
+
+const ClusterHeaderInfo = ({
   cluster,
   isBreaking,
   label,
-  isExpanded,
-  onToggleExpand,
-  onClose,
-}: DeepReadonly<ClusterHeaderProps>) => {
-  const sourceCount = (() => {
-  if ("source_diversity" in cluster) {
-    return cluster.source_diversity;
-  }
-  return cluster.source_count_3h;
-})();
+}: Readonly<Pick<ClusterHeaderProps, "cluster" | "isBreaking" | "label">>) => {
+  const sourceCount = getClusterSourceCount(cluster);
   return (
-    <div className="flex items-center justify-between p-4 border-b border-border/60 flex-shrink-0">
     <div className="flex items-center gap-3">
-      {(() => {
+      <ClusterHeaderIcon isBreaking={isBreaking} />
+      <ClusterHeaderText
+        cluster={cluster}
+        isBreaking={isBreaking}
+        label={label}
+        sourceCount={sourceCount}
+      />
+    </div>
+  );
+};
+
+const ClusterHeaderText = ({
+  cluster,
+  isBreaking,
+  label,
+  sourceCount,
+}: Readonly<{
+  readonly cluster: ClusterDetailCluster;
+  readonly isBreaking: boolean;
+  readonly label: string;
+  readonly sourceCount: number;
+}>) => (
+  <div>
+    <h2 className="font-serif text-xl font-bold">{label}</h2>
+    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+      <ClusterHeaderStatus cluster={cluster} isBreaking={isBreaking} sourceCount={sourceCount} />
+    </div>
+  </div>
+);
+
+const ClusterHeaderIcon = ({ isBreaking }: Readonly<{ isBreaking: boolean }>) => {
   if (isBreaking) {
     return <Zap className="w-5 h-5 text-red-500" />;
   }
   return <TrendingUp className="w-5 h-5 text-primary" />;
-})()}
-      <div>
-        <h2 className="font-serif text-xl font-bold">{label}</h2>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-          {(() => {
-  if (isBreaking && isBreakingCluster(cluster)) {
-    return <>
-              <Badge variant="destructive" className="text-[9px]">
-                BREAKING
-              </Badge>
-              <span>{cluster.article_count_3h} articles in 3h</span>
-              <span>|</span>
-              <span>{cluster.spike_magnitude?.toFixed(1)}x spike</span>
-            </>;
-  }
-  return <>
-              <Badge variant="outline" className="text-[9px]">
-                TRENDING
-              </Badge>
-              <span>{(() => {
-        if ("article_count" in cluster) {
-          return cluster.article_count;
-        }
-        return 0;
-      })()} articles</span>
-              <span>|</span>
-              <span>{sourceCount} sources</span>
-            </>;
-})()}
-        </div>
-      </div>
-    </div>
-    <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onToggleExpand}
-        className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-      >
-        {(() => {
+};
+
+const ClusterExpandIcon = ({ isExpanded }: Readonly<{ isExpanded: boolean }>) => {
   if (isExpanded) {
     return <Minimize2 className="h-4 w-4" />;
   }
   return <Maximize2 className="h-4 w-4" />;
-})()}
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onClose}
-        className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
-      >
-        <X className="h-5 w-5" />
-      </Button>
-    </div>
-    </div>
-  );
 };
+
+const ClusterHeaderActions = ({
+  isExpanded,
+  onToggleExpand,
+  onClose,
+}: Readonly<Pick<ClusterHeaderProps, "isExpanded" | "onToggleExpand" | "onClose">>) => (
+  <div className="flex items-center gap-2">
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onToggleExpand}
+      className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
+    >
+      <ClusterExpandIcon isExpanded={isExpanded} />
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onClose}
+      className="bg-[var(--news-bg-secondary)]/70 hover:bg-[var(--news-bg-secondary)] border border-border/60"
+    >
+      <X className="h-5 w-5" />
+    </Button>
+  </div>
+);
+
+const ClusterHeader = (props: DeepReadonly<ClusterHeaderProps>) => (
+  <div className="flex items-center justify-between p-4 border-b border-border/60 flex-shrink-0">
+    <ClusterHeaderInfo cluster={props.cluster} isBreaking={props.isBreaking} label={props.label} />
+    <ClusterHeaderActions
+      isExpanded={props.isExpanded}
+      onToggleExpand={props.onToggleExpand}
+      onClose={props.onClose}
+    />
+  </div>
+);
 
 interface GdeltContextStripProps {
   readonly context: GdeltContextLike;
@@ -797,41 +1060,99 @@ interface GdeltContextStripProps {
   readonly toneDelta: number | null;
 }
 
-const GdeltContextStrip = ({
-  context,
-  cameoSummary,
-  toneAvg,
-  toneDelta,
-}: GdeltContextStripProps) => (
-  <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/40 px-4 py-4">
-    <div className="grid gap-3 md:grid-cols-3">
-      <GdeltCameoMetric context={context} summary={cameoSummary} />
-      <GdeltGoldsteinMetric context={context} />
-      <GdeltToneMetric context={context} toneAvg={toneAvg} toneDelta={toneDelta} />
-    </div>
+const GdeltMetricGrid = ({ context, cameoSummary, toneAvg, toneDelta }: GdeltContextStripProps) => (
+  <div className="grid gap-3 md:grid-cols-3">
+    <GdeltCameoMetric context={context} summary={cameoSummary} />
+    <GdeltGoldsteinMetric context={context} />
+    <GdeltToneMetric context={context} toneAvg={toneAvg} toneDelta={toneDelta} />
   </div>
 );
 
-const GdeltCameoMetric = ({
+const GdeltContextStrip = (props: GdeltContextStripProps) => (
+  <div className="border-b border-border/60 bg-[var(--news-bg-secondary)]/40 px-4 py-4">
+    <GdeltMetricGrid
+      context={props.context}
+      cameoSummary={props.cameoSummary}
+      toneAvg={props.toneAvg}
+      toneDelta={props.toneDelta}
+    />
+  </div>
+);
+
+const GdeltCameoValue = ({
   context,
   summary,
-}: DeepReadonly<{
-  context: GdeltContextLike;
-  summary: string | null;
-}>) => (
+}: Readonly<Pick<GdeltCameoMetricProps, "context" | "summary">>) => {
+  if (hasText(summary)) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-primary/15 text-primary hover:bg-primary/15">{summary}</Badge>
+        <span className="text-xs text-muted-foreground">{context.total_events} events</span>
+      </div>
+    );
+  }
+  return <span className="text-sm text-muted-foreground">No event root data</span>;
+};
+
+interface GdeltCameoMetricProps {
+  readonly context: GdeltContextLike;
+  readonly summary: string | null;
+}
+
+const GdeltCameoMetric = ({ context, summary }: GdeltCameoMetricProps) => (
   <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
     <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
       CAMEO
     </div>
-    {(() => {
-  if (hasText(summary)) {
-    return <div className="flex flex-wrap items-center gap-2">
-        <Badge className="bg-primary/15 text-primary hover:bg-primary/15">{summary}</Badge>
-        <span className="text-xs text-muted-foreground">{context.total_events} events</span>
-      </div>;
+    <GdeltCameoValue context={context} summary={summary} />
+  </div>
+);
+
+const GdeltBucketBadge = ({ bucket }: Readonly<{ bucket: string | null | undefined }>) => {
+  if (!hasText(bucket)) {
+    return null;
   }
-  return <span className="text-sm text-muted-foreground">No event root data</span>;
-})()}
+  return (
+    <Badge variant="outline" className="border-border/60 text-[9px] uppercase tracking-[0.2em]">
+      {bucket}
+    </Badge>
+  );
+};
+
+const GdeltGoldsteinHeader = ({ context }: Readonly<{ context: GdeltContextLike }>) => (
+  <div className="mb-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
+    <span>Goldstein</span>
+    <GdeltBucketBadge bucket={context.goldstein_bucket} />
+  </div>
+);
+
+const GdeltGoldsteinBar = ({
+  context,
+  hasRange,
+  markerStyle,
+}: Readonly<{
+  readonly context: GdeltContextLike;
+  readonly hasRange: boolean;
+  readonly markerStyle: CSSProperties | undefined;
+}>) => (
+  <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-white/5">
+    {hasRange && <GdeltGoldsteinRange context={context} />}
+    {context.goldstein_avg !== undefined && context.goldstein_avg !== null && (
+      <div
+        className="absolute top-[-3px] h-4 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.45)]"
+        style={markerStyle}
+      />
+    )}
+  </div>
+);
+
+const GdeltMetricValues = ({ context }: Readonly<{ context: GdeltContextLike }>) => (
+  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+    <span>{formatMetricNumber(context.goldstein_min)}</span>
+    <span className="font-medium text-foreground/80">
+      {formatMetricNumber(context.goldstein_avg)}
+    </span>
+    <span>{formatMetricNumber(context.goldstein_max)}</span>
   </div>
 );
 
@@ -841,42 +1162,17 @@ const GdeltGoldsteinMetric = ({ context }: DeepReadonly<{ context: GdeltContextL
     context.goldstein_min !== null &&
     context.goldstein_max !== undefined &&
     context.goldstein_max !== null;
-  const markerStyle =
-    (() => {
-  if (context.goldstein_avg === undefined || context.goldstein_avg === null) {
-    return void 0;
-  }
-  return getGoldsteinMarkerStyle(context.goldstein_avg);
-})();
+  const markerStyle = (() => {
+    if (context.goldstein_avg === undefined || context.goldstein_avg === null) {
+      return void 0;
+    }
+    return getGoldsteinMarkerStyle(context.goldstein_avg);
+  })();
   return (
     <div className="rounded-lg border border-border/50 bg-[var(--news-bg-primary)]/80 p-3">
-      <div className="mb-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.24em] text-muted-foreground">
-        <span>Goldstein</span>
-        {hasText(context.goldstein_bucket) && (
-          <Badge
-            variant="outline"
-            className="border-border/60 text-[9px] uppercase tracking-[0.2em]"
-          >
-            {context.goldstein_bucket}
-          </Badge>
-        )}
-      </div>
-      <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-white/5">
-        {hasRange && <GdeltGoldsteinRange context={context} />}
-        {context.goldstein_avg !== undefined && context.goldstein_avg !== null && (
-          <div
-            className="absolute top-[-3px] h-4 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.45)]"
-            style={markerStyle}
-          />
-        )}
-      </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{formatMetricNumber(context.goldstein_min)}</span>
-        <span className="font-medium text-foreground/80">
-          {formatMetricNumber(context.goldstein_avg)}
-        </span>
-        <span>{formatMetricNumber(context.goldstein_max)}</span>
-      </div>
+      <GdeltGoldsteinHeader context={context} />
+      <GdeltGoldsteinBar context={context} hasRange={hasRange} markerStyle={markerStyle} />
+      <GdeltMetricValues context={context} />
     </div>
   );
 };
@@ -897,11 +1193,35 @@ const GdeltGoldsteinRange = ({ context }: DeepReadonly<{ context: GdeltContextLi
 
 const formatMetricNumber = (value: number | null | undefined): string =>
   (() => {
-  if (value === undefined || value === null) {
-    return "—";
+    if (value === undefined || value === null) {
+      return "—";
+    }
+    return value.toFixed(1);
+  })();
+
+const GdeltToneLabel = ({ toneDelta }: Readonly<{ toneDelta: number | null }>) => {
+  if (toneDelta === null) {
+    return <span className="pb-1 text-xs text-muted-foreground">cluster avg</span>;
   }
-  return value.toFixed(1);
-})();
+  return <span className="pb-1 text-xs text-muted-foreground">vs cluster</span>;
+};
+
+const GdeltToneDetail = ({
+  context,
+  toneDelta,
+}: Readonly<{ context: GdeltContextLike; toneDelta: number | null }>) => {
+  if (toneDelta === null) {
+    if (context.tone_avg !== undefined && context.tone_avg !== null) {
+      return <span>Cluster avg {context.tone_avg.toFixed(2)}</span>;
+    }
+    return <span>No tone data</span>;
+  }
+  let toneClass = "text-red-400";
+  if (toneDelta >= 0) {
+    toneClass = "text-emerald-400";
+  }
+  return <span className={toneClass}>{formatSignedNumber(toneDelta, 2)}</span>;
+};
 
 const GdeltToneMetric = ({
   context,
@@ -918,34 +1238,10 @@ const GdeltToneMetric = ({
     </div>
     <div className="flex items-end gap-2">
       <span className="font-serif text-2xl text-foreground">{formatSignedNumber(toneAvg, 2)}</span>
-      <span className="pb-1 text-xs text-muted-foreground">
-        {(() => {
-  if (toneDelta === null) {
-    return "cluster avg";
-  }
-  return "vs cluster";
-})()}
-      </span>
+      <GdeltToneLabel toneDelta={toneDelta} />
     </div>
     <div className="mt-2 text-xs text-muted-foreground">
-      {(() => {
-  if (toneDelta === null) {
-    return (() => {
-      if (context.tone_avg !== undefined && context.tone_avg !== null) {
-        return <span>Cluster avg {context.tone_avg.toFixed(2)}</span>;
-      }
-      return <span>No tone data</span>;
-    })();
-  }
-  return <span className={(() => {
-    if (toneDelta >= 0) {
-      return "text-emerald-400";
-    }
-    return "text-red-400";
-  })()}>
-          {formatSignedNumber(toneDelta, 2)}
-        </span>;
-})()}
+      <GdeltToneDetail context={context} toneDelta={toneDelta} />
     </div>
   </div>
 );
@@ -974,26 +1270,89 @@ const ArticleTab = ({
   onClose,
 }: DeepReadonly<ArticleTabProps>) => (
   <TabsContent value={article.id.toString()} className="flex-1 overflow-y-auto m-0 p-0">
-    <div className="p-6 space-y-6">
-      <ArticleTabHeader article={article} onClose={onClose} />
-      <ArticleTabBody
-        article={article}
-        activeContent={activeContent}
-        contentRef={contentRef}
-        loadingArticleId={loadingArticleId}
-      />
-      <ArticleTabActions
-        article={article}
-        isArticleInQueue={isArticleInQueue}
-        likedIds={likedIds}
-        onLike={onLike}
-        onQueueToggle={onQueueToggle}
-      />
-    </div>
+    <ArticleTabPanel
+      article={article}
+      activeContent={activeContent}
+      loadingArticleId={loadingArticleId}
+      likedIds={likedIds}
+      isArticleInQueue={isArticleInQueue}
+      contentRef={contentRef}
+      onLike={onLike}
+      onQueueToggle={onQueueToggle}
+      onClose={onClose}
+    />
   </TabsContent>
 );
 
-const ArticleTabHeader = ({
+const ArticleTabPanel = (props: DeepReadonly<ArticleTabProps>) => (
+  <div className="p-6 space-y-6">
+    <ArticleTabHeader article={props.article} onClose={props.onClose} />
+    <ArticleTabBody
+      article={props.article}
+      activeContent={props.activeContent}
+      contentRef={props.contentRef}
+      loadingArticleId={props.loadingArticleId}
+    />
+    <ArticleTabActions
+      article={props.article}
+      isArticleInQueue={props.isArticleInQueue}
+      likedIds={props.likedIds}
+      onLike={props.onLike}
+      onQueueToggle={props.onQueueToggle}
+    />
+  </div>
+);
+
+const ArticleHeaderSourceBadge = ({ source }: Readonly<{ source: string }>) => (
+  <div className="absolute top-3 left-3">
+    <Badge
+      variant="outline"
+      className="text-[10px] font-semibold px-2 py-0.5 bg-black/70 text-white border-white/30 uppercase tracking-wider"
+    >
+      {source}
+    </Badge>
+  </div>
+);
+
+const ArticleHeaderImage = ({ article }: Readonly<{ article: ClusterArticle }>) => {
+  if (!isUsableImage(article.image_url)) {
+    return null;
+  }
+  return (
+    <div className="relative aspect-video max-h-[300px] overflow-hidden rounded-lg mb-6">
+      <SafeImage
+        src={article.image_url}
+        alt={article.title}
+        fill
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+      <ArticleHeaderSourceBadge source={article.source} />
+    </div>
+  );
+};
+
+const getArticleMatchLabel = (similarity: number | null | undefined): string => {
+  if (similarity === null || similarity === undefined) {
+    return "Match unavailable";
+  }
+  return `${Math.round(similarity * 100)}% match`;
+};
+
+const ArticleMatchBadge = ({ similarity }: Readonly<{ similarity: number | null | undefined }>) => (
+  <Badge variant="outline" className="text-[9px]">
+    {getArticleMatchLabel(similarity)}
+  </Badge>
+);
+
+const ArticleDate = ({ publishedAt }: Readonly<{ publishedAt?: string | null }>) => (
+  <span className="flex items-center gap-1">
+    <Clock className="w-3 h-3" />
+    {formatArticleDateTime(publishedAt)}
+  </span>
+);
+
+const ArticleHeaderMetadata = ({
   article,
   onClose,
 }: DeepReadonly<Pick<ArticleTabProps, "article" | "onClose">>) => {
@@ -1005,27 +1364,6 @@ const ArticleTabHeader = ({
     [onClose],
   );
   return (
-  <div>
-    {isUsableImage(article.image_url) && (
-      <div className="relative aspect-video max-h-[300px] overflow-hidden rounded-lg mb-6">
-        <SafeImage
-          src={article.image_url}
-          alt={article.title}
-          fill
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute top-3 left-3">
-          <Badge
-            variant="outline"
-            className="text-[10px] font-semibold px-2 py-0.5 bg-black/70 text-white border-white/30 uppercase tracking-wider"
-          >
-            {article.source}
-          </Badge>
-        </div>
-      </div>
-    )}
-    <h3 className="font-serif text-2xl font-bold mb-3">{article.title}</h3>
     <div className="flex items-center gap-3 text-sm text-muted-foreground">
       <Link
         href={`/source/${encodeURIComponent(
@@ -1037,23 +1375,23 @@ const ArticleTabHeader = ({
         {article.source}
       </Link>
       <span>|</span>
-      <span className="flex items-center gap-1">
-        <Clock className="w-3 h-3" />
-        {formatArticleDateTime(article.published_at)}
-      </span>
-      <Badge variant="outline" className="text-[9px]">
-        {(() => {
-  if (article.similarity === null || article.similarity === undefined) {
-    return "Match unavailable";
-  }
-  return `${Math.round(article.similarity * 100)}% match`;
-})()}
-      </Badge>
+      <ArticleDate publishedAt={article.published_at} />
+      <ArticleMatchBadge similarity={article.similarity} />
     </div>
-    {article.gdelt_context && <ArticleGdeltBadges context={article.gdelt_context} />}
-  </div>
   );
 };
+
+const ArticleTabHeader = ({
+  article,
+  onClose,
+}: DeepReadonly<Pick<ArticleTabProps, "article" | "onClose">>) => (
+  <div>
+    <ArticleHeaderImage article={article} />
+    <h3 className="font-serif text-2xl font-bold mb-3">{article.title}</h3>
+    <ArticleHeaderMetadata article={article} onClose={onClose} />
+    {article.gdelt_context && <ArticleGdeltBadges context={article.gdelt_context} />}
+  </div>
+);
 
 const ArticleGdeltBadges = ({ context }: DeepReadonly<{ context: GdeltContextLike }>) => (
   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1062,14 +1400,12 @@ const ArticleGdeltBadges = ({ context }: DeepReadonly<{ context: GdeltContextLik
     </Badge>
     {context.tone_delta_vs_cluster !== undefined && context.tone_delta_vs_cluster !== null && (
       <Badge
-        className={`text-[10px] uppercase tracking-[0.18em] ${
-          (() => {
-  if (context.tone_delta_vs_cluster >= 0) {
-    return "bg-emerald-500/15 text-emerald-300";
-  }
-  return "bg-red-500/15 text-red-300";
-})()
-        }`}
+        className={`text-[10px] uppercase tracking-[0.18em] ${(() => {
+          if (context.tone_delta_vs_cluster >= 0) {
+            return "bg-emerald-500/15 text-emerald-300";
+          }
+          return "bg-red-500/15 text-red-300";
+        })()}`}
       >
         Tone {formatSignedNumber(context.tone_delta_vs_cluster, 2)}
       </Badge>
@@ -1087,18 +1423,118 @@ const ArticleTabBody = ({
   readonly activeContent: string | null | undefined;
   readonly contentRef: RefObject<HTMLDivElement | null>;
   readonly loadingArticleId: number | null;
-}>) => (
-  <div ref={contentRef} className="prose prose-invert max-w-none">
-    {(() => {
+}>) => {
   if (loadingArticleId === article.id) {
-    return <div className="flex items-center gap-3 p-6 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
-        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-        <span className="text-muted-foreground">Loading full article...</span>
-      </div>;
+    return (
+      <div ref={contentRef} className="prose prose-invert max-w-none">
+        <ArticleLoadingState />
+      </div>
+    );
   }
-  return <ArticleContent content={activeContent ?? "Loading article content..."} highlights={EMPTY_HIGHLIGHTS} className="text-base space-y-4" />;
-})()}
+  return (
+    <div ref={contentRef} className="prose prose-invert max-w-none">
+      <ArticleContent
+        content={activeContent ?? "Loading article content..."}
+        highlights={EMPTY_HIGHLIGHTS}
+        className="text-base space-y-4"
+      />
+    </div>
+  );
+};
+
+const ArticleLoadingState = () => (
+  <div className="flex items-center gap-3 p-6 bg-[var(--news-bg-secondary)]/60 rounded-lg border border-border/60">
+    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+    <span className="text-muted-foreground">Loading full article...</span>
   </div>
+);
+
+const ArticleLikeButton = ({
+  liked,
+  onLike,
+}: Readonly<{
+  readonly liked: boolean;
+  readonly onLike: () => void;
+}>) => (
+  <Button
+    variant="ghost"
+    size="sm"
+    onClick={onLike}
+    className={(() => {
+      if (liked) {
+        return "text-red-400";
+      }
+      return "text-gray-400";
+    })()}
+  >
+    <Heart
+      className={`h-4 w-4 mr-2 ${(() => {
+        if (liked) {
+          return "fill-current";
+        }
+        return "";
+      })()}`}
+    />
+    Like
+  </Button>
+);
+
+const ArticleQueueIcon = ({ inQueue }: Readonly<{ inQueue: boolean }>) => {
+  if (inQueue) {
+    return <MinusCircle className="h-4 w-4 mr-2" />;
+  }
+  return <PlusCircle className="h-4 w-4 mr-2" />;
+};
+
+const ArticleQueueButton = ({
+  articleInQueue,
+  onQueueToggle,
+}: Readonly<{
+  readonly articleInQueue: boolean;
+  readonly onQueueToggle: () => void;
+}>) => {
+  let className = "text-gray-400";
+  let label = "Add to Queue";
+  if (articleInQueue) {
+    className = "text-blue-400";
+    label = "Remove";
+  }
+  return (
+    <Button variant="ghost" size="sm" onClick={onQueueToggle} className={className}>
+      <ArticleQueueIcon inQueue={articleInQueue} />
+      {label}
+    </Button>
+  );
+};
+
+const ArticleActionButtons = ({
+  articleInQueue,
+  liked,
+  onLike,
+  onQueueToggle,
+}: Readonly<{
+  readonly articleInQueue: boolean;
+  readonly liked: boolean;
+  readonly onLike: () => void;
+  readonly onQueueToggle: () => void;
+}>) => (
+  <div className="flex items-center gap-3">
+    <ArticleLikeButton liked={liked} onLike={onLike} />
+    <ArticleQueueButton articleInQueue={articleInQueue} onQueueToggle={onQueueToggle} />
+  </div>
+);
+
+const ArticleReadOriginalButton = ({ url }: Readonly<{ url: string }>) => (
+  <Button variant="outline" size="sm" asChild>
+    <ArticleOriginalAnchor url={url} />
+  </Button>
+);
+
+const ArticleOriginalAnchor = ({ url }: Readonly<{ url: string }>) => (
+  <a href={url} target="_blank" rel="noopener noreferrer">
+    <ExternalLink className="h-4 w-4 mr-2" />
+    Read Original
+  </a>
 );
 
 const ArticleTabActions = ({
@@ -1111,66 +1547,22 @@ const ArticleTabActions = ({
   Pick<ArticleTabProps, "article" | "isArticleInQueue" | "likedIds" | "onLike" | "onQueueToggle">
 >) => {
   const handleLikeClick = useCallback(() => {
-      onLike(article.id);
-    }, [article.id, onLike]);
+    onLike(article.id);
+  }, [article.id, onLike]);
   const handleQueueClick = useCallback(() => {
-      onQueueToggle(article);
-    }, [article, onQueueToggle]);
+    onQueueToggle(article);
+  }, [article, onQueueToggle]);
   const articleInQueue = isArticleInQueue(article.url);
   return (
-  <div className="flex items-center justify-between pt-6 border-t border-border/60">
-    <div className="flex items-center gap-3">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleLikeClick}
-        className={(() => {
-  if (likedIds.has(article.id)) {
-    return "text-red-400";
-  }
-  return "text-gray-400";
-})()}
-      >
-        <Heart className={`h-4 w-4 mr-2 ${(() => {
-  if (likedIds.has(article.id)) {
-    return "fill-current";
-  }
-  return "";
-})()}`} />
-        Like
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleQueueClick}
-        className={(() => {
-  if (articleInQueue) {
-    return "text-blue-400";
-  }
-  return "text-gray-400";
-})()}
-      >
-        {(() => {
-  if (articleInQueue) {
-    return <MinusCircle className="h-4 w-4 mr-2" />;
-  }
-  return <PlusCircle className="h-4 w-4 mr-2" />;
-})()}
-        {(() => {
-  if (articleInQueue) {
-    return "Remove";
-  }
-  return "Add to Queue";
-})()}
-      </Button>
+    <div className="flex items-center justify-between pt-6 border-t border-border/60">
+      <ArticleActionButtons
+        articleInQueue={articleInQueue}
+        liked={likedIds.has(article.id)}
+        onLike={handleLikeClick}
+        onQueueToggle={handleQueueClick}
+      />
+      <ArticleReadOriginalButton url={article.url} />
     </div>
-    <Button variant="outline" size="sm" asChild>
-      <a href={article.url} target="_blank" rel="noopener noreferrer">
-        <ExternalLink className="h-4 w-4 mr-2" />
-        Read Original
-      </a>
-    </Button>
-  </div>
   );
 };
 
@@ -1182,6 +1574,134 @@ interface ComparisonArticleColumnProps {
   readonly comparisonData: ComparisonData;
 }
 
+const ComparisonArticleImage = ({ article }: Readonly<{ article: ComparisonArticle }>) => {
+  if (!isUsableImage(article.image_url)) {
+    return null;
+  }
+  return (
+    <div className="relative aspect-video max-h-[150px] overflow-hidden rounded-lg mb-3">
+      <SafeImage
+        src={article.image_url || undefined}
+        alt={article.title}
+        fill
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+    </div>
+  );
+};
+
+const ComparisonArticleMetadata = ({ article }: Readonly<{ article: ComparisonArticle }>) => (
+  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <ArticleDate publishedAt={article.published_at} />
+    <ArticleMatchBadge similarity={article.similarity} />
+  </div>
+);
+
+const ComparisonArticleHeader = ({ article }: Readonly<{ article: ComparisonArticle }>) => (
+  <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
+    <ComparisonArticleImage article={article} />
+    <h4 className="font-serif text-lg font-bold">{article.source}</h4>
+    <ComparisonArticleMetadata article={article} />
+  </div>
+);
+
+const ComparisonSimilarItem = ({
+  item,
+  isFirst,
+}: Readonly<{
+  readonly item: ComparisonData["diff"]["similar"][number];
+  readonly isFirst: boolean;
+}>) => {
+  let className = "border-l-orange-500 bg-orange-500/5";
+  let text = item.source_2_text;
+  if (isFirst) {
+    className = "border-l-green-500 bg-green-500/5";
+    text = item.source_1_text;
+  }
+  return (
+    <div
+      className={`p-2 rounded border-l-2 ${className}`}
+      key={`${item.source_1_index}-${item.source_2_index}`}
+    >
+      <div className="text-[10px] text-muted-foreground mb-1">
+        Similarity: {Math.round(item.similarity * 100)}%
+      </div>
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+};
+
+const ComparisonUniqueItem = ({
+  item,
+}: Readonly<{ item: ComparisonData["diff"]["added"][number] }>) => (
+  <div
+    key={`unique-${item.index}-${item.text}`}
+    className="p-2 rounded border-l-2 border-l-gray-500 bg-gray-500/5 opacity-70"
+  >
+    <div className="text-[10px] text-muted-foreground mb-1">Unique content</div>
+    <p className="text-sm">{item.text}</p>
+  </div>
+);
+
+const ComparisonDiffEntries = ({
+  comparisonData,
+  isFirst,
+}: Readonly<{ comparisonData: ComparisonData; isFirst: boolean }>) => {
+  let uniqueItems = comparisonData.diff.added;
+  if (isFirst) {
+    uniqueItems = comparisonData.diff.removed;
+  }
+  return (
+    <div className="space-y-2 text-sm">
+      {comparisonData.diff.similar.slice(0, 5).map((item) => (
+        <ComparisonSimilarItem
+          key={`${item.source_1_index}-${item.source_2_index}`}
+          item={item}
+          isFirst={isFirst}
+        />
+      ))}
+      {uniqueItems.slice(0, 3).map((item) => (
+        <ComparisonUniqueItem key={`unique-${item.index}-${item.text}`} item={item} />
+      ))}
+    </div>
+  );
+};
+
+const ComparisonLoadingState = () => (
+  <div className="flex items-center gap-2 p-4">
+    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+    <span className="text-muted-foreground text-sm">Loading...</span>
+  </div>
+);
+
+const ComparisonArticleContent = ({
+  isFirst,
+  content,
+  loading,
+  comparisonData,
+}: Pick<ComparisonArticleColumnProps, "isFirst" | "content" | "loading" | "comparisonData">) => {
+  if (loading) {
+    return <ComparisonLoadingState />;
+  }
+  if (!hasText(content)) {
+    return <div className="text-sm text-muted-foreground">No content available</div>;
+  }
+  return <ComparisonDiffEntries comparisonData={comparisonData} isFirst={isFirst} />;
+};
+
+const ComparisonArticleOriginalButton = ({ url }: Readonly<{ url: string }>) => (
+  <Button variant="outline" size="sm" asChild className="text-xs">
+    <ArticleOriginalAnchor url={url} />
+  </Button>
+);
+
+const ComparisonArticleActions = ({ url }: Readonly<{ url: string }>) => (
+  <div className="flex items-center gap-2">
+    <ComparisonArticleOriginalButton url={url} />
+  </div>
+);
+
 const ComparisonArticleColumn = ({
   article,
   isFirst,
@@ -1190,91 +1710,17 @@ const ComparisonArticleColumn = ({
   comparisonData,
 }: ComparisonArticleColumnProps) => (
   <div className="space-y-4">
-    {/* Article Header */}
-    <div className="bg-[var(--news-bg-secondary)] p-4 rounded-lg border border-border/60">
-      {isUsableImage(article.image_url) && (
-        <div className="relative aspect-video max-h-[150px] overflow-hidden rounded-lg mb-3">
-          <SafeImage
-            src={article.image_url || undefined}
-            alt={article.title}
-            fill
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        </div>
-      )}
-      <h4 className="font-serif text-lg font-bold">{article.source}</h4>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Clock className="w-3 h-3" />
-        {formatArticleDateTime(article.published_at)}
-        <Badge variant="outline" className="text-[9px]">
-          {(() => {
-  if (article.similarity === null || article.similarity === undefined) {
-    return "Match unavailable";
-  }
-  return `${Math.round(article.similarity * 100)}% match`;
-})()}
-        </Badge>
-      </div>
-    </div>
-
-    {/* Content with Visual Diff */}
+    <ComparisonArticleHeader article={article} />
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
       <h5 className="font-bold mb-3 text-sm">{article.title}</h5>
-      {(() => {
-  if (loading) {
-    return <div className="flex items-center gap-2 p-4">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          <span className="text-muted-foreground text-sm">Loading...</span>
-        </div>;
-  }
-  return (() => {
-    if (hasText(content)) {
-      return <div className="space-y-2 text-sm">
-          {/* Show similar sentences with highlighting */}
-          {comparisonData.diff.similar.slice(0, 5).map(item => <div key={`${item.source_1_index}-${item.source_2_index}`} className={`p-2 rounded border-l-2 ${(() => {
-          if (isFirst) {
-            return "border-l-green-500 bg-green-500/5";
-          }
-          return "border-l-orange-500 bg-orange-500/5";
-        })()}`}>
-              <div className="text-[10px] text-muted-foreground mb-1">
-                Similarity: {Math.round(item.similarity * 100)}%
-              </div>
-              <p className="text-sm">{(() => {
-              if (isFirst) {
-                return item.source_1_text;
-              }
-              return item.source_2_text;
-            })()}</p>
-            </div>)}
-
-          {/* Show unique content */}
-          {comparisonData.diff[(() => {
-          if (isFirst) {
-            return "removed";
-          }
-          return "added";
-        })()].slice(0, 3).map(item => <div key={`unique-${item.index}-${item.text}`} className="p-2 rounded border-l-2 border-l-gray-500 bg-gray-500/5 opacity-70">
-              <div className="text-[10px] text-muted-foreground mb-1">Unique content</div>
-              <p className="text-sm">{item.text}</p>
-            </div>)}
-        </div>;
-    }
-    return <div className="text-sm text-muted-foreground">No content available</div>;
-  })();
-})()}
+      <ComparisonArticleContent
+        isFirst={isFirst}
+        content={content}
+        loading={loading}
+        comparisonData={comparisonData}
+      />
     </div>
-
-    {/* Actions */}
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" asChild className="text-xs">
-        <a href={article.url} target="_blank" rel="noopener noreferrer">
-          <ExternalLink className="h-4 w-4 mr-2" />
-          Read Original
-        </a>
-      </Button>
-    </div>
+    <ComparisonArticleActions url={article.url} />
   </div>
 );
 
@@ -1284,83 +1730,131 @@ interface EntitiesBlockProps {
   readonly secondarySource: string;
 }
 
+type EntityValues = Readonly<{
+  readonly persons: readonly string[];
+  readonly organizations: readonly string[];
+}>;
+
+const getEntityBadgeVariant = (outline: boolean): "default" | "outline" => {
+  if (outline) {
+    return "outline";
+  }
+  return "default";
+};
+
+const getEntityBadgeClass = (outline: boolean): string => {
+  if (outline) {
+    return "text-[9px] mr-1";
+  }
+  return "text-[10px] bg-green-500/20 text-green-400 border-green-500/40";
+};
+
+const EntityBadgeList = ({
+  values,
+  prefix,
+  outline,
+}: Readonly<{
+  readonly values: readonly string[];
+  readonly prefix: string;
+  readonly outline: boolean;
+}>) => (
+  <div className="flex flex-wrap gap-1 mt-1">
+    {values.map((value) => (
+      <Badge
+        key={`${prefix}-${value}`}
+        variant={getEntityBadgeVariant(outline)}
+        className={getEntityBadgeClass(outline)}
+      >
+        {value}
+      </Badge>
+    ))}
+  </div>
+);
+
+const CommonEntityGroup = ({
+  label,
+  values,
+  prefix,
+}: Readonly<{
+  readonly label: string;
+  readonly values: readonly string[];
+  readonly prefix: string;
+}>) => {
+  if (values.length === 0) {
+    return null;
+  }
+  return (
+    <div className="mb-3">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <EntityBadgeList values={values} prefix={prefix} outline={false} />
+    </div>
+  );
+};
+
+const getUniqueEntityValues = (entities: EntityValues): readonly string[] => [
+  ...entities.persons.slice(0, 3),
+  ...entities.organizations.slice(0, 3),
+];
+
+const UniqueEntityColumn = ({
+  source,
+  entities,
+  prefix,
+}: Readonly<{
+  readonly source: string;
+  readonly entities: EntityValues;
+  readonly prefix: string;
+}>) => (
+  <div>
+    <span className="text-xs text-muted-foreground block mb-2">Unique to {source}:</span>
+    <EntityBadgeList values={getUniqueEntityValues(entities)} prefix={prefix} outline />
+  </div>
+);
+
+const UniqueEntitiesGrid = ({
+  comparisonData,
+  primarySource,
+  secondarySource,
+}: EntitiesBlockProps) => (
+  <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-border/60">
+    <UniqueEntityColumn
+      source={primarySource}
+      entities={comparisonData.entities.comparison.unique_to_source_1}
+      prefix="source-one"
+    />
+    <UniqueEntityColumn
+      source={secondarySource}
+      entities={comparisonData.entities.comparison.unique_to_source_2}
+      prefix="source-two"
+    />
+  </div>
+);
+
+const EntitiesHeading = ({ count }: Readonly<{ count: number }>) => (
+  <h4 className="font-bold mb-4 flex items-center gap-2">
+    <span>Named Entities</span>
+    <Badge variant="outline" className="text-[10px]">
+      {count} shared
+    </Badge>
+  </h4>
+);
+
 const EntitiesBlock = ({ comparisonData, primarySource, secondarySource }: EntitiesBlockProps) => {
   const commonEntities = comparisonData.entities.comparison.common_entities;
   return (
     <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
-      <h4 className="font-bold mb-4 flex items-center gap-2">
-        <span>Named Entities</span>
-        <Badge variant="outline" className="text-[10px]">
-          {comparisonData.summary.common_entities_count} shared
-        </Badge>
-      </h4>
-
-      {/* Common Entities */}
-      {commonEntities.persons.length > 0 && (
-        <div className="mb-3">
-          <span className="text-xs text-muted-foreground">Common People:</span>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {commonEntities.persons.map((person) => (
-              <Badge
-                key={`person-${person}`}
-                className="text-[10px] bg-green-500/20 text-green-400 border-green-500/40"
-              >
-                {person}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {commonEntities.organizations.length > 0 && (
-        <div className="mb-3">
-          <span className="text-xs text-muted-foreground">Common Organizations:</span>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {commonEntities.organizations.map((org) => (
-              <Badge
-                key={`organization-${org}`}
-                className="text-[10px] bg-green-500/20 text-green-400 border-green-500/40"
-              >
-                {org}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Unique Entities */}
-      <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-border/60">
-        <div>
-          <span className="text-xs text-muted-foreground block mb-2">
-            Unique to {primarySource}:
-          </span>
-          <div className="space-y-1">
-            {[
-              ...comparisonData.entities.comparison.unique_to_source_1.persons.slice(0, 3),
-              ...comparisonData.entities.comparison.unique_to_source_1.organizations.slice(0, 3),
-            ].map((entity) => (
-              <Badge key={`source-one-${entity}`} variant="outline" className="text-[9px] mr-1">
-                {entity}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground block mb-2">
-            Unique to {secondarySource}:
-          </span>
-          <div className="space-y-1">
-            {[
-              ...comparisonData.entities.comparison.unique_to_source_2.persons.slice(0, 3),
-              ...comparisonData.entities.comparison.unique_to_source_2.organizations.slice(0, 3),
-            ].map((entity) => (
-              <Badge key={`source-two-${entity}`} variant="outline" className="text-[9px] mr-1">
-                {entity}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </div>
+      <EntitiesHeading count={comparisonData.summary.common_entities_count} />
+      <CommonEntityGroup label="Common People:" values={commonEntities.persons} prefix="person" />
+      <CommonEntityGroup
+        label="Common Organizations:"
+        values={commonEntities.organizations}
+        prefix="organization"
+      />
+      <UniqueEntitiesGrid
+        comparisonData={comparisonData}
+        primarySource={primarySource}
+        secondarySource={secondarySource}
+      />
     </div>
   );
 };
@@ -1371,77 +1865,164 @@ interface KeywordsBlockProps {
   readonly secondarySource: string;
 }
 
-const KeywordsBlock = ({ comparisonData, primarySource, secondarySource }: KeywordsBlockProps) => (
-  <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
-    <h4 className="font-bold mb-4">Keyword Analysis</h4>
+type CommonKeyword = ComparisonData["keywords"]["comparison"]["common_keywords"][number];
+type UniqueKeyword = ComparisonData["keywords"]["comparison"]["unique_to_source_1"][number];
 
-    {/* Common Keywords with emphasis */}
-    {comparisonData.keywords.comparison.common_keywords.length > 0 && (
-      <div className="mb-4">
-        <span className="text-xs text-muted-foreground">Common Keywords (with emphasis):</span>
-        <div className="mt-2 space-y-1">
-          {comparisonData.keywords.comparison.common_keywords.slice(0, 8).map((kw) => (
-            <div key={kw.keyword} className="flex items-center gap-2 text-xs">
-              <span className="w-20 font-medium">{kw.keyword}</span>
-              <div className="flex-1 h-4 bg-[var(--news-bg-primary)] rounded-full overflow-hidden flex">
-                <div
-                  className="h-full bg-blue-500/60"
-                  style={getKeywordShareStyle(kw.source_1_freq, kw.source_2_freq)}
-                />
-                <div
-                  className="h-full bg-orange-500/60"
-                  style={getKeywordShareStyle(kw.source_2_freq, kw.source_1_freq)}
-                />
-              </div>
-              <span className="w-8 text-right text-[10px] text-muted-foreground">
-                {kw.source_1_freq} vs {kw.source_2_freq}
-              </span>
-              {kw.emphasis !== "equal" && (
-                <Badge
-                  className={`text-[9px] ${(() => {
-  if (kw.emphasis === "source_1") {
+const KeywordShareBar = ({ keyword }: Readonly<{ keyword: CommonKeyword }>) => (
+  <div className="flex-1 h-4 bg-[var(--news-bg-primary)] rounded-full overflow-hidden flex">
+    <div
+      className="h-full bg-blue-500/60"
+      style={getKeywordShareStyle(keyword.source_1_freq, keyword.source_2_freq)}
+    />
+    <div
+      className="h-full bg-orange-500/60"
+      style={getKeywordShareStyle(keyword.source_2_freq, keyword.source_1_freq)}
+    />
+  </div>
+);
+
+const getKeywordEmphasisClass = (emphasis: string): string => {
+  if (emphasis === "source_1") {
     return "bg-blue-500/20 text-blue-400";
   }
   return "bg-orange-500/20 text-orange-400";
-})()}`}
-                >
-                  {(() => {
-  if (kw.emphasis === "source_1") {
-    return primarySource.slice(0, 8);
-  }
-  return secondarySource.slice(0, 8);
-})()}
-                </Badge>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+};
 
-    {/* Unique Keywords */}
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <span className="text-xs text-muted-foreground">Unique to {primarySource}:</span>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {comparisonData.keywords.comparison.unique_to_source_1.slice(0, 6).map((kw) => (
-            <Badge key={`source-one-${kw.keyword}`} variant="outline" className="text-[9px]">
-              {kw.keyword} ({kw.frequency})
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <div>
-        <span className="text-xs text-muted-foreground">Unique to {secondarySource}:</span>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {comparisonData.keywords.comparison.unique_to_source_2.slice(0, 6).map((kw) => (
-            <Badge key={`source-two-${kw.keyword}`} variant="outline" className="text-[9px]">
-              {kw.keyword} ({kw.frequency})
-            </Badge>
-          ))}
-        </div>
+const KeywordEmphasisBadge = ({
+  keyword,
+  primarySource,
+  secondarySource,
+}: Readonly<{
+  readonly keyword: CommonKeyword;
+  readonly primarySource: string;
+  readonly secondarySource: string;
+}>) => {
+  if (keyword.emphasis === "equal") {
+    return null;
+  }
+  let source = secondarySource;
+  if (keyword.emphasis === "source_1") {
+    source = primarySource;
+  }
+  return (
+    <Badge className={`text-[9px] ${getKeywordEmphasisClass(keyword.emphasis)}`}>
+      {source.slice(0, 8)}
+    </Badge>
+  );
+};
+
+const CommonKeywordRow = ({
+  keyword,
+  primarySource,
+  secondarySource,
+}: Readonly<{
+  readonly keyword: CommonKeyword;
+  readonly primarySource: string;
+  readonly secondarySource: string;
+}>) => (
+  <div className="flex items-center gap-2 text-xs">
+    <span className="w-20 font-medium">{keyword.keyword}</span>
+    <KeywordShareBar keyword={keyword} />
+    <span className="w-8 text-right text-[10px] text-muted-foreground">
+      {keyword.source_1_freq} vs {keyword.source_2_freq}
+    </span>
+    <KeywordEmphasisBadge
+      keyword={keyword}
+      primarySource={primarySource}
+      secondarySource={secondarySource}
+    />
+  </div>
+);
+
+const CommonKeywords = ({
+  keywords,
+  primarySource,
+  secondarySource,
+}: Readonly<{
+  readonly keywords: readonly CommonKeyword[];
+  readonly primarySource: string;
+  readonly secondarySource: string;
+}>) => {
+  if (keywords.length === 0) {
+    return null;
+  }
+  return (
+    <div className="mb-4">
+      <span className="text-xs text-muted-foreground">Common Keywords (with emphasis):</span>
+      <div className="mt-2 space-y-1">
+        {keywords.slice(0, 8).map((keyword) => (
+          <CommonKeywordRow
+            key={keyword.keyword}
+            keyword={keyword}
+            primarySource={primarySource}
+            secondarySource={secondarySource}
+          />
+        ))}
       </div>
     </div>
+  );
+};
+
+const UniqueKeywordList = ({
+  keywords,
+  prefix,
+}: Readonly<{ keywords: readonly UniqueKeyword[]; prefix: string }>) => (
+  <div className="flex flex-wrap gap-1 mt-1">
+    {keywords.slice(0, 6).map((keyword) => (
+      <Badge key={`${prefix}-${keyword.keyword}`} variant="outline" className="text-[9px]">
+        {keyword.keyword} ({keyword.frequency})
+      </Badge>
+    ))}
+  </div>
+);
+
+const UniqueKeywordColumn = ({
+  source,
+  keywords,
+  prefix,
+}: Readonly<{
+  readonly source: string;
+  readonly keywords: readonly UniqueKeyword[];
+  readonly prefix: string;
+}>) => (
+  <div>
+    <span className="text-xs text-muted-foreground">Unique to {source}:</span>
+    <UniqueKeywordList keywords={keywords} prefix={prefix} />
+  </div>
+);
+
+const UniqueKeywordsGrid = ({
+  comparisonData,
+  primarySource,
+  secondarySource,
+}: KeywordsBlockProps) => (
+  <div className="grid grid-cols-2 gap-3">
+    <UniqueKeywordColumn
+      source={primarySource}
+      keywords={comparisonData.keywords.comparison.unique_to_source_1}
+      prefix="source-one"
+    />
+    <UniqueKeywordColumn
+      source={secondarySource}
+      keywords={comparisonData.keywords.comparison.unique_to_source_2}
+      prefix="source-two"
+    />
+  </div>
+);
+
+const KeywordsBlock = ({ comparisonData, primarySource, secondarySource }: KeywordsBlockProps) => (
+  <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
+    <h4 className="font-bold mb-4">Keyword Analysis</h4>
+    <CommonKeywords
+      keywords={comparisonData.keywords.comparison.common_keywords}
+      primarySource={primarySource}
+      secondarySource={secondarySource}
+    />
+    <UniqueKeywordsGrid
+      comparisonData={comparisonData}
+      primarySource={primarySource}
+      secondarySource={secondarySource}
+    />
   </div>
 );
 
@@ -1458,32 +2039,51 @@ const ComparisonSummary = ({
 }: ComparisonSummaryProps) => (
   <div className="bg-[var(--news-bg-secondary)] rounded-lg border border-border/60 p-4">
     <h4 className="font-bold mb-4">Comparison Summary</h4>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-      <div className="text-center">
-        <div className="text-2xl font-bold text-green-400">
-          {comparisonData.summary.common_entities_count}
-        </div>
-        <div className="text-xs text-muted-foreground">Common Entities</div>
-      </div>
-      <div className="text-center">
-        <div className="text-2xl font-bold text-blue-400">
-          {comparisonData.summary.unique_entities_source_1}
-        </div>
-        <div className="text-xs text-muted-foreground">Unique to {primarySource}</div>
-      </div>
-      <div className="text-center">
-        <div className="text-2xl font-bold text-orange-400">
-          {comparisonData.summary.unique_entities_source_2}
-        </div>
-        <div className="text-xs text-muted-foreground">Unique to {secondarySource}</div>
-      </div>
-      <div className="text-center">
-        <div className="text-2xl font-bold text-primary">
-          {comparisonData.summary.common_keywords_count}
-        </div>
-        <div className="text-xs text-muted-foreground">Common Keywords</div>
-      </div>
-    </div>
+    <ComparisonSummaryGrid
+      comparisonData={comparisonData}
+      primarySource={primarySource}
+      secondarySource={secondarySource}
+    />
+  </div>
+);
+
+const ComparisonSummaryMetric = ({
+  value,
+  label,
+  className,
+}: Readonly<{ value: number; label: string; className: string }>) => (
+  <div className="text-center">
+    <div className={`text-2xl font-bold ${className}`}>{value}</div>
+    <div className="text-xs text-muted-foreground">{label}</div>
+  </div>
+);
+
+const ComparisonSummaryGrid = ({
+  comparisonData,
+  primarySource,
+  secondarySource,
+}: ComparisonSummaryProps) => (
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+    <ComparisonSummaryMetric
+      value={comparisonData.summary.common_entities_count}
+      label="Common Entities"
+      className="text-green-400"
+    />
+    <ComparisonSummaryMetric
+      value={comparisonData.summary.unique_entities_source_1}
+      label={`Unique to ${primarySource}`}
+      className="text-blue-400"
+    />
+    <ComparisonSummaryMetric
+      value={comparisonData.summary.unique_entities_source_2}
+      label={`Unique to ${secondarySource}`}
+      className="text-orange-400"
+    />
+    <ComparisonSummaryMetric
+      value={comparisonData.summary.common_keywords_count}
+      label="Common Keywords"
+      className="text-primary"
+    />
   </div>
 );
 
@@ -1497,21 +2097,27 @@ const KeywordsFooter = ({ keywords }: KeywordsFooterProps) => {
   }
   return (
     <div className="border-t border-border/60 px-4 py-3 flex-shrink-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground">Keywords:</span>
-        {keywords.slice(0, 8).map((keyword) => (
-          <Badge
-            key={keyword}
-            variant="outline"
-            className="text-[10px] bg-[var(--news-bg-secondary)]"
-          >
-            {keyword}
-          </Badge>
-        ))}
-      </div>
+      <KeywordsFooterContent keywords={keywords} />
     </div>
   );
 };
+
+const KeywordsFooterContent = ({ keywords }: KeywordsFooterProps) => (
+  <div className="flex items-center gap-2 flex-wrap">
+    <span className="text-xs text-muted-foreground">Keywords:</span>
+    <KeywordsFooterBadges keywords={keywords} />
+  </div>
+);
+
+const KeywordsFooterBadges = ({ keywords }: KeywordsFooterProps) => (
+  <>
+    {keywords.slice(0, 8).map((keyword) => (
+      <Badge key={keyword} variant="outline" className="text-[10px] bg-[var(--news-bg-secondary)]">
+        {keyword}
+      </Badge>
+    ))}
+  </>
+);
 
 interface ComparisonTabProps {
   readonly comparisonMode: boolean;
@@ -1548,19 +2154,51 @@ const ComparisonSourceSelect = ({
   );
   return (
     <Select value={selectedArticleId} onValueChange={handleValueChange}>
-      <SelectTrigger className="w-full border-border/60 bg-[var(--news-bg-primary)] text-left text-xs">
-        <SelectValue placeholder="Choose article" />
-      </SelectTrigger>
-      <SelectContent>
-        {sourceOption.articles.map((article) => (
-          <SelectItem key={`${article.id}-${article.url}`} value={article.id.toString()}>
-            {article.title}
-          </SelectItem>
-        ))}
-      </SelectContent>
+      <ComparisonSelectTrigger />
+      <ComparisonSelectContent articles={sourceOption.articles} />
     </Select>
   );
 };
+
+const ComparisonSelectTrigger = () => (
+  <SelectTrigger className="w-full border-border/60 bg-[var(--news-bg-primary)] text-left text-xs">
+    <SelectValue placeholder="Choose article" />
+  </SelectTrigger>
+);
+
+const ComparisonSelectContent = ({
+  articles,
+}: Readonly<{ articles: readonly ComparisonArticle[] }>) => (
+  <SelectContent>
+    {articles.map((article) => (
+      <SelectItem key={`${article.id}-${article.url}`} value={article.id.toString()}>
+        {article.title}
+      </SelectItem>
+    ))}
+  </SelectContent>
+);
+
+const ComparisonSourceOptionCard = ({
+  sourceOption,
+  selectedArticleId,
+  onSourceChange,
+}: Readonly<{
+  readonly sourceOption: ComparisonSourceOption<ComparisonArticle>;
+  readonly selectedArticleId: string | undefined;
+  readonly onSourceChange: (sourceId: string, articleId: string) => void;
+}>) => (
+  <div className="space-y-2">
+    <div className="text-xs font-mono uppercase tracking-[0.24em] text-muted-foreground">
+      Outlet
+    </div>
+    <div className="text-sm font-medium text-foreground">{sourceOption.sourceName}</div>
+    <ComparisonSourceSelect
+      selectedArticleId={selectedArticleId}
+      sourceOption={sourceOption}
+      onSourceChange={onSourceChange}
+    />
+  </div>
+);
 
 const ComparisonSourcePicker = ({
   articles,
@@ -1577,17 +2215,12 @@ const ComparisonSourcePicker = ({
         .find((article) => comparisonArticleSourceId(article) === sourceOption.sourceId)
         ?.id?.toString();
       return (
-        <div key={sourceOption.sourceId} className="space-y-2">
-          <div className="text-xs font-mono uppercase tracking-[0.24em] text-muted-foreground">
-            Outlet
-          </div>
-          <div className="text-sm font-medium text-foreground">{sourceOption.sourceName}</div>
-          <ComparisonSourceSelect
-            selectedArticleId={selectedArticleId}
-            sourceOption={sourceOption}
-            onSourceChange={onSourceChange}
-          />
-        </div>
+        <ComparisonSourceOptionCard
+          key={sourceOption.sourceId}
+          sourceOption={sourceOption}
+          selectedArticleId={selectedArticleId}
+          onSourceChange={onSourceChange}
+        />
       );
     })}
   </div>
@@ -1607,22 +2240,24 @@ const ComparisonPairHeader = ({
       Compare: {primaryArticle.source} vs {secondaryArticle.source}
     </h3>
     <p className="text-sm text-muted-foreground">How different sources report the same story</p>
-    {comparisonData !== null && <ComparisonSimilarityBadge value={comparisonData.similarity.overall_match_percent} />}
+    {comparisonData !== null && (
+      <ComparisonSimilarityBadge value={comparisonData.similarity.overall_match_percent} />
+    )}
   </div>
 );
 
 const ComparisonSimilarityBadge = ({ value }: Readonly<{ value: number }>) => {
   const color = (() => {
-  if (value > 70) {
-    return "text-green-400";
-  }
-  return (() => {
-    if (value > 40) {
-      return "text-yellow-400";
+    if (value > 70) {
+      return "text-green-400";
     }
-    return "text-red-400";
+    return (() => {
+      if (value > 40) {
+        return "text-yellow-400";
+      }
+      return "text-red-400";
+    })();
   })();
-})();
   return (
     <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[var(--news-bg-secondary)] px-3 py-1 text-xs">
       <span>Content Similarity:</span>
@@ -1717,20 +2352,39 @@ const ComparisonView = ({
         options={comparisonSourceOptions}
         onSourceChange={onSourceChange}
       />
-      {Boolean(comparisonError) && <div className="rounded-lg border border-border/60 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground">
+      {Boolean(comparisonError) && (
+        <div className="rounded-lg border border-border/60 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground">
           {comparisonError}
-        </div>}
+        </div>
+      )}
       {(() => {
-  if (primaryArticle && secondaryArticle) {
-    return <>
-          <ComparisonPairHeader comparisonData={comparisonData} primaryArticle={primaryArticle} secondaryArticle={secondaryArticle} />
-          <ComparisonResults comparisonData={comparisonData} comparisonError={comparisonError} comparisonLoading={comparisonLoading} articleContents={articleContents} comparisonArticles={comparisonArticles} loadingArticle={loadingArticle} primarySource={primaryArticle.source} secondarySource={secondaryArticle.source} />
-        </>;
-  }
-  return <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] px-4 py-3 text-sm text-muted-foreground">
-          Select one article from each outlet to compare the coverage.
-        </div>;
-})()}
+        if (primaryArticle && secondaryArticle) {
+          return (
+            <>
+              <ComparisonPairHeader
+                comparisonData={comparisonData}
+                primaryArticle={primaryArticle}
+                secondaryArticle={secondaryArticle}
+              />
+              <ComparisonResults
+                comparisonData={comparisonData}
+                comparisonError={comparisonError}
+                comparisonLoading={comparisonLoading}
+                articleContents={articleContents}
+                comparisonArticles={comparisonArticles}
+                loadingArticle={loadingArticle}
+                primarySource={primaryArticle.source}
+                secondarySource={secondaryArticle.source}
+              />
+            </>
+          );
+        }
+        return (
+          <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)] px-4 py-3 text-sm text-muted-foreground">
+            Select one article from each outlet to compare the coverage.
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -1740,11 +2394,11 @@ const ComparisonUnavailable = ({
 }: Readonly<{ detailArticleCount: number | null }>) => (
   <div className="flex flex-1 items-center justify-center text-muted-foreground">
     {(() => {
-  if (detailArticleCount === null || detailArticleCount === 0 || detailArticleCount < 2) {
-    return "Need at least 2 articles to compare";
-  }
-  return "Compare Sources needs coverage from at least two outlets.";
-})()}
+      if (detailArticleCount === null || detailArticleCount === 0 || detailArticleCount < 2) {
+        return "Need at least 2 articles to compare";
+      }
+      return "Compare Sources needs coverage from at least two outlets.";
+    })()}
   </div>
 );
 
@@ -1765,11 +2419,22 @@ const ComparisonTab = ({
   return (
     <TabsContent value="compare" className="flex-1 overflow-y-auto m-0 p-0">
       {(() => {
-  if (comparisonMode && hasDistinctComparisonSources) {
-    return <ComparisonView comparisonSourceOptions={comparisonSourceOptions} comparisonArticles={comparisonArticles} comparisonError={comparisonError} comparisonData={comparisonData} comparisonLoading={comparisonLoading} articleContents={articleContents} loadingArticle={loadingArticle} onSourceChange={onSourceChange} />;
-  }
-  return <ComparisonUnavailable detailArticleCount={detailArticleCount} />;
-})()}
+        if (comparisonMode && hasDistinctComparisonSources) {
+          return (
+            <ComparisonView
+              comparisonSourceOptions={comparisonSourceOptions}
+              comparisonArticles={comparisonArticles}
+              comparisonError={comparisonError}
+              comparisonData={comparisonData}
+              comparisonLoading={comparisonLoading}
+              articleContents={articleContents}
+              loadingArticle={loadingArticle}
+              onSourceChange={onSourceChange}
+            />
+          );
+        }
+        return <ComparisonUnavailable detailArticleCount={detailArticleCount} />;
+      })()}
     </TabsContent>
   );
 };
@@ -1784,44 +2449,44 @@ const ClusterDetailModalContent = ({
   const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
   const clusterId = cluster.cluster_id;
   const {
-      data: clusterDetail,
-      isLoading: loading,
-      error: clusterDetailError,
-    } = useQuery<ClusterDetailResponse>({
-      queryFn: () => fetchClusterDetail(clusterId),
-      queryKey: ["cluster-detail", clusterId],
-      retry: 1,
-    });
+    data: clusterDetail,
+    isLoading: loading,
+    error: clusterDetailError,
+  } = useQuery<ClusterDetailResponse>({
+    queryFn: () => fetchClusterDetail(clusterId),
+    queryKey: ["cluster-detail", clusterId],
+    retry: 1,
+  });
   const articleState = useClusterArticleController(clusterDetail);
   const comparisonState = useClusterComparisonController({
-      articleContents: articleState.articleContents,
-      clusterDetail,
-      loadArticleContent: articleState.loadArticleContent,
-      setArticleContents: articleState.setArticleContents,
-    });
+    articleContents: articleState.articleContents,
+    clusterDetail,
+    loadArticleContent: articleState.loadArticleContent,
+    setArticleContents: articleState.setArticleContents,
+  });
   const handleLike = useCallback(
-      (articleId: number) => {
-        void toggleLike(articleId);
-      },
-      [toggleLike],
-    );
+    (articleId: number) => {
+      void toggleLike(articleId);
+    },
+    [toggleLike],
+  );
   const handleQueueToggle = useCallback(
-      (article: ClusterArticle) => {
-        const newsArticle = mapBackendArticle(article);
-        if (isArticleInQueue(article.url)) {
-          void removeArticleFromQueue(article.url);
-        } else {
-          void addArticleToQueue(newsArticle);
-        }
-      },
-      [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
-    );
+    (article: ClusterArticle) => {
+      const newsArticle = mapBackendArticle(article);
+      if (isArticleInQueue(article.url)) {
+        void removeArticleFromQueue(article.url);
+      } else {
+        void addArticleToQueue(newsArticle);
+      }
+    },
+    [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
+  );
   const loadError = (() => {
-  if (clusterDetailError) {
-    return "Failed to load cluster details.";
-  }
-  return null;
-})();
+    if (clusterDetailError) {
+      return "Failed to load cluster details.";
+    }
+    return null;
+  })();
   const label = cluster.label ?? cluster.keywords.slice(0, 3).join(", ");
   const clusterContext = clusterContextOf(clusterDetail, cluster);
   const activeArticleContext = articleState.activeArticle?.gdelt_context ?? null;
@@ -1840,56 +2505,56 @@ const ClusterDetailModalContent = ({
     } = comparisonState,
     { articleContents, loadingArticle } = articleState;
   const handleTabChange = useCallback(
-      (value: string) => {
-        setActiveArticleId(value);
-        handleComparisonTabChange(value);
-      },
-      [handleComparisonTabChange, setActiveArticleId],
-    );
+    (value: string) => {
+      setActiveArticleId(value);
+      handleComparisonTabChange(value);
+    },
+    [handleComparisonTabChange, setActiveArticleId],
+  );
   const handleToggleExpand = useCallback(() => {
-      setIsExpanded((previous) => !previous);
-    }, []);
+    setIsExpanded((previous) => !previous);
+  }, []);
   const contextProps = useMemo<ComponentProps<typeof GdeltContextStrip> | null>(
-      () =>
-        (() => {
-  if (clusterContext === null) {
-    return null;
-  }
-  return {
-    cameoSummary,
-    context: clusterContext,
-    toneAvg,
-    toneDelta
-  };
-})(),
-      [cameoSummary, clusterContext, toneAvg, toneDelta],
-    );
+    () =>
+      (() => {
+        if (clusterContext === null) {
+          return null;
+        }
+        return {
+          cameoSummary,
+          context: clusterContext,
+          toneAvg,
+          toneDelta,
+        };
+      })(),
+    [cameoSummary, clusterContext, toneAvg, toneDelta],
+  );
   const comparisonProps = useMemo<ComparisonTabProps>(
-      () => ({
-        articleContents,
-        comparisonArticles,
-        comparisonData,
-        comparisonError,
-        comparisonLoading,
-        comparisonMode,
-        comparisonSourceOptions,
-        detailArticleCount: clusterDetail?.articles?.length ?? null,
-        loadingArticle,
-        onSourceChange: handleComparisonSourceChange,
-      }),
-      [
-        articleContents,
-        comparisonArticles,
-        comparisonData,
-        comparisonError,
-        comparisonLoading,
-        comparisonMode,
-        comparisonSourceOptions,
-        handleComparisonSourceChange,
-        loadingArticle,
-        clusterDetail,
-      ],
-    );
+    () => ({
+      articleContents,
+      comparisonArticles,
+      comparisonData,
+      comparisonError,
+      comparisonLoading,
+      comparisonMode,
+      comparisonSourceOptions,
+      detailArticleCount: clusterDetail?.articles?.length ?? null,
+      loadingArticle,
+      onSourceChange: handleComparisonSourceChange,
+    }),
+    [
+      articleContents,
+      comparisonArticles,
+      comparisonData,
+      comparisonError,
+      comparisonLoading,
+      comparisonMode,
+      comparisonSourceOptions,
+      handleComparisonSourceChange,
+      loadingArticle,
+      clusterDetail,
+    ],
+  );
 
   return (
     <ClusterDetailView
