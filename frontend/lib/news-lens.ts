@@ -60,16 +60,14 @@ const NEWS_LENSES: NewsLensPreset[] = [
 ];
 
 const LOCAL_TYPES = new Set(["local", "regional"]),
- PRIMARY_TYPES = new Set(["government", "academic", "primary", "official"]),
- WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]);
+  PRIMARY_TYPES = new Set(["government", "academic", "primary", "official"]),
+  WIRE_SOURCE_NAMES = new Set(["reuters", "associated press", "ap", "afp"]);
 
-const normalize = (value?: string | null): string => 
-  (value || "").trim().toLowerCase()
-
+const normalize = (value?: string | null): string => (value ?? "").trim().toLowerCase();
 
 type FilterLensId = Exclude<NewsLensId, "all">;
 
-const lensMatchers: Record<FilterLensId, (source: NewsSource) => boolean> = {
+const lensMatchers = {
   "high-factual": (source) => {
     const factual = normalize(source.factualRating);
     return source.credibility === "high" || factual.includes("high");
@@ -80,67 +78,73 @@ const lensMatchers: Record<FilterLensId, (source: NewsSource) => boolean> = {
   },
   local: (source) => {
     const category = source.category.map(normalize),
-     sourceType = normalize(source.sourceType);
+      sourceType = normalize(source.sourceType);
     return LOCAL_TYPES.has(sourceType) || category.some((item) => LOCAL_TYPES.has(item));
   },
-  "low-paywall": (source) => !source.isPaywalled,
+  "low-paywall": (source) => source.isPaywalled !== true,
   "opinion-off": (source) => {
     const category = source.category.map(normalize),
-     sourceType = normalize(source.sourceType);
+      sourceType = normalize(source.sourceType);
     return sourceType !== "opinion" && !category.some((item) => item.includes("opinion"));
   },
   primary: (source) => {
     const category = source.category.map(normalize),
-     sourceType = normalize(source.sourceType);
+      sourceType = normalize(source.sourceType);
     return PRIMARY_TYPES.has(sourceType) || category.some((item) => PRIMARY_TYPES.has(item));
   },
   wire: (source) => {
     const name = normalize(source.name);
     return normalize(source.sourceType) === "wire" || WIRE_SOURCE_NAMES.has(name);
   },
-};
+} satisfies Record<FilterLensId, (source: NewsSource) => boolean>;
 
 const sourceMatchesLens = (source: NewsSource, lensId: NewsLensId): boolean => {
   if (lensId === "all") {
     return true;
   }
   return lensMatchers[lensId](source);
-}
+};
 
-const getLensSourceIds = (sources:readonly  NewsSource[], lensId: NewsLensId): Set<string> => 
+const getLensSourceIds = (sources: readonly NewsSource[], lensId: NewsLensId): Set<string> =>
   new Set(
     sources
       .filter((source) => sourceMatchesLens(source, lensId))
       .flatMap((source) => [source.id, source.slug]),
-  )
+  );
 
-
-const getLensStats = (sources:readonly  NewsSource[], lensId: NewsLensId) => {
-  const includedIds = getLensSourceIds(sources, lensId),
-   included = sources.filter(
-    (source) => includedIds.has(source.id) || includedIds.has(source.slug),
-  ).length;
+const getLensStats = (sources: readonly NewsSource[], lensId: NewsLensId) => {
+  const includedIds = getLensSourceIds(sources, lensId);
+  const included = sources.filter(
+      (source) => includedIds.has(source.id) || includedIds.has(source.slug),
+    ).length;
   return {
     excluded: Math.max(0, sources.length - included),
     included,
   };
-}
+};
 
 const filterArticlesByLens = (
-  articles:readonly  NewsArticle[],
-  sources:readonly  NewsSource[],
+  articles: readonly NewsArticle[],
+  sources: readonly NewsSource[],
   lensId: NewsLensId,
 ): NewsArticle[] => {
-  if (lensId === "all") {return [...articles];}
+  if (lensId === "all") {
+    return [...articles];
+  }
   const includedIds = getLensSourceIds(sources, lensId),
-   sourcesByName = new Map(sources.map((source) => [normalize(source.name), source]));
+    sourcesByName = new Map(sources.map((source) => [normalize(source.name), source]));
 
   return articles.filter((article) => {
     const sourceId = article.sourceId || "";
-    if (includedIds.has(sourceId)) {return true;}
+    if (includedIds.has(sourceId)) {
+      return true;
+    }
     const source = sourcesByName.get(normalize(article.source));
-    return source ? includedIds.has(source.id) || includedIds.has(source.slug) : false;
-  });
+    if (source) {
+  return includedIds.has(source.id) || includedIds.has(source.slug);
 }
+return false;
+  });
+};
 export { NEWS_LENSES, getLensSourceIds, getLensStats, filterArticlesByLens };
-export type { NewsLensId, NewsLensPreset };
+export type { NewsLensId };

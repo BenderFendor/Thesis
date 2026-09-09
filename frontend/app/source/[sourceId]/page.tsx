@@ -1,132 +1,158 @@
-"use client"
+"use client";
+import { hasText } from "@/lib/utils";
 
-import { AlertTriangle, ArrowLeft, BookOpen, Bug, Clock, ExternalLink, Globe, MapPin, Newspaper, Star } from "lucide-react"
-import { AnimatePresence, motion } from "framer-motion"
-import { Card, CardContent } from "@/components/ui/card"
-import { use, useState } from "react"
-import { ArticleDetailModal } from "@/components/article-detail-modal"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import type { NewsArticle } from '@/lib/api';
-import { SafeImage } from "@/components/safe-image"
-import { SourceResearchPanel } from "@/components/source-research-panel"
-import { getSourceById } from '@/lib/api';
-import { useBrowseIndex } from "@/hooks/use-browse-index"
-import { useDebugMode } from "@/hooks/use-debug-mode"
-import { useFavorites } from "@/hooks/use-favorites"
-import { useQuery } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BookOpen,
+  Bug,
+  ExternalLink,
+  Globe,
+  MapPin,
+  Newspaper,
+  Star,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArticleCardDate } from "@/components/article-card-date";
+import { ArticleDetailModal } from "@/components/article-detail-modal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import type { NewsArticle } from "@/lib/api";
+import { SafeImage } from "@/components/safe-image";
+import { SourceResearchPanel } from "@/components/source-research-panel";
+import { getSourceById } from "@/lib/api";
+import { isUsableImage } from "@/lib/article-image";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { use, useCallback, useMemo } from "react";
+import { useArticleDetail } from "@/hooks/use-article-detail";
+import { useDebugMode } from "@/hooks/use-debug-mode";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useNewsIndex } from "@/hooks/use-news-index";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 interface SourcePageProps {
-  params: Promise<{ sourceId: string }>
+  params: Promise<{ sourceId: string }>;
+}
+
+interface SourcePageRouter {
+  readonly back: () => void;
+  readonly push: (href: string) => void;
 }
 
 const getBiasColor = (bias: string): string => {
   switch (bias) {
-    case "left": { return "bg-blue-500/10 text-blue-400 border-blue-500/20"
+    case "left": {
+      return "bg-blue-500/10 text-blue-400 border-blue-500/20";
     }
-    case "center": { return "bg-white/5 text-muted-foreground border-white/10"
+    case "center": {
+      return "bg-white/5 text-muted-foreground border-white/10";
     }
-    case "right": { return "bg-red-500/10 text-red-400 border-red-500/20"
+    case "right": {
+      return "bg-red-500/10 text-red-400 border-red-500/20";
     }
-    default: { return "bg-white/5 text-muted-foreground border-white/10"
+    default: {
+      return "bg-white/5 text-muted-foreground border-white/10";
     }
   }
-}
+};
 
 const getCredibilityColor = (credibility: string): string => {
   switch (credibility) {
-    case "high": { return "bg-primary/10 text-primary border-primary/20"
+    case "high": {
+      return "bg-primary/10 text-primary border-primary/20";
     }
-    case "medium": { return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+    case "medium": {
+      return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
     }
-    case "low": { return "bg-red-500/10 text-red-400 border-red-500/20"
+    case "low": {
+      return "bg-red-500/10 text-red-400 border-red-500/20";
     }
-    default: { return "bg-white/5 text-muted-foreground border-white/10"
+    default: {
+      return "bg-white/5 text-muted-foreground border-white/10";
     }
   }
-}
-
-const hasRealImage = (src?: string | null): boolean => {
-  if (!src) {return false}
-  const trimmed = src.trim()
-  if (!trimmed || trimmed === "none") {return false}
-  const lower = trimmed.toLowerCase()
-  return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg")
-}
+};
 
 const getWebsiteHostname = (url?: string | null): string | undefined => {
-  if (!url) {return undefined}
+  if (!hasText(url)) {
+    return void 0;
+  }
   try {
-    return new URL(url).hostname
+    return new URL(url).hostname;
   } catch {
-    return undefined
+    return void 0;
   }
-}
+};
 
-const navigateBack = (router: ReturnType<typeof useRouter>): void => {
-  if (typeof window !== "undefined" && globalThis.history.length > 1) {
-    router.back()
-    return
+const navigateBack = (back: () => void, push: (href: string) => void): void => {
+  if (globalThis.window !== undefined && globalThis.history.length > 1) {
+    back();
+    return;
   }
-  router.push("/")
-}
+  push("/");
+};
 
-type SourcePageSource = NonNullable<Awaited<ReturnType<typeof getSourceById>>>
+type SourcePageSource = NonNullable<Awaited<ReturnType<typeof getSourceById>>>;
+type ReadonlySourcePageSource = DeepReadonly<SourcePageSource>;
 
 interface SourcePageLayoutProps {
-  source: SourcePageSource
-  websiteHostname?: string
-  debugMode: boolean
-  isFavorite: (sourceId: string) => boolean
-  toggleFavorite: (sourceId: string) => void
-  onBack: () => void
-  articles: NewsArticle[]
-  articlesLoading: boolean
-  selectedArticle: NewsArticle | null
-  modalOpen: boolean
-  onArticleClick: (article: NewsArticle) => void
-  onCloseModal: () => void
+  readonly source: ReadonlySourcePageSource;
+  readonly websiteHostname?: string;
+  readonly debugMode: boolean;
+  readonly isFavorite: (sourceId: string) => boolean;
+  readonly toggleFavorite: (sourceId: string) => void;
+  readonly onBack: () => void;
+  readonly articles: readonly NewsArticle[];
+  readonly articlesLoading: boolean;
+  readonly selectedArticle: Readonly<NewsArticle> | null;
+  readonly modalOpen: boolean;
+  readonly onArticleClick: (article: NewsArticle) => void;
+  readonly onCloseModal: () => void;
 }
 
-export default function SourcePage(props: SourcePageProps) {
-  const params = use(props.params),
-   sourceId = decodeURIComponent(params.sourceId),
-   router = useRouter(),
-   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
-   [modalOpen, setModalOpen] = useState(false),
-   debugMode = useDebugMode(),
-   { isFavorite, toggleFavorite } = useFavorites(),
-
-   { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
-    queryFn: () => getSourceById(sourceId),
-    queryKey: ["source", sourceId],
-    staleTime: 1000 * 60 * 5,
-  }),
-
-   {
-    articles,
-    isLoading: articlesLoading,
-  } = useBrowseIndex({
-    enabled: Boolean(sourceId),
-    sources: [sourceId],
-  })
+const SourcePage = (props: Readonly<SourcePageProps>) => {
+  const params = use(props.params);
+  const sourceId = decodeURIComponent(params.sourceId);
+  const router: SourcePageRouter = useRouter();
+  const { back, push } = router;
+  const articleDetail = useArticleDetail();
+  const debugMode = useDebugMode();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const {
+      data: source,
+      isLoading: sourceLoading,
+      error: sourceError,
+    } = useQuery({
+      queryFn: () => getSourceById(sourceId),
+      queryKey: ["source", sourceId],
+      staleTime: 1000 * 60 * 5,
+    });
+  const { articles, isLoading: articlesLoading } = useNewsIndex({
+      enabled: Boolean(sourceId),
+      mode: "browse",
+      sources: [sourceId],
+    });
+  const handleBack = useCallback(() => {
+    navigateBack(back, push);
+  }, [back, push]);
 
   if (sourceLoading) {
-    return <SourcePageLoading />
+    return <SourcePageLoading />;
   }
 
   if (sourceError || !source) {
     return (
       <SourcePageError
         hasError={Boolean(sourceError)}
-        onBack={() =>{  navigateBack(router); }}
+        onBack={handleBack}
       />
-    )
+    );
   }
 
-  const websiteHostname = getWebsiteHostname(source.url)
+  const websiteHostname = getWebsiteHostname(source.url);
 
   return (
     <SourcePageLayout
@@ -135,50 +161,60 @@ export default function SourcePage(props: SourcePageProps) {
       debugMode={debugMode}
       isFavorite={isFavorite}
       toggleFavorite={toggleFavorite}
-      onBack={() =>{  navigateBack(router); }}
+      onBack={handleBack}
       articles={articles}
       articlesLoading={articlesLoading}
-      selectedArticle={selectedArticle}
-      modalOpen={modalOpen}
-      onArticleClick={(article) => {
-        setSelectedArticle(article)
-        setModalOpen(true)
-      }}
-      onCloseModal={() =>{  setModalOpen(false); }}
+      selectedArticle={articleDetail.article}
+      modalOpen={articleDetail.isOpen}
+      onArticleClick={articleDetail.open}
+      onCloseModal={articleDetail.close}
     />
-  )
-}
+  );
+};
 
-function SourcePageLoading() {
-  return (
-    <div className="min-h-screen bg-[var(--news-bg-primary)] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4 text-foreground animate-in fade-in duration-500">
-        <div className="h-px w-24 bg-gradient-to-r from-transparent via-primary/50 to-transparent animate-pulse" />
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Loading Source</div>
+const SourcePageLoading = () => (
+  <div className="min-h-screen bg-[var(--news-bg-primary)] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4 text-foreground animate-in fade-in duration-500">
+      <div className="h-px w-24 bg-gradient-to-r from-transparent via-primary/50 to-transparent animate-pulse" />
+      <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+        Loading Source
       </div>
     </div>
-  )
-}
+  </div>
+);
 
-function SourcePageError({ hasError, onBack }: Readonly<{ hasError: boolean; onBack: () => void }>) {
-  return (
-    <div className="min-h-screen bg-[var(--news-bg-primary)] flex flex-col items-center justify-center gap-6">
-      <div className="p-4 rounded-full bg-yellow-500/10 border border-yellow-500/20">
-        <AlertTriangle className="w-6 h-6 text-yellow-500" />
-      </div>
-      <div className="text-center space-y-2">
-        <p className="font-serif text-xl text-foreground">Source Unavailable</p>
-        <p className="text-sm text-muted-foreground font-mono">{hasError ? "Failed to load source data" : "Source not found"}</p>
-      </div>
-      <Button variant="outline" onClick={onBack} className="border-white/10 bg-transparent hover:bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em]">
-        <ArrowLeft className="w-3 h-3 mr-2" />
-        Return
-      </Button>
+
+const SourcePageError = ({
+  hasError,
+  onBack,
+}: Readonly<{ hasError: boolean; onBack: () => void }>) => (
+  <div className="min-h-screen bg-[var(--news-bg-primary)] flex flex-col items-center justify-center gap-6">
+    <div className="p-4 rounded-full bg-yellow-500/10 border border-yellow-500/20">
+      <AlertTriangle className="w-6 h-6 text-yellow-500" />
     </div>
-  )
-}
+    <div className="text-center space-y-2">
+      <p className="font-serif text-xl text-foreground">Source Unavailable</p>
+      <p className="text-sm text-muted-foreground font-mono">
+        {(() => {
+  if (hasError) {
+    return "Failed to load source data";
+  }
+  return "Source not found";
+})()}
+      </p>
+    </div>
+    <Button
+      variant="outline"
+      onClick={onBack}
+      className="border-white/10 bg-transparent hover:bg-white/5 text-[10px] font-mono uppercase tracking-[0.3em]"
+    >
+      <ArrowLeft className="w-3 h-3 mr-2" />
+      Return
+    </Button>
+  </div>
+);
 
-function SourcePageLayout({
+const SourcePageLayout = ({
   source,
   websiteHostname,
   debugMode,
@@ -191,289 +227,341 @@ function SourcePageLayout({
   modalOpen,
   onArticleClick,
   onCloseModal,
-}: SourcePageLayoutProps) {
-  return (
-    <div className="min-h-screen bg-[var(--news-bg-primary)] text-foreground flex flex-col">
-      <SourceHeader
-        source={source}
-        isFavorite={isFavorite}
-        toggleFavorite={toggleFavorite}
-        onBack={onBack}
-      />
-      <main className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <SourceSidebar
-            source={source}
-            websiteHostname={websiteHostname}
-            debugMode={debugMode}
-          />
-          <SourceCoverage
-            articles={articles}
-            articlesLoading={articlesLoading}
-            onArticleClick={onArticleClick}
-          />
-        </div>
-      </main>
-      <ArticleDetailModal
-        article={selectedArticle}
-        isOpen={modalOpen}
-        onClose={onCloseModal}
-      />
-    </div>
-  )
-}
+}: Readonly<SourcePageLayoutProps>) => (
+  <div className="min-h-screen bg-[var(--news-bg-primary)] text-foreground flex flex-col">
+    <SourceHeader
+      source={source}
+      isFavorite={isFavorite}
+      toggleFavorite={toggleFavorite}
+      onBack={onBack}
+    />
+    <main className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <SourceSidebar source={source} websiteHostname={websiteHostname} debugMode={debugMode} />
+        <SourceCoverage
+          articles={articles}
+          articlesLoading={articlesLoading}
+          onArticleClick={onArticleClick}
+        />
+      </div>
+    </main>
+    <ArticleDetailModal article={selectedArticle} isOpen={modalOpen} onClose={onCloseModal} />
+  </div>
+);
 
-function SourceHeader({
+const SourceHeader = ({
   source,
   isFavorite,
   toggleFavorite,
   onBack,
 }: Readonly<{
-  source: SourcePageSource
-  isFavorite: (sourceId: string) => boolean
-  toggleFavorite: (sourceId: string) => void
-  onBack: () => void
-}>) {
+  source: ReadonlySourcePageSource;
+  isFavorite: (sourceId: string) => boolean;
+  toggleFavorite: (sourceId: string) => void;
+  onBack: () => void;
+}>) => {
+  const handleToggleFavorite = useCallback(() => {
+    toggleFavorite(source.id);
+  }, [source.id, toggleFavorite]);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
-      <div className="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-6">
+  <header className="sticky top-0 z-50 border-b border-white/10 bg-[var(--news-bg-primary)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--news-bg-primary)]/80">
+    <div className="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
+      <div className="flex items-center gap-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Back</span>
+        </Button>
+        <div className="h-4 w-px bg-white/10" />
+        <div className="flex items-center gap-3">
+          <h1 className="font-serif text-lg font-bold tracking-tight">{source.name}</h1>
+          <Link
+            href={`/wiki/source/${encodeURIComponent(source.name)}`}
+            className="text-muted-foreground hover:text-primary transition-colors"
+            title="View wiki profile"
+          >
+            <BookOpen className="w-4 h-4" />
+          </Link>
           <Button
             variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
+            size="icon"
+            onClick={handleToggleFavorite}
+            className="h-6 w-6 rounded-full hover:bg-white/5"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Back</span>
+            <Star
+              className={`w-3.5 h-3.5 transition-colors ${
+                (() => {
+  if (isFavorite(source.id)) {
+    return "fill-primary text-primary";
+  }
+  return "text-muted-foreground";
+})()
+              }`}
+            />
           </Button>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-3">
-            <h1 className="font-serif text-lg font-bold tracking-tight">{source.name}</h1>
-            <Link
-              href={`/wiki/source/${encodeURIComponent(source.name)}`}
-              className="text-muted-foreground hover:text-primary transition-colors"
-              title="View wiki profile"
-            >
-              <BookOpen className="w-4 h-4" />
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() =>{  toggleFavorite(source.id); }}
-              className="h-6 w-6 rounded-full hover:bg-white/5"
-            >
-              <Star
-                className={`w-3.5 h-3.5 transition-colors ${
-                  isFavorite(source.id) ? "fill-primary text-primary" : "text-muted-foreground"
-                }`}
-              />
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={`rounded-sm px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] ${getCredibilityColor(source.credibility)}`}>
-            {source.credibility} Credibility
-          </Badge>
-          <Badge variant="outline" className={`rounded-sm px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] ${getBiasColor(source.bias)}`}>
-            {source.bias} Bias
-          </Badge>
         </div>
       </div>
-    </header>
-  )
-}
+      <div className="flex items-center gap-2">
+        <Badge
+          variant="outline"
+          className={`rounded-sm px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] ${getCredibilityColor(source.credibility)}`}
+        >
+          {source.credibility} Credibility
+        </Badge>
+        <Badge
+          variant="outline"
+          className={`rounded-sm px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.2em] ${getBiasColor(source.bias)}`}
+        >
+          {source.bias} Bias
+        </Badge>
+      </div>
+    </div>
+  </header>
+  );
+};
 
-function SourceSidebar({
+const SourceSidebar = ({
   source,
   websiteHostname,
   debugMode,
 }: Readonly<{
-  source: SourcePageSource
-  websiteHostname?: string
-  debugMode: boolean
-}>) {
-  return (
-    <div className="lg:col-span-3">
-      <div className="sticky top-20 flex flex-col gap-4 max-h-[calc(100vh-6rem)] overflow-hidden">
-        <div className="rounded-lg border border-white/10 bg-[var(--news-bg-secondary)] p-4 shrink-0">
-          <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground block mb-3">
-            Overview
-          </span>
-          <div className="space-y-3">
+  source: ReadonlySourcePageSource;
+  websiteHostname?: string;
+  debugMode: boolean;
+}>) => (
+  <div className="lg:col-span-3">
+    <div className="sticky top-20 flex flex-col gap-4 max-h-[calc(100vh-6rem)] overflow-hidden">
+      <div className="rounded-lg border border-white/10 bg-[var(--news-bg-secondary)] p-4 shrink-0">
+        <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground block mb-3">
+          Overview
+        </span>
+        <div className="space-y-3">
+          <div className="grid grid-cols-[70px_1fr] gap-2 text-sm">
+            <span className="text-muted-foreground text-xs flex items-center gap-1.5">
+              <MapPin className="w-3 h-3" /> Origin
+            </span>
+            <span className="text-foreground text-xs">{source.country}</span>
+          </div>
+          <div className="grid grid-cols-[70px_1fr] gap-2 text-sm">
+            <span className="text-muted-foreground text-xs flex items-center gap-1.5">
+              <Globe className="w-3 h-3" /> Lang
+            </span>
+            <span className="uppercase text-foreground text-xs">{source.language}</span>
+          </div>
+          {source.category.length > 0 && (
             <div className="grid grid-cols-[70px_1fr] gap-2 text-sm">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
-                <MapPin className="w-3 h-3" /> Origin
+                <Newspaper className="w-3 h-3" /> Focus
               </span>
-              <span className="text-foreground text-xs">{source.country}</span>
-            </div>
-            <div className="grid grid-cols-[70px_1fr] gap-2 text-sm">
-              <span className="text-muted-foreground text-xs flex items-center gap-1.5">
-                <Globe className="w-3 h-3" /> Lang
-              </span>
-              <span className="uppercase text-foreground text-xs">{source.language}</span>
-            </div>
-            {source.category && source.category.length > 0 && (
-              <div className="grid grid-cols-[70px_1fr] gap-2 text-sm">
-                <span className="text-muted-foreground text-xs flex items-center gap-1.5">
-                  <Newspaper className="w-3 h-3" /> Focus
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {source.category.slice(0, 3).map((category) => (
-                    <span key={category} className="inline-flex items-center rounded-sm bg-white/5 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                      {category}
-                    </span>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-1">
+                {source.category.slice(0, 3).map((category) => (
+                  <span
+                    key={category}
+                    className="inline-flex items-center rounded-sm bg-white/5 px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                  >
+                    {category}
+                  </span>
+                ))}
               </div>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10">
-            <Button asChild variant="outline" size="sm" className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7">
-              <a href={source.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-3 h-3 mr-1" />
-                Site
-              </a>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7"
+          >
+            <a href={source.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-3 h-3 mr-1" />
+              Site
+            </a>
+          </Button>
+          {debugMode && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7"
+            >
+              <Link href={`/sources/${encodeURIComponent(source.name)}/debug`}>
+                <Bug className="w-3 h-3 mr-1" />
+                Debug
+              </Link>
             </Button>
-            {debugMode && (
-              <Button asChild variant="outline" size="sm" className="justify-center border-white/10 bg-transparent hover:bg-white/5 text-[9px] h-7">
-                <Link href={`/sources/${encodeURIComponent(source.name)}/debug`}>
-                  <Bug className="w-3 h-3 mr-1" />
-                  Debug
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-secondary)]">
-          <SourceResearchPanel sourceName={source.name} website={websiteHostname} />
+          )}
         </div>
       </div>
+      <div className="flex-1 min-h-0 overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-secondary)]">
+        <SourceResearchPanel sourceName={source.name} website={websiteHostname} />
+      </div>
     </div>
-  )
-}
+  </div>
+);
 
-function SourceCoverage({
+const SourceCoverage = ({
   articles,
   articlesLoading,
   onArticleClick,
 }: Readonly<{
-  articles: NewsArticle[]
-  articlesLoading: boolean
-  onArticleClick: (article: NewsArticle) => void
-}>) {
+  articles: readonly NewsArticle[];
+  articlesLoading: boolean;
+  onArticleClick: (article: NewsArticle) => void;
+}>) => (
+  <div className="lg:col-span-9 space-y-6">
+    <div className="flex items-center justify-between pb-4 border-b border-white/10">
+      <h2 className="font-serif text-2xl font-medium tracking-tight">Latest Coverage</h2>
+      <div className="flex items-center gap-3">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+          {(() => {
+  if (articlesLoading) {
+    return "Syncing...";
+  }
+  return `${articles.length} Stories`;
+})()}
+        </span>
+      </div>
+    </div>
+    <SourceArticleResults
+      articles={articles}
+      articlesLoading={articlesLoading}
+      onArticleClick={onArticleClick}
+    />
+  </div>
+);
+
+const SOURCE_LOADING_SKELETONS = [0, 1, 2, 3, 4, 5] as const;
+const SOURCE_ARTICLE_INITIAL = { opacity: 0, y: 20 } as const;
+const SOURCE_ARTICLE_ANIMATE = { opacity: 1, y: 0 } as const;
+const SOURCE_ARTICLE_EXIT = { opacity: 0, scale: 0.95 } as const;
+
+interface SourceArticleMotionProps {
+  readonly article: NewsArticle;
+  readonly index: number;
+  readonly onClick: (article: NewsArticle) => void;
+}
+
+const SourceArticleMotion = ({
+  article,
+  index,
+  onClick,
+}: Readonly<SourceArticleMotionProps>) => {
+  const transition = useMemo(
+    () => ({ delay: index * 0.03, duration: 0.3 }),
+    [index],
+  );
   return (
-    <div className="lg:col-span-9 space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-white/10">
-        <h2 className="font-serif text-2xl font-medium tracking-tight">Latest Coverage</h2>
-        <div className="flex items-center gap-3">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-            {articlesLoading ? "Syncing..." : `${articles.length} Stories`}
-          </span>
-        </div>
-      </div>
-      <SourceArticleResults
-        articles={articles}
-        articlesLoading={articlesLoading}
-        onArticleClick={onArticleClick}
-      />
-    </div>
-  )
-}
+    <motion.div
+      layout
+      initial={SOURCE_ARTICLE_INITIAL}
+      animate={SOURCE_ARTICLE_ANIMATE}
+      exit={SOURCE_ARTICLE_EXIT}
+      transition={transition}
+    >
+      <SourceArticleCard article={article} onClick={onClick} />
+    </motion.div>
+  );
+};
 
-function SourceArticleResults({
+const SourceArticleResults = ({
   articles,
   articlesLoading,
   onArticleClick,
 }: Readonly<{
-  articles: NewsArticle[]
-  articlesLoading: boolean
-  onArticleClick: (article: NewsArticle) => void
-}>) {
+  articles: readonly NewsArticle[];
+  articlesLoading: boolean;
+  onArticleClick: (article: NewsArticle) => void;
+}>) => {
   if (articlesLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[...Array(6)].map((_, index) => (
-          <div key={index} className="aspect-[4/3] bg-[var(--news-bg-secondary)] rounded-lg border border-white/10 animate-pulse" />
+        {SOURCE_LOADING_SKELETONS.map((skeletonId) => (
+          <div
+            key={`source-loading-${skeletonId}`}
+            className="aspect-[4/3] bg-[var(--news-bg-secondary)] rounded-lg border border-white/10 animate-pulse"
+          />
         ))}
       </div>
-    )
+    );
   }
 
   if (articles.length === 0) {
     return (
       <div className="py-24 text-center border border-dashed border-white/10 rounded-lg">
-        <p className="text-muted-foreground font-serif italic">No recent coverage found from this source.</p>
+        <p className="text-muted-foreground font-serif italic">
+          No recent coverage found from this source.
+        </p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <AnimatePresence mode="popLayout">
         {articles.map((article, index) => (
-          <motion.div
+          <SourceArticleMotion
             key={article.url || article.id}
-            layout
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ delay: index * 0.03, duration: 0.3 }}
-          >
-            <SourceArticleCard article={article} onClick={onArticleClick} />
-          </motion.div>
+            article={article}
+            index={index}
+            onClick={onArticleClick}
+          />
         ))}
       </AnimatePresence>
     </div>
-  )
-}
+  );
+};
 
-function SourceArticleCard({
+const SourceArticleCard = ({
   article,
   onClick,
-}: Readonly<{ article: NewsArticle; onClick: (article: NewsArticle) => void }>) {
+}: Readonly<{ article: Readonly<NewsArticle>; onClick: (article: NewsArticle) => void }>) => {
+  const handleClick = useCallback(() => {
+    onClick(article);
+  }, [article, onClick]);
+
   return (
     <Card
       className="group relative border border-white/10 bg-[var(--news-bg-secondary)] rounded-lg cursor-pointer overflow-hidden hover:border-white/20 hover:bg-[#1a1a1a] transition-all h-full"
-      onClick={() =>{  onClick(article); }}
+      onClick={handleClick}
     >
-      <div className="aspect-[16/9] w-full overflow-hidden bg-white/5 relative">
-        {hasRealImage(article.image) ? (
-          <SafeImage
-            src={article.image}
-            alt={article.title}
-            fill
-            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-            className="object-cover grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:scale-105 opacity-80 group-hover:opacity-100"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-white/5">
-            <Newspaper className="w-8 h-8 text-white/10" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-        <div className="absolute top-3 left-3">
-          <Badge variant="secondary" className="bg-black/50 backdrop-blur border-white/10 text-[9px] font-mono uppercase tracking-wider text-white hover:bg-black/70">
-            {article.category}
-          </Badge>
-        </div>
+    <div className="aspect-[16/9] w-full overflow-hidden bg-white/5 relative">
+      {(() => {
+  if (isUsableImage(article.image)) {
+    return <SafeImage src={article.image} alt={article.title} fill sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" className="object-cover grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:scale-105 opacity-80 group-hover:opacity-100" />;
+  }
+  return <div className="w-full h-full flex items-center justify-center bg-white/5">
+          <Newspaper className="w-8 h-8 text-white/10" />
+        </div>;
+})()}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+      <div className="absolute top-3 left-3">
+        <Badge
+          variant="secondary"
+          className="bg-black/50 backdrop-blur border-white/10 text-[9px] font-mono uppercase tracking-wider text-white hover:bg-black/70"
+        >
+          {article.category}
+        </Badge>
       </div>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
-          <Clock className="w-3 h-3" />
-          {new Date(article.publishedAt).toLocaleDateString("en-US", {
-            day: "numeric",
-            month: "short",
-          })}
-        </div>
-        <h3 className="font-serif text-base font-medium leading-snug group-hover:text-primary transition-colors line-clamp-2">
-          {article.title}
-        </h3>
-        <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">
-          {article.summary}
-        </p>
-      </CardContent>
+    </div>
+    <CardContent className="p-4 space-y-2">
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
+        <ArticleCardDate date={article.publishedAt} />
+      </div>
+      <h3 className="font-serif text-base font-medium leading-snug group-hover:text-primary transition-colors line-clamp-2">
+        {article.title}
+      </h3>
+      <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">
+        {article.summary}
+      </p>
+    </CardContent>
     </Card>
-  )
-}
+  );
+};
+export default SourcePage;

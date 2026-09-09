@@ -1,42 +1,51 @@
 "use client";
 
-import React from "react";
+import { useCallback } from "react";
+
+const createPopoverStyle = (x: number, y: number) =>
+  ({ left: x, position: "absolute" as const, top: y });
 
 export interface InlineDefinitionPopoverProps {
-  result: {
-    term: string;
-    definition?: string | null;
-    error?: string | null;
-  } | null;
-  open: boolean;
-  setOpen: (open: boolean) => void;
-  anchorPosition: { x: number; y: number } | null;
+  readonly result: Readonly<{
+    readonly term: string;
+    readonly definition?: string | null;
+    readonly error?: string | null;
+  }> | null;
+  readonly open: boolean;
+  readonly setOpen: (open: boolean) => void;
+  readonly anchorPosition: Readonly<{ readonly x: number; readonly y: number }> | null;
 }
 
-export function InlineDefinitionPopover({
+export const InlineDefinitionPopover = ({
   result,
   open,
   setOpen,
   anchorPosition,
-}: InlineDefinitionPopoverProps) {
-  if (!open || !result) {return;}
+}: Readonly<InlineDefinitionPopoverProps>) => {
+  const closePopover = useCallback(() => {
+    setOpen(false);
+  }, [setOpen]);
+
+  if (!open || !result) {
+    return null;
+  }
 
   const x = anchorPosition?.x ?? 0,
-   y = anchorPosition?.y ?? 0;
+    y = anchorPosition?.y ?? 0;
 
   return (
-    <div
-      style={{ left: x, position: "absolute", top: y }}
-      className="z-50 max-w-xs rounded-md border bg-white p-3 shadow-lg text-sm"
-      onClick={() =>{  setOpen(false); }}
+    <button
+      type="button"
+      style={createPopoverStyle(x, y)}
+      className="z-50 max-w-xs rounded-md border bg-white p-3 text-left text-sm shadow-lg"
+      onClick={closePopover}
     >
       <div className="font-semibold">{result.term}</div>
       <div className="mt-1 text-gray-700">
         {result.definition ?? result.error ?? "No definition available."}
       </div>
-    </div>
+    </button>
   );
-}
-
+};
 
 // Single component kept

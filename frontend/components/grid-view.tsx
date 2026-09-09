@@ -1,1095 +1,141 @@
-"use client"
+"use client";
 
-import type { AllCluster, NewsArticle, TrendingCluster } from "@/lib/api"
-import { AnimatePresence, motion } from "framer-motion"
-import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
+import type { AllCluster, ClusterArticle, NewsArticle, TrendingCluster } from "@/lib/api";
+import { GridViewContent, VirtualizedModeView } from "./grid-view-layout";
 import {
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Clock,
-  Heart,
-  Layers,
-  List,
-  Loader2,
-  MinusCircle,
-  Newspaper,
-  PlusCircle,
-  Search,
-  Star,
-} from "lucide-react"
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds } from '@/lib/source-groups';
-import {
-  clusterArticlesToNewsArticles,
-  getClusterPreviewStats,
-  hasRealClusterImage,
-  pickClusterImageUrl,
-} from "@/lib/cluster-display"
-import { cn, getLogger } from "@/lib/utils"
-import { fetchAllClusters, fetchClusterArticles } from "@/lib/api"
-import { getStoredGridViewMode, setStoredGridViewMode } from '@/lib/view-mode-storage';
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { CardContent } from "@/components/ui/card"
-import { ContradictionPanel } from "@/components/contradiction-panel"
-import type { GridViewMode } from '@/lib/view-mode-storage';
-import Link from "next/link"
-import { SafeImage } from "@/components/safe-image"
-import { Skeleton } from "@/components/ui/skeleton"
-import type { SourceGroup } from '@/lib/source-groups';
-import { StoryLineagePanel } from "@/components/story-lineage-panel"
-import { TrendingFeed } from "./trending-feed"
-import dynamic from "next/dynamic"
-import { useFavorites } from "@/hooks/use-favorites"
-import { useLikedArticles } from "@/hooks/use-liked-articles"
-import { useReadingQueue } from "@/hooks/use-reading-queue"
+  buildSourceGroups,
+  compareSourceGroupsForGrid,
+  getVisibleSourceIds,
+} from "@/lib/source-groups";
+import { fetchAllClusters, fetchClusterArticles } from "@/lib/api";
+import { getStoredGridViewMode, setStoredGridViewMode } from "@/lib/view-mode-storage";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DeepReadonly } from "@/app/search/research/model/types";
+import type { GridChangeEvent } from "./grid-view-layout";
+import type { GridViewMode } from "@/lib/view-mode-storage";
+import { Loader2 } from "lucide-react";
+import { getLogger, hasText } from "@/lib/utils";
+import { useArticleDetail } from "@/hooks/use-article-detail";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useLikedArticles } from "@/hooks/use-liked-articles";
+import { useReadingQueue } from "@/hooks/use-reading-queue";
 
-const ArticleDetailModal = dynamic(
-  () => import("./article-detail-modal").then((module) => module.ArticleDetailModal),
-  {
-    loading: () => null,
-    ssr: false,
-  },
-),
+type GridButtonEvent = Readonly<{ stopPropagation: () => void }>;
+type ReadonlyGridCluster = DeepReadonly<AllCluster>;
+type ReadonlyGridClusterArticle = DeepReadonly<ClusterArticle>;
+type ReadonlyGridGdeltContext = NonNullable<ReadonlyGridCluster["gdelt_context"]>;
+type GridGdeltContext = NonNullable<ClusterArticle["gdelt_context"]>;
+type GridClusterWindow = "1d" | "1w" | "1m";
 
- COLLAPSED_SOURCE_ARTICLE_COUNT = 20,
-
- ClusterDetailModal = dynamic(
-  () => import("./cluster-detail-modal").then((module) => module.ClusterDetailModal),
-  {
-    loading: () => null,
-    ssr: false,
-  },
-),
-
- SOURCE_GROUP_BATCH_SIZE = 10,
- VirtualizedGrid = lazy(() =>
-  import("./virtualized-grid").then((module) => ({
-    default: module.VirtualizedGrid,
+const copyGridGdeltContext = (context: ReadonlyGridGdeltContext): GridGdeltContext => ({
+  goldstein_avg: context.goldstein_avg,
+  goldstein_bucket: context.goldstein_bucket,
+  goldstein_max: context.goldstein_max,
+  goldstein_min: context.goldstein_min,
+  tone_avg: context.tone_avg,
+  tone_baseline_avg: context.tone_baseline_avg,
+  tone_delta_vs_cluster: context.tone_delta_vs_cluster,
+  top_cameo: context.top_cameo?.map((cameo) => ({
+    code: cameo.code,
+    count: cameo.count,
+    label: cameo.label,
   })),
-),
- logger = getLogger("GridView")
+  total_events: context.total_events,
+});
+
+const copyGridClusterArticle = (article: ReadonlyGridClusterArticle): ClusterArticle => ({
+  author: article.author,
+  authors: (() => {
+  if (article.authors) {
+    return [...article.authors];
+  }
+  return void 0;
+})(),
+  gdelt_context: (() => {
+  if (article.gdelt_context) {
+    return copyGridGdeltContext(article.gdelt_context);
+  }
+  return null;
+})(),
+  id: article.id,
+  image_url: article.image_url,
+  published_at: article.published_at,
+  similarity: article.similarity,
+  source: article.source,
+  source_id: article.source_id,
+  summary: article.summary,
+  title: article.title,
+  url: article.url,
+});
+
+const SOURCE_GROUP_BATCH_SIZE = 10;
+const LOADING_STYLE = { minHeight: "calc(100vh - 140px)" };
+const logger = getLogger("GridView");
 
 interface GridViewProps {
-  articles: NewsArticle[]
-  loading: boolean
-  apiUrl?: string | null
-  useVirtualization?: boolean
-  showTrending?: boolean
-  topicSortMode?: "sources" | "articles" | "recent"
-  viewMode?: GridViewMode
-  onViewModeChange?: (mode: GridViewMode) => void
-  isScrollMode?: boolean
-  totalCount?: number
+  readonly articles: readonly NewsArticle[];
+  readonly loading: boolean;
+  readonly apiUrl?: string | null;
+  readonly useVirtualization?: boolean;
+  readonly showTrending?: boolean;
+  readonly topicSortMode?: "sources" | "articles" | "recent";
+  readonly viewMode?: GridViewMode;
+  readonly onViewModeChange?: (mode: GridViewMode) => void;
+  readonly isScrollMode?: boolean;
+  readonly totalCount?: number;
 }
-
-interface SourceArticleCardProps {
-  article: NewsArticle
-  likedIds: Set<number>
-  hasRealImage: (src?: string | null) => boolean
-  isArticleInQueue: (url: string) => boolean
-  onArticleClick: (article: NewsArticle) => void
-  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
-  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
-  index: number
-}
-
-const SourceArticleCard = ({
-  article,
-  likedIds,
-  hasRealImage,
-  isArticleInQueue,
-  onArticleClick,
-  onLike,
-  onQueueToggle,
-  index,
-}: SourceArticleCardProps) => {
-  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.target !== event.currentTarget) {return}
-    if (event.key !== "Enter" && event.key !== " ") {return}
-    event.preventDefault()
-    onArticleClick(article)
-  },
-
-   showImage = hasRealImage(article.image)
-
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-      role="button"
-      tabIndex={0}
-      onClick={() =>{  onArticleClick(article); }}
-      onKeyDown={handleCardKeyDown}
-      className="group flex h-full min-h-48 w-full flex-col overflow-hidden rounded-md border border-white/10 bg-black/25 text-left shadow-xl transition-all duration-500 ease-out hover:bg-white/[0.03] hover:shadow-2xl sm:min-h-80 sm:rounded-lg"
-    >
-	                            <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
-        {showImage ? (
-          <SafeImage
-            src={article.image ?? undefined}
-            alt={article.title}
-            fill
-            sizes="(min-width: 1536px) 20vw, (min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
-          />
-        ) : (
-          <div
-            className={cn(
-              "h-full w-full opacity-50 transition duration-700 group-hover:scale-105",
-              article.category === "breaking" ? "editorial-fallback-surface" : "editorial-paper-surface",
-            )}
-          />
-        )}
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100" />
-
-        <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-100 transition-all duration-300 sm:right-3 sm:top-3 sm:gap-2 md:translate-y-[-10px] md:opacity-0 md:group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(event) =>{  onQueueToggle(article, event); }}
-            className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
-            title={isArticleInQueue(article.url) ? "Remove from queue" : "Add to queue"}
-          >
-            {isArticleInQueue(article.url) ? (
-              <MinusCircle className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
-            ) : (
-              <PlusCircle className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(event) =>{  onLike(article.id, event); }}
-            className="h-5 w-5 rounded-full bg-black/45 p-0 text-white backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-black active:scale-95 sm:h-8 sm:w-8"
-            title={likedIds.has(article.id) ? "Unlike" : "Like"}
-          >
-            <Heart
-              className={cn(
-                "h-2.5 w-2.5 transition-colors sm:h-4 sm:w-4",
-                likedIds.has(article.id)
-                  ? "fill-red-500 text-red-500 hover:text-red-600"
-                  : "text-white",
-              )}
-            />
-          </Button>
-        </div>
-
-        <div className="absolute left-1 top-1 z-10 flex max-w-20 flex-wrap gap-1 sm:left-3 sm:top-3 sm:max-w-none sm:gap-2">
-          <Badge
-            variant={article.category === "breaking" ? "destructive" : "outline"}
-            className={cn(
-              "truncate rounded-sm border-0 px-1 py-0.5 text-xs font-medium tracking-normal backdrop-blur-md sm:rounded-md sm:px-2 sm:uppercase sm:tracking-widest",
-              article.category === "breaking"
-                ? "bg-red-500/90 text-white shadow-lg"
-                : "bg-black/50 text-white/90",
-            )}
-          >
-            {article.category}
-          </Badge>
-        </div>
-      </div>
-
-      <CardContent className="flex flex-1 flex-col p-1.5 pt-1 sm:p-5 sm:pt-4">
-        <div className="mb-1 flex min-w-0 items-center text-xs font-semibold tracking-normal text-primary/80 sm:mb-3 sm:uppercase sm:tracking-widest">
-          <span className="truncate">{article.source}</span>
-        </div>
-        <h3 className="mb-1 line-clamp-4 font-serif text-sm font-medium leading-tight text-foreground/90 transition-colors duration-300 group-hover:text-white sm:mb-3 sm:text-lg sm:leading-snug md:text-xl">
-          {article.title}
-        </h3>
-
-        <p className="hidden text-sm leading-relaxed text-muted-foreground/80 sm:line-clamp-3">{article.summary}</p>
-
-        <div className="mt-auto flex items-center justify-between pt-1.5 text-xs tracking-normal text-muted-foreground/60 transition-opacity duration-300 group-hover:text-muted-foreground sm:pt-5 sm:uppercase sm:tracking-widest">
-          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-            <Clock className="h-3 w-3" />
-            <span>
-              {new Date(article.publishedAt).toLocaleDateString("en-US", {
-                day: "numeric",
-                month: "short",
-              })}
-            </span>
-          </div>
-          <span className="hidden text-primary/0 transition-colors duration-300 group-hover:text-primary sm:inline">
-            Open brief -&gt;
-          </span>
-        </div>
-      </CardContent>
-    </motion.article>
-  )
-}
-
-interface GridViewSearchBarProps {
-  value: string
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void
-  variant: "virtualized" | "main"
-}
-
-const GridViewSearchBar = ({ value, onChange, variant }: GridViewSearchBarProps) => {
-  const isVirtualized = variant === "virtualized"
-  return (
-    <div className={isVirtualized ? "relative" : "relative w-full max-w-xl"}>
-      <Search
-        className={
-          isVirtualized
-            ? "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            : "absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70 sm:left-3.5 sm:h-4 sm:w-4"
-        }
-      />
-      <input
-        type="text"
-        placeholder={isVirtualized ? "Search articles..." : "Search the news..."}
-        value={value}
-        onChange={onChange}
-        className={
-          isVirtualized
-            ? "w-full rounded-xl bg-white/5 px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            : "w-full rounded-lg bg-white/5 px-9 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/50 sm:rounded-xl sm:px-10"
-        }
-      />
-    </div>
-  )
-}
-
-interface ModeSwitcherProps {
-  viewMode: GridViewMode
-  clusterWindow: "1d" | "1w" | "1m"
-  onModeSelect: (mode: GridViewMode) => void
-  onClusterWindow: (value: "1d" | "1w" | "1m") => void
-}
-
-const ModeSwitcher = ({ viewMode, clusterWindow, onModeSelect, onClusterWindow }: ModeSwitcherProps) => 
-  (
-    <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:justify-end">
-      <div className="flex w-full sm:w-auto rounded-lg border border-white/5 bg-white/5 p-1">
-        <Button
-          variant={viewMode === "source" ? "default" : "ghost"}
-          size="sm"
-          onClick={() =>{  onModeSelect("source"); }}
-          className={cn(
-            "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
-            viewMode === "source"
-              ? "bg-white/10 text-white shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <List className="mr-1.5 h-3.5 w-3.5" />
-          By Source
-        </Button>
-        <Button
-          variant={viewMode === "topic" ? "default" : "ghost"}
-          size="sm"
-          onClick={() =>{  onModeSelect("topic"); }}
-          className={cn(
-            "flex-1 sm:flex-none h-7 rounded-md px-2 sm:px-3 text-[10px] sm:text-xs uppercase tracking-widest transition-all",
-            viewMode === "topic"
-              ? "bg-white/10 text-white shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Layers className="mr-1.5 h-3.5 w-3.5" />
-          By Topic
-        </Button>
-      </div>
-
-      {viewMode === "topic" && (
-        <Select
-          value={clusterWindow}
-          onValueChange={(value) =>{  onClusterWindow(value as "1d" | "1w" | "1m"); }}
-        >
-          <SelectTrigger className="h-9 rounded-lg border-white/5 bg-white/5 text-xs uppercase tracking-widest">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="rounded-lg border-white/10 bg-background/95 backdrop-blur-xl">
-            <SelectItem value="1d" className="text-xs uppercase tracking-widest">
-              Last 24h
-            </SelectItem>
-            <SelectItem value="1w" className="text-xs uppercase tracking-widest">
-              Last 7d
-            </SelectItem>
-            <SelectItem value="1m" className="text-xs uppercase tracking-widest">
-              Last 30d
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      )}
-    </div>
-  )
-
-
-interface SourceGroupSectionProps {
-  group: SourceGroup
-  isExpanded: boolean
-  likedIds: Set<number>
-  hasRealImage: (src?: string | null) => boolean
-  isArticleInQueue: (url: string) => boolean
-  isFavorite: (sourceId: string) => boolean
-  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
-  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
-  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
-  onToggleFavorite: (sourceId: string) => void
-  onToggleExpand: () => void
-}
-
-const SourceGroupSection = ({
-  group,
-  isExpanded,
-  likedIds,
-  hasRealImage,
-  isArticleInQueue,
-  isFavorite,
-  onArticleClick,
-  onLike,
-  onQueueToggle,
-  onToggleFavorite,
-  onToggleExpand,
-}: SourceGroupSectionProps) => {
-  const displayedArticles = isExpanded
-    ? group.articles
-    : group.articles.slice(0, COLLAPSED_SOURCE_ARTICLE_COUNT)
-
-  return (
-    <section
-      data-source-id={group.sourceId}
-      className="grid-source-group flex flex-col"
-    >
-      <div className="mb-2 flex flex-col gap-2 border-t border-white/10 pt-3 sm:mb-6 sm:gap-4 sm:border-t-0 sm:pt-0 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-1 sm:space-y-3">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link
-              href={`/source/${encodeURIComponent(group.sourceId)}`}
-              className="min-w-0 break-words font-serif text-2xl leading-none text-foreground transition-colors hover:text-primary sm:text-4xl md:text-5xl"
-            >
-              {group.sourceName}
-            </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>{  onToggleFavorite(group.sourceId); }}
-              className="h-8 w-8 rounded-full bg-white/5 p-0 text-muted-foreground transition-all duration-300 hover:bg-white/10 hover:text-primary active:scale-95 shrink-0 sm:h-9 sm:w-9"
-            >
-              <Star
-                className={cn(
-                  "h-4 w-4",
-                  isFavorite(group.sourceId)
-                    ? "fill-amber-400 text-amber-400"
-                    : "text-white/40",
-                )}
-              />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground sm:gap-2">
-          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-            {group.articles.length} articles
-          </span>
-          {group.credibility && (
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-              {group.credibility} credibility
-            </span>
-          )}
-          {group.bias && (
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 font-medium text-white/80">
-              {group.bias} bias
-            </span>
-          )}
-        </div>
-      </div>
-
-      {displayedArticles.length > 0 && (
-        <div className="flex-1">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            <AnimatePresence>
-              {displayedArticles.map((article, itemIndex) => (
-                <SourceArticleCard
-                  key={article.url ? `url:${article.url}` : `id:${article.id}`}
-                  article={article}
-                  index={itemIndex}
-                  likedIds={likedIds}
-                  hasRealImage={hasRealImage}
-                  isArticleInQueue={isArticleInQueue}
-                  onArticleClick={(article) =>{  onArticleClick(article, group.articles); }}
-                  onLike={onLike}
-                  onQueueToggle={onQueueToggle}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-      )}
-
-      {group.articles.length > COLLAPSED_SOURCE_ARTICLE_COUNT && (
-        <div className="mt-4 flex justify-center pb-4 sm:mt-8 sm:pb-8">
-          <Button
-            variant="outline"
-            onClick={onToggleExpand}
-            className="rounded-full border-white/10 bg-transparent px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white sm:px-8 sm:py-5"
-          >
-            {isExpanded ? "Show fewer stories" : `View all ${group.articles.length} stories`}
-          </Button>
-        </div>
-      )}
-    </section>
-  )
-}
-
-interface TopicClusterCardProps {
-  cluster: AllCluster
-  index: number
-  isExpanded: boolean
-  getDisplayLabel: (cluster: AllCluster) => string
-  onExpand: () => void
-  onCompare: (event: MouseEvent<HTMLButtonElement>) => void
-}
-
-const TopicClusterCard = ({
-  cluster,
-  index,
-  isExpanded,
-  getDisplayLabel,
-  onExpand,
-  onCompare,
-}: TopicClusterCardProps) => {
-  const representative = cluster.representative_article
-  if (!representative) {return}
-
-  const imageUrl = pickClusterImageUrl(cluster),
-   previewStats = getClusterPreviewStats(cluster)
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.05 }}
-      data-cluster-id={cluster.cluster_id}
-      role="button"
-      tabIndex={0}
-      className={cn(
-        "group flex cursor-pointer flex-col overflow-hidden rounded-md border bg-black/25 transition-all duration-500 hover:bg-white/[0.03] scroll-mt-6 sm:rounded-lg sm:bg-black/20",
-        isExpanded ? "border-primary/50 ring-1 ring-primary/40" : "border-white/10 sm:border-white/5",
-      )}
-      onClick={onExpand}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) {return}
-        if (event.key !== "Enter" && event.key !== " ") {return}
-        event.preventDefault()
-        onExpand()
-      }}
-    >
-      <div className="relative m-1 aspect-square overflow-hidden rounded bg-white/5 sm:m-2 sm:aspect-video sm:rounded-lg">
-        {imageUrl ? (
-          <SafeImage
-            src={imageUrl}
-            alt={representative.title}
-            fill
-            sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
-          />
-        ) : (
-          <div className="editorial-fallback-surface h-full w-full opacity-50 transition duration-700 group-hover:scale-105" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-        <div className="absolute right-1 top-1 z-10 text-white drop-shadow-md sm:right-4 sm:top-4">
-          {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-white/75 group-hover:text-white sm:h-5 sm:w-5" />
-          )}
-        </div>
-        <div className="absolute left-4 top-4 z-10 hidden sm:block">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCompare}
-            className="h-8 rounded-full bg-black/50 px-3 text-xs uppercase tracking-widest text-white backdrop-blur hover:bg-black/70"
-          >
-            Compare
-          </Button>
-        </div>
-        <div className="absolute bottom-4 left-4 right-4 hidden sm:block">
-          <h3 className="font-serif text-xl font-medium leading-snug text-white drop-shadow-md">
-            {getDisplayLabel(cluster)}
-          </h3>
-        </div>
-      </div>
-      <CardContent className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between sm:p-5 sm:pt-3 sm:uppercase sm:tracking-widest">
-        <h3 className="line-clamp-3 font-serif text-sm leading-tight text-foreground/90 sm:hidden">
-          {getDisplayLabel(cluster)}
-        </h3>
-        <span className="flex items-center gap-1 sm:gap-2">
-          <Newspaper className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.sourceCount} sources
-        </span>
-        <span className="flex items-center gap-1 sm:gap-2">
-          <List className="h-3 w-3 text-primary/70 sm:h-3.5 sm:w-3.5" /> {previewStats.articleCount} stories
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCompare}
-          className="mt-auto h-6 w-full rounded-full bg-white/5 px-2 text-xs font-medium text-foreground hover:bg-white/10 sm:hidden"
-        >
-          Compare
-        </Button>
-      </CardContent>
-    </motion.div>
-  )
-}
-
-interface ExpandedTopicPanelProps {
-  cluster: AllCluster
-  articles: NewsArticle[]
-  likedIds: Set<number>
-  hasRealImage: (src?: string | null) => boolean
-  isArticleInQueue: (url: string) => boolean
-  getDisplayLabel: (cluster: AllCluster) => string
-  onArticleClick: (article: NewsArticle) => void
-  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
-  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
-  onClose: () => void
-}
-
-const ExpandedTopicPanel = ({
-  cluster,
-  articles,
-  likedIds,
-  hasRealImage,
-  isArticleInQueue,
-  getDisplayLabel,
-  onArticleClick,
-  onLike,
-  onQueueToggle,
-  onClose,
-}: ExpandedTopicPanelProps) => 
-  (
-    <div
-      data-cluster-expanded-for={cluster.cluster_id}
-      className="col-span-full overflow-hidden rounded-lg border border-primary/30 bg-black/20"
-    >
-      <div className="flex flex-col gap-4 border-b border-white/10 bg-black/30 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <Layers className="h-5 w-5 text-primary" />
-          <h3 className="font-serif text-2xl text-foreground">
-            {getDisplayLabel(cluster)}
-          </h3>
-          <Badge
-            variant="outline"
-            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-          >
-            {getClusterPreviewStats(cluster).sourceCount} sources
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-          >
-            {getClusterPreviewStats(cluster).articleCount} stories
-          </Badge>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(event) => {
-            event.stopPropagation()
-            onClose()
-          }}
-          className="w-fit rounded-full border border-white/10 bg-transparent px-4 text-xs uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-white"
-        >
-          Close topic
-        </Button>
-      </div>
-
-      <div className="space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
-        <ContradictionPanel clusterId={cluster.cluster_id} />
-        <StoryLineagePanel clusterId={cluster.cluster_id} />
-
-        {articles.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-            {articles.map((article, index) => (
-              <SourceArticleCard
-                key={article.url ? `cluster-url:${article.url}` : `cluster-id:${article.id}`}
-                article={article}
-                index={index}
-                likedIds={likedIds}
-                hasRealImage={hasRealImage}
-                isArticleInQueue={isArticleInQueue}
-                onArticleClick={(article) =>{  onArticleClick(article); }}
-                onLike={onLike}
-                onQueueToggle={onQueueToggle}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="py-12 text-center text-xs uppercase tracking-widest text-muted-foreground">
-            No articles found for this topic
-          </div>
-        )}
-
-        {cluster.keywords.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">Keywords</span>
-            {cluster.keywords.slice(0, 8).map((keyword) => (
-              <Badge
-                key={keyword}
-                variant="outline"
-                className="border-white/10 bg-white/5 text-xs uppercase tracking-widest text-muted-foreground"
-              >
-                {keyword}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-
-interface TopicFeedProps {
-  clustersLoading: boolean
-  clusters: AllCluster[]
-  clustersStatus: string | null
-  sortedClusters: AllCluster[]
-  expandedClusterId: number | null
-  expandedCluster: AllCluster | null
-  expandedClusterArticles: NewsArticle[]
-  likedIds: Set<number>
-  hasRealImage: (src?: string | null) => boolean
-  isArticleInQueue: (url: string) => boolean
-  getDisplayLabel: (cluster: AllCluster) => string
-  onExpand: (cluster: AllCluster) => void
-  onCompare: (cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => void
-  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
-  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
-  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
-  onCloseExpanded: () => void
-}
-
-const TopicFeed = ({
-  clustersLoading,
-  clusters,
-  clustersStatus,
-  sortedClusters,
-  expandedClusterId,
-  expandedCluster,
-  expandedClusterArticles,
-  likedIds,
-  hasRealImage,
-  isArticleInQueue,
-  getDisplayLabel,
-  onExpand,
-  onCompare,
-  onArticleClick,
-  onLike,
-  onQueueToggle,
-  onCloseExpanded,
-}: TopicFeedProps) => 
-  (
-    <div className="space-y-4 sm:space-y-6">
-      {clustersLoading ? (
-        <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
-          <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary/40" />
-          Mapping topic clusters...
-        </div>
-      ) : (clusters.length === 0 ? (
-        <div className="py-24 text-center text-xs uppercase tracking-widest text-muted-foreground">
-          {clustersStatus === "initializing" ? "Building topics..." : "No topics found"}
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedClusters.map((cluster, index) => {
-            if (!cluster.representative_article) {return null}
-            const isExpanded = expandedClusterId === cluster.cluster_id
-            return (
-              <Fragment key={cluster.cluster_id}>
-                <TopicClusterCard
-                  cluster={cluster}
-                  index={index}
-                  isExpanded={isExpanded}
-                  getDisplayLabel={getDisplayLabel}
-                  onExpand={() =>{  onExpand(cluster); }}
-                  onCompare={(event) =>{  onCompare(cluster, event); }}
-                />
-                {isExpanded && expandedCluster && (
-                  <ExpandedTopicPanel
-                    cluster={expandedCluster}
-                    articles={expandedClusterArticles}
-                    likedIds={likedIds}
-                    hasRealImage={hasRealImage}
-                    isArticleInQueue={isArticleInQueue}
-                    getDisplayLabel={getDisplayLabel}
-                    onArticleClick={(article) =>{  onArticleClick(article, expandedClusterArticles); }}
-                    onLike={onLike}
-                    onQueueToggle={onQueueToggle}
-                    onClose={onCloseExpanded}
-                  />
-                )}
-              </Fragment>
-            )
-          })}
-        </div>
-      ))}
-    </div>
-  )
-
-
-interface TrendingSectionProps {
-  showTrending: boolean
-  viewMode: GridViewMode
-}
-
-const TrendingSection = ({ showTrending, viewMode }: TrendingSectionProps) => {
-  if (!showTrending) {return}
-  if (viewMode === "topic") {
-    return (
-      <div className="hidden sm:block">
-        <TrendingFeed />
-      </div>
-    )
-  }
-  return <TrendingFeed />
-}
-
-interface MoreSourcesButtonProps {
-  visible: number
-  total: number
-  onLoadMore: () => void
-}
-
-const MoreSourcesButton = ({ visible, total, onLoadMore }: MoreSourcesButtonProps) => 
-  (
-    <div className="flex justify-center pb-8">
-      <Button
-        variant="outline"
-        onClick={onLoadMore}
-        className="rounded-full border-white/10 bg-transparent px-8 py-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-300 hover:bg-white/5 hover:text-white disabled:opacity-60"
-      >
-        {`Load 10 more sources (${visible}/${total})`}
-      </Button>
-    </div>
-  )
-
-
-interface VirtualizedModeViewProps {
-  searchTerm: string
-  empty: boolean
-  displayArticles: NewsArticle[]
-  resolvedTotalCount: number
-  isArticleModalOpen: boolean
-  selectedArticle: NewsArticle | null
-  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onArticleClick: (article: NewsArticle, context:readonly  NewsArticle[]) => void
-  onModalClose: () => void
-  onModalNavigate: (direction: "prev" | "next") => void
-}
-
-const VirtualizedModeView = ({
-  searchTerm,
-  empty,
-  displayArticles,
-  resolvedTotalCount,
-  isArticleModalOpen,
-  selectedArticle,
-  onSearchChange,
-  onArticleClick,
-  onModalClose,
-  onModalNavigate,
-}: VirtualizedModeViewProps) => 
-  (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      <div className="sticky top-0 z-10 border-b border-white/5 bg-background/80 backdrop-blur-xl">
-        <div className="px-4 py-3 sm:px-6 lg:px-8">
-          <GridViewSearchBar value={searchTerm} variant="virtualized" onChange={onSearchChange} />
-        </div>
-      </div>
-
-      {empty ? (
-        <div className="flex flex-1 items-center justify-center py-16 text-center">
-          <div>
-            <Newspaper className="mx-auto mb-4 h-10 w-10 text-muted-foreground/30" />
-            <h3 className="font-serif text-2xl text-foreground/50">No articles found</h3>
-          </div>
-        </div>
-      ) : (
-        <Suspense fallback={<Skeleton className="h-96 w-full opacity-20" />}>
-          <VirtualizedGrid
-            articles={displayArticles}
-            hasNextPage={false}
-            isFetchingNextPage={false}
-            fetchNextPage={() => {}}
-            onArticleClick={(article) =>{  onArticleClick(article, displayArticles); }}
-            totalCount={resolvedTotalCount}
-          />
-        </Suspense>
-      )}
-
-      {isArticleModalOpen && selectedArticle && (
-        <ArticleDetailModal
-          article={selectedArticle}
-          isOpen={isArticleModalOpen}
-          onClose={onModalClose}
-          onNavigate={onModalNavigate}
-        />
-      )}
-    </div>
-  )
-
-
-interface GridViewHeaderProps {
-  searchTerm: string
-  viewMode: GridViewMode
-  clusterWindow: "1d" | "1w" | "1m"
-  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onModeSelect: (mode: GridViewMode) => void
-  onClusterWindow: (value: "1d" | "1w" | "1m") => void
-}
-
-const GridViewHeader = ({
-  searchTerm,
-  viewMode,
-  clusterWindow,
-  onSearchChange,
-  onModeSelect,
-  onClusterWindow,
-}: GridViewHeaderProps) => 
-  (
-    <div className="sticky top-0 z-40 shrink-0 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex w-full flex-col gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
-        <div className="flex flex-col gap-2 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <GridViewSearchBar value={searchTerm} variant="main" onChange={onSearchChange} />
-          <ModeSwitcher
-            viewMode={viewMode}
-            clusterWindow={clusterWindow}
-            onModeSelect={onModeSelect}
-            onClusterWindow={onClusterWindow}
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-
-interface GridViewSourceResultProps {
-  expandedSourceId: string | null
-  likedIds: Set<number>
-  hasRealImage: (src?: string | null) => boolean
-  isArticleInQueue: (url: string) => boolean
-  isFavorite: (sourceId: string) => boolean
-  onArticleClick: (article: NewsArticle, context: readonly NewsArticle[]) => void
-  onLike: (articleId: number, event?: MouseEvent<HTMLButtonElement>) => void
-  onQueueToggle: (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => void
-  onToggleFavorite: (sourceId: string) => void
-  onToggleExpand: (sourceId: string) => void
-}
-
-interface GridViewResultsProps {
-  showTrending: boolean
-  viewMode: GridViewMode
-  displayArticles: NewsArticle[]
-  isLoadingState: boolean
-  visibleSourceGroups: SourceGroup[]
-  source: GridViewSourceResultProps
-  topic: TopicFeedProps
-  hasMoreSourceGroups: boolean
-  visibleSourceCount: number
-  totalSourceCount: number
-  onLoadMoreSources: () => void
-}
-
-const GridViewResults = ({
-  showTrending,
-  viewMode,
-  displayArticles,
-  isLoadingState,
-  visibleSourceGroups,
-  source,
-  topic,
-  hasMoreSourceGroups,
-  visibleSourceCount,
-  totalSourceCount,
-  onLoadMoreSources,
-}: GridViewResultsProps) => {
-  const empty = displayArticles.length === 0 && !isLoadingState
-  return (
-    <div className="mx-auto flex w-full flex-col gap-5 px-3 py-4 sm:gap-10 sm:px-6 sm:py-6 lg:gap-16 lg:px-8 lg:py-8">
-      <TrendingSection showTrending={showTrending} viewMode={viewMode} />
-      {empty ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
-          <Newspaper className="mb-6 h-16 w-16 text-white/10" />
-          <h3 className="mb-2 font-serif text-3xl text-foreground/80">No signals detected</h3>
-          <p className="max-w-md text-sm text-muted-foreground">
-            Adjust your search parameters to find relevant intelligence.
-          </p>
-        </motion.div>
-      ) : (viewMode === "source" ? (
-        visibleSourceGroups.map((group) => (
-          <SourceGroupSection
-            key={group.sourceId}
-            group={group}
-            isExpanded={source.expandedSourceId === group.sourceId}
-            likedIds={source.likedIds}
-            hasRealImage={source.hasRealImage}
-            isArticleInQueue={source.isArticleInQueue}
-            isFavorite={source.isFavorite}
-            onArticleClick={source.onArticleClick}
-            onLike={source.onLike}
-            onQueueToggle={source.onQueueToggle}
-            onToggleFavorite={source.onToggleFavorite}
-            onToggleExpand={() => {source.onToggleExpand(group.sourceId)}}
-          />
-        ))
-      ) : (
-        <TopicFeed {...topic} />
-      ))}
-      {viewMode === "source" && hasMoreSourceGroups ? (
-        <MoreSourcesButton
-          visible={visibleSourceCount}
-          total={totalSourceCount}
-          onLoadMore={onLoadMoreSources}
-        />
-      ) : null}
-    </div>
-  )
-}
-
-interface GridViewModalOverlayProps {
-  isArticleModalOpen: boolean
-  selectedArticle: NewsArticle | null
-  onArticleModalClose: () => void
-  onArticleModalNavigate: (direction: "prev" | "next") => void
-  showScrollTop: boolean
-  onScrollToTop: () => void
-  isClusterModalOpen: boolean
-  selectedCluster: TrendingCluster | null
-  onClusterModalClose: () => void
-}
-
-const GridViewModalOverlays = ({
-  isArticleModalOpen,
-  selectedArticle,
-  onArticleModalClose,
-  onArticleModalNavigate,
-  showScrollTop,
-  onScrollToTop,
-  isClusterModalOpen,
-  selectedCluster,
-  onClusterModalClose,
-}: GridViewModalOverlayProps) => 
-  (
-    <>
-      {isArticleModalOpen && selectedArticle ? (
-        <ArticleDetailModal
-          article={selectedArticle}
-          isOpen={isArticleModalOpen}
-          onClose={onArticleModalClose}
-          onNavigate={onArticleModalNavigate}
-        />
-      ) : null}
-      {showScrollTop ? (
-        <Button
-          type="button"
-          size="icon"
-          onClick={onScrollToTop}
-          className="absolute bottom-8 right-8 z-40 h-12 w-12 rounded-full border border-white/10 bg-background/85 shadow-xl backdrop-blur"
-        >
-          <ChevronUp className="h-5 w-5" />
-        </Button>
-      ) : null}
-      {isClusterModalOpen && selectedCluster ? (
-        <ClusterDetailModal
-          cluster={selectedCluster}
-          isBreaking={false}
-          isOpen={isClusterModalOpen}
-          onClose={onClusterModalClose}
-        />
-      ) : null}
-    </>
-  )
-
-
-interface GridViewContentProps {
-  searchTerm: string
-  viewMode: GridViewMode
-  clusterWindow: "1d" | "1w" | "1m"
-  onSearchChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onModeSelect: (mode: GridViewMode) => void
-  onClusterWindow: (value: "1d" | "1w" | "1m") => void
-  containerRef: { current: HTMLDivElement | null }
-  results: GridViewResultsProps
-  overlays: GridViewModalOverlayProps
-}
-
-const GridViewContent = ({
-  searchTerm,
-  viewMode,
-  clusterWindow,
-  onSearchChange,
-  onModeSelect,
-  onClusterWindow,
-  containerRef,
-  results,
-  overlays,
-}: GridViewContentProps) => 
-  (
-    <div className="relative flex w-full flex-col overflow-hidden bg-background lg:h-[calc(100vh-140px)]">
-      <GridViewHeader
-        searchTerm={searchTerm}
-        viewMode={viewMode}
-        clusterWindow={clusterWindow}
-        onSearchChange={onSearchChange}
-        onModeSelect={onModeSelect}
-        onClusterWindow={onClusterWindow}
-      />
-      <div ref={containerRef} className="scroll-smooth pb-24 lg:flex-1 lg:overflow-y-auto">
-        <GridViewResults {...results} />
-      </div>
-      <GridViewModalOverlays {...overlays} />
-    </div>
-  )
-
 
 const formatGridKeywordLabel = (keywords?: readonly string[]) => {
-  if (!keywords || keywords.length === 0) {return}
-  return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
-},
-
- normalizeGridLabel = (value: string) => value.toLowerCase().replaceAll(/[^a-z0-9]+/gu, " ").trim(),
-
- stripGridTitleSuffix = (value: string) => value.split(/\s[-|\u2013\u2014]\s/u)[0]!.trim(),
-
- getGridTitleCandidate = (cluster: AllCluster): string => {
-  const title = cluster.representative_article?.title
-  return title ? stripGridTitleSuffix(title) : ""
-},
-
- hasMatchingGridLabels = (label: string, keywords: string | undefined, title: string): boolean =>
-  Boolean(title && label && keywords && label === keywords),
-
- chooseGridClusterLabel = (label: string, title: string, keywords: string | undefined): string =>
-  label || title || keywords || "Topic",
-
- getGridClusterDisplayLabel = (cluster: AllCluster) => {
-  const label = cluster.label?.trim() || "",
-   keywordLabel = formatGridKeywordLabel(cluster.keywords),
-   titleCandidate = getGridTitleCandidate(cluster),
-   normalizedLabel = label ? normalizeGridLabel(label) : "",
-   normalizedKeywords = keywordLabel ? normalizeGridLabel(keywordLabel) : "",
-   labelsMatch = hasMatchingGridLabels(normalizedLabel, normalizedKeywords, titleCandidate)
-  return labelsMatch ? titleCandidate : chooseGridClusterLabel(label, titleCandidate, keywordLabel)
+    if (!keywords || keywords.length === 0) {
+      return "";
+    }
+    return keywords.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+  };
+const normalizeGridLabel = (value: string) =>
+    value
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, " ")
+      .trim();
+const stripGridTitleSuffix = (value: string) => value.split(/\s[-|\u2013\u2014]\s/u)[0]?.trim() ?? "";
+const getGridTitleCandidate = (cluster: ReadonlyGridCluster): string => {
+    const title = cluster.representative_article?.title;
+    if (hasText(title)) {
+      return stripGridTitleSuffix(title);
+    }
+    return "";
+  };
+const hasMatchingGridLabels = (label: string, keywords: string | undefined, title: string): boolean =>
+    Boolean(title && label && hasText(keywords) && label === keywords);
+const chooseGridClusterLabel = (label: string, title: string, keywords: string | undefined): string =>
+    (label || title || keywords) ?? "Topic";
+const getGridClusterDisplayLabel = (cluster: ReadonlyGridCluster) => {
+    const label = cluster.label?.trim() ?? "";
+    const keywordLabel = formatGridKeywordLabel(cluster.keywords);
+    const titleCandidate = getGridTitleCandidate(cluster);
+    const normalizedLabel = (() => {
+  if (label) {
+    return normalizeGridLabel(label);
+  }
+  return "";
+})();
+    const normalizedKeywords = (() => {
+  if (keywordLabel) {
+    return normalizeGridLabel(keywordLabel);
+  }
+  return "";
+})();
+    const labelsMatch = hasMatchingGridLabels(normalizedLabel, normalizedKeywords, titleCandidate);
+    if (labelsMatch) {
+  return titleCandidate;
 }
+return chooseGridClusterLabel(label, titleCandidate, keywordLabel);
+  };
 
 interface GridSourceControllerOptions {
-  articles: NewsArticle[]
-  controlledViewMode?: GridViewMode
-  isFavorite: (sourceId: string) => boolean
-  onViewModeChange?: (mode: GridViewMode) => void
+  readonly articles: readonly NewsArticle[];
+  readonly controlledViewMode?: GridViewMode;
+  readonly isFavorite: (sourceId: string) => boolean;
+  readonly onViewModeChange?: (mode: GridViewMode) => void;
 }
 
 const useGridSourceController = ({
@@ -1097,96 +143,86 @@ const useGridSourceController = ({
   controlledViewMode,
   isFavorite,
   onViewModeChange,
-}: GridSourceControllerOptions) => {
-  const [searchTerm, setSearchTerm] = useState(""),
-   [viewMode, setViewMode] = useState<GridViewMode>(controlledViewMode ?? "source"),
-   [expandedSourceId, setExpandedSourceId] = useState<string | null>(null),
-   [sourceBatchCount, setSourceBatchCount] = useState(1),
-
-   filteredNews = useMemo(() => {
-    if (!searchTerm) {return articles}
-    const normalizedSearch = searchTerm.toLowerCase()
-    return articles.filter((article) =>
-      article.title.toLowerCase().includes(normalizedSearch) ||
-      article.summary?.toLowerCase().includes(normalizedSearch) ||
-      article.source.toLowerCase().includes(normalizedSearch),
-    )
-  }, [articles, searchTerm]),
-
-   sourceGroups = useMemo(
-    () => buildSourceGroups(filteredNews).sort((a, b) => {
-      const favoriteDifference = Number(isFavorite(b.sourceId)) - Number(isFavorite(a.sourceId))
-      return favoriteDifference || compareSourceGroupsForGrid(a, b)
-    }),
-    [filteredNews, isFavorite],
-  ),
-   sortedSourceIds = useMemo(
-    () => sourceGroups.map((group) => group.sourceId),
-    [sourceGroups],
-  ),
-   visibleSourceIds = useMemo(() => {
-    if (viewMode !== "source") {return new Set<string>()}
-    const favoriteSourceIds = new Set(
-      sourceGroups
-        .filter((group) => isFavorite(group.sourceId))
-        .map((group) => group.sourceId),
-    )
-    return getVisibleSourceIds(
-      sourceGroups,
-      favoriteSourceIds,
-      sourceBatchCount,
-      SOURCE_GROUP_BATCH_SIZE,
-    )
-  }, [isFavorite, sourceBatchCount, sourceGroups, viewMode]),
-   visibleSourceGroups = useMemo(
-    () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
-    [sourceGroups, visibleSourceIds],
-  ),
-   hasMoreSourceGroups = viewMode === "source" && visibleSourceIds.size < sortedSourceIds.length
-
-  useEffect(() => {
-    if (controlledViewMode) {
-      setViewMode(controlledViewMode)
-      return
-    }
-    setViewMode(getStoredGridViewMode())
-  }, [controlledViewMode])
+}: Readonly<GridSourceControllerOptions>) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [uncontrolledViewMode, setUncontrolledViewMode] = useState<GridViewMode>(
+      () => controlledViewMode ?? getStoredGridViewMode(),
+    );
+  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
+  const [sourceBatchCount, setSourceBatchCount] = useState(1);
+  const viewMode = controlledViewMode ?? uncontrolledViewMode;
+  const filteredNews = useMemo(() => {
+      if (!searchTerm) {
+        return articles;
+      }
+      const normalizedSearch = searchTerm.toLowerCase();
+      return articles.filter(
+        (article) =>
+          article.title.toLowerCase().includes(normalizedSearch) ||
+          article.summary?.toLowerCase().includes(normalizedSearch) ||
+          article.source.toLowerCase().includes(normalizedSearch),
+      );
+    }, [articles, searchTerm]);
+  const sourceGroups = useMemo(
+      () =>
+        buildSourceGroups(filteredNews).toSorted((a, b) => {
+          const favoriteDifference =
+            Number(isFavorite(b.sourceId)) - Number(isFavorite(a.sourceId));
+          return favoriteDifference || compareSourceGroupsForGrid(a, b);
+        }),
+      [filteredNews, isFavorite],
+    );
+  const sortedSourceIds = useMemo(() => sourceGroups.map((group) => group.sourceId), [sourceGroups]);
+  const visibleSourceIds = useMemo(() => {
+      if (viewMode !== "source") {
+        return new Set<string>();
+      }
+      const favoriteSourceIds = new Set(
+        sourceGroups.filter((group) => isFavorite(group.sourceId)).map((group) => group.sourceId),
+      );
+      return getVisibleSourceIds(
+        sourceGroups,
+        favoriteSourceIds,
+        sourceBatchCount,
+        SOURCE_GROUP_BATCH_SIZE,
+      );
+    }, [isFavorite, sourceBatchCount, sourceGroups, viewMode]);
+  const visibleSourceGroups = useMemo(
+      () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
+      [sourceGroups, visibleSourceIds],
+    );
+  const hasMoreSourceGroups = viewMode === "source" && visibleSourceIds.size < sortedSourceIds.length;
 
   useEffect(() => {
     if (!controlledViewMode) {
-      setStoredGridViewMode(viewMode)
+      setStoredGridViewMode(viewMode);
     }
-  }, [controlledViewMode, viewMode])
-
-  useEffect(() => {
-    setSourceBatchCount((previous) => {
-      if (viewMode !== "source") {return previous}
-      const favoriteCount = sourceGroups.filter((group) => isFavorite(group.sourceId)).length,
-       minimumVisible = favoriteCount + SOURCE_GROUP_BATCH_SIZE,
-       currentlyVisible = favoriteCount + previous * SOURCE_GROUP_BATCH_SIZE
-      return currentlyVisible < minimumVisible ? 1 : previous
-    })
-  }, [isFavorite, sourceGroups, viewMode])
+  }, [controlledViewMode, viewMode]);
 
   const resetSourceBrowseState = () => {
-    setSourceBatchCount(1)
-    setExpandedSourceId(null)
-  },
-   handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    resetSourceBrowseState()
-    setSearchTerm(event.target.value)
-  },
-   handleModeSelect = (mode: GridViewMode) => {
-    resetSourceBrowseState()
-    setViewMode(mode)
-    onViewModeChange?.(mode)
-  },
-   toggleSource = (sourceId: string) => {
-    setExpandedSourceId((previous) => previous === sourceId ? null : sourceId)
-  },
-   loadMoreSources = () => {
-    setSourceBatchCount((previous) => previous + 1)
+      setSourceBatchCount(1);
+      setExpandedSourceId(null);
+    };
+  const handleSearchChange = (event: GridChangeEvent) => {
+      resetSourceBrowseState();
+      setSearchTerm(event.target.value);
+    };
+  const handleModeSelect = (mode: GridViewMode) => {
+      resetSourceBrowseState();
+      setUncontrolledViewMode(mode);
+      onViewModeChange?.(mode);
+    };
+  const toggleSource = (sourceId: string) => {
+      setExpandedSourceId((previous) => ((() => {
+  if (previous === sourceId) {
+    return null;
   }
+  return sourceId;
+})()));
+    };
+  const loadMoreSources = () => {
+      setSourceBatchCount((previous) => previous + 1);
+    };
 
   return {
     expandedSourceId,
@@ -1201,203 +237,295 @@ const useGridSourceController = ({
     viewMode,
     visibleSourceGroups,
     visibleSourceIds,
-  }
-}
+  };
+};
 
 interface GridTopicControllerOptions {
-  clusterWindow: "1d" | "1w" | "1m"
-  viewMode: GridViewMode
-  topicSortMode: "sources" | "articles" | "recent"
+  readonly clusterWindow: GridClusterWindow;
+  readonly viewMode: GridViewMode;
+  readonly topicSortMode: "sources" | "articles" | "recent";
 }
 
 const useGridModalController = () => {
-  const containerRef = useRef<HTMLDivElement | null>(null),
-   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
-   [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null),
-   [modalArticles, setModalArticles] = useState<NewsArticle[]>([]),
-   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
-   [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null),
-   [isClusterModalOpen, setIsClusterModalOpen] = useState(false),
-   [showScrollTop, setShowScrollTop] = useState(false),
-
-   handleArticleClick = useCallback((article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
-    const nextIndex = contextArticles.findIndex((item) =>
-      article.url && item.url ? item.url === article.url : item.id === article.id,
-    )
-    setModalArticles([...contextArticles])
-    setSelectedArticleIndex(nextIndex === -1 ? null : nextIndex)
-    setSelectedArticle(article)
-    setIsArticleModalOpen(true)
-  }, []),
-   handleModalNavigate = useCallback((direction: "prev" | "next") => {
-    if (selectedArticleIndex === null) {return}
-    const nextIndex = direction === "next" ? selectedArticleIndex + 1 : selectedArticleIndex - 1
-    if (nextIndex < 0 || nextIndex >= modalArticles.length) {return}
-    setSelectedArticleIndex(nextIndex)
-    setSelectedArticle(modalArticles[nextIndex] ?? null)
-  }, [modalArticles, selectedArticleIndex]),
-   handleModalClose = useCallback(() => {
-    setIsArticleModalOpen(false)
-    setSelectedArticle(null)
-    setSelectedArticleIndex(null)
-    setModalArticles([])
-  }, []),
-   handleOpenClusterCompare = useCallback((cluster: AllCluster, event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setSelectedCluster({
-      ...cluster,
-      articles: cluster.articles ?? [],
-      trending_score: cluster.source_diversity,
-      velocity: cluster.window_count,
-    })
-    setIsClusterModalOpen(true)
-  }, []),
-   closeClusterModal = () => {
-    setIsClusterModalOpen(false)
-    setSelectedCluster(null)
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const setContainerElement = (element: HTMLDivElement | null) => {
+        containerRef.current = element;
+      };
+    const {
+        article: selectedArticle,
+        close: closeArticleDetail,
+        isOpen: isArticleModalOpen,
+        open: openArticleDetail,
+      } = useArticleDetail();
+    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
+    const [modalArticles, setModalArticles] = useState<NewsArticle[]>([]);
+    const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null);
+    const [isClusterModalOpen, setIsClusterModalOpen] = useState(false);
+    const [showScrollTop, setShowScrollTop] = useState(false);
+    const handleArticleClick = useCallback(
+        (article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
+          const nextIndex = contextArticles.findIndex((item) =>
+            (() => {
+  if (article.url && item.url) {
+    return item.url === article.url;
   }
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) {return}
-    const handleScroll = () => {setShowScrollTop(container.scrollTop > 500)}
-    handleScroll()
-    container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => {container.removeEventListener("scroll", handleScroll)}
-  }, [])
-  const scrollToTop = () => {
-    containerRef.current?.scrollTo({ behavior: "smooth", top: 0 })
+  return item.id === article.id;
+})(),
+          );
+          setModalArticles([...contextArticles]);
+          setSelectedArticleIndex((() => {
+  if (nextIndex === -1) {
+    return null;
   }
-
-  return {
-    closeClusterModal,
-    containerRef,
-    handleArticleClick,
-    handleModalClose,
-    handleModalNavigate,
-    handleOpenClusterCompare,
-    isArticleModalOpen,
-    isClusterModalOpen,
-    scrollToTop,
-    selectedArticle,
-    selectedCluster,
-    showScrollTop,
+  return nextIndex;
+})());
+          openArticleDetail(article);
+        },
+        [openArticleDetail, setModalArticles, setSelectedArticleIndex],
+      );
+    const handleModalNavigate = useCallback(
+        (direction: "prev" | "next") => {
+          if (selectedArticleIndex === null) {
+            return;
+          }
+          const nextIndex =
+            (() => {
+  if (direction === "next") {
+    return selectedArticleIndex + 1;
   }
-},
+  return selectedArticleIndex - 1;
+})();
+          if (nextIndex < 0 || nextIndex >= modalArticles.length) {
+            return;
+          }
+          const nextArticle = modalArticles[nextIndex];
+          if (nextArticle === undefined) {
+            return;
+          }
+          setSelectedArticleIndex(nextIndex);
+          openArticleDetail(nextArticle);
+        },
+        [modalArticles, openArticleDetail, selectedArticleIndex, setSelectedArticleIndex],
+      );
+    const handleModalClose = useCallback(() => {
+        closeArticleDetail();
+        setSelectedArticleIndex(null);
+        setModalArticles([]);
+      }, [closeArticleDetail, setModalArticles, setSelectedArticleIndex]);
+    const handleOpenClusterCompare = useCallback(
+        (cluster: ReadonlyGridCluster, event: GridButtonEvent) => {
+          event.stopPropagation();
+          setSelectedCluster({
+            ...cluster,
+            articles: (cluster.articles ?? []).map((article) => copyGridClusterArticle(article)),
+            gdelt_context: (() => {
+  if (cluster.gdelt_context) {
+    return copyGridGdeltContext(cluster.gdelt_context);
+  }
+  return null;
+})(),
+            keywords: [...cluster.keywords],
+            representative_article: (() => {
+  if (cluster.representative_article) {
+    return copyGridClusterArticle(cluster.representative_article);
+  }
+  return null;
+})(),
+            trending_score: cluster.source_diversity,
+            velocity: cluster.window_count,
+          });
+          setIsClusterModalOpen(true);
+        },
+        [],
+      );
+    const closeClusterModal = () => {
+        setIsClusterModalOpen(false);
+        setSelectedCluster(null);
+      };
 
- useGridTopicController = ({
-  clusterWindow,
-  viewMode,
-  topicSortMode,
-}: GridTopicControllerOptions) => {
-  const [clusters, setClusters] = useState<AllCluster[]>([]),
-   [clustersLoading, setClustersLoading] = useState(false),
-   [clustersStatus, setClustersStatus] = useState<string | null>(null),
-   [expandedClusterId, setExpandedClusterId] = useState<number | null>(null),
-   [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(new Map())
-
-  useEffect(() => {
-    if (viewMode !== "topic") {return}
-    let cancelled = false,
-     retryTimer: ReturnType<typeof setTimeout> | null = null
-
-    const loadClusters = async () => {
-      setClustersLoading(true)
-      try {
-        const data = await fetchAllClusters(clusterWindow, 2, 100)
-        if (cancelled) {return}
-        setClusters(data.clusters)
-        setClustersStatus(data.status ?? null)
-        setExpandedClusterId((previous) =>
-          previous !== null && data.clusters.some((cluster) => cluster.cluster_id === previous)
-            ? previous
-            : null,
-        )
-        if (data.status === "initializing") {
-          retryTimer = setTimeout(() => {void loadClusters()}, 15_000)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          logger.error("Failed to load clusters:", error)
-        }
-      } finally {
-        if (!cancelled) {setClustersLoading(false)}
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) {
+        return () => {};
       }
-    }
+      const handleScroll = () => {
+        setShowScrollTop(container.scrollTop > 500);
+      };
+      handleScroll();
+      container.addEventListener("scroll", handleScroll, { passive: true });
+      return () => {
+        container.removeEventListener("scroll", handleScroll);
+      };
+    }, []);
+    const scrollToTop = () => {
+      containerRef.current?.scrollTo({ behavior: "smooth", top: 0 });
+    };
 
-    void loadClusters()
-    return () => {
-      cancelled = true
-      if (retryTimer) {clearTimeout(retryTimer)}
-    }
-  }, [clusterWindow, viewMode])
+    return {
+      closeClusterModal,
+      containerRef,
+      handleArticleClick,
+      handleModalClose,
+      handleModalNavigate,
+      handleOpenClusterCompare,
+      isArticleModalOpen,
+      isClusterModalOpen,
+      scrollToTop,
+      selectedArticle,
+      selectedCluster,
+      setContainerElement,
+      showScrollTop,
+    };
+  },
+  useGridTopicController = ({
+    clusterWindow,
+    viewMode,
+    topicSortMode,
+  }: Readonly<GridTopicControllerOptions>) => {
+    const [clusters, setClusters] = useState<AllCluster[]>([]),
+      [clustersLoading, setClustersLoading] = useState(false),
+      [clustersStatus, setClustersStatus] = useState<string | null>(null),
+      [expandedClusterId, setExpandedClusterId] = useState<number | null>(null),
+      [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(
+        new Map(),
+      );
 
-  const clusterTimes = useMemo(() => {
-    const times = new Map<number, number>()
-    for (const cluster of clusters) {
-      const publishedAt = cluster.representative_article?.published_at,
-       timestamp = publishedAt ? new Date(publishedAt).getTime() : 0
-      times.set(cluster.cluster_id, Number.isNaN(timestamp) ? 0 : timestamp)
-    }
-    return times
-  }, [clusters]),
-   sortedClusters = useMemo(() => {
-    const items = [...clusters]
-    items.sort((a, b) => {
-      if (topicSortMode === "articles") {return b.article_count - a.article_count}
-      if (topicSortMode === "recent") {
-        return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0)
+    useEffect(() => {
+      if (viewMode !== "topic") {
+        return () => {};
       }
-      return b.source_diversity - a.source_diversity
-    })
-    return items
-  }, [clusterTimes, clusters, topicSortMode]),
-   expandedCluster = expandedClusterId === null
-    ? undefined
-    : sortedClusters.find((cluster) => cluster.cluster_id === expandedClusterId) ?? null,
-   expandedClusterArticles = expandedCluster
-    ? clusterArticlesCache.get(expandedCluster.cluster_id) ?? []
-    : [],
+      let cancelled = false,
+        retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-   handleExpandCluster = useCallback(async (cluster: AllCluster) => {
-    const clusterId = cluster.cluster_id
-    if (expandedClusterId === clusterId) {
-      setExpandedClusterId(null)
-      return
-    }
-
-    const section = document.querySelector<HTMLElement>(`[data-cluster-id="${clusterId}"]`)
-    setExpandedClusterId(clusterId)
-    globalThis.setTimeout(() => {
-      section?.scrollIntoView({ behavior: "smooth", block: "start" })
-    }, 0)
-    const cachedArticles = clusterArticlesCache.get(clusterId)
-    if (cachedArticles && cachedArticles.length > 0) {return}
-
-    const previewArticles = clusterArticlesToNewsArticles(cluster.articles)
-    setClusterArticlesCache((previous) => new Map(previous).set(clusterId, previewArticles))
-    try {
-      const fullArticles = await fetchClusterArticles(clusterId)
-      setClusterArticlesCache((previous) => new Map(previous).set(clusterId, fullArticles))
-    } catch (error) {
-      logger.warn("Failed to load full topic cluster articles", { clusterId, error })
-    }
-  }, [clusterArticlesCache, expandedClusterId])
-
-  return {
-    clusters,
-    clustersLoading,
-    clustersStatus,
-    expandedCluster,
-    expandedClusterArticles,
-    expandedClusterId,
-    handleExpandCluster,
-    setExpandedClusterId,
-    sortedClusters,
+      const loadClusters = async () => {
+        setClustersLoading(true);
+        try {
+          const data = await fetchAllClusters(clusterWindow, 2, 100);
+          if (cancelled) {
+            return;
+          }
+          setClusters(data.clusters);
+          setClustersStatus(data.status ?? null);
+          setExpandedClusterId((previous) =>
+            (() => {
+  if (previous !== null && data.clusters.some(cluster => cluster.cluster_id === previous)) {
+    return previous;
   }
-}
+  return null;
+})(),
+          );
+          if (data.status === "initializing") {
+            retryTimer = setTimeout(() => {
+              void loadClusters();
+            }, 15_000);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            logger.error("Failed to load clusters:", error);
+          }
+        } finally {
+          if (!cancelled) {
+            setClustersLoading(false);
+          }
+        }
+      };
 
-export function GridView({
+      void loadClusters();
+      return () => {
+        cancelled = true;
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+        }
+      };
+    }, [clusterWindow, viewMode]);
+
+    const clusterTimes = useMemo(() => {
+        const times = new Map<number, number>();
+        for (const cluster of clusters) {
+          const publishedAt = cluster.representative_article?.published_at,
+            timestamp = (() => {
+  if (hasText(publishedAt)) {
+    return new Date(publishedAt).getTime();
+  }
+  return 0;
+})();
+          times.set(cluster.cluster_id, (() => {
+  if (Number.isNaN(timestamp)) {
+    return 0;
+  }
+  return timestamp;
+})());
+        }
+        return times;
+      }, [clusters]);
+    const sortedClusters = useMemo(() => {
+        const items = [...clusters];
+        items.sort((a, b) => {
+          if (topicSortMode === "articles") {
+            return b.article_count - a.article_count;
+          }
+          if (topicSortMode === "recent") {
+            return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0);
+          }
+          return b.source_diversity - a.source_diversity;
+        });
+        return items;
+      }, [clusterTimes, clusters, topicSortMode]);
+    const expandedCluster =
+        (() => {
+  if (expandedClusterId === null) {
+    return void 0;
+  }
+  return sortedClusters.find(cluster => cluster.cluster_id === expandedClusterId) ?? null;
+})();
+    const expandedClusterArticles = (() => {
+  if (expandedCluster) {
+    return clusterArticlesCache.get(expandedCluster.cluster_id) ?? [];
+  }
+  return [];
+})();
+    const handleExpandCluster = useCallback(
+        async (cluster: ReadonlyGridCluster) => {
+          const clusterId = cluster.cluster_id;
+          if (expandedClusterId === clusterId) {
+            setExpandedClusterId(null);
+            return;
+          }
+
+          const section = document.querySelector<HTMLElement>(`[data-cluster-id="${clusterId}"]`);
+          setExpandedClusterId(clusterId);
+          globalThis.setTimeout(() => {
+            section?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 0);
+          const cachedArticles = clusterArticlesCache.get(clusterId);
+          if (cachedArticles && cachedArticles.length > 0) {
+            return;
+          }
+
+          try {
+            const fullArticles = await fetchClusterArticles(clusterId);
+            setClusterArticlesCache((previous) => new Map(previous).set(clusterId, fullArticles));
+          } catch (error) {
+            logger.warn("Failed to load full topic cluster articles", { clusterId, error });
+          }
+        },
+        [clusterArticlesCache, expandedClusterId],
+      );
+
+    return {
+      clusters,
+      clustersLoading,
+      clustersStatus,
+      expandedCluster,
+      expandedClusterArticles,
+      expandedClusterId,
+      handleExpandCluster,
+      setExpandedClusterId,
+      sortedClusters,
+    };
+  };
+
+export const GridView = ({
   articles,
   loading,
   apiUrl: _apiUrl,
@@ -1408,68 +536,189 @@ export function GridView({
   onViewModeChange,
   isScrollMode: _isScrollMode = false,
   totalCount,
-}: GridViewProps) {
-  void _apiUrl
-  void _isScrollMode
+}: Readonly<GridViewProps>) => {
+  void _apiUrl;
+  void _isScrollMode;
 
-  const hasRealImage = useCallback((src?: string | null) => hasRealClusterImage(src), []),
-   { likedIds, toggleLike } = useLikedArticles(),
-   { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue(),
-   { isFavorite, toggleFavorite } = useFavorites(),
-   {
-    expandedSourceId,
-    filteredNews,
-    handleModeSelect,
-    handleSearchChange,
-    hasMoreSourceGroups,
-    loadMoreSources,
-    searchTerm,
-    sortedSourceIds,
-    toggleSource,
-    viewMode,
-    visibleSourceGroups,
-    visibleSourceIds,
-  } = useGridSourceController({
-    articles,
-    controlledViewMode,
-    isFavorite,
-    onViewModeChange,
-  }),
-   [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w"),
-   topic = useGridTopicController({ clusterWindow, topicSortMode, viewMode }),
-   modal = useGridModalController(),
-   isLoadingState = loading,
-   displayArticles = filteredNews,
-   resolvedTotalCount = totalCount ?? filteredNews.length,
+  const { likedIds, toggleLike } = useLikedArticles();
+  const { addArticleToQueue, removeArticleFromQueue, isArticleInQueue } = useReadingQueue();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const {
+      expandedSourceId,
+      filteredNews,
+      handleModeSelect,
+      handleSearchChange,
+      hasMoreSourceGroups,
+      loadMoreSources,
+      searchTerm,
+      sortedSourceIds,
+      toggleSource,
+      viewMode,
+      visibleSourceGroups,
+      visibleSourceIds,
+    } = useGridSourceController({
+      articles,
+      controlledViewMode,
+      isFavorite,
+      onViewModeChange,
+    });
+  const [clusterWindow, setClusterWindow] = useState<"1d" | "1w" | "1m">("1w");
+  const topic = useGridTopicController({ clusterWindow, topicSortMode, viewMode });
+  const modal = useGridModalController();
+  const isLoadingState = loading;
+  const displayArticles = filteredNews;
+  const resolvedTotalCount = totalCount ?? filteredNews.length;
+  const handleLike = useCallback(
+      (articleId: number, event?: GridButtonEvent) => {
+        event?.stopPropagation();
+        void toggleLike(articleId);
+      },
+      [toggleLike],
+    );
+  const handleQueueToggle = useCallback(
+      (article: NewsArticle, event?: GridButtonEvent) => {
+        event?.stopPropagation();
+        if (isArticleInQueue(article.url)) {
+          void removeArticleFromQueue(article.url);
+        } else {
+          void addArticleToQueue(article);
+        }
+      },
+      [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
+    );
 
-   handleLike = useCallback(
-    (articleId: number, event?: MouseEvent<HTMLButtonElement>) => {
-      event?.stopPropagation()
-      void toggleLike(articleId)
-    },
-    [toggleLike],
-  ),
-   handleQueueToggle = useCallback(
-    (article: NewsArticle, event?: MouseEvent<HTMLButtonElement>) => {
-      event?.stopPropagation()
-      if (isArticleInQueue(article.url)) {
-        removeArticleFromQueue(article.url)
-      } else {
-        addArticleToQueue(article)
-      }
-    },
-    [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
-  )
+  const { setExpandedClusterId } = topic;
+  const closeExpandedCluster = useCallback(() => {
+      setExpandedClusterId(null);
+    }, [setExpandedClusterId]);
+  const sourceResult = useMemo(
+      () => ({
+        expandedSourceId,
+        isArticleInQueue,
+        isFavorite,
+        likedIds,
+        onArticleClick: modal.handleArticleClick,
+        onLike: handleLike,
+        onQueueToggle: handleQueueToggle,
+        onToggleExpand: toggleSource,
+        onToggleFavorite: toggleFavorite,
+      }),
+      [
+        expandedSourceId,
+        handleLike,
+        handleQueueToggle,
+        isArticleInQueue,
+        isFavorite,
+        likedIds,
+        modal.handleArticleClick,
+        toggleFavorite,
+        toggleSource,
+      ],
+    );
+  const topicResult = useMemo(
+      () => ({
+        clusters: topic.clusters,
+        clustersLoading: topic.clustersLoading,
+        clustersStatus: topic.clustersStatus,
+        expandedCluster: topic.expandedCluster ?? null,
+        expandedClusterArticles: topic.expandedClusterArticles,
+        expandedClusterId: topic.expandedClusterId,
+        getDisplayLabel: getGridClusterDisplayLabel,
+        isArticleInQueue,
+        likedIds,
+        onArticleClick: modal.handleArticleClick,
+        onCloseExpanded: closeExpandedCluster,
+        onCompare: modal.handleOpenClusterCompare,
+        onExpand: topic.handleExpandCluster,
+        onLike: handleLike,
+        onQueueToggle: handleQueueToggle,
+        sortedClusters: topic.sortedClusters,
+      }),
+      [
+        closeExpandedCluster,
+        handleLike,
+        handleQueueToggle,
+        isArticleInQueue,
+        likedIds,
+        modal.handleArticleClick,
+        modal.handleOpenClusterCompare,
+        topic.clusters,
+        topic.clustersLoading,
+        topic.clustersStatus,
+        topic.expandedCluster,
+        topic.expandedClusterArticles,
+        topic.expandedClusterId,
+        topic.handleExpandCluster,
+        topic.sortedClusters,
+      ],
+    );
+  const results = useMemo(
+      () => ({
+        displayArticles,
+        hasMoreSourceGroups,
+        isLoadingState,
+        onLoadMoreSources: loadMoreSources,
+        showTrending,
+        source: sourceResult,
+        topic: topicResult,
+        totalSourceCount: sortedSourceIds.length,
+        viewMode,
+        visibleSourceCount: visibleSourceIds.size,
+        visibleSourceGroups,
+      }),
+      [
+        displayArticles,
+        hasMoreSourceGroups,
+        isLoadingState,
+        loadMoreSources,
+        showTrending,
+        sortedSourceIds.length,
+        sourceResult,
+        topicResult,
+        viewMode,
+        visibleSourceGroups,
+        visibleSourceIds.size,
+      ],
+    );
+  const overlays = useMemo(
+      () => ({
+        isArticleModalOpen: modal.isArticleModalOpen,
+        isClusterModalOpen: modal.isClusterModalOpen,
+        onArticleModalClose: modal.handleModalClose,
+        onArticleModalNavigate: modal.handleModalNavigate,
+        onClusterModalClose: modal.closeClusterModal,
+        onScrollToTop: modal.scrollToTop,
+        selectedArticle: modal.selectedArticle,
+        selectedCluster: modal.selectedCluster,
+        showScrollTop: modal.showScrollTop,
+      }),
+      [
+        modal.closeClusterModal,
+        modal.handleModalClose,
+        modal.handleModalNavigate,
+        modal.isArticleModalOpen,
+        modal.isClusterModalOpen,
+        modal.scrollToTop,
+        modal.selectedArticle,
+        modal.selectedCluster,
+        modal.showScrollTop,
+      ],
+    );
 
   if (isLoadingState && displayArticles.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-background" style={{ minHeight: "calc(100vh - 140px)" }}>
+      <div
+        className="flex h-full w-full items-center justify-center bg-background"
+        style={LOADING_STYLE}
+      >
         <div className="text-center">
           <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-primary/50" />
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Curating stories...</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Curating stories...
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   if (useVirtualization) {
@@ -1486,7 +735,7 @@ export function GridView({
         onModalClose={modal.handleModalClose}
         onModalNavigate={modal.handleModalNavigate}
       />
-    )
+    );
   }
 
   return (
@@ -1497,60 +746,9 @@ export function GridView({
       onSearchChange={handleSearchChange}
       onModeSelect={handleModeSelect}
       onClusterWindow={setClusterWindow}
-      containerRef={modal.containerRef}
-      results={{
-        displayArticles,
-        hasMoreSourceGroups,
-        isLoadingState,
-        onLoadMoreSources: loadMoreSources,
-        showTrending,
-        source: {
-          expandedSourceId,
-          hasRealImage,
-          isArticleInQueue,
-          isFavorite,
-          likedIds,
-          onArticleClick: modal.handleArticleClick,
-          onLike: handleLike,
-          onQueueToggle: handleQueueToggle,
-          onToggleExpand: toggleSource,
-          onToggleFavorite: toggleFavorite,
-        },
-        topic: {
-          clusters: topic.clusters,
-          clustersLoading: topic.clustersLoading,
-          clustersStatus: topic.clustersStatus,
-          expandedCluster: topic.expandedCluster ?? null,
-          expandedClusterArticles: topic.expandedClusterArticles,
-          expandedClusterId: topic.expandedClusterId,
-          getDisplayLabel: getGridClusterDisplayLabel,
-          hasRealImage,
-          isArticleInQueue,
-          likedIds,
-          onArticleClick: modal.handleArticleClick,
-          onCloseExpanded: () => {topic.setExpandedClusterId(null)},
-          onCompare: modal.handleOpenClusterCompare,
-          onExpand: topic.handleExpandCluster,
-          onLike: handleLike,
-          onQueueToggle: handleQueueToggle,
-          sortedClusters: topic.sortedClusters,
-        },
-        totalSourceCount: sortedSourceIds.length,
-        viewMode,
-        visibleSourceCount: visibleSourceIds.size,
-        visibleSourceGroups,
-      }}
-      overlays={{
-        isArticleModalOpen: modal.isArticleModalOpen,
-        isClusterModalOpen: modal.isClusterModalOpen,
-        onArticleModalClose: modal.handleModalClose,
-        onArticleModalNavigate: modal.handleModalNavigate,
-        onClusterModalClose: modal.closeClusterModal,
-        onScrollToTop: modal.scrollToTop,
-        selectedArticle: modal.selectedArticle,
-        selectedCluster: modal.selectedCluster,
-        showScrollTop: modal.showScrollTop,
-      }}
+      setContainerElement={modal.setContainerElement}
+      results={results}
+      overlays={overlays}
     />
-  )
-}
+  );
+};

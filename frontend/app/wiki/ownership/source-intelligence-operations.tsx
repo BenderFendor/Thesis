@@ -1,7 +1,16 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
-import { API_BASE_URL, fetchDebugErrors, fetchLlmLogs, triggerWikiIndex } from '@/lib/api';
-import type { CacheStatus, DebugErrorsResponse, LlmLogEntry, LlmLogResponse, SourceStats, WikiIndexStatus, WikiSourceProfile } from '@/lib/api';
+import { API_BASE_URL, fetchDebugErrors, fetchLlmLogs, triggerWikiIndex } from "@/lib/api";
+import type {
+  CacheStatus,
+  DebugErrorsResponse,
+  LlmLogEntry,
+  LlmLogResponse,
+  SourceStats,
+  WikiIndexStatus,
+  WikiSourceProfile,
+} from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -12,119 +21,151 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ReactNode } from 'react';
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import type { ReactNode } from "react";
+import { formatArticleDateTime } from "@/lib/date-formatters";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from "react";
 import type workspaceSupport from "./source-intelligence-support";
 
 type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];
 
 interface OperationsPanelProps {
-  activeTab: WorkspaceTab;
-  onTabChange: (tab: WorkspaceTab) => void;
-  tabs: { id: WorkspaceTab; label: string }[];
-  sourceStats: SourceStats[];
-  cacheStatus: CacheStatus | null;
-  wikiIndexStatus: WikiIndexStatus | undefined;
-  selectedSourceName: string | null;
-  selectedSourceProfile: WikiSourceProfile | null;
-  onRefreshAll: () => void;
-  onSourceProfileRefresh: () => Promise<void>;
+  readonly activeTab: WorkspaceTab;
+  readonly onTabChange: (tab: WorkspaceTab) => void;
+  readonly tabs: readonly { readonly id: WorkspaceTab; readonly label: string }[];
+  readonly sourceStats: readonly SourceStats[];
+  readonly cacheStatus: CacheStatus | null;
+  readonly wikiIndexStatus: WikiIndexStatus | undefined;
+  readonly selectedSourceName: string | null;
+  readonly selectedSourceProfile: DeepReadonly<WikiSourceProfile> | null;
+  readonly onRefreshAll: () => void;
+  readonly onSourceProfileRefresh: () => Promise<void>;
 }
 
 interface ParserResult {
-  success?: boolean;
-  error?: string;
-  parse_time_seconds?: number;
-  image_url?: string;
-  candidates?: { priority?: number; source?: string; url?: string }[];
-  sample_entries?: { title?: string; image_extraction?: { image_url?: string; image_error?: string } }[];
-  status?: { entries_count?: number };
+  readonly success?: boolean;
+  readonly error?: string;
+  readonly parse_time_seconds?: number;
+  readonly image_url?: string;
+  readonly status?: { readonly entries_count?: number };
 }
 
 interface NormalizedErrorEvent {
-  key: string;
-  service: string;
-  errorType: string;
-  message: string;
+  readonly key: string;
+  readonly service: string;
+  readonly errorType: string;
+  readonly message: string;
 }
 
 interface ParserTestRequest {
-  readonly url: string
-  readonly endpoint: string
-  readonly failureMessage: string
-  readonly setTesting: (value: boolean) => void
-  readonly setResult: (value: ParserResult | null) => void
+  readonly url: string;
+  readonly endpoint: string;
+  readonly failureMessage: string;
+  readonly setTesting: (value: boolean) => void;
+  readonly setResult: (value: ParserResult | null) => void;
 }
 
 interface SourceIndexRequest {
-  readonly sourceName: string | null
-  readonly setIndexing: (value: boolean) => void
-  readonly onSourceProfileRefresh: () => Promise<void>
-  readonly onRefreshAll: () => void
+  readonly sourceName: string | null;
+  readonly setIndexing: (value: boolean) => void;
+  readonly onSourceProfileRefresh: () => Promise<void>;
+  readonly onRefreshAll: () => void;
 }
 
-const PANEL_CLASS = "rounded-[1.6rem] border border-white/[0.08] bg-background/70 p-4 backdrop-blur-xl",
+const EMPTY_LLM_ENTRIES: readonly LlmLogEntry[] = [],
+  PANEL_CLASS =
+    "rounded-[1.6rem] border border-white/[0.08] bg-background/70 p-4 backdrop-blur-xl",
   SURFACE_CLASS = "rounded-[1.2rem] border border-white/[0.08] bg-black/20 p-4",
-  runParserTest = async ({
-  url,
-  endpoint,
-  failureMessage,
-  setTesting,
-  setResult,
-}: ParserTestRequest): Promise<void> => {
-  if (!url.trim()) {return;}
-  setTesting(true);
-  setResult(null);
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}?url=${encodeURIComponent(url)}`, { method: "POST" });
-    setResult(await response.json());
-  } catch (error) {
-    setResult({ error: error instanceof Error ? error.message : failureMessage });
-  } finally {
-    setTesting(false);
-  }
-},
-  indexSource = async ({
-  sourceName,
-  setIndexing,
-  onSourceProfileRefresh,
-  onRefreshAll,
-}: SourceIndexRequest): Promise<void> => {
-  if (!sourceName) {return;}
-  setIndexing(true);
-  try {
-    await triggerWikiIndex(sourceName);
-    await onSourceProfileRefresh();
-    onRefreshAll();
-  } finally {
-    setIndexing(false);
-  }
-},
   averageSourceArticles = (sources: readonly SourceStats[]): number => {
-  if (sources.length === 0) {return 0;}
-  return Math.round(sources.reduce((total, source) => total + source.article_count, 0) / sources.length);
-},
+    if (sources.length === 0) {
+      return 0;
+    }
+    return Math.round(
+      sources.reduce((total, source) => total + source.article_count, 0) / sources.length,
+    );
+  },
+  buildRecentErrorEvents = (
+    data: DeepReadonly<DebugErrorsResponse> | undefined,
+  ): NormalizedErrorEvent[] => [
+    ...(data?.log_file.entries ?? []).map<NormalizedErrorEvent>((entry, index) => ({
+      errorType: entry.error_type ?? "error",
+      key: `${entry.request_id ?? "log"}-${index}`,
+      message: entry.error_message ?? "No error message recorded.",
+      service: entry.service ?? "unknown service",
+    })),
+    ...(data?.recent_request_stream_errors ?? []).map<NormalizedErrorEvent>((entry, index) => ({
+      errorType: entry.error_type ?? entry.event_type ?? "error",
+      key: `${entry.request_id ?? "stream"}-${index}`,
+      message: entry.error_message ?? entry.message ?? "No error message recorded.",
+      service: entry.service ?? entry.component ?? "unknown service",
+    })),
+  ],
   countSuccessfulLogs = (entries: readonly LlmLogEntry[], success: boolean): number =>
-  entries.filter((entry) => entry.success === success).length,
-  buildRecentErrorEvents = (data: DebugErrorsResponse | undefined): NormalizedErrorEvent[] => [
-  ...(data?.log_file.entries ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-    errorType: entry.error_type || "error",
-    key: `${entry.request_id || "log"}-${index}`,
-    message: entry.error_message || "No error message recorded.",
-    service: entry.service || "unknown service",
-  })),
-  ...(data?.recent_request_stream_errors ?? []).map<NormalizedErrorEvent>((entry, index) => ({
-    errorType: entry.error_type || entry.event_type || "error",
-    key: `${entry.request_id || "stream"}-${index}`,
-    message: entry.error_message || entry.message || "No error message recorded.",
-    service: entry.service || entry.component || "unknown service",
-  })),
-],
+    entries.filter((entry) => entry.success === success).length,
   displaySourceValue = (value: string | number | null | undefined): string =>
-    value === null || value === undefined || value === "" ? "—" : String(value),
+    (() => {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+  return String(value);
+})(),
   formatCheckedTime = (value: string | null | undefined): string =>
-    value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+    (() => {
+  if (hasText(value)) {
+    return new Date(value).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+  return "—";
+})(),
+  indexSource = async ({
+    sourceName,
+    setIndexing,
+    onSourceProfileRefresh,
+    onRefreshAll,
+  }: SourceIndexRequest): Promise<void> => {
+    if (!hasText(sourceName)) {
+      return;
+    }
+    setIndexing(true);
+    try {
+      await triggerWikiIndex(sourceName);
+      await onSourceProfileRefresh();
+      onRefreshAll();
+    } finally {
+      setIndexing(false);
+    }
+  },
+  runParserTest = async ({
+    url,
+    endpoint,
+    failureMessage,
+    setTesting,
+    setResult,
+  }: ParserTestRequest): Promise<void> => {
+    if (!url.trim()) {
+      return;
+    }
+    setTesting(true);
+    setResult(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}?url=${encodeURIComponent(url)}`, {
+        method: "POST",
+      });
+      setResult(await response.json());
+    } catch (error) {
+      setResult({ error: (() => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return failureMessage;
+})() });
+    } finally {
+      setTesting(false);
+    }
+  };
 
 const SourceIntelligenceOperations = ({
   activeTab,
@@ -137,34 +178,61 @@ const SourceIntelligenceOperations = ({
   selectedSourceProfile,
   onRefreshAll,
   onSourceProfileRefresh,
-}: OperationsPanelProps) => {
-  const [rssUrl, setRssUrl] = useState(""),
-   [articleUrl, setArticleUrl] = useState(""),
-   [rssResult, setRssResult] = useState<ParserResult | null>(null),
-   [articleResult, setArticleResult] = useState<ParserResult | null>(null),
-   [testingFeed, setTestingFeed] = useState(false),
-   [testingArticle, setTestingArticle] = useState(false),
-   [indexingSource, setIndexingSource] = useState(false),
+}: Readonly<OperationsPanelProps>) => {
+  const [rssUrl, setRssUrl] = useState("");
+  const [articleUrl, setArticleUrl] = useState("");
+  const [rssResult, setRssResult] = useState<ParserResult | null>(null);
+  const [articleResult, setArticleResult] = useState<ParserResult | null>(null);
+  const [testingFeed, setTestingFeed] = useState(false);
+  const [testingArticle, setTestingArticle] = useState(false);
+  const [indexingSource, setIndexingSource] = useState(false);
+  const llmLogsQuery = useQuery<LlmLogResponse>({
+      enabled: activeTab === "llm",
+      queryFn: () => fetchLlmLogs({ limit: 12 }),
+      queryKey: ["source-intelligence-llm"],
+      retry: 1,
+    });
+  const errorsQuery = useQuery<DebugErrorsResponse>({
+      enabled: activeTab === "errors",
+      queryFn: () => fetchDebugErrors({ includeRequestStreamEvents: true, limit: 12 }),
+      queryKey: ["source-intelligence-errors"],
+      retry: 1,
+    });
+  const topSources = sourceStats.slice(0, 10);
+  const problematicSources = sourceStats.filter((source) => source.status !== "success").slice(0, 6);
+  const averageArticles = averageSourceArticles(sourceStats);
+  const llmEntries = llmLogsQuery.data?.entries ?? EMPTY_LLM_ENTRIES;
+  const latencyValues = useMemo(() => llmEntries.map((entry) => entry.duration_ms), [llmEntries]);
+  const modelSuccessCount = countSuccessfulLogs(llmEntries, true);
+  const modelFailureCount = countSuccessfulLogs(llmEntries, false);
+  const recentErrorEvents = buildRecentErrorEvents(errorsQuery.data);
 
-   llmLogsQuery = useQuery<LlmLogResponse>({
-    enabled: activeTab === "llm",
-    queryFn: () => fetchLlmLogs({ limit: 12 }),
-    queryKey: ["source-intelligence-llm"],
-    retry: 1,
-  }),
-   errorsQuery = useQuery<DebugErrorsResponse>({
-    enabled: activeTab === "errors",
-    queryFn: () => fetchDebugErrors({ includeRequestStreamEvents: true, limit: 12 }),
-    queryKey: ["source-intelligence-errors"],
-    retry: 1,
-  }),
-
-   topSources = sourceStats.slice(0, 10),
-   problematicSources = sourceStats.filter((source) => source.status !== "success").slice(0, 6),
-   averageArticles = averageSourceArticles(sourceStats),
-   modelSuccessCount = countSuccessfulLogs(llmLogsQuery.data?.entries ?? [], true),
-   modelFailureCount = countSuccessfulLogs(llmLogsQuery.data?.entries ?? [], false),
-   recentErrorEvents = buildRecentErrorEvents(errorsQuery.data);
+  const handleIndex = useCallback(() => {
+    void indexSource({
+      onRefreshAll,
+      onSourceProfileRefresh,
+      setIndexing: setIndexingSource,
+      sourceName: selectedSourceName,
+    });
+  }, [onRefreshAll, onSourceProfileRefresh, selectedSourceName]);
+  const handleTestArticle = useCallback(() => {
+    void runParserTest({
+      endpoint: "/debug/parser/test/article",
+      failureMessage: "Article test failed",
+      setResult: setArticleResult,
+      setTesting: setTestingArticle,
+      url: articleUrl,
+    });
+  }, [articleUrl]);
+  const handleTestFeed = useCallback(() => {
+    void runParserTest({
+      endpoint: "/debug/parser/test/rss",
+      failureMessage: "Feed test failed",
+      setResult: setRssResult,
+      setTesting: setTestingFeed,
+      url: rssUrl,
+    });
+  }, [rssUrl]);
 
   return (
     <section className={`${PANEL_CLASS} flex min-h-0 flex-col`}>
@@ -179,30 +247,13 @@ const SourceIntelligenceOperations = ({
           errors={recentErrorEvents}
           failureCount={modelFailureCount}
           indexingSource={indexingSource}
-          latencyValues={llmLogsQuery.data?.entries.map((entry) => entry.duration_ms) ?? []}
-          llmEntries={llmLogsQuery.data?.entries ?? []}
+          latencyValues={latencyValues}
+          llmEntries={llmEntries}
           onArticleUrlChange={setArticleUrl}
-          onIndex={() => void indexSource({
-            onRefreshAll,
-            onSourceProfileRefresh,
-            setIndexing: setIndexingSource,
-            sourceName: selectedSourceName,
-          })}
+          onIndex={handleIndex}
           onRssUrlChange={setRssUrl}
-          onTestArticle={() => void runParserTest({
-            endpoint: "/debug/parser/test/article",
-            failureMessage: "Article test failed",
-            setResult: setArticleResult,
-            setTesting: setTestingArticle,
-            url: articleUrl,
-          })}
-          onTestFeed={() => void runParserTest({
-            endpoint: "/debug/parser/test/rss",
-            failureMessage: "Feed test failed",
-            setResult: setRssResult,
-            setTesting: setTestingFeed,
-            url: rssUrl,
-          })}
+          onTestArticle={handleTestArticle}
+          onTestFeed={handleTestFeed}
           problematicSources={problematicSources}
           rssResult={rssResult}
           rssUrl={rssUrl}
@@ -219,62 +270,78 @@ const SourceIntelligenceOperations = ({
       </div>
     </section>
   );
-}
+};
 
-function OperationsTabNav({
+const OperationsTabNav = ({
   activeTab,
   onTabChange,
   tabs,
-}: Pick<OperationsPanelProps, "activeTab" | "onTabChange" | "tabs">) {
+}: DeepReadonly<Pick<OperationsPanelProps, "activeTab" | "onTabChange" | "tabs">>) => {
+  const tabHandlers = useMemo(
+    () =>
+      new Map(
+        tabs.map((tab): [WorkspaceTab, () => void] => [
+          tab.id,
+          () => {
+            onTabChange(tab.id);
+          },
+        ]),
+      ),
+    [onTabChange, tabs],
+  );
+
   return (
     <div className="mb-4 flex items-center gap-6 overflow-x-auto border-b border-white/[0.08] pb-0 shrink-0">
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          onClick={() =>{  onTabChange(tab.id); }}
+          onClick={tabHandlers.get(tab.id)}
           className={`whitespace-nowrap border-b-2 px-1 py-2 text-[11px] font-mono uppercase tracking-[0.18em] ${
-            activeTab === tab.id
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:border-white/20"
+            (() => {
+  if (activeTab === tab.id) {
+    return "border-primary text-foreground";
+  }
+  return "border-transparent text-muted-foreground hover:border-white/20";
+})()
           }`}
         >
           {tab.label}
         </button>
       ))}
     </div>
-  )
-}
+  );
+};
 
 interface OperationsContentProps {
-  readonly activeTab: WorkspaceTab
-  readonly articleResult: ParserResult | null
-  readonly articleUrl: string
-  readonly averageArticles: number
-  readonly cacheStatus: CacheStatus | null
-  readonly errors: NormalizedErrorEvent[]
-  readonly failureCount: number
-  readonly indexingSource: boolean
-  readonly latencyValues: (number | undefined)[]
-  readonly llmEntries: LlmLogEntry[]
-  readonly onArticleUrlChange: (value: string) => void
-  readonly onIndex: () => void
-  readonly onRefreshAll: () => void
-  readonly onRssUrlChange: (value: string) => void
-  readonly onTestArticle: () => void
-  readonly onTestFeed: () => void
-  readonly problematicSources: SourceStats[]
-  readonly rssResult: ParserResult | null
-  readonly rssUrl: string
-  readonly sourceName: string | null
-  readonly sourceProfile: WikiSourceProfile | null
-  readonly sourceStats: SourceStats[]
-  readonly successCount: number
-  readonly testingArticle: boolean
-  readonly testingFeed: boolean
-  readonly wikiIndexStatus: WikiIndexStatus | undefined
+  readonly activeTab: WorkspaceTab;
+  readonly articleResult: ParserResult | null;
+  readonly articleUrl: string;
+  readonly averageArticles: number;
+  readonly cacheStatus: CacheStatus | null;
+  readonly errors: readonly NormalizedErrorEvent[];
+  readonly failureCount: number;
+  readonly indexingSource: boolean;
+  readonly latencyValues: readonly (number | undefined)[];
+  readonly llmEntries: readonly LlmLogEntry[];
+  readonly onArticleUrlChange: (value: string) => void;
+  readonly onIndex: () => void;
+  readonly onRefreshAll: () => void;
+  readonly onRssUrlChange: (value: string) => void;
+  readonly onTestArticle: () => void;
+  readonly onTestFeed: () => void;
+  readonly problematicSources: readonly SourceStats[];
+  readonly rssResult: ParserResult | null;
+  readonly rssUrl: string;
+  readonly sourceName: string | null;
+  readonly sourceProfile: DeepReadonly<WikiSourceProfile> | null;
+  readonly sourceStats: readonly SourceStats[];
+  readonly successCount: number;
+  readonly testingArticle: boolean;
+  readonly testingFeed: boolean;
+  readonly wikiIndexStatus: WikiIndexStatus | undefined;
 }
 
-function OperationsContent({
+const OperationsContent = ({
   activeTab,
   articleResult,
   articleUrl,
@@ -301,201 +368,247 @@ function OperationsContent({
   testingArticle,
   testingFeed,
   wikiIndexStatus,
-}: OperationsContentProps) {
-  return (
-    <div className="h-full overflow-y-auto p-4">
-      {activeTab === "ingestion" && <IngestionTab sources={sourceStats} onRefreshAll={onRefreshAll} />}
-      {activeTab === "storage" && (
-        <StorageTab cacheStatus={cacheStatus} wikiIndexStatus={wikiIndexStatus} averageArticles={averageArticles} />
-      )}
-      {activeTab === "parser" && (
-        <ParserTab
-          rssUrl={rssUrl}
-          articleUrl={articleUrl}
-          onRssUrlChange={onRssUrlChange}
-          onArticleUrlChange={onArticleUrlChange}
-          rssResult={rssResult}
-          articleResult={articleResult}
-          testingFeed={testingFeed}
-          testingArticle={testingArticle}
-          onTestFeed={onTestFeed}
-          onTestArticle={onTestArticle}
-        />
-      )}
-      {activeTab === "llm" && <LlmTab entries={llmEntries} successCount={successCount} failureCount={failureCount} />}
-      {activeTab === "errors" && <ErrorsTab problematicSources={problematicSources} recentErrorEvents={errors} />}
-      {activeTab === "performance" && (
-        <PerformanceTab averageArticles={averageArticles} recentErrorEvents={errors} latencyValues={latencyValues} />
-      )}
-      {activeTab === "media" && (
-        <MediaTab selectedSourceProfile={sourceProfile} selectedSourceName={sourceName} indexingSource={indexingSource} onIndex={onIndex} />
-      )}
-    </div>
-  )
-}
+}: Readonly<OperationsContentProps>) => (
+  <div className="h-full overflow-y-auto p-4">
+    {activeTab === "ingestion" && (
+      <IngestionTab sources={sourceStats} onRefreshAll={onRefreshAll} />
+    )}
+    {activeTab === "storage" && (
+      <StorageTab
+        cacheStatus={cacheStatus}
+        wikiIndexStatus={wikiIndexStatus}
+        averageArticles={averageArticles}
+      />
+    )}
+    {activeTab === "parser" && (
+      <ParserTab
+        rssUrl={rssUrl}
+        articleUrl={articleUrl}
+        onRssUrlChange={onRssUrlChange}
+        onArticleUrlChange={onArticleUrlChange}
+        rssResult={rssResult}
+        articleResult={articleResult}
+        testingFeed={testingFeed}
+        testingArticle={testingArticle}
+        onTestFeed={onTestFeed}
+        onTestArticle={onTestArticle}
+      />
+    )}
+    {activeTab === "llm" && (
+      <LlmTab entries={llmEntries} successCount={successCount} failureCount={failureCount} />
+    )}
+    {activeTab === "errors" && (
+      <ErrorsTab problematicSources={problematicSources} recentErrorEvents={errors} />
+    )}
+    {activeTab === "performance" && (
+      <PerformanceTab
+        averageArticles={averageArticles}
+        recentErrorEvents={errors}
+        latencyValues={latencyValues}
+      />
+    )}
+    {activeTab === "media" && (
+      <MediaTab
+        selectedSourceProfile={sourceProfile}
+        selectedSourceName={sourceName}
+        indexingSource={indexingSource}
+        onIndex={onIndex}
+      />
+    )}
+  </div>
+);
 
-function IngestionTab({ sources, onRefreshAll }:Readonly< { sources: SourceStats[]; onRefreshAll: () => void }>) {
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          Check feed health, volume, and recent ingest runs for the current catalog.
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onRefreshAll}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-foreground hover:bg-white/5"
-          >
-            Refresh data
-          </button>
-        </div>
+const IngestionTab = ({
+  sources,
+  onRefreshAll,
+}: DeepReadonly<{ sources: SourceStats[]; onRefreshAll: () => void }>) => (
+  <div>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="text-sm text-muted-foreground">
+        Check feed health, volume, and recent ingest runs for the current catalog.
       </div>
-
-      <SourcesTable sources={sources} />
+      <div className="flex gap-2">
+        <button
+          onClick={onRefreshAll}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-foreground hover:bg-white/5"
+        >
+          Refresh data
+        </button>
+      </div>
     </div>
-  );
-}
 
-function SourcesTable({ sources }:Readonly< { sources: SourceStats[] }>) {
-  return (
-    <Table className="text-foreground">
-      <TableHeader>
-        <TableRow className="border-white/10 hover:bg-transparent">
-          <Th>Source</Th>
-          <Th>Type</Th>
-          <Th>Bias</Th>
-          <Th>Funding</Th>
-          <Th>Country</Th>
-          <Th>Status</Th>
-          <Th>Articles</Th>
-          <Th>Last Checked</Th>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sources.map((source) => (
-          <SourceRow key={`${source.name}-${source.url}`} source={source} />
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
+    <SourcesTable sources={sources} />
+  </div>
+);
 
-function Th({ children }:Readonly< { children: ReactNode }>) {
-  return (
-    <TableHead className="h-8 px-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-      {children}
-    </TableHead>
-  );
-}
+const SourcesTable = ({ sources }: DeepReadonly<{ sources: SourceStats[] }>) => (
+  <Table className="text-foreground">
+    <TableHeader>
+      <TableRow className="border-white/10 hover:bg-transparent">
+        <Th>Source</Th>
+        <Th>Type</Th>
+        <Th>Bias</Th>
+        <Th>Funding</Th>
+        <Th>Country</Th>
+        <Th>Status</Th>
+        <Th>Articles</Th>
+        <Th>Last Checked</Th>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      {sources.map((source) => (
+        <SourceRow key={`${source.name}-${source.url}`} source={source} />
+      ))}
+    </TableBody>
+  </Table>
+);
 
-function SourceRow({ source }:Readonly< { source: SourceStats }>) {
-  return (
-    <TableRow className="border-white/5 hover:bg-white/[0.02]">
-      <TableCell className="px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-black/40 text-[9px] text-muted-foreground">
-            {(source.country || source.name).slice(0, 2).toUpperCase()}
-          </span>
-          {source.name}
-        </div>
-      </TableCell>
-      <TableCell className="px-3 py-2 text-muted-foreground">{displaySourceValue(source.category)}</TableCell>
-      <TableCell className="px-3 py-2 text-muted-foreground">{displaySourceValue(source.bias_rating)}</TableCell>
-      <TableCell className="px-3 py-2 text-muted-foreground">{displaySourceValue(source.funding_type)}</TableCell>
-      <TableCell className="px-3 py-2 text-muted-foreground">{displaySourceValue(source.country)}</TableCell>
-      <TableCell className="px-3 py-2">
-        <SourceStatus status={source.status} />
-      </TableCell>
-      <TableCell className="px-3 py-2 text-foreground">{source.article_count}</TableCell>
-      <TableCell className="px-3 py-2 text-muted-foreground">{formatCheckedTime(source.last_checked)}</TableCell>
-    </TableRow>
-  );
-}
+const Th = ({ children }: Readonly<{ children: ReactNode }>) => (
+  <TableHead className="h-8 px-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+    {children}
+  </TableHead>
+);
 
-function SourceStatus({ status }: { status: SourceStats["status"] }) {
+const SourceRow = ({ source }: Readonly<{ source: SourceStats }>) => (
+  <TableRow className="border-white/5 hover:bg-white/[0.02]">
+    <TableCell className="px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-black/40 text-[9px] text-muted-foreground">
+          {(source.country || source.name).slice(0, 2).toUpperCase()}
+        </span>
+        {source.name}
+      </div>
+    </TableCell>
+    <TableCell className="px-3 py-2 text-muted-foreground">
+      {displaySourceValue(source.category)}
+    </TableCell>
+    <TableCell className="px-3 py-2 text-muted-foreground">
+      {displaySourceValue(source.bias_rating)}
+    </TableCell>
+    <TableCell className="px-3 py-2 text-muted-foreground">
+      {displaySourceValue(source.funding_type)}
+    </TableCell>
+    <TableCell className="px-3 py-2 text-muted-foreground">
+      {displaySourceValue(source.country)}
+    </TableCell>
+    <TableCell className="px-3 py-2">
+      <SourceStatus status={source.status} />
+    </TableCell>
+    <TableCell className="px-3 py-2 text-foreground">{source.article_count}</TableCell>
+    <TableCell className="px-3 py-2 text-muted-foreground">
+      {formatCheckedTime(source.last_checked)}
+    </TableCell>
+  </TableRow>
+);
+
+const SourceStatus = ({ status }: DeepReadonly<{ status: SourceStats["status"] }>) => {
   const statusDetails = {
     error: { className: "text-red-400", label: "Issue" },
     success: { className: "text-emerald-400", label: "Healthy" },
     warning: { className: "text-amber-400", label: "Needs review" },
-  }[status] ?? { className: "text-red-400", label: "Issue" }
-  return <span className={statusDetails.className}>{statusDetails.label}</span>
-}
+  }[status] ?? { className: "text-red-400", label: "Issue" };
+  return <span className={statusDetails.className}>{statusDetails.label}</span>;
+};
 
-function StorageTab({
+const StorageTab = ({
   cacheStatus,
   wikiIndexStatus,
   averageArticles,
-}:Readonly< {
+}: Readonly<{
   cacheStatus: CacheStatus | null;
   wikiIndexStatus: WikiIndexStatus | undefined;
   averageArticles: number;
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
-      <CacheSummaryCard cacheStatus={cacheStatus} averageArticles={averageArticles} />
+}>) => (
+  <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+    <CacheSummaryCard cacheStatus={cacheStatus} averageArticles={averageArticles} />
 
-      <WikiIndexCard wikiIndexStatus={wikiIndexStatus} />
-    </div>
-  );
-}
+    <WikiIndexCard wikiIndexStatus={wikiIndexStatus} />
+  </div>
+);
 
-function CacheSummaryCard({
+const CacheSummaryCard = ({
   cacheStatus,
   averageArticles,
-}: {
-  cacheStatus: CacheStatus | null
-  averageArticles: number
-}) {
-  return (
-    <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Cache Summary</div>
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Total Articles" value={cacheStatus?.total_articles?.toLocaleString() ?? "—"} />
-        <StatCard label="Source Records" value={cacheStatus?.total_sources ?? "—"} />
-        <StatCard label="Working Sources" value={cacheStatus?.sources_working ?? "—"} />
-        <StatCard label="Average Articles" value={averageArticles || "—"} />
-      </div>
-      <CacheMetadataRows cacheStatus={cacheStatus} />
+}: DeepReadonly<{
+  cacheStatus: CacheStatus | null;
+  averageArticles: number;
+}>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+      Cache Summary
     </div>
-  )
-}
-
-function CacheMetadataRows({ cacheStatus }: { cacheStatus: CacheStatus | null }) {
-  return (
-    <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-      <DataRow label="Last cache update" value={cacheStatus?.last_updated ? new Date(cacheStatus.last_updated).toLocaleString() : "—"} />
-      <DataRow label="Refresh state" value={cacheStatus?.update_in_progress ? "Running" : "Idle"} />
-      <DataRow label="Cache age" value={cacheStatus?.cache_age_seconds == null ? "—" : `${cacheStatus.cache_age_seconds.toFixed(1)}s`} />
+    <div className="grid grid-cols-2 gap-3">
+      <StatCard
+        label="Total Articles"
+        value={cacheStatus?.total_articles?.toLocaleString() ?? "—"}
+      />
+      <StatCard label="Source Records" value={cacheStatus?.total_sources ?? "—"} />
+      <StatCard label="Working Sources" value={cacheStatus?.sources_working ?? "—"} />
+      <StatCard label="Average Articles" value={averageArticles || "—"} />
     </div>
-  )
-}
+    <CacheMetadataRows cacheStatus={cacheStatus} />
+  </div>
+);
 
-function WikiIndexCard({ wikiIndexStatus }:Readonly< { wikiIndexStatus: WikiIndexStatus | undefined }>) {
-  return (
-    <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wiki Index</div>
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Entries" value={wikiIndexStatus?.total_entries ?? "—"} />
-        <StatCard label="Indexed" value={wikiIndexStatus?.by_status.indexed ?? 0} />
-        <StatCard label="Sources" value={wikiIndexStatus?.by_type.source ?? 0} />
-        <StatCard label="Organizations" value={wikiIndexStatus?.by_type.organization ?? 0} />
-      </div>
-      <WikiIndexStatusRows status={wikiIndexStatus?.by_status} />
+const CacheMetadataRows = ({ cacheStatus }: DeepReadonly<{ cacheStatus: CacheStatus | null }>) => (
+  <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+    <DataRow
+      label="Last cache update"
+      value={(() => {
+  if (hasText(cacheStatus?.last_updated)) {
+    return formatArticleDateTime(cacheStatus.last_updated);
+  }
+  return "—";
+})()}
+    />
+    <DataRow label="Refresh state" value={(() => {
+  if (cacheStatus?.update_in_progress === true) {
+    return "Running";
+  }
+  return "Idle";
+})()} />
+    <DataRow
+      label="Cache age"
+      value={
+        (() => {
+  if (cacheStatus?.cache_age_seconds === null || cacheStatus?.cache_age_seconds === undefined) {
+    return "—";
+  }
+  return `${cacheStatus.cache_age_seconds.toFixed(1)}s`;
+})()
+      }
+    />
+  </div>
+);
+
+const WikiIndexCard = ({
+  wikiIndexStatus,
+}: Readonly<{ wikiIndexStatus: WikiIndexStatus | undefined }>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+      Wiki Index
     </div>
-  );
-}
-
-function WikiIndexStatusRows({ status }: { status: WikiIndexStatus["by_status"] | undefined }) {
-  return (
-    <div className="mt-4 space-y-2">
-      {Object.entries(status ?? {}).map(([key, count]) => (
-        <DataRow key={key} label={key.replaceAll("_", " ")} value={String(count)} />
-      ))}
+    <div className="grid grid-cols-2 gap-3">
+      <StatCard label="Entries" value={wikiIndexStatus?.total_entries ?? "—"} />
+      <StatCard label="Indexed" value={wikiIndexStatus?.by_status.indexed ?? 0} />
+      <StatCard label="Sources" value={wikiIndexStatus?.by_type.source ?? 0} />
+      <StatCard label="Organizations" value={wikiIndexStatus?.by_type.organization ?? 0} />
     </div>
-  )
-}
+    <WikiIndexStatusRows status={wikiIndexStatus?.by_status} />
+  </div>
+);
 
-function ParserTab({
+const WikiIndexStatusRows = ({
+  status,
+}: DeepReadonly<{ status: WikiIndexStatus["by_status"] | undefined }>) => (
+  <div className="mt-4 space-y-2">
+    {Object.entries(status ?? {}).map(([key, count]) => (
+      <DataRow key={key} label={key.replaceAll("_", " ")} value={String(count)} />
+    ))}
+  </div>
+);
+
+const ParserTab = ({
   rssUrl,
   articleUrl,
   onRssUrlChange,
@@ -506,7 +619,7 @@ function ParserTab({
   testingArticle,
   onTestFeed,
   onTestArticle,
-}:Readonly< {
+}: DeepReadonly<{
   rssUrl: string;
   articleUrl: string;
   onRssUrlChange: (value: string) => void;
@@ -517,34 +630,32 @@ function ParserTab({
   testingArticle: boolean;
   onTestFeed: () => void;
   onTestArticle: () => void;
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <ParserTestCard
-        title="Feed Parser"
-        placeholder="Paste an RSS feed URL"
-        value={rssUrl}
-        onValueChange={onRssUrlChange}
-        onTest={onTestFeed}
-        testing={testingFeed}
-        result={rssResult}
-        rows={feedResultRows(rssResult)}
-      />
-      <ParserTestCard
-        title="Article Image Check"
-        placeholder="Paste an article URL"
-        value={articleUrl}
-        onValueChange={onArticleUrlChange}
-        onTest={onTestArticle}
-        testing={testingArticle}
-        result={articleResult}
-        rows={articleResultRows(articleResult)}
-      />
-    </div>
-  );
-}
+}>) => (
+  <div className="grid gap-4 md:grid-cols-2">
+    <ParserTestCard
+      title="Feed Parser"
+      placeholder="Paste an RSS feed URL"
+      value={rssUrl}
+      onValueChange={onRssUrlChange}
+      onTest={onTestFeed}
+      testing={testingFeed}
+      result={rssResult}
+      rows={feedResultRows(rssResult)}
+    />
+    <ParserTestCard
+      title="Article Image Check"
+      placeholder="Paste an article URL"
+      value={articleUrl}
+      onValueChange={onArticleUrlChange}
+      onTest={onTestArticle}
+      testing={testingArticle}
+      result={articleResult}
+      rows={articleResultRows(articleResult)}
+    />
+  </div>
+);
 
-function ParserTestCard({
+const ParserTestCard = ({
   title,
   placeholder,
   value,
@@ -553,7 +664,7 @@ function ParserTestCard({
   testing,
   result,
   rows,
-}:Readonly< {
+}: DeepReadonly<{
   title: string;
   placeholder: string;
   value: string;
@@ -562,301 +673,377 @@ function ParserTestCard({
   testing: boolean;
   result: ParserResult | null;
   rows: { label: string; value: string }[];
-}>) {
+}>) => {
+  const handleValueChange = useCallback(
+    (event: { readonly target: { readonly value: string } }) => {
+      onValueChange(event.target.value);
+    },
+    [onValueChange],
+  );
+
   return (
     <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        {title}
+      </div>
       <div className="flex gap-2">
         <Input
           value={value}
-          onChange={(event) =>{  onValueChange(event.target.value); }}
+          onChange={handleValueChange}
           placeholder={placeholder}
           className="border-white/10 bg-black/30 text-foreground"
         />
         <Button onClick={onTest} disabled={testing}>
-          {testing ? "Testing..." : "Run"}
+          {(() => {
+  if (testing) {
+    return "Testing...";
+  }
+  return "Run";
+})()}
         </Button>
       </div>
-      {result ? (
-        <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-          {rows.map((row) => (
-            <DataRow key={row.label} label={row.label} value={row.value} />
-          ))}
-          {result.error ? <div className="text-red-300">{result.error}</div> : null}
-        </div>
-      ) : null}
+      {result !== null && <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+          {rows.map(row => <DataRow key={row.label} label={row.label} value={row.value} />)}
+          {(() => {
+  if (hasText(result.error)) {
+    return <div className="text-red-300">{result.error}</div>;
+  }
+  return null;
+})()}
+        </div>}
     </div>
   );
-}
+};
 
 function feedResultRows(result: ParserResult | null): { label: string; value: string }[] {
-  if (!result) {return [];}
+  if (!result) {
+    return [];
+  }
   return [
-    { label: "Result", value: result.success ? "Feed parsed" : "Feed failed" },
+    { label: "Result", value: (() => {
+  if (result.success === true) {
+    return "Feed parsed";
+  }
+  return "Feed failed";
+})() },
     { label: "Entries", value: String(result.status?.entries_count ?? "—") },
-    { label: "Parse time", value: result.parse_time_seconds ? `${result.parse_time_seconds}s` : "—" },
+    {
+      label: "Parse time",
+      value: (() => {
+  if (
+    result.parse_time_seconds !== undefined &&
+    result.parse_time_seconds !== null &&
+    result.parse_time_seconds !== 0
+  ) {
+    return `${result.parse_time_seconds}s`;
+  }
+  return "—";
+})(),
+    },
   ];
 }
 
 function articleResultRows(result: ParserResult | null): { label: string; value: string }[] {
-  if (!result) {return [];}
+  if (!result) {
+    return [];
+  }
   return [
-    { label: "Result", value: result.success ? "Image found" : "No image found" },
+    { label: "Result", value: (() => {
+  if (result.success === true) {
+    return "Image found";
+  }
+  return "No image found";
+})() },
     { label: "Image URL", value: result.image_url ?? "—" },
   ];
 }
 
-function LlmTab({
+const LlmTab = ({
   entries,
   successCount,
   failureCount,
-}:Readonly< {
-  entries: LlmLogEntry[];
+}: Readonly<{
+  entries: readonly LlmLogEntry[];
   successCount: number;
   failureCount: number;
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
-      <div className={SURFACE_CLASS}>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Model Activity</div>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Calls" value={entries.length} />
-          <StatCard label="Success" value={successCount} />
-          <StatCard label="Failed" value={failureCount} />
-          <StatCard
-            label="Avg latency"
-            value={formatAverageLatency(entries.map((entry) => entry.duration_ms))}
-          />
-        </div>
-      </div>
-
-      <LlmEntries entries={entries} />
-    </div>
-  );
-}
-
-function LlmEntries({ entries }:Readonly< { entries: LlmLogEntry[] }>) {
-  return (
-    <div className="space-y-3">
-      {entries.map((entry, index) => (
-        <LlmEntryCard key={`${entry.request_id || "llm"}-${index}`} entry={entry} />
-      ))}
-    </div>
-  );
-}
-
-function LlmEntryCard({ entry }:Readonly< { entry: LlmLogEntry }>) {
-  return (
+}>) => (
+  <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
     <div className={SURFACE_CLASS}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-foreground">
-            {entry.service || "unknown"} · {entry.model || "unknown"}
-          </div>
-          <div className="text-xs text-muted-foreground">{entry.timestamp || "—"}</div>
-        </div>
-        <div className={entry.success ? "text-emerald-300" : "text-red-300"}>
-          {entry.success ? "success" : "failed"}
-        </div>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Model Activity
       </div>
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>{entry.duration_ms ? `${entry.duration_ms}ms` : "No latency recorded"}</span>
-        <span>{entry.finish_reason || "No finish reason"}</span>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Calls" value={entries.length} />
+        <StatCard label="Success" value={successCount} />
+        <StatCard label="Failed" value={failureCount} />
+        <StatCard
+          label="Avg latency"
+          value={formatAverageLatency(entries.map((entry) => entry.duration_ms))}
+        />
       </div>
-      {entry.error_message ? <div className="mt-2 text-sm text-red-300">{entry.error_message}</div> : null}
     </div>
-  );
-}
 
-function ErrorsTab({
+    <LlmEntries entries={entries} />
+  </div>
+);
+
+const LlmEntries = ({ entries }: Readonly<{ entries: readonly LlmLogEntry[] }>) => (
+  <div className="space-y-3">
+    {entries.map((entry) => (
+      <LlmEntryCard
+        key={
+          entry.request_id ??
+          `${entry.timestamp ?? "llm"}-${entry.service ?? "unknown"}-${entry.model ?? "unknown"}-${entry.duration_ms ?? "none"}`
+        }
+        entry={entry}
+      />
+    ))}
+  </div>
+);
+
+const LlmEntryCard = ({ entry }: Readonly<{ entry: LlmLogEntry }>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-foreground">
+          {entry.service ?? "unknown"} · {entry.model ?? "unknown"}
+        </div>
+        <div className="text-xs text-muted-foreground">{entry.timestamp ?? "—"}</div>
+      </div>
+      <div className={(() => {
+  if (entry.success === true) {
+    return "text-emerald-300";
+  }
+  return "text-red-300";
+})()}>
+        {(() => {
+  if (entry.success === true) {
+    return "success";
+  }
+  return "failed";
+})()}
+      </div>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+      <span>{(() => {
+  if (entry.duration_ms !== undefined && entry.duration_ms !== null && entry.duration_ms !== 0) {
+    return `${entry.duration_ms}ms`;
+  }
+  return "No latency recorded";
+})()}</span>
+      <span>{entry.finish_reason ?? "No finish reason"}</span>
+    </div>
+    {Boolean(entry.error_message) && <div className="mt-2 text-sm text-red-300">{entry.error_message}</div>}
+  </div>
+);
+
+const ErrorsTab = ({
   problematicSources,
   recentErrorEvents,
-}:Readonly< {
+}: DeepReadonly<{
   problematicSources: SourceStats[];
   recentErrorEvents: NormalizedErrorEvent[];
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
-      <div className={SURFACE_CLASS}>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current Issues</div>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Open issues" value={problematicSources.length} />
-          <StatCard label="Recent errors" value={recentErrorEvents.length} />
-        </div>
-        <div className="mt-4 space-y-2">
-          {problematicSources.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No non-healthy sources in the latest sample.</div>
-          ) : (
-            problematicSources.map((source) => (
-              <DataRow key={source.name} label={source.name} value={source.error_message || source.status} />
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {recentErrorEvents.map((entry, index) => (
-          <ErrorEventCard key={`${entry.key}-${index}`} entry={entry} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ErrorEventCard({ entry }:Readonly< { entry: NormalizedErrorEvent }>) {
-  return (
+}>) => (
+  <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
     <div className={SURFACE_CLASS}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-foreground">{entry.service}</div>
-        <div className="text-red-300">{entry.errorType}</div>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Current Issues
       </div>
-      <div className="mt-2 text-sm text-muted-foreground">{entry.message}</div>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Open issues" value={problematicSources.length} />
+        <StatCard label="Recent errors" value={recentErrorEvents.length} />
+      </div>
+      <div className="mt-4 space-y-2">
+        {(() => {
+  if (problematicSources.length === 0) {
+    return <div className="text-sm text-muted-foreground">
+            No non-healthy sources in the latest sample.
+          </div>;
+  }
+  return problematicSources.map(source => <DataRow key={source.name} label={source.name} value={source.error_message ?? source.status} />);
+})()}
+      </div>
     </div>
-  );
-}
 
-function PerformanceTab({
+    <div className="space-y-3">
+      {recentErrorEvents.map((entry) => (
+        <ErrorEventCard key={entry.key} entry={entry} />
+      ))}
+    </div>
+  </div>
+);
+
+const ErrorEventCard = ({ entry }: Readonly<{ entry: NormalizedErrorEvent }>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="flex items-center justify-between gap-3">
+      <div className="text-foreground">{entry.service}</div>
+      <div className="text-red-300">{entry.errorType}</div>
+    </div>
+    <div className="mt-2 text-sm text-muted-foreground">{entry.message}</div>
+  </div>
+);
+
+const PerformanceTab = ({
   averageArticles,
   recentErrorEvents,
   latencyValues,
-}:Readonly< {
+}: DeepReadonly<{
   averageArticles: number;
   recentErrorEvents: NormalizedErrorEvent[];
   latencyValues: (number | undefined)[];
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <div className={SURFACE_CLASS}>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Feed Throughput</div>
-        <StatCard label="Avg articles per source" value={averageArticles || "—"} />
+}>) => (
+  <div className="grid gap-4 md:grid-cols-3">
+    <div className={SURFACE_CLASS}>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Feed Throughput
       </div>
-      <div className={SURFACE_CLASS}>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Model Latency</div>
-        <StatCard label="Average call time" value={formatAverageLatency(latencyValues)} />
-      </div>
-      <div className={SURFACE_CLASS}>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Stability</div>
-        <StatCard label="Recent error count" value={recentErrorEvents.length} />
-      </div>
+      <StatCard label="Avg articles per source" value={averageArticles || "—"} />
     </div>
-  );
-}
+    <div className={SURFACE_CLASS}>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Model Latency
+      </div>
+      <StatCard label="Average call time" value={formatAverageLatency(latencyValues)} />
+    </div>
+    <div className={SURFACE_CLASS}>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Stability
+      </div>
+      <StatCard label="Recent error count" value={recentErrorEvents.length} />
+    </div>
+  </div>
+);
 
-function MediaTab({
+const MediaTab = ({
   selectedSourceProfile,
   selectedSourceName,
   indexingSource,
   onIndex,
-}:Readonly< {
+}: DeepReadonly<{
   selectedSourceProfile: WikiSourceProfile | null;
   selectedSourceName: string | null;
   indexingSource: boolean;
   onIndex: () => void;
-}>) {
-  return (
-    <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
-      <div className="space-y-4">
-        <div className={SURFACE_CLASS}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Source Summary</div>
-            <button
-              onClick={onIndex}
-              disabled={!selectedSourceName || indexingSource}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-foreground hover:bg-white/5 disabled:opacity-50"
-            >
-              {indexingSource ? "Indexing..." : "Index source"}
-            </button>
+}>) => (
+  <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+    <div className="space-y-4">
+      <div className={SURFACE_CLASS}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            Source Summary
           </div>
-          <p className="text-sm leading-7 text-foreground/90">
-            {selectedSourceProfile?.overview || "No summary has been written for this source yet."}
-          </p>
+          <button
+            onClick={onIndex}
+            disabled={!hasText(selectedSourceName) || indexingSource}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-foreground hover:bg-white/5 disabled:opacity-50"
+          >
+            {(() => {
+  if (indexingSource) {
+    return "Indexing...";
+  }
+  return "Index source";
+})()}
+          </button>
         </div>
-
-        <DossierSectionsCard profile={selectedSourceProfile} />
+        <p className="text-sm leading-7 text-foreground/90">
+          {selectedSourceProfile?.overview ?? "No summary has been written for this source yet."}
+        </p>
       </div>
 
-      <div className="space-y-4">
-        <OwnershipChainCard profile={selectedSourceProfile} />
-        <QuickFactsCard profile={selectedSourceProfile} />
-      </div>
+      <DossierSectionsCard profile={selectedSourceProfile} />
     </div>
-  );
-}
 
-function DossierSectionsCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
-  return (
-    <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Dossier Sections</div>
-      <div className="space-y-2">
-        {(profile?.dossier_sections ?? []).slice(0, 5).map((section) => (
-          <div key={section.id} className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
-            <div className="text-sm text-foreground">{section.title}</div>
-            <div className="text-xs text-muted-foreground">
-              {section.status === "available" ? `${section.items.length} saved items` : "No saved items yet"}
-            </div>
+    <div className="space-y-4">
+      <OwnershipChainCard profile={selectedSourceProfile} />
+      <QuickFactsCard profile={selectedSourceProfile} />
+    </div>
+  </div>
+);
+
+const DossierSectionsCard = ({ profile }: DeepReadonly<{ profile: WikiSourceProfile | null }>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+      Dossier Sections
+    </div>
+    <div className="space-y-2">
+      {(profile?.dossier_sections ?? []).slice(0, 5).map((section) => (
+        <div key={section.id} className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
+          <div className="text-sm text-foreground">{section.title}</div>
+          <div className="text-xs text-muted-foreground">
+            {(() => {
+  if (section.status === "available") {
+    return `${section.items.length} saved items`;
+  }
+  return "No saved items yet";
+})()}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
-  );
-}
+  </div>
+);
 
-function OwnershipChainCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
+const OwnershipChainCard = ({ profile }: DeepReadonly<{ profile: WikiSourceProfile | null }>) => {
   const chain = profile?.ownership_chain ?? [];
   return (
     <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Ownership Chain</div>
+      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Ownership Chain
+      </div>
       <div className="space-y-2">
         {chain.slice(0, 6).map((org) => (
-          <div key={org.name} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-foreground">
+          <div
+            key={org.name}
+            className="rounded-xl border border-white/10 px-3 py-2 text-sm text-foreground"
+          >
             {org.name}
           </div>
         ))}
-        {chain.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No ownership chain recorded yet.</div>
-        ) : null}
+        {chain.length === 0 && <div className="text-sm text-muted-foreground">No ownership chain recorded yet.</div>}
       </div>
     </div>
   );
-}
+};
 
-function QuickFactsCard({ profile }:Readonly< { profile: WikiSourceProfile | null }>) {
-  return (
-    <div className={SURFACE_CLASS}>
-      <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quick Facts</div>
-      <div className="space-y-2 text-sm text-muted-foreground">
-        <DataRow label="Country" value={displaySourceValue(profile?.country)} />
-        <DataRow label="Funding" value={displaySourceValue(profile?.funding_type)} />
-        <DataRow label="Bias" value={displaySourceValue(profile?.bias_rating)} />
-        <DataRow label="Parent company" value={displaySourceValue(profile?.parent_company)} />
-        <DataRow label="Articles" value={displaySourceValue(profile?.article_count)} />
-        <DataRow label="Last indexed" value={displaySourceValue(profile?.last_indexed_at)} />
-      </div>
+const QuickFactsCard = ({ profile }: DeepReadonly<{ profile: WikiSourceProfile | null }>) => (
+  <div className={SURFACE_CLASS}>
+    <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+      Quick Facts
     </div>
-  );
-}
-
-function StatCard({ label, value }:Readonly< { label: string; value: string | number }>) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-black/10 p-3">
-      <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg text-foreground">{value}</div>
+    <div className="space-y-2 text-sm text-muted-foreground">
+      <DataRow label="Country" value={displaySourceValue(profile?.country)} />
+      <DataRow label="Funding" value={displaySourceValue(profile?.funding_type)} />
+      <DataRow label="Bias" value={displaySourceValue(profile?.bias_rating)} />
+      <DataRow label="Parent company" value={displaySourceValue(profile?.parent_company)} />
+      <DataRow label="Articles" value={displaySourceValue(profile?.article_count)} />
+      <DataRow label="Last indexed" value={displaySourceValue(profile?.last_indexed_at)} />
     </div>
-  );
-}
+  </div>
+);
 
-function DataRow({ label, value }:Readonly< { label: string; value: string }>) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="max-w-[60%] text-right text-foreground">{value}</span>
+const StatCard = ({ label, value }: Readonly<{ label: string; value: string | number }>) => (
+  <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+    <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+      {label}
     </div>
-  );
-}
+    <div className="mt-1 text-lg text-foreground">{value}</div>
+  </div>
+);
 
-function formatAverageLatency(values: (number | undefined)[] | undefined): string {
-  const numericValues = (values ?? []).filter((value): value is number => typeof value === "number");
-  if (numericValues.length === 0) {return "—";}
+const DataRow = ({ label, value }: Readonly<{ label: string; value: string }>) => (
+  <div className="flex items-start justify-between gap-3">
+    <span className="text-muted-foreground">{label}</span>
+    <span className="max-w-[60%] text-right text-foreground">{value}</span>
+  </div>
+);
+
+function formatAverageLatency(values: readonly (number | undefined)[] | undefined): string {
+  const numericValues = (values ?? []).filter(
+    (value): value is number => typeof value === "number",
+  );
+  if (numericValues.length === 0) {
+    return "—";
+  }
   return `${Math.round(numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length)}ms`;
 }
 

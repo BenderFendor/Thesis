@@ -1,4 +1,5 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import {
   Dialog,
@@ -7,72 +8,89 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fetchCacheStatus, fetchSourceStats, fetchWikiIndexStatus, fetchWikiSource } from '@/lib/api';
+import {
+  fetchCacheStatus,
+  fetchSourceStats,
+  fetchWikiIndexStatus,
+  fetchWikiSource,
+} from "@/lib/api";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SourceIntelligenceOperations } from "@/app/wiki/ownership/source-intelligence-operations";
-import type { WikiSourceProfile } from '@/lib/api';
-import { useMemo } from "react";
+import type { WikiSourceProfile } from "@/lib/api";
+import { useCallback, useMemo } from "react";
 import workspaceSupport from "@/app/wiki/ownership/source-intelligence-support";
 
 type WorkspaceTab = (typeof workspaceSupport.tabs)[number]["id"];
 const WORKSPACE_TABS = workspaceSupport.tabs;
+type SourceStats = Awaited<ReturnType<typeof fetchSourceStats>>;
+const EMPTY_SOURCE_STATS: SourceStats = [];
 
 interface AtlasOperationsSheetProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  activeTab: WorkspaceTab;
-  onTabChange: (tab: WorkspaceTab) => void;
-  selectedSourceName: string | null;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly activeTab: WorkspaceTab;
+  readonly onTabChange: (tab: WorkspaceTab) => void;
+  readonly selectedSourceName: string | null;
 }
 
-export function AtlasOperationsSheet({
+export const AtlasOperationsSheet = ({
   open,
   onOpenChange,
   activeTab,
   onTabChange,
   selectedSourceName,
-}: AtlasOperationsSheetProps) {
-  const queryClient = useQueryClient(),
-   sourceStatsQuery = useQuery({
-    enabled: open,
-    queryFn: fetchSourceStats,
-    queryKey: ["debug-source-stats-summary"],
-    retry: 1,
-  }),
-   cacheStatusQuery = useQuery({
-    enabled: open,
-    queryFn: fetchCacheStatus,
-    queryKey: ["debug-cache-status-summary"],
-    retry: 1,
-  }),
-   indexStatusQuery = useQuery({
-    enabled: open,
-    queryFn: fetchWikiIndexStatus,
-    queryKey: ["wiki-index-status"],
-    retry: 1,
-  }),
-   sourceProfileQuery = useQuery<WikiSourceProfile>({
-    enabled: open && Boolean(selectedSourceName),
-    queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
-    queryKey: ["wiki-source-profile", selectedSourceName],
-    retry: 1,
-  }),
+}: Readonly<AtlasOperationsSheetProps>) => {
+  const queryClient = useQueryClient();
+  const sourceStatsQuery = useQuery({
+      enabled: open,
+      queryFn: fetchSourceStats,
+      queryKey: ["debug-source-stats-summary"],
+      retry: 1,
+    });
+  const cacheStatusQuery = useQuery({
+      enabled: open,
+      queryFn: fetchCacheStatus,
+      queryKey: ["debug-cache-status-summary"],
+      retry: 1,
+    });
+  const indexStatusQuery = useQuery({
+      enabled: open,
+      queryFn: fetchWikiIndexStatus,
+      queryKey: ["wiki-index-status"],
+      retry: 1,
+    });
+  const sourceProfileQuery = useQuery<WikiSourceProfile>({
+      enabled: open && Boolean(selectedSourceName),
+      queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
+      queryKey: ["wiki-source-profile", selectedSourceName],
+      retry: 1,
+    });
+  const tabs = useMemo(() => [...WORKSPACE_TABS], []);
 
-   tabs = useMemo(() => [...WORKSPACE_TABS], []);
-
-  async function refreshAll() {
+  const refreshAll = useCallback(async () => {
     await Promise.allSettled([
-      sourceStatsQuery.refetch(),
-      cacheStatusQuery.refetch(),
-      indexStatusQuery.refetch(),
-      selectedSourceName ? sourceProfileQuery.refetch() : Promise.resolve(null),
-    ]);
-    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["debug-source-stats-summary"] }),
+      queryClient.invalidateQueries({ queryKey: ["debug-cache-status-summary"] }),
+      queryClient.invalidateQueries({ queryKey: ["wiki-index-status"] }),
+      queryClient.invalidateQueries({ queryKey: ["wiki-source-profile", selectedSourceName] }),
       queryClient.invalidateQueries({ queryKey: ["atlas"] }),
       queryClient.invalidateQueries({ queryKey: ["wiki-source-profile"] }),
     ]);
-  }
+    return;
+  }, [queryClient, selectedSourceName]);
+  const handleRefreshAll = useCallback(() => {
+    void refreshAll();
+  }, [refreshAll]);
+  const handleSourceProfileRefresh = useCallback(async () => {
+    if (!hasText(selectedSourceName)) {
+      return;
+    }
+    await queryClient.invalidateQueries({
+      queryKey: ["wiki-source-profile", selectedSourceName],
+    });
+    return;
+  }, [queryClient, selectedSourceName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,7 +98,8 @@ export function AtlasOperationsSheet({
         <DialogHeader className="border-b border-white/10 p-5 pr-14">
           <DialogTitle className="font-serif text-3xl font-normal">Atlas operations</DialogTitle>
           <DialogDescription className="mt-1 text-[#77736a]">
-            Inspect ingestion, parser, model, storage, and error state without shrinking the investigation graph.
+            Inspect ingestion, parser, model, storage, and error state without shrinking the
+            investigation graph.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 p-4">
@@ -88,21 +107,16 @@ export function AtlasOperationsSheet({
             activeTab={activeTab}
             onTabChange={onTabChange}
             tabs={tabs}
-            sourceStats={sourceStatsQuery.data ?? []}
+            sourceStats={sourceStatsQuery.data ?? EMPTY_SOURCE_STATS}
             cacheStatus={cacheStatusQuery.data ?? null}
             wikiIndexStatus={indexStatusQuery.data}
             selectedSourceName={selectedSourceName}
             selectedSourceProfile={sourceProfileQuery.data ?? null}
-            onRefreshAll={() => {
-              void refreshAll();
-            }}
-            onSourceProfileRefresh={async () => {
-              if (!selectedSourceName) {return;}
-              await sourceProfileQuery.refetch();
-            }}
+            onRefreshAll={handleRefreshAll}
+            onSourceProfileRefresh={handleSourceProfileRefresh}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+};

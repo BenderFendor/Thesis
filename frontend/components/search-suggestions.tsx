@@ -1,43 +1,62 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import { Loader2, Search, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SearchSuggestion } from "@/lib/api";
 import { fetchSearchSuggestions } from "@/lib/api";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 interface SearchSuggestionsProps {
-  query: string;
-  onSuggestionClick?: (suggestion: SearchSuggestion) => void;
-  minQueryLength?: number;
-  debounceMs?: number;
-  className?: string;
+  readonly query: string;
+  readonly onSuggestionClick?: (suggestion: SearchSuggestion) => void;
+  readonly minQueryLength?: number;
+  readonly debounceMs?: number;
+  readonly className?: string;
 }
 
-export function SearchSuggestions({
+const EMPTY_SEARCH_SUGGESTIONS: readonly SearchSuggestion[] = [];
+
+export const SearchSuggestions = ({
   query,
   onSuggestionClick,
   minQueryLength = 3,
   debounceMs = 300,
   className = "",
-}: SearchSuggestionsProps) {
-  const debouncedQuery = useDebounce(query, debounceMs),
-   suggestionsQuery = useQuery<SearchSuggestion[]>({
-    enabled: debouncedQuery.length >= minQueryLength,
-    queryFn: async () => {
-      const response = await fetchSearchSuggestions(debouncedQuery, 5);
-      return response.suggestions;
-    },
-    queryKey: ["search-suggestions", debouncedQuery, minQueryLength],
-    retry: 1,
-  }),
-   suggestions = suggestionsQuery.data ?? [],
-   loading = suggestionsQuery.isLoading,
-   error = suggestionsQuery.error instanceof Error ? suggestionsQuery.error.message : null;
+}: SearchSuggestionsProps) => {
+  const debouncedQuery = useDebounce(query, debounceMs);
+  const suggestionsQuery = useQuery<readonly SearchSuggestion[]>({
+      enabled: debouncedQuery.length >= minQueryLength,
+      queryFn: async () => {
+        const response = await fetchSearchSuggestions(debouncedQuery, 5);
+        return response.suggestions;
+      },
+      queryKey: ["search-suggestions", debouncedQuery, minQueryLength],
+      retry: 1,
+    });
+  const suggestions = suggestionsQuery.data ?? EMPTY_SEARCH_SUGGESTIONS;
+  const loading = suggestionsQuery.isLoading;
+  const error = (() => {
+  if (suggestionsQuery.error instanceof Error) {
+    return suggestionsQuery.error.message;
+  }
+  return null;
+})();
+  const suggestionHandlers = useMemo(
+      () =>
+        new Map(
+          suggestions.map((suggestion) => [
+            suggestion.cluster_id,
+            () => onSuggestionClick?.(suggestion),
+          ]),
+        ),
+      [onSuggestionClick, suggestions],
+    );
 
   if (query.length < minQueryLength) {
-    return;
+    return null;
   }
 
   if (loading) {
@@ -49,8 +68,8 @@ export function SearchSuggestions({
     );
   }
 
-  if (error || suggestions.length === 0) {
-    return;
+  if (hasText(error) || suggestions.length === 0) {
+    return null;
   }
 
   return (
@@ -64,7 +83,7 @@ export function SearchSuggestions({
           <button
             key={suggestion.cluster_id}
             type="button"
-            onClick={() => onSuggestionClick?.(suggestion)}
+            onClick={suggestionHandlers.get(suggestion.cluster_id)}
             className="group"
           >
             <Badge
@@ -82,4 +101,4 @@ export function SearchSuggestions({
       </div>
     </div>
   );
-}
+};

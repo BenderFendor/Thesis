@@ -1,11 +1,24 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import { OrganizationWikiView } from "./organization-wiki-view";
 import { useParams } from "next/navigation";
 
-export default function OrganizationProfilePage() {
-  const params = useParams(),
-   rawId = Array.isArray(params.id) ? params.id[0] : params.id,
-   entityId = rawId ? `organization:${decodeURIComponent(rawId)}` : "";
+const OrganizationProfilePage = () => {
+  const params = useParams();
+  const rawId = (() => {
+  if (Array.isArray(params.id)) {
+    return params.id[0];
+  }
+  return params.id;
+})();
+  const entityId = (() => {
+  if (hasText(rawId)) {
+    return `organization:${decodeURIComponent(rawId)}`;
+  }
+  return "";
+})();
   return <OrganizationWikiView entityId={entityId} />;
-}
+};
+
+export default OrganizationProfilePage;

@@ -1,4 +1,5 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import { AlertCircle, CheckCircle, Loader2, Plus, Rss } from "lucide-react";
 import {
@@ -9,17 +10,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { promoteRssSource, validateRssUrl } from '@/lib/api';
-import type { AddRssResponse } from '@/lib/api';
+import { promoteRssSource, validateRssUrl } from "@/lib/api";
+import type { AddRssResponse } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { useCallback, useState } from 'react';
+import type { ChangeEventHandler, KeyboardEventHandler } from 'react';
 
 interface AddRssDialogProps {
-  onSourceAdded?: () => void;
+  readonly onSourceAdded?: () => void;
 }
 
-const RssValidationCard = ({ result }: Readonly<{ result: AddRssResponse }>) => (
+const RssValidationCard = ({
+  result,
+}: Readonly<{ result: DeepReadonly<AddRssResponse> }>) => (
   <div className="rounded-none border border-green-500/20 bg-green-500/5 p-3 space-y-2">
     <div className="flex items-center gap-2">
       <CheckCircle className="h-3.5 w-3.5 text-green-400" />
@@ -45,17 +50,17 @@ const RssValidationCard = ({ result }: Readonly<{ result: AddRssResponse }>) => 
       )}
     </div>
   </div>
-)
+);
 
 interface RssReviewFieldsProps {
-  name: string
-  country: string
-  sourceType: string
-  paywalled: boolean
-  onNameChange: (value: string) => void
-  onCountryChange: (value: string) => void
-  onSourceTypeChange: (value: string) => void
-  onPaywalledChange: (value: boolean) => void
+  readonly name: string;
+  readonly country: string;
+  readonly sourceType: string;
+  readonly paywalled: boolean;
+  readonly onNameChange: (value: string) => void;
+  readonly onCountryChange: (value: string) => void;
+  readonly onSourceTypeChange: (value: string) => void;
+  readonly onPaywalledChange: (value: boolean) => void;
 }
 
 const RssReviewFields = ({
@@ -67,45 +72,64 @@ const RssReviewFields = ({
   onCountryChange,
   onSourceTypeChange,
   onPaywalledChange,
-}: RssReviewFieldsProps) => (
-  <div className="space-y-2 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 p-3">
-    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-      Review before promotion
-    </div>
-    <Input
-      placeholder="Source name"
-      value={name}
-      onChange={(event) =>{  onNameChange(event.target.value); }}
-      className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
-    />
-    <div className="grid grid-cols-2 gap-2">
+}: Readonly<RssReviewFieldsProps>) => {
+  const handleNameChange = useCallback<ChangeEventHandler<HTMLInputElement>>(
+      (event) =>{  onNameChange(event.target.value); },
+      [onNameChange],
+    );
+  const handleCountryChange = useCallback<ChangeEventHandler<HTMLInputElement>>(
+      (event) =>{  onCountryChange(event.target.value); },
+      [onCountryChange],
+    );
+  const handleSourceTypeChange = useCallback<ChangeEventHandler<HTMLInputElement>>(
+      (event) =>{  onSourceTypeChange(event.target.value); },
+      [onSourceTypeChange],
+    );
+  const handlePaywalledChange = useCallback<ChangeEventHandler<HTMLInputElement>>(
+      (event) =>{  onPaywalledChange(event.target.checked); },
+      [onPaywalledChange],
+    );
+
+  return (
+    <div className="space-y-2 rounded-none border border-white/10 bg-[var(--news-bg-primary)]/50 p-3">
+      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+        Review before promotion
+      </div>
       <Input
-        placeholder="Country code"
-        value={country}
-        onChange={(event) =>{  onCountryChange(event.target.value); }}
+        placeholder="Source name"
+        value={name}
+        onChange={handleNameChange}
         className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
       />
-      <Input
-        placeholder="Source type"
-        value={sourceType}
-        onChange={(event) =>{  onSourceTypeChange(event.target.value); }}
-        className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          placeholder="Country code"
+          value={country}
+          onChange={handleCountryChange}
+          className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
+        />
+        <Input
+          placeholder="Source type"
+          value={sourceType}
+          onChange={handleSourceTypeChange}
+          className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
+        />
+      </div>
+      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        <input type="checkbox" checked={paywalled} onChange={handlePaywalledChange} />
+        Paywalled source
+      </label>
     </div>
-    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-      <input type="checkbox" checked={paywalled} onChange={(event) =>{  onPaywalledChange(event.target.checked); }} />
-      Paywalled source
-    </label>
-  </div>
-)
+  );
+};
 
 interface RssActionButtonsProps {
-  validating: boolean
-  adding: boolean
-  canValidate: boolean
-  canAdd: boolean
-  onValidate: () => void
-  onAdd: () => void
+  readonly validating: boolean;
+  readonly adding: boolean;
+  readonly canValidate: boolean;
+  readonly canAdd: boolean;
+  readonly onValidate: () => void;
+  readonly onAdd: () => void;
 }
 
 const RssActionButtons = ({
@@ -115,7 +139,7 @@ const RssActionButtons = ({
   canAdd,
   onValidate,
   onAdd,
-}: RssActionButtonsProps) => (
+}: Readonly<RssActionButtonsProps>) => (
   <div className="flex gap-2">
     <Button
       variant="outline"
@@ -124,7 +148,12 @@ const RssActionButtons = ({
       disabled={!canValidate || validating}
       className="flex-1 h-9 rounded-none border-white/10 text-xs font-mono uppercase tracking-[0.15em]"
     >
-      {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Validate"}
+      {(() => {
+  if (validating) {
+    return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+  }
+  return "Validate";
+})()}
     </Button>
     <Button
       variant="default"
@@ -133,82 +162,148 @@ const RssActionButtons = ({
       disabled={!canAdd || adding}
       className="flex-1 h-9 rounded-none text-xs font-mono uppercase tracking-[0.15em] gap-1.5"
     >
-      {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+      {(() => {
+  if (adding) {
+    return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+  }
+  return <Plus className="h-3.5 w-3.5" />;
+})()}
       Add
     </Button>
   </div>
-)
+);
 
-export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
-  const [open, setOpen] = useState(false),
-   [url, setUrl] = useState(""),
-   [validating, setValidating] = useState(false),
-   [adding, setAdding] = useState(false),
-   [validationResult, setValidationResult] = useState<AddRssResponse | null>(null),
-   [reviewName, setReviewName] = useState(""),
-   [reviewCountry, setReviewCountry] = useState(""),
-   [reviewSourceType, setReviewSourceType] = useState(""),
-   [reviewPaywalled, setReviewPaywalled] = useState(false),
-   [error, setError] = useState<string | null>(null),
+export const AddRssDialog = ({ onSourceAdded }: AddRssDialogProps) => {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [validationResult, setValidationResult] = useState<AddRssResponse | null>(null);
+  const [reviewName, setReviewName] = useState("");
+  const [reviewCountry, setReviewCountry] = useState("");
+  const [reviewSourceType, setReviewSourceType] = useState("");
+  const [reviewPaywalled, setReviewPaywalled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const handleValidate = useCallback(async () => {
+      const trimmed = url.trim();
+      if (!trimmed) {
+        return;
+      }
 
-   handleValidate = async () => {
-    const trimmed = url.trim();
-    if (!trimmed) {return;}
+      setValidating(true);
+      setError(null);
+      setValidationResult(null);
 
-    setValidating(true);
-    setError(null);
-    setValidationResult(null);
+      try {
+        const result = await validateRssUrl(trimmed);
+        setValidationResult(result);
+        setReviewName(result.name);
+        setReviewCountry(result.inferred?.country ?? "");
+        setReviewSourceType(result.inferred?.source_type ?? "");
+        setReviewPaywalled(result.inferred?.is_paywalled ?? false);
+      } catch (caughtError) {
+        setError((() => {
+  if (caughtError instanceof Error) {
+    return caughtError.message;
+  }
+  return "Validation failed";
+})());
+      } finally {
+        setValidating(false);
+      }
+    }, [
+      setError,
+      setReviewCountry,
+      setReviewName,
+      setReviewPaywalled,
+      setReviewSourceType,
+      setValidating,
+      setValidationResult,
+      url,
+    ]);
+  const handleAdd = useCallback(async () => {
+      if (!validationResult) {
+        return;
+      }
 
-    try {
-      const result = await validateRssUrl(trimmed);
-      setValidationResult(result);
-      setReviewName(result.name);
-      setReviewCountry(result.inferred?.country || "");
-      setReviewSourceType(result.inferred?.source_type || "");
-      setReviewPaywalled(result.inferred?.is_paywalled || false);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Validation failed");
-    } finally {
-      setValidating(false);
-    }
-  },
-
-   handleAdd = async () => {
-    if (!validationResult) {return;}
-
-    setAdding(true);
-    try {
-      await promoteRssSource({
-        country: reviewCountry.trim(),
-        is_paywalled: reviewPaywalled,
-        name: reviewName.trim() || validationResult.name,
-        source_type: reviewSourceType.trim(),
-        url: url.trim(),
-      });
-      setOpen(false);
-      setUrl("");
+      setAdding(true);
+      try {
+        await promoteRssSource({
+          country: reviewCountry.trim(),
+          is_paywalled: reviewPaywalled,
+          name: reviewName.trim() || validationResult.name,
+          source_type: reviewSourceType.trim(),
+          url: url.trim(),
+        });
+        setOpen(false);
+        setUrl("");
+        setValidationResult(null);
+        setError(null);
+        onSourceAdded?.();
+      } catch (caughtError) {
+        setError((() => {
+  if (caughtError instanceof Error) {
+    return caughtError.message;
+  }
+  return "Failed to add source";
+})());
+      } finally {
+        setAdding(false);
+      }
+    }, [
+      onSourceAdded,
+      reviewCountry,
+      reviewName,
+      reviewPaywalled,
+      reviewSourceType,
+      setAdding,
+      setError,
+      setOpen,
+      setUrl,
+      setValidationResult,
+      url,
+      validationResult,
+    ]);
+  const handleOpenChange = useCallback((next: boolean) => {
+      setOpen(next);
+      if (!next) {
+        setUrl("");
+        setValidationResult(null);
+        setReviewName("");
+        setReviewCountry("");
+        setReviewSourceType("");
+        setReviewPaywalled(false);
+        setError(null);
+      }
+    }, [
+      setError,
+      setOpen,
+      setReviewCountry,
+      setReviewName,
+      setReviewPaywalled,
+      setReviewSourceType,
+      setUrl,
+      setValidationResult,
+    ]);
+  const handleUrlChange = useCallback<ChangeEventHandler<HTMLInputElement>>((event) => {
+      setUrl(event.target.value);
       setValidationResult(null);
       setError(null);
-      onSourceAdded?.();
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to add source");
-    } finally {
-      setAdding(false);
-    }
-  },
-
-   handleOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (!next) {
-      setUrl("");
-      setValidationResult(null);
-      setReviewName("");
-      setReviewCountry("");
-      setReviewSourceType("");
-      setReviewPaywalled(false);
-      setError(null);
-    }
-  };
+    }, [setError, setUrl, setValidationResult]);
+  const handleUrlKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
+      (event) => {
+        if (event.key === "Enter") {
+          void handleValidate();
+        }
+      },
+      [handleValidate],
+    );
+  const handleValidateClick = useCallback(() => {
+      void handleValidate();
+    }, [handleValidate]);
+  const handleAddClick = useCallback(() => {
+      void handleAdd();
+    }, [handleAdd]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -237,19 +332,13 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
             <Input
               placeholder="https://example.com/rss"
               value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                setValidationResult(null);
-                setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {handleValidate();}
-              }}
+              onChange={handleUrlChange}
+              onKeyDown={handleUrlKeyDown}
               className="h-9 rounded-none border-white/10 bg-[var(--news-bg-primary)] text-foreground font-mono text-xs"
             />
           </div>
 
-          {error && (
+          {hasText(error) && (
             <div className="flex items-start gap-2 rounded-none border border-red-500/20 bg-red-500/5 p-3 text-xs">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-red-400" />
               <span className="text-red-300">{error}</span>
@@ -276,11 +365,11 @@ export function AddRssDialog({ onSourceAdded }: AddRssDialogProps) {
             adding={adding}
             canValidate={Boolean(url.trim())}
             canAdd={Boolean(validationResult)}
-            onValidate={() => void handleValidate()}
-            onAdd={() => void handleAdd()}
+            onValidate={handleValidateClick}
+            onAdd={handleAddClick}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+};

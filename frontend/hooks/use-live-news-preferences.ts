@@ -1,78 +1,91 @@
-"use client"
+"use client";
+import { hasText } from "@/lib/utils";
 
-import { useCallback, useState } from "react"
-import { getDefaultSources } from "@/lib/live-news-sources"
+import { useCallback, useState } from "react";
+import { getDefaultSources } from "@/lib/live-news-sources";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { z } from "zod";
 
-export interface LiveNewsPreferences {
-  activeSourceIds: string[]
-  layout: "2x2" | "3x3" | "auto"
-  muteState: "all-muted" | "per-source"
+interface LiveNewsPreferences {
+  activeSourceIds: string[];
+  layout: "2x2" | "3x3" | "auto";
+  muteState: "all-muted" | "per-source";
 }
 
-const STORAGE_KEY = "scoop_live_news_prefs"
+const STORAGE_KEY = "scoop_live_news_prefs";
+const LiveNewsPreferencesSchema = z.object({
+  activeSourceIds: z.array(z.string()),
+  layout: z.enum(["2x2", "3x3", "auto"]),
+  muteState: z.enum(["all-muted", "per-source"]),
+});
 
 const loadPreferences = (): LiveNewsPreferences | null => {
-  if (typeof window === "undefined") {return null}
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {return null}
-    const parsed = JSON.parse(raw)
-    if (
-      Array.isArray(parsed.activeSourceIds) &&
-      (parsed.layout === "2x2" ||
-        parsed.layout === "3x3" ||
-        parsed.layout === "auto") &&
-      (parsed.muteState === "all-muted" ||
-        parsed.muteState === "per-source")
-    ) {
-      return parsed as LiveNewsPreferences
-    }
-    return null
-  } catch {
-    return null
+  if (globalThis.window === undefined) {
+    return null;
   }
-}
-
-const savePreferences = (prefs: LiveNewsPreferences): void => {
-  if (typeof window === "undefined") {return}
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!hasText(raw)) {
+      return null;
+    }
+    const parsed = LiveNewsPreferencesSchema.safeParse(JSON.parse(raw));
+    if (parsed.success) {
+  return parsed.data;
+}
+return null;
+  } catch {
+    return null;
+  }
+};
+
+const savePreferences = (prefs: DeepReadonly<LiveNewsPreferences>): void => {
+  if (globalThis.window === undefined) {
+    return;
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   } catch {
     // LocalStorage unavailable
   }
-}
+};
 
 const DEFAULT_PREFERENCES: LiveNewsPreferences = {
   activeSourceIds: getDefaultSources().map((s) => s.id),
   layout: "3x3",
   muteState: "all-muted",
-}
+};
 
-export function useLiveNewsPreferences(): [
+function useLiveNewsPreferences(): [
   LiveNewsPreferences,
-  (patch: Partial<LiveNewsPreferences>) => void,
+  (patch: DeepReadonly<Partial<LiveNewsPreferences>>) => void,
   () => void,
 ] {
-  const [prefs, setPrefs] = useState<LiveNewsPreferences>(() => 
-    loadPreferences() ?? { ...DEFAULT_PREFERENCES }
-  ),
-
-   updatePreferences = useCallback(
-    (patch: Partial<LiveNewsPreferences>) => {
+  const [prefs, setPrefs] = useState<LiveNewsPreferences>(
+      () => loadPreferences() ?? { ...DEFAULT_PREFERENCES },
+    );
+  const updatePreferences = useCallback((patch: DeepReadonly<Partial<LiveNewsPreferences>>) => {
       setPrefs((prev) => {
-        const next = { ...prev, ...patch }
-        savePreferences(next)
-        return next
-      })
-    },
-    [],
-  ),
+        const next: LiveNewsPreferences = {
+          ...prev,
+          ...patch,
+          activeSourceIds: (() => {
+  if (patch.activeSourceIds) {
+    return [...patch.activeSourceIds];
+  }
+  return prev.activeSourceIds;
+})(),
+        };
+        savePreferences(next);
+        return next;
+      });
+    }, []);
+  const resetToDefaults = useCallback(() => {
+      const defaults = { ...DEFAULT_PREFERENCES };
+      savePreferences(defaults);
+      setPrefs(defaults);
+    }, []);
 
-   resetToDefaults = useCallback(() => {
-    const defaults = { ...DEFAULT_PREFERENCES }
-    savePreferences(defaults)
-    setPrefs(defaults)
-  }, [])
-
-  return [prefs, updatePreferences, resetToDefaults]
+  return [prefs, updatePreferences, resetToDefaults];
 }
+export { useLiveNewsPreferences };
+export type { LiveNewsPreferences };

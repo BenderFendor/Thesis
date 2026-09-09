@@ -1,124 +1,134 @@
-import type { NewsArticle } from "@/lib/api"
+import { hasText } from "@/lib/utils";
+import type { NewsArticle } from "@/lib/api";
 
 interface SourceGroup {
-  sourceId: string
-  sourceName: string
-  articles: NewsArticle[]
-  credibility?: string
-  bias?: string
-  sourceCountry?: string
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly articles: readonly NewsArticle[];
+  readonly credibility?: string;
+  readonly bias?: string;
+  readonly sourceCountry?: string;
 }
 
-const UNITED_STATES_PRIORITY_COUNTRIES = new Set(["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"])
+interface MutableSourceGroup extends Omit<SourceGroup, "articles"> {
+  articles: NewsArticle[];
+}
+
+const PARSED_TIMESTAMP_KEY = "_parsedTimestamp" as const;
+
+const UNITED_STATES_PRIORITY_COUNTRIES = new Set([
+  "US",
+  "USA",
+  "UNITED STATES",
+  "UNITED STATES OF AMERICA",
+]);
 
 const isUnitedStatesSource = (group: SourceGroup): boolean => {
-  const sourceCountry = group.sourceCountry?.trim().toUpperCase()
-  if (sourceCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(sourceCountry)) {
-    return true
+  const sourceCountry = group.sourceCountry?.trim().toUpperCase();
+  if (hasText(sourceCountry) && UNITED_STATES_PRIORITY_COUNTRIES.has(sourceCountry)) {
+    return true;
   }
 
   return group.articles.some((article) => {
-    const articleSourceCountry = article.source_country?.trim().toUpperCase()
-    if (articleSourceCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(articleSourceCountry)) {
-      return true
+    const articleSourceCountry = article.source_country?.trim().toUpperCase();
+    if (hasText(articleSourceCountry) && UNITED_STATES_PRIORITY_COUNTRIES.has(articleSourceCountry)) {
+      return true;
     }
 
-    const articleCountry = article.country?.trim().toUpperCase()
-    return Boolean(articleCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(articleCountry))
-  })
-}
+    const articleCountry = article.country?.trim().toUpperCase();
+    return Boolean(articleCountry && UNITED_STATES_PRIORITY_COUNTRIES.has(articleCountry));
+  });
+};
 
 const getArticleKey = (article: NewsArticle): string => {
-  const url = article.url?.trim()
-  if (url) {return `url:${url}`}
-  return `id:${article.id}`
-}
+  const url = article.url?.trim();
+  if (url) {
+    return `url:${url}`;
+  }
+  return `id:${article.id}`;
+};
 
-const buildSourceGroups = (articles:readonly  NewsArticle[]): SourceGroup[] => {
-  const groups = new Map<string, SourceGroup>(),
-   seenArticles = new Set<string>()
+const buildSourceGroups = (articles: readonly NewsArticle[]): SourceGroup[] => {
+  const groups = new Map<string, MutableSourceGroup>(),
+    seenArticles = new Set<string>();
 
   for (const article of articles) {
-    const articleKey = getArticleKey(article)
-    if (seenArticles.has(articleKey)) {
-      continue
+    const articleKey = getArticleKey(article);
+    if (!seenArticles.has(articleKey)) {
+      seenArticles.add(articleKey);
+
+      const sourceId = article.sourceId || article.source;
+      const existingGroup = groups.get(sourceId);
+
+      if (existingGroup) {
+        existingGroup.articles.push(article);
+      } else {
+        groups.set(sourceId, {
+          articles: [article],
+          bias: article.bias,
+          credibility: article.credibility,
+          sourceCountry: article.source_country ?? article.country,
+          sourceId,
+          sourceName: article.source,
+        });
+      }
     }
-    seenArticles.add(articleKey)
-
-    const sourceId = article.sourceId || article.source,
-     existingGroup = groups.get(sourceId)
-
-    if (existingGroup) {
-      existingGroup.articles.push(article)
-      continue
-    }
-
-    groups.set(sourceId, {
-      articles: [article],
-      bias: article.bias,
-      credibility: article.credibility,
-      sourceCountry: article.source_country || article.country,
-      sourceId,
-      sourceName: article.source,
-    })
   }
 
-  return [...groups.values()]
-}
+  return [...groups.values()];
+};
 
 const compareSourceGroupsForGrid = (a: SourceGroup, b: SourceGroup): number => {
-  const aIsUnitedStates = isUnitedStatesSource(a) ? 1 : 0,
-   bIsUnitedStates = isUnitedStatesSource(b) ? 1 : 0
+  const aIsUnitedStates = (() => {
+  if (isUnitedStatesSource(a)) {
+    return 1;
+  }
+  return 0;
+})(),
+    bIsUnitedStates = (() => {
+  if (isUnitedStatesSource(b)) {
+    return 1;
+  }
+  return 0;
+})();
   if (aIsUnitedStates !== bIsUnitedStates) {
-    return bIsUnitedStates - aIsUnitedStates
+    return bIsUnitedStates - aIsUnitedStates;
   }
 
-  const aLatestTimestamp = Math.max(...a.articles.map((article) => article._parsedTimestamp ?? 0)),
-   bLatestTimestamp = Math.max(...b.articles.map((article) => article._parsedTimestamp ?? 0))
+  const aLatestTimestamp = Math.max(
+      ...a.articles.map((article) => article[PARSED_TIMESTAMP_KEY] ?? 0),
+    ),
+    bLatestTimestamp = Math.max(
+      ...b.articles.map((article) => article[PARSED_TIMESTAMP_KEY] ?? 0),
+    );
   if (aLatestTimestamp !== bLatestTimestamp) {
-    return bLatestTimestamp - aLatestTimestamp
+    return bLatestTimestamp - aLatestTimestamp;
   }
 
-  const nameSort = a.sourceName.localeCompare(b.sourceName)
+  const nameSort = a.sourceName.localeCompare(b.sourceName);
   if (nameSort !== 0) {
-    return nameSort
+    return nameSort;
   }
 
-  return a.sourceId.localeCompare(b.sourceId)
-}
+  return a.sourceId.localeCompare(b.sourceId);
+};
 
 const getVisibleSourceIds = (
-  sourceGroups:readonly  SourceGroup[],
-  favoriteSourceIds: Set<string>,
+  sourceGroups: readonly SourceGroup[],
+  favoriteSourceIds: ReadonlySet<string>,
   batchCount: number,
   batchSize: number,
 ): Set<string> => {
   const visibleFavoriteIds = sourceGroups
-    .filter((group) => favoriteSourceIds.has(group.sourceId))
-    .map((group) => group.sourceId),
+      .filter((group) => favoriteSourceIds.has(group.sourceId))
+      .map((group) => group.sourceId),
+    visibleNonFavoriteIds = sourceGroups
+      .filter((group) => !favoriteSourceIds.has(group.sourceId))
+      .slice(0, Math.max(0, batchCount) * Math.max(1, batchSize))
+      .map((group) => group.sourceId);
 
-   visibleNonFavoriteIds = sourceGroups
-    .filter((group) => !favoriteSourceIds.has(group.sourceId))
-    .slice(0, Math.max(0, batchCount) * Math.max(1, batchSize))
-    .map((group) => group.sourceId)
+  return new Set([...visibleFavoriteIds, ...visibleNonFavoriteIds]);
+};
 
-  return new Set([...visibleFavoriteIds, ...visibleNonFavoriteIds])
-}
-
-const getCollapsedVisibleArticleCount = (
-  sourceGroups:readonly  SourceGroup[],
-  visibleSourceIds: Set<string>,
-  collapsedArticleCount: number,
-): number => {
-  const safeCollapsedCount = Math.max(1, collapsedArticleCount)
-
-  return sourceGroups.reduce((total, group) => {
-    if (!visibleSourceIds.has(group.sourceId)) {
-      return total
-    }
-
-    return total + Math.min(group.articles.length, safeCollapsedCount)
-  }, 0)
-}
-export { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds, getCollapsedVisibleArticleCount };
+export { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds };
 export type { SourceGroup };

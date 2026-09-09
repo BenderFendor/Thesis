@@ -1,68 +1,74 @@
-"use client"
+"use client";
+import { hasText } from "@/lib/utils";
 
-import { ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
-import { checkSourceProfileCache, researchSourceProfile } from "@/lib/api"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import type { SourceResearchProfile } from "@/lib/api"
-import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { ExternalLink, Loader2, RefreshCw, Search } from "lucide-react";
+import { checkSourceProfileCache, researchSourceProfile } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import type { SourceResearchProfile } from "@/lib/api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface SourceResearchPanelProps {
-  sourceName: string
-  website?: string
-  autoRun?: boolean
+  readonly sourceName: string;
+  readonly website?: string;
+  readonly autoRun?: boolean;
 }
 
-const statusBadgeClass: Record<string, string> = {
+type ReadonlySourceResearchProfile = DeepReadonly<SourceResearchProfile>;
+
+const statusBadgeClass = {
   ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   none: "border-white/10 bg-muted/20 text-muted-foreground",
-}
+} as const satisfies Record<"ambiguous" | "matched" | "none", string>;
 
-const selectSourceResearchData = function  selectSourceResearchData<T>(
-  cachedData?: T,
-  researchData?: T,
-): T | undefined {
-  return researchData ?? cachedData
-}
+const selectSourceResearchData = function selectSourceResearchData(
+  cachedData?: ReadonlySourceResearchProfile | null,
+  researchData?: ReadonlySourceResearchProfile | null,
+): ReadonlySourceResearchProfile | null | undefined {
+  return researchData ?? cachedData;
+};
 
 const useSourceResearchController = ({
   sourceName,
   website,
   autoRun,
-}: SourceResearchPanelProps) => {
-  const [runFullResearch, setRunFullResearch] = useState(autoRun),
-   [refreshCounter, setRefreshCounter] = useState(0),
-   sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`,
-   sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`,
-
-   { data: cachedData, isFetching: isCheckingCache } = useQuery({
-    enabled: sourceName.length > 0 && !runFullResearch,
-    queryFn: () => checkSourceProfileCache(sourceName, website),
-    queryKey: ["source-research-cache-check", sourceName],
-    retry: false,
-    staleTime: 1000 * 60 * 60,
-  }),
-
-   { data: researchData, error, isFetching: isResearching } = useQuery({
-    enabled: runFullResearch && sourceName.length > 0,
-    queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
-    queryKey: ["source-research", sourceName, refreshCounter],
-    retry: 1,
-    staleTime: 1000 * 60 * 60,
-  }),
-
-   data = selectSourceResearchData(cachedData, researchData),
-   isFetching = isCheckingCache || isResearching,
-   hasData = Boolean(data),
-
-   handleRun = () => { setRunFullResearch(true); },
-   handleRefresh = () => {
-    setRunFullResearch(true)
-    setRefreshCounter((count) => count + 1)
-  }
+}: Readonly<SourceResearchPanelProps>) => {
+  const [runFullResearch, setRunFullResearch] = useState(autoRun);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`;
+  const sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`;
+  const { data: cachedData, isFetching: isCheckingCache } = useQuery({
+      enabled: sourceName.length > 0 && runFullResearch !== true,
+      queryFn: () => checkSourceProfileCache(sourceName, website),
+      queryKey: ["source-research-cache-check", sourceName],
+      retry: false,
+      staleTime: 1000 * 60 * 60,
+    });
+  const {
+      data: researchData,
+      error,
+      isFetching: isResearching,
+    } = useQuery({
+      enabled: runFullResearch === true && sourceName.length > 0,
+      queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
+      queryKey: ["source-research", sourceName, refreshCounter],
+      retry: 1,
+      staleTime: 1000 * 60 * 60,
+    });
+  const data = selectSourceResearchData(cachedData, researchData);
+  const isFetching = isCheckingCache || isResearching;
+  const hasData = Boolean(data);
+  const handleRun = () => {
+      setRunFullResearch(true);
+    };
+  const handleRefresh = () => {
+      setRunFullResearch(true);
+      setRefreshCounter((count) => count + 1);
+    };
 
   return {
     data,
@@ -73,10 +79,14 @@ const useSourceResearchController = ({
     isFetching,
     sourceSearchUrl,
     sourceWikiHref,
-  }
-}
+  };
+};
 
-const SourceResearchPanel = ({ sourceName, website, autoRun = false }: SourceResearchPanelProps) => {
+const SourceResearchPanel = ({
+  sourceName,
+  website,
+  autoRun = false,
+}: Readonly<SourceResearchPanelProps>) => {
   const {
     data,
     error,
@@ -86,7 +96,7 @@ const SourceResearchPanel = ({ sourceName, website, autoRun = false }: SourceRes
     handleRun,
     sourceSearchUrl,
     sourceWikiHref,
-  } = useSourceResearchController({ autoRun, sourceName, website })
+  } = useSourceResearchController({ autoRun, sourceName, website });
 
   return (
     <div className="flex h-full flex-col">
@@ -106,8 +116,8 @@ const SourceResearchPanel = ({ sourceName, website, autoRun = false }: SourceRes
         sourceSearchUrl={sourceSearchUrl}
       />
     </div>
-  )
-}
+  );
+};
 
 interface SourceResearchPanelHeaderProps {
   readonly hasData: boolean;
@@ -117,257 +127,322 @@ interface SourceResearchPanelHeaderProps {
   readonly sourceWikiHref: string;
 }
 
-function SourceResearchPanelHeader({
+const SourceResearchPanelHeader = ({
   hasData,
   isFetching,
   onRefresh,
   onRun,
   sourceWikiHref,
-}: Readonly<SourceResearchPanelHeaderProps>) {
-  return (
-    <div className="border-b border-white/10 p-4 shrink-0">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Source Wiki Preview</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">Deterministic public-source facts and record links.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2">
-            <Link href={sourceWikiHref}>
-              <ExternalLink className="mr-1 h-3 w-3" />
-              Full wiki
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={hasData ? onRefresh : onRun}
-            className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
-          >
-            {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RefreshCw className="mr-1 h-3 w-3" />{hasData ? "Refresh" : "Run"}</>}
-          </Button>
-        </div>
+}: Readonly<SourceResearchPanelHeaderProps>) => (
+  <div className="border-b border-white/10 p-4 shrink-0">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          Source Wiki Preview
+        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Deterministic public-source facts and record links.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+        >
+          <Link href={sourceWikiHref}>
+            <ExternalLink className="mr-1 h-3 w-3" />
+            Full wiki
+          </Link>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(() => {
+  if (hasData) {
+    return onRefresh;
+  }
+  return onRun;
+})()}
+          className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+        >
+          {(() => {
+  if (isFetching) {
+    return <Loader2 className="h-3 w-3 animate-spin" />;
+  }
+  return <>
+              <RefreshCw className="mr-1 h-3 w-3" />
+              {(() => {
+      if (hasData) {
+        return "Refresh";
+      }
+      return "Run";
+    })()}
+            </>;
+})()}
+        </Button>
       </div>
     </div>
-  )
-}
+  </div>
+);
 
 interface SourceResearchPanelContentProps {
-  readonly data: SourceResearchProfile | null | undefined;
-  readonly error: Error | null;
+  readonly data: ReadonlySourceResearchProfile | null | undefined;
+  readonly error: Readonly<Error> | null;
   readonly hasData: boolean;
   readonly isFetching: boolean;
   readonly sourceSearchUrl: string;
 }
 
-function SourceResearchPanelContent({
+const SourceResearchPanelContent = ({
   data,
   error,
   hasData,
   isFetching,
   sourceSearchUrl,
-}: Readonly<SourceResearchPanelContentProps>) {
-  return (
-    <div className="flex-1 overflow-y-auto p-4">
-      <SourceResearchEmptyState visible={!hasData && !isFetching && error === null} />
-      <SourceResearchLoadingState visible={isFetching && !hasData} />
-      <SourceResearchErrorState visible={error !== null} />
-      <SourceResearchProfileState data={data} sourceSearchUrl={sourceSearchUrl} />
-    </div>
-  )
-}
+}: Readonly<SourceResearchPanelContentProps>) => (
+  <div className="flex-1 overflow-y-auto p-4">
+    <SourceResearchEmptyState visible={!hasData && !isFetching && error === null} />
+    <SourceResearchLoadingState visible={isFetching && !hasData} />
+    <SourceResearchErrorState visible={error !== null} />
+    <SourceResearchProfileState data={data} sourceSearchUrl={sourceSearchUrl} />
+  </div>
+);
 
 interface SourceResearchVisibilityProps {
   readonly visible: boolean;
 }
 
-function SourceResearchEmptyState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+const SourceResearchEmptyState = ({ visible }: Readonly<SourceResearchVisibilityProps>) => {
   if (!visible) {
-    return <></>
+    return null;
   }
   return (
     <p className="border-l-2 border-primary/30 pl-2 text-[11px] text-muted-foreground">
       Run research to fetch verified ownership, funding, and public records.
     </p>
-  )
-}
+  );
+};
 
-function SourceResearchLoadingState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+const SourceResearchLoadingState = ({ visible }: Readonly<SourceResearchVisibilityProps>) => {
   if (!visible) {
-    return <></>
+    return null;
   }
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-[10px] font-mono text-muted-foreground animate-pulse">
       Running source dossier lookup...
     </div>
-  )
-}
+  );
+};
 
-function SourceResearchErrorState({ visible }: Readonly<SourceResearchVisibilityProps>) {
+const SourceResearchErrorState = ({ visible }: Readonly<SourceResearchVisibilityProps>) => {
   if (!visible) {
-    return <></>
+    return null;
   }
   return (
     <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-[10px] font-mono text-red-400">
       Research failed. Retry.
     </div>
-  )
-}
+  );
+};
 
 interface SourceResearchProfileStateProps {
-  readonly data: SourceResearchProfile | null | undefined;
+  readonly data: ReadonlySourceResearchProfile | null | undefined;
   readonly sourceSearchUrl: string;
 }
 
-function SourceResearchProfileState({
+const SourceResearchProfileState = ({
   data,
   sourceSearchUrl,
-}: Readonly<SourceResearchProfileStateProps>) {
+}: Readonly<SourceResearchProfileStateProps>) => {
   if (data === undefined || data === null) {
-    return <></>
+    return null;
   }
-  return <ResearchProfileContent data={data} sourceSearchUrl={sourceSearchUrl} />
-}
+  return <ResearchProfileContent data={data} sourceSearchUrl={sourceSearchUrl} />;
+};
 
-type ResearchSection = NonNullable<SourceResearchProfile["dossier_sections"]>[number]
+type ResearchSection = NonNullable<ReadonlySourceResearchProfile["dossier_sections"]>[number];
 
-function ResearchProfileContent({ data, sourceSearchUrl }:Readonly< { data: SourceResearchProfile; sourceSearchUrl: string }>) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <ResearchStatusBadge status={data.match_status} />
-        <Badge variant="outline" className="border-white/10 text-[9px] font-mono uppercase text-muted-foreground rounded-sm px-1.5 py-0">
-          {data.cached ? "Cached" : "Live"}
-        </Badge>
-      </div>
-
-      {data.overview && <ResearchOverviewBlock overview={data.overview} />}
-      {data.match_explanation && <ResearchMethodBlock matchExplanation={data.match_explanation} />}
-
-      {(data.dossier_sections || []).map((section) => (
-        <DossierSectionCard key={section.id} section={section} />
-      ))}
-
-      {data.citations && data.citations.length > 0 && (
-        <ResearchCitationsBlock citations={data.citations} />
-      )}
-
-      {data.match_status !== "matched" && <NoVerifiedOverviewBlock />}
-
-      <ResearchLinksRow data={data} sourceSearchUrl={sourceSearchUrl} />
+const ResearchProfileContent = ({
+  data,
+  sourceSearchUrl,
+}: Readonly<{ data: ReadonlySourceResearchProfile; sourceSearchUrl: string }>) => (
+  <div className="space-y-4">
+    <div className="flex items-center gap-2">
+      <ResearchStatusBadge status={data.match_status} />
+      <Badge
+        variant="outline"
+        className="border-white/10 text-[9px] font-mono uppercase text-muted-foreground rounded-sm px-1.5 py-0"
+      >
+        {(() => {
+  if (data.cached === true) {
+    return "Cached";
+  }
+  return "Live";
+})()}
+      </Badge>
     </div>
-  )
-}
 
-function ResearchStatusBadge({ status }:Readonly< { status?: SourceResearchProfile["match_status"] }>) {
-  return (
-    <Badge variant="outline" className={statusBadgeClass[status || "none"]}>
-      {status === "matched" ? "verified" : (status === "ambiguous" ? "ambiguous" : "no match")}
-    </Badge>
-  )
-}
+    {hasText(data.overview) && <ResearchOverviewBlock overview={data.overview} />}
+    {hasText(data.match_explanation) && <ResearchMethodBlock matchExplanation={data.match_explanation} />}
 
-function ResearchOverviewBlock({ overview }:Readonly< { overview: string }>) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Overview</p>
-      <p className="mt-2 text-sm leading-relaxed text-foreground/90">{overview}</p>
-    </div>
-  )
-}
+    {(data.dossier_sections ?? []).map((section) => (
+      <DossierSectionCard key={section.id} section={section} />
+    ))}
 
-function ResearchMethodBlock({ matchExplanation }:Readonly< { matchExplanation: string }>) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Method</p>
-      <p className="mt-1 text-xs text-muted-foreground">{matchExplanation}</p>
-    </div>
-  )
-}
+    {data.citations && data.citations.length > 0 && (
+      <ResearchCitationsBlock citations={data.citations} />
+    )}
 
-function DossierSectionCard({ section }:Readonly< { section: ResearchSection }>) {
-  return (
-    <div className={`rounded-lg border p-3 ${section.items.length > 0 ? "border-white/10 bg-[var(--news-bg-primary)]" : "border-white/10 bg-muted/20 opacity-70 grayscale"}`}>
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p>
-      {section.items.length > 0 ? (
-        <div className="mt-2 space-y-2">
-          {section.items.slice(0, 4).map((item, index) => (
-            <div key={`${section.id}-${index}`}>
-              <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">{item.label || "Fact"}</p>
-              <p className="mt-1 text-sm text-foreground/90 break-words">{item.value}</p>
-            </div>
-          ))}
+    {data.match_status !== "matched" && <NoVerifiedOverviewBlock />}
+
+    <ResearchLinksRow data={data} sourceSearchUrl={sourceSearchUrl} />
+  </div>
+);
+
+const ResearchStatusBadge = ({
+  status,
+}: Readonly<{ status?: ReadonlySourceResearchProfile["match_status"] }>) => (
+  <Badge variant="outline" className={statusBadgeClass[status ?? "none"]}>
+    {(() => {
+  if (status === "matched") {
+    return "verified";
+  }
+  return (() => {
+    if (status === "ambiguous") {
+      return "ambiguous";
+    }
+    return "no match";
+  })();
+})()}
+  </Badge>
+);
+
+const ResearchOverviewBlock = ({ overview }: Readonly<{ overview: string }>) => (
+  <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
+    <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+      Overview
+    </p>
+    <p className="mt-2 text-sm leading-relaxed text-foreground/90">{overview}</p>
+  </div>
+);
+
+const ResearchMethodBlock = ({ matchExplanation }: Readonly<{ matchExplanation: string }>) => (
+  <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
+    <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Method</p>
+    <p className="mt-1 text-xs text-muted-foreground">{matchExplanation}</p>
+  </div>
+);
+
+const DossierSectionCard = ({ section }: Readonly<{ section: ResearchSection }>) => (
+  <div
+    className={`rounded-lg border p-3 ${(() => {
+  if (section.items.length > 0) {
+    return "border-white/10 bg-[var(--news-bg-primary)]";
+  }
+  return "border-white/10 bg-muted/20 opacity-70 grayscale";
+})()}`}
+  >
+    <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+      {section.title}
+    </p>
+    {(() => {
+  if (section.items.length > 0) {
+    return <div className="mt-2 space-y-2">
+        {section.items.slice(0, 4).map(item => <div key={`${section.id}-${item.label ?? "Fact"}-${item.value ?? ""}`}>
+            <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
+              {item.label ?? "Fact"}
+            </p>
+            <p className="mt-1 text-sm text-foreground/90 break-words">{item.value}</p>
+          </div>)}
+      </div>;
+  }
+  return <p className="mt-2 text-xs text-muted-foreground">No public record found.</p>;
+})()}
+  </div>
+);
+
+const ResearchCitationsBlock = ({
+  citations,
+}: Readonly<{ citations: NonNullable<ReadonlySourceResearchProfile["citations"]> }>) => (
+  <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
+    <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+      Sources
+    </p>
+    <div className="mt-2 space-y-1">
+      {citations.slice(0, 5).map((citation) => (
+        <div
+          key={`${citation.label}-${citation.url ?? ""}-${citation.note ?? ""}`}
+          className="text-xs text-muted-foreground"
+        >
+          {(() => {
+  if (hasText(citation.url)) {
+    return <a href={citation.url} target="_blank" rel="noreferrer" className="hover:text-primary">
+              {citation.label}
+            </a>;
+  }
+  return citation.label;
+})()}
+          {(() => {
+  if (hasText(citation.note)) {
+    return ` · ${citation.note}`;
+  }
+  return "";
+})()}
         </div>
-      ) : (
-        <p className="mt-2 text-xs text-muted-foreground">No public record found.</p>
-      )}
+      ))}
     </div>
-  )
-}
+  </div>
+);
 
-function ResearchCitationsBlock({ citations }:Readonly< { citations: NonNullable<SourceResearchProfile["citations"]> }>) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Sources</p>
-      <div className="mt-2 space-y-1">
-        {citations.slice(0, 5).map((citation, index) => (
-          <div key={`${citation.label}-${index}`} className="text-xs text-muted-foreground">
-            {citation.url ? (
-              <a href={citation.url} target="_blank" rel="noreferrer" className="hover:text-primary">
-                {citation.label}
-              </a>
-            ) : citation.label}
-            {citation.note ? ` · ${citation.note}` : ""}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+const NoVerifiedOverviewBlock = () => (
+  <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
+    <p className="text-sm font-medium text-foreground">No verified source overview yet</p>
+    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+      We did not find enough structured public data to build a full source wiki.
+    </p>
+  </div>
+);
 
-function NoVerifiedOverviewBlock() {
-  return (
-    <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
-      <p className="text-sm font-medium text-foreground">No verified source overview yet</p>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        We did not find enough structured public data to build a full source wiki.
-      </p>
-    </div>
-  )
-}
+const ResearchLinksRow = ({
+  data,
+  sourceSearchUrl,
+}: Readonly<{ data: ReadonlySourceResearchProfile; sourceSearchUrl: string }>) => (
+  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+    {hasText(data.wikipedia_url) && (
+      <a
+        href={data.wikipedia_url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
+      >
+        <ExternalLink className="h-4 w-4" />
+        Wikipedia
+      </a>
+    )}
+    {hasText(data.wikidata_url) && (
+      <a
+        href={data.wikidata_url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
+      >
+        <ExternalLink className="h-4 w-4" />
+        Wikidata
+      </a>
+    )}
+    <Button variant="outline" size="sm" asChild>
+      <a
+        href={data.search_links?.source_search ?? sourceSearchUrl}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <Search className="mr-2 h-3.5 w-3.5" />
+        Search public web
+      </a>
+    </Button>
+  </div>
+);
 
-function ResearchLinksRow({ data, sourceSearchUrl }:Readonly< { data: SourceResearchProfile; sourceSearchUrl: string }>) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
-      {data.wikipedia_url && (
-        <a
-          href={data.wikipedia_url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Wikipedia
-        </a>
-      )}
-      {data.wikidata_url && (
-        <a
-          href={data.wikidata_url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Wikidata
-        </a>
-      )}
-      <Button variant="outline" size="sm" asChild>
-        <a href={data.search_links?.source_search || sourceSearchUrl} target="_blank" rel="noreferrer">
-          <Search className="mr-2 h-3.5 w-3.5" />
-          Search public web
-        </a>
-      </Button>
-    </div>
-  )
-}
-export { selectSourceResearchData, SourceResearchPanel };
+export { SourceResearchPanel };

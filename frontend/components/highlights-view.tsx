@@ -1,18 +1,93 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import { Highlighter, X } from "lucide-react";
 import { deleteHighlight, getAllHighlights } from "@/lib/api";
-import { useEffect, useState } from "react";
+import type { ChangeEventHandler } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { Highlight} from "@/lib/api";
+import type { Highlight } from "@/lib/api";
 import { toast } from "sonner";
 
-export function HighlightsView() {
-  const [highlights, setHighlights] = useState<Highlight[]>([]),
-   [loading, setLoading] = useState(true),
-   [filterColor, setFilterColor] = useState<string | null>(null),
-   [searchTerm, setSearchTerm] = useState("");
+const colorMap = {
+  blue: "bg-blue-200 border-blue-300",
+  green: "bg-green-200 border-green-300",
+  purple: "bg-purple-200 border-purple-300",
+  red: "bg-red-200 border-red-300",
+  yellow: "bg-yellow-200 border-yellow-300",
+} as const satisfies Record<Highlight["color"], string>;
+
+interface HighlightCardProps {
+  readonly highlight: Highlight;
+  readonly onDelete: (highlightId: number | undefined) => void;
+}
+
+const HighlightCard = ({ highlight, onDelete }: Readonly<HighlightCardProps>) => {
+  const handleDelete = useCallback(() => {
+    onDelete(highlight.id);
+  }, [highlight.id, onDelete]);
+
+  return (
+    <Card
+      key={highlight.id}
+      className={`border-2 p-4 ${colorMap[highlight.color]}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="mb-2 text-sm italic text-gray-800">
+            &quot;{highlight.highlighted_text}&quot;
+          </p>
+          {hasText(highlight.note) && (
+            <p className="mb-2 text-xs text-gray-600">
+              <strong>Note:</strong> {highlight.note}
+            </p>
+          )}
+          <p className="text-xs text-gray-500">
+            From: {" "}
+            <a
+              href={highlight.article_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate text-blue-600 hover:underline dark:text-blue-400"
+            >
+              {highlight.article_url.replace(/^https?:\/\//u, "")}
+            </a>
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          className="flex-shrink-0"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </Card>
+  );
+};
+
+export const HighlightsView = () => {
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterColor, setFilterColor] = useState<Highlight["color"] | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const handleAllFilter = useCallback(() => {
+      setFilterColor(null);
+    }, []);
+  const handleBlueFilter = useCallback(() => {
+      setFilterColor("blue");
+    }, []);
+  const handleRedFilter = useCallback(() => {
+      setFilterColor("red");
+    }, []);
+  const handleYellowFilter = useCallback(() => {
+      setFilterColor("yellow");
+    }, []);
+  const handleSearchChange = useCallback<ChangeEventHandler<HTMLInputElement>>((event) => {
+      setSearchTerm(event.target.value);
+    }, []);
 
   useEffect(() => {
     const fetchHighlights = async () => {
@@ -28,35 +103,36 @@ export function HighlightsView() {
       }
     };
 
-    fetchHighlights();
+    void fetchHighlights();
   }, []);
 
-  const colorMap = {
-    blue: "bg-blue-200 border-blue-300",
-    red: "bg-red-200 border-red-300",
-    yellow: "bg-yellow-200 border-yellow-300",
-  },
+  const filtered = highlights
+      .filter((h) => !filterColor || h.color === filterColor)
+      .filter(
+        (h) =>
+          h.highlighted_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          h.article_url.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    handleDelete = useCallback(async (highlightId: number | undefined) => {
+      if (highlightId === undefined || highlightId === 0) {
+        return;
+      }
 
-   filtered = highlights
-    .filter((h) => !filterColor || h.color === filterColor)
-    .filter(
-      (h) =>
-        h.highlighted_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        h.article_url.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-
-   handleDelete = async (highlightId: number | undefined) => {
-    if (!highlightId) {return;}
-
-    try {
-      await deleteHighlight(highlightId);
-      setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
-      toast.success("Highlight deleted");
-    } catch (error) {
-      console.error("Failed to delete highlight:", error);
-      toast.error("Failed to delete highlight");
-    }
-  };
+      try {
+        await deleteHighlight(highlightId);
+        setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
+        toast.success("Highlight deleted");
+      } catch (error) {
+        console.error("Failed to delete highlight:", error);
+        toast.error("Failed to delete highlight");
+      }
+    }, []);
+  const handleDeleteFromCard = useCallback(
+      (highlightId: number | undefined) => {
+        void handleDelete(highlightId);
+      },
+      [handleDelete],
+    );
 
   if (loading) {
     return (
@@ -72,21 +148,46 @@ export function HighlightsView() {
     <div className="space-y-4">
       <div className="flex gap-2 flex-wrap">
         <Button
-          variant={filterColor === null ? "default" : "outline"}
+          variant={(() => {
+  if (filterColor === null) {
+    return "default";
+  }
+  return "outline";
+})()}
           size="sm"
-          onClick={() =>{  setFilterColor(null); }}
+          onClick={handleAllFilter}
         >
           All
         </Button>
         {(["yellow", "blue", "red"] as const).map((color) => (
           <Button
             key={color}
-            variant={filterColor === color ? "default" : "outline"}
+            variant={(() => {
+  if (filterColor === color) {
+    return "default";
+  }
+  return "outline";
+})()}
             size="sm"
-            onClick={() =>{  setFilterColor(color); }}
-            className={
-              filterColor === color ? colorMap[color] : ""
+            onClick={
+              (() => {
+  if (color === "yellow") {
+    return handleYellowFilter;
+  }
+  return (() => {
+    if (color === "blue") {
+      return handleBlueFilter;
+    }
+    return handleRedFilter;
+  })();
+})()
             }
+            className={(() => {
+  if (filterColor === color) {
+    return colorMap[color];
+  }
+  return "";
+})()}
           >
             {color.charAt(0).toUpperCase() + color.slice(1)}
           </Button>
@@ -98,58 +199,22 @@ export function HighlightsView() {
           type="text"
           placeholder="Search highlights..."
           value={searchTerm}
-          onChange={(e) =>{  setSearchTerm(e.target.value); }}
+          onChange={handleSearchChange}
           className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
         />
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+      {(() => {
+  if (filtered.length === 0) {
+    return <div className="text-center py-8 text-gray-600 dark:text-gray-400">
           <Highlighter className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No highlights yet</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((highlight) => (
-            <Card
-              key={highlight.id}
-              className={`p-4 border-2 ${colorMap[highlight.color as keyof typeof colorMap]}`}
-            >
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm italic mb-2 text-gray-800">
-                    &quot;{highlight.highlighted_text}&quot;
-                  </p>
-                  {highlight.note && (
-                    <p className="text-xs text-gray-600 mb-2">
-                      <strong>Note:</strong> {highlight.note}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    From:{" "}
-                    <a
-                      href={highlight.article_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline truncate"
-                    >
-                      {highlight.article_url.replace(/^https?:\/\//u, "")}
-                    </a>
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(highlight.id)}
-                  className="flex-shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+        </div>;
+  }
+  return <div className="space-y-3">
+          {filtered.map(highlight => <HighlightCard key={highlight.id} highlight={highlight} onDelete={handleDeleteFromCard} />)}
+        </div>;
+})()}
     </div>
   );
-}
+};

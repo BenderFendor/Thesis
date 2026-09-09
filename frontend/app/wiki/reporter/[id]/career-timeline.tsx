@@ -1,16 +1,19 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
 import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { ReporterCareerTimeline } from "@/lib/api";
+import { formatMonthYear } from "@/lib/date-formatters";
 
 const formatTimelineDate = (value?: string | null): string | null => {
-  if (!value) {return null;}
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {return null;}
-  return parsed.toLocaleDateString(undefined, { month: "short", year: "numeric" });
-}
+  if (!hasText(value)) {
+    return null;
+  }
+  const formatted = formatMonthYear(value);
+  return formatted || null;
+};
 
 /**
  * Reporter career timeline (Atlas Phase 4): chronological byline + affiliation
@@ -18,14 +21,16 @@ const formatTimelineDate = (value?: string | null): string | null => {
  * of the reporter's outlets resolve to the same accepted owner. Replaces the
  * deleted synthetic coauthor/shared_outlet reporter-graph edges.
  */
-export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline }>) {
-  if (data.timeline.length === 0) {return;}
+export const CareerTimeline = ({ data }: Readonly<{ data: ReporterCareerTimeline }>) => {
+  if (data.timeline.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-3">
-      {data.shared_owner_findings.map((finding, index) => (
+      {data.shared_owner_findings.map((finding) => (
         <div
-          key={`${finding.owner.entity_id}-${index}`}
+          key={`${finding.owner.entity_id}-${finding.claim_ids.join("|")}`}
           className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm"
         >
           <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -34,35 +39,41 @@ export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline
               Reported for{" "}
               {finding.outlets.map((outlet, outletIndex) => (
                 <span key={outlet.entity_id}>
-                  {outletIndex > 0 ? (outletIndex === finding.outlets.length - 1 ? " and " : ", ") : ""}
-                  {outlet.profile_path ? (
-                    <Link
-                      href={outlet.profile_path}
-                      className="underline decoration-white/20 underline-offset-2 hover:text-white"
-                    >
+                  {(() => {
+  if (outletIndex > 0) {
+    return (() => {
+      if (outletIndex === finding.outlets.length - 1) {
+        return " and ";
+      }
+      return ", ";
+    })();
+  }
+  return "";
+})()}
+                  {(() => {
+  if (hasText(outlet.profile_path)) {
+    return <Link href={outlet.profile_path} className="underline decoration-white/20 underline-offset-2 hover:text-white">
                       {outlet.label}
-                    </Link>
-                  ) : (
-                    outlet.label
-                  )}
+                    </Link>;
+  }
+  return outlet.label;
+})()}
                 </span>
-              ))}
-              {" "}— both ultimately owned by{" "}
-              {finding.owner.profile_path ? (
-                <Link
-                  href={finding.owner.profile_path}
-                  className="underline decoration-white/20 underline-offset-2 hover:text-white"
-                >
+              ))}{" "}
+              — both ultimately owned by{" "}
+              {(() => {
+  if (hasText(finding.owner.profile_path)) {
+    return <Link href={finding.owner.profile_path} className="underline decoration-white/20 underline-offset-2 hover:text-white">
                   {finding.owner.label}
-                </Link>
-              ) : (
-                finding.owner.label
-              )}
+                </Link>;
+  }
+  return finding.owner.label;
+})()}
               .
             </p>
             <div className="mt-2">
               <Link
-                href={finding.owner.profile_path || "#"}
+                href={finding.owner.profile_path ?? "#"}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground transition-colors hover:text-white"
               >
                 {finding.evidence_count} evidence · view ownership chain
@@ -73,20 +84,35 @@ export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline
       ))}
 
       <div className="relative space-y-4 border-l border-white/10 pl-6">
-        {data.timeline.map((entry, index) => {
-          const start = formatTimelineDate(entry.start_date),
-           end = formatTimelineDate(entry.end_date),
-           range =
-            start && end ? (start === end ? start : `${start} – ${end}`) : start || end || "Undated";
+        {data.timeline.map((entry) => {
+          const start = formatTimelineDate(entry.start_date);
+          const end = formatTimelineDate(entry.end_date);
+          const range =
+              (() => {
+  if (hasText(start) && hasText(end)) {
+    return (() => {
+      if (start === end) {
+        return start;
+      }
+      return `${start} – ${end}`;
+    })();
+  }
+  return start ?? end ?? "Undated";
+})();
           return (
-            <div key={`${entry.outlet}-${entry.source}-${index}`} className="relative">
+            <div
+              key={`${entry.outlet}-${entry.source}-${entry.start_date ?? ""}-${entry.end_date ?? ""}`}
+              className="relative"
+            >
               <span
                 aria-hidden="true"
                 className="absolute -left-[29px] top-4 h-2.5 w-2.5 rounded-full border-2 border-primary/70 bg-background"
               />
               <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/5 bg-black/20 px-4 py-3 transition-all hover:bg-white/[0.03]">
                 <div className="min-w-0">
-                  <div className="font-mono text-[10px] uppercase tracking-widest text-primary/80">{range}</div>
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-primary/80">
+                    {range}
+                  </div>
                   <div className="mt-1 flex items-center gap-2">
                     <Link
                       href={`/wiki/source/${encodeURIComponent(entry.outlet)}`}
@@ -94,33 +120,35 @@ export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline
                     >
                       {entry.outlet}
                     </Link>
-                    <Badge variant="outline" className="shrink-0 text-[9px] font-mono tracking-widest uppercase">
-                      {entry.source === "byline" ? "Byline" : "Affiliation"}
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[9px] font-mono tracking-widest uppercase"
+                    >
+                      {(() => {
+  if (entry.source === "byline") {
+    return "Byline";
+  }
+  return "Affiliation";
+})()}
                     </Badge>
                   </div>
-                  {entry.role ? (
-                    <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {Boolean(entry.role) && <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       {entry.role}
-                    </div>
-                  ) : null}
+                    </div>}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {entry.article_count == null ? null : (
-                    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
+                  {(() => {
+  if (entry.article_count === null || entry.article_count === undefined) {
+    return null;
+  }
+  return <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
                       {entry.article_count} articles
-                    </span>
-                  )}
-                  {entry.evidence_url ? (
-                    <a
-                      href={entry.evidence_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground transition-colors hover:text-white"
-                    >
+                    </span>;
+})()}
+                  {entry.evidence_url !== undefined && entry.evidence_url !== null && entry.evidence_url !== "" && <a href={entry.evidence_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground transition-colors hover:text-white">
                       <ExternalLink className="h-3 w-3" />
                       Evidence
-                    </a>
-                  ) : null}
+                    </a>}
                 </div>
               </div>
             </div>
@@ -129,4 +157,4 @@ export function CareerTimeline({ data }:Readonly< { data: ReporterCareerTimeline
       </div>
     </div>
   );
-}
+};
