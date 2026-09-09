@@ -59,6 +59,8 @@ type ComparisonArticle = Omit<ClusterArticle, "source_id"> & {
   readonly source_id?: string;
 };
 
+const EMPTY_CLUSTER_ARTICLES: readonly ClusterArticle[] = [];
+
 const normalizeComparisonArticle = (article: ClusterArticle): ComparisonArticle => ({
   ...article,
   source_id: article.source_id?.trim() ?? undefined,
@@ -609,12 +611,12 @@ interface ClusterDetailViewProps {
   readonly loadingArticle: number | null;
   readonly likedIds: ReadonlySet<number>;
   readonly isArticleInQueue: (url: string) => boolean;
-  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly contentRef: Readonly<RefObject<HTMLDivElement | null>>;
   readonly onLike: (articleId: number) => void;
   readonly onQueueToggle: (article: ClusterArticle) => void;
   readonly onTabChange: (value: string) => void;
   readonly onOpenComparison: () => void;
-  readonly comparison: ComparisonTabProps;
+  readonly comparison: Readonly<ComparisonTabProps>;
 }
 
 const getClusterPanelSize = (isExpanded: boolean): string => {
@@ -674,13 +676,13 @@ interface ClusterArticleTabsProps {
   readonly loadingArticle: number | null;
   readonly likedIds: ReadonlySet<number>;
   readonly isArticleInQueue: (url: string) => boolean;
-  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly contentRef: Readonly<RefObject<HTMLDivElement | null>>;
   readonly onLike: (articleId: number) => void;
   readonly onQueueToggle: (article: ClusterArticle) => void;
   readonly onClose: () => void;
   readonly onTabChange: (value: string) => void;
   readonly onOpenComparison: () => void;
-  readonly comparison: ComparisonTabProps;
+  readonly comparison: Readonly<ComparisonTabProps>;
 }
 
 const ClusterArticleTabs = ({
@@ -697,7 +699,7 @@ const ClusterArticleTabs = ({
   onTabChange,
   onOpenComparison,
   comparison,
-}: ClusterArticleTabsProps) => (
+}: Readonly<ClusterArticleTabsProps>) => (
   <Tabs
     value={activeArticleId ?? ""}
     onValueChange={onTabChange}
@@ -776,13 +778,13 @@ const ClusterDetailBody = ({
   readonly loadingArticle: number | null;
   readonly likedIds: ReadonlySet<number>;
   readonly isArticleInQueue: (url: string) => boolean;
-  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly contentRef: Readonly<RefObject<HTMLDivElement | null>>;
   readonly onLike: (articleId: number) => void;
   readonly onQueueToggle: (article: ClusterArticle) => void;
   readonly onClose: () => void;
   readonly onTabChange: (value: string) => void;
   readonly onOpenComparison: () => void;
-  readonly comparison: ComparisonTabProps;
+  readonly comparison: Readonly<ComparisonTabProps>;
 }>) => {
   if (loading) {
     return <ClusterLoadingState />;
@@ -814,7 +816,7 @@ const ClusterDetailPanelContent = (props: DeepReadonly<ClusterDetailViewProps>) 
     <ClusterContextMetrics context={props.context} />
     <ClusterDetailBody
       loading={props.loading}
-      articles={props.clusterDetail?.articles ?? []}
+      articles={props.clusterDetail?.articles ?? EMPTY_CLUSTER_ARTICLES}
       loadError={props.loadError}
       activeArticleId={props.resolvedActiveArticleId}
       activeContent={props.activeContent}
@@ -1133,7 +1135,7 @@ const GdeltGoldsteinBar = ({
 }: Readonly<{
   readonly context: GdeltContextLike;
   readonly hasRange: boolean;
-  readonly markerStyle: CSSProperties | undefined;
+  readonly markerStyle: Readonly<CSSProperties> | undefined;
 }>) => (
   <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-white/5">
     {hasRange && <GdeltGoldsteinRange context={context} />}
