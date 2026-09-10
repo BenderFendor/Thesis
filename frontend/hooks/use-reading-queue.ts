@@ -1,6 +1,6 @@
+import { fetchArticleContentText } from "@/lib/article-content";
 import { hasText } from "@/lib/utils";
 import {
-  API_BASE_URL,
   analyzeArticle,
   addToReadingQueue as apiAddToQueue,
   removeFromReadingQueueByUrl as apiRemoveFromQueue,
@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NewsArticle } from "@/lib/api";
 import { toast } from "sonner";
+import { z } from "zod";
 
 const READING_QUEUE_STORAGE_KEY = "readingQueue",
   USE_DATABASE = process.env.NEXT_PUBLIC_USE_DB_QUEUE === "true",
@@ -16,6 +17,53 @@ const READING_QUEUE_STORAGE_KEY = "readingQueue",
 type QueueDataPatch = Readonly<Partial<NonNullable<NewsArticle["_queueData"]>>>;
 const QUEUE_DATA_KEY = "_queueData" as const;
 type QueueStorageEvent = Readonly<Pick<StorageEvent, "key" | "newValue">>;
+
+const STORED_ARTICLE_CONTRACT_SCHEMA = z
+  .object({
+    _parsedTimestamp: z.number().optional(),
+    _queueData: z
+      .object({
+        aiAnalysis: z.unknown().optional(),
+        fullText: z.string().optional(),
+        preloadedAt: z.number().optional(),
+        readingTimeMinutes: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
+    author: z.string().optional(),
+    authors: z.array(z.string()).optional(),
+    bias: z.enum(["left", "center", "right"]),
+    category: z.string(),
+    content: z.string().optional(),
+    country: z.string(),
+    credibility: z.enum(["high", "medium", "low"]),
+    geo_signal: z
+      .object({
+        id: z.string(),
+        label: z.string(),
+      })
+      .optional(),
+    hasFullContent: z.boolean().optional(),
+    id: z.number(),
+    image: z.string(),
+    isPersisted: z.boolean().optional(),
+    mentioned_countries: z.array(z.string()).optional(),
+    originalLanguage: z.string(),
+    publishedAt: z.string(),
+    source: z.string(),
+    sourceId: z.string(),
+    source_country: z.string().optional(),
+    summary: z.string(),
+    tags: z.array(z.string()),
+    title: z.string(),
+    translated: z.boolean(),
+    url: z.string(),
+  })
+  .passthrough();
+const STORED_ARTICLE_SCHEMA = z.custom<NewsArticle>(
+  (value) => STORED_ARTICLE_CONTRACT_SCHEMA.safeParse(value).success,
+);
+const STORED_QUEUE_SCHEMA = z.array(STORED_ARTICLE_SCHEMA);
 
 // Event emitter for cross-component updates
 type QueueListener = (articles: readonly NewsArticle[]) => void;
@@ -37,18 +85,7 @@ const areQueueArticlesEqual = (left: readonly NewsArticle[], right: readonly New
 
 const preloadFullText = async (article: NewsArticle): Promise<string | undefined> => {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/article/extract?url=${encodeURIComponent(article.url)}`,
-    );
-    if (!response.ok) {
-      return void 0;
-    }
-    const data = await response.json();
-    const text = data.text ?? data.full_text;
-    if (text === "") {
-      return void 0;
-    }
-    return text;
+    return (await fetchArticleContentText(article.url)) ?? undefined;
   } catch (error) {
     console.error("Failed to preload full text:", error);
     return void 0;
@@ -66,13 +103,49 @@ const preloadAiAnalysis = async (
   }
 };
 
-const withQueueData = (
-  article: NewsArticle,
-  patch: QueueDataPatch,
-): NewsArticle => {
+const withQueueData = (article: NewsArticle, patch: QueueDataPatch): NewsArticle => {
   const enhanced = { ...article };
   enhanced[QUEUE_DATA_KEY] = { ...enhanced[QUEUE_DATA_KEY], ...patch };
   return enhanced;
+};
+
+const addFullTextData = (article: NewsArticle, fullText: string | undefined): NewsArticle => {
+  if (!hasText(fullText)) {
+    return article;
+  }
+  const wordCount = fullText.trim().split(/\s+/u).length;
+  return withQueueData(article, {
+    fullText,
+    readingTimeMinutes: Math.ceil(wordCount / WORDS_PER_MINUTE_READING),
+  });
+};
+
+const addAiAnalysisData = async (
+  article: NewsArticle,
+  includeAiAnalysis: boolean,
+): Promise<QueueDataPatch> => {
+  if (!includeAiAnalysis) {
+    return {};
+  }
+  const analysis = await preloadAiAnalysis(article);
+  if (analysis === undefined) {
+    return {};
+  }
+  return { aiAnalysis: analysis };
+};
+
+const markAsPreloaded = (article: NewsArticle): NewsArticle => {
+  if (article[QUEUE_DATA_KEY] === undefined) {
+    return article;
+  }
+  return withQueueData(article, { preloadedAt: Date.now() });
+};
+
+const addQueueData = (article: NewsArticle, patch: QueueDataPatch): NewsArticle => {
+  if (Object.keys(patch).length === 0) {
+    return article;
+  }
+  return withQueueData(article, patch);
 };
 
 const preloadArticleData = async (
@@ -80,31 +153,58 @@ const preloadArticleData = async (
   options: Readonly<{ includeAiAnalysis?: boolean }> = {},
 ): Promise<NewsArticle> => {
   const { includeAiAnalysis = false } = options;
-  let enhancedArticle = { ...article };
   const fullText = await preloadFullText(article);
-  if (hasText(fullText)) {
-    const wordCount = fullText.trim().split(/\s+/u).length;
-    enhancedArticle = withQueueData(enhancedArticle, {
-      fullText,
-      readingTimeMinutes: Math.ceil(wordCount / WORDS_PER_MINUTE_READING),
-    });
-  }
-
-  if (includeAiAnalysis) {
-    const analysis = await preloadAiAnalysis(article);
-    if (analysis) {
-      enhancedArticle = withQueueData(enhancedArticle, { aiAnalysis: analysis });
-    }
-  }
-
-  if (enhancedArticle[QUEUE_DATA_KEY]) {
-    enhancedArticle[QUEUE_DATA_KEY] = {
-      ...enhancedArticle[QUEUE_DATA_KEY],
-      preloadedAt: Date.now(),
-    };
-  }
-  return enhancedArticle;
+  const articleWithText = addFullTextData({ ...article }, fullText);
+  const analysisData = await addAiAnalysisData(article, includeAiAnalysis);
+  return markAsPreloaded(addQueueData(articleWithText, analysisData));
 };
+
+const replaceQueueArticle = (
+  articles: readonly NewsArticle[],
+  articleUrl: string,
+  replacement: NewsArticle,
+): NewsArticle[] =>
+  articles.map((queuedArticle) => {
+    if (queuedArticle.url === articleUrl) {
+      return replacement;
+    }
+    return queuedArticle;
+  });
+
+const markQueueArticleAsRead = (
+  articles: readonly NewsArticle[],
+  articleUrl: string,
+): NewsArticle[] =>
+  articles.map((queuedArticle) => {
+    if (queuedArticle.url === articleUrl) {
+      return { ...queuedArticle, read_status: "completed" };
+    }
+    return queuedArticle;
+  });
+
+const replacePreloadedArticles = (
+  queuedArticles: readonly NewsArticle[],
+  preloadedArticles: readonly NewsArticle[],
+): NewsArticle[] =>
+  preloadedArticles.reduce(
+    (currentArticles, preloadedArticle) =>
+      replaceQueueArticle(currentArticles, preloadedArticle.url, preloadedArticle),
+    [...queuedArticles],
+  );
+
+const getArticleCountSuffix = (count: number): string => {
+  if (count > 1) {
+    return "s";
+  }
+  return "";
+};
+
+const preloadArticlesSequentially = (articles: readonly NewsArticle[]): Promise<NewsArticle[]> =>
+  articles.reduce<Promise<NewsArticle[]>>(async (preloadedPromise, article) => {
+    const preloadedArticles = await preloadedPromise;
+    preloadedArticles.push(await preloadArticleData(article));
+    return preloadedArticles;
+  }, Promise.resolve([]));
 
 const useQueueIndexers = (
   queuedArticles: readonly NewsArticle[],
@@ -123,7 +223,7 @@ const useQueueMutations = (
       async (article: NewsArticle) => {
         setQueuedArticles((prev) => {
           // Avoid adding duplicates
-          if (prev.some((a) => a.url === article.url)) {
+          if (prev.some((queuedArticle) => queuedArticle.url === article.url)) {
             toast.info("Article is already in your reading queue.");
             return prev;
           }
@@ -136,14 +236,7 @@ const useQueueMutations = (
         const preloadedArticle = await preloadArticleData(article);
 
         // Update with preloaded data
-        setQueuedArticles((prev) =>
-          prev.map((a) => ((() => {
-  if (a.url === article.url) {
-    return preloadedArticle;
-  }
-  return a;
-})())),
-        );
+        setQueuedArticles((prev) => replaceQueueArticle(prev, article.url, preloadedArticle));
 
         // Also sync to database if enabled
         if (USE_DATABASE && article.isPersisted !== false) {
@@ -158,7 +251,9 @@ const useQueueMutations = (
     ),
     removeArticleFromQueue = useCallback(
       async (articleUrl: string) => {
-        setQueuedArticles((prev) => prev.filter((a) => a.url !== articleUrl));
+        setQueuedArticles((prev) =>
+          prev.filter((queuedArticle) => queuedArticle.url !== articleUrl),
+        );
         toast.success("Article removed from queue.");
 
         // Also sync to database if enabled
@@ -178,7 +273,8 @@ const useQueueMutations = (
 
 const useQueueSelectors = (queuedArticles: readonly NewsArticle[]) => {
   const getArticleIndex = useCallback(
-      (articleUrl: string) => queuedArticles.findIndex((a) => a.url === articleUrl),
+      (articleUrl: string) =>
+        queuedArticles.findIndex((queuedArticle) => queuedArticle.url === articleUrl),
       [queuedArticles],
     ),
     getCurrentArticle = useCallback(
@@ -186,7 +282,8 @@ const useQueueSelectors = (queuedArticles: readonly NewsArticle[]) => {
       [queuedArticles],
     ),
     isArticleInQueue = useCallback(
-      (articleUrl: string) => queuedArticles.some((a) => a.url === articleUrl),
+      (articleUrl: string) =>
+        queuedArticles.some((queuedArticle) => queuedArticle.url === articleUrl),
       [queuedArticles],
     );
   return { getArticleIndex, getCurrentArticle, isArticleInQueue };
@@ -206,17 +303,7 @@ const useQueueNavigation = (
     ),
     markAsRead = useCallback(
       (articleUrl: string) => {
-        setQueuedArticles((prev) =>
-          prev.map((a) => ((() => {
-  if (a.url === articleUrl) {
-    return {
-      ...a,
-      read_status: "completed"
-    };
-  }
-  return a;
-})())),
-        );
+        setQueuedArticles((prev) => markQueueArticleAsRead(prev, articleUrl));
       },
       [setQueuedArticles],
     );
@@ -230,34 +317,21 @@ const useQueuePreload = (
   const preloadMissingData = useCallback(async () => {
     // Check for articles that don't have preloaded data and preload them
     const articlesNeedingPreload = queuedArticles.filter(
-      (article) => !hasText(article[QUEUE_DATA_KEY]?.fullText) || !article[QUEUE_DATA_KEY]?.aiAnalysis,
+      (article) =>
+        !hasText(article[QUEUE_DATA_KEY]?.fullText) || !article[QUEUE_DATA_KEY]?.aiAnalysis,
     );
 
     if (articlesNeedingPreload.length === 0) {
       return;
     }
 
-    // Preload data for articles that don't have it
-    let preloadedCount = 0;
-    for (const article of articlesNeedingPreload) {
-      const preloadedArticle = await preloadArticleData(article);
-      setQueuedArticles((prev) => prev.map((a) => ((() => {
-  if (a.url === article.url) {
-    return preloadedArticle;
-  }
-  return a;
-})())));
-      preloadedCount++;
-    }
+    const preloadedArticles = await preloadArticlesSequentially(articlesNeedingPreload);
+    setQueuedArticles((prev) => replacePreloadedArticles(prev, preloadedArticles));
 
     // Show completion toast
+    const preloadedCount = preloadedArticles.length;
     if (preloadedCount > 0) {
-      toast.success(`Preloaded ${preloadedCount} article${(() => {
-  if (preloadedCount > 1) {
-    return "s";
-  }
-  return "";
-})()}`);
+      toast.success(`Preloaded ${preloadedCount} article${getArticleCountSuffix(preloadedCount)}`);
     }
   }, [queuedArticles, setQueuedArticles]);
 
@@ -269,7 +343,11 @@ const parseStoredQueue = (raw: string | null): NewsArticle[] | null => {
     return null;
   }
   try {
-    return JSON.parse(raw);
+    const parsed = STORED_QUEUE_SCHEMA.safeParse(JSON.parse(raw));
+    if (parsed.success) {
+      return parsed.data;
+    }
+    return null;
   } catch (error) {
     console.error("Error parsing storage queue:", error);
     return null;
@@ -281,27 +359,25 @@ const useQueueListeners = (
 ) => {
   useEffect(() => {
     // Listen for storage changes from other tabs/windows
-    const handleStorageChange = (e: QueueStorageEvent) => {
-        if (e.key === READING_QUEUE_STORAGE_KEY && hasText(e.newValue)) {
-          try {
-            const updated = JSON.parse(e.newValue);
-            setQueuedArticles(updated);
-            notifyQueueListeners(updated);
-          } catch (error) {
-            console.error("Error parsing storage change:", error);
-          }
+    const handleStorageChange = (event: QueueStorageEvent) => {
+        if (event.key !== READING_QUEUE_STORAGE_KEY || !hasText(event.newValue)) {
+          return;
         }
+        const updated = parseStoredQueue(event.newValue);
+        if (updated === null) {
+          return;
+        }
+        setQueuedArticles(updated);
+        notifyQueueListeners(updated);
       },
       // Subscribe to our own event emitter for same-tab updates
       unsubscribe = subscribeToQueueChanges((articles) => {
-        setQueuedArticles((current) =>
-          (() => {
-  if (areQueueArticlesEqual(current, articles)) {
-    return current;
-  }
-  return [...articles];
-})(),
-        );
+        setQueuedArticles((current) => {
+          if (areQueueArticlesEqual(current, articles)) {
+            return current;
+          }
+          return [...articles];
+        });
       });
 
     globalThis.addEventListener("storage", handleStorageChange);
