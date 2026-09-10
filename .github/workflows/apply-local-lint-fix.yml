@@ -19,28 +19,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct payload
+      - name: Reconstruct and repair transfer payload
         shell: bash
         run: |
           set -euo pipefail
           cat .lint-fix/chunk-* > /tmp/lint-fix.patch.xz.b64
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/lint-fix.patch.xz.b64')
+          payload = bytearray(path.read_bytes())
+          offset = 48808
+          if payload[offset:offset + 1] != b'a':
+              raise SystemExit(f'unexpected transfer byte at {offset}: {payload[offset:offset + 1]!r}')
+          payload[offset] = ord('e')
+          path.write_bytes(payload)
+          PY
           base64 --decode /tmp/lint-fix.patch.xz.b64 > /tmp/lint-fix.patch.xz
-          sha256sum /tmp/lint-fix.patch.xz
-          wc -c /tmp/lint-fix.patch.xz
-
-      - name: Export reconstructed payload
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-fix-reconstructed-payload
-          path: |
-            /tmp/lint-fix.patch.xz
-            /tmp/lint-fix.patch.xz.b64
-          if-no-files-found: error
-
-      - name: Verify and apply patch
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo "db20bb027ba4dc98f97379932faf7f60a26dfa8cfe47ae5e40c51cc7f4c2089b  /tmp/lint-fix.patch.xz" | sha256sum --check
           xz --decompress --stdout /tmp/lint-fix.patch.xz > /tmp/lint-fix.patch
           echo "b3eabe4c776e9984e2c5a3ed3274f837bf169dba200a6d0d3639807a29cfefaa  /tmp/lint-fix.patch" | sha256sum --check
           git apply --check /tmp/lint-fix.patch
