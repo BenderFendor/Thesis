@@ -6,14 +6,25 @@ import { hasText } from "@/lib/utils";
  * Designed to provide data that correlates with backend debug logs.
  */
 
-import type { ApiOpaqueObject, FrontendDebugReportPayload } from "./api";
+import type { ApiOpaqueObject } from "./api";
 import { sendFrontendDebugReport } from "./api";
-import type { DeepReadonly } from "./deep-readonly";
+import {
+  buildFrontendDebugReport,
+  streamEventDetails,
+  updateStreamMetrics,
+} from "./performance-logger-model";
+import type {
+  EventType,
+  PerformanceEvent,
+  PerformanceSummary,
+  StreamEventOptions,
+  StreamMetrics,
+} from "./performance-logger-model";
 
 // Configuration
 const FLUSH_INTERVAL_MS = 30_000;
-  const MAX_EVENTS = 500; // 30 seconds
-  const SLOW_THRESHOLD_MS = 3000; // 3 seconds
+const MAX_EVENTS = 500;
+const SLOW_THRESHOLD_MS = 3000;
   const ENABLE_AGENTIC_LOGGING =
     process.env.NEXT_PUBLIC_ENABLE_AGENTIC_LOGGING === "true" ||
     process.env.NODE_ENV === "development";
@@ -22,76 +33,6 @@ const FLUSH_INTERVAL_MS = 30_000;
     "ResizeObserver loop limit exceeded",
   ];
 
-type EventType =
-  | "page_load"
-  | "stream_start"
-  | "stream_event"
-  | "stream_end"
-  | "stream_error"
-  | "stream_timeout"
-  | "api_request_start"
-  | "api_request_end"
-  | "api_request_error"
-  | "render_start"
-  | "render_end"
-  | "user_action"
-  | "performance_warning"
-  | "error";
-
-interface PerformanceEvent {
-  eventId: string;
-  eventType: EventType;
-  timestamp: string;
-  component: string;
-  operation: string;
-  message?: string;
-  durationMs?: number;
-  details?: ApiOpaqueObject;
-  error?: string;
-  stackTrace?: string;
-  isSlow?: boolean;
-  streamId?: string;
-  requestId?: string;
-}
-
-interface StreamMetrics {
-  streamId: string;
-  startTime: number;
-  firstEventTime?: number;
-  timeToFirstEvent?: number;
-  eventCount: number;
-  articleCount: number;
-  sourceCount: number;
-  errorCount: number;
-  lastEventTime: number;
-  endTime?: number;
-  totalDurationMs?: number;
-  events: {
-    type: string;
-    timestamp: number;
-    articleCount?: number;
-    source?: string;
-  }[];
-}
-
-interface PerformanceSummary {
-  sessionId: string;
-  startTime: string;
-  totalEvents: number;
-  slowOperationsCount: number;
-  errorCount: number;
-  streamMetrics: StreamMetrics[];
-  componentStats: Record<
-    string,
-    {
-      count: number;
-      avgDurationMs: number;
-      maxDurationMs: number;
-      errorCount: number;
-    }
-  >;
-}
-
 interface LogEventOptions {
   message?: string;
   durationMs?: number;
@@ -99,13 +40,6 @@ interface LogEventOptions {
   error?: Error | string;
   streamId?: string;
   requestId?: string;
-}
-
-interface StreamEventOptions {
-  articleCount?: number;
-  source?: string;
-  isError?: boolean;
-  details?: ApiOpaqueObject;
 }
 
 interface NavigationTimingEntry extends PerformanceEntry {
@@ -122,6 +56,39 @@ const isNavigationTimingEntry = (
   "domContentLoadedEventEnd" in entry &&
   "loadEventEnd" in entry &&
   "responseStart" in entry;
+
+const getEventErrorFields = (
+  error: Error | string | undefined,
+): Pick<PerformanceEvent, "error" | "stackTrace"> => {
+  if (error instanceof Error) {
+    return { error: error.message, stackTrace: error.stack };
+  }
+  if (hasText(error)) {
+    return { error };
+  }
+  return {};
+};
+
+const getSlowEventFields = (
+  durationMs: number | undefined,
+): Pick<PerformanceEvent, "isSlow"> => {
+  if (durationMs !== undefined && durationMs !== 0 && durationMs > SLOW_THRESHOLD_MS) {
+    return { isSlow: true };
+  }
+  return {};
+};
+
+const recordComponentTiming = (
+  timingsByComponent: Map<string, number[]>,
+  component: string,
+  durationMs: number | undefined,
+): void => {
+  if (durationMs === undefined || durationMs === 0) {
+    return;
+  }
+  const timings = [...(timingsByComponent.get(component) ?? []), durationMs].slice(-100);
+  timingsByComponent.set(component, timings);
+};
 
 const logDevelopmentEvent = (event: Readonly<PerformanceEvent>): void => {
   if (process.env.NODE_ENV !== "development") {
@@ -150,81 +117,6 @@ const logDevelopmentEvent = (event: Readonly<PerformanceEvent>): void => {
   });
 };
 
-const updateStreamMetrics = (
-  metrics: DeepReadonly<StreamMetrics>,
-  eventName: string,
-  options: DeepReadonly<StreamEventOptions>,
-  now: number,
-): StreamMetrics => {
-  const firstEventTime =
-      (() => {
-  if (
-    (metrics.firstEventTime === undefined || metrics.firstEventTime === 0) &&
-    eventName !== "start"
-  ) {
-    return now;
-  }
-  return metrics.firstEventTime;
-})(),
-    timeToFirstEvent =
-      (() => {
-  if (firstEventTime === now && metrics.firstEventTime === undefined) {
-    return now - metrics.startTime;
-  }
-  return metrics.timeToFirstEvent;
-})();
-  return {
-    ...metrics,
-    articleCount: metrics.articleCount + (options.articleCount ?? 0),
-    errorCount: metrics.errorCount + ((() => {
-  if (options.isError === true) {
-    return 1;
-  }
-  return 0;
-})()),
-    eventCount: metrics.eventCount + 1,
-    events: [
-      ...metrics.events,
-      {
-        articleCount: options.articleCount,
-        source: options.source,
-        timestamp: now,
-        type: eventName,
-      },
-    ].slice(-50),
-    firstEventTime,
-    lastEventTime: now,
-    sourceCount: metrics.sourceCount + ((() => {
-  if (hasText(options.source)) {
-    return 1;
-  }
-  return 0;
-})()),
-    timeToFirstEvent,
-  };
-};
-
-const streamEventDetails = (
-  metrics: DeepReadonly<StreamMetrics>,
-  options: DeepReadonly<StreamEventOptions>,
-  now: number,
-): ApiOpaqueObject => {
-  const previousEvent = metrics.events.at(-2);
-  return {
-    ...options.details,
-    articleCount: options.articleCount,
-    eventGapMs: (() => {
-  if (previousEvent) {
-    return now - previousEvent.timestamp;
-  }
-  return 0;
-})(),
-    source: options.source,
-    totalArticles: metrics.articleCount,
-    totalSources: metrics.sourceCount,
-  };
-};
-
 const logFlushSummary = (sessionId: string, eventCount: number): void => {
   if (process.env.NODE_ENV !== "development" || eventCount === 0) {
     return;
@@ -234,63 +126,6 @@ const logFlushSummary = (sessionId: string, eventCount: number): void => {
 
 const canFlushFrontendDebugEvents = (): boolean =>
   ENABLE_AGENTIC_LOGGING && globalThis.window !== undefined;
-
-interface DebugReportSummaryInput {
-  readonly componentStats: Readonly<
-    Record<
-      string,
-      Readonly<{
-        readonly avgDurationMs: number;
-        readonly count: number;
-        readonly errorCount: number;
-        readonly maxDurationMs: number;
-      }>
-    >
-  >;
-  readonly errorCount: number;
-  readonly sessionId: string;
-  readonly slowOperationsCount: number;
-  readonly startTime: string;
-  readonly streamMetrics: readonly Readonly<Pick<StreamMetrics, "eventCount" | "startTime" | "streamId">>[];
-  readonly totalEvents: number;
-}
-
-const buildFrontendDebugReport = (
-  summary: DebugReportSummaryInput,
-  recentEvents: readonly Readonly<PerformanceEvent>[],
-  slowOperations: readonly Readonly<PerformanceEvent>[],
-  errors: readonly Readonly<PerformanceEvent>[],
-): FrontendDebugReportPayload => ({
-  dom_stats: {
-    body_text_length: globalThis.document.body?.textContent?.length ?? 0,
-    node_count: globalThis.document.querySelectorAll("*").length,
-    title: globalThis.document.title,
-    viewport: {
-      height: globalThis.innerHeight,
-      width: globalThis.innerWidth,
-    },
-  },
-  errors,
-  generated_at: new Date().toISOString(),
-  location: globalThis.location?.pathname,
-  recent_events: recentEvents,
-  session_id: summary.sessionId,
-  slow_operations: slowOperations,
-  summary: {
-    componentStats: summary.componentStats,
-    errorCount: summary.errorCount,
-    sessionId: summary.sessionId,
-    slowOperationsCount: summary.slowOperationsCount,
-    startTime: summary.startTime,
-    streamMetrics: summary.streamMetrics.map(({ eventCount, startTime, streamId }) => ({
-      eventCount,
-      startTime,
-      streamId,
-    })),
-    totalEvents: summary.totalEvents,
-  },
-  user_agent: globalThis.navigator.userAgent,
-});
 
 class FrontendPerformanceLogger {
   private readonly events: PerformanceEvent[] = [];
@@ -321,11 +156,23 @@ class FrontendPerformanceLogger {
 
       // Capture unhandled errors
       globalThis.addEventListener("error", (event) => {
-        this.logError("window", "unhandled_error", event.error ?? event.message);
+        const error = (() => {
+          if (event.error instanceof Error) {
+            return event.error;
+          }
+          return event.message;
+        })();
+        this.logError("window", "unhandled_error", error);
       });
 
       globalThis.addEventListener("unhandledrejection", (event) => {
-        this.logError("promise", "unhandled_rejection", event.reason);
+        const error = (() => {
+          if (event.reason instanceof Error) {
+            return event.reason;
+          }
+          return String(event.reason);
+        })();
+        this.logError("promise", "unhandled_rejection", error);
       });
     }
   }
@@ -340,32 +187,21 @@ class FrontendPerformanceLogger {
       return;
     }
 
-    const performanceRuntime = globalThis.performance;
-    const navigationEntries = performanceRuntime.getEntriesByType?.("navigation") ?? [];
-    const navigationEntry = navigationEntries.find((entry) => isNavigationTimingEntry(entry));
-
-    let domComplete = 0,
-      domReady = 0,
-      loadTime = 0,
-      resourceLoadTime = 0,
-      ttfb = 0;
-
-    if (navigationEntry) {
-      loadTime = Math.round(navigationEntry.loadEventEnd);
-      domReady = Math.round(navigationEntry.domContentLoadedEventEnd);
-      ttfb = Math.round(navigationEntry.responseStart);
-      domComplete = Math.round(navigationEntry.domComplete);
-      resourceLoadTime = Math.max(0, Math.round(loadTime - domReady));
-    } else {
+    const navigationEntry = globalThis.performance.getEntriesByType?.("navigation")?.find((entry) =>
+      isNavigationTimingEntry(entry),
+    );
+    if (navigationEntry === undefined) {
       return;
     }
 
+    const domReady = Math.round(navigationEntry.domContentLoadedEventEnd),
+      loadTime = Math.round(navigationEntry.loadEventEnd);
     this.logEvent("page_load", "page", "load", {
       details: {
-        domComplete,
+        domComplete: Math.round(navigationEntry.domComplete),
         domReady,
-        resourceLoadTime,
-        ttfb,
+        resourceLoadTime: Math.max(0, loadTime - domReady),
+        ttfb: Math.round(navigationEntry.responseStart),
         url: globalThis.location.pathname,
       },
       durationMs: loadTime,
@@ -380,6 +216,8 @@ class FrontendPerformanceLogger {
     options: Readonly<LogEventOptions> = {},
   ): PerformanceEvent {
     const event: PerformanceEvent = {
+      ...getEventErrorFields(options.error),
+      ...getSlowEventFields(options.durationMs),
       component,
       details: options.details,
       durationMs: options.durationMs,
@@ -392,37 +230,12 @@ class FrontendPerformanceLogger {
       timestamp: new Date().toISOString(),
     };
 
-    if (options.error instanceof Error) {
-      event.error = options.error.message;
-      event.stackTrace = options.error.stack;
-    } else if (hasText(options.error)) {
-      event.error = options.error;
-    }
-
-    // Check for slow operations
-    if (
-      options.durationMs !== undefined &&
-      options.durationMs !== 0 &&
-      options.durationMs > SLOW_THRESHOLD_MS
-    ) {
-      event.isSlow = true;
-    }
-
-    // Track component timing
-    if (options.durationMs !== undefined && options.durationMs !== 0) {
-      const timings = [...(this.componentTimings.get(component) ?? []), options.durationMs].slice(-100);
-      this.componentTimings.set(component, timings);
-    }
-
-    // Store event
+    recordComponentTiming(this.componentTimings, component, options.durationMs);
     this.events.push(event);
     if (this.events.length > MAX_EVENTS) {
       this.events.shift();
     }
-
-    // Log to console in development
     logDevelopmentEvent(event);
-
     return event;
   }
 
@@ -540,10 +353,13 @@ class FrontendPerformanceLogger {
 
   // --- API Request Tracking ---
 
-  async trackApiRequest<T>(operation: string, url: string, requestFn: () => Promise<T>): Promise<T> {
+  async trackApiRequest<Result>(
+    operation: string,
+    url: string,
+    requestFn: () => Promise<Result>,
+  ): Promise<Result> {
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
     this.logEvent("api_request_start", "api", operation, {
       details: { url },
       requestId,
@@ -551,33 +367,31 @@ class FrontendPerformanceLogger {
 
     try {
       const result = await requestFn();
-        const durationMs = Date.now() - startTime;
-        this.logEvent("api_request_end", "api", operation, {
-          details: { success: true, url },
-          durationMs,
-          requestId,
-        });
-        return result;
+      this.logEvent("api_request_end", "api", operation, {
+        details: { success: true, url },
+        durationMs: Date.now() - startTime,
+        requestId,
+      });
+      return result;
     } catch (error) {
-        const durationMs = Date.now() - startTime;
-        this.logEvent("api_request_error", "api", operation, {
-          details: { success: false, url },
-          durationMs,
-          error: (() => {
-  if (error instanceof Error) {
-    return error;
-  }
-  return new Error(String(error));
-})(),
-          requestId,
-        });
-        throw error;
+      this.logEvent("api_request_error", "api", operation, {
+        details: { success: false, url },
+        durationMs: Date.now() - startTime,
+        error: (() => {
+          if (error instanceof Error) {
+            return error;
+          }
+          return new Error(String(error));
+        })(),
+        requestId,
+      });
+      throw error;
     }
   }
 
   // --- Render Tracking ---
 
-  trackRender<T>(componentName: string, renderFn: () => T): T {
+  trackRender<Result>(componentName: string, renderFn: () => Result): Result {
     const startTime = Date.now();
 
     this.logEvent("render_start", "render", componentName, {});
@@ -622,7 +436,7 @@ class FrontendPerformanceLogger {
 
     for (const [component, timings] of this.componentTimings.entries()) {
       if (timings.length > 0) {
-        const avg = timings.reduce((a, b) => a + b, 0) / timings.length;
+        const averageDuration = timings.reduce((total, duration) => total + duration, 0) / timings.length;
         const max = Math.max(...timings);
         const errors = this.events.filter(
           (event) =>
@@ -632,7 +446,7 @@ class FrontendPerformanceLogger {
         ).length;
 
         componentStats[component] = {
-          avgDurationMs: Math.round(avg),
+          avgDurationMs: Math.round(averageDuration),
           count: timings.length,
           errorCount: errors,
           maxDurationMs: max,
