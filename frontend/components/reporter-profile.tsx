@@ -1,264 +1,410 @@
-"use client"
+"use client";
 
-import { AlertTriangle, ExternalLink, RefreshCw, Search, User } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { AlertTriangle, ExternalLink, RefreshCw, Search, User } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
-import Link from "next/link"
-import type { ReporterProfile } from "@/lib/api"
-import { Skeleton } from "@/components/ui/skeleton"
-import { profileReporter } from "@/lib/api"
-import { useQuery } from "@tanstack/react-query"
-import { useCallback, useState } from "react"
+import Link from "next/link";
+import type { ReporterProfile } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { profileReporter } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { useCallback, useState } from "react";
 
 interface ReporterProfilePanelProps {
-  readonly reporterName: string
-  readonly organization?: string
-  readonly articleContext?: string
-  readonly onClose?: () => void
-  readonly compact?: boolean
+  readonly reporterName: string;
+  readonly organization?: string;
+  readonly articleContext?: string;
+  readonly onClose?: () => void;
+  readonly compact?: boolean;
 }
+
+type ReadonlyReporterProfile = DeepReadonly<ReporterProfile>;
+
+const LoadingProfileHeader = () => (
+  <div className="flex items-center gap-2">
+    <Skeleton className="h-6 w-6 rounded-full" />
+    <Skeleton className="h-5 w-32" />
+  </div>
+);
 
 const CITATION_LIMIT = 4,
- DOSSIER_ITEM_LIMIT = 4,
- LoadingProfile = () => (
-  <Card className="w-full max-w-md">
-    <CardHeader className="py-3">
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-6 w-6 rounded-full" />
-        <Skeleton className="h-5 w-32" />
-      </div>
-    </CardHeader>
-    <CardContent className="space-y-3">
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-5/6" />
-      <Skeleton className="h-20 w-full" />
-    </CardContent>
-  </Card>
-),
-
- PROFILE_STALE_MS = 60 * 60 * 1000,
-
- hasUsefulData = (profile: ReporterProfile): boolean => {
-  if (profile.match_status === "matched") {return true}
-  if (profile.overview !== null && profile.overview !== undefined && profile.overview.length > 0) {return true}
-  return profile.dossier_sections?.some((section) => section.items.length > 0) === true
-},
-
- normalizeStatusLabel = (status?: string): string => {
-  if (status === "matched") {return "verified"}
-  if (status === "ambiguous") {return "ambiguous"}
-  return "no match"
-},
-
- profileSearchUrl = (profile: ReporterProfile): string => {
-  const wikipedia = profile.search_links?.wikipedia
-  if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) {return wikipedia}
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
-},
-
- statusBadgeClass = {
-  ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  none: "border-white/10 bg-muted/20 text-muted-foreground",
-} satisfies Readonly<Record<string, string>>
+  DOSSIER_ITEM_LIMIT = 4,
+  LoadingProfile = () => (
+    <Card className="w-full max-w-md">
+      <CardHeader className="py-3">
+        <LoadingProfileHeader />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+        <Skeleton className="h-20 w-full" />
+      </CardContent>
+    </Card>
+  ),
+  PROFILE_STALE_MS = 60 * 60 * 1000,
+  hasUsefulData = (profile: ReadonlyReporterProfile): boolean => {
+    if (profile.match_status === "matched") {
+      return true;
+    }
+    if (
+      profile.overview !== null &&
+      profile.overview !== undefined &&
+      profile.overview.length > 0
+    ) {
+      return true;
+    }
+    return profile.dossier_sections?.some((section) => section.items.length > 0) === true;
+  },
+  normalizeStatusLabel = (status?: string): string => {
+    if (status === "matched") {
+      return "verified";
+    }
+    if (status === "ambiguous") {
+      return "ambiguous";
+    }
+    return "no match";
+  },
+  profileSearchUrl = (profile: ReadonlyReporterProfile): string => {
+    const wikipedia = profile.search_links?.wikipedia;
+    if (wikipedia !== null && wikipedia !== undefined && wikipedia.length > 0) {
+      return wikipedia;
+    }
+    return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`;
+  },
+  statusBadgeClass = {
+    ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    none: "border-white/10 bg-muted/20 text-muted-foreground",
+  } as const satisfies Record<"ambiguous" | "matched" | "none", string>;
 
 interface ErrorProfileProps {
-  readonly compact: boolean
-  readonly onRetry: () => void
+  readonly compact: boolean;
+  readonly onRetry: () => void;
 }
 
-const ErrorProfile = ({ compact, onRetry }: ErrorProfileProps) => {
-  if (compact) {return null}
+const ProfileErrorMessage = () => (
+  <div className="flex items-center gap-2 text-red-400">
+    <AlertTriangle className="h-5 w-5" />
+    <p>Failed to load reporter profile</p>
+  </div>
+);
+
+const ErrorProfile = ({ compact, onRetry }: Readonly<ErrorProfileProps>) => {
+  if (compact) {
+    return null;
+  }
   return (
     <Card className="w-full max-w-md border-red-500/30">
       <CardContent className="pt-6">
-        <div className="flex items-center gap-2 text-red-400">
-          <AlertTriangle className="h-5 w-5" />
-          <p>Failed to load reporter profile</p>
-        </div>
+        <ProfileErrorMessage />
         <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
           Retry
         </Button>
       </CardContent>
     </Card>
-  )
-}
+  );
+};
 
 interface DossierSectionProps {
-  readonly profile: ReporterProfile
-  readonly sectionId: string
+  readonly profile: ReadonlyReporterProfile;
+  readonly sectionId: string;
 }
 
+const DossierItem = ({
+  item,
+}: Readonly<{ item: Readonly<{ label?: string; value?: string }> }>) => (
+  <div>
+    <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
+      {item.label ?? "Fact"}
+    </p>
+    <p className="mt-1 break-words text-sm text-foreground/90">{item.value}</p>
+  </div>
+);
+
 const DossierSection = ({ profile, sectionId }: DossierSectionProps) => {
-  const section = profile.dossier_sections?.find((entry) => entry.id === sectionId)
-  if (section === undefined) {return null}
+  const section = profile.dossier_sections?.find((entry) => entry.id === sectionId);
+  if (section === undefined) {
+    return null;
+  }
   if (section.items.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-muted/20 px-3 py-3 opacity-70 grayscale">
-        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p>
+        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+          {section.title}
+        </p>
         <p className="mt-2 text-xs text-muted-foreground">No public record found.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p>
+      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+        {section.title}
+      </p>
       <div className="mt-2 space-y-2">
         {section.items.slice(0, DOSSIER_ITEM_LIMIT).map((item) => (
-          <div key={`${section.id}:${item.label}:${item.value}`}>
-            <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">{item.label || "Fact"}</p>
-            <p className="mt-1 break-words text-sm text-foreground/90">{item.value}</p>
-          </div>
+          <DossierItem key={`${section.id}:${item.label}:${item.value}`} item={item} />
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
 interface ProfileHeaderProps {
-  readonly profile: ReporterProfile
-  readonly organization?: string
-  readonly compact: boolean
-  readonly onClose?: () => void
-  readonly onRefresh: () => void
+  readonly profile: ReadonlyReporterProfile;
+  readonly organization?: string;
+  readonly compact: boolean;
+  readonly onClose?: () => void;
+  readonly onRefresh: () => void;
 }
 
-const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: ProfileHeaderProps) => {
-  const showClose = onClose !== undefined && !compact,
-   statusClass = statusBadgeClass[profile.match_status || "none"] ?? statusBadgeClass.none
-  return (
-    <CardHeader className="pb-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary/10 p-2">
-            <User className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-lg">{profile.canonical_name || profile.name}</CardTitle>
-            {organization !== undefined && <p className="text-sm text-muted-foreground">{organization}</p>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={statusClass}>{normalizeStatusLabel(profile.match_status)}</Badge>
-          <Button variant="ghost" size="icon" onClick={onRefresh} title="Refresh profile">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          {showClose && (
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <span className="sr-only">Close</span>
-              x
-            </Button>
-          )}
-        </div>
-      </div>
-    </CardHeader>
-  )
-},
-
- Overview = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.overview === null || profile.overview === undefined || profile.overview.length === 0) {return null}
-  return (
-    <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Overview</p>
-      <p className="mt-2 text-sm leading-relaxed text-foreground/90">{profile.overview}</p>
+const ProfileHeaderIdentity = ({
+  organization,
+  profile,
+}: Readonly<Pick<ProfileHeaderProps, "organization" | "profile">>) => (
+  <div className="flex items-center gap-3">
+    <div className="rounded-full bg-primary/10 p-2">
+      <User className="h-5 w-5 text-primary" />
     </div>
-  )
-},
-
- MatchExplanation = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  const explanation = profile.match_explanation
-  if (explanation === null || explanation === undefined || explanation.length === 0) {return null}
-  return (
-    <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Match</p>
-      <p className="mt-1 text-xs text-muted-foreground">{explanation}</p>
+    <div>
+      <CardTitle className="text-lg">{profile.canonical_name ?? profile.name}</CardTitle>
+      {organization !== undefined && (
+        <p className="text-sm text-muted-foreground">{organization}</p>
+      )}
     </div>
-  )
-},
-
- EmptyProfile = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (hasUsefulData(profile)) {return null}
-  return (
-    <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
-      <User className="mx-auto h-6 w-6 text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium text-foreground">No verified public profile found</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        We did not find a confident public match for this byline.
-      </p>
-    </div>
-  )
-},
-
- ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; label: string }>) => {
-  if (href === null || href === undefined || href.length === 0) {return null}
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-    >
-      <ExternalLink className="h-4 w-4" />
-      {label}
-    </a>
-  )
-},
-
- ProfileLinks = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
-  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
-    <ExternalProfileLink href={profile.wikipedia_url} label="Wikipedia" />
-    <ExternalProfileLink href={profile.wikidata_url} label="Wikidata" />
-    {profile.id !== null && profile.id !== undefined && profile.match_status === "matched" && (
-      <Button variant="outline" size="sm" asChild>
-        <Link href={`/wiki/reporter/${profile.id}`}>Open full wiki</Link>
-      </Button>
-    )}
-    <Button variant="outline" size="sm" asChild>
-      <a href={profileSearchUrl(profile)} target="_blank" rel="noreferrer">
-        <Search className="mr-2 h-3.5 w-3.5" />
-        Search public web
-      </a>
-    </Button>
   </div>
-),
+);
 
- Citations = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.citations === null || profile.citations === undefined || profile.citations.length === 0) {return null}
+interface ProfileHeaderActionsProps {
+  readonly onClose?: () => void;
+  readonly onRefresh: () => void;
+  readonly profile: ReadonlyReporterProfile;
+  readonly showClose: boolean;
+}
+
+const ProfileHeaderActions = ({
+  onClose,
+  onRefresh,
+  profile,
+  showClose,
+}: Readonly<ProfileHeaderActionsProps>) => {
+  const statusClass = statusBadgeClass[profile.match_status ?? "none"] ?? statusBadgeClass.none;
   return (
-    <div className="border-t border-border pt-2">
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Sources</p>
-      <div className="mt-2 space-y-1">
-        {profile.citations.slice(0, CITATION_LIMIT).map((citation) => (
-          <div key={`${citation.label}:${citation.url ?? ""}:${citation.note ?? ""}`} className="text-xs text-muted-foreground">
-            {citation.url !== null && citation.url !== undefined ? (
-              <a href={citation.url} target="_blank" rel="noreferrer" className="hover:text-primary">
-                {citation.label}
-              </a>
-            ) : citation.label}
-            {citation.note !== null && citation.note !== undefined && citation.note.length > 0 && ` · ${citation.note}`}
-          </div>
-        ))}
-      </div>
+    <div className="flex items-center gap-2">
+      <Badge variant="outline" className={statusClass}>
+        {normalizeStatusLabel(profile.match_status)}
+      </Badge>
+      <Button variant="ghost" size="icon" onClick={onRefresh} title="Refresh profile">
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      {showClose && (
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <span className="sr-only">Close</span>x
+        </Button>
+      )}
     </div>
-  )
-},
+  );
+};
 
- ProfileBody = ({ profile }: Readonly<{ profile: ReporterProfile }>) => (
-  <CardContent className="space-y-4">
-    <Overview profile={profile} />
-    <MatchExplanation profile={profile} />
-    <DossierSection profile={profile} sectionId="identity" />
-    <DossierSection profile={profile} sectionId="occupations" />
-    <DossierSection profile={profile} sectionId="education" />
-    <DossierSection profile={profile} sectionId="links" />
-    <EmptyProfile profile={profile} />
-    <ProfileLinks profile={profile} />
-    <Citations profile={profile} />
-  </CardContent>
-)
+const ProfileHeader = ({
+  compact,
+  onClose,
+  onRefresh,
+  organization,
+  profile,
+}: Readonly<ProfileHeaderProps>) => (
+  <CardHeader className="pb-3">
+    <div className="flex items-start justify-between gap-3">
+      <ProfileHeaderIdentity organization={organization} profile={profile} />
+      <ProfileHeaderActions
+        onClose={onClose}
+        onRefresh={onRefresh}
+        profile={profile}
+        showClose={onClose !== undefined && !compact}
+      />
+    </div>
+  </CardHeader>
+);
+const Overview = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => {
+    if (
+      profile.overview === null ||
+      profile.overview === undefined ||
+      profile.overview.length === 0
+    ) {
+      return null;
+    }
+    return (
+      <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
+        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+          Overview
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-foreground/90">{profile.overview}</p>
+      </div>
+    );
+  };
+const MatchExplanation = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => {
+    const explanation = profile.match_explanation;
+    if (explanation === null || explanation === undefined || explanation.length === 0) {
+      return null;
+    }
+    return (
+      <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
+        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+          Match
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{explanation}</p>
+      </div>
+    );
+  };
+const EmptyProfile = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => {
+    if (hasUsefulData(profile)) {
+      return null;
+    }
+    return (
+      <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
+        <User className="mx-auto h-6 w-6 text-muted-foreground" />
+        <p className="mt-3 text-sm font-medium text-foreground">No verified public profile found</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          We did not find a confident public match for this byline.
+        </p>
+      </div>
+    );
+  };
+const ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; label: string }>) => {
+    if (href === null || href === undefined || href.length === 0) {
+      return null;
+    }
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <ExternalLink className="h-4 w-4" />
+        {label}
+      </a>
+    );
+  };
+
+const PublicSearchButton = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => (
+  <Button variant="outline" size="sm" asChild>
+    <a href={profileSearchUrl(profile)} target="_blank" rel="noreferrer">
+      <Search className="mr-2 h-3.5 w-3.5" />
+      Search public web
+    </a>
+  </Button>
+);
+
+const ProfileLinks = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => (
+    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+      <ExternalProfileLink href={profile.wikipedia_url} label="Wikipedia" />
+      <ExternalProfileLink href={profile.wikidata_url} label="Wikidata" />
+      {profile.id !== null && profile.id !== undefined && profile.match_status === "matched" && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/wiki/reporter/${profile.id}`}>Open full wiki</Link>
+        </Button>
+      )}
+      <PublicSearchButton profile={profile} />
+    </div>
+  );
+
+interface CitationItemProps {
+  readonly label: string;
+  readonly note?: string;
+  readonly url?: string;
+}
+
+const CitationLabel = ({
+  label,
+  url,
+}: Readonly<Pick<CitationItemProps, "label" | "url">>) => {
+  if (url !== undefined && url !== null) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="hover:text-primary">
+        {label}
+      </a>
+    );
+  }
+  return label;
+};
+
+const CitationItem = ({ label, note, url }: Readonly<CitationItemProps>) => (
+  <div className="text-xs text-muted-foreground">
+    <CitationLabel label={label} url={url} />
+    {note !== undefined && note !== null && note.length > 0 && ` · ${note}`}
+  </div>
+);
+
+const Citations = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => {
+    if (
+      profile.citations === null ||
+      profile.citations === undefined ||
+      profile.citations.length === 0
+    ) {
+      return null;
+    }
+    return (
+      <div className="border-t border-border pt-2">
+        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+          Sources
+        </p>
+        <div className="mt-2 space-y-1">
+          {profile.citations.slice(0, CITATION_LIMIT).map((citation) => (
+            <CitationItem
+              key={`${citation.label}:${citation.url ?? ""}:${citation.note ?? ""}`}
+              label={citation.label}
+              note={citation.note}
+              url={citation.url}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+const ProfileBody = ({ profile }: Readonly<{ profile: ReadonlyReporterProfile }>) => (
+    <CardContent className="space-y-4">
+      <Overview profile={profile} />
+      <MatchExplanation profile={profile} />
+      <DossierSection profile={profile} sectionId="identity" />
+      <DossierSection profile={profile} sectionId="occupations" />
+      <DossierSection profile={profile} sectionId="education" />
+      <DossierSection profile={profile} sectionId="links" />
+      <EmptyProfile profile={profile} />
+      <ProfileLinks profile={profile} />
+      <Citations profile={profile} />
+    </CardContent>
+  );
+
+type ReporterProfileQueryProps = Readonly<
+  Pick<ReporterProfilePanelProps, "articleContext" | "organization" | "reporterName">
+>;
+
+const useReporterProfile = ({
+  articleContext,
+  organization,
+  reporterName,
+}: ReporterProfileQueryProps) => {
+  const [forceRefresh, setForceRefresh] = useState(false);
+  const { data: profile, error, isLoading, refetch } = useQuery({
+    queryFn: () => profileReporter(reporterName, organization, articleContext, forceRefresh),
+    queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
+    retry: 1,
+    staleTime: PROFILE_STALE_MS,
+  });
+  const handleRefresh = useCallback(() => {
+    setForceRefresh(true);
+    void refetch();
+  }, [refetch]);
+  const handleRetry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return { error, handleRefresh, handleRetry, isLoading, profile };
+};
 
 export const ReporterProfilePanel = ({
   reporterName,
@@ -267,35 +413,32 @@ export const ReporterProfilePanel = ({
   onClose,
   compact = false,
 }: ReporterProfilePanelProps) => {
-  const [forceRefresh, setForceRefresh] = useState(false),
-   { data, error, isLoading, refetch } = useQuery({
-    queryFn: () => profileReporter(reporterName, organization, articleContext, forceRefresh),
-    queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
-    retry: 1,
-    staleTime: PROFILE_STALE_MS,
-  }),
-   handleRefresh = useCallback(() => {
-    setForceRefresh(true)
-    void refetch()
-  }, [refetch, setForceRefresh]),
-   handleRetry = useCallback(() => {
-    void refetch()
-  }, [refetch])
+  const { error, handleRefresh, handleRetry, isLoading, profile } = useReporterProfile({
+    articleContext,
+    organization,
+    reporterName,
+  });
 
-  if (isLoading) {return <LoadingProfile />}
-  if (error !== null) {return <ErrorProfile compact={compact} onRetry={handleRetry} />}
-  if (data === undefined) {return null}
+  if (isLoading) {
+    return <LoadingProfile />;
+  }
+  if (error !== null) {
+    return <ErrorProfile compact={compact} onRetry={handleRetry} />;
+  }
+  if (profile === undefined) {
+    return null;
+  }
 
   return (
     <Card className="w-full max-w-md">
       <ProfileHeader
-        profile={data}
+        profile={profile}
         organization={organization}
         compact={compact}
         onClose={onClose}
         onRefresh={handleRefresh}
       />
-      <ProfileBody profile={data} />
+      <ProfileBody profile={profile} />
     </Card>
-  )
-}
+  );
+};
