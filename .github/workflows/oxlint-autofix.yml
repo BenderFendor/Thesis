@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   autofix:
@@ -29,20 +29,46 @@ jobs:
         shell: bash
         run: |
           export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          export NODE_OPTIONS="--experimental-strip-types"
           test -x "$OXLINT_TSGOLINT_PATH"
           set +e
-          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend
+          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend scripts
           set -e
           git diff --check
-      - name: Commit safe fixes
+          git diff --binary > oxlint-safe.patch
+      - name: Measure post-fix errors
         shell: bash
         run: |
-          if git diff --quiet; then
-            echo "No safe Oxlint fixes available"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend
-          git commit -m "style: apply safe Oxlint fixes"
-          git push origin HEAD:quality/crap-mi-oxlint-hardening
+          export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          export NODE_OPTIONS="--experimental-strip-types"
+          set +e
+          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format json frontend scripts > oxlint-postfix.json
+          status=$?
+          set -e
+          node <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('oxlint-postfix.json', 'utf8'));
+          const diagnostics = report.diagnostics ?? report;
+          const errors = diagnostics.filter(d => d.severity === 'error').length;
+          const warnings = diagnostics.filter(d => d.severity === 'warning').length;
+          const summary = { errors, warnings, total: diagnostics.length };
+          fs.writeFileSync('oxlint-postfix-summary.json', JSON.stringify(summary, null, 2) + '\n');
+          console.log(JSON.stringify(summary));
+          NODE
+          exit 0
+      - name: Archive fixed source
+        shell: bash
+        run: |
+          tar --exclude='frontend/node_modules' --exclude='.git' -czf oxlint-fixed-source.tgz frontend scripts
+      - name: Upload safe-fix artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxlint-safe-fix-${{ github.sha }}
+          path: |
+            oxlint-safe.patch
+            oxlint-postfix.json
+            oxlint-postfix-summary.json
+            oxlint-fixed-source.tgz
+          if-no-files-found: error
+          retention-days: 3
