@@ -1,6 +1,6 @@
 /**
  * Verification API client
- * 
+ *
  * Handles communication with the verification agent backend.
  */
 
@@ -9,36 +9,88 @@ import type {
   VerificationRequest,
   VerificationResult,
 } from "@/lib/types/verification";
-import { API_BASE_URL } from "./api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { api } from "./api";
+import { z } from "zod";
 
-export type { ConfidenceLevel, SourceInfo, VerifiedClaim, VerificationResult } from "@/lib/types/verification";
+// --- API Functions ---
+
+const VerificationSourceSchema = z
+  .object({
+    credibility_score: z.number(),
+    domain: z.string(),
+    excerpt: z.string().nullable().optional(),
+    id: z.string(),
+    published_at: z.string().nullable().optional(),
+    source_type: z.enum([
+      "wire",
+      "newspaper",
+      "magazine",
+      "broadcast",
+      "nonprofit",
+      "fact_checker",
+      "government",
+      "academic",
+      "blog",
+      "social",
+      "unknown",
+    ]),
+    supports_claim: z.boolean(),
+    title: z.string().nullable().optional(),
+    url: z.string(),
+  })
+  .passthrough();
+
+const VerifiedClaimSchema = z
+  .object({
+    claim_text: z.string(),
+    confidence: z.number(),
+    confidence_level: z.enum(["high", "medium", "low", "very_low"]),
+    conflicting_sources: z.array(z.string()).default([]),
+    footnotes: z.array(z.number()).default([]),
+    id: z.string(),
+    needs_recheck: z.boolean(),
+    recheck_reason: z.string().nullable().optional(),
+    supporting_sources: z.array(z.string()).default([]),
+  })
+  .passthrough();
+
+const VerificationResultSchema = z
+  .object({
+    duration_ms: z.number(),
+    error: z.string().nullable().optional(),
+    generated_at: z.string().optional(),
+    markdown_report: z.string(),
+    overall_confidence: z.number(),
+    overall_confidence_level: z.enum(["high", "medium", "low", "very_low"]),
+    query: z.string(),
+    sources: z.record(z.string(), VerificationSourceSchema).default({}),
+    verified_claims: z.array(VerifiedClaimSchema).default([]),
+  })
+  .passthrough();
 
 /**
  * Verify claims from research output.
+ * @param {DeepReadonly<VerificationRequest>} request Research output to verify.
+ * @param {AbortSignal} [signal] Optional cancellation signal.
+ * @returns {Promise<VerificationResult>} The verification result.
  */
 const verifyResearch = async (
-  request: VerificationRequest,
-  signal?: AbortSignal
-): Promise<VerificationResult> => {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify`, {
+  request: DeepReadonly<VerificationRequest>,
+  signal?: AbortSignal,
+): Promise<VerificationResult> =>
+  api("/api/verification/verify", VerificationResultSchema, {
     body: JSON.stringify(request),
     headers: { "Content-Type": "application/json" },
     method: "POST",
     signal,
   });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Verification failed: ${error}`);
-  }
-  
-  return response.json();
-}
 
 // --- Helpers ---
 
 /**
- * Get display color class for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display color class.
  */
 const getConfidenceColor = (level: ConfidenceLevel): string => {
   switch (level) {
@@ -58,10 +110,11 @@ const getConfidenceColor = (level: ConfidenceLevel): string => {
       return "text-gray-600 dark:text-gray-400";
     }
   }
-}
+};
 
 /**
- * Get background color class for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display background class.
  */
 const getConfidenceBgColor = (level: ConfidenceLevel): string => {
   switch (level) {
@@ -81,10 +134,11 @@ const getConfidenceBgColor = (level: ConfidenceLevel): string => {
       return "bg-gray-500/15 border-gray-500/40";
     }
   }
-}
+};
 
 /**
- * Get label for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display label.
  */
 const getConfidenceLabel = (level: ConfidenceLevel): string => {
   switch (level) {
@@ -104,12 +158,24 @@ const getConfidenceLabel = (level: ConfidenceLevel): string => {
       return "Unknown";
     }
   }
-}
+};
 
 /**
- * Format confidence as percentage string.
+ * @param {number} confidence Confidence from zero to one.
+ * @returns {string} Percentage text.
  */
-const formatConfidence = (confidence: number): string => 
-  `${Math.round(confidence * 100)}%`
+const formatConfidence = (confidence: number): string => `${Math.round(confidence * 100)}%`;
 
-export { verifyResearch, getConfidenceColor, getConfidenceBgColor, getConfidenceLabel, formatConfidence };
+export {
+  verifyResearch,
+  getConfidenceColor,
+  getConfidenceBgColor,
+  getConfidenceLabel,
+  formatConfidence,
+};
+export type {
+  ConfidenceLevel,
+  SourceInfo,
+  VerifiedClaim,
+  VerificationResult,
+} from "@/lib/types/verification";
