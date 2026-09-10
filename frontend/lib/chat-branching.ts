@@ -13,10 +13,10 @@ interface MessageVersionInfo {
   readonly versionIds: readonly string[];
 }
 
-type BranchGroupMap<T> = Map<string | null, Map<string, T[]>>;
+type BranchGroupMap<MessageType> = Map<string | null, Map<string, MessageType[]>>;
 
-interface BranchGroupResult<T extends BranchableChatMessage> {
-  readonly branchGroups: BranchGroupMap<T>;
+interface BranchGroupResult<MessageType extends BranchableChatMessage> {
+  readonly branchGroups: BranchGroupMap<MessageType>;
   readonly resolvedParents: Map<string, string | null>;
 }
 
@@ -27,9 +27,9 @@ const getMessageVersionGroupId = (
   message: Pick<BranchableChatMessage, "id" | "retryOfMessageId">,
 ): string => message.retryOfMessageId ?? message.id;
 
-const getVisibleMessages = function getVisibleMessages<T extends BranchableChatMessage>(
-  messages: readonly T[],
-): T[] {
+const getVisibleMessages = function getVisibleMessages<MessageType extends BranchableChatMessage>(
+  messages: readonly MessageType[],
+): MessageType[] {
   return messages.filter((message) => isVisibleConversationMessage(message));
 };
 
@@ -48,16 +48,16 @@ const getResolvedParentMap = function getResolvedParentMap(
   return resolvedParents;
 };
 
-const getBranchGroupMap = function getBranchGroupMap<T extends BranchableChatMessage>(
-  messages: readonly T[],
-): BranchGroupResult<T> {
+const getBranchGroupMap = function getBranchGroupMap<MessageType extends BranchableChatMessage>(
+  messages: readonly MessageType[],
+): BranchGroupResult<MessageType> {
   const resolvedParents = getResolvedParentMap(messages);
-  const branchGroups: BranchGroupMap<T> = new Map();
+  const branchGroups: BranchGroupMap<MessageType> = new Map();
 
   getVisibleMessages(messages).forEach((message) => {
     const parentId = resolvedParents.get(message.id) ?? null;
     const groupId = getMessageVersionGroupId(message);
-    const parentGroups = branchGroups.get(parentId) ?? new Map<string, T[]>();
+    const parentGroups = branchGroups.get(parentId) ?? new Map<string, MessageType[]>();
     const siblings = parentGroups.get(groupId) ?? [];
 
     siblings.push(message);
@@ -68,10 +68,10 @@ const getBranchGroupMap = function getBranchGroupMap<T extends BranchableChatMes
   return { branchGroups, resolvedParents };
 };
 
-const resolveActiveVersion = function resolveActiveVersion<T extends BranchableChatMessage>(
-  versions: readonly T[],
+const resolveActiveVersion = function resolveActiveVersion<MessageType extends BranchableChatMessage>(
+  versions: readonly MessageType[],
   activeVersionId?: string,
-): T {
+): MessageType {
   const activeVersion = versions.find((message) => message.id === activeVersionId);
   if (activeVersion !== undefined) {
     return activeVersion;
@@ -83,28 +83,44 @@ const resolveActiveVersion = function resolveActiveVersion<T extends BranchableC
   return latestVersion;
 };
 
+const getNextBranchMessage = function getNextBranchMessage<
+  MessageType extends BranchableChatMessage,
+>(
+  branchGroups: BranchGroupMap<MessageType>,
+  parentId: string | null,
+  activeVersionByGroup: Readonly<Record<string, string>>,
+): MessageType | undefined {
+  const childGroups = branchGroups.get(parentId);
+  if (!childGroups || childGroups.size === 0) {
+    return void 0;
+  }
+  const nextGroup = [...childGroups.entries()][0];
+  if (nextGroup === undefined) {
+    return void 0;
+  }
+  const [groupId, versions] = nextGroup;
+  return resolveActiveVersion(versions, activeVersionByGroup[groupId]);
+};
+
 const getVisibleConversationMessages = function getVisibleConversationMessages<
-  T extends BranchableChatMessage,
->(messages: readonly T[], activeVersionByGroup: Readonly<Record<string, string>>): T[] {
+  MessageType extends BranchableChatMessage,
+>(messages: readonly MessageType[], activeVersionByGroup: Readonly<Record<string, string>>): MessageType[] {
   const { branchGroups } = getBranchGroupMap(messages),
-    path: T[] = [];
+    path: MessageType[] = [];
   let parentId: string | null = null;
 
   while (true) {
-    const childGroups = branchGroups.get(parentId);
-    if (!childGroups || childGroups.size === 0) {
+    const nextMessage: MessageType | undefined = getNextBranchMessage<MessageType>(
+      branchGroups,
+      parentId,
+      activeVersionByGroup,
+    );
+    if (nextMessage === undefined) {
       break;
     }
 
-    const nextGroup = childGroups.entries().next();
-    if (nextGroup.done === true) {
-      break;
-    }
-    const [groupId, versions] = nextGroup.value,
-      activeMessage = resolveActiveVersion(versions, activeVersionByGroup[groupId]);
-
-    path.push(activeMessage);
-    parentId = activeMessage.id;
+    path.push(nextMessage);
+    parentId = nextMessage.id;
   }
 
   return path;
