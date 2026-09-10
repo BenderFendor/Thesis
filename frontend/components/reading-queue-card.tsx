@@ -55,6 +55,62 @@ interface QueueCardHeaderProps {
   readonly hasPreloadedData: boolean;
 }
 
+interface QueueCardMetaProps {
+  readonly article: NewsArticle;
+  readonly estimatedReadTime?: number;
+  readonly readingHistoryIds: readonly number[];
+  readonly hasReadTime: boolean;
+  readonly hasPreloadedData: boolean;
+}
+
+const QueueCardLoadingBadge = (): ReactElement => (
+  <Badge className="text-xs flex items-center gap-1 animate-pulse">
+    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+    Loading...
+  </Badge>
+);
+
+const QueueCardMeta = ({
+  article,
+  estimatedReadTime,
+  readingHistoryIds,
+  hasReadTime,
+  hasPreloadedData,
+}: QueueCardMetaProps): ReactElement => (
+  <div className="flex items-center gap-2 mt-1">
+    <p className="text-xs text-muted-foreground">{article.source}</p>
+    {hasReadTime && (
+      <span className="text-xs px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
+        {estimatedReadTime}m
+      </span>
+    )}
+    {readingHistoryIds.length > ZERO && (
+      <NoveltyBadge articleId={article.id} readingHistory={readingHistoryIds} />
+    )}
+    {!hasPreloadedData && <QueueCardLoadingBadge />}
+  </div>
+);
+
+const QueueCardThumbnail = ({
+  article,
+  isExpanded,
+}: Readonly<Pick<QueueCardHeaderProps, "article" | "isExpanded">>): ReactElement | null => {
+  if (isExpanded || !isUsableImage(article.image)) {
+    return null;
+  }
+  return (
+    <div className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border border-border">
+      <SafeImage
+        src={article.image}
+        alt={article.title}
+        width={DIGEST_IMAGE_WIDTH}
+        height={DIGEST_IMAGE_HEIGHT}
+        className="w-full h-full object-cover"
+      />
+    </div>
+  );
+};
+
 const QueueCardHeader = ({
   article,
   estimatedReadTime,
@@ -78,38 +134,18 @@ const QueueCardHeader = ({
       </div>
       <div className="flex-1 min-w-0">
         <h3 className={headingClass}>{article.title}</h3>
-        <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs text-muted-foreground">{article.source}</p>
-          {hasReadTime && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
-              {estimatedReadTime}m
-            </span>
-          )}
-          {readingHistoryIds.length > ZERO && (
-            <NoveltyBadge articleId={article.id} readingHistory={readingHistoryIds} />
-          )}
-          {!hasPreloadedData && (
-            <Badge className="text-xs flex items-center gap-1 animate-pulse">
-              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              Loading...
-            </Badge>
-          )}
-        </div>
+        <QueueCardMeta
+          article={article}
+          estimatedReadTime={estimatedReadTime}
+          readingHistoryIds={readingHistoryIds}
+          hasReadTime={hasReadTime}
+          hasPreloadedData={hasPreloadedData}
+        />
         {isExpanded && (
           <SemanticTags articleId={article.id} maxTags={MAX_SEMANTIC_TAGS} className="mt-2" />
         )}
       </div>
-      {!isExpanded && isUsableImage(article.image) && (
-        <div className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border border-border">
-          <SafeImage
-            src={article.image}
-            alt={article.title}
-            width={DIGEST_IMAGE_WIDTH}
-            height={DIGEST_IMAGE_HEIGHT}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
+      <QueueCardThumbnail article={article} isExpanded={isExpanded} />
       <ChevronDown
         className={`h-5 w-5 flex-shrink-0 transition-transform ${(() => {
   if (isExpanded) {
@@ -174,6 +210,58 @@ const QueueCardActions = ({
   );
 };
 
+const getQueueCardSurfaceClass = (isExpanded: boolean): string => {
+  if (isExpanded) {
+    return "relative rounded-xl border overflow-hidden backdrop-blur-sm transition-all duration-300 p-4 flex flex-col shadow-2xl ring-2 bg-news-bg-secondary border-primary ring-primary";
+  }
+  return "relative rounded-xl border overflow-hidden backdrop-blur-sm transition-all duration-300 p-4 flex flex-col shadow-lg group-hover:shadow-xl bg-card border-border";
+};
+
+type QueueCardButtonProps = Pick<
+  QueueCardProps,
+  "article" | "estimatedReadTime" | "index" | "isExpanded" | "onToggle" | "readingHistoryIds"
+>;
+
+const QueueCardButton = ({
+  article,
+  estimatedReadTime,
+  index,
+  isExpanded,
+  onToggle,
+  readingHistoryIds,
+}: Readonly<QueueCardButtonProps>): ReactElement => {
+  const onKeyDown: KeyboardEventHandler<HTMLButtonElement> = useCallback(
+    (event) => {
+      activateCardFromKeyDown(event, onToggle);
+    },
+    [onToggle],
+  );
+  const hasReadTime = estimatedReadTime !== undefined && estimatedReadTime > ZERO;
+  const queueData = article[QUEUE_DATA_KEY];
+  const hasPreloadedData = queueData?.preloadedAt !== undefined && queueData.preloadedAt !== ZERO;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onKeyDown={onKeyDown}
+      aria-expanded={isExpanded}
+      className="w-full border-0 bg-transparent p-0 transition-all duration-300 ease-out cursor-pointer text-left group transform hover:scale-105"
+    >
+      <QueueCardHeader
+        article={article}
+        estimatedReadTime={estimatedReadTime}
+        index={index}
+        isExpanded={isExpanded}
+        readingHistoryIds={readingHistoryIds}
+        hasReadTime={hasReadTime}
+        hasPreloadedData={hasPreloadedData}
+      />
+      {isExpanded && <QueueCardExpandedContent article={article} />}
+    </button>
+  );
+};
+
 export const QueueCard = ({
   article,
   estimatedReadTime,
@@ -184,42 +272,18 @@ export const QueueCard = ({
   onToggle,
   readingHistoryIds,
 }: QueueCardProps): ReactElement => {
-  const onKeyDown: KeyboardEventHandler<HTMLButtonElement> = useCallback(
-    (event) => {
-      activateCardFromKeyDown(event, onToggle);
-    },
-    [onToggle],
-  );
-  const hasReadTime = estimatedReadTime !== undefined && estimatedReadTime > ZERO;
-  const queueData = article[QUEUE_DATA_KEY];
-  const hasPreloadedData = queueData?.preloadedAt !== undefined && queueData.preloadedAt !== ZERO;
-  const surfaceClass = (() => {
-  if (isExpanded) {
-    return "relative rounded-xl border overflow-hidden backdrop-blur-sm transition-all duration-300 p-4 flex flex-col shadow-2xl ring-2 bg-news-bg-secondary border-primary ring-primary";
-  }
-  return "relative rounded-xl border overflow-hidden backdrop-blur-sm transition-all duration-300 p-4 flex flex-col shadow-lg group-hover:shadow-xl bg-card border-border";
-})();
+  const surfaceClass = getQueueCardSurfaceClass(isExpanded);
   return (
     <article style={getCardStyle(index)}>
       <div className={surfaceClass}>
-        <button
-          type="button"
-          onClick={onToggle}
-          onKeyDown={onKeyDown}
-          aria-expanded={isExpanded}
-          className="w-full border-0 bg-transparent p-0 transition-all duration-300 ease-out cursor-pointer text-left group transform hover:scale-105"
-        >
-          <QueueCardHeader
-            article={article}
-            estimatedReadTime={estimatedReadTime}
-            index={index}
-            isExpanded={isExpanded}
-            readingHistoryIds={readingHistoryIds}
-            hasReadTime={hasReadTime}
-            hasPreloadedData={hasPreloadedData}
-          />
-          {isExpanded && <QueueCardExpandedContent article={article} />}
-        </button>
+        <QueueCardButton
+          article={article}
+          estimatedReadTime={estimatedReadTime}
+          index={index}
+          isExpanded={isExpanded}
+          onToggle={onToggle}
+          readingHistoryIds={readingHistoryIds}
+        />
         {isExpanded && <QueueCardActions onOpen={onOpen} onRemove={onRemove} />}
       </div>
     </article>
