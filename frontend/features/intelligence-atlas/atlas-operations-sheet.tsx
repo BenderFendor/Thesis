@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -34,40 +33,36 @@ interface AtlasOperationsSheetProps {
   readonly selectedSourceName: string | null;
 }
 
-export const AtlasOperationsSheet = ({
-  open,
-  onOpenChange,
-  activeTab,
-  onTabChange,
-  selectedSourceName,
-}: Readonly<AtlasOperationsSheetProps>) => {
-  const queryClient = useQueryClient();
+const useAtlasOperationsQueries = (open: boolean, selectedSourceName: string | null) => {
   const sourceStatsQuery = useQuery({
-      enabled: open,
-      queryFn: fetchSourceStats,
-      queryKey: ["debug-source-stats-summary"],
-      retry: 1,
-    });
+    enabled: open,
+    queryFn: fetchSourceStats,
+    queryKey: ["debug-source-stats-summary"],
+    retry: 1,
+  });
   const cacheStatusQuery = useQuery({
-      enabled: open,
-      queryFn: fetchCacheStatus,
-      queryKey: ["debug-cache-status-summary"],
-      retry: 1,
-    });
+    enabled: open,
+    queryFn: fetchCacheStatus,
+    queryKey: ["debug-cache-status-summary"],
+    retry: 1,
+  });
   const indexStatusQuery = useQuery({
-      enabled: open,
-      queryFn: fetchWikiIndexStatus,
-      queryKey: ["wiki-index-status"],
-      retry: 1,
-    });
+    enabled: open,
+    queryFn: fetchWikiIndexStatus,
+    queryKey: ["wiki-index-status"],
+    retry: 1,
+  });
   const sourceProfileQuery = useQuery<WikiSourceProfile>({
-      enabled: open && Boolean(selectedSourceName),
-      queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
-      queryKey: ["wiki-source-profile", selectedSourceName],
-      retry: 1,
-    });
-  const tabs = useMemo(() => [...WORKSPACE_TABS], []);
+    enabled: open && Boolean(selectedSourceName),
+    queryFn: () => fetchWikiSource(selectedSourceName ?? ""),
+    queryKey: ["wiki-source-profile", selectedSourceName],
+    retry: 1,
+  });
+  return { cacheStatusQuery, indexStatusQuery, sourceProfileQuery, sourceStatsQuery };
+};
 
+const useAtlasOperationsRefresh = (selectedSourceName: string | null) => {
+  const queryClient = useQueryClient();
   const refreshAll = useCallback(async () => {
     await Promise.allSettled([
       queryClient.invalidateQueries({ queryKey: ["debug-source-stats-summary"] }),
@@ -77,7 +72,6 @@ export const AtlasOperationsSheet = ({
       queryClient.invalidateQueries({ queryKey: ["atlas"] }),
       queryClient.invalidateQueries({ queryKey: ["wiki-source-profile"] }),
     ]);
-    return;
   }, [queryClient, selectedSourceName]);
   const handleRefreshAll = useCallback(() => {
     void refreshAll();
@@ -89,33 +83,45 @@ export const AtlasOperationsSheet = ({
     await queryClient.invalidateQueries({
       queryKey: ["wiki-source-profile", selectedSourceName],
     });
-    return;
   }, [queryClient, selectedSourceName]);
+  return { handleRefreshAll, handleSourceProfileRefresh };
+};
+
+export const AtlasOperationsSheet = ({
+  open,
+  onOpenChange,
+  activeTab,
+  onTabChange,
+  selectedSourceName,
+}: Readonly<AtlasOperationsSheetProps>) => {
+  const { cacheStatusQuery, indexStatusQuery, sourceProfileQuery, sourceStatsQuery } =
+    useAtlasOperationsQueries(open, selectedSourceName);
+  const { handleRefreshAll, handleSourceProfileRefresh } =
+    useAtlasOperationsRefresh(selectedSourceName);
+  const tabs = useMemo(() => [...WORKSPACE_TABS], []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-auto bottom-0 left-1/2 flex h-[min(82vh,880px)] w-[min(1320px,calc(100%-1rem))] max-w-none translate-y-0 flex-col gap-0 rounded-b-none border-white/10 bg-[#0d0f0c]/[0.99] p-0 text-[#f0ede4] shadow-2xl">
-        <DialogHeader className="border-b border-white/10 p-5 pr-14">
-          <DialogTitle className="font-serif text-3xl font-normal">Atlas operations</DialogTitle>
-          <DialogDescription className="mt-1 text-[#77736a]">
-            Inspect ingestion, parser, model, storage, and error state without shrinking the
-            investigation graph.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 flex-1 p-4">
-          <SourceIntelligenceOperations
-            activeTab={activeTab}
-            onTabChange={onTabChange}
-            tabs={tabs}
-            sourceStats={sourceStatsQuery.data ?? EMPTY_SOURCE_STATS}
-            cacheStatus={cacheStatusQuery.data ?? null}
-            wikiIndexStatus={indexStatusQuery.data}
-            selectedSourceName={selectedSourceName}
-            selectedSourceProfile={sourceProfileQuery.data ?? null}
-            onRefreshAll={handleRefreshAll}
-            onSourceProfileRefresh={handleSourceProfileRefresh}
-          />
-        </div>
+      <DialogContent className="top-auto bottom-0 left-1/2 flex h-[min(82vh,880px)] w-[min(1320px,calc(100%-1rem))] max-w-none translate-y-0 flex-col gap-0 rounded-b-none border-white/10 bg-[#0d0f0c]/[0.99] p-4 text-[#f0ede4] shadow-2xl">
+        <DialogTitle className="-mx-4 -mt-4 border-b border-white/10 px-5 pb-1 pt-5 pr-14 font-serif text-3xl font-normal">
+          Atlas operations
+        </DialogTitle>
+        <DialogDescription className="-mx-4 border-b border-white/10 px-5 pb-5 pr-14 text-[#77736a]">
+          Inspect ingestion, parser, model, storage, and error state without shrinking the
+          investigation graph.
+        </DialogDescription>
+        <SourceIntelligenceOperations
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          tabs={tabs}
+          sourceStats={sourceStatsQuery.data ?? EMPTY_SOURCE_STATS}
+          cacheStatus={cacheStatusQuery.data ?? null}
+          wikiIndexStatus={indexStatusQuery.data}
+          selectedSourceName={selectedSourceName}
+          selectedSourceProfile={sourceProfileQuery.data ?? null}
+          onRefreshAll={handleRefreshAll}
+          onSourceProfileRefresh={handleSourceProfileRefresh}
+        />
       </DialogContent>
     </Dialog>
   );
