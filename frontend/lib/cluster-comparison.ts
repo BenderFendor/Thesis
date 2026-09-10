@@ -1,4 +1,5 @@
 import { hasText } from "@/lib/utils";
+
 interface ComparisonCandidateArticle {
   readonly id: number;
   readonly source: string;
@@ -7,14 +8,14 @@ interface ComparisonCandidateArticle {
   readonly _parsedTimestamp?: number;
 }
 
-interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
+interface ComparisonSourceOption<ArticleType extends ComparisonCandidateArticle> {
   readonly sourceId: string;
   readonly sourceName: string;
-  readonly articles: readonly T[];
+  readonly articles: readonly ArticleType[];
 }
 
-interface MutableComparisonSourceOption<T extends ComparisonCandidateArticle> {
-  articles: T[];
+interface MutableComparisonSourceOption<ArticleType extends ComparisonCandidateArticle> {
+  articles: ArticleType[];
   sourceId: string;
   sourceName: string;
 }
@@ -47,9 +48,9 @@ return 0;
 };
 
 const buildComparisonSourceOptions = function buildComparisonSourceOptions<
-  T extends ComparisonCandidateArticle,
->(articles: readonly T[]): ComparisonSourceOption<T>[] {
-  const groups = new Map<string, MutableComparisonSourceOption<T>>();
+  ArticleType extends ComparisonCandidateArticle,
+>(articles: readonly ArticleType[]): ComparisonSourceOption<ArticleType>[] {
+  const groups = new Map<string, MutableComparisonSourceOption<ArticleType>>();
 
   articles.forEach((article) => {
     const sourceId = normalizeSourceKey(article);
@@ -69,12 +70,12 @@ const buildComparisonSourceOptions = function buildComparisonSourceOptions<
     .map((group) => ({
       articles: group.articles
         .map((article) => ({ article, recency: recencyValue(article) }))
-        .toSorted((a, b) => b.recency - a.recency)
+        .toSorted((first, second) => second.recency - first.recency)
         .map(({ article }) => article),
       sourceId: group.sourceId,
       sourceName: group.sourceName,
     }))
-    .toSorted((a, b) => b.articles.length - a.articles.length);
+    .toSorted((first, second) => second.articles.length - first.articles.length);
 };
 
 const getDefaultComparisonArticleIds = function getDefaultComparisonArticleIds(
@@ -92,12 +93,12 @@ const getDefaultComparisonArticleIds = function getDefaultComparisonArticleIds(
 };
 
 const getSelectedComparisonArticles = function getSelectedComparisonArticles<
-  T extends ComparisonCandidateArticle,
->(articles: readonly T[], selectedIds: readonly number[]): T[] {
+  ArticleType extends ComparisonCandidateArticle,
+>(articles: readonly ArticleType[], selectedIds: readonly number[]): ArticleType[] {
   const articleById = new Map(articles.map((article) => [article.id, article]));
   return selectedIds
     .map((id) => articleById.get(id))
-    .filter((article): article is T => Boolean(article));
+    .filter((article): article is ArticleType => Boolean(article));
 };
 export {
   buildComparisonSourceOptions,
