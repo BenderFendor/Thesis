@@ -51,7 +51,9 @@ describe("feed ranking", () => {
       (sourceId) => sourceId === "fav-source",
     )
 
-    expect(ranked.articles[0]!.id).toBe(1)
+    const [firstRankedArticle] = ranked.articles
+    if (firstRankedArticle === undefined) { throw new Error("expected ranked article"); }
+    expect(firstRankedArticle.id).toBe(1)
   })
 
   it("gives bookmark signals at least as much weight as likes for the same topic", () => {  expect.hasAssertions();

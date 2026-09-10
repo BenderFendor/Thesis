@@ -1,6 +1,6 @@
 import { ArrowRight, Search } from "lucide-react"
 import type { ChangeEvent, FormEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from "@/lib/utils"
 
@@ -22,12 +22,12 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
     }
   }, [expanded])
 
-  const handleCollapsedClick = () => {
+  const handleCollapsedClick = useCallback(() => {
     shouldFocusRef.current = true
     onExpand()
-  },
+  }, [onExpand]),
 
-   handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+   handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmed = query.trim()
     if (!trimmed) {
@@ -35,7 +35,11 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
       return
     }
     onSearch(trimmed)
-  }
+  }, [onSearch, query]),
+
+   handleQueryChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setQuery(event.target.value)
+  }, [])
 
   if (!expanded) {
     return (
@@ -52,7 +56,8 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
   }
 
   return (
-    <form onSubmit={handleSubmit} role="search" className="relative">
+    <search className="relative block">
+      <form onSubmit={handleSubmit}>
       <Search
         className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         strokeWidth={1.6}
@@ -62,7 +67,7 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
         ref={inputRef}
         type="search"
         value={query}
-        onChange={(event: ChangeEvent<HTMLInputElement>) =>{  setQuery(event.target.value); }}
+        onChange={handleQueryChange}
         placeholder="Search the workspace"
         aria-label="Search the workspace"
         className="h-11 w-full rounded-lg border border-white/10 bg-[var(--news-bg-primary)] pl-10 pr-11 text-sm text-foreground placeholder:text-muted-foreground/65 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -77,6 +82,7 @@ export function WorkspaceSearch({ expanded, onExpand, onSearch }: WorkspaceSearc
       >
         <ArrowRight className="h-4 w-4" />
       </button>
-    </form>
+      </form>
+    </search>
   )
 }

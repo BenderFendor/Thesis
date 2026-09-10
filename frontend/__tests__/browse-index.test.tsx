@@ -31,6 +31,12 @@ type FetchBoundary = (
   init?: RequestInit,
 ) => Promise<FetchResponseFixture>
 
+const requestInputUrl = (input: RequestInfo | URL): string => {
+  if (input instanceof Request) { return input.url }
+  if (input instanceof URL) { return input.href }
+  return input
+}
+
 interface FetchResponseFixture {
   readonly json: () => Promise<BrowseResponse>
   readonly ok: boolean
@@ -117,7 +123,7 @@ describe("useBrowseIndex", () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]))
+    const requestUrl = new URL(requestInputUrl(fetchMock.mock.calls[0]?.[0] ?? ""))
     expect(requestUrl.pathname).toBe("/news/index")
     expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news")
     expect(result.current.totalCount).toBe(1)
@@ -150,9 +156,11 @@ describe("useBrowseIndex", () => {
       },
     ])
 
-    expect(article!.summary).toBe("Short browse summary")
-    expect(article!.content).toBeUndefined()
-    expect(article!.hasFullContent).toBe(false)
+    expect(article).toBeDefined()
+    if (article === undefined) { throw new Error("expected mapped browse article"); }
+    expect(article.summary).toBe("Short browse summary")
+    expect(article.content).toBeUndefined()
+    expect(article.hasFullContent).toBe(false)
   })
 
   it("marks live cache rows without durable ids as unpersisted", () => {  expect.hasAssertions();
@@ -170,7 +178,9 @@ describe("useBrowseIndex", () => {
       },
     ])
 
-    expect(article!.id).toStrictEqual(expect.any(Number))
-    expect(article!.isPersisted).toBe(false)
+    expect(article).toBeDefined()
+    if (article === undefined) { throw new Error("expected mapped live-cache article"); }
+    expect(article.id).toStrictEqual(expect.any(Number))
+    expect(article.isPersisted).toBe(false)
   })
 })

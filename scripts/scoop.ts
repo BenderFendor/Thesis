@@ -1,37 +1,19 @@
 #!/usr/bin/env node
 /** Deterministic CLI for Scoop's OpenAPI and WebSocket contracts. */
 
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(import.meta.dirname, ".."),
  DEFAULT_SPEC = resolve(ROOT, "backend/openapi.json"),
- HTTP_METHODS: Record<string, true> = {
-  delete: true,
-  get: true,
-  head: true,
-  options: true,
-  patch: true,
-  post: true,
-  put: true,
-  trace: true,
-},
- BOOLEAN_OPTIONS: Record<string, true> = {
-  help: true,
-  "include-meta": true,
-  json: true,
-  refresh: true,
-  stream: true,
-},
- REPEATABLE_OPTIONS: Record<string, true> = {
-  "expect-json": true,
-  header: true,
-  param: true,
-};
+ HTTP_METHODS = new Set(["delete", "get", "head", "options", "patch", "post", "put", "trace"]),
+ BOOLEAN_OPTIONS = new Set(["help", "include-meta", "json", "refresh", "stream"]),
+ REPEATABLE_OPTIONS = new Set(["expect-json", "header", "param"]);
 
-type JsonValue = undefined | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue = undefined | boolean | number | string | JsonValue[] | JsonObject;
+interface JsonObject { [key: string]: JsonValue }
 type ParameterLocation = "path" | "query" | "header" | "cookie";
 
 interface SchemaObject {
@@ -48,7 +30,7 @@ interface ParameterObject {
 
 interface RequestBodyObject {
   required?: boolean;
-  content?: Record<string, unknown>;
+  content?: JsonObject;
 }
 
 interface OperationObject {
@@ -57,7 +39,7 @@ interface OperationObject {
   tags?: string[];
   parameters?: ParameterObject[];
   requestBody?: RequestBodyObject;
-  responses?: Record<string, unknown>;
+  responses?: JsonObject;
 }
 
 interface PathItemObject {
@@ -74,7 +56,6 @@ interface WebSocketOperation {
 interface OpenApiSpec {
   paths?: Record<string, PathItemObject>;
   "x-scoop-websockets"?: WebSocketOperation[];
-  [key: string]: unknown;
 }
 
 interface OperationDescriptor {
@@ -172,13 +153,13 @@ function parseOption(
   index: number,
 ): number {
   const [rawKey, inlineValue] = token.slice(2).split(/=(.*)/su, 2);
-  if (BOOLEAN_OPTIONS[rawKey]) {
+  if (BOOLEAN_OPTIONS.has(rawKey)) {
     options[rawKey] = inlineValue === undefined ? true : inlineValue !== "false";
     return index;
   }
   const value = inlineValue ?? argv[index + 1];
   if (value === undefined) {fail(`Missing value for --${rawKey}`);}
-  if (REPEATABLE_OPTIONS[rawKey]) {
+  if (REPEATABLE_OPTIONS.has(rawKey)) {
     const current = options[rawKey];
     options[rawKey] = [...(Array.isArray(current) ? current : []), value];
   } else {
@@ -187,14 +168,16 @@ function parseOption(
   return inlineValue === undefined ? index + 1 : index;
 }
 
-const loadSpec = (specPath = DEFAULT_SPEC): OpenApiSpec => 
-  JSON.parse(readFileSync(resolve(specPath), "utf8")) as OpenApiSpec
+const loadSpec = (specPath = DEFAULT_SPEC): OpenApiSpec => {
+  const spec: OpenApiSpec = JSON.parse(readFileSync(resolve(specPath), "utf8"));
+  return spec;
+}
 
 
 const listPathOperations = (path: string, pathItem: PathItemObject): OperationDescriptor[] => {
   const operations: OperationDescriptor[] = [];
   for (const [method, value] of Object.entries(pathItem)) {
-    if (!HTTP_METHODS[method] || Array.isArray(value) || value === undefined) {continue;}
+    if (!HTTP_METHODS.has(method) || Array.isArray(value) || value === undefined) {continue;}
     const operation = value;
     if (!operation.operationId) {fail(`OpenAPI operation is missing operationId: ${method.toUpperCase()} ${path}`);}
     operations.push({
@@ -214,11 +197,11 @@ const listOperations = (spec: OpenApiSpec): OperationDescriptor[] => {
   const operations = Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) =>
     listPathOperations(path, pathItem),
   );
-  return operations.sort((left, right) => left.operationId.localeCompare(right.operationId));
+  return operations.toSorted((left, right) => left.operationId.localeCompare(right.operationId));
 }
 
 const listWebSockets = (spec: OpenApiSpec): WebSocketOperation[] => 
-  [...(spec["x-scoop-websockets"] ?? [])].sort((left, right) =>
+  [...(spec["x-scoop-websockets"] ?? [])].toSorted((left, right) =>
     left.operationId.localeCompare(right.operationId),
   )
 
@@ -266,7 +249,8 @@ const coerceScalar = (value: string, schema: SchemaObject, name: string): JsonVa
   }
   if (type === "object") {
     try {
-      return JSON.parse(value) as JsonValue;
+      const parsed: JsonValue = JSON.parse(value);
+      return parsed;
     } catch {
       fail(`Parameter ${name} must be valid JSON`);
     }
@@ -290,9 +274,10 @@ const requestBody = (rawBody: string | undefined): JsonValue | undefined => {
     ? readFileSync(resolve(rawBody.slice(1)), "utf8")
     : rawBody;
   try {
-    return JSON.parse(text) as JsonValue;
+    const parsed: JsonValue = JSON.parse(text);
+    return parsed;
   } catch {
-    fail("--body must be JSON or @path-to-json");
+    return fail("--body must be JSON or @path-to-json");
   }
 }
 
@@ -303,27 +288,34 @@ interface RequestTarget {
   cookies: string[];
 }
 
+const parameterValueToString = (value: JsonValue): string => {
+  if (value === null) { return ""; }
+  if (Array.isArray(value)) { return value.map(parameterValueToString).join(","); }
+  if (value instanceof Object) { return JSON.stringify(value); }
+  return `${value}`;
+};
+
 const applyParameter = (
   target: RequestTarget,
   parameter: ParameterObject,
   value: JsonValue | JsonValue[],
 ): void => {
   if (parameter.in === "path") {
-    target.path = target.path.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
+    target.path = target.path.replace(`{${parameter.name}}`, encodeURIComponent(parameterValueToString(value)));
     return;
   }
   if (parameter.in === "query") {
     for (const item of Array.isArray(value) ? value : [value]) {
-      target.query.append(parameter.name, String(item));
+      target.query.append(parameter.name, parameterValueToString(item));
     }
     return;
   }
   if (parameter.in === "header") {
-    target.headers.set(parameter.name, Array.isArray(value) ? value.join(",") : String(value));
+    target.headers.set(parameter.name, Array.isArray(value) ? value.map(parameterValueToString).join(",") : parameterValueToString(value));
     return;
   }
   if (parameter.in === "cookie") {
-    target.cookies.push(`${parameter.name}=${encodeURIComponent(String(value))}`);
+    target.cookies.push(`${parameter.name}=${encodeURIComponent(parameterValueToString(value))}`);
   }
 }
 
@@ -413,7 +405,8 @@ const responseBody = async (response: Response): Promise<JsonValue | string> => 
    text = bytes.toString("utf8");
   if (response.headers.get("content-type")?.includes("json")) {
     try {
-      return JSON.parse(text) as JsonValue;
+      const parsed: JsonValue = JSON.parse(text);
+    return parsed;
     } catch {
       return text;
     }
@@ -421,12 +414,15 @@ const responseBody = async (response: Response): Promise<JsonValue | string> => 
   return text;
 }
 
-const printValue = (value: unknown, output = "pretty"): void => {
-  if (typeof value === "string") {
+const isStringValue = <Value>(value: Value): value is Value & string => typeof value === "string";
+
+const printValue = (value: JsonValue, output: string | undefined = "pretty"): void => {
+  const format = output ?? "pretty";
+  if (isStringValue(value)) {
     process.stdout.write(value.endsWith("\n") ? value : `${value}\n`);
     return;
   }
-  process.stdout.write(`${JSON.stringify(value, undefined, output === "json" ? 0 : 2)}\n`);
+  process.stdout.write(`${JSON.stringify(value, undefined, format === "json" ? 0 : 2)}\n`);
 }
 
 const callOperation = async (
@@ -451,33 +447,37 @@ const callOperation = async (
   return { body: await responseBody(response), request, response };
 }
 
-const jsonPointer = (value: unknown, pointer: string): JsonValue | undefined => {
-  if (pointer === "") {return value as JsonValue;}
+const isJsonObject = (value: JsonValue): value is JsonObject =>
+  value !== null && !Array.isArray(value) && value instanceof Object;
+
+const jsonPointer = (value: JsonValue, pointer: string): JsonValue | undefined => {
+  if (pointer === "") {return value;}
   if (!pointer.startsWith("/")) {fail(`JSON pointer must start with /: ${pointer}`);}
-  let current: unknown = value;
+  let current: JsonValue = value;
   for (const rawPart of pointer.slice(1).split("/")) {
     const part = rawPart.replaceAll("~1", "/").replaceAll("~0", "~");
     if (Array.isArray(current)) {
       current = current[Number(part)];
-    } else if (current !== null && typeof current === "object") {
-      current = (current as Record<string, unknown>)[part];
+    } else if (isJsonObject(current)) {
+      current = current[part];
     } else {
       return undefined;
     }
   }
-  return current as JsonValue | undefined;
+  return current;
 }
 
 const expectedValue = (raw: string): JsonValue => {
   try {
-    return JSON.parse(raw) as JsonValue;
+    const parsed: JsonValue = JSON.parse(raw);
+    return parsed;
   } catch {
     return raw;
   }
 }
 
 const evaluateSmoke = (result: CallResult, options: CliOptions = { _: [] }): SmokeReport => {
-  const expectedStatuses = String(options["expect-status"] ?? "200")
+  const expectedStatuses = (options["expect-status"] ?? "200")
     .split(",")
     .map(Number),
    checks: SmokeCheck[] = [
@@ -542,7 +542,7 @@ const listenWebSocket = async (
     received += 1;
     let value: JsonValue | string = String(event.data);
     try {
-      value = JSON.parse(String(event.data)) as JsonValue;
+      value = JSON.parse(String(event.data));
     } catch {
       // Preserve non-JSON messages exactly as received.
     }
@@ -596,36 +596,36 @@ interface InvestigateWorkflow {
   summary?: string;
 }
 
-const INVESTIGATE_WORKFLOWS: Record<string, InvestigateWorkflow> = {
-  organization: {
+const INVESTIGATE_WORKFLOWS = new Map<string, InvestigateWorkflow>([
+  ["organization", {
     bodyOptionKeys: ["website"],
     operationId: "research_organization_research_entity_organization_research_post",
     parameterOptions: {},
     summary: "Research a news organization's funding, ownership, and profile",
     useBody: true,
-  },
-  ownership: {
+  }],
+  ["ownership", {
     operationId: "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
     parameterOptions: { "max-depth": "max_depth" },
     summary: "Get the ownership chain for an organization",
     targetParam: "org_name",
     useBody: false,
-  },
-  reporter: {
+  }],
+  ["reporter", {
     bodyOptionKeys: ["organization"],
     operationId: "profile_reporter_research_entity_reporter_profile_post",
     parameterOptions: {},
     summary: "Profile a reporter or journalist",
     useBody: true,
-  },
-  source: {
+  }],
+  ["source", {
     bodyOptionKeys: ["website"],
     operationId: "research_source_profile_research_entity_source_profile_post",
     parameterOptions: {},
     summary: "Build a source profile with funding, ownership, bias, and metadata",
     useBody: true,
-  },
-};
+  }],
+]);
 
 const investigateParameters = (
   workflow: InvestigateWorkflow,
@@ -650,12 +650,12 @@ const investigateParameters = (
 
 const investigateBody = (workflow: InvestigateWorkflow, target: string, options: CliOptions): string | undefined => {
   if (!workflow.useBody) {return undefined;}
-  const body: Record<string, unknown> = { name: target };
+  const body = new Map<string, JsonValue>([["name", target]]);
   for (const optionKey of workflow.bodyOptionKeys ?? []) {
     const value = options[optionKey];
-    if (value !== undefined) {body[optionKey] = value;}
+    if (value !== undefined) {body.set(optionKey, value);}
   }
-  return JSON.stringify(body);
+  return JSON.stringify(Object.fromEntries(body));
 }
 
 const runInvestigateCommand = async (
@@ -665,7 +665,7 @@ const runInvestigateCommand = async (
   options: CliOptions,
   fetchImpl: typeof fetch = fetch,
 ): Promise<number> => {
-  const workflow = INVESTIGATE_WORKFLOWS[subcommand];
+  const workflow = INVESTIGATE_WORKFLOWS.get(subcommand);
   if (!workflow) {fail(`Unknown investigate subcommand: ${subcommand}`);}
 
   const params = investigateParameters(workflow, target, options),
@@ -690,7 +690,7 @@ const runSchemaGroup = (action: string | undefined, options: CliOptions): number
   if (action === "check" || action === "export" || action === "refresh") {
     return runSchemaCommand(action, options);
   }
-  fail("schema requires check, export, or refresh");
+  return fail("schema requires check, export, or refresh");
 }
 
 const apiListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
@@ -746,7 +746,7 @@ const apiSmokeCommand = async (spec: OpenApiSpec, target: string | undefined, op
   if (!target) {fail("api smoke requires an operationId");}
   const result = await callOperation(spec, target, options),
    report = evaluateSmoke(result, options);
-  printValue(report, options.output);
+  printValue({ ...report, checks: report.checks.map((check) => ({ ...check })) }, options.output);
   return report.ok ? 0 : 1;
 }
 
@@ -760,12 +760,12 @@ const runApiCommand = async (
   if (action === "describe") {return apiDescribeCommand(spec, target);}
   if (action === "call") {return apiCallCommand(spec, target, options);}
   if (action === "smoke") {return apiSmokeCommand(spec, target, options);}
-  fail(`Unknown command: ${options._.join(" ")}`);
+  return fail(`Unknown command: ${options._.join(" ")}`);
 }
 
 const wsListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
   const sockets = listWebSockets(spec);
-  if (options.json) {printValue(sockets, "json");}
+  if (options.json) {printValue(sockets.map((socket) => ({ ...socket })), "json");}
   else {
     for (const item of sockets) {
       console.log(`${item.operationId}\tWS\t${item.path}\t${item.summary ?? ""}`);
@@ -791,7 +791,7 @@ const runWsCommand = async (
 ): Promise<number> => {
   if (action === "list") {return wsListCommand(spec, options);}
   if (action === "listen") {return wsListenCommand(spec, target, options);}
-  fail(`Unknown command: ${options._.join(" ")}`);
+  return fail(`Unknown command: ${options._.join(" ")}`);
 }
 
 const runInvestigateGroup = (
@@ -806,7 +806,7 @@ const runInvestigateGroup = (
 }
 
 const usage = (): string => {
-  const workflows = Object.entries(INVESTIGATE_WORKFLOWS)
+  const workflows = INVESTIGATE_WORKFLOWS.entries()
     .map(([name, wf]) => {
       const args: string[] = [];
       if (wf.bodyOptionKeys?.includes("website")) {args.push("[--website URL]");}
@@ -854,19 +854,21 @@ const main = async (argv:readonly  string[] = process.argv.slice(2)): Promise<nu
   if (group === "api") {return runApiCommand(spec, action, target, options);}
   if (group === "ws") {return runWsCommand(spec, action, target, options);}
   if (group === "investigate") {return runInvestigateGroup(spec, action, target, options);}
-  fail(`Unknown command: ${options._.join(" ")}`);
+  return fail(`Unknown command: ${options._.join(" ")}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then(
     (exitCode) => {
       process.exitCode = exitCode;
+      return undefined;
     },
-    (error: unknown) => {
-      const exitCode = error instanceof CliError ? error.exitCode : 1,
-       message = error instanceof Error ? error.message : String(error);
+    (cause: unknown) => {
+      const exitCode = cause instanceof CliError ? cause.exitCode : 1,
+       message = cause instanceof Error ? cause.message : String(cause);
       console.error(message);
       process.exitCode = exitCode;
+      return undefined;
     },
   );
 }

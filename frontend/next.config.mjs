@@ -1,7 +1,5 @@
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
 
-const __dirname = import.meta.dirname,
+const currentDirectory = import.meta.dirname,
 
 /**
  * Next.js configuration for Scoop news reader
@@ -104,7 +102,7 @@ const __dirname = import.meta.dirname,
     'zwitch',
   ],
   turbopack: {
-    root: __dirname,
+    root: currentDirectory,
   },
 
   // Images are served via external image proxy (cloudinary/imgproxy)

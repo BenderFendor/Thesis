@@ -14,6 +14,11 @@ import {
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { STORAGE_KEYS } from "@/lib/storage";
 
+const runAppearanceBootstrapScript = (): void => {
+  const { runInThisContext } = process.getBuiltinModule("node:vm");
+  runInThisContext(buildAppearanceBootstrapScript());
+};
+
 describe("normalizeAppearanceSettings", () => {
   it("returns untouched defaults for null, junk, or wrong versions", () => {  expect.hasAssertions();
 
@@ -191,7 +196,7 @@ describe("buildAppearanceBootstrapScript", () => {
       }),
     );
 
-    (0, eval)(buildAppearanceBootstrapScript());
+    runAppearanceBootstrapScript();
 
     const {style} = document.documentElement;
     expect(style.getPropertyValue("--primary")).toBe("#123abc");
@@ -204,11 +209,11 @@ describe("buildAppearanceBootstrapScript", () => {
   it("ignores corrupt payloads and leaves theme tokens alone", () => {  expect.hasAssertions();
 
     globalThis.localStorage.setItem(APPEARANCE_STORAGE_KEY, "{{{");
-    expect(() => (0, eval)(buildAppearanceBootstrapScript())).not.toThrow();
+    expect(() => runAppearanceBootstrapScript()).not.toThrow();
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("");
 
     globalThis.localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify({ version: 7 }));
-    (0, eval)(buildAppearanceBootstrapScript());
+    runAppearanceBootstrapScript();
     expect(document.documentElement.style.getPropertyValue("--primary")).toBe("");
   });
 });

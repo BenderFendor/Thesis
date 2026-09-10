@@ -12,12 +12,9 @@ describe("fetchCategories", () => {
   it("returns the categories array from the backend's object-wrapped response", async () => {
     expect.hasAssertions();
 
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
-      json: () => Promise.resolve({ categories: ["general", "technology", "politics"] }),
-      ok: true,
-      status: 200,
-      // SAFETY: test boundary; only ok/status/json are consumed by the api client.
-    } as Response);
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ categories: ["general", "technology", "politics"] }), { status: 200 }),
+    );
 
     const categories = await fetchCategories();
 

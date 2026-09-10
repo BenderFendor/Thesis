@@ -3,14 +3,15 @@ import {
   loadPolicy,
   resolvedTaxonomyRule,
 } from "../../quality-hardening/config.mjs";
-import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { test } from "node:test";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..");
 
-test("quality-hardening policy validates against enabled Oxlint rules", async () => {
+void test("quality-hardening policy validates against enabled Oxlint rules", async () => {
   const policy = await loadPolicy(repositoryRoot);
   const oxlint = JSON.parse(await readFile(resolve(repositoryRoot, ".oxlintrc.json"), "utf8"));
   const configured = configuredRuleIds(oxlint);
@@ -20,7 +21,7 @@ test("quality-hardening policy validates against enabled Oxlint rules", async ()
   }
 });
 
-test("taxonomy preserves structural metadata for function-size rules", async () => {
+void test("taxonomy preserves structural metadata for function-size rules", async () => {
   const policy = await loadPolicy(repositoryRoot);
   const rule = resolvedTaxonomyRule("eslint/max-lines-per-function", policy.taxonomy);
   assert.equal(rule?.quality_factor, "structural_maintainability");
@@ -28,7 +29,7 @@ test("taxonomy preserves structural metadata for function-size rules", async () 
   assert.equal(rule?.temporary_structural_tradeoff, true);
 });
 
-test("verification profiles resolve every check from the canonical policy", async () => {
+void test("verification profiles resolve every check from the canonical policy", async () => {
   const policy = await loadPolicy(repositoryRoot);
   const checkIds = Object.values(policy.config.profiles).flat();
   assert.equal(checkIds.every((checkId) => policy.config.verification.checks[checkId] !== undefined), true);

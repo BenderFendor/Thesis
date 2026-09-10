@@ -11,10 +11,11 @@
 // Be generators, and are not constructable); async keeps its keyword; every
 // Conversion preserves parameters, comments, and return types; every output
 // parses again and the transform is idempotent.
-import assert from "node:assert/strict";
 import { runTransform } from "../../transformations/function-style-const.mjs";
-import { test } from "node:test";
 import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 /**
  * Asserts that a transform application yields the expected text.
@@ -57,7 +58,7 @@ const assertParses = (source, filePath = "fixture.ts") => {
   assert.equal(parsed.parseDiagnostics.length, 0, "transformed output must parse");
 };
 
-test("clean module function with JSX use converts to const arrow", () => {
+void test("clean module function with JSX use converts to const arrow", () => {
   const source = `function Greeting({ name }: { name: string }) {
   return <div>{name}</div>;
 }
@@ -71,7 +72,7 @@ test("clean module function with JSX use converts to const arrow", () => {
   assertTransformed(source, expected, "fixture.tsx");
 });
 
-test("recursive function converts; self-reference stays valid", () => {
+void test("recursive function converts; self-reference stays valid", () => {
   const source = `function factorial(n: number): number {
   if (n <= 1) {
     return 1;
@@ -89,7 +90,7 @@ test("recursive function converts; self-reference stays valid", () => {
   assertTransformed(source, expected);
 });
 
-test("functions referenced before their declaration stay untouched", () => {
+void test("functions referenced before their declaration stay untouched", () => {
   const source = `const before = Name();
 function Name() {
   return 1;
@@ -98,7 +99,7 @@ function Name() {
   assertUnchanged(source);
 });
 
-test("functions referenced inside an earlier function body stay untouched", () => {
+void test("functions referenced inside an earlier function body stay untouched", () => {
   const source = `function wrapper() {
   return Name();
 }
@@ -116,7 +117,7 @@ function Name() {
   assertTransformed(source, expected);
 });
 
-test("exported and export-default functions stay untouched", () => {
+void test("exported and export-default functions stay untouched", () => {
   const source = `export function Exported() {
   return 1;
 }
@@ -127,7 +128,7 @@ export default function DefaultExport() {
   assertUnchanged(source);
 });
 
-test("overload declarations and implementations stay untouched", () => {
+void test("overload declarations and implementations stay untouched", () => {
   const source = `function Name(a: string): void;
 function Name(a: number): void;
 function Name(a: any): void {
@@ -137,7 +138,7 @@ function Name(a: any): void {
   assertUnchanged(source);
 });
 
-test("names bound twice at module level stay untouched", () => {
+void test("names bound twice at module level stay untouched", () => {
   const source = `function Name() {
   return 1;
 }
@@ -148,7 +149,7 @@ function Name() {
   assertUnchanged(source);
 });
 
-test("generators convert to function-star expressions, never arrows", () => {
+void test("generators convert to function-star expressions, never arrows", () => {
   const source = `function* gen(a: number): Generator<number> {
   yield a;
 }
@@ -160,7 +161,7 @@ test("generators convert to function-star expressions, never arrows", () => {
   assertTransformed(source, expected);
 });
 
-test("async generators keep async with a function-star expression", () => {
+void test("async generators keep async with a function-star expression", () => {
   const source = `async function* stream(): AsyncGenerator<number> {
   yield 1;
 }
@@ -172,7 +173,7 @@ test("async generators keep async with a function-star expression", () => {
   assertTransformed(source, expected);
 });
 
-test("async clean-body functions convert to async arrows", () => {
+void test("async clean-body functions convert to async arrows", () => {
   const source = `async function fetchItems(): Promise<number[]> {
   return [];
 }
@@ -184,7 +185,7 @@ test("async clean-body functions convert to async arrows", () => {
   assertTransformed(source, expected);
 });
 
-test("this-using bodies convert to function expressions", () => {
+void test("this-using bodies convert to function expressions", () => {
   const source = `function withThis() {
   return this.value;
 }
@@ -196,7 +197,7 @@ test("this-using bodies convert to function expressions", () => {
   assertTransformed(source, expected);
 });
 
-test("arguments-using bodies convert to function expressions", () => {
+void test("arguments-using bodies convert to function expressions", () => {
   const source = `function collect() {
   return arguments[0];
 }
@@ -208,7 +209,7 @@ test("arguments-using bodies convert to function expressions", () => {
   assertTransformed(source, expected);
 });
 
-test("nested this inside an arrow body still forces a function expression", () => {
+void test("nested this inside an arrow body still forces a function expression", () => {
   const source = `function outer() {
   return () => this;
 }
@@ -220,7 +221,7 @@ test("nested this inside an arrow body still forces a function expression", () =
   assertTransformed(source, expected);
 });
 
-test("new.target bodies convert to function expressions", () => {
+void test("new.target bodies convert to function expressions", () => {
   const source = `function factory() {
   return new.target;
 }
@@ -232,7 +233,7 @@ test("new.target bodies convert to function expressions", () => {
   assertTransformed(source, expected);
 });
 
-test("new-constructed functions convert to function expressions", () => {
+void test("new-constructed functions convert to function expressions", () => {
   const source = `function Point(x: number) {
   this.x = x;
 }
@@ -246,7 +247,7 @@ const p = new Point(1);
   assertTransformed(source, expected);
 });
 
-test("clean bodies with new call sites convert to function expressions", () => {
+void test("clean bodies with new call sites convert to function expressions", () => {
   const source = `function Node(value: number) {
   return value;
 }
@@ -260,7 +261,7 @@ const n = new Node(1);
   assertTransformed(source, expected);
 });
 
-test("generic functions convert to function expressions", () => {
+void test("generic functions convert to function expressions", () => {
   const source = `function pick<T>(items: T[], index: number): T {
   return items[index];
 }
@@ -272,7 +273,7 @@ test("generic functions convert to function expressions", () => {
   assertTransformed(source, expected);
 });
 
-test("parameters and comments inside the signature are preserved", () => {
+void test("parameters and comments inside the signature are preserved", () => {
   const source = `function span(a: number /* keep */, b = 2): number {
   return a + b;
 }
@@ -284,7 +285,7 @@ test("parameters and comments inside the signature are preserved", () => {
   assertTransformed(source, expected);
 });
 
-test("multiple functions in one module each convert independently", () => {
+void test("multiple functions in one module each convert independently", () => {
   const source = `function alpha(a: number) {
   return a;
 }
@@ -302,7 +303,7 @@ const beta = (b: number): number => {
   assertTransformed(source, expected);
 });
 
-test("a mixed module is locked per declaration and idempotent", () => {
+void test("a mixed module is locked per declaration and idempotent", () => {
   const source = `const before = shared();
 function shared() {
   return 1;
@@ -322,7 +323,7 @@ const free = () => {
   assertTransformed(source, expected);
 });
 
-test("nested function declarations stay function declarations", () => {
+void test("nested function declarations stay function declarations", () => {
   const source = `function wrap() {
   function inner() {
     return 1;
@@ -340,7 +341,7 @@ test("nested function declarations stay function declarations", () => {
   assertTransformed(source, expected);
 });
 
-test("object property names and member names are not references", () => {
+void test("object property names and member names are not references", () => {
   const source = `const config = { Name: 1, other: Name };
 function Name() {
   return 1;
@@ -352,7 +353,7 @@ function Name() {
 
 
 
-test('multi-line function signature converts with the verbatim splice', () => {
+void test('multi-line function signature converts with the verbatim splice', () => {
   const source = `function useSelectedSourcesQuery(
   selectedSources: ReadonlySet<string>,
   lens: string,
@@ -371,7 +372,7 @@ test('multi-line function signature converts with the verbatim splice', () => {
   assertParses(expected);
 });
 
-test('multi-line signature with return annotation converts', () => {
+void test('multi-line signature with return annotation converts', () => {
   const source = `function compute(
   input: string,
 ): number {

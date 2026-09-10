@@ -17,10 +17,11 @@
 // Files that do not parse; function overload groups deduplicate into one
 // Export list entry; multi-member `export const` chains collect every member;
 // Transformations are idempotent and every changed output parses cleanly.
-import assert from "node:assert/strict";
 import { runTransform } from "../../transformations/group-exports.mjs";
-import { test } from "node:test";
 import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 /**
  * Asserts that a transform application yields the expected text.
@@ -63,7 +64,7 @@ const assertParses = (source) => {
   assert.equal(errors.length, 0, "transformed output must parse");
 };
 
-test("scattered exports collect into one trailing statement per kind", () => {
+void test("scattered exports collect into one trailing statement per kind", () => {
   const source = `/** Doc. */
 export const beta = 2;
 const middle = 1;
@@ -85,7 +86,7 @@ export type { Foo, Bar };
   assertTransformed(source, expected);
 });
 
-test("mixed file keeps re-exports in place and collects the plain exports", () => {
+void test("mixed file keeps re-exports in place and collects the plain exports", () => {
   const source = `export { helper } from "./lib";
 export const a = 1;
 export const b = 2;
@@ -98,7 +99,7 @@ export { a, b };
   assertTransformed(source, expected);
 });
 
-test("side-effect re-export stays in place while local exports group", () => {
+void test("side-effect re-export stays in place while local exports group", () => {
   const source = `export * from "./lib";
 export interface Props { x: number }
 export type Kind = string;
@@ -111,13 +112,13 @@ export type { Props, Kind };
   assertTransformed(source, expected);
 });
 
-test("default-only file stays unchanged", () => {
+void test("default-only file stays unchanged", () => {
   const source = `export default function main() {}
 `;
   assertUnchanged(source);
 });
 
-test("default export is never touched while named exports still group", () => {
+void test("default export is never touched while named exports still group", () => {
   const source = `export default function main() {}
 export const a = 1;
 export const b = 2;
@@ -130,14 +131,14 @@ export { a, b };
   assertTransformed(source, expected);
 });
 
-test("single export per kind is already grouped and stays unchanged", () => {
+void test("single export per kind is already grouped and stays unchanged", () => {
   const source = `export const a = 1;
 export interface Props { x: number }
 `;
   assertUnchanged(source);
 });
 
-test("multi-member export const chain collects every member", () => {
+void test("multi-member export const chain collects every member", () => {
   const source = `export const a = 1, b = 2;
 export const c = 3;
 `;
@@ -148,7 +149,7 @@ export { a, b, c };
   assertTransformed(source, expected);
 });
 
-test("class and enum exports group as values, interfaces as types", () => {
+void test("class and enum exports group as values, interfaces as types", () => {
   const source = `export class Widget {}
 export interface Props { x: number }
 export enum Mode { A }
@@ -162,7 +163,7 @@ export type { Props };
   assertTransformed(source, expected);
 });
 
-test("async function exports group as values", () => {
+void test("async function exports group as values", () => {
   const source = `export async function load() {}
 export const data = 1;
 `;
@@ -173,7 +174,7 @@ export { load, data };
   assertTransformed(source, expected);
 });
 
-test("function overload group deduplicates into one export list entry", () => {
+void test("function overload group deduplicates into one export list entry", () => {
   const source = `export function f(a: string): string;
 export function f(a: number): number;
 export function f(a: string | number): string | number { return a; }
@@ -186,7 +187,7 @@ export { f };
   assertTransformed(source, expected);
 });
 
-test("file without trailing newline gains a newline before the export statement", () => {
+void test("file without trailing newline gains a newline before the export statement", () => {
   const source = `export const a = 1;
 export const b = 2;`;
   const expected = `const a = 1;
@@ -196,7 +197,7 @@ export { a, b };
   assertTransformed(source, expected);
 });
 
-test("single var statement with two members joins a later export", () => {
+void test("single var statement with two members joins a later export", () => {
   const source = `export const x = 1;
 export const y = 2, z = 3;
 export type T = string;
@@ -210,7 +211,7 @@ export type { T };
   assertTransformed(source, expected);
 });
 
-test("JSDoc brace reference to a collected name skips the file", () => {
+void test("JSDoc brace reference to a collected name skips the file", () => {
   const source = `/** Uses {@link bar} internally. */
 export const bar = 2;
 export const baz = 3;
@@ -218,7 +219,7 @@ export const baz = 3;
   assertUnchanged(source);
 });
 
-test("JSDoc @param type reference to a collected name skips the file", () => {
+void test("JSDoc @param type reference to a collected name skips the file", () => {
   const source = `/**
  * Something.
  * @param {bar} value Description.
@@ -229,7 +230,7 @@ export const baz = 3;
   assertUnchanged(source);
 });
 
-test("plain prose in a JSDoc comment does not skip the file", () => {
+void test("plain prose in a JSDoc comment does not skip the file", () => {
   const source = `/** Documentation about the bar value. */
 export const bar = 2;
 export const baz = 3;
@@ -242,7 +243,7 @@ export { bar, baz };
   assertTransformed(source, expected);
 });
 
-test("collected name re-exported elsewhere in the file skips", () => {
+void test("collected name re-exported elsewhere in the file skips", () => {
   const source = `export { a } from "./lib";
 export const a = 1;
 export const b = 2;
@@ -250,7 +251,7 @@ export const b = 2;
   assertUnchanged(source);
 });
 
-test("bare export clause of a collected name skips", () => {
+void test("bare export clause of a collected name skips", () => {
   const source = `export const a = 1;
 export { a };
 export const b = 2;
@@ -258,7 +259,7 @@ export const b = 2;
   assertUnchanged(source);
 });
 
-test("bare export clause of an uncollected name stays in place", () => {
+void test("bare export clause of an uncollected name stays in place", () => {
   const source = `const a = 1;
 export { a };
 export const b = 2;
@@ -273,7 +274,7 @@ export { b, c };
   assertTransformed(source, expected);
 });
 
-test("collected name bound twice at top level skips", () => {
+void test("collected name bound twice at top level skips", () => {
   const source = `export const a = 1;
 export const b = 2;
 const a = 3;
@@ -281,20 +282,20 @@ const a = 3;
   assertUnchanged(source);
 });
 
-test("destructuring export skips the whole file", () => {
+void test("destructuring export skips the whole file", () => {
   const source = `export const { x } = obj;
 export const a = 1;
 `;
   assertUnchanged(source);
 });
 
-test("unparseable source stays unchanged", () => {
+void test("unparseable source stays unchanged", () => {
   const source = `export const a = ;
 `;
   assertUnchanged(source);
 });
 
-test("all values and types already grouped by one statement stay unchanged", () => {
+void test("all values and types already grouped by one statement stay unchanged", () => {
   const source = `const a = 1;
 export { a };
 export type { T };

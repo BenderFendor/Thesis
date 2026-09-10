@@ -24,7 +24,7 @@ const likedListeners = new Set<LikedListener>(),
 },
 
  loadLikedFromApi = async () => {
-  if (likedLoading) {return}
+  if (likedLoading) {return undefined}
   likedLoading = true
   likedError = null
   notifyErrorListeners(null)
@@ -37,7 +37,7 @@ const likedListeners = new Set<LikedListener>(),
   } catch (error) {
     likedError = error instanceof Error ? error.message : "Failed to load liked articles"
     notifyErrorListeners(likedError)
-    return
+    return undefined
   } finally {
     likedLoading = false
   }
@@ -103,8 +103,8 @@ export function useLikedArticles() {
         } else {
           await createLikedArticle(articleId)
         }
-      } catch (error) {
-        console.error("Failed to toggle liked article:", error)
+      } catch (caughtError) {
+        console.error("Failed to toggle liked article:", caughtError)
         likedCache = new Set(current)
         notifyLikedListeners(likedCache)
       }

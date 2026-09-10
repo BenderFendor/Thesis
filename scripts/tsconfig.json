@@ -3,15 +3,30 @@
     "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable",
+      "DOM.AsyncIterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2023",
-    "typeRoots": ["../frontend/node_modules/@types"],
-    "types": ["node"]
+    "typeRoots": [
+      "../frontend/node_modules/@types"
+    ],
+    "types": [
+      "node"
+    ]
   },
-  "include": ["quality-hardening.mjs", "quality-hardening/**/*.mjs", "scoop.ts", "tests/**/*.ts"]
+  "include": [
+    "quality-hardening.mjs",
+    "quality-hardening/**/*.mjs",
+    "scoop.ts",
+    "tests/**/*.ts",
+    "quality-hardening/**/*.d.ts"
+  ]
 }

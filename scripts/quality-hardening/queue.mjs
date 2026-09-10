@@ -8,7 +8,10 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { resolvedTaxonomyRule } from "./config.mjs";
 
-/** @typedef {Readonly<{config: Readonly<{policy_version: string, thresholds: Readonly<{cccc: Readonly<{cognitive_ceiling: number, cyclomatic_ceiling: number}>, crap: Readonly<{cluster_ceiling: number}>, mi: Readonly<{cluster_floor: number}>}>}>, taxonomy: Record<string, unknown>, repositoryRoot: string}>} QueuePolicy */
+/** @typedef {Readonly<{cluster_key?: string, quality_factor?: string, repair_class?: string, temporary_structural_tradeoff?: boolean}>} TaxonomyRuleDefinition */
+/** @typedef {Readonly<{family_defaults: Readonly<Record<string, TaxonomyRuleDefinition>>, overrides: Readonly<Record<string, TaxonomyRuleDefinition>>, rule_ids: readonly string[]}>} QueueTaxonomy */
+/** @typedef {Readonly<{cluster_key?: string, repair_class?: string, status?: string, task_id?: string}>} Effect */
+/** @typedef {Readonly<{config: Readonly<{policy_version: string, thresholds: Readonly<{cccc: Readonly<{cognitive_ceiling: number, cyclomatic_ceiling: number}>, crap: Readonly<{cluster_ceiling: number}>, mi: Readonly<{cluster_floor: number}>}>}>, taxonomy: QueueTaxonomy, repositoryRoot: string}>} QueuePolicy */
 /** @typedef {Readonly<{coverage?: Readonly<{crap?: number|null, state?: string}>, path: string, rule?: string, unit_id?: string, metrics?: Readonly<{cccc?: Readonly<{cognitive?: number, cyclomatic?: number}>, code_multivitals?: Readonly<{maintainability_index?: number}>}>}>} Unit */
 /** @typedef {Readonly<{path: string, rule?: string, unit_id?: string}>} Finding */
 /** @typedef {{allowed_lint_rules: string[], cluster_key: string, factor: string, finding_count: number, gate_distance: number, hard_findings: number, paths: string[], repair_class: string, required_profiles: string[], rules: string[], source_units: string[]}} TaskDraft */
@@ -17,7 +20,7 @@ import { resolvedTaxonomyRule } from "./config.mjs";
 
 /** @param {Readonly<Record<string, unknown>>} value */
 const taskHash = (value) => 
- `qh-task:${createHash("sha256").update(JSON.stringify(value, Object.keys(value).sort())).digest("hex").slice(0, 24)}`
+ `qh-task:${createHash("sha256").update(JSON.stringify(value, Object.keys(value).toSorted())).digest("hex").slice(0, 24)}`
 
 
 /** @param {string} value */
@@ -35,9 +38,9 @@ const pathCluster = (value) =>
  * @param {string} [groupKey] Optional cross-file grouping key.
  * @returns {TaskDraft} Updated task draft.
  */
-const addFinding = (groups, factor, repairClass, clusterKey, path, finding, groupKey = path) => {
+const addFinding = ({groups, factor, repairClass, clusterKey, path, finding, groupKey = path}) => {
  const key = `${factor}\0${clusterKey}\0${groupKey}`,
-  task = groups.get(key) ?? /** @type {TaskDraft} */ ({
+  task = groups.get(key) ?? ({
    allowed_lint_rules: [],
    cluster_key: clusterKey,
    factor,
@@ -73,7 +76,7 @@ const addComplexityFinding = (groups, policy, unit) => {
    normalizedExcess(metrics.cognitive ?? 0, thresholds.cognitive_ceiling),
   );
  if (gate > 0) {
-  const task = addFinding(groups, "structural_maintainability", "structural", `source-unit:${unit.unit_id ?? unit.path}`, unit.path, unit);
+  const task = addFinding({groups, factor: "structural_maintainability", repairClass: "structural", clusterKey: `source-unit:${unit.unit_id ?? unit.path}`, path: unit.path, finding: unit});
   recordGate(task, gate);
  }
 }
@@ -82,8 +85,8 @@ const addComplexityFinding = (groups, policy, unit) => {
 const addMiFinding = (groups, policy, unit) => {
  const floor = policy.config.thresholds.mi.cluster_floor,
   mi = unit.metrics?.code_multivitals?.maintainability_index;
- if (typeof mi === "number" && mi < floor) {
-  const task = addFinding(groups, "structural_maintainability", "structural", `source-unit:${unit.unit_id ?? unit.path}`, unit.path, unit);
+ if (mi !== undefined && mi < floor) {
+  const task = addFinding({groups, factor: "structural_maintainability", repairClass: "structural", clusterKey: `source-unit:${unit.unit_id ?? unit.path}`, path: unit.path, finding: unit});
   recordGate(task, (floor - mi) / floor);
  }
 }
@@ -92,8 +95,8 @@ const addMiFinding = (groups, policy, unit) => {
 const addCrapFinding = (groups, policy, unit) => {
  const ceiling = policy.config.thresholds.crap.cluster_ceiling,
   crap = unit.coverage?.crap;
- if (typeof crap === "number" && crap > ceiling) {
-  const task = addFinding(groups, "testing", "coverage", "crap-coverage", unit.path, unit);
+ if (crap !== undefined && crap !== null && crap > ceiling) {
+  const task = addFinding({groups, factor: "testing", repairClass: "coverage", clusterKey: "crap-coverage", path: unit.path, finding: unit});
   recordGate(task, normalizedExcess(crap, ceiling));
  }
 }
@@ -111,9 +114,9 @@ const addLintFinding = (groups, policy, finding) => {
  if (!ruleId) { throw new Error("lint finding has no rule ID"); }
  const taxonomy = resolvedTaxonomyRule(ruleId, policy.taxonomy);
  if (!taxonomy) { throw new Error(`lint rule is missing from taxonomy: ${ruleId}`); }
- const rule = /** @type {Readonly<{cluster_key: string, quality_factor: string, repair_class: string, temporary_structural_tradeoff?: boolean}>} */ (/** @type {unknown} */ (taxonomy));
+ const rule = taxonomy;
  const clusterKey = `${rule.cluster_key}:${ruleId}`,
-  task = addFinding(groups, rule.quality_factor, rule.repair_class, clusterKey, finding.path, { ...finding, rule: ruleId }, ruleId);
+  task = addFinding({groups, factor: rule.quality_factor, repairClass: rule.repair_class, clusterKey, path: finding.path, finding: { ...finding, rule: ruleId }, groupKey: ruleId});
  if (task && rule.temporary_structural_tradeoff === true && !task.allowed_lint_rules.includes(ruleId)) {
   task.allowed_lint_rules.push(ruleId);
  }
@@ -136,22 +139,16 @@ const materializeTask = (task, measurementId) => {
  };
 }
 
-/** @param {Map<string, TaskDraft>} groups @param {string|undefined} measurementId @param {readonly Record<string, unknown>[]} [effects] @returns {Task[]} */
+/** @param {Map<string, TaskDraft>} groups @param {string|undefined} measurementId @param {readonly Effect[]} [effects] @returns {Task[]} */
 const materializeTasks = (groups, measurementId, effects) => {
- const tasks = [...groups.values()].map((task) => ({
-  ...materializeTask(task, measurementId),
- }));
- return /** @type {Task[]} */ (scheduleTasks(tasks, effects));
+ const tasks = [...groups.values()].map((task) => materializeTask(task, measurementId));
+ return scheduleTasks(tasks, effects);
 }
 
-/** @param {unknown} definition @returns {boolean} */
-const isTradeoff = (definition) => {
- if (definition === null || typeof definition !== "object" || Array.isArray(definition)) { return false; }
- const record = /** @type {Record<string, unknown>} */ (definition);
- return record.temporary_structural_tradeoff === true;
-}
+/** @param {TaxonomyRuleDefinition} definition @returns {boolean} */
+const isTradeoff = (definition) => definition.temporary_structural_tradeoff === true;
 
-/** @param {Record<string, unknown>} families @param {readonly string[]} ruleIds @returns {string[]} */
+/** @param {Readonly<Record<string, TaxonomyRuleDefinition>>} families @param {readonly string[]} ruleIds @returns {string[]} */
 const familyTradeoffRules = (families, ruleIds) => {
  /** @type {string[]} */
  const rules = [];
@@ -165,7 +162,7 @@ const familyTradeoffRules = (families, ruleIds) => {
  return rules;
 }
 
-/** @param {Record<string, unknown>} overrides @returns {string[]} */
+/** @param {Readonly<Record<string, TaxonomyRuleDefinition>>} overrides @returns {string[]} */
 const overrideTradeoffRules = (overrides) => {
  /** @type {string[]} */
  const rules = [];
@@ -175,15 +172,11 @@ const overrideTradeoffRules = (overrides) => {
  return rules;
 }
 
-/** @param {Record<string, unknown>} taxonomy @returns {string[]} */
-const tradeoffRules = (taxonomy) => {
- const families = /** @type {Record<string, unknown>} */ (taxonomy.family_defaults ?? {}),
-  overrides = /** @type {Record<string, unknown>} */ (taxonomy.overrides ?? {}),
-  ruleIds = Array.isArray(taxonomy.rule_ids) ? taxonomy.rule_ids : [];
- return [...new Set([...familyTradeoffRules(families, ruleIds), ...overrideTradeoffRules(overrides)])];
-}
+/** @param {QueueTaxonomy} taxonomy @returns {string[]} */
+const tradeoffRules = (taxonomy) =>
+ [...new Set([...familyTradeoffRules(taxonomy.family_defaults, taxonomy.rule_ids), ...overrideTradeoffRules(taxonomy.overrides)])];
 
-/** @param {QueuePolicy} policy @param {Measurement} measurement @param {readonly Record<string, unknown>[]} [effects] @returns {Task[]} */
+/** @param {QueuePolicy} policy @param {Measurement} measurement @param {readonly Effect[]} [effects] @returns {Task[]} */
 const buildTasks = (policy, measurement, effects) => {
  /** @type {Map<string, TaskDraft>} */
  const groups = new Map();
@@ -204,10 +197,10 @@ const readTasks = async (repositoryRoot) => {
  try {
   return (await readFile(path, "utf8")).split("\n").filter(Boolean).map((line) => {
    const task = JSON.parse(line);
-   return { ...task, state: task.state ?? stateFromLegacy(task.status) };
+   return Object.assign(task, { state: task.state ?? stateFromLegacy(task.status) });
   });
  } catch (error) {
-  if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") { return []; }
+  if (error instanceof Error && "code" in error && error.code === "ENOENT") { return []; }
   throw error;
  }
 }
@@ -265,7 +258,7 @@ const expandTaskScope = async (repositoryRoot, taskId, path, reason) => {
   task = tasks.find((candidate) => candidate.task_id === taskId);
  if (!task) { throw new Error(`task not found: ${taskId}`); }
  if (!reason.trim()) { throw new Error("scope expansion requires a reason"); }
- const paths = task.paths.includes(path) ? task.paths : [...task.paths, path].sort((left, right) => left.localeCompare(right));
+ const paths = task.paths.includes(path) ? task.paths : [...task.paths, path].toSorted((left, right) => left.localeCompare(right));
  return updateTask(repositoryRoot, taskId, {
   paths,
   scope: paths,
@@ -292,7 +285,10 @@ const mergePreserved = (tasks, previous) =>
 
 /** @param {readonly Task[]} previous @param {Set<string>} currentIds @returns {Task[]} */
 const supersededStale = (previous, currentIds) => 
- previous.filter((task) => !currentIds.has(task.task_id) && !["accepted", "stale"].includes(task.state)).map((task) => ({ ...task, reason: "superseded by queue rebuild", state: "stale" }))
+ previous.filter((task) => !currentIds.has(task.task_id) && !["accepted", "stale"].includes(task.state)).map((task) => (Object.assign(task, {
+	reason: 'superseded by queue rebuild',
+	state: 'stale'
+})))
 
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement */
@@ -301,7 +297,7 @@ const rebuildQueue = async (policy, measurement) => {
   tasks = buildTasks(policy, measurement, effects),
   previous = await readTasks(policy.repositoryRoot),
   currentIds = new Set(tasks.map((task) => task.task_id)),
-  finalTasks = /** @type {Task[]} */ (scheduleTasks([...mergePreserved(tasks, previous), ...supersededStale(previous, currentIds)], effects));
+  finalTasks = scheduleTasks([...mergePreserved(tasks, previous), ...supersededStale(previous, currentIds)], effects);
  await writeTasks(policy.repositoryRoot, finalTasks);
  await writeCampaign(policy.repositoryRoot, {
   head: currentHead(policy.repositoryRoot),

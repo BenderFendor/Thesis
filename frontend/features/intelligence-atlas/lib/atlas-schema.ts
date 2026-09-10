@@ -1,3 +1,6 @@
+import { isJsonObject } from "@/lib/json-value";
+import type { JsonObject } from "@/lib/json-value";
+import { isNumberValue } from "@/lib/type-guards";
 import { z } from "zod";
 
 const AtlasEntityTypeSchema = z.enum(["outlet", "organization", "person", "reporter"]),
@@ -98,15 +101,11 @@ const AtlasEntityTypeSchema = z.enum(["outlet", "organization", "person", "repor
  AtlasControlsEntrySchema = z.object({
   claim_ids: z.array(z.string()).default([]), entity_id: z.string(), entity_type: AtlasEntityTypeSchema, evidence_count: z.number().int().nonnegative().default(0), label: z.string(), percentage: z.number().nullable().optional(), profile_path: z.string().nullable().optional(), relation_type: z.string().nullable().optional(),
 }),
- AtlasSiblingEntrySchema = z.object({
-  claim_ids: z.array(z.string()).default([]), entity_id: z.string(), entity_type: AtlasEntityTypeSchema, evidence_count: z.number().int().nonnegative().default(0), label: z.string(), profile_path: z.string().nullable().optional(),
-}),
  AtlasExternalIdSchema = z.object({
   scheme: z.string(), url: z.string().nullable().optional(), value: z.string(),
 });
 type AtlasOwnershipChainHop = z.infer<typeof AtlasOwnershipChainHopSchema>;
 type AtlasControlsEntry = z.infer<typeof AtlasControlsEntrySchema>;
-type AtlasSiblingEntry = z.infer<typeof AtlasSiblingEntrySchema>;
 type AtlasExternalId = z.infer<typeof AtlasExternalIdSchema>;
 
 // Phase 5's `funding_and_bias` details block (`atlas_entity._funding_and_
@@ -128,18 +127,18 @@ const AtlasFundingBiasFieldSchema = z.object({
   factual_reporting: AtlasFundingBiasFieldSchema,
   funding_type: AtlasFundingBiasFieldSchema,
 });
-type AtlasFundingBiasField = z.infer<typeof AtlasFundingBiasFieldSchema>;
+type _AtlasFundingBiasField = z.infer<typeof AtlasFundingBiasFieldSchema>;
 type AtlasFundingAndBias = z.infer<typeof AtlasFundingAndBiasSchema>;
 
-const parseFundingAndBias = (details: Record<string, unknown>): AtlasFundingAndBias | null => {
+const parseFundingAndBias = (details: JsonObject): AtlasFundingAndBias | null => {
   const raw = details.funding_and_bias;
-  if (!raw || typeof raw !== "object") {return null;}
+  if (!isJsonObject(raw)) {return null;}
   const parsed = AtlasFundingAndBiasSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
 const parseArrayField = function  parseArrayField<S extends z.ZodTypeAny>(
-  details: Record<string, unknown>,
+  details: JsonObject,
   key: string,
   schema: S,
 ): z.output<S>[] {
@@ -147,36 +146,33 @@ const parseArrayField = function  parseArrayField<S extends z.ZodTypeAny>(
   if (!Array.isArray(raw)) {return [];}
   return raw.flatMap((item) => {
     const parsed = schema.safeParse(item);
-    return parsed.success ? [parsed.data as z.output<S>] : [];
+    return parsed.success ? [parsed.data] : [];
   });
 }
 
-const parseOwnershipChain = (details: Record<string, unknown>): AtlasOwnershipChainHop[] => 
+const parseOwnershipChain = (details: JsonObject): AtlasOwnershipChainHop[] => 
   parseArrayField(details, "ownership_chain", AtlasOwnershipChainHopSchema)
 
-const parseControls = (details: Record<string, unknown>): AtlasControlsEntry[] => 
+const parseControls = (details: JsonObject): AtlasControlsEntry[] => 
   parseArrayField(details, "controls", AtlasControlsEntrySchema)
 
-const parseSiblingsViaOwner = (details: Record<string, unknown>): AtlasSiblingEntry[] => 
-  parseArrayField(details, "siblings_via_owner", AtlasSiblingEntrySchema)
-
-const parseExternalIds = (details: Record<string, unknown>): AtlasExternalId[] => 
+const parseExternalIds = (details: JsonObject): AtlasExternalId[] => 
   parseArrayField(details, "external_ids", AtlasExternalIdSchema)
 
-const parseRoleBreakdown = (details: Record<string, unknown>): Record<string, number> => {
+const parseRoleBreakdown = (details: JsonObject): Record<string, number> => {
   const raw = details.role_breakdown;
-  if (!raw || typeof raw !== "object") {return {};}
+  if (!isJsonObject(raw)) {return {};}
   return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).filter((entry): entry is [string, number] => typeof entry[1] === "number"),
+    Object.entries(raw).filter((entry): entry is [string, number] => isNumberValue(entry[1])),
   );
 }
 
 type AtlasEntityType = z.infer<typeof AtlasEntityTypeSchema>;
 type AtlasRelationType = z.infer<typeof AtlasRelationTypeSchema>;
-type AtlasConfidenceTier = z.infer<typeof AtlasConfidenceTierSchema>;
-type AtlasFactStatus = z.infer<typeof AtlasFactStatusSchema>;
-type AtlasLifecycleState = z.infer<typeof AtlasLifecycleStateSchema>;
-type AtlasEvidence = z.infer<typeof AtlasEvidenceSchema>;
+type _AtlasConfidenceTier = z.infer<typeof AtlasConfidenceTierSchema>;
+type _AtlasFactStatus = z.infer<typeof AtlasFactStatusSchema>;
+type _AtlasLifecycleState = z.infer<typeof AtlasLifecycleStateSchema>;
+type _AtlasEvidence = z.infer<typeof AtlasEvidenceSchema>;
 type AtlasNode = z.infer<typeof AtlasNodeSchema>;
 type AtlasEdge = z.infer<typeof AtlasEdgeSchema>;
 type AtlasGraphFilters = z.infer<typeof AtlasGraphFiltersSchema>;
@@ -235,10 +231,10 @@ const FundingBiasSpecificationSchema = z.object({
   trace_id: z.string().nullable().optional(),
   validation_card_skip_reason: z.string().nullable().optional(),
 });
-type FundingBiasMethodology = z.infer<typeof FundingBiasMethodologySchema>;
+type _FundingBiasMethodology = z.infer<typeof FundingBiasMethodologySchema>;
 type FundingBiasStatistic = z.infer<typeof FundingBiasStatisticSchema>;
 type FundingBiasAnalysisResponse = z.infer<typeof FundingBiasAnalysisResponseSchema>;
-type FundingBiasSpecification = z.infer<typeof FundingBiasSpecificationSchema>;
+type _FundingBiasSpecification = z.infer<typeof FundingBiasSpecificationSchema>;
 
 const metricPercentage = (metric:Readonly< { numerator: number; denominator: number }>): number => {
   if (metric.denominator <= 0) {return 0;}

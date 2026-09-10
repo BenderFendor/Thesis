@@ -4,6 +4,25 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Highlight } from "@/lib/api";
 import { HighlightNotePopover } from "@/components/highlight-note-popover";
 
+const CLIENT_HIGHLIGHT: Highlight = {
+  article_url: "https://example.com/story",
+  character_end: 28,
+  character_start: 10,
+  client_id: "client-123",
+  color: "yellow",
+  highlighted_text: "Important sentence",
+  note: "",
+},
+ SECOND_CLIENT_HIGHLIGHT: Highlight = {
+  article_url: "https://example.com/story",
+  character_end: 31,
+  character_start: 4,
+  client_id: "client-456",
+  color: "yellow",
+  highlighted_text: "Another important sentence",
+  note: "",
+};
+
 describe("highlightNotePopover", () => {
   it("saves notes for client-only highlights", async () => {expect.hasAssertions();
     const anchor = document.createElement("button");
@@ -22,23 +41,14 @@ describe("highlightNotePopover", () => {
       }),
     });
 
-    const highlight: Highlight = {
-      article_url: "https://example.com/story",
-      character_end: 28,
-      character_start: 10,
-      client_id: "client-123",
-      color: "yellow",
-      highlighted_text: "Important sentence",
-      note: "",
-    },
-     onSave = jest.fn(async (..._args: [string, string]): Promise<void> => {
+    const onSave = jest.fn(async (..._args: [string, string]): Promise<void> => {
       await Promise.resolve()
     });
 
     render(
       <HighlightNotePopover
         open
-        highlight={highlight}
+        highlight={CLIENT_HIGHLIGHT}
         anchorEl={anchor}
         onClose={jest.fn()}
         onSave={onSave}
@@ -77,15 +87,7 @@ describe("highlightNotePopover", () => {
     render(
       <HighlightNotePopover
         open
-        highlight={{
-          article_url: "https://example.com/story",
-          character_end: 31,
-          character_start: 4,
-          client_id: "client-456",
-          color: "yellow",
-          highlighted_text: "Another important sentence",
-          note: "",
-        }}
+        highlight={SECOND_CLIENT_HIGHLIGHT}
         anchorEl={anchor}
         onClose={onClose}
         onSave={jest.fn(async () => {})}

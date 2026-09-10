@@ -6,6 +6,7 @@ import type { Metadata } from 'next'
 import { Providers } from './providers'
 import Script from 'next/script'
 import { buildAppearanceBootstrapScript } from '@/lib/appearance-settings'
+import "react18-json-view/src/style.css";
 
 // Next's font loader requires one module-scope declaration per font call.
 const instrumentSerif = instrumentSerifFont({

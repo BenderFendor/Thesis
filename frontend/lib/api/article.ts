@@ -5,9 +5,7 @@
 import { z } from "zod";
 
 import type {
-  ApiOpaqueObject,
   BackendArticleMapping,
-  CountryNameMap,
   BackendSource,
   NewsArticle,
   NewsSource,

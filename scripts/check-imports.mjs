@@ -60,6 +60,18 @@ console.log(`import check FAILED: ${bad.length} unresolved @/ imports in ${new S
 const unique = [...new Map(bad.map((b) => [`${b.file  }:${  b.spec}`, b])).values()];
 for (const b of unique.slice(0, 50)) {console.log(`  ${b.file}: "${b.spec}"`);}
 
+const resolveSegmentTransform = (spec, transform) => {
+  const segments = spec.split("/");
+  for (let index = 1; index < segments.length; index++) {
+    const fixed = segments.map((segment, segmentIndex) => (segmentIndex === index ? transform(segment) : segment)),
+      candidate = fixed.join("/");
+    if (candidate !== spec && resolvesAt(candidate.slice(2))) {
+      return candidate;
+    }
+  }
+  return undefined;
+};
+
 if (fix) {
   const ALIAS = {
     "@/hooks/useDebugMode": "@/hooks/use-debug-mode",
@@ -75,23 +87,9 @@ if (fix) {
   for (const b of unique) {
     let target = ALIAS[b.spec];
     // Systematic typo: extra "u" inserted after first char of the path segment
-    if (!target) {
-      const segs = b.spec.split("/");
-      for (let i = 1; i < segs.length; i++) {
-        const fixed = segs.map((s, j) => (j === i ? s.replace(/^(\w)u+/, "$1") : s)),
-         cand = fixed.join("/");
-        if (cand !== b.spec && resolvesAt(cand.slice(2))) { target = cand; break; }
-      }
-    }
+    target ??= resolveSegmentTransform(b.spec, (segment) => segment.replace(/^(\w)u+/, "$1"));
     // Systematic kebab-case: camelCase segment -> kebab-case
-    if (!target) {
-      const segs = b.spec.split("/");
-      for (let i = 1; i < segs.length; i++) {
-        const fixed = segs.map((s, j) => (j === i ? kebab(s) : s)),
-         cand = fixed.join("/");
-        if (cand !== b.spec && resolvesAt(cand.slice(2))) { target = cand; break; }
-      }
-    }
+    target ??= resolveSegmentTransform(b.spec, kebab);
     if (target && resolvesAt(target.slice(2))) {
       const p = join(root, b.file);
       writeFileSync(p, readFileSync(p, "utf8").replaceAll(b.spec, target));

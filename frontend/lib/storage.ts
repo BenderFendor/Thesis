@@ -49,13 +49,22 @@ const STORAGE_CHANGE_EVENT = "thesis-storage-change",
   * @param {TValue} defaultValue - Fallback value if key missing or unparsable
   * @returns {TValue} Parsed value or default
   */
+ isCompatibleStoredValue = <TValue, Parsed>(value: Parsed, fallback: TValue): value is Parsed & TValue => {
+  if (fallback === null) { return value === null; }
+  if (Array.isArray(fallback)) { return Array.isArray(value); }
+  if (typeof fallback === "object") {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  return typeof value === typeof fallback;
+ },
  getFromStorage = <TValue>(key: string, defaultValue: TValue): TValue => {
   if (!isBrowser) {return defaultValue;}
 
   try {
     const item = globalThis.localStorage.getItem(key);
     if (item === null || item === "") {return defaultValue;}
-    return parseStoredJson(item) as TValue;
+    const parsed = parseStoredJson(item);
+    return isCompatibleStoredValue(parsed, defaultValue) ? parsed : defaultValue;
   } catch (error) {
     console.error(`Error reading localStorage key "${key}":`, error);
     return defaultValue;
@@ -101,9 +110,12 @@ const STORAGE_CHANGE_EVENT = "thesis-storage-change",
   */
  parseAndCacheSnapshot = <TValue>(key: string, raw: string, defaultValue: TValue): TValue => {
   const parsed = parseStoredJson(raw);
+  if (!isCompatibleStoredValue(parsed, defaultValue)) {
+    storageSnapshotCache.set(key, { parsed: defaultValue, raw });
+    return defaultValue;
+  }
   storageSnapshotCache.set(key, { parsed, raw });
-  // SAFETY: this module only stores JSON.stringify output of a TValue at this key.
-  return parsed as TValue;
+  return parsed;
 },
  /**
   * Validate the cached raw string against the snapshot cache before parsing.
@@ -114,9 +126,8 @@ const STORAGE_CHANGE_EVENT = "thesis-storage-change",
  readSnapshot = <TValue>(key: string, defaultValue: TValue): TValue => {
   const cached = storageSnapshotCache.get(key),
    raw = globalThis.localStorage.getItem(key);
-  if (cached?.raw === raw) {
-    // SAFETY: cached.parsed was stored as a TValue by this module for this key.
-    return cached.parsed as TValue;
+  if (cached?.raw === raw && isCompatibleStoredValue(cached.parsed, defaultValue)) {
+    return cached.parsed;
   }
   if (raw === null || raw === "") {
     storageSnapshotCache.set(key, { parsed: defaultValue, raw });
@@ -148,7 +159,7 @@ const STORAGE_CHANGE_EVENT = "thesis-storage-change",
   * @param {TValue} value - Value to store
   * @returns {boolean} Success status
   */
- saveToStorage = <TValue>(key: string, value: TValue): boolean => {
+ saveToStorage = (key: string, value: Parameters<typeof JSON.stringify>[0]): boolean => {
   if (!isBrowser) {return false;}
 
   try {

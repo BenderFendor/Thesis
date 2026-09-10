@@ -295,18 +295,18 @@ class Codemod {
    */
   static collectExportedDeclaration(source, sourceFile, node) {
     if (!Codemod.isNamedExportDeclaration(node)) {
-      return;
+      return undefined;
     }
     if (!Codemod.hasModifier(node, ts.SyntaxKind.ExportKeyword) || Codemod.hasModifier(node, ts.SyntaxKind.DefaultKeyword)) {
-      return;
+      return undefined;
     }
     const name = Codemod.getDeclarationName(sourceFile, node);
     if (name === undefined) {
-      return;
+      return undefined;
     }
     const exportModifier = Codemod.getExportModifier(node);
     if (exportModifier === undefined) {
-      return;
+      return undefined;
     }
     const end = node.getEnd(),
       start = node.getStart(sourceFile),
@@ -482,7 +482,7 @@ class Codemod {
   static getBindingNameText(sourceFile, declaration) {
     const {name} = declaration;
     if (!ts.isIdentifier(name)) {
-      return;
+      return undefined;
     }
     return name.getText(sourceFile);
   }
@@ -494,7 +494,7 @@ class Codemod {
    */
   static getNodeModifiers(node) {
     if (!ts.canHaveModifiers(node)) {
-      return;
+      return undefined;
     }
     return ts.getModifiers(node);
   }
@@ -507,14 +507,14 @@ class Codemod {
   static getExportModifier(node) {
     const modifiers = Codemod.getNodeModifiers(node);
     if (modifiers === undefined) {
-      return;
+      return undefined;
     }
     for (const modifier of modifiers) {
       if (modifier.kind === ts.SyntaxKind.ExportKeyword) {
         return modifier;
       }
     }
-    return;
+    return undefined;
   }
 
   /**
@@ -545,7 +545,7 @@ class Codemod {
     for (const declaration of node.declarationList.declarations) {
       const name = Codemod.getBindingNameText(sourceFile, declaration);
       if (name === undefined) {
-        return;
+        return undefined;
       }
       names.push(name);
     }
@@ -565,11 +565,11 @@ class Codemod {
       ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isModuleDeclaration(node)) {
       const {name} = node;
       if (name === undefined) {
-        return;
+        return undefined;
       }
       return name.getText(sourceFile);
     }
-    return;
+    return undefined;
   }
 
   /**
@@ -581,7 +581,7 @@ class Codemod {
   static getOptionValue(argumentsList, optionName) {
     const optionIndex = argumentsList.indexOf(optionName);
     if (optionIndex === MISSING_INDEX) {
-      return;
+      return undefined;
     }
     return argumentsList.at(optionIndex + BLOCK_INSERT_OFFSET);
   }
@@ -605,11 +605,11 @@ class Codemod {
    */
   static getTestCaseBody(node) {
     if (!Codemod.isTestCaseCall(node)) {
-      return;
+      return undefined;
     }
     const [, callback] = node.arguments;
     if (callback === undefined || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) || !ts.isBlock(callback.body)) {
-      return;
+      return undefined;
     }
     return callback.body;
   }
@@ -623,11 +623,11 @@ class Codemod {
   static getExpectAssertionChange(sourceFile, node) {
     const body = Codemod.getTestCaseBody(node);
     if (body === undefined) {
-      return;
+      return undefined;
     }
     const [firstStatement] = body.statements;
     if (Codemod.hasAssertionSetup(sourceFile, firstStatement)) {
-      return;
+      return undefined;
     }
     let position = body.pos + BLOCK_INSERT_OFFSET;
     if (firstStatement !== undefined) {
@@ -893,13 +893,13 @@ class Codemod {
    * @returns {Promise<string | undefined>} File path when changed.
    */
   static async processFile(filePath, options) {
-    const source = await Codemod.readSourceFile(filePath);
+    const source =  Codemod.readSourceFile(filePath);
     if (source === undefined) {
-      return;
+      return undefined;
     }
     const transformedSource = Codemod.applyRules(source, filePath, options.rules);
     if (transformedSource === source) {
-      return;
+      return undefined;
     }
     if (!options.dryRun) {
       ts.sys.writeFile(filePath, transformedSource);
@@ -964,17 +964,17 @@ class Codemod {
    */
   static mergedVariableChange(source, statements, kind, start, end) {
     if (end - start <= BLOCK_INSERT_OFFSET) {
-      return;
+      return undefined;
     }
     const declarations = [],
       firstStatement = statements.at(start),
       lastStatement = statements.at(end - BLOCK_INSERT_OFFSET);
     if (firstStatement === undefined || lastStatement === undefined) {
-      return;
+      return undefined;
     }
     if (statements.slice(start, end).some((statement) =>
       (Codemod.getNodeModifiers(statement)?.length ?? EMPTY_INDEX) > EMPTY_INDEX)) {
-      return;
+      return undefined;
     }
     for (const statement of statements.slice(start, end)) {
       declarations.push(Codemod.stripVariableKeyword(source, statement));

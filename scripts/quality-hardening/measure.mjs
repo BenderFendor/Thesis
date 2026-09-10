@@ -14,7 +14,7 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 /** @typedef {Readonly<{analyzers: Readonly<{cccc: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>, crap: Readonly<{command: readonly string[], output_limit_bytes: number, version: string, working_directory: string}>, oxlint: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>}>, policy_version: string, schema_version: number, source_scope: SourceScope, thresholds: Readonly<{crap: Readonly<{cluster_ceiling: number}>}>}>} QualityConfig */
 /** @typedef {Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Readonly<Record<string, string>>, repositoryRoot: string}>} Policy */
 /** @typedef {{by_rule: JsonObject, errors: number|null, findings: readonly unknown[], status: string, warnings: number|null}} LintRecord */
-/** @typedef {{analyzer: string, message?: string, status: string, units: readonly JsonObject[], warnings: readonly string[]}} MiRecord */
+/** @typedef {{analyzer: string, message?: string, status: string, units: readonly QualityUnit[], warnings: readonly string[]}} MiRecord */
 /** @typedef {{units: readonly QualityUnit[], violations: readonly unknown[]}} CcccRecord */
 /** @typedef {{analyzer: string, status: string, units: readonly QualityUnit[], violations: readonly QualityUnit[]}} CrapRecord */
 /** @typedef {{measurement_id: string, measured_at: string, schema_version: number, policy_version: string, repository: JsonObject, tools: JsonObject, scope: JsonObject, source_files: Readonly<Record<string, string>>, units: readonly QualityUnit[], mi: JsonObject, lint: JsonObject, verification: readonly JsonObject[]}} Measurement */
@@ -54,7 +54,7 @@ const gitHead = async (repositoryRoot) => {
 const fingerprint = (hashes) => 
   runHash(
     Object.entries(hashes)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([path, hash]) => `${path}\0${hash}`)
       .join("\n"),
   )
@@ -76,13 +76,13 @@ const storeMeasurement = async (root, record, raw) => {
   );
 }
 
-/** @param {string} repositoryRoot @param {string} measurementId @returns {Promise<Measurement>} */
-const readMeasurement = async (repositoryRoot, measurementId) => {
-  const shortId = measurementId.replace(/^qh-measure:/u, "");
-  if (!/^[a-f0-9]{24}$/u.test(shortId)) {throw new Error(`invalid measurement ID: ${measurementId}`);}
+/** @param {string} repositoryRoot @param {string} measurementReference @returns {Promise<Measurement>} */
+const readMeasurement = async (repositoryRoot, measurementReference) => {
+  const shortId = measurementReference.replace(/^qh-measure:/u, "");
+  if (!/^[a-f0-9]{24}$/u.test(shortId)) {throw new Error(`invalid measurement ID: ${measurementReference}`);}
   const path = resolve(repositoryRoot, ".quality-hardening/measurements", `${shortId}.json`),
    envelope = JSON.parse(await readFile(path, "utf8"));
-  if (!envelope || typeof envelope !== "object" || !envelope.measurement) {throw new Error(`measurement is invalid: ${measurementId}`);}
+  if (!envelope || Object(envelope) !== envelope || !envelope.measurement) {throw new Error(`measurement is invalid: ${measurementReference}`);}
   return envelope.measurement;
 }
 
@@ -148,7 +148,7 @@ const applyCoverage = (units, crapUnits) => {
 }
 
 /** @param {Policy} policy @param {string} scope @param {readonly string[]} selectedPaths @param {Readonly<Record<string, string>>} hashes @param {CcccRecord} cccc @param {MiRecord} mi @param {LintRecord} lint @param {CrapRecord} crap @param {string|undefined} lintFailure @param {string|undefined} crapFailure */
-const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure) => {
+const createMeasurement = ({policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure}) => {
   const record = {
     crap: {
       analyzer: crap.analyzer,
@@ -156,7 +156,6 @@ const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint,
       status: crap.status,
       unknown_units: crap.units.filter((unit) => unit.coverage.state !== "measured").length,
       violations: crap.violations.length,
-      ...(crapFailure ? { message: crapFailure } : {}),
     },
     lint,
     measured_at: new Date().toISOString(),
@@ -184,7 +183,7 @@ const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint,
         config_sha256: policy.nativeConfigHashes[policy.config.analyzers.oxlint.native_config],
       },
     },
-    units: applyCoverage(/** @type {QualityUnit[]} */ ([...cccc.units, ...mi.units]), crap.units),
+    units: applyCoverage([...cccc.units, ...mi.units], crap.units),
     verification: [
       {
         analyzer: "cccc",
@@ -196,16 +195,17 @@ const createMeasurement = (policy, scope, selectedPaths, hashes, cccc, mi, lint,
         errors: lint.errors,
         status: lint.status,
         warnings: lint.warnings,
-        ...(lintFailure ? { message: lintFailure } : {}),
       },
       {
         analyzer: "crap-typescript",
         status: crap.status,
         violations: crap.violations.length,
-        ...(crapFailure ? { message: crapFailure } : {}),
       },
     ],
   };
+  if (crapFailure) {record.crap.message = crapFailure;}
+  if (lintFailure) {record.verification[1].message = lintFailure;}
+  if (crapFailure) {record.verification[2].message = crapFailure;}
   return record;
 }
 
@@ -229,7 +229,7 @@ const measureRepository = async ({ policy, scope = "repo", paths = [] }) => {
     measureLint(policy.repositoryRoot, policy.config.analyzers.oxlint, scriptPaths),
     measureCrap(policy.repositoryRoot, policy.config.analyzers.crap, crapPaths, policy.config.thresholds.crap.cluster_ceiling),
   ]),
-   record = createMeasurement(policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure);
+   record = createMeasurement({policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure});
   record.repository.head = await gitHead(policy.repositoryRoot);
   record.measurement_id = measurementId(record);
   await storeMeasurement(policy.repositoryRoot, record, { cccc, crap });

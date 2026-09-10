@@ -42,6 +42,44 @@ export interface GlobalNavigationServices {
   useRouter: () => GlobalNavigationRouter
 }
 
+type ViewNavigationEntry = (typeof VIEW_NAVIGATION)[number]
+
+interface ViewNavigationItemProps {
+  active: boolean
+  expanded: boolean
+  item: ViewNavigationEntry
+  onViewClick: (view: ViewMode) => void
+  onViewPreload?: (view: ViewMode) => void
+}
+
+const ViewNavigationItem = ({
+  active,
+  expanded,
+  item,
+  onViewClick,
+  onViewPreload,
+}: Readonly<ViewNavigationItemProps>) => {
+  const handlePreload = useCallback(() => {
+    onViewPreload?.(item.key)
+  }, [item.key, onViewPreload]),
+   handleClick = useCallback(() => {
+    onViewClick(item.key)
+  }, [item.key, onViewClick])
+
+  return (
+    <SidebarNavigationItem
+      expanded={expanded}
+      label={item.label}
+      description={item.description}
+      icon={item.icon}
+      active={active}
+      onFocus={handlePreload}
+      onPointerEnter={handlePreload}
+      onClick={handleClick}
+    />
+  )
+}
+
 const DEFAULT_NAVIGATION_SERVICES: GlobalNavigationServices = {
   usePathname,
   useRouter,
@@ -65,7 +103,7 @@ export function GlobalNavigation({
   )
 
   useEffect(() => {
-    if (!isHomeRoute || !onViewChange) {return}
+    if (!isHomeRoute || !onViewChange) {return undefined}
 
     const syncViewFromLocation = () => {
       const requestedView = getViewFromSearch(globalThis.location.search)
@@ -100,7 +138,15 @@ export function GlobalNavigation({
 
    updateExpanded = useCallback((nextExpanded: boolean) => {
     writeSidebarExpanded(nextExpanded)
-  }, [])
+  }, []),
+
+   toggleExpanded = useCallback(() => {
+    updateExpanded(!expanded)
+  }, [expanded, updateExpanded]),
+
+   expandNavigation = useCallback(() => {
+    updateExpanded(true)
+  }, [updateExpanded])
 
   return (
     <aside
@@ -147,7 +193,7 @@ export function GlobalNavigation({
 
       <button
         type="button"
-        onClick={() =>{  updateExpanded(!expanded); }}
+        onClick={toggleExpanded}
         className="absolute -right-3 top-[4.45rem] flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-[var(--news-bg-secondary)] text-muted-foreground shadow-lg transition-colors hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         aria-expanded={expanded}
         aria-controls="primary-navigation-content"
@@ -161,7 +207,7 @@ export function GlobalNavigation({
         <div className="border-b border-white/10 p-3">
           <WorkspaceSearch
             expanded={expanded}
-            onExpand={() =>{  updateExpanded(true); }}
+            onExpand={expandNavigation}
             onSearch={handleSearch}
           />
         </div>
@@ -169,16 +215,13 @@ export function GlobalNavigation({
         <nav className="no-scrollbar flex-1 space-y-7 overflow-y-auto px-3 py-5" aria-label="Workspace">
           <SidebarSection expanded={expanded} label="Views">
             {VIEW_NAVIGATION.map((item) => (
-              <SidebarNavigationItem
+              <ViewNavigationItem
                 key={item.key}
+                item={item}
                 expanded={expanded}
-                label={item.label}
-                description={item.description}
-                icon={item.icon}
                 active={pathname === "/" && currentView === item.key}
-                onFocus={() => onViewPreload?.(item.key)}
-                onPointerEnter={() => onViewPreload?.(item.key)}
-                onClick={() =>{  handleViewClick(item.key); }}
+                onViewPreload={onViewPreload}
+                onViewClick={handleViewClick}
               />
             ))}
           </SidebarSection>

@@ -1,10 +1,11 @@
+import { isStringValue } from "@/lib/type-guards";
 import type { ArticleTopic, NewsArticle } from "@/lib/api";
 
-const SCROLL_PAGE_SIZE = 500;
+
 const SCROLL_INITIAL_RENDER_COUNT = 60;
 const SCROLL_RENDER_CHUNK_SIZE = 40;
 const SCROLL_REVEAL_THRESHOLD = 8;
-const SCROLL_BUFFER_FETCH_THRESHOLD = 120;
+
 const MAX_PERSONALIZATION_SEEDS = 60;
 
 const BOOKMARK_SIGNAL_WEIGHT = 2;
@@ -152,7 +153,7 @@ const RANKING_WEIGHTS: Readonly<RankingWeights> = {
 };
 
 const hasRealFeedImage = (image: NewsArticle["image"]): boolean => {
-  if (typeof image !== "string") {
+  if (!isStringValue(image)) {
     return false;
   }
   const trimmed = image.trim();
@@ -192,7 +193,7 @@ const addWeight = (
   key: string | number,
   value: number,
 ): void => {
-  if (typeof key === "string" && key.length === NO_SCORE) {
+  if (isStringValue(key) && key.length === NO_SCORE) {
     return;
   }
   target[key] = (target[key] ?? NO_SCORE) + value;
@@ -208,7 +209,7 @@ const addWeight = (
   limit: number,
 ): string[] =>
   Object.entries(weights)
-    .sort((left, right) => right[1] - left[1])
+    .toSorted((left, right) => right[1] - left[1])
     .slice(NO_SCORE, limit)
     .map(([key]) => key),
 
@@ -218,7 +219,7 @@ const addWeight = (
   limit: number,
 ): WeightedCluster[] =>
   Object.entries(weights)
-    .sort((left, right) => right[1] - left[1])
+    .toSorted((left, right) => right[1] - left[1])
     .slice(NO_SCORE, limit)
     .map(([clusterId, weight]) => ({
       label: labels[Number(clusterId)] ?? `cluster ${clusterId}`,

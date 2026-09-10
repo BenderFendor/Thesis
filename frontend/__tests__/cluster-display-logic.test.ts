@@ -80,10 +80,13 @@ describe("cluster display logic", () => {
 
           expect(mapped).toHaveLength(articles.length);
           mapped.forEach((article, index) => {
-            expect(article.title).toBe(articles[index]!.title);
-            expect(article.url).toBe(articles[index]!.url);
-            expect(article.summary).toBe(articles[index]!.summary || "");
-            expect(article.image).toBe(articles[index]!.image_url || "");
+            const sourceArticle = articles[index];
+            expect(sourceArticle).toBeDefined();
+            if (sourceArticle === undefined) { throw new Error("missing source article"); }
+            expect(article.title).toBe(sourceArticle.title);
+            expect(article.url).toBe(sourceArticle.url);
+            expect(article.summary).toBe(sourceArticle.summary || "");
+            expect(article.image).toBe(sourceArticle.image_url || "");
           });
         },
       ),

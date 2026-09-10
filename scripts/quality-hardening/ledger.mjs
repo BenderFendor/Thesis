@@ -23,7 +23,7 @@ const readLedger = async (repositoryRoot, fileName) => {
     const text = await readFile(ledgerPath(repositoryRoot, fileName), "utf8");
     return text.split("\n").filter(Boolean).map((line) => JSON.parse(line));
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {return [];}
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {return [];}
     throw error;
   }
 }
@@ -42,7 +42,7 @@ const readCampaign = async (repositoryRoot) => {
   try {
     return JSON.parse(await readFile(ledgerPath(repositoryRoot, "campaign.json"), "utf8"));
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {return null;}
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {return null;}
     throw error;
   }
 }

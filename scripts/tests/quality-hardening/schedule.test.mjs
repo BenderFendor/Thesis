@@ -1,6 +1,7 @@
 import { dominates, paretoFrontier, priorityForTask, scheduleTasks } from "../../quality-hardening/schedule.mjs";
-import assert from "node:assert/strict";
-import { test } from "node:test";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 /** @param {Partial<Record<string, unknown>> & {task_id: string}} [extra] */
 const task = (extra = {}) => (
@@ -16,7 +17,7 @@ const task = (extra = {}) => (
   }
 )
 
-test("priority classes are strict and ordered by policy", () => {
+void test("priority classes are strict and ordered by policy", () => {
   assert.equal(priorityForTask("correctness"), "P0");
   assert.equal(priorityForTask("type_integrity"), "P0");
   assert.equal(priorityForTask("structural_maintainability", "structural"), "P1");
@@ -26,7 +27,7 @@ test("priority classes are strict and ordered by policy", () => {
   assert.equal(priorityForTask("mechanical_convention", "mechanical_contextual"), "P4");
 });
 
-test("a lower class never beats a higher class regardless of finding volume", () => {
+void test("a lower class never beats a higher class regardless of finding volume", () => {
   const ordered = scheduleTasks([
     task({ factor: "mechanical_convention", finding_count: 500, repair_class: "mechanical_contextual", task_id: "t-mech" }),
     task({ gate_distance: 0.2, hard_findings: 1, task_id: "t-struct" }),
@@ -34,7 +35,7 @@ test("a lower class never beats a higher class regardless of finding volume", ()
   assert.deepEqual(ordered.map((item) => item.task_id), ["t-struct", "t-mech"]);
 });
 
-test("dominated candidates are excluded from the frontier", () => {
+void test("dominated candidates are excluded from the frontier", () => {
   const stronger = task({ gate_distance: 0.5, hard_findings: 3, source_units: ["u1"], task_id: "a-strong" });
   const weaker = task({ gate_distance: 0.9, hard_findings: 1, source_units: ["u1", "u2"], task_id: "b-weak" });
   assert.equal(dominates(stronger, weaker), true);
@@ -42,18 +43,18 @@ test("dominated candidates are excluded from the frontier", () => {
   assert.deepEqual(paretoFrontier([weaker, stronger]).map((item) => item.task_id), ["a-strong"]);
 });
 
-test("tie-break is deterministic and prefers explained hard findings", () => {
+void test("tie-break is deterministic and prefers explained hard findings", () => {
   const list = [
     task({ gate_distance: 0.4, hard_findings: 1, task_id: "b-lower" }),
     task({ gate_distance: 0.8, hard_findings: 3, task_id: "a-higher" }),
   ];
   const first = scheduleTasks([...list]);
-  const second = scheduleTasks(list.reverse());
+  const second = scheduleTasks(list.toReversed());
   assert.deepEqual(first.map((item) => item.task_id), ["a-higher", "b-lower"]);
   assert.deepEqual(second.map((item) => item.task_id), ["a-higher", "b-lower"]);
 });
 
-test("effect history widens the frontier inside a class but never the class", () => {
+void test("effect history widens the frontier inside a class but never the class", () => {
   const tasks = [
     task({ cluster_key: "rule:no-magic", factor: "mechanical_convention", gate_distance: 0.2, hard_findings: 2, repair_class: "mechanical_safe", source_units: ["u1"], task_id: "m-clean" }),
     task({ cluster_key: "rule:one-var", factor: "mechanical_convention", gate_distance: 0.4, hard_findings: 1, repair_class: "mechanical_safe", source_units: ["u1", "u2"], task_id: "m-seasoned" }),
@@ -71,9 +72,9 @@ test("effect history widens the frontier inside a class but never the class", ()
   assert.deepEqual(ordered.slice(1).map((item) => item.task_id), ["m-clean", "m-seasoned"]);
 });
 
-test("no transformation dominance allows both frontier candidates", () => {
+void test("no transformation dominance allows both frontier candidates", () => {
   const left = task({ gate_distance: 0.2, hard_findings: 2, source_units: ["u1"], task_id: "x" });
   const right = task({ gate_distance: 0.2, hard_findings: 2, source_units: ["u2"], task_id: "y" });
-  const frontier = paretoFrontier([left, right]).map((item) => item.task_id).sort();
+  const frontier = paretoFrontier([left, right]).map((item) => item.task_id).toSorted();
   assert.deepEqual(frontier, ["x", "y"]);
 });

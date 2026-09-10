@@ -7,7 +7,18 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+/** @param {string | Uint8Array | Error | number | boolean | null | undefined} value @returns {string} */
+const outputText = (value) => {
+  if (value === null || value === undefined) {return "";}
+  if (value instanceof Uint8Array) {return new TextDecoder().decode(value);}
+  if (value instanceof Error) {return value.message;}
+  if (value?.constructor === String) {return value;}
+  const serialized = JSON.stringify(value);
+  return serialized ?? "";
+};
+
 /** @typedef {Readonly<{command: readonly string[], label: string, output_limit_bytes: number, timeout_ms: number}>} Check */
+/** @typedef {Readonly<{duration_ms: number, exit_code?: number|null, label: string, output: string, status: "passed"|"failed"}>} CheckResult */
 /** @typedef {Readonly<{profiles: Readonly<Record<string, readonly string[]>>, verification: Readonly<{checks: Readonly<Record<string, Readonly<{command: readonly string[], label: string}>>>, defaults: Readonly<{output_limit_bytes: number, timeout_ms: number}>}>}>} VerificationPolicy */
 
 /** @param {string} repositoryRoot @returns {Promise<string>} */
@@ -20,30 +31,37 @@ const trackedStatus = async (repositoryRoot) => {
   return result.stdout;
 }
 
-/** @param {Check} check @param {string} repositoryRoot @returns {Promise<Record<string, unknown>>} */
+/** @param {Check} check @param {string} repositoryRoot @returns {Promise<CheckResult>} */
 const runCheck = async (check, repositoryRoot) => {
   const [executable, ...argumentsList] = check.command,
-   started = Date.now();
-  try {
-    const result = await execFileAsync(executable, argumentsList, {
+   started = Date.now(),
+   result = await new Promise((resolveResult) => {
+    execFile(executable, argumentsList, {
       cwd: repositoryRoot,
       encoding: "utf8",
       maxBuffer: check.output_limit_bytes,
       timeout: check.timeout_ms,
+    }, (error, stdout, stderr) => {
+      const numericCode = Number(error?.code);
+      resolveResult({
+        code: Number.isInteger(numericCode) ? numericCode : null,
+        error,
+        stderr,
+        stdout,
+      });
     });
+   });
+  if (result.error === null) {
     return { duration_ms: Date.now() - started, label: check.label, output: result.stdout.slice(-4000), status: "passed" };
-  } catch (error) {
-    const result = error && typeof error === "object"
-      ? /** @type {Record<string, unknown>} */ (error)
-      : {};
-    return {
-      duration_ms: Date.now() - started,
-      exit_code: typeof result.code === "number" ? result.code : null,
-      label: check.label,
-      output: `${String(result.stdout ?? "")}\n${String(result.stderr ?? "")}`.trim().slice(-4000),
-      status: "failed",
-    };
   }
+  return {
+    duration_ms: Date.now() - started,
+    exit_code: result.code,
+    label: check.label,
+    output: `${outputText(result.stdout)}
+${outputText(result.stderr)}`.trim().slice(-4000),
+    status: "failed",
+  };
 }
 
 /** @param {"path"|"task"|"changed"|"repo"} scope @param {VerificationPolicy} config @returns {Check[]} */

@@ -1,12 +1,13 @@
-import assert from "node:assert/strict";
 import { normalizeReport } from "../../quality-hardening/adapters/cccc.mjs";
 import { parseReport } from "../../quality-hardening/adapters/oxlint.mjs";
-import { test } from "node:test";
 
-test("CCCC normalization emits stable namespaced source units", () => {
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
+
+void test("CCCC normalization emits stable namespaced source units", () => {
   const report = normalizeReport(
     {
-      files: [{ functions: [{ name: "render", line: 4, cyclomatic: 2, cognitive: 1 }], path: "/repo/src/app.ts" }],
+      files: [{ functions: [{ cognitive: 1, cyclomatic: 2, line: 4, name: "render" }], path: "/repo/src/app.ts" }],
       summary: {},
       violations: [],
     },
@@ -18,7 +19,7 @@ test("CCCC normalization emits stable namespaced source units", () => {
   assert.match(report.units[0].unit_id, /^qh-unit:/u);
 });
 
-test("Oxlint normalization preserves severity and rule counts", () => {
+void test("Oxlint normalization preserves severity and rule counts", () => {
   const report = parseReport(
     JSON.stringify({
       diagnostics: [

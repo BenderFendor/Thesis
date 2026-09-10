@@ -1,5 +1,6 @@
 "use client";
 
+import { isNumberValue } from "@/lib/type-guards";
 import { GitBranch, Link2, ShieldAlert, Tags } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { StoryLineageResponse } from "@/lib/api";
@@ -21,6 +22,10 @@ type LineageArticleEdge = NonNullable<StoryLineageResponse["article_edges"]>[num
 type LineageClaim = NonNullable<StoryLineageResponse["claims"]>[number];
 type LineageCorrection = NonNullable<StoryLineageResponse["corrections"]>[number];
 
+const EMPTY_ARTICLE_EDGES: readonly LineageArticleEdge[] = [];
+const EMPTY_CLAIMS: readonly LineageClaim[] = [];
+const EMPTY_CORRECTIONS: readonly LineageCorrection[] = [];
+
 const LineageArticleEdges = ({ edges }: Readonly<{ edges: readonly LineageArticleEdge[] }>) =>
   edges.length > 0 ? (
     <div className="space-y-2">
@@ -32,7 +37,7 @@ const LineageArticleEdges = ({ edges }: Readonly<{ edges: readonly LineageArticl
           <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
             <Link2 className="h-3.5 w-3.5" />
             {relationLabels[edge.relation] ?? edge.relation}
-            {typeof edge.confidence === "number" && (
+            {isNumberValue(edge.confidence) && (
               <span>{Math.round(edge.confidence * 100)}%</span>
             )}
           </div>
@@ -145,7 +150,7 @@ export function StoryLineagePanel({ clusterId }: StoryLineagePanelProps) {
     );
   }
 
-  const articleEdges = data.article_edges ?? [];
+  const articleEdges = data.article_edges ?? EMPTY_ARTICLE_EDGES;
   const relationCounts = articleEdges.reduce<Record<string, number>>((counts, edge) => {
     counts[edge.relation] = (counts[edge.relation] ?? 0) + 1;
     return counts;
@@ -177,18 +182,18 @@ export function StoryLineagePanel({ clusterId }: StoryLineagePanelProps) {
         </div>
         <div className="rounded border border-white/10 bg-black/20 p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Claims tracked</div>
-          <div className="mt-1 text-sm text-foreground">{(data.claims ?? []).length}</div>
+          <div className="mt-1 text-sm text-foreground">{(data.claims ?? EMPTY_CLAIMS).length}</div>
         </div>
         <div className="rounded border border-white/10 bg-black/20 p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Corrections matched</div>
-          <div className="mt-1 text-sm text-foreground">{(data.corrections ?? []).length}</div>
+          <div className="mt-1 text-sm text-foreground">{(data.corrections ?? EMPTY_CORRECTIONS).length}</div>
         </div>
       </div>
 
       <LineageRelationBadges counts={relationCounts} />
       <LineageArticleEdges edges={articleEdges} />
-      <LineageClaims claims={data.claims ?? []} />
-      <LineageCorrections corrections={data.corrections ?? []} />
+      <LineageClaims claims={data.claims ?? EMPTY_CLAIMS} />
+      <LineageCorrections corrections={data.corrections ?? EMPTY_CORRECTIONS} />
     </div>
   );
 }

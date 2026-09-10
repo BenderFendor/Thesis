@@ -2,8 +2,8 @@ import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { useCallback, useEffect, useState } from 'react';
 import type { NewsArticle } from "@/lib/api";
+import type { JsonValue } from "@/lib/json-value";
 
-import type { ReactNode } from 'react';
 import { ReadingQueueSidebar } from "@/components/reading-queue-sidebar";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useNewsStream } from "@/hooks/useNewsStream";
@@ -19,7 +19,7 @@ interface FetchResponseFixture {
       }>;
     };
   };
-  readonly json: () => Promise<unknown>;
+  readonly json: () => Promise<JsonValue>;
   readonly ok: boolean;
   readonly status: number;
   readonly statusText: string;
@@ -29,6 +29,12 @@ type FetchBoundary = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<FetchResponseFixture>;
+
+const requestInputUrl = (input: RequestInfo | URL): string => {
+  if (input instanceof Request) { return input.url; }
+  if (input instanceof URL) { return input.href; }
+  return input;
+};
 
 const LOOP_MESSAGES = [
   "Maximum update depth exceeded",
@@ -40,7 +46,7 @@ const LOOP_MESSAGES = [
     `data: ${JSON.stringify({ articles: [], status: "initial" })}\n`,
     `data: ${JSON.stringify({ status: "complete" })}\n`,
   ].join(""),
-   value = new Uint8Array([...data].map((character) => character.charCodeAt(0)));
+   value = new Uint8Array(Array.from(data, (character) => character.charCodeAt(0)));
 
   return {
     body: {
@@ -66,7 +72,7 @@ const LOOP_MESSAGES = [
  installFetchBoundary = (): void => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input) => {
-    const url = String(input);
+    const url = requestInputUrl(input);
     if (url.includes("/news/stream")) {
       return createStreamResponse();
     }

@@ -8,27 +8,10 @@ import type {
   ConfidenceLevel,
   VerificationRequest,
   VerificationResult,
-  VerificationStatus,
-  VerificationStreamEvent,
-  VerificationSummary,
 } from "@/lib/types/verification";
 import { API_BASE_URL } from "./api";
-import { logger } from "./logger";
 
 export type { ConfidenceLevel, SourceInfo, VerifiedClaim, VerificationResult } from "@/lib/types/verification";
-
-// --- API Functions ---
-
-/**
- * Check if verification is enabled and get configuration.
- */
-const fetchVerificationStatus = async (): Promise<VerificationStatus> => {
-  const response = await fetch(`${API_BASE_URL}/api/verification/status`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch verification status: ${response.status}`);
-  }
-  return response.json();
-}
 
 /**
  * Verify claims from research output.
@@ -50,79 +33,6 @@ const verifyResearch = async (
   }
   
   return response.json();
-}
-
-/**
- * Verify claims and get summary JSON response.
- */
-const verifyResearchJson = async (
-  request: VerificationRequest,
-  signal?: AbortSignal
-): Promise<VerificationSummary> => {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify/json`, {
-    body: JSON.stringify(request),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-    signal,
-  });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Verification failed: ${error}`);
-  }
-  
-  return response.json();
-}
-
-/**
- * Stream verification progress via SSE.
- */
-const streamVerification = async function*  streamVerification(
-  request: VerificationRequest,
-  signal?: AbortSignal
-): AsyncGenerator<VerificationStreamEvent> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify/stream`, {
-    body: JSON.stringify(request),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-    signal,
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Verification stream failed: ${response.status}`);
-  }
-  
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("No response body");
-  }
-  
-  const decoder = new TextDecoder();
-  let buffer = "";
-  
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {break;}
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const event = JSON.parse(line.slice(6)) as VerificationStreamEvent;
-            yield event;
-          } catch (error) {
-            logger.warn("Failed to parse SSE event", { error, line });
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 // --- Helpers ---

@@ -17,28 +17,28 @@ const readInput = async (input) => {
  return chunks.join("");
 }
 
-/** @param {Record<string, unknown>} request */
+/** @typedef {string | readonly string[]} HookPathValue */
+/** @typedef {Readonly<{file_path?: HookPathValue, path?: HookPathValue, filePath?: HookPathValue, paths?: HookPathValue}>} HookToolInput */
+/** @typedef {Readonly<{input?: HookToolInput}>} HookTool */
+/** @typedef {Readonly<{event: "pre"|"post"|"stop", harness: string, protocol: number, tool?: HookTool}>} HookRequest */
+
+/** @param {HookRequest} request */
 const touchedPaths = (request) => {
- const { tool } = request;
- const toolObject = tool && typeof tool === "object" && !Array.isArray(tool)
-  ? /** @type {Record<string, unknown>} */ (tool)
-  : {},
-  { input } = toolObject;
- if (!input || typeof input !== "object" || Array.isArray(input)) { return []; }
- const inputObject = /** @type {Record<string, unknown>} */ (input),
-  values = [];
- for (const key of ["file_path", "path", "filePath", "paths"]) {
-  const value = inputObject[key];
-  if (typeof value === "string") { values.push(value); }
-  if (Array.isArray(value)) { values.push(...value.filter((item) => typeof item === "string")); }
+ const input = request.tool?.input;
+ if (!input) { return []; }
+ const values = [];
+ for (const value of [input.file_path, input.path, input.filePath, input.paths]) {
+  if (value?.constructor === String) { values.push(value); }
+  if (Array.isArray(value)) { values.push(...value); }
  }
- return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+ return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
 }
 
 /** @param {"pre"|"post"|"stop"} event @param {import("node:stream").Readable} input */
 const hook = async (event, input) => {
- const text = await readInput(input),
-  request = JSON.parse(text);
+ const text = await readInput(input);
+ /** @type {HookRequest} */
+ const request = JSON.parse(text);
  assertProtocol(request, "hook request");
  if (request.event !== event) { throw new Error(`hook event mismatch: expected ${event}`); }
  const paths = touchedPaths(request);
@@ -50,7 +50,7 @@ const hook = async (event, input) => {
  });
 }
 
-/** @param {"pre"|"post"|"stop"} event @param {Record<string, unknown>} request */
+/** @param {"pre"|"post"|"stop"} event @param {Partial<HookRequest>} request */
 const requestFor = (event, request) => (
  { event, harness: "controller", protocol: PROTOCOL_VERSION, ...request }
 )

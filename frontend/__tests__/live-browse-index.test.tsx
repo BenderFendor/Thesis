@@ -30,6 +30,12 @@ type FetchBoundary = (
   init?: RequestInit,
 ) => Promise<FetchResponseFixture>
 
+const requestInputUrl = (input: RequestInfo | URL): string => {
+  if (input instanceof Request) { return input.url }
+  if (input instanceof URL) { return input.href }
+  return input
+}
+
 interface FetchResponseFixture {
   readonly json: () => Promise<BrowseResponse>
   readonly ok: boolean
@@ -116,7 +122,7 @@ describe("useLiveBrowseIndex", () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]))
+    const requestUrl = new URL(requestInputUrl(fetchMock.mock.calls[0]?.[0] ?? ""))
     expect(requestUrl.pathname).toBe("/news/index/cached")
     expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news")
     expect(result.current.totalCount).toBe(1)

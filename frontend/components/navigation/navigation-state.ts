@@ -19,7 +19,7 @@ const getViewFromSearch = (search: string): ViewMode | null => {
 }
 
 const readSidebarExpanded = (): boolean => {
-  if (typeof window === "undefined") {return false}
+  if (globalThis.window === undefined) {return false}
 
   try {
     const storedValue = globalThis.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)
@@ -32,7 +32,7 @@ const readSidebarExpanded = (): boolean => {
 }
 
 const writeSidebarExpanded = (expanded: boolean): void => {
-  if (typeof window === "undefined") {return}
+  if (globalThis.window === undefined) {return}
 
   sidebarExpandedFallback = expanded
   try {
@@ -44,7 +44,7 @@ const writeSidebarExpanded = (expanded: boolean): void => {
 }
 
 const subscribeSidebarExpanded = (onChange: () => void): () => void => {
-  if (typeof window === "undefined") {return () => {}}
+  if (globalThis.window === undefined) {return () => {}}
 
   const handleStorage = (event: StorageEvent) => {
     if (event.key === SIDEBAR_EXPANDED_STORAGE_KEY || event.key === null) {

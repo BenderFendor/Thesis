@@ -1,3 +1,6 @@
+import { isJsonObject } from "@/lib/json-value";
+import type { JsonObject, JsonValue } from "@/lib/json-value";
+import { isNumberValue, isStringValue } from "@/lib/type-guards";
 /**
  * Appearance settings model: one validated settings object that drives the
  * runtime CSS-variable token layer (see app/globals.css "runtime appearance"
@@ -132,15 +135,15 @@ const getServerAppearanceSettings = (): AppearanceSettings =>
   APPEARANCE_DEFAULTS
 
 
-const clampNumber = (value: unknown, range:Readonly< { min: number; max: number }>, fallback: number): number => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+const clampNumber = (value: JsonValue | undefined, range: Readonly<{ min: number; max: number }>, fallback: number): number => {
+  if (!isNumberValue(value) || !Number.isFinite(value)) {
     return fallback;
   }
   return Math.min(range.max, Math.max(range.min, value));
 }
 
-const normalizeHexColor = (value: unknown, fallback: string): string => {
-  if (typeof value !== "string" || !HEX_COLOR_PATTERN.test(value)) {
+const normalizeHexColor = (value: JsonValue | undefined, fallback: string): string => {
+  if (!isStringValue(value) || !HEX_COLOR_PATTERN.test(value)) {
     return fallback;
   }
   const hex = value.toLowerCase();
@@ -155,7 +158,7 @@ const normalizeHexColor = (value: unknown, fallback: string): string => {
  * keys are dropped, invalid fields fall back to their default, numbers are
  * clamped into range. Never throws.
  */
-const normalizeAppearanceSettings = (input: unknown): AppearanceSettings => {
+const normalizeAppearanceSettings = (input: JsonValue | undefined): AppearanceSettings => {
   const settings = appearanceInputGroups(input);
   if (settings.source.version !== 1) {
     return { ...APPEARANCE_DEFAULTS };
@@ -205,16 +208,11 @@ const normalizeAppearanceSettings = (input: unknown): AppearanceSettings => {
   };
 }
 
-const isPlainObject = (value: unknown): boolean => 
-  typeof value === "object" && value !== null && !Array.isArray(value)
+const group = (value: JsonValue | undefined): JsonObject =>
+  isJsonObject(value) ? value : {};
 
-
-const group = (value: unknown): Record<string, unknown> => 
-  isPlainObject(value) ? (value as Record<string, unknown>) : {}
-
-
-function appearanceInputGroups(input: unknown) {
-  const source = isPlainObject(input) ? (input as Record<string, unknown>) : {};
+function appearanceInputGroups(input: JsonValue | undefined) {
+  const source = group(input);
   return {
     colors: group(source.colors),
     layout: group(source.layout),
@@ -234,7 +232,7 @@ function snapStep(value: number): number {
 }
 
 const readRawStorageValue = (): string | null => {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return null;
   }
   try {
@@ -252,7 +250,7 @@ const cacheAppearanceSettings = (raw: string | null): AppearanceSettings => {
   return value;
 }
 
-function parseAppearanceStorageValue(raw: string | null): unknown {
+function parseAppearanceStorageValue(raw: string | null): JsonValue | undefined {
   if (raw === null) {
     return undefined;
   }
@@ -297,9 +295,18 @@ interface AppliedProperty {
   neutral: boolean;
 }
 
+const APPEARANCE_COLOR_TOKENS = [
+  "accent",
+  "background",
+  "border",
+  "foreground",
+  "secondaryText",
+  "surface",
+] as const satisfies readonly (keyof AppearanceColorTokens)[];
+
 const colorProperties = (colors: AppearanceColorsInput): AppliedProperty[] => {
   const entries: AppliedProperty[] = [];
-  for (const token of Object.keys(COLOR_PROPERTY_BY_TOKEN) as (keyof AppearanceColorTokens)[]) {
+  for (const token of APPEARANCE_COLOR_TOKENS) {
     const propertyOrProperties = COLOR_PROPERTY_BY_TOKEN[token],
       value = colors[token];
     for (const property of Array.isArray(propertyOrProperties)
@@ -367,7 +374,7 @@ const numericProperties = (settings: AppearanceSettings): AppliedProperty[] => {
  * the light/dark theme classes.
  */
 const applyAppearanceSettings = (settings: AppearanceSettings): void => {
-  if (typeof document === "undefined") {
+  if (globalThis.document === undefined) {
     return;
   }
   const {style} = document.documentElement;

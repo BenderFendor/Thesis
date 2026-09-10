@@ -8,10 +8,11 @@
 // Separate declaration statements are never merged; comments and destructuring
 // Patterns skip a chain; sorting is idempotent; every changed output parses
 // Again as TypeScript.
-import assert from "node:assert/strict";
 import { runTransform } from "../../transformations/sort-vars.mjs";
-import { test } from "node:test";
 import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 /**
  * Asserts that a transform application yields the expected text.
@@ -54,7 +55,7 @@ const assertParses = (source) => {
   assert.equal(errors.length, 0, "transformed output must parse");
 };
 
-test("dependency-free chain is reordered alphabetically", () => {
+void test("dependency-free chain is reordered alphabetically", () => {
   const source = `const C = 3, A = 1, B = 2;
 `;
   const expected = `const A = 1, B = 2, C = 3;
@@ -62,7 +63,7 @@ test("dependency-free chain is reordered alphabetically", () => {
   assertTransformed(source, expected);
 });
 
-test("member ordering is case-sensitive", () => {
+void test("member ordering is case-sensitive", () => {
   const source = `const b = 1, A = 2;
 `;
   const expected = `const A = 2, b = 1;
@@ -70,7 +71,7 @@ test("member ordering is case-sensitive", () => {
   assertTransformed(source, expected);
 });
 
-test("chain reordering keeps a backward alias valid", () => {
+void test("chain reordering keeps a backward alias valid", () => {
   const source = `const a = 1, C = 2, b = a;
 `;
   const expected = `const C = 2, a = 1, b = a;
@@ -78,26 +79,26 @@ test("chain reordering keeps a backward alias valid", () => {
   assertTransformed(source, expected);
 });
 
-test("TDZ chain stays unchanged when a member references a lower-sorted sibling", () => {
+void test("TDZ chain stays unchanged when a member references a lower-sorted sibling", () => {
   const source = `const C = 2, A = 1, B = C;
 `;
   assertUnchanged(source);
 });
 
-test("TDZ chain stays unchanged when the reference is forward in source", () => {
+void test("TDZ chain stays unchanged when the reference is forward in source", () => {
   const source = `const B = C, A = 1, C = 2;
 `;
   assertUnchanged(source);
 });
 
-test("multi-statement scope is untouched", () => {
+void test("multi-statement scope is untouched", () => {
   const source = `const B = 1;
 const A = 2;
 `;
   assertUnchanged(source);
 });
 
-test("mixed declaration kinds are never merged", () => {
+void test("mixed declaration kinds are never merged", () => {
   const source = `const B = 1;
 let A = 2;
 var C = 3;
@@ -105,13 +106,13 @@ var C = 3;
   assertUnchanged(source);
 });
 
-test("forward alias in source stays unchanged", () => {
+void test("forward alias in source stays unchanged", () => {
   const source = `const B = A, A = 1;
 `;
   assertUnchanged(source);
 });
 
-test("object literal keys are not references", () => {
+void test("object literal keys are not references", () => {
   const source = `const B = { C: 1 }, A = 2, C = 3;
 `;
   const expected = `const A = 2, B = { C: 1 }, C = 3;
@@ -119,13 +120,13 @@ test("object literal keys are not references", () => {
   assertTransformed(source, expected);
 });
 
-test("shorthand property values are references", () => {
+void test("shorthand property values are references", () => {
   const source = `const B = { C }, A = 2, C = 3;
 `;
   assertUnchanged(source);
 });
 
-test("member-access names are not references", () => {
+void test("member-access names are not references", () => {
   const source = `const B = 1, A = obj.C;
 `;
   const expected = `const A = obj.C, B = 1;
@@ -133,7 +134,7 @@ test("member-access names are not references", () => {
   assertTransformed(source, expected);
 });
 
-test("type-annotation-only members reorder when free of cross references", () => {
+void test("type-annotation-only members reorder when free of cross references", () => {
   const source = `let b: Foo, a: Foo;
 `;
   const expected = `let a: Foo, b: Foo;
@@ -141,13 +142,13 @@ test("type-annotation-only members reorder when free of cross references", () =>
   assertTransformed(source, expected);
 });
 
-test("type annotation references block an unsafe reorder", () => {
+void test("type annotation references block an unsafe reorder", () => {
   const source = `let C: number = 1, B: typeof C;
 `;
   assertUnchanged(source);
 });
 
-test("type annotation references allow a backward-safe reorder", () => {
+void test("type annotation references allow a backward-safe reorder", () => {
   const source = `const B = 1, A = 2, C: typeof B = 3;
 `;
   const expected = `const A = 2, B = 1, C: typeof B = 3;
@@ -155,25 +156,25 @@ test("type annotation references allow a backward-safe reorder", () => {
   assertTransformed(source, expected);
 });
 
-test("chain with a comment inside is skipped", () => {
+void test("chain with a comment inside is skipped", () => {
   const source = `const C = 3, /* keep */ A = 1, B = 2;
 `;
   assertUnchanged(source);
 });
 
-test("destructuring chains are untouched", () => {
+void test("destructuring chains are untouched", () => {
   const source = `const { x } = obj, y = 1;
 `;
   assertUnchanged(source);
 });
 
-test("already sorted chains stay unchanged", () => {
+void test("already sorted chains stay unchanged", () => {
   const source = `const A = 1, B = 2, C = 3;
 `;
   assertUnchanged(source);
 });
 
-test("two chains in one file are sorted independently", () => {
+void test("two chains in one file are sorted independently", () => {
   const source = `const C = 3, A = 1, B = 2;
 const b = 2, a = 1;
 `;
@@ -183,7 +184,7 @@ const a = 1, b = 2;
   assertTransformed(source, expected);
 });
 
-test("nested chain is sorted inside a function scope", () => {
+void test("nested chain is sorted inside a function scope", () => {
   const source = `function f() {
   const C = 3, A = 1, B = 2;
 }
@@ -195,7 +196,7 @@ test("nested chain is sorted inside a function scope", () => {
   assertTransformed(source, expected);
 });
 
-test("member without initializer reorders with the chain", () => {
+void test("member without initializer reorders with the chain", () => {
   const source = `let B, A = 1;
 `;
   const expected = `let A = 1, B;
@@ -204,13 +205,13 @@ test("member without initializer reorders with the chain", () => {
 });
 
 
-test("chains with executing initializers are left untouched", () => {
+void test("chains with executing initializers are left untouched", () => {
   const source = `const zebra = fetch("/x"), alpha = 1;
 `;
   assertUnchanged(source);
 });
 
-test("chains with async awaiting initializers are left untouched", () => {
+void test("chains with async awaiting initializers are left untouched", () => {
   const source = `const zebra = await loadItems(), alpha = 1;
 `;
   assertUnchanged(source);

@@ -696,7 +696,6 @@ const
      */
     sortableRuns(statements) {
       return SortImports.importRuns(statements);
-      return runs;
     },
 
     /**

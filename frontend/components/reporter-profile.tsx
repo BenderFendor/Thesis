@@ -10,7 +10,7 @@ import type { ReporterProfile } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { profileReporter } from "@/lib/api"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 interface ReporterProfilePanelProps {
   readonly reporterName: string
@@ -70,7 +70,7 @@ interface ErrorProfileProps {
 }
 
 const ErrorProfile = ({ compact, onRetry }: ErrorProfileProps) => {
-  if (compact) {return}
+  if (compact) {return null}
   return (
     <Card className="w-full max-w-md border-red-500/30">
       <CardContent className="pt-6">
@@ -93,7 +93,7 @@ interface DossierSectionProps {
 
 const DossierSection = ({ profile, sectionId }: DossierSectionProps) => {
   const section = profile.dossier_sections?.find((entry) => entry.id === sectionId)
-  if (section === undefined) {return}
+  if (section === undefined) {return null}
   if (section.items.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-muted/20 px-3 py-3 opacity-70 grayscale">
@@ -159,7 +159,7 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
 },
 
  Overview = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.overview === null || profile.overview === undefined || profile.overview.length === 0) {return}
+  if (profile.overview === null || profile.overview === undefined || profile.overview.length === 0) {return null}
   return (
     <div className="rounded-lg border border-white/10 bg-[var(--news-bg-primary)] p-3">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Overview</p>
@@ -170,7 +170,7 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
 
  MatchExplanation = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
   const explanation = profile.match_explanation
-  if (explanation === null || explanation === undefined || explanation.length === 0) {return}
+  if (explanation === null || explanation === undefined || explanation.length === 0) {return null}
   return (
     <div className="rounded-lg border border-white/10 bg-muted/10 px-3 py-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Match</p>
@@ -180,7 +180,7 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
 },
 
  EmptyProfile = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (hasUsefulData(profile)) {return}
+  if (hasUsefulData(profile)) {return null}
   return (
     <div className="rounded-lg border border-white/10 bg-muted/20 px-4 py-5 text-center opacity-70 grayscale">
       <User className="mx-auto h-6 w-6 text-muted-foreground" />
@@ -193,7 +193,7 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
 },
 
  ExternalProfileLink = ({ href, label }: Readonly<{ href?: string | null; label: string }>) => {
-  if (href === null || href === undefined || href.length === 0) {return}
+  if (href === null || href === undefined || href.length === 0) {return null}
   return (
     <a
       href={href}
@@ -226,7 +226,7 @@ const ProfileHeader = ({ profile, organization, compact, onClose, onRefresh }: P
 ),
 
  Citations = ({ profile }: Readonly<{ profile: ReporterProfile }>) => {
-  if (profile.citations === null || profile.citations === undefined || profile.citations.length === 0) {return}
+  if (profile.citations === null || profile.citations === undefined || profile.citations.length === 0) {return null}
   return (
     <div className="border-t border-border pt-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Sources</p>
@@ -268,31 +268,34 @@ export const ReporterProfilePanel = ({
   compact = false,
 }: ReporterProfilePanelProps) => {
   const [forceRefresh, setForceRefresh] = useState(false),
-   profileQuery = useQuery({
+   { data, error, isLoading, refetch } = useQuery({
     queryFn: () => profileReporter(reporterName, organization, articleContext, forceRefresh),
     queryKey: ["reporter-profile", reporterName, organization, forceRefresh],
     retry: 1,
     staleTime: PROFILE_STALE_MS,
   }),
-   handleRefresh = () => {
+   handleRefresh = useCallback(() => {
     setForceRefresh(true)
-    void profileQuery.refetch()
-  }
+    void refetch()
+  }, [refetch, setForceRefresh]),
+   handleRetry = useCallback(() => {
+    void refetch()
+  }, [refetch])
 
-  if (profileQuery.isLoading) {return <LoadingProfile />}
-  if (profileQuery.error !== null) {return <ErrorProfile compact={compact} onRetry={() => void profileQuery.refetch()} />}
-  if (profileQuery.data === undefined) {return}
+  if (isLoading) {return <LoadingProfile />}
+  if (error !== null) {return <ErrorProfile compact={compact} onRetry={handleRetry} />}
+  if (data === undefined) {return null}
 
   return (
     <Card className="w-full max-w-md">
       <ProfileHeader
-        profile={profileQuery.data}
+        profile={data}
         organization={organization}
         compact={compact}
         onClose={onClose}
         onRefresh={handleRefresh}
       />
-      <ProfileBody profile={profileQuery.data} />
+      <ProfileBody profile={data} />
     </Card>
   )
 }

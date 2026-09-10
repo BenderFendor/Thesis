@@ -4,6 +4,9 @@ import { InlineDefinitionPopover } from "@/components/inline-definition";
 
 import React from "react";
 
+const DEFINITION_RESULT = { definition: "Former U.S. Treasury Secretary.", term: "Janet Yellen" },
+ ANCHOR_POSITION = { x: 100, y: 200 };
+
 describe("inlineDefinitionPopover", () => {
   afterEach(() => {
     jest.resetAllMocks();
@@ -21,10 +24,10 @@ describe("inlineDefinitionPopover", () => {
   
     render(
       <InlineDefinitionPopover
-        result={{ definition: "Former U.S. Treasury Secretary.", term: "Janet Yellen" }}
+        result={DEFINITION_RESULT}
         open
         setOpen={jest.fn()}
-        anchorPosition={{ x: 100, y: 200 }}
+        anchorPosition={ANCHOR_POSITION}
       />
     );
 

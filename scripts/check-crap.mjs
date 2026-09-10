@@ -1,6 +1,5 @@
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
-import { fileURLToPath } from "node:url";
 
 import { spawnSync } from "node:child_process";
 

@@ -15,7 +15,6 @@ StreamReader,
   StreamRuntime,
   StreamResolveHandler,
   StreamRejectHandler,
-  StreamEventHandler,
   NewsArticle,
 } from "./types";
 
@@ -139,10 +138,10 @@ const parseStreamEvent = (eventData: string): StreamEvent => {
   try {
     // SAFETY: StreamEventSchema validates the wire shape; the parsed event is
     // structurally the StreamEvent domain type (schema permits trailing nulls).
-    return StreamEventSchema.parse(JSON.parse(eventData)) as StreamEvent;
+    return StreamEventSchema.parse(JSON.parse(eventData));
   } catch {
     console.warn("[streamNews] First JSON.parse failed, attempting to re-parse");
-    return StreamEventSchema.parse(JSON.parse(JSON.parse(`"${eventData}"`))) as StreamEvent;
+    return StreamEventSchema.parse(JSON.parse(JSON.parse(`"${eventData}"`)));
   }
 };
 

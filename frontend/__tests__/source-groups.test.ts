@@ -24,7 +24,7 @@ const createArticle = (overrides: Partial<NewsArticle>): NewsArticle => {
   const article = { ...DEFAULT_ARTICLE, ...overrides };
   return {
     ...article,
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(article.publishedAt),
+    parsedTimestamp: overrides.parsedTimestamp ?? Date.parse(article.publishedAt),
     url: overrides.url ?? `https://example.com/${article.id}`,
   };
 }
@@ -54,7 +54,7 @@ describe("source group ordering", () => {
         sourceId: "paris-dispatch",
         source_country: "FR",
       }),
-    ]).sort(compareSourceGroupsForGrid)
+    ]).toSorted(compareSourceGroupsForGrid)
 
     expect(groups.map((group) => group.sourceId)).toStrictEqual([
       "capitol-wire",

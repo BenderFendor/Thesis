@@ -13,11 +13,21 @@
  * Every gate must be 0/clean before the file is done.
  */
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
+/** @param {string | Uint8Array | Error | number | boolean | null | undefined} value @returns {string} */
+const outputText = (value) => {
+ if (value === null || value === undefined) { return ""; }
+ if (value instanceof Uint8Array) { return new TextDecoder().decode(value); }
+ if (value instanceof Error) { return value.message; }
+ if (value?.constructor === String) { return value; }
+ const serialized = JSON.stringify(value);
+ return serialized ?? "";
+};
+
 const PARSE_ERRORS = new Set([
  "parser/parse-error",
  "not-jsdoc",
@@ -35,25 +45,20 @@ const REPO_TOOL_ENV = {
 };
 
 const runSync = (command, args) => {
- try {
-  return {
-   code: 0,
-   stdout: execFileSync(command, args, {
-    cwd: ROOT,
-    encoding: "utf8",
-    env: REPO_TOOL_ENV,
-    maxBuffer: 8_000_000,
-    timeout: 180_000,
-   }),
-  };
- } catch (error) {
-  /** @type {Record<string, unknown>} */
-  const record = /** @type {Record<string, unknown>} */ (error);
-  return {
-   code: typeof record.code === "number" ? (record.code) : 1,
-   stdout: `${String(record.stdout ?? "")}\n${String(record.stderr ?? "")}`,
-  };
- }
+ const result = spawnSync(command, args, {
+  cwd: ROOT,
+  encoding: "utf8",
+  env: REPO_TOOL_ENV,
+  maxBuffer: 8_000_000,
+  timeout: 180_000,
+ });
+ const errorText = result.error?.message ?? "";
+ return {
+  code: result.status ?? 1,
+  stdout: `${result.stdout ?? ""}
+${result.stderr ?? ""}
+${errorText}`.trim(),
+ };
 }
 
 /** @param {string} output @returns {{ byRule: Record<string, number>, total: number, parseErrors: number }} */
@@ -143,7 +148,7 @@ export async function main(args) {
   console.error(
    `${file}: oxlint ${plan.oxlint.total} (${Object.entries(plan.oxlint.byRule).slice(0, 6).map(([rule, count]) => `${rule}:${count}`).join(", ")}${Object.entries(plan.oxlint.byRule).length > 6 ? ", ..." : ""}) | CC ${plan.metrics.cc} cog ${plan.metrics.cognitive} MI min ${plan.metrics.minMi}`,
   );
-  if (plan.test) { console.error(`test: ${plan.test}`); }
+  if (plan.test) { console.error(`test: ${outputText(plan.test)}`); }
  }
  return plan.clean ? 0 : 1;
 }
@@ -151,8 +156,10 @@ export async function main(args) {
 if (process.argv[1] && process.argv[1].includes("one-shot.mjs")) {
   main(process.argv.slice(2)).then((code) => {
     process.exitCode = code;
+    return undefined;
   }).catch((error) => {
     console.error(String(error));
     process.exitCode = 2;
+    return undefined;
   });
 }

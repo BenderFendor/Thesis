@@ -2,8 +2,8 @@ import { activateCardFromKeyDown, shouldActivateCardFromKeyDown } from "@/lib/ke
 import { describe, expect, it, jest } from '@jest/globals';
 
 describe("keyboard activation helpers", () => {
-  const currentTarget = { id: "card" },
-   descendantTarget = { id: "button" }
+  const currentTarget = new EventTarget(),
+   descendantTarget = new EventTarget()
 
   it("only activates for Enter and Space on the card itself", () => {expect.hasAssertions();
     expect(
@@ -11,7 +11,7 @@ describe("keyboard activation helpers", () => {
         currentTarget,
         key: "Enter",
         target: currentTarget,
-      } as never),
+      }),
     ).toBe(true)
 
     expect(
@@ -19,7 +19,7 @@ describe("keyboard activation helpers", () => {
         currentTarget,
         key: " ",
         target: currentTarget,
-      } as never),
+      }),
     ).toBe(true)
 
     expect(
@@ -27,7 +27,7 @@ describe("keyboard activation helpers", () => {
         currentTarget,
         key: "Enter",
         target: descendantTarget,
-      } as never),
+      }),
     ).toBe(false)
   })
 
@@ -41,7 +41,7 @@ describe("keyboard activation helpers", () => {
         key: "Enter",
         preventDefault,
         target: descendantTarget,
-      } as never,
+      },
       onActivate,
     )
 

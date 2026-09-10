@@ -1,3 +1,4 @@
+import { isStringValue } from "@/lib/type-guards";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -127,7 +128,7 @@ const createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFix
   if (input instanceof URL) {
     return input;
   }
-  if (typeof input === "string") {
+  if (isStringValue(input)) {
     return new URL(input);
   }
   return new URL(input.url);
@@ -426,9 +427,13 @@ describe("usePaginatedNews", () => {
     // Should only have 2 articles (deduplicated by ID)
     expect(result.current.articles).toHaveLength(2);
     // The first occurrence should be kept
-    expect(result.current.articles[0]!.id).toBe(1);
-    expect(result.current.articles[0]!.title).toBe("Test Article 1");
-    expect(result.current.articles[1]!.id).toBe(2);
+    const [firstArticle, secondArticle] = result.current.articles;
+    if (firstArticle === undefined || secondArticle === undefined) {
+      throw new Error("expected two paginated articles");
+    }
+    expect(firstArticle.id).toBe(1);
+    expect(firstArticle.title).toBe("Test Article 1");
+    expect(secondArticle.id).toBe(2);
   });
 
   it("should request 500 articles for scroll-sized cached fetches", async () => {  expect.hasAssertions();

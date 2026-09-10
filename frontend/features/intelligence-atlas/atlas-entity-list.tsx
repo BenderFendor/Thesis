@@ -2,7 +2,7 @@
 
 import { ArrowDownAZ, Loader2, Search } from "lucide-react"
 import type { AtlasEntityType, AtlasIndexResponse, AtlasNode } from "./lib/atlas-schema"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { InfiniteData } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 
@@ -10,7 +10,6 @@ import { fetchAtlasIndex } from "./lib/atlas-api"
 
 import styles from "./atlas.module.css"
 import { useInfiniteQuery } from "@tanstack/react-query"
-import { useVirtualizer } from "@tanstack/react-virtual"
 
 type EntityTypeTab = "all" | AtlasEntityType
 type AtlasEntityListVariant = "page" | "modal"
@@ -165,13 +164,30 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
   | "onQueryChange"
   | "onSortChange"
   | "onFiltersChange"
->) => (
+>) => {
+  const handleQueryChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onQueryChange(event.target.value)
+  }, [onQueryChange]),
+   handleSortChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    onSortChange(event.target.value)
+   }, [onSortChange]),
+   handleCountryChange = useCallback((value: string) => {
+    onFiltersChange({ country: toSingleFilter(value) })
+   }, [onFiltersChange]),
+   handleFundingChange = useCallback((value: string) => {
+    onFiltersChange({ funding: toSingleFilter(value) })
+   }, [onFiltersChange]),
+   handleBiasChange = useCallback((value: string) => {
+    onFiltersChange({ bias: toSingleFilter(value) })
+   }, [onFiltersChange])
+
+  return (
   <div className="flex flex-wrap items-center gap-2">
     <div className="relative min-w-[230px] flex-1">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#77736a]" />
       <Input
         value={query}
-        onChange={(event) =>{  onQueryChange(event.target.value); }}
+        onChange={handleQueryChange}
         placeholder="Search the entity index"
         aria-label="Search the entity index"
         className="border-white/10 bg-black/20 pl-9"
@@ -181,7 +197,7 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
       <ArrowDownAZ className="h-4 w-4 text-[#77736a]" />
       <select
         value={sort}
-        onChange={(event) =>{  onSortChange(event.target.value); }}
+        onChange={handleSortChange}
         className="h-10 bg-transparent text-sm text-[#c9c3b6] outline-none"
         aria-label="Sort entity index"
       >
@@ -196,22 +212,47 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
       label="Country"
       value={singleFilterValue(country)}
       values={countryOptions}
-      onChange={(value) =>{  onFiltersChange({ country: toSingleFilter(value) }); }}
+      onChange={handleCountryChange}
     />
     <FacetSelect
       label="Funding"
       value={singleFilterValue(funding)}
       values={fundingOptions}
-      onChange={(value) =>{  onFiltersChange({ funding: toSingleFilter(value) }); }}
+      onChange={handleFundingChange}
     />
     <FacetSelect
       label="Bias"
       value={singleFilterValue(bias)}
       values={biasOptions}
-      onChange={(value) =>{  onFiltersChange({ bias: toSingleFilter(value) }); }}
+      onChange={handleBiasChange}
     />
   </div>
-),
+  )
+},
+
+ TypeTabButton = ({
+  active,
+  onTypeChange,
+  tab,
+ }: Readonly<{
+  active: boolean
+  onTypeChange: (value: EntityTypeTab) => void
+  tab: TypeTab
+ }>) => {
+  const handleClick = useCallback(() => {
+    onTypeChange(tab.key)
+  }, [onTypeChange, tab.key])
+  return (
+   <button
+    type="button"
+    className={styles.pillButton}
+    data-active={active}
+    onClick={handleClick}
+   >
+    {tab.label}
+   </button>
+  )
+ },
 
  TypeTabs = ({
   type,
@@ -219,18 +260,39 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
 }: Readonly<{ type: EntityTypeTab; onTypeChange: (value: EntityTypeTab) => void }>) => (
   <div className="mt-4 flex gap-2 overflow-x-auto">
     {TYPE_TABS.map((tab) => (
-      <button
+      <TypeTabButton
         key={tab.key}
-        type="button"
-        className={styles.pillButton}
-        data-active={type === tab.key}
-        onClick={() =>{  onTypeChange(tab.key); }}
-      >
-        {tab.label}
-      </button>
+        active={type === tab.key}
+        onTypeChange={onTypeChange}
+        tab={tab}
+      />
     ))}
   </div>
 ),
+
+ KindFilterButton = ({
+  active,
+  onChange,
+  option,
+ }: Readonly<{
+  active: boolean
+  onChange: (value: string) => void
+  option: string
+ }>) => {
+  const handleClick = useCallback(() => {
+    onChange(option)
+  }, [onChange, option])
+  return (
+   <button
+    type="button"
+    className={styles.pillButton}
+    data-active={active}
+    onClick={handleClick}
+   >
+    {humanizeKind(option)}
+   </button>
+  )
+ },
 
  KindFilters = ({
   kind,
@@ -243,7 +305,7 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
   onClear: () => void
   onChange: (value: string) => void
 }>) => {
-  if (options.length === 0) {return}
+  if (options.length === 0) {return null}
 
   return (
     <div className="mt-2 flex flex-wrap gap-2 overflow-x-auto" aria-label="Filter by entity kind">
@@ -256,15 +318,12 @@ const DirectoryIntro = ({ variant, total }: Readonly<{ variant: AtlasEntityListV
         All kinds
       </button>
       {options.map((option) => (
-        <button
+        <KindFilterButton
           key={option}
-          type="button"
-          className={styles.pillButton}
-          data-active={kind.includes(option)}
-          onClick={() =>{  onChange(option); }}
-        >
-          {humanizeKind(option)}
-        </button>
+          active={kind.includes(option)}
+          onChange={onChange}
+          option={option}
+        />
       ))}
     </div>
   )
@@ -314,14 +373,18 @@ interface EntityRowProps {
 }
 
 const EntityRow = ({ node, height, start, onSelect }: EntityRowProps) => {
-  const researched = isResearchedNode(node)
+  const researched = isResearchedNode(node),
+   rowStyle = useMemo(() => ({ height, transform: `translateY(${start}px)` }), [height, start]),
+   handleSelect = useCallback(() => {
+    onSelect(node)
+   }, [node, onSelect])
 
   return (
     <button
       type="button"
       className={styles.indexCard}
-      style={{ height, transform: `translateY(${start}px)` }}
-      onClick={() =>{  onSelect(node); }}
+      style={rowStyle}
+      onClick={handleSelect}
     >
       <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
         {node.entity_type.slice(0, 2).toUpperCase()}
@@ -358,18 +421,21 @@ interface EntityRowsProps {
   readonly onSelect: (node: AtlasNode) => void
 }
 
-const EntityRows = ({ items, virtualItems, totalSize, onSelect }: EntityRowsProps) => (
+const EntityRows = ({ items, virtualItems, totalSize, onSelect }: EntityRowsProps) => {
+  const containerStyle = useMemo(() => ({ height: totalSize, position: "relative" as const }), [totalSize])
+  return (
   <>
     <IndexHeaderRow />
-    <div style={{ height: totalSize, position: "relative" }}>
+    <div style={containerStyle}>
       {virtualItems.map((row) => {
         const node = items[row.index]
-        if (node === undefined) {return}
+        if (node === undefined) {return null}
         return <EntityRow key={node.id} node={node} height={row.size} start={row.start} onSelect={onSelect} />
       })}
     </div>
   </>
-)
+  )
+}
 
 interface IndexViewportContentProps {
   readonly isLoading: boolean
@@ -415,7 +481,7 @@ const IndexViewportContent = ({
 },
 
  LoadingMore = ({ active }: Readonly<{ active: boolean }>) => {
-  if (!active) {return}
+  if (!active) {return null}
   return (
     <div className="flex items-center justify-center gap-2 border-t border-white/10 p-3 text-xs text-[#77736a]">
       <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more records
@@ -464,41 +530,57 @@ export const AtlasEntityList = ({
     queryKey: ["atlas", "index", effectiveTypes, query, country, funding, bias, kind, sort],
     staleTime: 60_000,
   }),
+   { data: indexData, error: indexError, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = indexQuery,
 
    items = useMemo(
-    () => indexQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [indexQuery.data],
+    () => indexData?.pages.flatMap((page) => page.items) ?? [],
+    [indexData],
   ),
-   firstPage = indexQuery.data?.pages[0],
+   firstPage = indexData?.pages[0],
    total = firstPage?.total ?? 0,
    facets = firstPage?.facets,
-   kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).sort(), [facets]),
-   countryOptions = useMemo(() => Object.keys(facets?.country ?? {}).sort(), [facets]),
-   fundingOptions = useMemo(() => Object.keys(facets?.funding ?? {}).sort(), [facets]),
-   biasOptions = useMemo(() => Object.keys(facets?.bias ?? {}).sort(), [facets]),
+   kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).toSorted(), [facets]),
+   countryOptions = useMemo(() => Object.keys(facets?.country ?? {}).toSorted(), [facets]),
+   fundingOptions = useMemo(() => Object.keys(facets?.funding ?? {}).toSorted(), [facets]),
+   biasOptions = useMemo(() => Object.keys(facets?.bias ?? {}).toSorted(), [facets]),
 
-   virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => ROW_ESTIMATE,
-    getScrollElement: () => viewportRef.current,
-    overscan: VIRTUAL_OVERSCAN,
-  }),
-   virtualItems = virtualizer.getVirtualItems()
+   [viewportScrollTop, setViewportScrollTop] = useState(0),
+   [viewportHeight, setViewportHeight] = useState(ROW_ESTIMATE * 10),
+   handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>): void => {
+    setViewportScrollTop(event.currentTarget.scrollTop)
+    setViewportHeight(event.currentTarget.clientHeight)
+   }, [setViewportHeight, setViewportScrollTop]),
+   virtualItems = useMemo(() => {
+    const firstIndex = Math.max(0, Math.floor(viewportScrollTop / ROW_ESTIMATE) - VIRTUAL_OVERSCAN),
+     lastIndex = Math.min(
+      items.length,
+      Math.ceil((viewportScrollTop + viewportHeight) / ROW_ESTIMATE) + VIRTUAL_OVERSCAN,
+     )
+    return Array.from({ length: Math.max(0, lastIndex - firstIndex) }, (_, offset) => {
+     const index = firstIndex + offset
+     return { index, size: ROW_ESTIMATE, start: index * ROW_ESTIMATE }
+    })
+   }, [items.length, viewportHeight, viewportScrollTop]),
+   totalSize = items.length * ROW_ESTIMATE
 
   useEffect(() => {
-    if (!active) {return}
+    if (!active) {return undefined}
     const last = virtualItems.at(-1)
-    if (last === undefined) {return}
-    if (last.index < items.length - LOAD_AHEAD_ROWS) {return}
-    if (!indexQuery.hasNextPage || indexQuery.isFetchingNextPage) {return}
-    void indexQuery.fetchNextPage()
-  }, [active, indexQuery, items.length, virtualItems])
+    if (last === undefined) {return undefined}
+    if (last.index < items.length - LOAD_AHEAD_ROWS) {return undefined}
+    if (!hasNextPage || isFetchingNextPage) {return undefined}
+    void fetchNextPage()
+    return undefined
+  }, [active, fetchNextPage, hasNextPage, isFetchingNextPage, items.length, virtualItems])
 
-  const changeKind = (value: string) =>{  setKind((current) => toggleString(current, value)); },
-   changeType = (nextType: EntityTypeTab) => {
+  const changeKind = useCallback((value: string) =>{  setKind((current) => toggleString(current, value)); }, [setKind]),
+   changeType = useCallback((nextType: EntityTypeTab) => {
     setType(nextType)
     setKind([])
-  },
+  }, [setKind, setType]),
+   clearKinds = useCallback(() => {
+    setKind([])
+   }, [setKind]),
    rootClass = variant === "page" ? "flex min-h-0 flex-1 flex-col" : undefined,
    viewportClass = variant === "page" ? "relative min-h-0 flex-1 overflow-auto" : styles.indexViewport
 
@@ -522,20 +604,20 @@ export const AtlasEntityList = ({
         onSortChange={setSort}
         onTypeChange={changeType}
         onKindChange={changeKind}
-        onClearKinds={() =>{  setKind([]); }}
+        onClearKinds={clearKinds}
         onFiltersChange={onFiltersChange}
       />
-      <div ref={viewportRef} className={viewportClass}>
+      <div ref={viewportRef} className={viewportClass} onScroll={handleViewportScroll}>
         <IndexViewportContent
-          isLoading={indexQuery.isLoading}
-          error={indexQuery.error}
+          isLoading={isLoading}
+          error={indexError}
           items={items}
           virtualItems={virtualItems}
-          totalSize={virtualizer.getTotalSize()}
+          totalSize={totalSize}
           onSelect={onSelect}
         />
       </div>
-      <LoadingMore active={indexQuery.isFetchingNextPage} />
+      <LoadingMore active={isFetchingNextPage} />
     </div>
   )
 }
@@ -547,12 +629,16 @@ interface FacetSelectProps {
   readonly onChange: (value: string) => void
 }
 
-const FacetSelect = ({ label, value, values, onChange }: FacetSelectProps) => (
+const FacetSelect = ({ label, value, values, onChange }: FacetSelectProps) => {
+  const handleChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    onChange(event.target.value)
+  }, [onChange])
+  return (
   <label className="rounded-xl border border-white/10 bg-black/20 px-3">
     <span className="sr-only">{label}</span>
     <select
       value={value}
-      onChange={(event) =>{  onChange(event.target.value); }}
+      onChange={handleChange}
       className="h-10 max-w-36 bg-transparent text-sm text-[#c9c3b6] outline-none"
       aria-label={`Filter by ${label.toLowerCase()}`}
     >
@@ -562,4 +648,5 @@ const FacetSelect = ({ label, value, values, onChange }: FacetSelectProps) => (
       ))}
     </select>
   </label>
-)
+  )
+}

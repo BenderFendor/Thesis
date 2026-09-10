@@ -1,13 +1,13 @@
-import { dirname, resolve } from "node:path";
-import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import { collectOwnedFrontendFiles } from "../quality-source-files.mjs";
-import { fileURLToPath } from "node:url";
 
-import { test } from "node:test";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 
-test("quality metrics scan owned frontend source and exclude support code", () => {
+void test("quality metrics scan owned frontend source and exclude support code", () => {
   const files = collectOwnedFrontendFiles(repositoryRoot);
 
   assert.ok(files.length > 0);

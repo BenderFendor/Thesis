@@ -41,15 +41,11 @@ export async function api<T>(
     : await fetch(`${API_BASE_URL}${path}`);
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ApiErrorBody;
-    // SAFETY: error bodies are small; missing fields fall back to the status message.
+    const payload: ApiErrorBody = await response.json().catch(() => ({}));
     throw new ApiError(response.status, readErrorMessage(payload, response.status));
   }
 
-  const body: unknown = await response.json();
-  // SAFETY: the API contract is generated from OpenAPI; endpoint wrappers
-  // validate shape where backend nullability has historically drifted.
-  return body as T;
+  return response.json();
 }
 
 export function query(

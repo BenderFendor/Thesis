@@ -14,6 +14,7 @@ import {
   getConfidenceLabel,
 } from "@/lib/verification";
 import { Badge } from "@/components/ui/badge";
+import { useMemo } from "react";
 import type {
   ConfidenceLevel} from "@/lib/verification";
 
@@ -125,14 +126,15 @@ const ConfidenceBar = ({
   }[level] || "bg-gray-500",
    colorClass = getConfidenceColor(level),
 
-   percentage = Math.round(confidence * 100);
+   percentage = Math.round(confidence * 100),
+   barStyle = useMemo(() => ({ width: `${percentage}%` }), [percentage]);
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
         <div
           className={`h-full ${barColor} transition-all duration-300`}
-          style={{ width: `${percentage}%` }}
+          style={barStyle}
         />
       </div>
       {showPercentage && (

@@ -30,7 +30,7 @@ const makeArticle = (overrides: Partial<NewsArticle> = {}): NewsArticle => {
    article = { ...DEFAULT_ARTICLE, ...overrides, publishedAt };
   return {
     ...article,
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(publishedAt),
+    parsedTimestamp: overrides.parsedTimestamp ?? Date.parse(publishedAt),
     url: overrides.url ?? `https://example.com/${article.id}`,
   };
 }
@@ -52,7 +52,7 @@ describe("globe live data", () => {
         const articles = rawArticles.map((article, index) =>
           makeArticle({
             ...article,
-            _parsedTimestamp: Date.parse(`2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`),
+            parsedTimestamp: Date.parse(`2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`),
             id: article.id + index,
             publishedAt: `2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`,
             url: `https://example.com/${article.id}-${index}`,
@@ -72,7 +72,7 @@ describe("globe live data", () => {
   
     const articles = [
       makeArticle({
-        _parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
+        parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
         country: "JP",
         id: 1,
         mentioned_countries: ["JP"],
@@ -82,7 +82,7 @@ describe("globe live data", () => {
         source_country: "JP",
       }),
       makeArticle({
-        _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+        parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
         country: "US",
         id: 2,
         mentioned_countries: ["JP"],
@@ -92,7 +92,7 @@ describe("globe live data", () => {
         source_country: "US",
       }),
       makeArticle({
-        _parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
+        parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
         country: "JP",
         id: 3,
         mentioned_countries: [],
@@ -134,7 +134,7 @@ describe("globe live data", () => {
   it("dedupes duplicate articles in local lens results", () => {  expect.hasAssertions();
   
     const duplicate = makeArticle({
-      _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+      parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
       country: "US",
       id: 42,
       mentioned_countries: ["JP"],

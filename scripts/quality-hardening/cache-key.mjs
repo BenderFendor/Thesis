@@ -4,11 +4,14 @@ import { PROTOCOL_VERSION } from "./protocol.mjs";
 
 import { createHash } from "node:crypto";
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+const isPlainObject = (value) => Object.prototype.toString.call(value) === "[object Object]";
+
 /** @param {unknown} value @returns {string} */
 const stableJson = (value) => {
   if (Array.isArray(value)) {return `[${value.map(stableJson).join(",")}]`;}
-  if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(",")}}`;
+  if (isPlainObject(value)) {
+    return `{${Object.entries(value).toSorted(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }

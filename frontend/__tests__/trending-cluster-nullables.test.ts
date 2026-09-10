@@ -28,12 +28,8 @@ describe("cluster payload nullables", () => {
     global.fetch = originalFetch;
   });
 
-  function mockFetchJson(payload: unknown) {
-    // SAFETY: These API functions only read `ok` and `json` from the response fixture.
-    const response = {
-      json: async () => payload,
-      ok: true,
-    } as Response;
+  function mockFetchJson(payload: BodyInit) {
+    const response = new Response(payload, { status: 200 });
     global.fetch = jest.fn<typeof fetch>().mockResolvedValue(response);
   }
 
@@ -79,7 +75,7 @@ describe("cluster payload nullables", () => {
       window: "1d",
     };
 
-    mockFetchJson(payload);
+    mockFetchJson(JSON.stringify(payload));
 
     await expect(fetchTrending("1d", 10)).resolves.toStrictEqual(payload);
   });
@@ -125,7 +121,7 @@ describe("cluster payload nullables", () => {
       window_hours: 3,
     };
 
-    mockFetchJson(payload);
+    mockFetchJson(JSON.stringify(payload));
 
     await expect(fetchBreaking(5)).resolves.toStrictEqual(payload);
   });
@@ -172,7 +168,7 @@ describe("cluster payload nullables", () => {
       window: "1d",
     };
 
-    mockFetchJson(payload);
+    mockFetchJson(JSON.stringify(payload));
 
     await expect(fetchAllClusters("1d", 2, 100)).resolves.toStrictEqual(payload);
   });
@@ -206,7 +202,7 @@ describe("cluster payload nullables", () => {
       last_seen: "2026-03-06T12:00:00.000Z",
     };
 
-    mockFetchJson(payload);
+    mockFetchJson(JSON.stringify(payload));
 
     await expect(fetchClusterDetail(41)).resolves.toStrictEqual(payload);
   });

@@ -175,7 +175,7 @@ const
       while (stack.length > EMPTY_INDEX) {
         const node = stack.pop();
         for (const doc of node.jsDoc ?? []) {
-          ranges.push({start: doc.getStart(parsed), end: doc.getEnd()});
+          ranges.push({end: doc.getEnd(), start: doc.getStart(parsed)});
         }
         ts.forEachChild(node, (child) => {
           stack.push(child);
@@ -263,7 +263,7 @@ const
      * @returns {string} Regex-safe text.
      */
     escapeRegex(name) {
-      return name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      return name.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
     },
 
     /**
@@ -541,7 +541,7 @@ const
       const exportKeyword = (statement.modifiers ?? [])
         .find((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
       if (exportKeyword === undefined) {
-        return {start: EMPTY_INDEX, end: EMPTY_INDEX};
+        return {end: EMPTY_INDEX, start: EMPTY_INDEX};
       }
       let end = exportKeyword.getEnd();
       while (end < sourceText.length && /\s/u.test(sourceText[end])) {

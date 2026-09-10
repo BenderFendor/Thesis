@@ -202,19 +202,21 @@ const useClusterDetailViewData = ({
   onClose,
   setIsExpanded,
 }: DeepReadonly<ClusterDetailViewDataOptions>): ClusterDetailViewProps => {
-  const { articleState, comparisonState } = data;
+  const { articleState, comparisonState } = data,
+    { activeArticle, setActiveArticleId } = articleState,
+    { handleTabChange: handleComparisonTabChange } = comparisonState;
   const presentation = getClusterPresentation({
-    activeArticle: articleState.activeArticle,
+    activeArticle,
     cluster,
     clusterDetail: data.clusterDetail,
     clusterDetailError: data.clusterDetailError,
   });
   const handleTabChange = useCallback(
     (value: string) => {
-      articleState.setActiveArticleId(value);
-      comparisonState.handleTabChange(value);
+      setActiveArticleId(value);
+      handleComparisonTabChange(value);
     },
-    [articleState, comparisonState],
+    [handleComparisonTabChange, setActiveArticleId],
   );
   const handleToggleExpand = useCallback(() => {
     setIsExpanded((previous) => !previous);

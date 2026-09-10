@@ -59,13 +59,13 @@ class InlineCommentRewriter {
 
   /** @type {Readonly<Record<string, (state: ScanState) => void>>} */
   static CodeSteppers = Object.freeze({
-    [DOUBLE_QUOTE]: InlineCommentRewriter.openStringFrame,
-    [SINGLE_QUOTE]: InlineCommentRewriter.openStringFrame,
-    "/": InlineCommentRewriter.stepSlash,
+    [DOUBLE_QUOTE]: (state) => InlineCommentRewriter.openStringFrame(state),
+    [SINGLE_QUOTE]: (state) => InlineCommentRewriter.openStringFrame(state),
+    "/": (state) => InlineCommentRewriter.stepSlash(state),
     "\\": (state) => {
       InlineCommentRewriter.advanceOneChar(state);
     },
-    "`": InlineCommentRewriter.openTemplateFrame,
+    "`": (state) => InlineCommentRewriter.openTemplateFrame(state),
   });
 
   /** @type {Readonly<Record<string, (state: ScanState) => void>>} */
@@ -174,7 +174,7 @@ class InlineCommentRewriter {
    */
   static applyEdits(text, comments, eol) {
     const edits = comments.flatMap((comment) => InlineCommentRewriter.editsForComment(comment, text, eol));
-    edits.sort(InlineCommentRewriter.compareEditPositions);
+    edits.sort((left, right) => InlineCommentRewriter.compareEditPositions(left, right));
     return InlineCommentRewriter.applyEditSequence(text, edits);
   }
 
@@ -215,7 +215,7 @@ class InlineCommentRewriter {
     /** @type {Array<readonly [number, number]>} */
     const ranges = [];
     InlineCommentRewriter.walkProtectedNodes(sourceFile, ranges);
-    ranges.sort(InlineCommentRewriter.compareByStart);
+    ranges.sort((left, right) => InlineCommentRewriter.compareByStart(left, right));
     return ranges;
   }
 

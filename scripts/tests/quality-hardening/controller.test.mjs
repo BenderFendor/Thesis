@@ -2,10 +2,11 @@ import { buildTasks, expandTaskScope, readTasks, rebuildQueue, transitionTask, w
 import { claimWriter, expandWriterClaim, readWriterClaim, releaseWriter } from "../../quality-hardening/writer-claim.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { analysisCacheKey } from "../../quality-hardening/cache-key.mjs";
-import assert from "node:assert/strict";
 import { join } from "node:path";
-import { test } from "node:test";
-import { tmpdir } from "node:os";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
+const { tmpdir } = process.getBuiltinModule("node:os");
 
 const policy = {
   config: { policy_version: "1", thresholds: { cccc: { cognitive_ceiling: 15, cyclomatic_ceiling: 10 }, crap: { cluster_ceiling: 8 }, mi: { cluster_floor: 50 } } },
@@ -13,17 +14,17 @@ const policy = {
   taxonomy: { family_defaults: { "eslint/": { cluster_key: "rule-and-syntax", quality_factor: "mechanical_convention", repair_class: "mechanical_contextual" } } },
 };
 
-test("cache keys separate path and native configuration provenance", () => {
+void test("cache keys separate path and native configuration provenance", () => {
   const base = { analyzer: "cccc", analyzerVersion: "1", contentSha256: "same", policyHash: "p", repositoryRoot: "/repo", scopeVersion: "1" };
   assert.notEqual(analysisCacheKey({ ...base, relativePath: "src/one.ts" }), analysisCacheKey({ ...base, relativePath: "src/two.ts" }));
   assert.notEqual(analysisCacheKey({ ...base, nativeConfigHashes: { cccc: "a" }, relativePath: "src/one.ts" }), analysisCacheKey({ ...base, nativeConfigHashes: { cccc: "b" }, relativePath: "src/one.ts" }));
 });
 
-test("queue groups complexity and lint findings by root cause", () => {
+void test("queue groups complexity and lint findings by root cause", () => {
   const tasks = buildTasks(policy, {
     lint: { findings: [{ path: "src/app.ts", rule: "eslint/no-null" }] },
     measurement_id: "m1",
-    units: [{ path: "src/app.ts", unit_id: "u1", metrics: { cccc: { cognitive: 20, cyclomatic: 2 }, code_multivitals: { maintainability_index: 40 } } }],
+    units: [{ metrics: { cccc: { cognitive: 20, cyclomatic: 2 }, code_multivitals: { maintainability_index: 40 } }, path: "src/app.ts", unit_id: "u1" }],
   });
   assert.equal(tasks.length, 2);
   assert.equal(tasks[0].state, "queued");
@@ -32,7 +33,7 @@ test("queue groups complexity and lint findings by root cause", () => {
   assert.deepEqual(tasks.map((task) => task.factor), ["structural_maintainability", "mechanical_convention"]);
 });
 
-test("task transitions and scope expansion are explicit", async () => {
+void test("task transitions and scope expansion are explicit", async () => {
   const repositoryRoot = await mkdtemp(join(tmpdir(), "quality-hardening-"));
   try {
     const [task] = buildTasks(policy, { measurement_id: "m1", units: [{ metrics: { cccc: { cognitive: 20 } }, path: "src/app.ts", unit_id: "u1" }] });
@@ -50,7 +51,7 @@ test("task transitions and scope expansion are explicit", async () => {
   }
 });
 
-test("queue rebuild marks changed open tasks stale", async () => {
+void test("queue rebuild marks changed open tasks stale", async () => {
   const repositoryRoot = await mkdtemp(join(tmpdir(), "quality-hardening-"));
   try {
     const localPolicy = { ...policy, repositoryRoot };
@@ -64,7 +65,7 @@ test("queue rebuild marks changed open tasks stale", async () => {
   }
 });
 
-test("writer claims are exclusive and released by the owner", async () => {
+void test("writer claims are exclusive and released by the owner", async () => {
   const repositoryRoot = await mkdtemp(join(tmpdir(), "quality-hardening-"));
   try {
     const claim = await claimWriter(repositoryRoot, { paths: ["src/app.ts"], sessionId: "one", taskId: "task" });

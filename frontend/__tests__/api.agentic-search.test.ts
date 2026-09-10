@@ -11,16 +11,18 @@ describe("performAgenticSearch", () => {
 
   it("uses the supported news research endpoint and normalizes the response", async () => {  expect.hasAssertions();
 
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
-      json: async () => ({
-        answer: "Current evidence summary",
-        query: "fact check this",
-        referenced_articles: [{ id: 1, title: "Source article" }],
-        success: true,
-        thinking_steps: [{ content: "checked sources", timestamp: "2026-04-23T12:00:00Z", type: "thought" }],
-      }),
-      ok: true,
-    } as Response);
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answer: "Current evidence summary",
+          query: "fact check this",
+          referenced_articles: [{ id: 1, title: "Source article" }],
+          success: true,
+          thinking_steps: [{ content: "checked sources", timestamp: "2026-04-23T12:00:00Z", type: "thought" }],
+        }),
+        { status: 200 },
+      ),
+    );
 
     const result = await performAgenticSearch("fact check this", 10);
 

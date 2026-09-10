@@ -5,8 +5,8 @@ import { z } from "zod";
 
 import type { AgenticResearchCitation, AgenticResearchResult } from "./primitives";
 import { api, query } from "./client";
-import { BackendSourceSchema, CacheStatusSchema, PaginatedPayloadSchema } from "./schemas";
-import { mapBackendArticles, mapBackendSource } from "./article";
+import { BackendArticleSchema, BackendSourceSchema, CacheStatusSchema, PaginatedPayloadSchema } from "./schemas";
+import { mapBackendArticle, mapBackendArticles, mapBackendSource } from "./article";
 import { fetchOGImage } from "./og-image";
 import type {
 AddRssResponse,
@@ -334,7 +334,7 @@ export const refreshCache = async (
       }
       try {
         // SAFETY: the SSE cache_stream wire format matches CacheRefreshProgress.
-        const event = JSON.parse(line.slice(5).trim()) as CacheRefreshProgress;
+        const event: CacheRefreshProgress = JSON.parse(line.slice(5).trim());
         onProgress?.(event);
       } catch {
         return true;
@@ -345,7 +345,18 @@ export const refreshCache = async (
 
 // --- Bookmarks / liked / highlights / queue ---
 
-export const fetchBookmarks = (): Promise<BookmarkListResponse> => api("/api/bookmarks");
+export const fetchBookmarks = async (): Promise<Readonly<{ bookmarks: BookmarkEntry[]; total: number }>> => {
+  const payload: BookmarkListResponse = await api("/api/bookmarks");
+  return {
+    bookmarks: payload.bookmarks.map((entry) => ({
+      article: mapBackendArticle(BackendArticleSchema.parse(entry.article)),
+      articleId: entry.articleId,
+      bookmarkId: entry.bookmarkId,
+      createdAt: entry.createdAt ?? undefined,
+    })),
+    total: payload.total,
+  };
+};
 
 export const createBookmark = async (
   articleId: number,
@@ -375,7 +386,18 @@ export const deleteBookmark = async (articleId: number): Promise<boolean> => {
   return true;
 };
 
-export const fetchLikedArticles = (): Promise<LikedListResponse> => api("/api/liked");
+export const fetchLikedArticles = async (): Promise<Readonly<{ liked: LikedEntry[]; total: number }>> => {
+  const payload: LikedListResponse = await api("/api/liked");
+  return {
+    liked: payload.liked.map((entry) => ({
+      article: mapBackendArticle(BackendArticleSchema.parse(entry.article)),
+      articleId: entry.articleId,
+      createdAt: entry.createdAt ?? undefined,
+      likedId: entry.likedId,
+    })),
+    total: payload.total,
+  };
+};
 
 export const createLikedArticle = async (
   articleId: number,
@@ -524,8 +546,8 @@ export const semanticSearch = async (
   if (response.status === UNAVAILABLE) {
     throw new Error("Semantic search is currently unavailable.");
   }
-  const payload: unknown = await response.json();
-  return payload as SemanticSearchResponse;
+  const payload: SemanticSearchResponse = await response.json();
+  return payload;
 };
 
 export const fetchSearchSuggestions = async (
@@ -538,8 +560,8 @@ export const fetchSearchSuggestions = async (
   if (response.status === UNAVAILABLE) {
     throw new Error("Search suggestions unavailable");
   }
-  const payload: unknown = await response.json();
-  return payload as SearchSuggestionsResponse;
+  const payload: SearchSuggestionsResponse = await response.json();
+  return payload;
 };
 
 // --- Similarity / topics ---
@@ -568,8 +590,8 @@ export const fetchSourceCoverage = async (
   if (response.status === UNAVAILABLE) {
     throw new Error("Source coverage unavailable");
   }
-  const payload: unknown = await response.json();
-  return payload as SourceCoverageResponse;
+  const payload: SourceCoverageResponse = await response.json();
+  return payload;
 };
 
 export const fetchNoveltyScore = (
@@ -589,8 +611,8 @@ export const fetchArticleTopics = async (
   if (response.status === UNAVAILABLE) {
     throw new Error("Topic lookup unavailable");
   }
-  const payload: unknown = await response.json();
-  return payload as { article_id: number; topics: ArticleTopic[] };
+  const payload: { article_id: number; topics: ArticleTopic[] } = await response.json();
+  return payload;
 };
 
 export const fetchBulkArticleTopics = async (

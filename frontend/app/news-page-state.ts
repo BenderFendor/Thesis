@@ -79,7 +79,7 @@ const useNewsPageLocalState = () => {
 
 const useNewsPageState = (): NewsPageState => {
   const localState = useNewsPageLocalState();
-  const debugMode = useDebugMode();
+  const { enabled: debugMode } = useDebugMode();
   const router = useRouter();
   const { isFavorite } = useFavorites();
   const { selectedSources, isFilterActive } = useSourceFilter();

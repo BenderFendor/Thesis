@@ -18,7 +18,7 @@ import type { CacheDebugResponse, CacheDeltaResponse, CacheStatus, ChromaDebugRe
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { ChangeEvent, ComponentProps, ReactNode } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useCallback, useMemo, useState } from "react"
 import {
   Table,
   TableBody,
@@ -170,6 +170,12 @@ interface DashboardData {
   cacheData: CacheDebugResponse
   cacheDelta: CacheDeltaResponse
 }
+
+const EMPTY_ACTIVE_STREAMS: readonly DebugActiveStreamRecord[] = [],
+ EMPTY_LLM_LOGS: readonly LlmLogEntry[] = [],
+ EMPTY_STRINGS: readonly string[] = [],
+ EMPTY_DRIFT_MISSING: readonly StorageDriftReport["missing_in_chroma"][number][] = [],
+ DEBUG_PAGE_FALLBACK = <div className="min-h-screen bg-background" />
 
 interface PerformanceDebugData {
   backendDebugReport: BackendDebugReport | undefined
@@ -616,7 +622,7 @@ CacheDeltaCard = ({ cacheDelta }: CacheDeltaCardProps) =>
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Missing cache URLs (sample)</p>
                 <div className="max-h-40 overflow-auto rounded border border-border bg-muted/30 p-3 text-xs">
-                  <CacheDeltaSample urls={cacheDelta?.missing_in_db_sample ?? []} />
+                  <CacheDeltaSample urls={cacheDelta?.missing_in_db_sample ?? EMPTY_STRINGS} />
                 </div>
               </div>
             </CardContent>
@@ -1019,10 +1025,20 @@ DatabaseSnapshotControls = ({
   setDbMissingOnly,
   setDbOffset,
   setDbSortDirection,
-}: Pick<StorageSnapshotSectionProps, "dbLimit" | "dbMissingOnly" | "dbOffset" | "dbSortDirection" | "setDbLimit" | "setDbMissingOnly" | "setDbOffset" | "setDbSortDirection">) => (
+}: Pick<StorageSnapshotSectionProps, "dbLimit" | "dbMissingOnly" | "dbOffset" | "dbSortDirection" | "setDbLimit" | "setDbMissingOnly" | "setDbOffset" | "setDbSortDirection">) => {
+  const handleMissingOnlyChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbMissingOnly(event.target.checked)
+  }, [setDbMissingOnly]),
+   handleOffsetChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbOffset(Number(event.target.value))
+   }, [setDbOffset]),
+   handleLimitChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbLimit(Number(event.target.value))
+   }, [setDbLimit])
+  return (
   <div className="flex flex-wrap gap-2 text-sm">
     <label className="flex items-center gap-2">
-      <input type="checkbox" checked={dbMissingOnly} onChange={(event) => {setDbMissingOnly(event.target.checked)}} />
+      <input type="checkbox" checked={dbMissingOnly} onChange={handleMissingOnlyChange} />
       Missing embeddings only
     </label>
     <Select value={dbSortDirection} onValueChange={setDbSortDirection}>
@@ -1032,10 +1048,11 @@ DatabaseSnapshotControls = ({
         <SelectItem value="asc">Oldest first</SelectItem>
       </SelectContent>
     </Select>
-    <Input type="number" className="w-24" value={dbOffset} onChange={(event) => {setDbOffset(Number(event.target.value))}} placeholder="Offset" />
-    <Input type="number" className="w-24" value={dbLimit} onChange={(event) => {setDbLimit(Number(event.target.value))}} placeholder="Limit" />
+    <Input type="number" className="w-24" value={dbOffset} onChange={handleOffsetChange} placeholder="Offset" />
+    <Input type="number" className="w-24" value={dbLimit} onChange={handleLimitChange} placeholder="Limit" />
   </div>
-),
+  )
+},
 
 DatabaseSnapshotCard = (props: Pick<StorageSnapshotSectionProps, "dbData" | "dbLimit" | "setDbLimit" | "dbOffset" | "setDbOffset" | "dbSortDirection" | "setDbSortDirection" | "dbMissingOnly" | "setDbMissingOnly">) => (
   <SnapshotCard title="Database Snapshot">
@@ -1293,7 +1310,7 @@ useStorageDebugState = () => ({
 }),
 
 useCacheRefreshState = () => {
-  const frontendDebugMode = useDebugMode(),
+  const { enabled: frontendDebugMode } = useDebugMode(),
     [cacheRefreshRunning, setCacheRefreshRunning] = useState(false),
     [cacheRefreshMessage, setCacheRefreshMessage] = useState<string | undefined>(),
     [cacheRefreshError, setCacheRefreshError] = useState<string | undefined>()
@@ -1339,9 +1356,9 @@ useDebugDashboardState = (): DebugDashboardState => ({
   ...useParserDebugState(),
 }),
 
-getDebugErrorMessage = (error: unknown): string | undefined => {
-  if (error instanceof Error) {
-    return error.message
+getDebugErrorMessage = (cause: unknown): string | undefined => {
+  if (cause instanceof Error) {
+    return cause.message
   }
   return undefined
 },
@@ -1827,8 +1844,8 @@ DriftDanglingSamples = ({ ids }: Readonly<{
 ),
 
 DriftSamplesCard = ({ driftData }: Readonly<{ driftData: StorageDriftReport | undefined }>) => {
-  const danglingSamples = driftData?.dangling_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? [],
-    missingSamples = driftData?.missing_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? []
+  const danglingSamples = driftData?.dangling_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? EMPTY_STRINGS,
+    missingSamples = driftData?.missing_in_chroma?.slice(0, DEBUG_DRIFT_SAMPLE_LIMIT) ?? EMPTY_DRIFT_MISSING
   return (
     <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
       <CardHeader><CardTitle className="font-serif">Drift samples</CardTitle></CardHeader>
@@ -2178,7 +2195,7 @@ LlmSection = ({ llmLogs, onRefresh }: LlmSectionProps) => (
     <LlmSummaryCard llmLogs={llmLogs} onRefresh={onRefresh} />
     <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
       <CardHeader><CardTitle className="font-serif">Recent Calls</CardTitle></CardHeader>
-      <CardContent><LlmRecentCalls entries={llmLogs?.entries ?? []} /></CardContent>
+      <CardContent><LlmRecentCalls entries={llmLogs?.entries ?? EMPTY_LLM_LOGS} /></CardContent>
     </Card>
   </TabsContent>
 ),
@@ -2296,13 +2313,13 @@ PerformanceReportCard = ({ backendDebugReport }:Readonly< { backendDebugReport: 
       <CardHeader>
         <CardTitle className="font-serif">Backend Debug Report</CardTitle>
         <CardDescription className="font-mono text-[10px] tracking-widest uppercase">
-          Generated at {backendDebugReport.generated_at ? new Date(String(backendDebugReport.generated_at)).toLocaleString() : "unknown"}
+          Generated at {backendDebugReport.generated_at ? new Date(backendDebugReport.generated_at).toLocaleString() : "unknown"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <PerformanceReportSummary summary={backendDebugReport.summary} />
-        <ActiveBackendStreams streams={backendDebugReport.active_streams ?? []} />
-        <DebugRecommendations recommendations={backendDebugReport.recommendations ?? []} />
+        <ActiveBackendStreams streams={backendDebugReport.active_streams ?? EMPTY_ACTIVE_STREAMS} />
+        <DebugRecommendations recommendations={backendDebugReport.recommendations ?? EMPTY_STRINGS} />
       </CardContent>
     </Card>
   )
@@ -2543,7 +2560,7 @@ SlowOperationsCard = ({ backendSlowOps }: Readonly<{ backendSlowOps: readonly De
                           {String(op.event_type)}
                         </span>
                         <span className="font-mono text-muted-foreground">
-                          {op.stream_id ? String(op.stream_id).slice(0, 8) : (op.request_id ? String(op.request_id).slice(0, 8) : "")}
+                          {op.stream_id ? op.stream_id.slice(0, 8) : (op.request_id ? op.request_id.slice(0, 8) : "")}
                         </span>
                       </div>
                       <span className="text-red-600 font-medium">
@@ -2567,11 +2584,17 @@ SnapshotCard = ({ title, children }: { title: string; children: ReactNode }) =>
   )
 ,
 
-SnapshotPagination = ({ limit, onLimitChange, offset, onOffsetChange, compact = false }: SnapshotPaginationProps) =>
-  (
+SnapshotPagination = ({ limit, onLimitChange, offset, onOffsetChange, compact = false }: SnapshotPaginationProps) => {
+  const handleLimitChange = useCallback((value: string) => {
+    onLimitChange(Number(value))
+  }, [onLimitChange]),
+   handleOffsetChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    onOffsetChange(Number(event.target.value))
+   }, [onOffsetChange])
+  return (
     <div className={compact ? "flex items-center gap-2" : "flex flex-wrap items-center gap-2"}>
       <span>Limit</span>
-      <Select value={String(limit)} onValueChange={(value) => {onLimitChange(Number(value))}}>
+      <Select value={String(limit)} onValueChange={handleLimitChange}>
         <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
         <SelectContent>
           {[10, 25, 50, 100, 200, 500].map((size) => (
@@ -2584,11 +2607,11 @@ SnapshotPagination = ({ limit, onLimitChange, offset, onOffsetChange, compact = 
         type="number"
         className="w-24"
         value={offset}
-        onChange={(event) => {onOffsetChange(Number(event.target.value))}}
+        onChange={handleOffsetChange}
       />
     </div>
   )
-,
+},
 
 SourceCacheCategories = ({ categories }: Readonly<{
   categories: readonly (readonly [string, number])[]
@@ -2817,8 +2840,20 @@ StorageDriftCard = ({ driftStats }: Pick<StorageSnapshotSectionProps, "driftStat
   )
 ,
 
-StorageFilterCards = ({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilters, dbSourceDraft, setDbSourceDraft, dbBeforeDraft, setDbBeforeDraft, dbAfterDraft, setDbAfterDraft, onApplyDbFilters }:Readonly< { cacheSourceDraft: string; setCacheSourceDraft: (value: string) => void; onApplyCacheFilters: () => void; dbSourceDraft: string; setDbSourceDraft: (value: string) => void; dbBeforeDraft: string; setDbBeforeDraft: (value: string) => void; dbAfterDraft: string; setDbAfterDraft: (value: string) => void; onApplyDbFilters: () => void; }>) =>
-  (
+StorageFilterCards = ({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilters, dbSourceDraft, setDbSourceDraft, dbBeforeDraft, setDbBeforeDraft, dbAfterDraft, setDbAfterDraft, onApplyDbFilters }:Readonly< { cacheSourceDraft: string; setCacheSourceDraft: (value: string) => void; onApplyCacheFilters: () => void; dbSourceDraft: string; setDbSourceDraft: (value: string) => void; dbBeforeDraft: string; setDbBeforeDraft: (value: string) => void; dbAfterDraft: string; setDbAfterDraft: (value: string) => void; onApplyDbFilters: () => void; }>) => {
+  const handleCacheSourceChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setCacheSourceDraft(event.target.value)
+  }, [setCacheSourceDraft]),
+   handleDbSourceChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbSourceDraft(event.target.value)
+   }, [setDbSourceDraft]),
+   handleDbAfterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbAfterDraft(event.target.value)
+   }, [setDbAfterDraft]),
+   handleDbBeforeChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setDbBeforeDraft(event.target.value)
+   }, [setDbBeforeDraft])
+  return (
     <>
 <Card className="bg-black/20 border-white/5 transition-all hover:bg-white/[0.03] hover:-translate-y-px hover:shadow-lg">
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -2828,7 +2863,7 @@ StorageFilterCards = ({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilte
                   placeholder="Source (e.g. bbc)"
                   className="w-40"
                   value={cacheSourceDraft}
-                  onChange={(event) =>{  setCacheSourceDraft(event.target.value); }}
+                  onChange={handleCacheSourceChange}
                 />
                 <Button variant="secondary" onClick={onApplyCacheFilters}>
                   Apply filters
@@ -2844,20 +2879,20 @@ StorageFilterCards = ({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilte
                   placeholder="Source (e.g. bbc)"
                   className="w-40"
                   value={dbSourceDraft}
-                  onChange={(event) =>{  setDbSourceDraft(event.target.value); }}
+                  onChange={handleDbSourceChange}
                 />
                 <Input
                   type="datetime-local"
                   className="w-56"
                   value={dbAfterDraft}
-                  onChange={(event) =>{  setDbAfterDraft(event.target.value); }}
+                  onChange={handleDbAfterChange}
                   placeholder="Published after"
                 />
                 <Input
                   type="datetime-local"
                   className="w-56"
                   value={dbBeforeDraft}
-                  onChange={(event) =>{  setDbBeforeDraft(event.target.value); }}
+                  onChange={handleDbBeforeChange}
                   placeholder="Published before"
                 />
                 <Button variant="secondary" onClick={onApplyDbFilters}>
@@ -2869,7 +2904,7 @@ StorageFilterCards = ({ cacheSourceDraft, setCacheSourceDraft, onApplyCacheFilte
 
     </>
   )
-,
+},
 
 StorageSection = (props: StorageSectionProps) =>
   (
@@ -3323,7 +3358,7 @@ usePersistentNumber = (initial: number, min: number, max: number): [number, (val
 
 
  DebugDashboardPage = () => (
-  <Suspense fallback={<div className="min-h-screen bg-background" />}>
+  <Suspense fallback={DEBUG_PAGE_FALLBACK}>
     <DebugDashboardController />
   </Suspense>
 )

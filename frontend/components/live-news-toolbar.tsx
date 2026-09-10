@@ -1,6 +1,7 @@
 "use client"
 
 import { Plus, RefreshCw, Volume2, VolumeX } from "lucide-react"
+import { useCallback } from "react"
 
 interface LiveNewsToolbarProps {
   layout: "2x2" | "3x3" | "auto"
@@ -12,6 +13,38 @@ interface LiveNewsToolbarProps {
   onAddSource: () => void
   activeCount: number
   totalCount: number
+}
+
+type LiveNewsLayout = LiveNewsToolbarProps["layout"]
+
+const LAYOUT_OPTIONS: readonly LiveNewsLayout[] = ["2x2", "3x3", "auto"]
+
+const LayoutOptionButton = ({
+  currentLayout,
+  onLayoutChange,
+  option,
+}: Readonly<{
+  currentLayout: LiveNewsLayout
+  onLayoutChange: (layout: LiveNewsLayout) => void
+  option: LiveNewsLayout
+}>) => {
+  const handleClick = useCallback(() => {
+    onLayoutChange(option)
+  }, [onLayoutChange, option])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] rounded-sm transition-colors ${
+        currentLayout === option
+          ? "bg-primary/20 text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {option}
+    </button>
+  )
 }
 
 export function LiveNewsToolbar({
@@ -29,19 +62,13 @@ export function LiveNewsToolbar({
     <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[var(--news-bg-secondary)]">
       <div className="flex items-center gap-3">
         <div className="flex items-center rounded-sm border border-white/10 bg-white/[0.03] p-0.5">
-          {(["2x2", "3x3", "auto"] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() =>{  onLayoutChange(opt); }}
-              className={`px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] rounded-sm transition-colors ${
-                layout === opt
-                  ? "bg-primary/20 text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {opt}
-            </button>
+          {LAYOUT_OPTIONS.map((option) => (
+            <LayoutOptionButton
+              key={option}
+              currentLayout={layout}
+              onLayoutChange={onLayoutChange}
+              option={option}
+            />
           ))}
         </div>
 

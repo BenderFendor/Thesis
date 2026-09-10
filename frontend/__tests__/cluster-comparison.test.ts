@@ -20,10 +20,11 @@ describe("cluster comparison helpers", () => {
           minLength: 2,
         }),
         (ids, sources) => {
-          const articles = ids.map((id, index) => ({
-            id,
-            source: sources[index % sources.length]!,
-          })),
+          const articles = ids.map((id, index) => {
+            const source = sources[index % sources.length];
+            if (source === undefined) { throw new Error("missing generated source"); }
+            return { id, source };
+          }),
 
            selectedIds = getDefaultComparisonArticleIds(articles),
            selectedArticles = getSelectedComparisonArticles(
@@ -32,8 +33,12 @@ describe("cluster comparison helpers", () => {
           );
 
           expect(selectedArticles).toHaveLength(2);
-          expect(selectedArticles[0]!.source.toLowerCase()).not.toBe(
-            selectedArticles[1]!.source.toLowerCase(),
+          const [firstArticle, secondArticle] = selectedArticles;
+          if (firstArticle === undefined || secondArticle === undefined) {
+            throw new Error("expected two selected articles");
+          }
+          expect(firstArticle.source.toLowerCase()).not.toBe(
+            secondArticle.source.toLowerCase(),
           );
         },
       ),

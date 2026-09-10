@@ -6,8 +6,8 @@ import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 import userEvent from "@testing-library/user-event";
 
 const navigationServices: NewsResearchPageServices = {
-  useRouter: () => ({ replace: (_href: string): void => undefined }),
-  useSearchParams: () => new URLSearchParams(),
+  router: { replace: (_href: string): void => undefined },
+  searchParams: new URLSearchParams(),
 },
   renderInlineEditPage = async (): Promise<HTMLElement> => {
     renderWithQueryClient(<NewsResearchPage services={navigationServices} />);

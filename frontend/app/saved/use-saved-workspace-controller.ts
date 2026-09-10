@@ -110,7 +110,7 @@ const useSavedLibraryState = (): SavedLibraryState => {
       // SAFETY: backend returns full NewsArticle objects inside bookmark entries;
       // the OpenAPI schema only narrows them to opaque objects.
       setBookmarks(
-        bookmarksResult.value.bookmarks.map((entry) => entry.article as unknown as NewsArticle),
+        bookmarksResult.value.bookmarks.map((entry) => entry.article),
       );
     } else {
       issues.push("Bookmarks could not be loaded.");
@@ -119,7 +119,7 @@ const useSavedLibraryState = (): SavedLibraryState => {
       // SAFETY: backend returns full NewsArticle objects inside liked entries;
       // the OpenAPI schema only narrows them to opaque objects.
       setLikedArticles(
-        likedResult.value.liked.map((entry) => entry.article as unknown as NewsArticle),
+        likedResult.value.liked.map((entry) => entry.article),
       );
     } else {
       issues.push("Liked articles could not be loaded.");
@@ -159,7 +159,7 @@ const useShelfState = (): ShelfState => {
     queryKey: ["reading-shelves"],
     retry: SHELF_QUERY_RETRY_COUNT,
   }),
-   createShelfMutation = useMutation({
+   { mutate: createShelfMutation, isPending } = useMutation({
     mutationFn: createReadingShelf,
     onSuccess: () => {
       setNewShelfName("");
@@ -172,12 +172,12 @@ const useShelfState = (): ShelfState => {
     if (name.length === 0) {
       return;
     }
-    createShelfMutation.mutate({ name });
+    createShelfMutation({ name });
   }, [createShelfMutation, newShelfName]);
 
   return {
     createShelf,
-    isPending: createShelfMutation.isPending,
+    isPending,
     newShelfName,
     setNewShelfName,
     shelves: shelvesQuery.data,
@@ -219,8 +219,13 @@ export function useSavedWorkspaceController(): SavedWorkspaceController {
    [expandedArticleUrl, setExpandedArticleUrl] = useState<string>(),
    library = useSavedLibraryState(),
    shelf = useShelfState(),
-   queue = useReadingQueue(),
-   digest = useDigestState(queue.queuedArticles),
+   {
+    addArticleToQueue,
+    isArticleInQueue,
+    queuedArticles,
+    removeArticleFromQueue,
+   } = useReadingQueue(),
+   digest = useDigestState(queuedArticles),
    allSavedArticles = useMemo(
     () => mergeSavedArticles(library.bookmarks, library.likedArticles),
     [library.bookmarks, library.likedArticles],
@@ -236,13 +241,13 @@ export function useSavedWorkspaceController(): SavedWorkspaceController {
   }, []),
    toggleQueue = useCallback(
     (article: Readonly<NewsArticle>) => {
-      if (queue.isArticleInQueue(article.url)) {
-        void queue.removeArticleFromQueue(article.url);
+      if (isArticleInQueue(article.url)) {
+        void removeArticleFromQueue(article.url);
         return;
       }
-      void queue.addArticleToQueue(article);
+      void addArticleToQueue(article);
     },
-    [queue],
+    [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
   );
 
   return {
@@ -258,7 +263,7 @@ export function useSavedWorkspaceController(): SavedWorkspaceController {
     generateDigest: digest.generateDigest,
     hideDigest: digest.hideDigest,
     highlightCount: library.highlightCount,
-    isArticleInQueue: queue.isArticleInQueue,
+    isArticleInQueue,
     isArticleModalOpen,
     likedArticles: library.likedArticles,
     likedIds: library.likedIds,
@@ -266,7 +271,7 @@ export function useSavedWorkspaceController(): SavedWorkspaceController {
     loading: library.loading,
     newShelfName: shelf.newShelfName,
     openArticle,
-    queuedArticles: queue.queuedArticles,
+    queuedArticles,
     reload: library.reload,
     selectedArticle,
     setActiveTab,

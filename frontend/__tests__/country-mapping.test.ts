@@ -20,9 +20,11 @@ describe("country mapping", () => {
       },
     ])
 
-    expect(mapped!.country).toBe("GB")
-    expect(mapped!.source_country).toBe("GB")
-    expect(mapped!.mentioned_countries).toStrictEqual(["CN", "US"])
+    expect(mapped).toBeDefined()
+    if (mapped === undefined) { throw new Error("expected mapped article"); }
+    expect(mapped.country).toBe("GB")
+    expect(mapped.source_country).toBe("GB")
+    expect(mapped.mentioned_countries).toStrictEqual(["CN", "US"])
   })
 
   it("maps known globe fallback countries away from -99 ISO codes", async () => {  expect.hasAssertions();

@@ -1,10 +1,11 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import assert from "node:assert/strict";
 import { join } from "node:path";
 import { runTransform } from "../../transformations/no-inline-comments.mjs";
-import { test } from "node:test";
-import { tmpdir } from "node:os";
 import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
+const { tmpdir } = process.getBuiltinModule("node:os");
 
 /**
  * Type-check a source text with the repository TypeScript compiler.
@@ -33,14 +34,14 @@ async function typeCheck(sourceText, extension) {
   }
 }
 
-test("moves a trailing line comment above its statement", () => {
+void test("moves a trailing line comment above its statement", () => {
   const source = "const limit = 20; // articles per page\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, true);
   assert.equal(result.text, "// articles per page\nconst limit = 20;\n");
 });
 
-test("moves an indented comment with the statement indentation", () => {
+void test("moves an indented comment with the statement indentation", () => {
   const source = "function load() {\n  const limit = 20; // per page\n  return limit;\n}\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, true);
@@ -50,49 +51,49 @@ test("moves an indented comment with the statement indentation", () => {
   );
 });
 
-test("moves the real comment but never treats URL slashes inside strings as comments", () => {
+void test("moves the real comment but never treats URL slashes inside strings as comments", () => {
   const source = 'const apiUrl = "https://example.com/api"; // fetch from the API\n';
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, true);
   assert.equal(result.text, '// fetch from the API\nconst apiUrl = "https://example.com/api";\n');
 });
 
-test("keeps a bare string containing double slashes untouched", () => {
+void test("keeps a bare string containing double slashes untouched", () => {
   const source = 'const apiUrl = "https://example.com/a//b";\n';
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, false);
   assert.equal(result.text, source);
 });
 
-test("keeps comments inside multi-line template literals untouched", () => {
+void test("keeps comments inside multi-line template literals untouched", () => {
   const source = "const prompt = `Line one\n// this is template text\nend`;\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, false);
   assert.equal(result.text, source);
 });
 
-test("keeps JSX text containing double slashes untouched", () => {
+void test("keeps JSX text containing double slashes untouched", () => {
   const source = "<div>render a//b</div>;\n";
   const result = runTransform(source, "fixture.tsx");
   assert.equal(result.changed, false);
   assert.equal(result.text, source);
 });
 
-test("preserves block comments while moving the line comment", () => {
+void test("preserves block comments while moving the line comment", () => {
   const source = "foo(); /* block */ // line comment\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, true);
   assert.equal(result.text, "// line comment\nfoo(); /* block */\n");
 });
 
-test("leaves an already-clean file unchanged", () => {
+void test("leaves an already-clean file unchanged", () => {
   const source = "// Clean comment above\nconst x = 1;\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, false);
   assert.equal(result.text, source);
 });
 
-test("is idempotent (a second run changes nothing)", () => {
+void test("is idempotent (a second run changes nothing)", () => {
   const source = "function f() {\n  const value = 1; // one\n  return value;\n}\n";
   const first = runTransform(source, "fixture.ts");
   const second = runTransform(first.text, "fixture.ts");
@@ -101,14 +102,14 @@ test("is idempotent (a second run changes nothing)", () => {
   assert.equal(second.text, first.text);
 });
 
-test("protects regex literals containing escaped slashes", () => {
+void test("protects regex literals containing escaped slashes", () => {
   const source = "const re = /^https?:\\/\\/[^/]+/; // url matcher\n";
   const result = runTransform(source, "fixture.ts");
   assert.equal(result.changed, true);
   assert.equal(result.text, "// url matcher\nconst re = /^https?:\\/\\/[^/]+/;\n");
 });
 
-test("transformed output still type-checks with the repository compiler", async () => {
+void test("transformed output still type-checks with the repository compiler", async () => {
   const source = [
     "function load(limit: number) { // loads entries",
     "  const value = limit; // the limit",

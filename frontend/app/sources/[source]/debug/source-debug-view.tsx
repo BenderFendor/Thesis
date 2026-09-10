@@ -1,4 +1,6 @@
-import "react18-json-view/src/style.css";
+import { isJsonObject } from "@/lib/json-value";
+import type { JsonObject, JsonValue } from "@/lib/json-value";
+import { isStringValue } from "@/lib/type-guards";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -16,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import type { ComponentProps } from "react";
+import { useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import JsonView from "react18-json-view";
 import Link from "next/link";
@@ -47,32 +50,26 @@ interface DebugJsonSectionProps {
   readonly searchQuery: string;
 }
 
-type DebugRecord = Record<string, unknown>;
+type DebugJsonValue = JsonValue | undefined;
 
-type DebugJsonValue = DebugRecord | readonly unknown[];
-
-const isDebugRecord = (value: unknown): value is DebugRecord =>
-  typeof value === "object" && value !== null && !Array.isArray(value),
-
- hasFilteredContent = (value: unknown): boolean => {
+const hasFilteredContent = (value: DebugJsonValue): boolean => {
   if (value === undefined || value === null) {
     return false;
   }
   if (Array.isArray(value)) {
     return value.length > 0;
   }
-  if (isDebugRecord(value)) {
+  if (isJsonObject(value)) {
     return Object.keys(value).length > 0;
   }
   return true;
 },
 
- filterDebugRecord = (record: Readonly<DebugRecord>, query: string): DebugRecord | undefined => {
-  const filtered: DebugRecord = {};
+ filterDebugRecord = (record: JsonObject, query: string): JsonObject | undefined => {
+  const filtered: Record<string, JsonValue | undefined> = {};
   for (const [key, value] of Object.entries(record)) {
     const keyMatches = key.toLowerCase().includes(query),
-     valueMatches =
-      typeof value === "string" && value.toLowerCase().includes(query);
+     valueMatches = isStringValue(value) && value.toLowerCase().includes(query);
     if (keyMatches || valueMatches) {
       filtered[key] = value;
       continue;
@@ -82,36 +79,36 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
       filtered[key] = nested;
     }
   }
-  if (Object.keys(filtered).length === 0) {
-    return undefined;
-  }
-  return filtered;
+  return Object.keys(filtered).length === 0 ? undefined : filtered;
 },
 
- filterDebugValue = (value: unknown, query: string): unknown => {
+ filterDebugValue = (value: DebugJsonValue, query: string): DebugJsonValue => {
   if (Array.isArray(value)) {
     return value
       .map((item) => filterDebugValue(item, query))
       .filter(hasFilteredContent);
   }
-  if (!isDebugRecord(value)) {
+  if (!isJsonObject(value)) {
     return null;
   }
   return filterDebugRecord(value, query);
 },
+
+ debugDataAsJson = (debugData: Readonly<SourceDebugData>): JsonValue =>
+  JSON.parse(JSON.stringify(debugData)),
 
  filterSourceDebugData = (
   debugData: Readonly<SourceDebugData>,
   searchQuery: string,
 ): DebugJsonValue => {
   if (searchQuery.length === 0) {
-    return structuredClone(debugData);
+    return debugDataAsJson(debugData);
   }
   const filtered = filterDebugValue(
-    structuredClone(debugData),
+    debugDataAsJson(debugData),
     searchQuery.toLowerCase(),
   );
-  if (Array.isArray(filtered) || isDebugRecord(filtered)) {
+  if (Array.isArray(filtered) || isJsonObject(filtered)) {
     return filtered;
   }
   return {};
@@ -150,7 +147,7 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   icon: typeof Globe;
   title: string;
 }>) => (
-  <summary className="cursor-pointer">
+  <summary aria-label={title} className="cursor-pointer">
     <CardHeader>
       <CardTitle className="flex items-center gap-2">
         <Icon className="h-5 w-5" />
@@ -239,7 +236,7 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
       <CardContent>
         <div className="space-y-3">
           {subFeeds.map((subFeed) => (
-            <div key={subFeed.url} className="rounded-lg border border-muted p-3">
+            <div key={`${subFeed.url}:${subFeed.status}`} className="rounded-lg border border-muted p-3">
               <div className="mb-2 flex items-start justify-between">
                 <a
                   href={subFeed.url}
@@ -271,7 +268,8 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
   const percentage = getImagePercentage(debugData),
-   analysis = debugData.image_analysis;
+   analysis = debugData.image_analysis,
+   percentageStyle = useMemo(() => ({ width: `${percentage}%` }), [percentage]);
   return (
     <details>
       <SectionHeader icon={ImageIcon} title="Image Parsing Analysis" />
@@ -286,7 +284,7 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
           <div className="h-2.5 w-full rounded-full bg-muted">
             <div
               className="h-2.5 rounded-full bg-primary"
-              style={{ width: `${percentage}%` }}
+              style={percentageStyle}
             />
           </div>
           <p className="text-center text-xs text-muted-foreground">
@@ -302,7 +300,7 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   entry,
 }: Readonly<{ entry: Readonly<SourceDebugData["parsed_entries"][number]> }>) => {
   if (!entry.has_images) {
-    return;
+    return null;
   }
   return (
     <div className="mt-3 border-t border-muted pt-3">
@@ -356,7 +354,7 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   debugData,
 }: Readonly<{ debugData: Readonly<SourceDebugData> }>) => {
   if (debugData.parsed_entries.length === 0) {
-    return;
+    return null;
   }
   return (
     <details>
@@ -377,11 +375,9 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   onSearchQueryChange,
   searchQuery,
 }: Readonly<DebugJsonSectionProps>) => {
-  const handleSearchChange: NonNullable<ComponentProps<"input">["onChange"]> = (
-    event,
-  ) => {
+  const handleSearchChange: NonNullable<ComponentProps<"input">["onChange"]> = useCallback((event) => {
     onSearchQueryChange(event.target.value);
-  },
+  }, [onSearchQueryChange]),
    filteredData = filterSourceDebugData(debugData, searchQuery);
   return (
     <details open>
@@ -413,9 +409,9 @@ const isDebugRecord = (value: unknown): value is DebugRecord =>
   onRefresh,
   onToggleDebugMode,
 }: Readonly<SourceDebugHeaderProps>) => {
-  const openRssFeed = () => {
+  const openRssFeed = useCallback(() => {
     globalThis.open(debugData.rss_url, "_blank");
-  };
+  }, [debugData.rss_url]);
   return (
     <header className="mb-6">
       <div className="flex items-center justify-between">

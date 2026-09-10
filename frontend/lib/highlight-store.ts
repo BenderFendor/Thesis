@@ -1,3 +1,4 @@
+import { isStringValue } from "@/lib/type-guards";
 import { getFromStorage, saveToStorage } from "@/lib/storage"
 import type { Highlight } from "@/lib/api"
 
@@ -85,7 +86,7 @@ const safeNowIso = () =>
 
 
 const generateClientId = () => {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+  if (globalThis.crypto !== undefined && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
 
@@ -325,7 +326,7 @@ const markFailed = ({
   const message =
     error instanceof Error
       ? error.message
-      : (typeof error === "string"
+      : (isStringValue(error)
         ? error
         : "unknown error")
 

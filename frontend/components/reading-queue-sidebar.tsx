@@ -28,12 +28,11 @@ import type {
 } from "@/lib/api";
 import type {
  CSSProperties,
- KeyboardEvent,
  MouseEvent,
  ReactElement,
  ReactNode,
 } from "react";
-import { Children, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
  Sheet,
  SheetClose,
@@ -58,7 +57,6 @@ import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingHistory } from "@/hooks/useReadingHistory";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { z } from "zod";
-import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
 
 const ARTICLE_IMAGE_HEIGHT = 384,
  ARTICLE_IMAGE_WIDTH = 1280,
@@ -126,12 +124,7 @@ const ARTICLE_IMAGE_HEIGHT = 384,
  DIGEST_CARD_STYLE: CSSProperties = {
   backgroundColor: "rgba(168, 85, 247, 0.1)",
   borderColor: "rgba(168, 85, 247, 0.3)",
- },
- DARK_CARD_STYLE: CSSProperties = {
-  backgroundColor: "rgba(0, 0, 0, 0.4)",
-  borderColor: "var(--border)",
- },
- DIGEST_PRE_STYLE: CSSProperties = {
+ }, DIGEST_PRE_STYLE: CSSProperties = {
   backgroundColor: "rgba(0, 0, 0, 0.4)",
   color: "var(--foreground)",
  },
@@ -156,6 +149,12 @@ const ARTICLE_IMAGE_HEIGHT = 384,
  DIGEST_CONTENT_STYLE: CSSProperties = {
   color: "var(--foreground)",
  },
+ BORDER_ONLY_STYLE: CSSProperties = {
+  borderColor: "var(--border)",
+ },
+ PRIMARY_TEXT_STYLE: CSSProperties = {
+  color: "var(--primary)",
+ },
 
  DigestResponseSchema = z.object({
   content: z.string().optional(),
@@ -173,8 +172,8 @@ const ARTICLE_IMAGE_HEIGHT = 384,
   articles: z.array(StructuredArticleSchema).optional(),
  });
 
-type DigestResponse = z.infer<typeof DigestResponseSchema>;
-type FullArticleResponse = z.infer<typeof FullArticleResponseSchema>;
+type _DigestResponse = z.infer<typeof DigestResponseSchema>;
+type _FullArticleResponse = z.infer<typeof FullArticleResponseSchema>;
 type StructuredArticle = z.infer<typeof StructuredArticleSchema>;
 
 type DigestDirection = "next" | "previous";
@@ -289,14 +288,6 @@ const getArticlePreview = (article: Readonly<NewsArticle>): string => {
   return { color: "var(--muted-foreground)", transform: "rotate(0deg)" };
  },
 
- getCardActivationHandler = (
-  onToggle: () => void,
- ): ((event: KeyboardEvent<HTMLElement>) => void) => (
-  event: KeyboardEvent<HTMLElement>,
- ): void => {
-   activateCardFromKeyDown(event, onToggle);
-  },
-
  readJsonResponse = async <T,>(
   response: Response,
   schema: z.ZodType<T>,
@@ -364,7 +355,8 @@ const DigestCodeRenderer = ({
  className,
  onOpenArticle,
 }: DigestCodeRendererProps): ReactElement => {
- const text = String(children).replace(/\n$/u, "");
+ const parsedText = z.union([z.string(), z.number()]).safeParse(children),
+  text = (parsedText.success ? String(parsedText.data) : "").replace(/\n$/u, "");
  if (isStructuredDigestCode(className, text)) {
   return <StructuredArticleEmbeds text={text} onOpenArticle={onOpenArticle} />;
  }
@@ -391,7 +383,7 @@ const StructuredArticleEmbeds = ({
     const url = getStructuredArticleUrl(article, index);
     return (
      <ArticleInlineEmbed
-      key={`${url}-${index}`}
+      key={`${url}-${article.title ?? "untitled"}`}
       url={url}
       onOpen={onOpenArticle}
      />
@@ -435,8 +427,8 @@ const StructuredArticleEmbeds = ({
   const hasReadTime =
    estimatedReadTime !== undefined && estimatedReadTime > ZERO,
    hasPreloadedData =
-    article._queueData?.preloadedAt !== undefined &&
-    article._queueData.preloadedAt !== ZERO;
+    article.queueData?.preloadedAt !== undefined &&
+    article.queueData.preloadedAt !== ZERO;
   return (
    <div className="flex items-center gap-2 mt-1">
     <QueueCardSource article={article} />
@@ -446,7 +438,7 @@ const StructuredArticleEmbeds = ({
     {readingHistoryIds.length > ZERO && (
      <NoveltyBadge
       articleId={article.id}
-      readingHistory={[...readingHistoryIds]}
+      readingHistory={readingHistoryIds}
      />
     )}
     {!hasPreloadedData && <QueueCardLoadingBadge />}
@@ -517,7 +509,7 @@ const StructuredArticleEmbeds = ({
  }: QueueCardExpandableProps): ReactElement => (
   <div
    className="space-y-3 pt-3 mt-3 border-t animate-in fade-in slide-in-from-top-2 duration-200"
-   style={{ borderColor: "var(--border)" }}
+   style={BORDER_ONLY_STYLE}
   >
    {article.image !== "" && (
     <SafeImage
@@ -555,7 +547,7 @@ const StructuredArticleEmbeds = ({
   return (
    <div
     className="flex-shrink-0 h-12 w-16 rounded-lg overflow-hidden border"
-    style={{ borderColor: "var(--border)" }}
+    style={BORDER_ONLY_STYLE}
    >
     <SafeImage
      src={article.image}
@@ -640,33 +632,33 @@ const StructuredArticleEmbeds = ({
   estimatedReadTime,
   index,
   isExpanded,
-  onKeyDown,
   onOpen,
   onRemove,
   onToggle,
   readingHistoryIds,
- }: QueueCardProps & {
-  readonly onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
- }): ReactElement => (
+ }: QueueCardProps): ReactElement => (
   <div
-   onClick={onToggle}
-   onKeyDown={onKeyDown}
-   role="button"
-   tabIndex={ZERO}
-   className="w-full transition-all duration-300 ease-out cursor-pointer text-left group transform hover:scale-105"
+   className="w-full transition-all duration-300 ease-out text-left group transform hover:scale-105"
    style={getQueueCardStyle(index)}
   >
    <div
     className={getQueueCardSurfaceClassName(isExpanded)}
     style={getQueueCardSurfaceStyle(isExpanded)}
    >
-    <QueueCardHeader
-     article={article}
-     estimatedReadTime={estimatedReadTime}
-     index={index}
-     isExpanded={isExpanded}
-     readingHistoryIds={readingHistoryIds}
-    />
+    <button
+     type="button"
+     onClick={onToggle}
+     className="w-full cursor-pointer text-left"
+     aria-expanded={isExpanded}
+    >
+     <QueueCardHeader
+      article={article}
+      estimatedReadTime={estimatedReadTime}
+      index={index}
+      isExpanded={isExpanded}
+      readingHistoryIds={readingHistoryIds}
+     />
+    </button>
     {isExpanded && (
      <QueueCardExpandable
       article={article}
@@ -678,38 +670,11 @@ const StructuredArticleEmbeds = ({
   </div>
  ),
 
- QueueCard = ({
-  article,
-  estimatedReadTime,
-  index,
-  isExpanded,
-  onOpen,
-  onRemove,
-  onToggle,
-  readingHistoryIds,
- }: QueueCardProps): ReactElement => {
-  const onKeyDown = useCallback(
-   (event: KeyboardEvent<HTMLElement>) => {
-    activateCardFromKeyDown(event, onToggle);
-   },
-   [onToggle],
-  );
-  return (
-   <article>
-    <QueueCardSurface
-     article={article}
-     estimatedReadTime={estimatedReadTime}
-     index={index}
-     isExpanded={isExpanded}
-     onKeyDown={onKeyDown}
-     onOpen={onOpen}
-     onRemove={onRemove}
-     onToggle={onToggle}
-     readingHistoryIds={readingHistoryIds}
-    />
-   </article>
-  );
- };
+ QueueCard = (props: QueueCardProps): ReactElement => (
+  <article>
+   <QueueCardSurface {...props} />
+  </article>
+ );
 
 interface ArticleDetailHeaderProps {
  readonly article: Readonly<NewsArticle>;
@@ -1794,7 +1759,7 @@ const ArticleDetailGrid = ({
  DigestStrong = ({
   children,
  }: MarkdownChildrenProps): ReactElement => (
-  <strong className="font-semibold" style={{ color: "var(--primary)" }}>
+  <strong className="font-semibold" style={PRIMARY_TEXT_STYLE}>
    {children}
   </strong>
  ),
@@ -1818,10 +1783,11 @@ const createDigestComponents = (
  blockquote: DigestBlockquote,
  code: ({ children, className }: MarkdownCodeProps) => (
   <DigestCodeRenderer
-   children={children}
    className={className}
    onOpenArticle={onOpenArticle}
-  />
+  >
+   {children}
+  </DigestCodeRenderer>
  ),
  em: DigestEmphasis,
  h1: DigestHeadingOne,
@@ -1874,7 +1840,10 @@ const DigestMarkdownContent = ({
  const components = useMemo(
   () => createDigestComponents(onOpenArticle),
   [onOpenArticle],
- );
+ ),
+  handleNavigate = useCallback((direction: "next" | "prev") => {
+   onNavigateArticle(direction === "prev" ? "previous" : "next");
+  }, [onNavigateArticle]);
  return (
   <div className="px-6 py-8 prose prose-invert max-w-none" style={DIGEST_CONTENT_STYLE}>
    <ReactMarkdown components={components}>{digest}</ReactMarkdown>
@@ -1883,9 +1852,7 @@ const DigestMarkdownContent = ({
      article={embedModalArticle}
      isOpen={embedModalOpen}
      onClose={onCloseEmbedded}
-     onNavigate={(direction) => {
-      onNavigateArticle(direction === "prev" ? "previous" : "next");
-     }}
+     onNavigate={handleNavigate}
     />
    )}
   </div>
@@ -2495,7 +2462,7 @@ const useReadingQueueController = (): ReadingQueueController => {
 
   selectedArticle = useMemo(() => {
    if (selectedArticleUrl === undefined) {
-    return;
+    return undefined;
    }
    return queuedArticles.find((article) => article.url === selectedArticleUrl);
   }, [queuedArticles, selectedArticleUrl]),
@@ -2508,7 +2475,7 @@ const useReadingQueueController = (): ReadingQueueController => {
 
   handleRemove = useCallback(
    (articleUrl: string): void => {
-    removeArticleFromQueue(articleUrl);
+    void removeArticleFromQueue(articleUrl);
    },
    [removeArticleFromQueue],
   ),
@@ -2542,7 +2509,7 @@ const useReadingQueueController = (): ReadingQueueController => {
      setSelectedArticleUrl(nextArticle.url);
     }
    },
-   [queuedArticles, selectedArticleUrl],
+   [queuedArticles, selectedArticleUrl, setSelectedArticleUrl],
   ),
   handlePrevious = useCallback((): void => {
    handleNavigateArticle("previous");
@@ -2594,7 +2561,7 @@ const useReadingQueueController = (): ReadingQueueController => {
    try {
     setArticleLoading(true);
     setFullArticleText(undefined);
-    const preloadedText = article._queueData?.fullText;
+    const preloadedText = article.queueData?.fullText;
     if (preloadedText !== undefined && preloadedText !== "") {
      setFullArticleText(preloadedText);
      return;
@@ -2669,7 +2636,7 @@ const useReadingQueueController = (): ReadingQueueController => {
   return (): void => {
    globalThis.removeEventListener("keydown", handleKeyDown);
   };
- }, [handleMarkAsRead, handleNavigateArticle, selectedArticle]);
+ }, [handleMarkAsRead, handleNavigateArticle, selectedArticle, setSelectedArticleUrl]);
 
  const generateQueueDigest = useCallback(async (): Promise<void> => {
   if (queuedArticles.length === ZERO) {
@@ -2699,7 +2666,7 @@ const useReadingQueueController = (): ReadingQueueController => {
   handleToggleArticle = useCallback((index: number): void => {
    setExpandedIndex((previous) => {
     if (previous === index) {
-     return;
+     return undefined;
     }
     return index;
    });
@@ -2709,10 +2676,10 @@ const useReadingQueueController = (): ReadingQueueController => {
   }, []),
   handleCloseArticle = useCallback((): void => {
    setSelectedArticleUrl(undefined);
-  }, []),
+  }, [setSelectedArticleUrl]),
   handleLikeSelected = useCallback((): void => {
    if (selectedArticle !== undefined && selectedArticle.id !== ZERO) {
-    toggleLike(selectedArticle.id);
+    void toggleLike(selectedArticle.id);
    }
   }, [selectedArticle, toggleLike]),
   handleFavoriteSelected = useCallback((): void => {
@@ -2722,7 +2689,7 @@ const useReadingQueueController = (): ReadingQueueController => {
   }, [selectedArticle, toggleFavorite]),
   handleBookmarkSelected = useCallback((): void => {
    if (selectedArticle !== undefined && selectedArticle.id !== ZERO) {
-    toggleBookmark(selectedArticle.id);
+    void toggleBookmark(selectedArticle.id);
    }
   }, [selectedArticle, toggleBookmark]),
   handleMarkSelected = useCallback((): void => {
@@ -2735,7 +2702,7 @@ const useReadingQueueController = (): ReadingQueueController => {
     handleRemove(selectedArticle.url);
     setSelectedArticleUrl(undefined);
    }
-  }, [handleRemove, selectedArticle]),
+  }, [handleRemove, selectedArticle, setSelectedArticleUrl]),
   handleCloseOverview = useCallback((): void => {
    setShowQueueOverview(false);
   }, []),

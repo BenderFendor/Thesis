@@ -1,13 +1,13 @@
-import { dirname, resolve } from "node:path";
-import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { test } from "node:test";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 const repositoryRoot = resolve(import.meta.dirname, "../.."),
   checkCrap = resolve(repositoryRoot, "scripts/check-crap.mjs");
 
-test("check-crap fails when the measured report exceeds its threshold", () => {
+void test("check-crap fails when the measured report exceeds its threshold", () => {
   const result = spawnSync(process.execPath, [checkCrap], {
     cwd: repositoryRoot,
     encoding: "utf8",

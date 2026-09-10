@@ -13,7 +13,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { BarChart3 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 const DEFAULT_DIMENSION_COUNT = 6,
  MODERATE_SCORE_THRESHOLD = 40,
@@ -142,7 +142,8 @@ const hasScore = (score: CredibilityDimension["score"]): score is number =>
   dimension,
   name,
 }: Readonly<DimensionRowProps>) => {
-  const {score} = dimension;
+  const {score} = dimension,
+   barStyle = useMemo(() => ({ width: scoreToWidth(score) }), [score]);
   return (
     <details className="group rounded-lg border border-white/5 p-3">
       <summary className="flex cursor-pointer items-center justify-between gap-2">
@@ -158,7 +159,7 @@ const hasScore = (score: CredibilityDimension["score"]): score is number =>
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/30">
             <div
               className={`h-full rounded-full transition-all duration-300 ${scoreToColor(score)}`}
-              style={{ width: scoreToWidth(score) }}
+              style={barStyle}
             />
           </div>
           <span className="min-w-[3ch] text-[10px] font-mono text-muted-foreground">
@@ -284,9 +285,8 @@ const hasScore = (score: CredibilityDimension["score"]): score is number =>
       className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     />
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="credibility-panel-title"
       className="relative z-10 max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-white/10 bg-[var(--news-bg-secondary)] p-5 shadow-2xl"
     >
@@ -314,7 +314,7 @@ const hasScore = (score: CredibilityDimension["score"]): score is number =>
         profile={profile}
         total={total}
       />
-    </div>
+    </dialog>
   </div>
 ),
 
@@ -341,11 +341,11 @@ export const CredibilityBadge = ({
    iconSize = ICON_SIZE_CLASSES[size],
    textSize = TEXT_SIZE_CLASSES[size],
 
-   closePanel = () => {
+   closePanel = useCallback(() => {
     setShowPanel(false);
-  },
+  }, [setShowPanel]),
 
-   openPanel = async () => {
+   openPanel = useCallback(async () => {
     if (showPanel) {
       closePanel();
       return;
@@ -365,11 +365,11 @@ export const CredibilityBadge = ({
       setLoading(false);
       setShowPanel(true);
     }
-  },
+  }, [closePanel, domain, error, profile, setError, setLoading, setProfile, setShowPanel, showPanel]),
 
-   requestOpenPanel = () => {
+   requestOpenPanel = useCallback(() => {
     void openPanel();
-  };
+  }, [openPanel]);
 
   return (
     <>

@@ -6,8 +6,7 @@
 // Usage: node scripts/check-file-lines.mjs
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { dirname, extname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { extname, join, relative, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const MAX_LINES = 1000;

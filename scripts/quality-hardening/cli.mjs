@@ -1,6 +1,6 @@
 import { appendLedger, readCampaign, readLedger } from "./ledger.mjs";
 import { claimWriter, clearActiveTask, expandWriterClaim, releaseWriter, writeActiveTask } from "./writer-claim.mjs";
-import { expandTaskScope, readTasks, rebuildQueue, transitionTask, updateTask } from "./queue.mjs";
+import { expandTaskScope, readTasks, rebuildQueue, transitionTask } from "./queue.mjs";
 import { measureRepository, readMeasurement } from "./measure.mjs";
 import { EXIT_CODES } from "./protocol.mjs";
 import { hook } from "./hook.mjs";
@@ -10,6 +10,27 @@ import { verify } from "./verify.mjs";
 /** @typedef {{from: string, json: boolean, paths: string[], scope: string, session: string, task: string, stale: boolean, reason: string}} Options */
 /** @typedef {Readonly<{task_id: string, paths: string[], state: string, factor: string, cluster_key: string, repair_class?: string, allowed_lint_rules?: string[]}>} Task */
 /** @typedef {Readonly<{repositoryRoot: string}>} QueuePolicy */
+
+/** @param {string} value @returns {"path"|"task"|"changed"|"repo"} */
+const verificationScope = (value) => {
+ switch (value) {
+  case "path":
+  case "task":
+  case "changed":
+  case "repo": return value;
+  default: throw new Error(`unsupported verification scope: ${value}`);
+ }
+}
+
+/** @param {string} value @returns {"pre"|"post"|"stop"} */
+const hookEvent = (value) => {
+ switch (value) {
+  case "pre":
+  case "post":
+  case "stop": return value;
+  default: throw new Error("hook requires pre, post, or stop");
+ }
+}
 
 /** @param {readonly string[]} argumentsList @returns {Options} */
 const parseOptions = (argumentsList) => {
@@ -85,7 +106,7 @@ const runMeasure = async (argumentsList) => {
  }
  console.error(
   `measurement ${record.measurement_id}: ${record.units.length} units, ` +
-  `${record.verification[0].violations} CCCC violations`,
+  `${String(record.verification[0].violations)} CCCC violations`,
  );
  return EXIT_CODES.ok;
 }
@@ -204,18 +225,17 @@ const runTaskCommand = async (argumentsList) => {
 
 /** @param {readonly string[]} argumentsList @returns {Promise<number>} */
 const runVerify = async (argumentsList) => {
- const options = parseOptions(argumentsList);
- if (!["path", "task", "changed", "repo"].includes(options.scope)) { throw new Error(`unsupported verification scope: ${options.scope}`); }
- const policy = await loadPolicy(),
+ const options = parseOptions(argumentsList),
+  scope = verificationScope(options.scope),
+  policy = await loadPolicy(),
   result = await verify({
    config: policy.config,
-   measure: () => measureRepository({ paths: options.paths, policy, scope: options.scope }),
+   measure: () => measureRepository({ paths: options.paths, policy, scope }),
    repositoryRoot: policy.repositoryRoot,
-   scope: /** @type {"path"|"task"|"changed"|"repo"} */ (options.scope),
+   scope,
   });
  if (options.json) { console.log(JSON.stringify(result)); }
- else { console.error(`verification ${result.scope}: ${result.exit_code === 0 ? "passed" : "failed"}`); }
- if (typeof result.exit_code !== "number") { throw new TypeError("verification did not return an exit code"); }
+ else { console.error(`verification ${String(result.scope)}: ${result.exit_code === 0 ? "passed" : "failed"}`); }
  return result.exit_code;
 }
 
@@ -254,9 +274,8 @@ const runSummaryCommand = async (argumentsList) => {
 
 /** @param {string[]} argumentsList @returns {Promise<number>} */
 const runHookCommand = async (argumentsList) => {
- const event = argumentsList.shift();
- if (!event || !["pre", "post", "stop"].includes(event)) { throw new Error("hook requires pre, post, or stop"); }
- const result = await hook(/** @type {"pre"|"post"|"stop"} */(event), process.stdin);
+ const event = hookEvent(argumentsList.shift() ?? "");
+ const result = await hook(event, process.stdin);
  console.log(JSON.stringify(result));
  return result.decision === "block" ? EXIT_CODES.quality : EXIT_CODES.ok;
 }

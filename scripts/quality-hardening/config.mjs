@@ -11,8 +11,7 @@ const CONFIG_NAME = "quality-hardening.config.json",
  /** @type {Readonly<{validate: (config: QualityConfig) => void}>} */
  verification = {
    validate: (config) => {
-     const checks = asObject(asObject(config.verification).checks),
-       defaults = asObject(asObject(config.verification).defaults),
+     const { checks, defaults } = config.verification,
        validators = {
          checks: () => {
            if (Object.keys(checks).at(0) === undefined) {
@@ -30,7 +29,7 @@ const CONFIG_NAME = "quality-hardening.config.json",
          defaults: () => {
            for (const name of ["output_limit_bytes", "timeout_ms"]) {
              const value = defaults[name];
-             if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+             if (!Number.isInteger(value) || value <= 0) {
                throw new TypeError(`verification default ${name} must be a positive integer`);
              }
            }
@@ -50,7 +49,6 @@ const CONFIG_NAME = "quality-hardening.config.json",
    },
  };
 
-/** @typedef {Record<string, unknown>} JsonObject */
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} CcccConfig */
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} OxlintConfig */
 /** @typedef {Readonly<{version: string, command: readonly string[], output_limit_bytes: number, working_directory: string}>} CrapConfig */
@@ -60,11 +58,22 @@ const CONFIG_NAME = "quality-hardening.config.json",
 /** @typedef {Readonly<{cccc: CcccConfig, crap: CrapConfig, oxlint: OxlintConfig}>} AnalyzerConfig */
 /** @typedef {Readonly<{mi: Readonly<{cluster_floor: number, final_floor: number}>, crap: Readonly<{cluster_ceiling: number, legacy_observation_line: number, target: number}>, cccc: Readonly<{cognitive_ceiling: number, cyclomatic_ceiling: number}>, lint: Readonly<{errors: number, warnings: number}>, duplication_percent: number}>} ThresholdConfig */
 /** @typedef {Readonly<{analyzers: AnalyzerConfig, policy_version: string, profiles: Readonly<Record<string, readonly string[]>>, schema_version: number, source_scope: SourceScopeConfig, thresholds: ThresholdConfig, verification: VerificationConfig}>} QualityConfig */
+/** @typedef {Readonly<{cluster_key?: string, deterministic_fix?: boolean, quality_factor?: string, repair_class?: string, required_profiles?: readonly string[], temporary_structural_tradeoff?: boolean}>} TaxonomyRuleDefinition */
+/** @typedef {Readonly<{cluster_key: string, deterministic_fix?: boolean, id: string, quality_factor: string, repair_class: string, required_profiles?: readonly string[], temporary_structural_tradeoff?: boolean}>} ResolvedTaxonomyRule */
+/** @typedef {Readonly<{family_defaults: Readonly<Record<string, TaxonomyRuleDefinition>>, overrides: Readonly<Record<string, TaxonomyRuleDefinition>>, rule_ids: readonly string[], schema_version: number, taxonomy_version: string}>} TaxonomyConfig */
+/** @typedef {string | number | readonly [string | number, ...readonly (string | number | boolean)[]]} OxlintRuleSetting */
+/** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>}>} OxlintOverride */
+/** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>, overrides?: readonly OxlintOverride[]}>} OxlintPolicy */
 
-/** @param {string} path @returns {Promise<JsonObject>} */
+/**
+ * JSON.parse is the single untyped I/O boundary for policy files. The loaded
+ * value is immediately consumed through the named policy/taxonomy contracts
+ * and validated before the controller uses it.
+ * @param {string} path
+ */
 const readJson = async (path) => {
   const value = JSON.parse(await readFile(path, "utf8"));
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (value === null || Array.isArray(value) || Object.prototype.toString.call(value) !== "[object Object]") {
     throw new Error(`${path} must contain a JSON object`);
   }
   return value;
@@ -75,28 +84,18 @@ const hashText = (value) =>
   createHash("sha256").update(value).digest("hex")
 
 
-/** @param {unknown} value */
+/** @param {OxlintRuleSetting} value */
 const isEnabledRule = (value) => {
   const severity = Array.isArray(value) ? value[0] : value;
   return severity !== "off" && severity !== 0;
 }
 
-/** @param {unknown} value @returns {JsonObject} */
-function asObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? /** @type {JsonObject} */ (value)
-    : {};
-}
-
-/** @param {JsonObject} oxlint */
+/** @param {OxlintPolicy} oxlint */
 const configuredRuleIds = (oxlint) => {
   /** @type {Set<string>} */
   const ids = new Set(),
-  /** @type {(rules: unknown) => void} */
+  /** @type {(rules: Readonly<Record<string, OxlintRuleSetting>> | undefined) => void} */
    addRules = (rules) => {
-    if (rules === null || typeof rules !== "object" || Array.isArray(rules)) {
-      return;
-    }
     for (const [id, value] of Object.entries(rules ?? {})) {
       if (isEnabledRule(value)) {
         ids.add(normalizeRuleId(id));
@@ -104,11 +103,7 @@ const configuredRuleIds = (oxlint) => {
     }
   };
   addRules(oxlint.rules);
-  const overrides = Array.isArray(oxlint.overrides) ? oxlint.overrides : [];
-  for (const override of overrides) {
-    if (override === null || typeof override !== "object" || Array.isArray(override)) {
-      continue;
-    }
+  for (const override of oxlint.overrides ?? []) {
     addRules(override.rules);
   }
   return ids;
@@ -119,52 +114,43 @@ function normalizeRuleId(id) {
   return id.includes("/") ? id : `eslint/${id}`;
 }
 
-/** @param {string} id @param {JsonObject} taxonomy */
+/** @param {string} id @param {TaxonomyConfig} taxonomy */
 const familyForRule = (id, taxonomy) => {
-  const familyDefaults = taxonomy.family_defaults,
-   families = Object.keys(
-    familyDefaults !== null && typeof familyDefaults === "object" && !Array.isArray(familyDefaults)
-      ? familyDefaults
-      : {},
-  ).sort(
+  const families = Object.keys(taxonomy.family_defaults).toSorted(
     (left, right) => right.length - left.length,
   );
   return families.find((prefix) => id.startsWith(prefix));
 }
 
-/** @param {string} id @param {JsonObject} taxonomy @returns {(JsonObject & {id: string})|undefined} */
+/** @param {string} id @param {TaxonomyConfig} taxonomy @returns {ResolvedTaxonomyRule|undefined} */
 const resolvedTaxonomyRule = (id, taxonomy) => {
   const family = familyForRule(id, taxonomy);
-  if (family === undefined) {
-    return;
-  }
-  return {
-    id,
-    ...asObject(asObject(taxonomy.family_defaults)[family]),
-    ...asObject(asObject(taxonomy.overrides)[id]),
+  if (family === undefined) { return undefined; }
+  const rule = {
+    ...taxonomy.family_defaults[family],
+    ...taxonomy.overrides[id],
   };
+  if (!rule.cluster_key || !rule.quality_factor || !rule.repair_class) {
+    throw new Error(`taxonomy rule is incomplete: ${id}`);
+  }
+  return { id, ...rule, cluster_key: rule.cluster_key, quality_factor: rule.quality_factor, repair_class: rule.repair_class };
 }
 
-/** @param {unknown} value @param {string} name */
+/** @param {readonly string[]} value @param {string} name */
 const assertArray = (value, name) => {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`${name} must be a non-empty array`);
-  }
+  if (value.length === 0) { throw new Error(`${name} must be a non-empty array`); }
 }
 
-/** @param {unknown} value @param {string} name @returns {string[]} */
+/** @param {readonly string[]} value @param {string} name @returns {readonly string[]} */
 function stringArray(value, name) {
-  if (!Array.isArray(value) || value.length === 0 || !value.every((item) => typeof item === "string")) {
-    throw new Error(`${name} must contain strings`);
-  }
-  return (value);
+  assertArray(value, name);
+  if (value.some((item) => item.length === 0)) { throw new Error(`${name} must contain non-empty strings`); }
+  return value;
 }
 
-/** @param {JsonObject} thresholds */
+/** @param {ThresholdConfig} thresholds */
 const validateThresholds = (thresholds) => {
-  const cccc = /** @type {JsonObject} */ (thresholds.cccc ?? {}),
-    crap = /** @type {JsonObject} */ (thresholds.crap ?? {}),
-    mi = /** @type {JsonObject} */ (thresholds.mi ?? {}),
+  const { cccc, crap, mi } = thresholds,
    required = [
     ["mi.cluster_floor", mi.cluster_floor],
     ["mi.final_floor", mi.final_floor],
@@ -173,18 +159,18 @@ const validateThresholds = (thresholds) => {
     ["cccc.cognitive_ceiling", cccc.cognitive_ceiling],
   ];
   for (const [name, value] of required) {
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      throw new TypeError(`threshold ${name} must be a finite number`);
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`threshold ${String(name)} must be a finite number`);
     }
   }
   const clusterFloor = mi.cluster_floor,
     finalFloor = mi.final_floor;
-  if (typeof finalFloor === "number" && typeof clusterFloor === "number" && finalFloor < clusterFloor) {
+  if (finalFloor < clusterFloor) {
     throw new Error("threshold mi.final_floor must be >= mi.cluster_floor");
   }
 }
 
-/** @param {JsonObject} taxonomy @param {JsonObject} oxlint */
+/** @param {TaxonomyConfig} taxonomy @param {OxlintPolicy} oxlint */
 const validateTaxonomy = (taxonomy, oxlint) => {
   if (taxonomy.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening taxonomy schema version is unsupported");
@@ -206,7 +192,7 @@ const validateTaxonomy = (taxonomy, oxlint) => {
   }
 }
 
-/** @param {QualityConfig} config @param {JsonObject} taxonomy @param {JsonObject} oxlint */
+/** @param {QualityConfig} config @param {TaxonomyConfig} taxonomy @param {OxlintPolicy} oxlint */
 const validateConfig = (config, taxonomy, oxlint) => {
   if (config.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening config schema version is unsupported");
@@ -216,18 +202,21 @@ const validateConfig = (config, taxonomy, oxlint) => {
   }
   assertArray(config.source_scope?.roots, "source_scope.roots");
   assertArray(config.source_scope?.extensions, "source_scope.extensions");
-  assertArray(asObject(config.profiles).repo, "profiles.repo");
+  assertArray(config.profiles.repo, "profiles.repo");
   validateThresholds(config.thresholds);
   validateTaxonomy(taxonomy, oxlint);
   verification.validate(config);
 }
 
-/** @param {string} [repositoryRoot] @returns {Promise<Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Record<string, string>, oxlint: JsonObject, repositoryRoot: string, taxonomy: JsonObject, taxonomyHash: string}>>} */
+/** @param {string} [repositoryRoot] @returns {Promise<Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Record<string, string>, oxlint: OxlintPolicy, repositoryRoot: string, taxonomy: TaxonomyConfig, taxonomyHash: string}>>} */
 const loadPolicy = async (repositoryRoot = process.cwd()) => {
-  const root = resolve(repositoryRoot),
-   config = /** @type {QualityConfig} */ (await readJson(resolve(root, CONFIG_NAME))),
-   taxonomy = await readJson(resolve(root, RULES_NAME)),
-   oxlint = await readJson(resolve(root, OXLINT_NAME));
+  const root = resolve(repositoryRoot);
+  /** @type {QualityConfig} */
+  const config = await readJson(resolve(root, CONFIG_NAME));
+  /** @type {TaxonomyConfig} */
+  const taxonomy = await readJson(resolve(root, RULES_NAME));
+  /** @type {OxlintPolicy} */
+  const oxlint = await readJson(resolve(root, OXLINT_NAME));
   validateConfig(config, taxonomy, oxlint);
   const nativeConfigPaths = new Set([
     OXLINT_NAME,

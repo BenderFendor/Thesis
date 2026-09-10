@@ -110,7 +110,7 @@ const NO_ITEMS = 0,
     mergeLikedSeed(merged, liked);
   }
   return [...merged.values()]
-    .sort((left, right) => getSeedTimestamp(right) - getSeedTimestamp(left))
+    .toSorted((left, right) => getSeedTimestamp(right) - getSeedTimestamp(left))
     .slice(NO_ITEMS, MAX_PERSONALIZATION_SEEDS);
 },
 
@@ -181,13 +181,13 @@ const NO_ITEMS = 0,
     // entries; the OpenAPI schema only narrows them to opaque objects.
     [bookmarks, likes] = [
       bookmarkResponse.bookmarks.map((entry) => ({
-        article: entry.article as unknown as NewsArticle,
+        article: entry.article,
         articleId: entry.articleId,
         bookmarkId: entry.bookmarkId,
         createdAt: entry.createdAt ?? undefined,
       })),
       likedResponse.liked.map((entry) => ({
-        article: entry.article as unknown as NewsArticle,
+        article: entry.article,
         articleId: entry.articleId,
         createdAt: entry.createdAt ?? undefined,
         likedId: entry.likedId,
@@ -254,7 +254,7 @@ export const useScrollPersonalization = ({
     requestVersionRef.current += REQUEST_VERSION_INCREMENT;
     const requestVersion = requestVersionRef.current;
     if (!enabled) {
-      return;
+      return undefined;
     }
     let cancelled = false;
     globalThis.queueMicrotask(() => {
@@ -265,7 +265,7 @@ export const useScrollPersonalization = ({
     void loadPersonalization(articles, isFavorite).then((result) => {
       const requestIsCurrent = requestVersionRef.current === requestVersion;
       if (cancelled || !requestIsCurrent) {
-        return;
+        return undefined;
       }
       applyLoadResult(result, {
         setBreakdowns: setPersonalizedBreakdowns,
@@ -275,6 +275,7 @@ export const useScrollPersonalization = ({
         setStatus,
         setTopicsLoaded,
       });
+      return undefined;
     });
     return () => {
       cancelled = true;

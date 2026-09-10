@@ -8,7 +8,7 @@ import { useReadingQueue } from "./use-reading-queue"
 
 const useModalIntegrations = () => {
   const bookmarks = useBookmarks(),
-   debugMode = useDebugMode(),
+   { enabled: debugMode } = useDebugMode(),
    favorites = useFavorites(),
    inlineDefinition = useInlineDefinition(),
    likedArticles = useLikedArticles(),

@@ -1,11 +1,25 @@
-import { after, before, test } from "node:test";
 import { callOperation, evaluateSmoke, listOperations, listWebSockets, parseOptions, prepareRequest, runInvestigateCommand } from '../scoop.ts';
-import type { AddressInfo } from "node:net";
 import type { OpenApiSpec } from '../scoop.ts';
-import type { Server } from 'node:http';
 
-import assert from "node:assert/strict";
-import { createServer } from 'node:http';
+
+const { after, before, test } = process.getBuiltinModule("node:test");
+const assert = process.getBuiltinModule("node:assert/strict");
+const { createServer } = process.getBuiltinModule("node:http");
+
+type TestServer = ReturnType<typeof createServer>;
+type ServerAddress = ReturnType<TestServer["address"]>;
+type AddressInfo = Exclude<ServerAddress, string | null>;
+
+const requestInputUrl = (input: RequestInfo | URL): string => {
+  if (input instanceof Request) { return input.url; }
+  if (input instanceof URL) { return input.href; }
+  return input;
+};
+
+const isStringValue = <Value>(value: Value): value is Value & string => value?.constructor === String;
+
+const isAddressInfo = (address: string | AddressInfo | null): address is AddressInfo =>
+  address !== null && address.constructor !== String;
 
 const SPEC: OpenApiSpec = {
   openapi: "3.1.0",
@@ -80,7 +94,7 @@ const SPEC: OpenApiSpec = {
 };
 
 let baseUrl: string,
- server: Server;
+ server: TestServer;
 
 before(async () => {
   server = createServer(async (request, response) => {
@@ -100,16 +114,19 @@ before(async () => {
   const { promise, resolve } = Promise.withResolvers<void>();
   server.listen(0, "127.0.0.1", resolve);
   await promise;
-  const address = server.address() as AddressInfo;
+  const address = server.address();
+  if (!isAddressInfo(address)) { throw new Error("test server did not bind to a TCP address"); }
   baseUrl = `http://127.0.0.1:${address.port}`;
 });
 
 after(async () => {
   const { promise, resolve, reject } = Promise.withResolvers<void>();
-  server.close((error) =>{ error ? reject(error) : resolve(); });
+  server.close((error) => {
+    if (error) { reject(error); } else { resolve(); }
+  });
   await promise;
 });
-test("OpenAPI and WebSocket inventories expose the backend contract", () => {
+await test("OpenAPI and WebSocket inventories expose the backend contract", () => {
 
 
   const operations = listOperations(SPEC).map(({ operationId, method, path }) => ({
@@ -132,7 +149,7 @@ test("OpenAPI and WebSocket inventories expose the backend contract", () => {
   ]);
 });
 
-test("request preparation follows OpenAPI parameter locations and types", () => {
+void test("request preparation follows OpenAPI parameter locations and types", () => {
 
 
   const options = parseOptions([
@@ -156,7 +173,7 @@ test("request preparation follows OpenAPI parameter locations and types", () => 
   assert.equal(request.init.body, '{"active":true}');
 });
 
-test("real HTTP call and smoke assertions use the same operation", async () => {
+void test("real HTTP call and smoke assertions use the same operation", async () => {
 
 
   const options = parseOptions([
@@ -183,7 +200,7 @@ test("real HTTP call and smoke assertions use the same operation", async () => {
   assert.equal(report.checks.length, 3);
 });
 
-test("required OpenAPI inputs fail before network access", () => {
+void test("required OpenAPI inputs fail before network access", () => {
 
 
   assert.throws(
@@ -201,7 +218,7 @@ test("required OpenAPI inputs fail before network access", () => {
   );
 });
 
-test("investigate organization operation resolves from spec and sends name in POST body", async () => {
+void test("investigate organization operation resolves from spec and sends name in POST body", async () => {
 
 
   const options = parseOptions([
@@ -215,15 +232,13 @@ test("investigate organization operation resolves from spec and sends name in PO
     "research_organization_research_entity_organization_research_post",
     options,
   ),
-   echo = result.body as { method: string; url: string; body: { name: string } };
+   expectedBody = { body: { name: "BBC News" }, method: "POST", url: "/research/entity/organization/research" };
 
   assert.equal(result.response.status, 200);
-  assert.equal(echo.body.name, "BBC News");
-  assert.equal(echo.method, "POST");
-  assert.match(echo.url, /\/research\/entity\/organization\/research/u);
+  assert.deepEqual(result.body, expectedBody);
 });
 
-test("investigate source operation resolves from spec with name and website in POST body", async () => {
+void test("investigate source operation resolves from spec with name and website in POST body", async () => {
 
 
   const options = parseOptions([
@@ -237,14 +252,13 @@ test("investigate source operation resolves from spec with name and website in P
     "research_source_profile_research_entity_source_profile_post",
     options,
   ),
-   echo = result.body as { body: { name: string; website: string } };
+   expectedBody = { body: { name: "Al Jazeera", website: "https://www.aljazeera.com" }, method: "POST", url: "/research/entity/source/profile" };
 
   assert.equal(result.response.status, 200);
-  assert.equal(echo.body.name, "Al Jazeera");
-  assert.equal(echo.body.website, "https://www.aljazeera.com");
+  assert.deepEqual(result.body, expectedBody);
 });
 
-test("investigate reporter operation resolves from spec with organization and refresh", async () => {
+void test("investigate reporter operation resolves from spec with organization and refresh", async () => {
 
 
   const options = parseOptions([
@@ -260,15 +274,13 @@ test("investigate reporter operation resolves from spec with organization and re
     "profile_reporter_research_entity_reporter_profile_post",
     options,
   ),
-   echo = result.body as { url: string; body: { name: string; organization: string } };
+   expectedBody = { body: { name: "Moscow Times", organization: "The Moscow Times" }, method: "POST", url: "/research/entity/reporter/profile?force_refresh=true" };
 
   assert.equal(result.response.status, 200);
-  assert.equal(echo.body.name, "Moscow Times");
-  assert.equal(echo.body.organization, "The Moscow Times");
-  assert.match(echo.url, /force_refresh=true/u);
+  assert.deepEqual(result.body, expectedBody);
 });
 
-test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {
+void test("investigate ownership operation resolves from spec and encodes org_name as path parameter", async () => {
 
 
   const options = parseOptions([
@@ -282,23 +294,20 @@ test("investigate ownership operation resolves from spec and encodes org_name as
     "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
     options,
   ),
-   echo = result.body as { url: string };
+   expectedBody = { body: null, method: "GET", url: "/research/entity/organization/Sinclair%20Broadcast%20Group/ownership-chain" };
 
   assert.equal(result.response.status, 200);
-  assert.match(
-    echo.url,
-    /\/research\/entity\/organization\/Sinclair%20Broadcast%20Group\/ownership-chain/u,
-  );
+  assert.deepEqual(result.body, expectedBody);
 });
 
-test("curated organization workflow uses generated operation parameters", async () => {
+void test("curated organization workflow uses generated operation parameters", async () => {
 
 
   let requestedBody = "",
    requestedUrl = "";
   const fetchImpl: typeof fetch = async (input, init) => {
-    requestedUrl = String(input);
-    requestedBody = String(init?.body ?? "");
+    requestedUrl = requestInputUrl(input);
+    requestedBody = isStringValue(init?.body) ? init.body : "";
     return new Response("{}", { headers: { "Content-Type": "application/json" }, status: 200 });
   },
 
@@ -324,12 +333,12 @@ test("curated organization workflow uses generated operation parameters", async 
   });
 });
 
-test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {
+void test("curated ownership workflow maps max-depth to OpenAPI max_depth", async () => {
 
 
   let requestedUrl = "";
   const fetchImpl: typeof fetch = async (input) => {
-    requestedUrl = String(input);
+    requestedUrl = requestInputUrl(input);
     return new Response("{}", { headers: { "Content-Type": "application/json" }, status: 200 });
   },
 

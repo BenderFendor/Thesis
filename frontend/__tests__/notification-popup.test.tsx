@@ -14,7 +14,9 @@ const notification: Notification = {
   id: "feed-error",
   title: "Feed unavailable",
   type: "error",
-}
+},
+ NOTIFICATIONS = [notification] as const,
+ EMPTY_NOTIFICATIONS: readonly Notification[] = [];
 
 describe("notificationsPopup", () => {
   it("renders an accessible dialog and exposes notification actions", async () => {expect.hasAssertions();
@@ -25,7 +27,7 @@ describe("notificationsPopup", () => {
 
     render(
       <NotificationsPopup
-        notifications={[notification]}
+        notifications={NOTIFICATIONS}
         onAction={onAction}
         onClear={onClear}
         onClearAll={jest.fn()}
@@ -50,7 +52,7 @@ describe("notificationsPopup", () => {
 
     render(
       <NotificationsPopup
-        notifications={[]}
+        notifications={EMPTY_NOTIFICATIONS}
         onClear={jest.fn()}
         onClearAll={jest.fn()}
         onClose={onClose}

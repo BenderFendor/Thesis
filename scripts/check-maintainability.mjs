@@ -61,7 +61,7 @@ for (const file of result.files) {
       cc: metrics.cyclomaticComplexity ?? 0,
       file: file.filePath,
       line: fn.startLine,
-      mi: typeof miScore === "number" ? miScore : miScore.score,
+      mi: Number.isFinite(miScore) ? Number(miScore) : miScore.score,
       name: fn.name,
     });
   }

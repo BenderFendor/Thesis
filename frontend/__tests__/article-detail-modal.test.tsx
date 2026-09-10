@@ -25,6 +25,12 @@ const baseArticle: NewsArticle = {
  translated: false,
  url: "article-1",
 },
+ ARTICLE_4: NewsArticle = { ...baseArticle, id: 4, url: "article-4" },
+ ARTICLE_REPORTER: NewsArticle = { ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] },
+ ARTICLE_AUTHORS_FALLBACK: NewsArticle = { ...baseArticle, author: "", authors: ["", "Taylor Smith", "Another Name"], id: 2, url: "article-2" },
+ ARTICLE_TAYLOR: NewsArticle = { ...baseArticle, author: "Taylor Smith", authors: ["Taylor Smith"], id: 3, url: "article-3" },
+ ARTICLE_5: NewsArticle = { ...baseArticle, id: 5, url: "article-5" },
+ ARTICLE_6: NewsArticle = { ...baseArticle, id: 6, url: "article-6" },
 
  mockedApi = {
   analyzeArticle: jest.fn<ArticleDetailServices["analyzeArticle"]>(async () => ({ article_url: "", success: false })),
@@ -61,7 +67,7 @@ const renderArticleWithScrollControls = () => {
 
  renderWithQueryClient(
   <ArticleDetailModal
-   article={{ ...baseArticle, id: 4, url: "article-4" }}
+   article={ARTICLE_4}
    isOpen
    onClose={jest.fn()}
    services={mockedApi}
@@ -166,7 +172,7 @@ describe("articleDetailModal", () => {
   expect.hasAssertions();
   renderWithQueryClient(
    <ArticleDetailModal
-    article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
+    article={ARTICLE_REPORTER}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}
@@ -185,7 +191,7 @@ describe("articleDetailModal", () => {
   expect.hasAssertions();
   renderWithQueryClient(
    <ArticleDetailModal
-    article={{ ...baseArticle, author: "", authors: ["", "Taylor Smith", "Another Name"], id: 2, url: "article-2" }}
+    article={ARTICLE_AUTHORS_FALLBACK}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}
@@ -199,7 +205,7 @@ describe("articleDetailModal", () => {
   expect.hasAssertions();
   const { rerender } = renderWithQueryClient(
    <ArticleDetailModal
-    article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
+    article={ARTICLE_REPORTER}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}
@@ -211,7 +217,7 @@ describe("articleDetailModal", () => {
 
   rerender(
    <ArticleDetailModal
-    article={{ ...baseArticle, author: "Zhiqun Zhu", authors: ["Zhiqun Zhu"] }}
+    article={ARTICLE_REPORTER}
     isOpen={false}
     onClose={jest.fn()}
     services={mockedApi}
@@ -220,7 +226,7 @@ describe("articleDetailModal", () => {
 
   rerender(
    <ArticleDetailModal
-    article={{ ...baseArticle, author: "Taylor Smith", authors: ["Taylor Smith"], id: 3, url: "article-3" }}
+    article={ARTICLE_TAYLOR}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}
@@ -252,7 +258,7 @@ describe("articleDetailModal", () => {
   expect.hasAssertions();
   renderWithQueryClient(
    <ArticleDetailModal
-    article={{ ...baseArticle, id: 5, url: "article-5" }}
+    article={ARTICLE_5}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}
@@ -282,7 +288,7 @@ describe("articleDetailModal", () => {
 
   renderWithQueryClient(
    <ArticleDetailModal
-    article={{ ...baseArticle, id: 6, url: "article-6" }}
+    article={ARTICLE_6}
     isOpen
     onClose={jest.fn()}
     services={mockedApi}

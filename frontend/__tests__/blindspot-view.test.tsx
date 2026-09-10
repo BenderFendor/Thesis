@@ -7,13 +7,14 @@ import userEvent from "@testing-library/user-event"
 
 const fetchBlindspotViewer = jest.fn<
   BlindspotViewServices["fetchBlindspotViewer"]
->()
+>(),
+ BLINDSPOT_SERVICES: BlindspotViewServices = { fetchBlindspotViewer }
 
 describe("blindspotView", () => {
   beforeEach(() => {
     fetchBlindspotViewer.mockReset()
     fetchBlindspotViewer.mockImplementation(
-      async ({ lens }:Readonly< { lens?: string }> = {}) => ({
+      async ({ lens }:Readonly< { lens?: string }>) => ({
         available_lenses: [
           {
             available: true,
@@ -144,7 +145,7 @@ describe("blindspotView", () => {
     renderWithQueryClient(
       <BlindspotView
         category="all"
-        services={{ fetchBlindspotViewer }}
+        services={BLINDSPOT_SERVICES}
       />,
     )
 
@@ -152,7 +153,8 @@ describe("blindspotView", () => {
     expect((await screen.findAllByText("Campaign rally")).length).toBeGreaterThan(0)
 
     const [lensSelect] = await screen.findAllByRole("combobox")
-    await user.selectOptions(lensSelect!, "credibility")
+    if (lensSelect === undefined) { throw new Error("missing lens selector"); }
+    await user.selectOptions(lensSelect, "credibility")
 
     await waitFor(() => {
       expect(fetchBlindspotViewer).toHaveBeenLastCalledWith(
@@ -171,7 +173,7 @@ describe("blindspotView", () => {
     renderWithQueryClient(
       <BlindspotView
         category="all"
-        services={{ fetchBlindspotViewer }}
+        services={BLINDSPOT_SERVICES}
       />,
     )
 

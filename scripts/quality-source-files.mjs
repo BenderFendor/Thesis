@@ -40,7 +40,7 @@ const EXCLUDED_DIRECTORIES = new Set([
   }
   return files
     .map((path) => relative(repositoryRoot, path).split(sep).join("/"))
-    .sort();
+    .toSorted((left, right) => left.localeCompare(right));
 };
 
 export { collectOwnedFrontendFiles };

@@ -1,5 +1,7 @@
 "use client"
 
+import { isStringValue } from "@/lib/type-guards";
+
 import {
   AlertCircle,
   Bookmark,
@@ -16,7 +18,7 @@ import {
   X
 } from "lucide-react"
 import type { CountryArticleCounts, CountryListItem, LocalLensResponse, NewsArticle } from '@/lib/api';
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject } from "react"
+import type { MouseEvent, PointerEvent } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   buildCountryListFromArticles,
@@ -49,6 +51,19 @@ type CountrySelection = string | null
 type LensViewMode = "internal" | "external"
 type ExpandedSortMode = "recent" | "oldest" | "source"
 
+const COVERAGE_HEAT_SEGMENTS = Array.from({ length: 10 }, (_, index) => `coverage-${index}`),
+ INTENSITY_SEGMENTS = Array.from({ length: 5 }, (_, index) => `intensity-${index}`);
+
+const GLOBE_SECTION_IDS = {
+  coverageMap: "globe-coverage-map",
+  lensBrief: "globe-lens-brief",
+  sourceBreakdown: "globe-source-breakdown",
+  topStories: "globe-top-stories",
+  trendingTopics: "globe-trending-topics",
+} as const
+
+type GlobeSectionId = (typeof GLOBE_SECTION_IDS)[keyof typeof GLOBE_SECTION_IDS]
+
 interface SourceSummaryEntry {
   readonly name: string
   readonly count: number
@@ -80,12 +95,7 @@ const ARTICLE_CARD_IMAGE_SIZE = 64,
  COVERAGE_LIMIT = 6,
  DEFAULT_LENS_LIMIT = 40,
  EMPTY_COUNT = 0,
- FIRST_INDEX = 0,
- HEAT_SEGMENT_COUNT = 10,
- ICON_SIZE = 14,
- INTENSITY_SEGMENT_COUNT = 5,
- LENS_LIMIT_INCREMENT = 20,
- MAX_INTENSITY_SCORE = 5,
+ FIRST_INDEX = 0, ICON_SIZE = 14, MAX_INTENSITY_SCORE = 5,
  MAX_PERCENT = 100,
  MIN_COVERAGE_BAR = 12,
  MIN_DRAG_DISTANCE = 36,
@@ -282,26 +292,19 @@ const ARTICLE_CARD_IMAGE_SIZE = 64,
     [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
     [isFocusExpanded, setIsFocusExpanded] = useState(false),
     [isMobileSheetExpanded, setIsMobileSheetExpanded] = useState(false),
-    lensBriefRef = useRef<HTMLDivElement | null>(null),
     [lensLimit, setLensLimit] = useState(DEFAULT_LENS_LIMIT),
     [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
     [selectedCountry, setSelectedCountry] = useState<CountrySelection>(null),
     [selectedCountryName, setSelectedCountryName] = useState<string | null>(null),
     [sidebarTab, setSidebarTab] = useState("briefing"),
-    sourceBreakdownRef = useRef<HTMLDivElement | null>(null),
-    topStoriesRef = useRef<HTMLDivElement | null>(null),
-    trendingTopicsRef = useRef<HTMLDivElement | null>(null),
-    [viewMode, setViewMode] = useState<LensViewMode>("internal"),
-    coverageMapRef = useRef<HTMLDivElement | null>(null)
+    [viewMode, setViewMode] = useState<LensViewMode>("internal")
 
   return {
-    coverageMapRef,
     earthLightingMode,
     expandedSort,
     isArticleModalOpen,
     isFocusExpanded,
     isMobileSheetExpanded,
-    lensBriefRef,
     lensLimit,
     selectedArticle,
     selectedCountry,
@@ -318,9 +321,6 @@ const ARTICLE_CARD_IMAGE_SIZE = 64,
     setSidebarTab,
     setViewMode,
     sidebarTab,
-    sourceBreakdownRef,
-    topStoriesRef,
-    trendingTopicsRef,
     viewMode,
   }
 }
@@ -332,63 +332,55 @@ interface SheetDragState {
   readonly startY: number
 }
 
-const useSheetDragState = () => {
-  const dragRef = useRef<SheetDragState | null>(null),
-    suppressClickRef = useRef(false)
-  return { dragRef, suppressClickRef }
-}
-
-type SheetDragRefs = ReturnType<typeof useSheetDragState>
 type SetSheetExpanded = (value: boolean | ((current: boolean) => boolean)) => void
 
-const useSheetDragCallbacks = (
-  setIsMobileSheetExpanded: SetSheetExpanded,
-  refs: SheetDragRefs,
-) => {
-  const cancelSheetDrag = useCallback((event: PanelPointerEvent): void => {
-      if (refs.dragRef.current?.pointerId !== event.pointerId) {return}
-      refs.dragRef.current = null
+const useSheetDragActions = (setIsMobileSheetExpanded: SetSheetExpanded) => {
+  const dragRef = useRef<SheetDragState | null>(null),
+    suppressClickRef = useRef(false),
+    cancelSheetDrag = (event: PanelPointerEvent): void => {
+      if (dragRef.current?.pointerId !== event.pointerId) {return}
+      dragRef.current = null
       event.currentTarget.releasePointerCapture(event.pointerId)
-    }, [refs]),
-    finishSheetDrag = useCallback((event: PanelPointerEvent): void => {
-      const drag = refs.dragRef.current
+    },
+    finishSheetDrag = (event: PanelPointerEvent): void => {
+      const drag = dragRef.current
       if (drag === null || drag.pointerId !== event.pointerId) {return}
-      refs.dragRef.current = null
+      dragRef.current = null
       event.currentTarget.releasePointerCapture(event.pointerId)
       const deltaY = drag.lastY - drag.startY
       if (!drag.moved || Math.abs(deltaY) < MIN_DRAG_DISTANCE) {return}
       setIsMobileSheetExpanded(deltaY < EMPTY_COUNT)
-      refs.suppressClickRef.current = true
+      suppressClickRef.current = true
       globalThis.setTimeout(() => {
-        refs.suppressClickRef.current = false
+        suppressClickRef.current = false
       }, EMPTY_COUNT)
-    }, [refs, setIsMobileSheetExpanded]),
-    handleSheetDragMove = useCallback((event: PanelPointerEvent): void => {
-      const drag = refs.dragRef.current
+    },
+    handleSheetDragMove = (event: PanelPointerEvent): void => {
+      const drag = dragRef.current
       if (drag === null || drag.pointerId !== event.pointerId) {return}
-      refs.dragRef.current = {
+      dragRef.current = {
         lastY: event.clientY,
         moved: drag.moved || Math.abs(event.clientY - drag.startY) > MIN_DRAG_MOVEMENT,
         pointerId: drag.pointerId,
         startY: drag.startY,
       }
-    }, [refs]),
-    handleSheetDragStart = useCallback((event: PanelPointerEvent): void => {
-      refs.dragRef.current = {
+    },
+    handleSheetDragStart = (event: PanelPointerEvent): void => {
+      dragRef.current = {
         lastY: event.clientY,
         moved: false,
         pointerId: event.pointerId,
         startY: event.clientY,
       }
       event.currentTarget.setPointerCapture(event.pointerId)
-    }, [refs]),
-    handleSheetHandleClick = useCallback((): void => {
-      if (refs.suppressClickRef.current) {
-        refs.suppressClickRef.current = false
+    },
+    handleSheetHandleClick = (): void => {
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false
         return
       }
       setIsMobileSheetExpanded((current) => !current)
-    }, [refs, setIsMobileSheetExpanded])
+    }
 
   return {
     cancelSheetDrag,
@@ -398,9 +390,6 @@ const useSheetDragCallbacks = (
     handleSheetHandleClick,
   }
 },
-
- useSheetDragActions = (setIsMobileSheetExpanded: SetSheetExpanded) =>
-  useSheetDragCallbacks(setIsMobileSheetExpanded, useSheetDragState()),
 
  useGlobeInteractionActions = (
   state: Readonly<ReturnType<typeof useGlobeSelectionState>>,
@@ -429,7 +418,7 @@ const useSheetDragCallbacks = (
       if (country !== null && country !== "") {
         const wireName = geoData?.countries?.[country]?.name
         resolvedName =
-          typeof wireName === "string"
+          isStringValue(wireName)
             ? wireName
             : (name ?? country ?? null)
       }
@@ -448,16 +437,18 @@ const useSheetDragCallbacks = (
         return "recent"
       })
     }, [setExpandedSort]),
+    scrollToSection = useCallback((sectionId: GlobeSectionId): void => {
+      globalThis.requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      })
+    }, []),
     handleQuickNav = useCallback((
       tab: "briefing" | "intelligence" | "sources",
-      ref: RefObject<HTMLDivElement | null>,
+      sectionId: GlobeSectionId,
     ): void => {
       setSidebarTab(tab)
-      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    }, [setSidebarTab]),
-    scrollToSection = useCallback((ref: RefObject<HTMLDivElement | null>): void => {
-      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    }, []),
+      scrollToSection(sectionId)
+    }, [scrollToSection, setSidebarTab]),
     setAllLit = useCallback((): void => {
       setEarthLightingMode("all-lit")
     }, [setEarthLightingMode]),
@@ -571,9 +562,9 @@ const getLensArticles = (
     ).size, [articles]),
     globalSourceSummary = useMemo(() => buildSourceSummary(articles).slice(0, TOP_SOURCE_LIMIT), [articles]),
     localLensData = useMemo(() => {
-      if (selectedCountry === null || selectedCountry === "") {return}
+      if (selectedCountry === null || selectedCountry === "") {return undefined}
       const countryName =
-        typeof geoData?.countries?.[selectedCountry]?.name === "string"
+        isStringValue(geoData?.countries?.[selectedCountry]?.name)
           ? (geoData.countries[selectedCountry].name)
           : (selectedCountryName ?? selectedCountry)
       return buildLocalLensFromArticles({
@@ -643,7 +634,7 @@ const getLensArticles = (
     selectedCountryOriginVolume = signalTotal(countryMetrics, "source_origin", selectedCountry),
     selectedCountrySourceVolume = getCountryMetric(countryMetrics, selectedCountry, countryMetrics.source_counts),
    selectedCountryMeta = useMemo(() => {
-    if (selectedCountry === null || selectedCountry === "") {return}
+    if (selectedCountry === null || selectedCountry === "") {return undefined}
     return countryList.countries.find((item) => item.code === selectedCountry)
   }, [countryList, selectedCountry]),
    intensityScore = calculateIntensityScore(countryMetrics, selectedCountry, selectedCountryCoverage)
@@ -867,8 +858,8 @@ const lightingButtonClassName = (active: boolean): string => {
 ),
 
  LightingControls = (props: Readonly<Pick<IntensityPanelProps, "lightingMode" | "onLightingChange">>) => {
-  const onAllLit = useCallback(() =>{  props.onLightingChange("all-lit"); }, [props.onLightingChange]),
-    onDayNight = useCallback(() =>{  props.onLightingChange("day-night"); }, [props.onLightingChange])
+  const onAllLit = useCallback(() =>{  props.onLightingChange("all-lit"); }, [props]),
+    onDayNight = useCallback(() =>{  props.onLightingChange("day-night"); }, [props])
   return (
     <div className="flex items-center gap-2">
       <Lamp className="h-3.5 w-3.5 text-foreground/55" />
@@ -910,7 +901,7 @@ const BriefingArticleMeta = (props: Readonly<Pick<BriefingArticleCardProps, "art
   const { article } = props,
    hasGeoSignal = article.geo_signal !== undefined,
     hasMentionedCountries = article.mentioned_countries !== undefined && article.mentioned_countries.length > EMPTY_COUNT
-  if (!hasGeoSignal && !hasMentionedCountries) {return}
+  if (!hasGeoSignal && !hasMentionedCountries) {return null}
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {hasGeoSignal && (
@@ -941,7 +932,7 @@ const BriefingArticleMeta = (props: Readonly<Pick<BriefingArticleCardProps, "art
 ),
 
  BriefingArticleImage = (props: Readonly<Pick<BriefingArticleCardProps, "article">>) => {
-  if (!hasRealImage(props.article.image)) {return}
+  if (!hasRealImage(props.article.image)) {return null}
   return (
     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[var(--news-bg-primary)]/40">
       <SafeImage
@@ -956,7 +947,7 @@ const BriefingArticleMeta = (props: Readonly<Pick<BriefingArticleCardProps, "art
 },
 
  BriefingArticleCard = (props: Readonly<BriefingArticleCardProps>) => {
-  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props.article, props.onSelect])
+  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props])
   return (
     <button
       type="button"
@@ -1063,7 +1054,7 @@ type CollapsedPanelLatestArticleProps = Readonly<{
 
 const CollapsedPanelLatestArticle = (props: CollapsedPanelLatestArticleProps) => {
   if (!props.visible || !hasText(props.latestArticle)) {
-    return
+    return null
   }
   return (
     <div className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
@@ -1182,7 +1173,7 @@ const CollapsedPanelCountryActions = (props: CollapsedPanelCountryActionsProps) 
 
  CollapsedPanelSourceBadges = (props: Readonly<CollapsedPanelHeaderPartProps>) => {
   if (props.header.topSources.length === EMPTY_COUNT) {
-    return
+    return null
   }
   return (
     <div className={cn("flex flex-wrap gap-2 mt-2 lg:mt-4", !props.header.isMobileSheetExpanded && "hidden lg:flex")}>
@@ -1310,7 +1301,7 @@ const normalizeLensViewMode = (value: string): LensViewMode => {
  CollapsedBriefingViewTabs = (props: Readonly<Pick<CollapsedBriefingTabProps, "viewMode" | "onViewModeChange">>) => {
   const handleValueChange = useCallback(
     (value: string) =>{  props.onViewModeChange(normalizeLensViewMode(value)); },
-    [props.onViewModeChange],
+    [props],
   )
   return (
     <div className="border-b border-white/10 bg-[var(--news-bg-primary)]/30 px-4 py-3">
@@ -1358,7 +1349,7 @@ const CollapsedLensBriefHeader = () => (
 ),
 
  CollapsedLensBriefSignal = (props: Readonly<Pick<CollapsedLensBriefProps, "localLensData">>) => {
-  if (props.localLensData?.geo_signal === undefined) {return}
+  if (props.localLensData?.geo_signal === undefined) {return null}
   return (
     <Badge
       variant="outline"
@@ -1502,7 +1493,7 @@ const CollapsedSpotlightTitle = (props: Readonly<Pick<CollapsedSpotlightStoryPro
 ),
 
  CollapsedSpotlightImage = (props: Readonly<Pick<CollapsedSpotlightStoryProps, "article">>) => {
-  if (!hasRealImage(props.article.image)) {return}
+  if (!hasRealImage(props.article.image)) {return null}
   return (
     <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10">
       <SafeImage
@@ -1518,7 +1509,7 @@ const CollapsedSpotlightTitle = (props: Readonly<Pick<CollapsedSpotlightStoryPro
 },
 
  CollapsedSpotlightStory = (props: CollapsedSpotlightStoryProps) => {
-  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props.article, props.onSelect])
+  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props])
   return (
     <button type="button" className="group w-full cursor-pointer p-4 text-left" onClick={handleSelect}>
       <CollapsedSpotlightImage article={props.article} />
@@ -1546,7 +1537,7 @@ const CollapsedSpotlightTitle = (props: Readonly<Pick<CollapsedSpotlightStoryPro
 ),
 
  CollapsedVerificationBar = (props: Readonly<Pick<CollapsedIntelligenceTabProps, "highPct">>) => {
-  const barStyle = { width: `${props.highPct}%` }
+  const barStyle = useMemo(() => ({ width: `${props.highPct}%` }), [props.highPct])
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
       <div className="h-full rounded-full bg-white/40" style={barStyle} />
@@ -1706,7 +1697,7 @@ const collapsedSourceLimit = (selectedCountry: CountrySelection): number => {
     if (props.source.latestArticle !== undefined) {
       props.onArticleSelect(props.source.latestArticle)
     }
-  }, [props.onArticleSelect, props.source])
+  }, [props])
   return (
     <button
       key={props.source.name}
@@ -1744,7 +1735,7 @@ const collapsedSourceLimit = (selectedCountry: CountrySelection): number => {
 
  CollapsedSourcesFooter = (props: Readonly<Pick<CollapsedSourcesTabProps, "selectedCountry" | "sourceSummaryLength">>) => {
   const limit = collapsedSourceLimit(props.selectedCountry)
-  if (props.sourceSummaryLength <= limit) {return}
+  if (props.sourceSummaryLength <= limit) {return null}
   return (
     <div className="mt-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
       Showing top {limit} of {props.sourceSummaryLength} sources
@@ -1881,12 +1872,7 @@ interface ExpandedLeftSidebarProps {
   readonly viewMode: LensViewMode
   readonly onViewModeChange: (value: LensViewMode) => void
   readonly sidebarTab: string
-  readonly onNavigate: (tab: "briefing" | "intelligence" | "sources", ref: RefObject<HTMLDivElement | null>) => void
-  readonly lensBriefRef: RefObject<HTMLDivElement | null>
-  readonly topStoriesRef: RefObject<HTMLDivElement | null>
-  readonly trendingTopicsRef: RefObject<HTMLDivElement | null>
-  readonly sourceBreakdownRef: RefObject<HTMLDivElement | null>
-  readonly coverageMapRef: RefObject<HTMLDivElement | null>
+  readonly onNavigate: (tab: "briefing" | "intelligence" | "sources", sectionId: GlobeSectionId) => void
 }
 
 const ExpandedFocusSources = (props: Readonly<Pick<ExpandedLeftSidebarProps, "sourceCount" | "topSources">>) => (
@@ -1930,8 +1916,8 @@ const ExpandedFocusSources = (props: Readonly<Pick<ExpandedLeftSidebarProps, "so
 },
 
  ExpandedViewButtons = (props: Readonly<Pick<ExpandedLeftSidebarProps, "onViewModeChange" | "viewMode">>) => {
-  const onExternal = useCallback(() =>{  props.onViewModeChange("external"); }, [props.onViewModeChange]),
-    onInternal = useCallback(() =>{  props.onViewModeChange("internal"); }, [props.onViewModeChange])
+  const onExternal = useCallback(() =>{  props.onViewModeChange("external"); }, [props]),
+    onInternal = useCallback(() =>{  props.onViewModeChange("internal"); }, [props])
   return (
     <div className="flex flex-col gap-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
       <button
@@ -1963,13 +1949,13 @@ interface ExpandedQuickNavButtonProps {
   readonly active: boolean
   readonly label: string
   readonly onNavigate: ExpandedLeftSidebarProps["onNavigate"]
-  readonly refTarget: RefObject<HTMLDivElement | null>
+  readonly sectionId: GlobeSectionId
   readonly tab: "briefing" | "intelligence" | "sources"
   readonly withMarker?: boolean
 }
 
 const ExpandedQuickNavButton = (props: ExpandedQuickNavButtonProps) => {
-  const handleClick = useCallback(() =>{  props.onNavigate(props.tab, props.refTarget); }, [props.onNavigate, props.refTarget, props.tab])
+  const handleClick = useCallback(() =>{  props.onNavigate(props.tab, props.sectionId); }, [props])
   return (
     <button
       type="button"
@@ -1982,15 +1968,15 @@ const ExpandedQuickNavButton = (props: ExpandedQuickNavButtonProps) => {
   )
 },
 
- ExpandedQuickNavSection = (props: Readonly<Pick<ExpandedLeftSidebarProps, "coverageMapRef" | "lensBriefRef" | "onNavigate" | "sidebarTab" | "sourceBreakdownRef" | "topStoriesRef" | "trendingTopicsRef">>) => (
+ ExpandedQuickNavSection = (props: Readonly<Pick<ExpandedLeftSidebarProps, "onNavigate" | "sidebarTab">>) => (
   <div className="border-b border-white/10 p-6">
     <h3 className="mb-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Quick Nav</h3>
     <div className="flex flex-col gap-1">
-      <ExpandedQuickNavButton active={props.sidebarTab === "briefing"} label="Lens Brief" onNavigate={props.onNavigate} refTarget={props.lensBriefRef} tab="briefing" withMarker />
-      <ExpandedQuickNavButton active={props.sidebarTab === "briefing"} label="Top Stories" onNavigate={props.onNavigate} refTarget={props.topStoriesRef} tab="briefing" />
-      <ExpandedQuickNavButton active={props.sidebarTab === "intelligence"} label="Trending Topics" onNavigate={props.onNavigate} refTarget={props.trendingTopicsRef} tab="intelligence" />
-      <ExpandedQuickNavButton active={props.sidebarTab === "sources"} label="Source Breakdown" onNavigate={props.onNavigate} refTarget={props.sourceBreakdownRef} tab="sources" />
-      <ExpandedQuickNavButton active={props.sidebarTab === "sources"} label="Coverage Map" onNavigate={props.onNavigate} refTarget={props.coverageMapRef} tab="sources" />
+      <ExpandedQuickNavButton active={props.sidebarTab === "briefing"} label="Lens Brief" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.lensBrief} tab="briefing" withMarker />
+      <ExpandedQuickNavButton active={props.sidebarTab === "briefing"} label="Top Stories" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.topStories} tab="briefing" />
+      <ExpandedQuickNavButton active={props.sidebarTab === "intelligence"} label="Trending Topics" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.trendingTopics} tab="intelligence" />
+      <ExpandedQuickNavButton active={props.sidebarTab === "sources"} label="Source Breakdown" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.sourceBreakdown} tab="sources" />
+      <ExpandedQuickNavButton active={props.sidebarTab === "sources"} label="Coverage Map" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.coverageMap} tab="sources" />
     </div>
   </div>
 ),
@@ -2001,8 +1987,8 @@ const ExpandedQuickNavButton = (props: ExpandedQuickNavButtonProps) => {
   </h3>
 ),
 
- ExpandedAboutSection = (props: Readonly<Pick<ExpandedLeftSidebarProps, "coverageMapRef" | "onNavigate">>) => {
-  const handleLearnMore = useCallback(() =>{  props.onNavigate("sources", props.coverageMapRef); }, [props.coverageMapRef, props.onNavigate])
+ ExpandedAboutSection = (props: Readonly<Pick<ExpandedLeftSidebarProps, "onNavigate">>) => {
+  const handleLearnMore = useCallback(() =>{  props.onNavigate("sources", GLOBE_SECTION_IDS.coverageMap); }, [props])
   return (
     <div className="mt-auto p-6">
       <ExpandedAboutHeader />
@@ -2024,15 +2010,10 @@ const ExpandedQuickNavButton = (props: ExpandedQuickNavButtonProps) => {
     />
     <ExpandedViewsSection onViewModeChange={props.onViewModeChange} viewMode={props.viewMode} />
     <ExpandedQuickNavSection
-      coverageMapRef={props.coverageMapRef}
-      lensBriefRef={props.lensBriefRef}
       onNavigate={props.onNavigate}
       sidebarTab={props.sidebarTab}
-      sourceBreakdownRef={props.sourceBreakdownRef}
-      topStoriesRef={props.topStoriesRef}
-      trendingTopicsRef={props.trendingTopicsRef}
     />
-    <ExpandedAboutSection coverageMapRef={props.coverageMapRef} onNavigate={props.onNavigate} />
+    <ExpandedAboutSection onNavigate={props.onNavigate} />
   </div>
 )
 
@@ -2040,9 +2021,6 @@ interface ExpandedTopNavProps {
   readonly sidebarTab: string
   readonly onNavigate: ExpandedLeftSidebarProps["onNavigate"]
   readonly onClose: () => void
-  readonly lensBriefRef: RefObject<HTMLDivElement | null>
-  readonly trendingTopicsRef: RefObject<HTMLDivElement | null>
-  readonly sourceBreakdownRef: RefObject<HTMLDivElement | null>
 }
 
 const expandedTopNavClassName = (active: boolean): string => {
@@ -2054,12 +2032,12 @@ interface ExpandedTopNavLinkProps {
   readonly active: boolean
   readonly label: string
   readonly onNavigate: ExpandedTopNavProps["onNavigate"]
-  readonly refTarget: RefObject<HTMLDivElement | null>
+  readonly sectionId: GlobeSectionId
   readonly tab: "briefing" | "intelligence" | "sources"
 }
 
 const ExpandedTopNavLink = (props: ExpandedTopNavLinkProps) => {
-  const handleClick = useCallback(() =>{  props.onNavigate(props.tab, props.refTarget); }, [props.onNavigate, props.refTarget, props.tab])
+  const handleClick = useCallback(() =>{  props.onNavigate(props.tab, props.sectionId); }, [props])
   return (
     <button type="button" onClick={handleClick} className={cn("h-full border-b-2 text-[10px] font-medium uppercase tracking-[0.2em] transition-colors", expandedTopNavClassName(props.active))}>
       {props.label}
@@ -2069,9 +2047,9 @@ const ExpandedTopNavLink = (props: ExpandedTopNavLinkProps) => {
 
  ExpandedTopNavLinks = (props: Readonly<ExpandedTopNavProps>) => (
   <div className="flex h-14 gap-8">
-    <ExpandedTopNavLink active={props.sidebarTab === "briefing"} label="Briefing" onNavigate={props.onNavigate} refTarget={props.lensBriefRef} tab="briefing" />
-    <ExpandedTopNavLink active={props.sidebarTab === "intelligence"} label="Intel" onNavigate={props.onNavigate} refTarget={props.trendingTopicsRef} tab="intelligence" />
-    <ExpandedTopNavLink active={props.sidebarTab === "sources"} label="Sources" onNavigate={props.onNavigate} refTarget={props.sourceBreakdownRef} tab="sources" />
+    <ExpandedTopNavLink active={props.sidebarTab === "briefing"} label="Briefing" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.lensBrief} tab="briefing" />
+    <ExpandedTopNavLink active={props.sidebarTab === "intelligence"} label="Intel" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.trendingTopics} tab="intelligence" />
+    <ExpandedTopNavLink active={props.sidebarTab === "sources"} label="Sources" onNavigate={props.onNavigate} sectionId={GLOBE_SECTION_IDS.sourceBreakdown} tab="sources" />
   </div>
 ),
 
@@ -2148,7 +2126,7 @@ const ExpandedSourceDossierHeader = (props: Readonly<Pick<ExpandedSourceDossierP
     if (props.source.latestArticle !== undefined) {
       props.onSelect(props.source.latestArticle)
     }
-  }, [props.onSelect, props.source])
+  }, [props])
   return (
     <button type="button" onClick={handleClick} className="w-full rounded-2xl border border-white/10 bg-black/20 px-5 py-4 text-left transition-colors hover:bg-white/[0.04]">
       <div className="flex items-start justify-between gap-4">
@@ -2175,8 +2153,6 @@ interface ExpandedSourcesTabProps {
   readonly sourceVolume: number
   readonly selectedCountryCoverage: number
   readonly onArticleSelect: (article: ReadonlyArticle) => void
-  readonly sourceBreakdownRef: RefObject<HTMLDivElement | null>
-  readonly coverageMapRef: RefObject<HTMLDivElement | null>
 }
 
 const expandedTopSourceShare = (sources: readonly WorkspaceSource[], articleCount: number): string => {
@@ -2251,7 +2227,7 @@ const ExpandedSourceStat = (props: ExpandedSourceStatProps) => (
 ),
 
  ExpandedLeaderboardBar = (props: Readonly<Pick<WorkspaceLeader, "share">>) => {
-  const barStyle = { width: `${props.share}%` }
+  const barStyle = useMemo(() => ({ width: `${props.share}%` }), [props.share])
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
       <div className="h-full rounded-full bg-[linear-gradient(90deg,rgba(186,137,63,0.95),rgba(231,118,43,0.95))]" style={barStyle} />
@@ -2285,8 +2261,8 @@ const ExpandedSourceStat = (props: ExpandedSourceStatProps) => (
   </div>
 ),
 
- ExpandedSourceBreakdown = (props: Readonly<Pick<ExpandedSourcesTabProps, "originVolume" | "selectedCountryCoverage" | "sourceBreakdownRef" | "sourceVolume">>) => (
-  <div ref={props.sourceBreakdownRef} className="rounded-[24px] border border-white/10 bg-black/20 p-6">
+ ExpandedSourceBreakdown = (props: Readonly<Pick<ExpandedSourcesTabProps, "originVolume" | "selectedCountryCoverage" | "sourceVolume">>) => (
+  <div id={GLOBE_SECTION_IDS.sourceBreakdown} className="rounded-[24px] border border-white/10 bg-black/20 p-6">
     <div className="mb-5 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Source Breakdown</div>
     <div className="grid grid-cols-2 gap-4">
       <ExpandedSourceMetric label="Local Outlet Volume" value={positiveValueOrFallback(props.sourceVolume, props.originVolume)} />
@@ -2296,7 +2272,7 @@ const ExpandedSourceStat = (props: ExpandedSourceStatProps) => (
 ),
 
  ExpandedCoverageBar = (props: Readonly<{ readonly percent: number }>) => {
-  const barStyle = { width: `${props.percent}%` }
+  const barStyle = useMemo(() => ({ width: `${props.percent}%` }), [props.percent])
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
       <div className="h-full rounded-full bg-primary" style={barStyle} />
@@ -2317,10 +2293,10 @@ const ExpandedSourceStat = (props: ExpandedSourceStatProps) => (
   )
 },
 
- ExpandedCoverageMap = (props: Readonly<Pick<ExpandedSourcesTabProps, "coverageBreakdown" | "coverageMapRef">>) => {
+ ExpandedCoverageMap = (props: Readonly<Pick<ExpandedSourcesTabProps, "coverageBreakdown">>) => {
   const [leadEntry] = props.coverageBreakdown
   return (
-    <div ref={props.coverageMapRef} className="rounded-[24px] border border-white/10 bg-black/20 p-6">
+    <div id={GLOBE_SECTION_IDS.coverageMap} className="rounded-[24px] border border-white/10 bg-black/20 p-6">
       <div className="mb-5 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Coverage Map</div>
       {leadEntry === undefined ? (
         <p className="text-sm text-muted-foreground">Coverage breakdown appears after the lens resolves article geography.</p>
@@ -2339,10 +2315,9 @@ const ExpandedSourceStat = (props: ExpandedSourceStatProps) => (
     <ExpandedSourceBreakdown
       originVolume={props.originVolume}
       selectedCountryCoverage={props.selectedCountryCoverage}
-      sourceBreakdownRef={props.sourceBreakdownRef}
       sourceVolume={props.sourceVolume}
     />
-    <ExpandedCoverageMap coverageBreakdown={props.coverageBreakdown} coverageMapRef={props.coverageMapRef} />
+    <ExpandedCoverageMap coverageBreakdown={props.coverageBreakdown} />
   </div>
 ),
 
@@ -2410,7 +2385,7 @@ const expandedArticleCountryLabel = (article: ReadonlyArticle): string => {
    handleBookmark = useCallback((event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation()
     void props.onToggleBookmark(props.article.id)
-  }, [props.article.id, props.onToggleBookmark]),
+  }, [props]),
    handleOpenOriginal = useCallback((event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation()
     globalThis.open(props.article.url, "_blank", "noopener,noreferrer")
@@ -2434,7 +2409,7 @@ const expandedArticleCountryLabel = (article: ReadonlyArticle): string => {
 },
 
  ExpandedArticleImage = (props: Readonly<Pick<ExpandedArticleRowProps, "article">>) => {
-  if (!hasRealImage(props.article.image)) {return}
+  if (!hasRealImage(props.article.image)) {return null}
   return (
     <div className="h-[120px] w-[200px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[var(--news-bg-primary)]/40 sepia transition-all group-hover:sepia-0">
       <SafeImage src={props.article.image} alt="" width={ARTICLE_IMAGE_WIDTH} height={ARTICLE_IMAGE_HEIGHT} className="h-full w-full object-cover" />
@@ -2450,23 +2425,17 @@ const expandedArticleCountryLabel = (article: ReadonlyArticle): string => {
 ),
 
  ExpandedArticleRow = (props: ExpandedArticleRowProps) => {
-  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props.article, props.onSelect]),
-   handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault()
-      handleSelect()
-    }
-  }, [handleSelect])
+  const handleSelect = useCallback(() =>{  props.onSelect(props.article); }, [props])
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Open article: ${props.article.title}`}
-      onClick={handleSelect}
-      onKeyDown={handleKeyDown}
-      className="group flex cursor-pointer gap-6 border-b border-white/10 p-6 transition-all last:border-0 hover:bg-white/[0.03]"
-    >
-      <ExpandedArticleBody article={props.article} />
+    <div className="group flex gap-6 border-b border-white/10 p-6 transition-all last:border-0 hover:bg-white/[0.03]">
+      <button
+        type="button"
+        aria-label={`Open article: ${props.article.title}`}
+        onClick={handleSelect}
+        className="min-w-0 flex flex-1 cursor-pointer text-left"
+      >
+        <ExpandedArticleBody article={props.article} />
+      </button>
       <ExpandedArticleAside {...props} />
     </div>
   )
@@ -2488,11 +2457,6 @@ interface ExpandedBriefingTabProps {
   readonly selectedCountryCoverage: number
   readonly intensityScore: number
   readonly coverageBreakdown: readonly CoverageEntry[]
-  readonly lensBriefRef: RefObject<HTMLDivElement | null>
-  readonly topStoriesRef: RefObject<HTMLDivElement | null>
-  readonly trendingTopicsRef: RefObject<HTMLDivElement | null>
-  readonly sourceBreakdownRef: RefObject<HTMLDivElement | null>
-  readonly coverageMapRef: RefObject<HTMLDivElement | null>
 }
 
 const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
@@ -2514,7 +2478,7 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
 ),
 
  ExpandedLensBriefSignal = (props: Readonly<Pick<ExpandedBriefingTabProps, "localLensData">>) => {
-  if (props.localLensData?.geo_signal === undefined) {return}
+  if (props.localLensData?.geo_signal === undefined) {return null}
   return (
     <Badge variant="outline" className="mb-4 rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-[9px] uppercase tracking-widest text-primary">
       {props.localLensData.geo_signal.label}
@@ -2548,7 +2512,7 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
 ),
 
  ExpandedLensBrief = (props: Readonly<ExpandedBriefingTabProps>) => (
-  <div ref={props.lensBriefRef} className="relative mb-8 overflow-hidden rounded-[28px] border border-primary/15 bg-[linear-gradient(135deg,rgba(186,137,63,0.12),rgba(10,10,10,0.78)_45%,rgba(10,10,10,0.92))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+  <div id={GLOBE_SECTION_IDS.lensBrief} className="relative mb-8 overflow-hidden rounded-[28px] border border-primary/15 bg-[linear-gradient(135deg,rgba(186,137,63,0.12),rgba(10,10,10,0.78)_45%,rgba(10,10,10,0.92))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
     <ExpandedLensBriefCopy {...props} />
     <ExpandedLensBriefDecoration />
   </div>
@@ -2567,8 +2531,8 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
   </div>
 ),
 
- ExpandedArticleListHeader = (props: Readonly<Pick<ExpandedBriefingTabProps, "articleCount" | "expandedSort" | "latestLensTimestamp" | "onCycleSort" | "topStoriesRef">>) => (
-  <div ref={props.topStoriesRef} className="mb-4 flex items-center justify-between border-b border-white/10 pb-4">
+ ExpandedArticleListHeader = (props: Readonly<Pick<ExpandedBriefingTabProps, "articleCount" | "expandedSort" | "latestLensTimestamp" | "onCycleSort">>) => (
+  <div id={GLOBE_SECTION_IDS.topStories} className="mb-4 flex items-center justify-between border-b border-white/10 pb-4">
     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{props.articleCount} Articles</div>
     <ExpandedArticleListControls expandedSort={props.expandedSort} latestLensTimestamp={props.latestLensTimestamp} onCycleSort={props.onCycleSort} />
   </div>
@@ -2606,8 +2570,8 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
   )
 },
 
- ExpandedTopicSignals = (props: Readonly<Pick<ExpandedBriefingTabProps, "topicSignals" | "trendingTopicsRef">>) => (
-  <div ref={props.trendingTopicsRef} className="mt-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
+ ExpandedTopicSignals = (props: Readonly<Pick<ExpandedBriefingTabProps, "topicSignals">>) => (
+  <div id={GLOBE_SECTION_IDS.trendingTopics} className="mt-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
     <div className="mb-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Trending Topics</div>
     <ExpandedTopicSignalList topicSignals={props.topicSignals} />
   </div>
@@ -2624,8 +2588,8 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
   </div>
 ),
 
- ExpandedSourceSummary = (props: Readonly<Pick<ExpandedBriefingTabProps, "sourceBreakdownRef" | "sourceSummary">>) => (
-  <div ref={props.sourceBreakdownRef} className="rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
+ ExpandedSourceSummary = (props: Readonly<Pick<ExpandedBriefingTabProps, "sourceSummary">>) => (
+  <div id={GLOBE_SECTION_IDS.sourceBreakdown} className="rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
     <div className="mb-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Source Breakdown</div>
     <ExpandedSourceSummaryRows sourceSummary={props.sourceSummary} />
   </div>
@@ -2648,10 +2612,10 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
   </div>
 ),
 
- ExpandedCoverageMapCard = (props: Readonly<Pick<ExpandedBriefingTabProps, "coverageBreakdown" | "coverageMapRef">>) => {
+ ExpandedCoverageMapCard = (props: Readonly<Pick<ExpandedBriefingTabProps, "coverageBreakdown">>) => {
   const [leadEntry] = props.coverageBreakdown
   return (
-    <div ref={props.coverageMapRef} className="mt-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
+    <div id={GLOBE_SECTION_IDS.coverageMap} className="mt-8 rounded-2xl border border-white/10 bg-black/30 p-6 backdrop-blur-xl">
       <div className="mb-4 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Coverage Map</div>
       {leadEntry === undefined ? (
         <p className="text-sm text-muted-foreground">Coverage breakdown appears after the lens resolves article geography.</p>
@@ -2667,10 +2631,10 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
  ExpandedBriefingSummary = (props: Readonly<ExpandedBriefingTabProps>) => (
   <>
     <div className="mt-8 grid grid-cols-2 gap-6">
-      <ExpandedSourceSummary sourceBreakdownRef={props.sourceBreakdownRef} sourceSummary={props.sourceSummary} />
+      <ExpandedSourceSummary sourceSummary={props.sourceSummary} />
       <ExpandedLensSnapshot intensityScore={props.intensityScore} selectedCountryCoverage={props.selectedCountryCoverage} />
     </div>
-    <ExpandedCoverageMapCard coverageBreakdown={props.coverageBreakdown} coverageMapRef={props.coverageMapRef} />
+    <ExpandedCoverageMapCard coverageBreakdown={props.coverageBreakdown} />
   </>
 ),
 
@@ -2682,7 +2646,6 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
       expandedSort={props.expandedSort}
       latestLensTimestamp={props.latestLensTimestamp}
       onCycleSort={props.onCycleSort}
-      topStoriesRef={props.topStoriesRef}
     />
     <ExpandedArticleList
       expandedArticles={props.expandedArticles}
@@ -2690,7 +2653,7 @@ const expandedSortLabel = (sortMode: ExpandedSortMode): string => {
       onArticleSelect={props.onArticleSelect}
       onToggleBookmark={props.onToggleBookmark}
     />
-    <ExpandedTopicSignals topicSignals={props.topicSignals} trendingTopicsRef={props.trendingTopicsRef} />
+    <ExpandedTopicSignals topicSignals={props.topicSignals} />
     <ExpandedBriefingSummary {...props} />
   </>
 )
@@ -2708,7 +2671,6 @@ const ExpandedRightSidebar = ({
   intensityScore,
   countryMetrics,
   onScrollTo,
-  lensBriefRef,
 }:Readonly< {
   focusLabel: string
   articleCount: number
@@ -2721,10 +2683,25 @@ const ExpandedRightSidebar = ({
   onLightingChange: (mode: LightingMode) => void
   intensityScore: number
   countryMetrics: CountryArticleCounts
-  onScrollTo: (ref: RefObject<HTMLDivElement | null>) => void
-  lensBriefRef: RefObject<HTMLDivElement | null>
-}>) => 
-  (
+  onScrollTo: (sectionId: GlobeSectionId) => void
+}>) => {
+  const handleInternalView = useCallback(() => {
+    onViewModeChange("internal")
+  }, [onViewModeChange]),
+   handleExternalView = useCallback(() => {
+    onViewModeChange("external")
+  }, [onViewModeChange]),
+   handleGuideScroll = useCallback(() => {
+    onScrollTo(GLOBE_SECTION_IDS.lensBrief)
+  }, [onScrollTo]),
+   handleAllLit = useCallback(() => {
+    onLightingChange("all-lit")
+  }, [onLightingChange]),
+   handleDayNight = useCallback(() => {
+    onLightingChange("day-night")
+  }, [onLightingChange])
+
+  return (
     <div className="w-[320px] border-l border-white/10 p-5 flex flex-col overflow-y-auto custom-scrollbar bg-black/35 backdrop-blur-xl">
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Focus</h3>
       <h2 className="font-serif text-2xl mb-2 text-foreground">{focusLabel}</h2>
@@ -2761,7 +2738,7 @@ const ExpandedRightSidebar = ({
       <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Lens Controls</h3>
       <div className="grid grid-cols-2 gap-0 rounded-2xl border border-white/10 overflow-hidden mb-8 bg-black/30 p-1">
         <button
-          onClick={() =>{  onViewModeChange("internal"); }}
+          onClick={handleInternalView}
           className={cn(
             "min-w-0 rounded-xl px-3 py-2.5 text-[9px] uppercase tracking-[0.1em] leading-none text-center whitespace-nowrap transition-colors",
             viewMode === "internal"
@@ -2772,7 +2749,7 @@ const ExpandedRightSidebar = ({
           Local Lens
         </button>
         <button
-          onClick={() =>{  onViewModeChange("external"); }}
+          onClick={handleExternalView}
           className={cn(
             "min-w-0 rounded-xl px-3 py-2.5 text-[9px] uppercase tracking-[0.1em] leading-none text-center whitespace-nowrap transition-colors",
             viewMode === "external"
@@ -2788,15 +2765,15 @@ const ExpandedRightSidebar = ({
       <p className="text-xs text-muted-foreground leading-relaxed mb-2">
         Pick a country to see two lenses: what its own outlets publish, and how foreign outlets frame the same place.
       </p>
-      <button onClick={() =>{  onScrollTo(lensBriefRef); }} className="text-primary border-b border-primary/60 text-[10px] uppercase tracking-widest mb-6 inline-block pb-0.5 hover:opacity-80 w-max">View guide →</button>
+      <button onClick={handleGuideScroll} className="text-primary border-b border-primary/60 text-[10px] uppercase tracking-widest mb-6 inline-block pb-0.5 hover:opacity-80 w-max">View guide →</button>
 
       <div className="flex justify-between items-end mb-3">
         <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Coverage Heat</h3>
         <span className="text-sm font-mono text-foreground">{selectedCountryCoverage}</span>
       </div>
       <div className="flex gap-1 mb-2">
-        {Array.from({length: 10}).map((_, i) => (
-           <div key={i} className={cn("h-1.5 flex-1 rounded-full", i < Math.min(10, Math.ceil(selectedCountryCoverage / Math.max(1, Math.max(...Object.values(countryMetrics?.counts || {}), 1)) * 10)) ? "bg-primary" : "bg-white/10")} />
+        {COVERAGE_HEAT_SEGMENTS.map((segment, i) => (
+           <div key={segment} className={cn("h-1.5 flex-1 rounded-full", i < Math.min(10, Math.ceil(selectedCountryCoverage / Math.max(1, Math.max(...Object.values(countryMetrics?.counts || {}), 1)) * 10)) ? "bg-primary" : "bg-white/10")} />
         ))}
       </div>
       <div className="flex justify-between text-[8px] uppercase tracking-widest text-muted-foreground mb-6">
@@ -2809,17 +2786,18 @@ const ExpandedRightSidebar = ({
         <span className="text-sm font-mono text-foreground">{intensityScore}/5</span>
       </div>
       <div className="flex gap-1 mb-6">
-        {Array.from({length: 5}).map((_, i) => (
-           <div key={i} className={cn("h-1.5 flex-1 rounded-full", i < intensityScore ? "bg-primary" : "bg-white/10")} />
+        {INTENSITY_SEGMENTS.map((segment, i) => (
+           <div key={segment} className={cn("h-1.5 flex-1 rounded-full", i < intensityScore ? "bg-primary" : "bg-white/10")} />
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-0 rounded-2xl border border-white/10 overflow-hidden mt-auto bg-black/30">
-        <button onClick={() =>{  onLightingChange("all-lit"); }} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap border-r border-white/10 transition-colors", lightingMode === "all-lit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>All Lit</button>
-        <button onClick={() =>{  onLightingChange("day-night"); }} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap transition-colors", lightingMode === "day-night" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Day / Night</button>
+        <button onClick={handleAllLit} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap border-r border-white/10 transition-colors", lightingMode === "all-lit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>All Lit</button>
+        <button onClick={handleDayNight} className={cn("px-2 py-3 text-[9px] uppercase tracking-[0.18em] whitespace-nowrap transition-colors", lightingMode === "day-night" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")}>Day / Night</button>
       </div>
     </div>
   )
+}
 
 
 type GlobeViewExpandedDashboardProps = Readonly<{
@@ -3040,23 +3018,18 @@ const buildFloatingHeaderProps = ({
   displayData,
   actions,
 }: GlobeViewRenderInput): Parameters<typeof ExpandedLeftSidebar>[0] => {
-  const { sidebarTab, viewMode, setViewMode, lensBriefRef, topStoriesRef, trendingTopicsRef, sourceBreakdownRef, coverageMapRef } = selectionState,
+  const { sidebarTab, viewMode, setViewMode } = selectionState,
    { focusLabel, articleCount, sourceCount, selectedCountryCoverage, selectedCountryMeta, topSources } = displayData
   return {
     articleCount,
-    coverageMapRef,
     focusLabel,
-    lensBriefRef,
     onNavigate: actions.handleQuickNav,
     onViewModeChange: setViewMode,
     selectedCountryCoverage,
     selectedCountryMeta: selectedCountryMeta ?? undefined,
     sidebarTab,
-    sourceBreakdownRef,
     sourceCount,
     topSources,
-    topStoriesRef,
-    trendingTopicsRef,
     viewMode,
   }
 },
@@ -3065,20 +3038,15 @@ const buildFloatingHeaderProps = ({
   selectionState,
   actions,
 }: GlobeViewRenderInput): Omit<Parameters<typeof ExpandedTopNav>[0], "onClose"> => ({
-  lensBriefRef: selectionState.lensBriefRef,
   onNavigate: actions.handleQuickNav,
   sidebarTab: selectionState.sidebarTab,
-  sourceBreakdownRef: selectionState.sourceBreakdownRef,
-  trendingTopicsRef: selectionState.trendingTopicsRef,
 }),
 
  buildExpandedSourcesTabProps = ({
-  selectionState,
   displayData,
   actions,
 }: GlobeViewRenderInput): Parameters<typeof ExpandedSourcesTab>[0] => {
-  const { sourceBreakdownRef, coverageMapRef } = selectionState,
-   {
+  const {
     articleCount,
     sourceCount,
     focusLabel,
@@ -3092,12 +3060,10 @@ const buildFloatingHeaderProps = ({
   return {
     articleCount,
     coverageBreakdown,
-    coverageMapRef,
     focusLabel,
     onArticleSelect: actions.handleArticleSelect,
     originVolume: selectedCountryOriginVolume,
     selectedCountryCoverage,
-    sourceBreakdownRef,
     sourceCount,
     sourceCoverageLeaders,
     sourceVolume: selectedCountrySourceVolume,
@@ -3114,11 +3080,6 @@ const buildFloatingHeaderProps = ({
   const {
     selectedCountry,
     expandedSort,
-    lensBriefRef,
-    topStoriesRef,
-    trendingTopicsRef,
-    sourceBreakdownRef,
-    coverageMapRef,
   } = selectionState,
    {
     localLensData,
@@ -3134,24 +3095,19 @@ const buildFloatingHeaderProps = ({
   return {
     articleCount,
     coverageBreakdown,
-    coverageMapRef,
     expandedArticles,
     expandedSort,
     intensityScore,
     isBookmarked: bookmarks.isBookmarked,
     latestLensTimestamp: latestLensTimestamp ?? undefined,
-    lensBriefRef,
     localLensData: localLensData ?? undefined,
     onArticleSelect: actions.handleArticleSelect,
     onCycleSort: actions.cycleExpandedSort,
     onToggleBookmark: bookmarks.toggleBookmark,
     selectedCountry,
     selectedCountryCoverage,
-    sourceBreakdownRef,
     sourceSummary,
-    topStoriesRef,
     topicSignals,
-    trendingTopicsRef,
   }
 },
 
@@ -3160,7 +3116,7 @@ const buildFloatingHeaderProps = ({
   displayData,
   actions,
 }: GlobeViewRenderInput): Parameters<typeof ExpandedRightSidebar>[0] => {
-  const { viewMode, setViewMode, earthLightingMode, setEarthLightingMode, lensBriefRef } = selectionState,
+  const { viewMode, setViewMode, earthLightingMode, setEarthLightingMode } = selectionState,
    {
     focusLabel,
     articleCount,
@@ -3175,7 +3131,6 @@ const buildFloatingHeaderProps = ({
     countryMetrics,
     focusLabel,
     intensityScore,
-    lensBriefRef,
     lightingMode: earthLightingMode,
     onLightingChange: setEarthLightingMode,
     onScrollTo: actions.scrollToSection,

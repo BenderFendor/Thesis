@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { use, useState } from "react";
+import { use, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 import type { SourceDebugData } from "@/lib/api";
@@ -19,9 +19,9 @@ interface SourceDebugPageProps {
   readonly params: Promise<Readonly<{ source: string }>>;
 }
 
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
+const getErrorMessage = (cause: unknown): string => {
+  if (cause instanceof Error) {
+    return cause.message;
   }
   return DEFAULT_ERROR_MESSAGE;
 },
@@ -63,7 +63,7 @@ const getErrorMessage = (error: unknown): string => {
   const params = use(paramsPromise),
    sourceName = decodeURIComponent(params.source),
    [searchQuery, setSearchQuery] = useState(""),
-   debugMode = useDebugMode(),
+   { enabled: debugMode } = useDebugMode(),
    {
     data: debugData,
     isLoading,
@@ -75,12 +75,12 @@ const getErrorMessage = (error: unknown): string => {
     retry: QUERY_RETRY_COUNT,
   }),
 
-   refresh = () => {
+   refresh = useCallback(() => {
     void refetch();
-  },
-   toggleDebugMode = () => {
+  }, [refetch]),
+   toggleDebugMode = useCallback(() => {
     setDebugMode(!debugMode);
-  };
+  }, [debugMode]);
 
   if (isLoading) {
     return <LoadingState sourceName={sourceName} />;

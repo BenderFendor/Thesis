@@ -3,7 +3,7 @@
 import { APPEARANCE_RANGES, getServerAppearanceSettings, loadAppearanceSettings, normalizeAppearanceSettings, resetAppearanceSettings, saveAppearanceSettings, subscribeToAppearanceSettings } from '@/lib/appearance-settings';
 import type { AppearanceColorTokens, AppearanceLayoutTokens, AppearanceMotionTokens, AppearanceSettings, AppearanceShadowTokens, AppearanceTypographyTokens } from '@/lib/appearance-settings';
 import { ArrowLeft, Download, RotateCcw, Upload } from "lucide-react"
-import { useCallback, useId, useRef, useSyncExternalStore } from "react"
+import { useCallback, useId, useMemo, useRef, useSyncExternalStore } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,15 @@ const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [
   { label: "Compact", scale: 0.9 },
   { label: "Default", scale: 1 },
   { label: "Roomy", scale: 1.1 },
-] as const
+] as const,
+ DENSITY_CONTROL_OPTIONS = DENSITY_OPTIONS.map((option) => ({
+  label: option.label,
+  value: option.label,
+ })),
+ MOTION_CONTROL_OPTIONS = [
+  { label: "Full", value: "on" },
+  { label: "Off", value: "off" },
+ ]
 
 const percent = (value: number): string => 
   `${Math.round(value * 100)}%`
@@ -63,7 +71,10 @@ interface SliderControlProps {
 }
 
 const SliderControl = ({ label, value, min, max, step, display, disabled, onChange }: SliderControlProps) => {
-  const id = useId()
+  const id = useId(),
+   handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(Number(event.target.value))
+   }, [onChange])
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
@@ -82,7 +93,7 @@ const SliderControl = ({ label, value, min, max, step, display, disabled, onChan
         step={step}
         value={value}
         disabled={disabled}
-        onChange={(event) =>{  onChange(Number(event.target.value)); }}
+        onChange={handleChange}
         className="w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>
@@ -97,7 +108,10 @@ interface ColorControlProps {
 }
 
 const ColorControl = ({ label, token, value, onChange }: ColorControlProps) => {
-  const id = useId()
+  const id = useId(),
+   handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(token, event.target.value)
+   }, [onChange, token])
   return (
     <div className="flex items-center justify-between gap-3">
       <label htmlFor={id} className="text-sm text-foreground">
@@ -109,7 +123,7 @@ const ColorControl = ({ label, token, value, onChange }: ColorControlProps) => {
           id={id}
           type="color"
           value={value}
-          onChange={(event) =>{  onChange(token, event.target.value); }}
+          onChange={handleChange}
           className="h-9 w-14 cursor-pointer rounded-sm border border-border bg-transparent p-1"
           aria-label={`${label} color`}
         />
@@ -125,24 +139,46 @@ interface SegmentedControlProps {
   onChange: (value: string) => void
 }
 
+const SegmentedOptionButton = ({
+  onChange,
+  option,
+  selected,
+}: Readonly<{
+  onChange: (value: string) => void
+  option: Readonly<{ label: string; value: string }>
+  selected: boolean
+}>) => {
+  const handleClick = useCallback(() => {
+    onChange(option.value)
+  }, [onChange, option.value])
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={selected ? "default" : "outline"}
+      aria-pressed={selected}
+      onClick={handleClick}
+    >
+      {option.label}
+    </Button>
+  )
+}
+
 const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlProps) => 
   (
     <div className="space-y-2">
-      <span className="text-sm text-foreground">{label}</span>
-      <div className="flex gap-2" role="group" aria-label={label}>
+      <fieldset className="flex gap-2">
+        <legend className="mb-2 text-sm text-foreground">{label}</legend>
         {options.map((option) => (
-          <Button
+          <SegmentedOptionButton
             key={`${label}-${option.value}`}
-            type="button"
-            size="sm"
-            variant={option.value === value ? "default" : "outline"}
-            aria-pressed={option.value === value}
-            onClick={() =>{  onChange(option.value); }}
-          >
-            {option.label}
-          </Button>
+            onChange={onChange}
+            option={option}
+            selected={option.value === value}
+          />
         ))}
-      </div>
+      </fieldset>
     </div>
   )
 
@@ -208,6 +244,21 @@ const useAppearanceFileActions = (settings: AppearanceSettings) => {
   return { handleExport, handleImportFile }
 }
 
+const ColorSwatch = ({
+  color,
+  label,
+}: Readonly<{ color: string; label: string }>) => {
+  const style = useMemo(() => ({ backgroundColor: color }), [color])
+  return (
+    <div className="space-y-1">
+      <div className="h-6 w-full rounded-sm border border-border" style={style} />
+      <span className="block truncate font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  )
+}
+
 export default function AppearanceSettingsPage() {
   const settings = useSyncExternalStore(
     subscribeToAppearanceSettings,
@@ -231,6 +282,47 @@ export default function AppearanceSettingsPage() {
   }, []),
 
    { handleExport, handleImportFile } = useAppearanceFileActions(settings),
+
+   handleTextScale = useCallback((textScale: number) => {
+    updateTypography({ textScale })
+   }, [updateTypography]),
+   handleBodyWeight = useCallback((bodyWeight: number) => {
+    updateTypography({ bodyWeight })
+   }, [updateTypography]),
+   handleHeadingWeight = useCallback((headingWeight: number) => {
+    updateTypography({ headingWeight })
+   }, [updateTypography]),
+   handleDensityChange = useCallback((selected: string) => {
+    const option = DENSITY_OPTIONS.find((candidate) => candidate.label === selected)
+    if (option !== undefined) {
+      updateLayout({ spaceScale: option.scale })
+    }
+   }, [updateLayout]),
+   handleSpaceScale = useCallback((spaceScale: number) => {
+    updateLayout({ spaceScale })
+   }, [updateLayout]),
+   handleCornerRadius = useCallback((cornerRadius: number) => {
+    updateLayout({ cornerRadius })
+   }, [updateLayout]),
+   handleShadowStrength = useCallback((strength: number) => {
+    updateShadows({ strength })
+   }, [updateShadows]),
+   handleMotionToggle = useCallback((selected: string) => {
+    updateMotion({ enabled: selected === "on" })
+   }, [updateMotion]),
+   handleMotionSpeed = useCallback((speed: number) => {
+    updateMotion({ speed })
+   }, [updateMotion]),
+   handleImportClick = useCallback(() => {
+    importInputRef.current?.click()
+   }, []),
+   handleImportChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (file !== undefined) {
+      void handleImportFile(file)
+    }
+   }, [handleImportFile]),
 
    densityValue =
     DENSITY_OPTIONS.find((option) => option.scale === settings.layout.spaceScale)?.label ?? "Custom"
@@ -288,7 +380,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.textScale.max}
                   step={APPEARANCE_RANGES.textScale.step}
                   display={percent(settings.typography.textScale)}
-                  onChange={(textScale) =>{  updateTypography({ textScale }); }}
+                  onChange={handleTextScale}
                 />
                 <SliderControl
                   label="Body weight"
@@ -297,7 +389,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.bodyWeight.max}
                   step={APPEARANCE_RANGES.bodyWeight.step}
                   display={String(settings.typography.bodyWeight)}
-                  onChange={(bodyWeight) =>{  updateTypography({ bodyWeight }); }}
+                  onChange={handleBodyWeight}
                 />
                 <SliderControl
                   label="Heading weight"
@@ -306,7 +398,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.headingWeight.max}
                   step={APPEARANCE_RANGES.headingWeight.step}
                   display={String(settings.typography.headingWeight)}
-                  onChange={(headingWeight) =>{  updateTypography({ headingWeight }); }}
+                  onChange={handleHeadingWeight}
                 />
               </SettingsSection>
 
@@ -317,16 +409,8 @@ export default function AppearanceSettingsPage() {
                 <SegmentedControl
                   label="Density"
                   value={densityValue}
-                  options={DENSITY_OPTIONS.map((option) => ({
-                    label: option.label,
-                    value: option.label,
-                  }))}
-                  onChange={(selected) => {
-                    const option = DENSITY_OPTIONS.find((candidate) => candidate.label === selected)
-                    if (option) {
-                      updateLayout({ spaceScale: option.scale })
-                    }
-                  }}
+                  options={DENSITY_CONTROL_OPTIONS}
+                  onChange={handleDensityChange}
                 />
                 <SliderControl
                   label="Spacing scale"
@@ -335,7 +419,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.spaceScale.max}
                   step={APPEARANCE_RANGES.spaceScale.step}
                   display={percent(settings.layout.spaceScale)}
-                  onChange={(spaceScale) =>{  updateLayout({ spaceScale }); }}
+                  onChange={handleSpaceScale}
                 />
                 <SliderControl
                   label="Corner radius"
@@ -344,7 +428,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.cornerRadius.max}
                   step={APPEARANCE_RANGES.cornerRadius.step}
                   display={`${Math.round(settings.layout.cornerRadius)}px`}
-                  onChange={(cornerRadius) =>{  updateLayout({ cornerRadius }); }}
+                  onChange={handleCornerRadius}
                 />
               </SettingsSection>
 
@@ -359,7 +443,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.shadowStrength.max}
                   step={APPEARANCE_RANGES.shadowStrength.step}
                   display={percent(settings.shadows.strength)}
-                  onChange={(strength) =>{  updateShadows({ strength }); }}
+                  onChange={handleShadowStrength}
                 />
               </SettingsSection>
 
@@ -367,11 +451,8 @@ export default function AppearanceSettingsPage() {
                 <SegmentedControl
                   label="Animations"
                   value={settings.motion.enabled ? "on" : "off"}
-                  options={[
-                    { label: "Full", value: "on" },
-                    { label: "Off", value: "off" },
-                  ]}
-                  onChange={(selected) =>{  updateMotion({ enabled: selected === "on" }); }}
+                  options={MOTION_CONTROL_OPTIONS}
+                  onChange={handleMotionToggle}
                 />
                 <SliderControl
                   label="Motion speed"
@@ -381,7 +462,7 @@ export default function AppearanceSettingsPage() {
                   step={APPEARANCE_RANGES.motionSpeed.step}
                   display={percent(settings.motion.speed)}
                   disabled={!settings.motion.enabled}
-                  onChange={(speed) =>{  updateMotion({ speed }); }}
+                  onChange={handleMotionSpeed}
                 />
               </SettingsSection>
 
@@ -394,7 +475,7 @@ export default function AppearanceSettingsPage() {
                   <Download className="h-4 w-4" />
                   Export JSON
                 </Button>
-                <Button type="button" variant="outline" onClick={() => importInputRef.current?.click()}>
+                <Button type="button" variant="outline" onClick={handleImportClick}>
                   <Upload className="h-4 w-4" />
                   Import JSON
                 </Button>
@@ -403,13 +484,7 @@ export default function AppearanceSettingsPage() {
                   type="file"
                   accept="application/json,.json"
                   className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    event.target.value = ""
-                    if (file) {
-                      void handleImportFile(file)
-                    }
-                  }}
+                  onChange={handleImportChange}
                 />
                 <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-widest">
                   Stored locally
@@ -446,15 +521,11 @@ export default function AppearanceSettingsPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-2 border-t border-border p-4">
                     {COLOR_FIELDS.map((field) => (
-                      <div key={`swatch-${field.token}`} className="space-y-1">
-                        <div
-                          className="h-6 w-full rounded-sm border border-border"
-                          style={{ backgroundColor: settings.colors[field.token] }}
-                        />
-                        <span className="block truncate font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
-                          {field.label}
-                        </span>
-                      </div>
+                      <ColorSwatch
+                        key={`swatch-${field.token}`}
+                        color={settings.colors[field.token]}
+                        label={field.label}
+                      />
                     ))}
                   </div>
                 </div>

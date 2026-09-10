@@ -464,24 +464,24 @@ const ARTICLE_FLUSH_DELAY_MS = 80,
   context.startingRef.current = false;
   },
 
-  getErrorMessage = (error: unknown): string => {
-  const message = String(error);
-  if (error instanceof Error) {
-    return error.message;
+  getErrorMessage = (cause: unknown): string => {
+  const message = String(cause);
+  if (cause instanceof Error) {
+    return cause.message;
   }
   return message;
   },
 
   handleStreamAttemptError = async (
   context: Readonly<StreamRunContext>,
-  error: unknown,
+  cause: unknown,
   streamOptions: StreamOptionsOverride | undefined,
   trackingStreamId: string,
 ): Promise<void> => {
   if (context.isMountedRef.current) {
     await handleStreamFailure(
       context,
-      getErrorMessage(error),
+      getErrorMessage(cause),
       streamOptions,
       trackingStreamId,
     );

@@ -26,6 +26,10 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('Uncaught error:', error, errorInfo);
   }
 
+  private readonly reset = () => {
+    this.setState({ hasError: false });
+  };
+
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || (
@@ -33,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h2 className="font-bold">Something went wrong</h2>
           <p>{this.state.error?.message || 'An unexpected error occurred'}</p>
           <button 
-            onClick={() =>{  this.setState({ hasError: false }); }}
+            onClick={this.reset}
             className="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-md"
           >
             Try again

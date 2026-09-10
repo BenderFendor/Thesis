@@ -25,7 +25,7 @@ const normalizePaths = (repositoryRoot, paths) =>
       throw new Error(`claim path is outside the repository: ${path}`);
     }
     return relativePath.split("\\").join("/");
-  }))].sort((left, right) => left.localeCompare(right))
+  }))].toSorted((left, right) => left.localeCompare(right))
 
 
 /** @param {string} repositoryRoot @param {{sessionId: string, taskId: string, paths: readonly string[]}} claim */
@@ -46,7 +46,7 @@ const claimWriter = async (repositoryRoot, claim) => {
       await handle.close();
     }
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
       throw new Error(`writer claim already exists at ${path}`, { cause: error });
     }
     throw error;
@@ -59,7 +59,7 @@ const readWriterClaim = async (repositoryRoot) => {
   try {
     return JSON.parse(await readFile(claimPath(repositoryRoot), "utf8"));
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {return null;}
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {return null;}
     throw error;
   }
 }
@@ -99,7 +99,7 @@ const clearActiveTask = async (repositoryRoot, sessionId, taskId) => {
     await unlink(activeTaskPath(repositoryRoot));
     return true;
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {return false;}
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {return false;}
     throw error;
   }
 }

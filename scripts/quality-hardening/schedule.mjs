@@ -36,7 +36,7 @@ const PRIORITY_LABELS = Object.freeze(["P0", "P1", "P2", "P3", "P4"]);
 
 /**
  * @param {string} factor
- * @param {string|undefined} repairClass
+ * @param {string} [repairClass]
  * @returns {string} Priority class label.
  */
 const priorityForTask = (factor, repairClass) => {
@@ -52,7 +52,7 @@ const priorityForTask = (factor, repairClass) => {
 
 /** @param {string} factor @returns {string} */
 const priorityForFactor = (factor) => 
- priorityForTask(factor, undefined)
+ priorityForTask(factor)
 
 
 /**
@@ -68,17 +68,17 @@ const normalizedExcess = (observed, bound) => {
 
 /** @param {ScheduleTask} task */
 const gateDistance = (task) => 
- typeof task.gate_distance === "number" ? task.gate_distance : 0
+ task.gate_distance ?? 0
 
 
 /** @param {ScheduleTask} task */
 const explainedHardFindings = (task) => 
- typeof task.hard_findings === "number" ? task.hard_findings : 0
+ task.hard_findings ?? 0
 
 
 /** @param {ScheduleTask} task */
 const blastRadius = (task) => {
- if (typeof task.source_unit_count === "number") { return task.source_unit_count; }
+ if (task.source_unit_count !== undefined) { return task.source_unit_count; }
  if (Array.isArray(task.source_units)) { return task.source_units.length; }
  return Array.isArray(task.unit_ids) ? task.unit_ids.length : 1;
 }
@@ -181,16 +181,18 @@ const paretoFrontier = (tasks) => {
  const frontier = tasks.filter(
   (candidate) => !tasks.some((other) => other !== candidate && dominates(other, candidate)),
  );
- return [...frontier].sort(tieBreak);
+ return [...frontier].toSorted(tieBreak);
 }
 
 /**
- * @param {ScheduleTask[]} tasks
+ * @template {ScheduleTask} T
+ * @param {T[]} tasks
  * @param {readonly Effect[]} [effects]
- * @returns {ScheduleTask[]}
+ * @returns {T[]}
  */
 const scheduleTasks = (tasks, effects = []) => {
- const annotated = /** @type {ScheduleTask[]} */ (tasks.map((task) => ({ ...task, success_rate: successRateFor(effects, task) })));
+ const annotated = tasks.map((task) => ({ ...task, success_rate: successRateFor(effects, task) }));
+ /** @type {Map<string, T[]>} */
  const classes = new Map();
  for (const task of annotated) {
   const priority = priorityForTask(task.factor ?? "", task.repair_class),
@@ -198,7 +200,7 @@ const scheduleTasks = (tasks, effects = []) => {
   values.push(task);
   classes.set(priority, values);
  }
- const labels = [...classes.keys()].sort((left, right) => PRIORITY_LABELS.indexOf(left) - PRIORITY_LABELS.indexOf(right));
+ const labels = [...classes.keys()].toSorted((left, right) => PRIORITY_LABELS.indexOf(left) - PRIORITY_LABELS.indexOf(right));
  const ordered = [];
  for (const label of labels) {
   ordered.push(...paretoFrontier(classes.get(label) ?? []));

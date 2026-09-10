@@ -1,7 +1,8 @@
 "use client"
 
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import type { SourceCredibilityProfile } from "@/lib/api"
@@ -18,6 +19,16 @@ interface CredibilityDimensionProps {
   label: string
   onToggle: () => void
 }
+
+interface CredibilityDimensionItemProps {
+  dimension: SourceCredibilityProfile["dimensions"][string]
+  dimensionKey: string
+  expandedDim: string | null
+  label: string
+  setExpandedDim: Dispatch<SetStateAction<string | null>>
+}
+
+const CREDIBILITY_SKELETON_KEYS = ["credibility-skeleton-a", "credibility-skeleton-b", "credibility-skeleton-c", "credibility-skeleton-d", "credibility-skeleton-e", "credibility-skeleton-f"] as const;
 
 const useCredibilityController = (domain: string, autoRun: boolean) => {
   const [profile, setProfile] = useState<SourceCredibilityProfile | null>(null),
@@ -86,11 +97,16 @@ CredibilityDimension = ({
   onToggle,
 }: CredibilityDimensionProps) => {
   const { score } = dimension,
-   isNil = score == null
+   isNil = score == null,
+   barStyle = useMemo(
+    () => ({ width: isNil ? "0%" : `${Math.min(100, score)}%` }),
+    [isNil, score],
+   )
   return (
     <div>
-      <div
-        className="flex items-center gap-2 group cursor-pointer"
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 group cursor-pointer bg-transparent border-0 p-0 text-left"
         onClick={onToggle}
       >
         <span className="flex-1 text-[11px] font-mono text-foreground/70 capitalize truncate">
@@ -99,11 +115,11 @@ CredibilityDimension = ({
         <span className={`text-[10px] font-mono ${scoreToTextColor(score)}`}>
           {isNil ? "-" : `${Math.round(score)}`}
         </span>
-      </div>
+      </button>
       <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden mt-1">
         <div
           className={`h-full rounded-full transition-all duration-500 ${scoreToColor(score)}`}
-          style={{ width: isNil ? "0%" : `${Math.min(100, score)}%` }}
+          style={barStyle}
         />
       </div>
       {expanded && !isNil && (
@@ -138,6 +154,27 @@ CredibilityDimension = ({
   )
 },
 
+CredibilityDimensionItem = ({
+  dimension,
+  dimensionKey,
+  expandedDim,
+  label,
+  setExpandedDim,
+}: CredibilityDimensionItemProps) => {
+  const handleToggle = useCallback(() => {
+    setExpandedDim((current) => current === dimensionKey ? null : dimensionKey)
+  }, [dimensionKey, setExpandedDim])
+
+  return (
+    <CredibilityDimension
+      dimension={dimension}
+      expanded={expandedDim === dimensionKey}
+      label={label}
+      onToggle={handleToggle}
+    />
+  )
+},
+
 SourceCredibilityPanel = ({
   domain,
   autoRun = false,
@@ -152,13 +189,17 @@ SourceCredibilityPanel = ({
     setExpandedDim,
   } = useCredibilityController(domain, autoRun)
 
+  const requestLoadProfile = useCallback(() => {
+    void loadProfile()
+  }, [loadProfile])
+
   if (!autoRun && !profile) {
     return (
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void loadProfile()}
+          onClick={requestLoadProfile}
           disabled={loading}
           className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
         >
@@ -172,8 +213,8 @@ SourceCredibilityPanel = ({
   if (loading) {
     return (
       <div className="space-y-3 py-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={`skeleton-${i}`} className="space-y-1.5">
+        {CREDIBILITY_SKELETON_KEYS.map((skeletonKey) => (
+          <div key={skeletonKey} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="h-3 w-28 bg-muted/30 rounded animate-pulse" />
               <div className="h-3 w-8 bg-muted/20 rounded animate-pulse" />
@@ -192,7 +233,7 @@ SourceCredibilityPanel = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void loadProfile()}
+          onClick={requestLoadProfile}
           className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
         >
           <RefreshCw className="mr-1 h-3 w-3" />
@@ -224,7 +265,7 @@ SourceCredibilityPanel = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void loadProfile()}
+          onClick={requestLoadProfile}
           disabled={loading}
           className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-5 px-1.5"
         >
@@ -234,12 +275,13 @@ SourceCredibilityPanel = ({
 
       <div className="space-y-2.5">
         {dimEntries.map(([key, dimension]) => (
-          <CredibilityDimension
+          <CredibilityDimensionItem
             key={key}
             dimension={dimension}
-            expanded={expandedDim === key}
+            dimensionKey={key}
+            expandedDim={expandedDim}
             label={DIMENSION_LABELS.get(key) ?? key.replaceAll('_', " ")}
-            onToggle={() =>{  setExpandedDim(expandedDim === key ? null : key); }}
+            setExpandedDim={setExpandedDim}
           />
         ))}
       </div>

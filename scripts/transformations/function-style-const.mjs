@@ -149,7 +149,7 @@ const
      * @param {string} sourceText - Full source text.
      * @returns {boolean} True when the signature contains a line break.
      */
-    blocked(candidate, statements, bindingCounts, parsed, sourceText) {
+    blocked(candidate, statements, bindingCounts, _parsed, _sourceText) {
       if ((bindingCounts.get(candidate.nameText) ?? EMPTY_INDEX) > FIRST_INDEX) {
         return true;
       }

@@ -12,7 +12,7 @@ const DECISIONS = new Set(["allow", "block"]),
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 const isObject = (value) => 
-  value !== null && typeof value === "object" && !Array.isArray(value)
+  value !== null && Object(value) === value && !Array.isArray(value)
 
 
 /** @param {unknown} value @param {string} name */

@@ -3,9 +3,8 @@
 import { analyse } from "code-multivitals";
 import { sourceUnitId } from "../source-units.mjs";
 
-/** @typedef {Readonly<{functions?: readonly FunctionRecord[], filePath: string}>} FileRecord */
-/** @typedef {Readonly<{maintainabilityIndex?: number, name?: string, startLine?: number}>} FunctionRecord */
-/** @typedef {Readonly<{analyzer: string, units: readonly Record<string, unknown>[], warnings: readonly string[]}>} MultivitalsReport */
+/** @typedef {Readonly<{coverage: Readonly<{crap: null, state: "unknown"}>, kind: "function", line: number, metrics: Readonly<{code_multivitals: Readonly<{maintainability_index: number}>}>, path: string, symbol: string, unit_id: string}>} MultivitalsUnit */
+/** @typedef {Readonly<{analyzer: string, units: readonly MultivitalsUnit[], warnings: readonly string[]}>} MultivitalsReport */
 
 /** @param {string} path @param {string} repositoryRoot */
 const normalizePath = (path, repositoryRoot) => {
@@ -18,12 +17,12 @@ const normalizePath = (path, repositoryRoot) => {
 const runCodeMultivitals = (repositoryRoot, paths) => {
   if (paths.length === 0) {return { analyzer: "code-multivitals", units: [], warnings: [] };}
   const result = analyse(paths.map((path) => `${repositoryRoot}/${path}`), {}),
-  /** @type {Record<string, unknown>[]} */
+  /** @type {MultivitalsUnit[]} */
    units = [];
-  for (const file of /** @type {readonly FileRecord[]} */ (result.files ?? [])) {
+  for (const file of result.files ?? []) {
     const path = normalizePath(file.filePath, repositoryRoot);
     for (const fn of file.functions ?? []) {
-      if (typeof fn.maintainabilityIndex !== "number") {continue;}
+      if (!Number.isFinite(fn.maintainabilityIndex)) {continue;}
       const symbol = fn.name ?? "<anonymous>";
       units.push({
         coverage: { crap: null, state: "unknown" },

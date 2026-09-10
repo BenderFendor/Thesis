@@ -14,10 +14,11 @@
 // Post-member-sort first local name (idempotent output); files without
 // Imports stay unchanged; every changed output parses cleanly again (TS
 // Transpile check).
-import assert from "node:assert/strict";
 import { runTransform } from "../../transformations/sort-imports.mjs";
-import { test } from "node:test";
 import ts from "../../../frontend/node_modules/typescript/lib/typescript.js";
+
+const assert = process.getBuiltinModule("node:assert/strict");
+const { test } = process.getBuiltinModule("node:test");
 
 /**
  * Asserts that a transform application yields the expected text.
@@ -59,7 +60,7 @@ const assertParses = (source) => {
   assert.equal(errors.length, 0, "transformed output must parse");
 };
 
-test("already sorted imports stay unchanged", () => {
+void test("already sorted imports stay unchanged", () => {
   const source = `import "./setup";
 import * as api from "@/lib/api";
 import {
@@ -77,7 +78,7 @@ const value = 1;
   assertUnchanged(source);
 });
 
-test("unsorted members are sorted by local binding name", () => {
+void test("unsorted members are sorted by local binding name", () => {
   const source = `import {
   addToReadingQueue as apiAddToQueue,
   API_BASE_URL,
@@ -96,7 +97,7 @@ test("unsorted members are sorted by local binding name", () => {
   assertParses(expected);
 });
 
-test("member sorting is case-sensitive", () => {
+void test("member sorting is case-sensitive", () => {
   const source = `import { a, B } from "m";
 `;
   const expected = `import { B, a } from "m";
@@ -104,7 +105,7 @@ test("member sorting is case-sensitive", () => {
   assertTransformed(source, expected);
 });
 
-test("statement order follows first local member name", () => {
+void test("statement order follows first local member name", () => {
   const source = `import { toast } from "sonner";
 import { useCallback } from "react";
 import { NewsArticle } from "@/lib/api";
@@ -117,7 +118,7 @@ import { useCallback } from "react";
   assertParses(expected);
 });
 
-test("syntax groups are ordered: multiple before single", () => {
+void test("syntax groups are ordered: multiple before single", () => {
   const source = `import { foo } from "a";
 import { b, a } from "m";
 `;
@@ -128,7 +129,7 @@ import { foo } from "a";
   assertParses(expected);
 });
 
-test("type-only and value imports of one module sort by name", () => {
+void test("type-only and value imports of one module sort by name", () => {
   const source = `import { v } from "m";
 import type { T } from "m";
 `;
@@ -139,7 +140,7 @@ import { v } from "m";
   assertParses(expected);
 });
 
-test("inter-import comments are preserved byte-for-byte", () => {
+void test("inter-import comments are preserved byte-for-byte", () => {
   const source = `import { b } from "b";
 
 // section: api imports
@@ -153,20 +154,20 @@ import { b } from "b";
   assertTransformed(source, expected);
 });
 
-test("member sorting is skipped when a comment is inside the specifier list", () => {
+void test("member sorting is skipped when a comment is inside the specifier list", () => {
   const source = `import { zzzz, /* keep */ aaaa } from "m";
 `;
   assertUnchanged(source);
 });
 
-test("files without leading imports stay unchanged", () => {
+void test("files without leading imports stay unchanged", () => {
   const source = `const x = 1;
 export const y = x;
 `;
   assertUnchanged(source);
 });
 
-test("directive-before-imports run is sorted (rule flags post-directive runs)", () => {
+void test("directive-before-imports run is sorted (rule flags post-directive runs)", () => {
   const source = `"use client";
 import { b } from "b";
 import { a } from "a";
@@ -179,7 +180,7 @@ import { b } from "b";
   assertParses(expected);
 });
 
-test("post-code import runs are sorted in place", () => {
+void test("post-code import runs are sorted in place", () => {
   const source = `const value = compute();
 export const result = value;
 
@@ -196,7 +197,7 @@ import { b } from "b";
   assertParses(expected);
 });
 
-test("post-code runs sort members and declarations together", () => {
+void test("post-code runs sort members and declarations together", () => {
   const source = `const x = 1;
 import { b, a } from "mod";
 import { z } from "z";
@@ -209,7 +210,7 @@ import { z } from "z";
   assertParses(expected);
 });
 
-test("side-effect imports keep their relative order within a run", () => {
+void test("side-effect imports keep their relative order within a run", () => {
   const source = `import "./z";
 import { a } from "a";
 import "./c";
@@ -222,7 +223,7 @@ import { a } from "a";
   assertParses(expected);
 });
 
-test("a run is untouched when its first import has comments in its specifier list", () => {
+void test("a run is untouched when its first import has comments in its specifier list", () => {
   const source = `const x = 1;
 
 import { b, /* keep */ a } from "m";
@@ -231,7 +232,7 @@ import { aa } from "aa";
   assertUnchanged(source);
 });
 
-test("both leading and post-code runs are sorted independently", () => {
+void test("both leading and post-code runs are sorted independently", () => {
   const source = `import { z } from "z";
 import { a } from "a";
 
@@ -252,7 +253,7 @@ import { y } from "y";
   assertParses(expected);
 });
 
-test("directive run and later post-code run both sort", () => {
+void test("directive run and later post-code run both sort", () => {
   const source = `"use client"
 import { z } from "z";
 import { a } from "a";
@@ -275,7 +276,7 @@ import { y } from "y";
   assertParses(expected);
 });
 
-test("page-tsx style run sorts default, type and grouped imports with mixed quotes", () => {
+void test("page-tsx style run sorts default, type and grouped imports with mixed quotes", () => {
   const source = `import {
   Bell,
   Bookmark,
@@ -317,7 +318,7 @@ import { useRouter } from "next/navigation"
   assertTransformed(source, expected);
   assertParses(expected);
 });
-test("member sorting stabilizes the declaration order of a run", () => {
+void test("member sorting stabilizes the declaration order of a run", () => {
   const source = `const x = 1;
 
 import { filterArticlesByLens, getLensSourceIds, NEWS_LENSES } from "@/lib/news-lens";

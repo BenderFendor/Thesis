@@ -12,12 +12,15 @@ const FINDINGS_EXIT = 1,
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 const isObject = (value) => 
-  value !== null && typeof value === "object" && !Array.isArray(value)
+  value !== null && Object(value) === value && !Array.isArray(value)
 
+
+/** @param {unknown} value @returns {value is string} */
+const isString = (value) => Object.prototype.toString.call(value) === "[object String]";
 
 /** @param {unknown} value @param {string} fallback */
 const stringValue = (value, fallback) => 
-  typeof value === "string" && value.length > 0 ? value : fallback
+  isString(value) && value.length > 0 ? value : fallback
 
 
 /** @param {unknown} value @returns {"warning"|"error"} */
@@ -29,7 +32,7 @@ const severityFor = (value) => {
 /** @param {unknown} value @param {string} repositoryRoot */
 const parseFinding = (value, repositoryRoot) => {
   if (!isObject(value)) {
-    return;
+    return undefined;
   }
   const labels = Array.isArray(value.labels) ? value.labels : [],
    firstLabel = isObject(labels[0]) ? labels[0] : {},
@@ -39,9 +42,9 @@ const parseFinding = (value, repositoryRoot) => {
    rule = stringValue(value.code, stringValue(value.rule, stringValue(value.ruleId, "unknown"))).replace(/^(?<namespace>[^()]+)\((?<rule>[^()]+)\)$/u, "$<namespace>/$<rule>"),
    severity = severityFor(value.severity);
   return {
-    code: typeof value.code === "string" ? value.code : undefined,
+    code: isString(value.code) ? value.code : undefined,
     level: severity === "warning" ? "w" : "e",
-    line: typeof span.line === "number" ? span.line : undefined,
+    line: Number.isFinite(span.line) ? Number(span.line) : undefined,
     message: stringValue(value.message, "Oxlint finding"),
     path: normalizedPath,
     rule,
@@ -83,14 +86,14 @@ const runProcess = (executable, argumentsList, cwd, maxBuffer) =>
       nodePath = [localBin, process.env.PATH ?? ""].filter(Boolean).join(delimiter),
       processEnvironment = { ...process.env, PATH: nodePath };
     execFile(executable, [...argumentsList], { cwd, encoding: "utf8", env: processEnvironment, maxBuffer }, (error, stdout, stderr) => {
-      if (error && typeof error.code !== "number") {
+      if (error && !Number.isInteger(error.code)) {
         reject(error);
         return;
       }
       resolvePromise({
-        code: typeof error?.code === "number" ? error.code : SUCCESS_EXIT,
-        stderr: String(stderr),
-        stdout: String(stdout),
+        code: error ? Number(error.code) : SUCCESS_EXIT,
+        stderr: stderr,
+        stdout: stdout,
       });
     });
   })

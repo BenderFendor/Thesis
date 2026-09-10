@@ -19,9 +19,9 @@ import { useQuery } from "@tanstack/react-query";
 
 type AtlasEntityRecord = Awaited<ReturnType<typeof fetchAtlasEntity>>;
 type AtlasConnectionRecord = AtlasEntityRecord["connections"][number];
-type AtlasEvidenceRecord = AtlasEntityRecord["evidence"][number];
+type _AtlasEvidenceRecord = AtlasEntityRecord["evidence"][number];
 type AtlasControlsEntry = ReturnType<typeof parseControls>[number];
-type AtlasExternalId = ReturnType<typeof parseExternalIds>[number];
+type _AtlasExternalId = ReturnType<typeof parseExternalIds>[number];
 type AtlasFundingAndBias = NonNullable<ReturnType<typeof parseFundingAndBias>>;
 type AtlasOwnershipChainHop = ReturnType<typeof parseOwnershipChain>[number];
 type DetailValue = AtlasEntityRecord["details"][string];
@@ -86,7 +86,7 @@ const ATLAS_HREF = "/wiki/ownership",
  BadgeValue = ({ value }: BadgeProps) => {
   const text = getNonEmptyText(value);
   if (text === undefined) {
-    return;
+    return null;
   }
 
   return (
@@ -241,7 +241,7 @@ const ATLAS_HREF = "/wiki/ownership",
  EvidenceSourceLink = ({ value }: EvidenceSourceLinkProps) => {
   const sourceUrl = getNonEmptyText(value);
   if (sourceUrl === undefined) {
-    return;
+    return null;
   }
 
   return (
@@ -303,7 +303,7 @@ const ATLAS_HREF = "/wiki/ownership",
 ),
  FundingAndBiasSection = ({ block }: FundingAndBiasSectionProps) => {
   if (block === undefined) {
-    return;
+    return null;
   }
 
   return (
@@ -327,7 +327,7 @@ const ATLAS_HREF = "/wiki/ownership",
  OptionalExcerpt = ({ value }: { readonly value: string | null | undefined }) => {
   const excerpt = getNonEmptyText(value);
   if (excerpt === undefined) {
-    return;
+    return null;
   }
 
   return <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{excerpt}</p>;
@@ -335,7 +335,7 @@ const ATLAS_HREF = "/wiki/ownership",
  OptionalSidebarFact = ({ label, value }: OptionalSidebarFactProps) => {
   const text = value ?? undefined;
   if (text === undefined) {
-    return;
+    return null;
   }
 
   return <SidebarFact label={label} value={text} />;
@@ -483,7 +483,7 @@ const ATLAS_HREF = "/wiki/ownership",
  Percentage = ({ value }: PercentageProps) => {
   const percentage = value ?? undefined;
   if (percentage === undefined) {
-    return;
+    return null;
   }
 
   return <span className="font-mono text-[10px] tracking-widest text-muted-foreground">{percentage.toFixed(DECIMAL_PLACES)}%</span>;
@@ -511,7 +511,7 @@ const ATLAS_HREF = "/wiki/ownership",
 ),
  RoleBreakdownCard = ({ roleBreakdown }: RoleBreakdownCardProps) => {
   if (Object.keys(roleBreakdown).length === EMPTY_COUNT) {
-    return;
+    return null;
   }
 
   return (
@@ -537,7 +537,7 @@ const ATLAS_HREF = "/wiki/ownership",
  VerifiedDateFact = ({ value }: VerifiedDateFactProps) => {
   const date = getNonEmptyText(value);
   if (date === undefined) {
-    return;
+    return null;
   }
 
   return <SidebarFact label="Last verified" value={new Date(date).toLocaleDateString()} />;
@@ -560,7 +560,7 @@ const ATLAS_HREF = "/wiki/ownership",
  getNonEmptyText = (value: string | null | undefined): string | undefined => {
   const text = value ?? undefined;
   if (text === undefined || text.length === EMPTY_COUNT) {
-    return;
+    return undefined;
   }
 
   return text;
@@ -570,7 +570,7 @@ const ATLAS_HREF = "/wiki/ownership",
     return value;
   }
 
-  return;
+  return undefined;
 },
  isStringDetail = (value: DetailValue): value is string => typeof value === "string";
 

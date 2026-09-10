@@ -12,7 +12,7 @@ import type { SourcePageRouter } from "./source-page-types";
 const useSourcePageController = (sourceId: string) => {
   const router: SourcePageRouter = useRouter();
   const articleDetail = useArticleDetail();
-  const debugMode = useDebugMode();
+  const { enabled: debugMode } = useDebugMode();
   const favorites = useFavorites();
   const sourceQuery = useQuery({
     queryFn: () => getSourceById(sourceId),

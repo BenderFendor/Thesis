@@ -1,7 +1,7 @@
-import type { GlobeMethods, GlobeProps } from "react-globe.gl";
+import type { GlobeProps } from "react-globe.gl";
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { InteractiveGlobe } from '@/components/interactive-globe';
-import type { InteractiveGlobeComponent } from '@/components/interactive-globe';
+import type { InteractiveGlobeComponent, InteractiveGlobeHandle } from '@/components/interactive-globe';
 import type { MutableRefObject } from "react";
 import { Scene } from "three";
 
@@ -26,18 +26,24 @@ const testControls = {
     toneMapping: 0,
     toneMappingExposure: 1,
   },
-  // SAFETY: the injected surface exercises the five GlobeMethods consumed by InteractiveGlobe;
-  // The remaining library methods are outside this browser-surface regression.
-  globeInstance: GlobeMethods = {
+  EMPTY_ARTICLES = [] as const,
+  EMPTY_COUNTRY_METRICS = {
+    articles_with_country: 0,
+    articles_without_country: 0,
+    country_count: 0,
+    counts: {},
+    total_articles: 0,
+  } as const,
+  globeInstance: InteractiveGlobeHandle = {
     controls: () => testControls,
     getGlobeRadius: () => 100,
     pointOfView,
     renderer: () => renderer,
     scene: () => new Scene(),
-  } as unknown as GlobeMethods;
+  };
 
 interface GlobeSurfaceProps extends GlobeProps {
-  ref?: MutableRefObject<GlobeMethods | undefined>;
+  ref?: MutableRefObject<InteractiveGlobeHandle | undefined>;
 }
 
 const GlobeSurface: InteractiveGlobeComponent = ({ ref }: GlobeSurfaceProps) => {
@@ -67,11 +73,9 @@ describe("interactiveGlobe", () => {
     testControls.enablePan = true;
     pointOfView.mockReset();
     fetchMock.mockReset();
-    fetchMock.mockResolvedValue({
-      json: async () => ({ features: [] }),
-      ok: true,
-      status: 200,
-    } as Response);
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ features: [] }), { status: 200 }),
+    );
     Object.defineProperty(globalThis, "fetch", {
       configurable: true,
       value: fetchMock,
@@ -92,14 +96,8 @@ describe("interactiveGlobe", () => {
 
     renderWithQueryClient(
       <InteractiveGlobe
-        articles={[]}
-        countryMetrics={{
-          articles_with_country: 0,
-          articles_without_country: 0,
-          country_count: 0,
-          counts: {},
-          total_articles: 0,
-        }}
+        articles={EMPTY_ARTICLES}
+        countryMetrics={EMPTY_COUNTRY_METRICS}
         globeComponent={globeComponent}
         onCountrySelect={jest.fn()}
         selectedCountry={null}

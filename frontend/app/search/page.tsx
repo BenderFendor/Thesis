@@ -1,5 +1,6 @@
 "use client";
 
+import { isNumberValue } from "@/lib/type-guards";
 import { API_BASE_URL, semanticSearch } from "@/lib/api";
 import {
  ArrowRight,
@@ -18,7 +19,7 @@ import {
  Square,
  Trash2,
 } from "lucide-react";
-import type { NewsArticle, SemanticSearchResult, ThinkingStep } from '@/lib/api';
+import type { NewsArticle, SearchSuggestion, SemanticSearchResult, ThinkingStep } from '@/lib/api';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
@@ -154,26 +155,18 @@ const ARTICLE_DESCRIPTION_FALLBACK = "No description",
  SEARCH_STREAM_STALL_TIMEOUT_MS = 30_000,
  SEMANTIC_SEARCH_MIN_SCORE = 0.55,
  SEMANTIC_SEARCH_RESULT_LIMIT = 5,
- NO_ARTICLE_INDEX = -1,
- ANIMATION_OFFSET = 18,
- ARTICLE_IMAGE_HEIGHT = 96,
+ NO_ARTICLE_INDEX = -1, ARTICLE_IMAGE_HEIGHT = 96,
  ARTICLE_IMAGE_WIDTH = 128,
- FIRST_INDEX = 0,
- MINIMUM_QUERY_LENGTH = 3,
- NEW_CHAT_ID_LENGTH = 8,
+ FIRST_INDEX = 0, NEW_CHAT_ID_LENGTH = 8,
  NEW_CHAT_ID_RADIX = 36,
  NEW_CHAT_ID_START = 2,
- NEW_CHAT_TITLE_WORD_COUNT = 4,
- PERCENTAGE_MULTIPLIER = 100,
- RESEARCH_LOG_LIMIT = 6,
+ NEW_CHAT_TITLE_WORD_COUNT = 4, RESEARCH_LOG_LIMIT = 6,
  SAMPLE_QUERY_LIMIT = 3,
  SOURCE_PREVIEW_LIMIT = 5,
  STREAM_DATA_PREFIX_LENGTH = 6,
  STREAM_REQUEST_LIMIT = 3,
  STRUCTURED_ARTICLE_BLOCK_PATTERN = /```json:articles\n(?<json>[\s\S]*?)\n```/u,
- SUMMARY_PREVIEW_LENGTH = 200,
- VERSION_OFFSET = 1,
- MARKDOWN_PLUGINS = [remarkGfm],
+ SUMMARY_PREVIEW_LENGTH = 200, MARKDOWN_PLUGINS = [remarkGfm],
  UnknownResearchMessageSchema = z.object({ type: z.string() }),
 
  StructuredArticleSummarySchema = z.object({
@@ -1016,6 +1009,17 @@ const getArticleText = (value: string | undefined, fallback: string): string => 
   "Analyze bias in coverage of international conflicts",
  ],
 
+ MESSAGE_MOTION_INITIAL = { opacity: 0, y: 18 },
+ MESSAGE_MOTION_ANIMATE = { opacity: 1, y: 0 },
+ MESSAGE_MOTION_TRANSITION = { duration: 0.3, ease: "easeOut" },
+ EMPTY_RESEARCH_MOTION_INITIAL = { opacity: 0, y: 24 },
+ EMPTY_RESEARCH_MOTION_ANIMATE = { opacity: 1, y: 0 },
+ EMPTY_RESEARCH_MOTION_TRANSITION = { duration: 0.4, ease: "easeOut" },
+ SAMPLE_QUERY_MOTION_INITIAL = { opacity: 0, y: 18 },
+ SAMPLE_QUERY_MOTION_ANIMATE = { opacity: 1, y: 0 },
+ SAMPLE_QUERY_MOTION_TRANSITION = { duration: 0.35, ease: "easeOut" },
+ SEARCH_PAGE_FALLBACK = <div className="min-h-screen bg-background" />,
+
  formatShortDate = (date: string) => {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) {
@@ -1061,9 +1065,9 @@ interface MarkdownChildrenProps {
 
 const InlineArticleCard = (props: Readonly<InlineArticleCardProps>) => {
  const { article, handleOpenArticle } = props,
-  handleClick = (): void => {
+  handleClick = useCallback((): void => {
    handleOpenArticle(article);
-  };
+  }, [article, handleOpenArticle]);
  return (
   <button
    onClick={handleClick}
@@ -1225,25 +1229,25 @@ interface MessageActionBarProps {
  readonly onDelete: (messageId: string) => void;
 }
 
-const MessageVersionControls = ({
+const ActiveMessageVersionControls = ({
  versionInfo,
  onSelectVersion,
-}: Readonly<Pick<MessageActionBarProps, "versionInfo" | "onSelectVersion">>) => {
- if (versionInfo === null) {
-  return <></>;
- }
+}: Readonly<{
+ versionInfo: NonNullable<VersionInfo>;
+ onSelectVersion: MessageActionBarProps["onSelectVersion"];
+}>) => {
  const previousVersionId = versionInfo.versionIds[versionInfo.currentIndex - 1],
   nextVersionId = versionInfo.versionIds[versionInfo.currentIndex + 1],
-  selectPreviousVersion = () => {
+  selectPreviousVersion = useCallback(() => {
    if (previousVersionId) {
     onSelectVersion(versionInfo.groupId, previousVersionId);
    }
-  },
-  selectNextVersion = () => {
+  }, [onSelectVersion, previousVersionId, versionInfo.groupId]),
+  selectNextVersion = useCallback(() => {
    if (nextVersionId) {
     onSelectVersion(versionInfo.groupId, nextVersionId);
    }
-  };
+  }, [nextVersionId, onSelectVersion, versionInfo.groupId]);
  return (
   <>
    <Button
@@ -1275,6 +1279,21 @@ const MessageVersionControls = ({
  );
 },
 
+ MessageVersionControls = ({
+  versionInfo,
+  onSelectVersion,
+ }: Readonly<Pick<MessageActionBarProps, "versionInfo" | "onSelectVersion">>) => {
+  if (versionInfo === null) {
+   return <></>;
+  }
+  return (
+   <ActiveMessageVersionControls
+    versionInfo={versionInfo}
+    onSelectVersion={onSelectVersion}
+   />
+  );
+ },
+
  MessageActionButtons = ({
   message,
   isAssistant,
@@ -1286,13 +1305,27 @@ const MessageVersionControls = ({
  }: Readonly<Pick<
   MessageActionBarProps,
   "message" | "isAssistant" | "isSearching" | "onCopy" | "onEdit" | "onReset" | "onDelete"
- >>) => (
+ >>) => {
+  const handleCopy = useCallback(() => {
+   onCopy(message.content);
+  }, [message.content, onCopy]),
+   handleEdit = useCallback(() => {
+    onEdit(message.id);
+   }, [message.id, onEdit]),
+   handleReset = useCallback(() => {
+    onReset(message.id);
+   }, [message.id, onReset]),
+   handleDelete = useCallback(() => {
+    onDelete(message.id);
+   }, [message.id, onDelete]);
+
+  return (
   <>
    <Button
     type="button"
     variant="ghost"
     size="sm"
-    onClick={() => { onCopy(message.content); }}
+    onClick={handleCopy}
     className="h-8 px-2 text-xs"
    >
     <Copy className="mr-1 h-3.5 w-3.5" />
@@ -1303,7 +1336,7 @@ const MessageVersionControls = ({
      type="button"
      variant="ghost"
      size="sm"
-     onClick={() => { onEdit(message.id); }}
+     onClick={handleEdit}
      className="h-8 px-2 text-xs"
     >
      <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -1315,7 +1348,7 @@ const MessageVersionControls = ({
      type="button"
      variant="ghost"
      size="sm"
-     onClick={() => { onReset(message.id); }}
+     onClick={handleReset}
      disabled={isSearching}
      className="h-8 px-2 text-xs"
     >
@@ -1327,7 +1360,7 @@ const MessageVersionControls = ({
     type="button"
     variant="ghost"
     size="sm"
-    onClick={() => { onDelete(message.id); }}
+    onClick={handleDelete}
     disabled={isSearching}
     className="h-8 px-2 text-xs"
    >
@@ -1335,7 +1368,8 @@ const MessageVersionControls = ({
     Delete
    </Button>
   </>
- ),
+  );
+ },
 
  MessageActionBar = (props: Readonly<MessageActionBarProps>) => {
   const {
@@ -1413,7 +1447,10 @@ const ThinkingSteps = ({
 
  MessageStepsToggle = (props: Readonly<MessageStepsToggleProps>) => {
   const { message, isAssistant, stepsExpanded, onToggleSteps } = props,
-   stepCount = message.thinking_steps?.length ?? 0;
+   stepCount = message.thinking_steps?.length ?? 0,
+   handleToggleSteps = useCallback(() => {
+    onToggleSteps(message.id);
+   }, [message.id, onToggleSteps]);
   if (!isAssistant || message.isStreaming === true || stepCount === FIRST_INDEX) {
    return <></>;
   }
@@ -1421,7 +1458,7 @@ const ThinkingSteps = ({
    <div className="mt-3">
     <button
      type="button"
-     onClick={() => { onToggleSteps(message.id); }}
+     onClick={handleToggleSteps}
      className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
     >
      {stepsExpanded ? (
@@ -1470,28 +1507,35 @@ const InlineMessageEditor = ({
   MessageBodyProps,
   "editingDraft" | "isSearching" | "setEditingDraft" | "onSaveEdit" | "onCancelEdit"
  >
->) => (
+>) => {
+ const handleSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+  onSaveEdit();
+ }, [onSaveEdit]),
+  handleDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+   setEditingDraft(event.target.value);
+  }, [setEditingDraft]),
+  handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+   if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    onSaveEdit();
+   }
+   if (event.key === "Escape") {
+    event.preventDefault();
+    onCancelEdit();
+   }
+  }, [onCancelEdit, onSaveEdit]);
+
+ return (
  <form
-  onSubmit={(event) => {
-   event.preventDefault();
-   onSaveEdit();
-  }}
+  onSubmit={handleSubmit}
   className="space-y-3"
  >
   <textarea
    value={editingDraft}
-   onChange={(event) => { setEditingDraft(event.target.value); }}
-   onKeyDown={(event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-     event.preventDefault();
-     onSaveEdit();
-    }
-    if (event.key === "Escape") {
-     event.preventDefault();
-     onCancelEdit();
-    }
-   }}
-   autoFocus
+   onChange={handleDraftChange}
+   onKeyDown={handleKeyDown}
+   
    disabled={isSearching}
    className="min-h-28 w-full resize-y rounded-2xl border border-primary/30 bg-background/60 px-4 py-3 text-base text-foreground focus:outline-none"
   />
@@ -1514,7 +1558,8 @@ const InlineMessageEditor = ({
    </Button>
   </div>
  </form>
-),
+ )
+},
 
  StreamingMessage = ({
   message,
@@ -1692,9 +1737,9 @@ const ConversationMessageBody = ({
    messageClass = getMessageClass(message);
   return (
    <motion.div
-    initial={{ opacity: 0, y: 18 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
+    initial={MESSAGE_MOTION_INITIAL}
+    animate={MESSAGE_MOTION_ANIMATE}
+    transition={MESSAGE_MOTION_TRANSITION}
     className={`rounded-xl border px-5 py-3.5 ${messageClass}`}
    >
     <ConversationMessageDetails
@@ -1777,19 +1822,29 @@ const ChatComposerInput = ({
  isSearching,
  inputRef,
  onSearch,
-}: Readonly<Pick<ChatComposerFormProps, "query" | "setQuery" | "isSearching" | "inputRef" | "onSearch">>) => (
+}: Readonly<Pick<ChatComposerFormProps, "query" | "setQuery" | "isSearching" | "inputRef" | "onSearch">>) => {
+ const handleQueryChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  setQuery(event.target.value);
+ }, [setQuery]),
+  handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+   if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    onSearch(event);
+   }
+  }, [onSearch]),
+  handleSuggestionClick = useCallback((suggestion: SearchSuggestion) => {
+   setQuery(suggestion.label);
+   inputRef.current?.focus();
+  }, [inputRef, setQuery]);
+
+ return (
  <>
   <div className="flex items-center gap-2 rounded-2xl border border-border/40 bg-card/50 p-2 pl-4 shadow-xl shadow-black/10 transition-all duration-300 ease-out focus-within:border-primary/40 focus-within:bg-card/60">
    <textarea
     ref={inputRef}
     value={query}
-    onChange={(event) => { setQuery(event.target.value); }}
-    onKeyDown={(event) => {
-     if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      onSearch(event);
-     }
-    }}
+    onChange={handleQueryChange}
+    onKeyDown={handleKeyDown}
     placeholder="Ask a question and press Enter..."
     className="h-10 w-full resize-none bg-transparent px-1 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
     disabled={isSearching}
@@ -1798,15 +1853,13 @@ const ChatComposerInput = ({
   {query.length >= 3 && (
    <SearchSuggestions
     query={query}
-    onSuggestionClick={(suggestion) => {
-     setQuery(suggestion.label);
-     inputRef.current?.focus();
-    }}
+    onSuggestionClick={handleSuggestionClick}
     className="pt-2"
    />
   )}
  </>
-),
+ )
+},
 
  ChatComposerSubmit = ({
   query,
@@ -1923,7 +1976,7 @@ const VerificationSection = (props: Readonly<VerificationSectionProps>) => {
   latestAssistantMessage.isStreaming === true ||
   latestAssistantMessage.content.length === 0
  ) {
-  return;
+  return null;
  }
  return (
   <section className="border-t border-border/15 pt-6">
@@ -1941,11 +1994,42 @@ interface RelatedCoveragePanelProps {
  onOpenArticle: (article: NewsArticle) => void;
 }
 
+const RelatedCoverageItem = ({
+ result,
+ onOpenArticle,
+}: Readonly<{
+ result: ReadonlySemanticSearchResult;
+ onOpenArticle: (article: NewsArticle) => void;
+}>) => {
+ const { article, similarityScore } = result,
+  handleOpenArticle = useCallback(() => {
+   onOpenArticle(article);
+  }, [article, onOpenArticle]);
+ return (
+  <button
+   onClick={handleOpenArticle}
+   className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
+  >
+   <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
+    {article.title}
+   </div>
+   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+    <span>{article.source}</span>
+    {isNumberValue(similarityScore) && (
+     <span className="rounded-full border border-border/20 bg-background/60 px-2 py-0.5 text-xs text-muted-foreground">
+      {Math.round(similarityScore * 100)}% match
+     </span>
+    )}
+   </div>
+  </button>
+ );
+};
+
 const RelatedCoveragePanel = (props: Readonly<RelatedCoveragePanelProps>) => {
  const { latestSemanticMessage, onOpenArticle } = props,
   results = latestSemanticMessage?.semanticResults ?? [];
  if (results.length === 0) {
-  return;
+  return null;
  }
  return (
   <section className="border-t border-border/15 pt-6">
@@ -1953,24 +2037,12 @@ const RelatedCoveragePanel = (props: Readonly<RelatedCoveragePanelProps>) => {
     Related Coverage
    </h3>
    <div className="mt-3 space-y-2">
-    {results.map(({ article, similarityScore }) => (
-     <button
-      key={`semantic-${article.url || article.id}`}
-      onClick={() => { onOpenArticle(article); }}
-      className="w-full rounded-2xl border border-border/15 bg-background/35 p-3 text-left transition-colors hover:border-primary/35"
-     >
-      <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
-       {article.title}
-      </div>
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-       <span>{article.source}</span>
-       {typeof similarityScore === "number" && (
-        <span className="rounded-full border border-border/20 bg-background/60 px-2 py-0.5 text-xs text-muted-foreground">
-         {Math.round(similarityScore * 100)}% match
-        </span>
-       )}
-      </div>
-     </button>
+    {results.map((result) => (
+     <RelatedCoverageItem
+      key={`semantic-${result.article.url || result.article.id}`}
+      result={result}
+      onOpenArticle={onOpenArticle}
+     />
     ))}
    </div>
   </section>
@@ -1991,6 +2063,32 @@ interface SourceGroupEntryProps {
  onOpenArticle: (article: NewsArticle) => void;
 }
 
+const SourceArticleButton = ({
+ article,
+ onOpenArticle,
+}: Readonly<{
+ article: NewsArticle;
+ onOpenArticle: (article: NewsArticle) => void;
+}>) => {
+ const handleOpenArticle = useCallback(() => {
+  onOpenArticle(article);
+ }, [article, onOpenArticle]);
+ return (
+  <button
+   onClick={handleOpenArticle}
+   className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
+  >
+   <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
+    {article.title}
+   </div>
+   <div className="mt-2.5 flex items-center justify-between font-mono text-xs uppercase tracking-wide text-muted-foreground/60">
+    <span>{article.source}</span>
+    <span>{formatShortDate(article.publishedAt)}</span>
+   </div>
+  </button>
+ );
+};
+
 const SourceGroupEntry = ({
  group,
  isExpanded,
@@ -1999,7 +2097,10 @@ const SourceGroupEntry = ({
 }: Readonly<SourceGroupEntryProps>) => {
  const visibleArticles = isExpanded
   ? group.articles
-  : group.articles.slice(0, SOURCE_PREVIEW_LIMIT);
+  : group.articles.slice(0, SOURCE_PREVIEW_LIMIT),
+  handleToggleSource = useCallback(() => {
+   onToggleSource(group.sourceId);
+  }, [group.sourceId, onToggleSource]);
  return (
   <div className="border-t border-border/10 pt-4 first:border-t-0 first:pt-0">
    <div className="flex items-start justify-between gap-3">
@@ -2012,7 +2113,7 @@ const SourceGroupEntry = ({
     {group.articles.length > SOURCE_PREVIEW_LIMIT && (
      <button
       type="button"
-      onClick={() => { onToggleSource(group.sourceId); }}
+      onClick={handleToggleSource}
       className="font-mono text-xs uppercase tracking-wider text-primary hover:underline"
      >
       {isExpanded ? "Collapse" : `Show all (${group.articles.length})`}
@@ -2021,19 +2122,11 @@ const SourceGroupEntry = ({
    </div>
    <div className="mt-3 space-y-2">
     {visibleArticles.map((article) => (
-     <button
+     <SourceArticleButton
       key={`${group.sourceId}-${article.url || article.id}`}
-      onClick={() => { onOpenArticle(article); }}
-      className="w-full rounded-2xl bg-background/35 px-3 py-2.5 text-left text-xs transition-colors hover:bg-card/60"
-     >
-      <div className="line-clamp-2 font-serif text-sm font-medium text-foreground/90">
-       {article.title}
-      </div>
-      <div className="mt-2.5 flex items-center justify-between font-mono text-xs uppercase tracking-wide text-muted-foreground/60">
-       <span>{article.source}</span>
-       <span>{formatShortDate(article.publishedAt)}</span>
-      </div>
-     </button>
+      article={article}
+      onOpenArticle={onOpenArticle}
+     />
     ))}
    </div>
   </div>
@@ -2368,9 +2461,9 @@ interface EmptyResearchViewProps {
 const EmptyResearchHeader = () => (
  <motion.div
   className="mb-6"
-  initial={{ opacity: 0, y: 24 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.4, ease: "easeOut" }}
+  initial={EMPTY_RESEARCH_MOTION_INITIAL}
+  animate={EMPTY_RESEARCH_MOTION_ANIMATE}
+  transition={EMPTY_RESEARCH_MOTION_TRANSITION}
  >
   <div className="mb-2 flex items-center gap-3">
    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
@@ -2400,7 +2493,21 @@ const EmptyResearchComposer = ({
  isSearching,
  inputRef,
  onSearch,
-}: Readonly<EmptyResearchComposerProps>) => (
+}: Readonly<EmptyResearchComposerProps>) => {
+ const handleQueryChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  setQuery(event.target.value);
+ }, [setQuery]),
+  handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+   if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    onSearch(event);
+   }
+  }, [onSearch]),
+  handleSuggestionClick = useCallback((suggestion: SearchSuggestion) => {
+   setQuery(suggestion.label);
+   inputRef.current?.focus();
+  }, [inputRef, setQuery]);
+ return (
  <div className="group relative w-full">
   <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 to-transparent opacity-0 blur-xl transition duration-500 group-hover:opacity-100" />
   <div className="relative rounded-2xl border border-border/40 bg-card/40 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl transition-all duration-300 ease-out focus-within:border-primary/30">
@@ -2408,23 +2515,15 @@ const EmptyResearchComposer = ({
     <textarea
      ref={inputRef}
      value={query}
-     onChange={(event) => { setQuery(event.target.value); }}
-     onKeyDown={(event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-       event.preventDefault();
-       onSearch(event);
-      }
-     }}
+     onChange={handleQueryChange}
+     onKeyDown={handleKeyDown}
      placeholder="Ask a question about coverage, bias, or context..."
      className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
     />
     {query.length >= 3 && (
      <SearchSuggestions
       query={query}
-      onSuggestionClick={(suggestion) => {
-       setQuery(suggestion.label);
-       inputRef.current?.focus();
-      }}
+      onSuggestionClick={handleSuggestionClick}
       className="mt-2 border-t border-border/40 pt-2"
      />
     )}
@@ -2460,25 +2559,44 @@ const EmptyResearchComposer = ({
    </form>
   </div>
  </div>
-),
+ )
+},
+
+ SampleQueryButton = ({
+  onSampleQuery,
+  sampleQuery,
+ }: Readonly<{
+  onSampleQuery: (sampleQuery: string) => void;
+  sampleQuery: string;
+ }>) => {
+  const handleClick = useCallback(() => {
+   onSampleQuery(sampleQuery);
+  }, [onSampleQuery, sampleQuery]);
+  return (
+   <motion.button
+    onClick={handleClick}
+    initial={SAMPLE_QUERY_MOTION_INITIAL}
+    animate={SAMPLE_QUERY_MOTION_ANIMATE}
+    transition={SAMPLE_QUERY_MOTION_TRANSITION}
+    className="group rounded-2xl border border-border/40 bg-card/40 p-5 text-left transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/30 hover:bg-card/60"
+   >
+    <p className="text-sm leading-relaxed text-muted-foreground/70 transition-colors group-hover:text-foreground">
+     {sampleQuery}
+    </p>
+   </motion.button>
+  );
+ },
 
  SampleQueryGrid = ({
   onSampleQuery,
  }: Readonly<Pick<EmptyResearchViewProps, "onSampleQuery">>) => (
   <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
    {sampleQueries.slice(0, SAMPLE_QUERY_LIMIT).map((sampleQuery) => (
-    <motion.button
+    <SampleQueryButton
      key={sampleQuery}
-     onClick={() => { onSampleQuery(sampleQuery); }}
-     initial={{ opacity: 0, y: 18 }}
-     animate={{ opacity: 1, y: 0 }}
-     transition={{ duration: 0.35, ease: "easeOut" }}
-     className="group rounded-2xl border border-border/40 bg-card/40 p-5 text-left transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/30 hover:bg-card/60"
-    >
-     <p className="text-sm leading-relaxed text-muted-foreground/70 transition-colors group-hover:text-foreground">
-      {sampleQuery}
-     </p>
-    </motion.button>
+     onSampleQuery={onSampleQuery}
+     sampleQuery={sampleQuery}
+    />
    ))}
   </div>
  ),
@@ -2692,6 +2810,7 @@ interface ResearchChatState {
  readonly chatScrollRef: React.RefObject<HTMLDivElement | null>;
  readonly isHydratingRef: React.RefObject<boolean>;
  readonly abortControllerRef: React.RefObject<AbortController | undefined>;
+ readonly setAbortController: (controller: AbortController | undefined) => void;
  readonly consumedHandoffQueryRef: React.RefObject<string | undefined>;
  readonly messages: readonly Message[];
  readonly activeAssistantVersions: Readonly<Record<string, string>>;
@@ -2789,17 +2908,24 @@ const useResearchChatCollectionsState = (): ResearchChatCollectionsState => {
 
 type ResearchChatRefs = Pick<
  ResearchChatState,
- "abortControllerRef" | "chatScrollRef" | "composerFormRef" | "consumedHandoffQueryRef" | "inputRef" | "isHydratingRef"
+ "abortControllerRef" | "chatScrollRef" | "composerFormRef" | "consumedHandoffQueryRef" | "inputRef" | "isHydratingRef" | "setAbortController"
 >;
 
-const useResearchChatRefs = (): ResearchChatRefs => ({
- abortControllerRef: useRef<AbortController | undefined>(void 0),
- chatScrollRef: useRef<HTMLDivElement>(null),
- composerFormRef: useRef<HTMLFormElement>(null),
- consumedHandoffQueryRef: useRef<string | undefined>(void 0),
- inputRef: useRef<HTMLTextAreaElement>(null),
- isHydratingRef: useRef(true),
-});
+const useResearchChatRefs = (): ResearchChatRefs => {
+ const abortControllerRef = useRef<AbortController | undefined>(void 0),
+  setAbortController = useCallback((controller: AbortController | undefined): void => {
+   abortControllerRef.current = controller;
+  }, []);
+ return {
+  abortControllerRef,
+  chatScrollRef: useRef<HTMLDivElement>(null),
+  composerFormRef: useRef<HTMLFormElement>(null),
+  consumedHandoffQueryRef: useRef<string | undefined>(void 0),
+  inputRef: useRef<HTMLTextAreaElement>(null),
+  isHydratingRef: useRef(true),
+  setAbortController,
+ };
+};
 
 type ResearchChatMessageState = Pick<
  ResearchChatState,
@@ -3132,15 +3258,15 @@ const useChatCreationAction = (
   if (stored.activeChatId !== undefined && stored.activeChatId !== null && revivedMessages[stored.activeChatId] !== undefined) {
    return stored.activeChatId;
   }
-  return stored.chats.length > 0 ? stored.chats[0]!.id : null;
+  return stored.chats[0]?.id ?? null;
  },
 
  hydrateResearchChats = (context: Readonly<ResearchChatState>): void => {
-  if (typeof window === "undefined") { return; }
+  if (globalThis.window === undefined) { return; }
   try {
    const stored = globalThis.localStorage.getItem(CHAT_STORAGE_KEY);
    if (!stored) { return; }
-   const parsed = JSON.parse(stored) as StoredChatState;
+   const parsed: StoredChatState = JSON.parse(stored);
    if (parsed.version !== CHAT_STORAGE_VERSION) { return; }
    const revivedMessages = reviveStoredChatMessages(parsed.messages);
    context.setChats(parsed.chats);
@@ -3176,7 +3302,7 @@ const useChatCreationAction = (
  },
 
  persistResearchChats = (context: Readonly<ResearchChatState>): void => {
-  if (typeof window === "undefined" || context.isHydratingRef.current) { return; }
+  if (globalThis.window === undefined || context.isHydratingRef.current) { return; }
   try {
    const payload: StoredChatState = {
     activeAssistantVersionMap: context.activeAssistantVersionMap,
@@ -3194,13 +3320,8 @@ const useChatCreationAction = (
  useResearchChatPersistence = (
   context: Readonly<ResearchChatState>,
  ): void => {
-  useEffect(() => { hydrateResearchChats(context); }, []);
-  useEffect(() => { persistResearchChats(context); }, [
-   context.activeAssistantVersionMap,
-   context.activeChatId,
-   context.chatMessagesMap,
-   context.chats,
-  ]);
+  useEffect(() => { hydrateResearchChats(context); }, [context]);
+  useEffect(() => { persistResearchChats(context); }, [context]);
  };
 
 interface ResearchStreamActions {
@@ -3400,13 +3521,11 @@ const createResearchStreamState = (): ResearchStreamState => {
    activeAssistantVersionMap,
    chats,
    inputRef,
+   setAbortController,
    setActiveAssistantVersion,
    setIsSearching,
    updateChatMessages,
   } = context,
-   setAbortController = useCallback((controller: AbortController | undefined) => {
-    abortControllerRef.current = controller;
-   }, [abortControllerRef]),
    runtime = useMemo<ResearchStreamRunContext>(() => ({
     abortControllerRef,
     inputRef,
@@ -3529,10 +3648,14 @@ const useLatestResearchMessages = (
  ): void => {
   const { chatScrollRef, conversationMessages } = context;
   useEffect(() => {
-   if (!chatScrollRef.current) {
+   if (conversationMessages.length === 0 && latestAssistantMessage?.isStreaming !== true) {
     return;
    }
-   chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+   const scrollElement = chatScrollRef.current;
+   if (scrollElement === null) {
+    return;
+   }
+   scrollElement.scrollTop = scrollElement.scrollHeight;
   }, [chatScrollRef, conversationMessages.length, latestAssistantMessage?.isStreaming]);
  };
 
@@ -3663,7 +3786,7 @@ const useResearchMessageSearchActions = (
     const targetAssistant = messages.find((message) => message.id === assistantMessageId);
     if (targetAssistant?.type !== "assistant") { return; }
     const retryUserMessage = conversationMessages.slice(0, visibleAssistantIndex)
-     .reverse()
+     .toReversed()
      .find((message) => message.type === "user");
     if (retryUserMessage === undefined || retryUserMessage.content.trim().length === 0) {
      return;
@@ -3820,14 +3943,11 @@ interface SearchPageRouter {
 }
 
 export interface NewsResearchPageServices {
- useRouter: () => SearchPageRouter;
- useSearchParams: () => Pick<URLSearchParams, "get">;
+ router?: SearchPageRouter;
+ searchParams?: Pick<URLSearchParams, "get">;
 }
 
-const DEFAULT_NEWS_RESEARCH_PAGE_SERVICES: NewsResearchPageServices = {
- useRouter,
- useSearchParams,
-},
+const DEFAULT_NEWS_RESEARCH_PAGE_SERVICES: NewsResearchPageServices = {},
 
  useResearchHandoff = (
   context: Readonly<ResearchHandoffContext>,
@@ -3858,7 +3978,15 @@ const DEFAULT_NEWS_RESEARCH_PAGE_SERVICES: NewsResearchPageServices = {
     prompt: handoffQuery,
    });
    replace("/search");
-  }, [handoffQuery, isHydratingRef, isSearching, replace, setQuery, submitPrompt]);
+  }, [
+	handoffQuery,
+	isHydratingRef,
+	isSearching,
+	replace,
+	setQuery,
+	submitPrompt,
+	consumedHandoffQueryRef
+]);
  };
 
 interface ResearchPageAssemblyContext {
@@ -3922,11 +4050,16 @@ const createResearchPageViewProps = ({
  thinkingSteps: [...derivedState.thinkingSteps],
 });
 
+interface ResearchPageNavigation {
+ router: SearchPageRouter;
+ searchParams: Pick<URLSearchParams, "get">;
+}
+
 const useResearchPageController = (
- services: NewsResearchPageServices,
+ navigation: Readonly<ResearchPageNavigation>,
 ): ResearchPageViewProps => {
- const { replace } = services.useRouter(),
-  searchParams = services.useSearchParams(),
+ const { replace } = navigation.router,
+  { searchParams } = navigation,
   chatState = useResearchChatState(),
   handoffQuery = searchParams.get("query")?.trim() ?? "",
 
@@ -3964,7 +4097,12 @@ const useResearchPageController = (
 }
 
 const NewsResearchPageContent = ({ services }: { services: NewsResearchPageServices }) => {
- const controller = useResearchPageController(services);
+ const defaultRouter = useRouter(),
+  defaultSearchParams = useSearchParams(),
+  controller = useResearchPageController({
+   router: services.router ?? defaultRouter,
+   searchParams: services.searchParams ?? defaultSearchParams,
+  });
  return <ResearchPageView controller={controller} />;
 },
 
@@ -3972,7 +4110,7 @@ const NewsResearchPageContent = ({ services }: { services: NewsResearchPageServi
   services = DEFAULT_NEWS_RESEARCH_PAGE_SERVICES,
  }: { services?: NewsResearchPageServices } = {}) =>
  (
-  <Suspense fallback={<div className="min-h-screen bg-background" />}>
+  <Suspense fallback={SEARCH_PAGE_FALLBACK}>
    <NewsResearchPageContent services={services} />
   </Suspense>
  )
