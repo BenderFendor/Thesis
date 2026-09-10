@@ -1,0 +1,32 @@
+name: Oxlint toolchain bundle
+
+on:
+  push:
+    branches:
+      - quality/crap-mi-oxlint-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install pinned frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Archive frontend node modules
+        run: tar -czf /tmp/frontend-node-modules.tgz frontend/node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-node-modules
+          path: /tmp/frontend-node-modules.tgz
+          retention-days: 1
+          compression-level: 0
