@@ -40,7 +40,7 @@ const isLeaningBadgeKey = (value: string): value is keyof typeof LEANING_BADGE_C
 
 const leaningBadgeClass = (leaning?: string): string => {
   if (leaning === undefined) {
-    throw new Error("Not implemented yet: undefined case");
+    return "bg-zinc-800/40 text-zinc-400 border-zinc-700/20";
   }
   const normalized = leaning.toLowerCase();
   if (isLeaningBadgeKey(normalized)) {
@@ -61,7 +61,7 @@ const confidenceLabel = (conf?: string): string => {
       return "inferred";
     }
     case undefined: {
-      throw new Error("Not implemented yet: undefined case");
+      return "";
     }
     default: {
       return "";
@@ -183,8 +183,8 @@ const filterReporters = (
   if (searchQuery.length > 0) {
     const query = searchQuery.toLowerCase();
     result = result.filter((reporter) => {
-      const matchesName = reporter.name.toLowerCase().includes(query),
-        matchesBio = reporter.bio?.toLowerCase().includes(query) === true,
+      const matchesBio = reporter.bio?.toLowerCase().includes(query) === true,
+        matchesName = reporter.name.toLowerCase().includes(query),
         matchesTopic = reporter.topics?.some((topic) => topic.toLowerCase().includes(query)) === true;
       return matchesName || matchesBio || matchesTopic;
     });
@@ -224,7 +224,6 @@ const ReporterDirectoryPage = () => {
     queryKey: ["wiki-reporters", 500],
     retry: 1,
   });
-  const errorMessage = errorMessageFor(error);
   const leaningOptions = useMemo(() => getLeaningOptions(reporters), [reporters]);
   const filtered = useMemo(
     () => filterReporters(reporters, searchQuery, leaningFilter),
@@ -234,7 +233,7 @@ const ReporterDirectoryPage = () => {
   return (
     <ReporterDirectoryView
       error={error}
-      errorMessage={errorMessage}
+      errorMessage={errorMessageFor(error)}
       filtered={filtered}
       isLoading={loading}
       leaningFilter={leaningFilter}
@@ -260,6 +259,42 @@ interface ReporterDirectoryViewProps {
   readonly searchQuery: string;
 }
 
+const ReporterHeaderBackLink = () => (
+  <Link
+    href="/wiki/ownership"
+    className="text-muted-foreground hover:text-foreground transition-colors"
+  >
+    <ChevronLeft className="w-5 h-5" />
+  </Link>
+);
+
+const ReporterHeaderTitle = () => (
+  <h1 className="font-serif text-xl font-semibold flex items-center gap-2">
+    <Users className="w-5 h-5" />
+    Reporter Directory
+  </h1>
+);
+
+const ReporterHeaderIdentity = () => (
+  <div className="min-w-0 flex-1">
+    <ReporterHeaderTitle />
+    <p className="text-xs text-muted-foreground font-mono uppercase tracking-[0.2em]">
+      Journalist Profiles & Dossiers
+    </p>
+  </div>
+);
+
+const ReporterDirectoryHeader = ({ count }: Readonly<{ count: number }>) => (
+  <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-white/10">
+    <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <ReporterHeaderBackLink />
+      <ReporterHeaderIdentity />
+      <div className="text-right text-xs text-muted-foreground font-mono">
+        {count} reporters
+      </div>
+    </div>
+  </header>
+);
 
 const ReporterDirectoryView = ({
   error,
@@ -274,30 +309,7 @@ const ReporterDirectoryView = ({
   searchQuery,
 }: Readonly<ReporterDirectoryViewProps>) => (
   <div className="min-h-screen bg-[var(--news-bg-primary)]">
-    <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-white/10">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/wiki/ownership"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="font-serif text-xl font-semibold flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Reporter Directory
-            </h1>
-            <p className="text-xs text-muted-foreground font-mono uppercase tracking-[0.2em]">
-              Journalist Profiles & Dossiers
-            </p>
-          </div>
-        </div>
-        <div className="text-right text-xs text-muted-foreground font-mono">
-          {reporters.length} reporters
-        </div>
-      </div>
-    </header>
+    <ReporterDirectoryHeader count={reporters.length} />
 
     <main className="container mx-auto px-4 py-6">
       <ReporterDirectoryFilters
@@ -325,80 +337,123 @@ interface ReporterDirectoryFiltersProps {
   readonly searchQuery: string;
 }
 
+const ReporterSearchField = ({
+  onSearchChange,
+  searchQuery,
+}: Readonly<Pick<ReporterDirectoryFiltersProps, "onSearchChange" | "searchQuery">>) => {
+  const handleSearchChange = useCallback(
+    (event: TextInputChange) => {
+      onSearchChange(event.target.value);
+    },
+    [onSearchChange],
+  );
+  return (
+    <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <Input
+        value={searchQuery}
+        onChange={handleSearchChange}
+        placeholder="Search reporters, topics..."
+        className="pl-9 h-9 bg-zinc-900/50 border-white/10 text-sm"
+      />
+    </div>
+  );
+};
+
+const ReporterSelectTrigger = () => (
+  <SelectTrigger className="w-[160px] h-9 bg-zinc-900/50 border-white/10 text-sm">
+    <SelectValue placeholder="Leaning" />
+  </SelectTrigger>
+);
+
+const ReporterSelectContent = ({ options }: Readonly<{ options: readonly string[] }>) => (
+  <SelectContent>
+    <SelectItem value="all">All Leanings</SelectItem>
+    {options.map((leaning) => (
+      <SelectItem key={leaning} value={leaning}>
+        {leaning}
+      </SelectItem>
+    ))}
+  </SelectContent>
+);
+
+const ReporterLeaningSelect = ({
+  leaningFilter,
+  leaningOptions,
+  onLeaningChange,
+}: Readonly<
+  Pick<ReporterDirectoryFiltersProps, "leaningFilter" | "leaningOptions" | "onLeaningChange">
+>) => (
+  <Select value={leaningFilter} onValueChange={onLeaningChange}>
+    <ReporterSelectTrigger />
+    <ReporterSelectContent options={leaningOptions} />
+  </Select>
+);
+
+const ReporterActiveFilters = ({
+  leaningFilter,
+  onLeaningChange,
+  onSearchChange,
+  searchQuery,
+}: Readonly<
+  Pick<
+    ReporterDirectoryFiltersProps,
+    "leaningFilter" | "onLeaningChange" | "onSearchChange" | "searchQuery"
+  >
+>) => {
+  const hasActiveFilters = leaningFilter !== "all" || searchQuery.length > 0;
+  const clearLeaning = useCallback(() => {
+    onLeaningChange("all");
+  }, [onLeaningChange]);
+  const clearSearch = useCallback(() => {
+    onSearchChange("");
+  }, [onSearchChange]);
+  if (!hasActiveFilters) {
+    return null;
+  }
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+        Filters:
+      </span>
+      {searchQuery.length > 0 && (
+        <Badge variant="secondary" className="text-xs cursor-pointer" onClick={clearSearch}>
+          &quot;{searchQuery}&quot; x
+        </Badge>
+      )}
+      {leaningFilter !== "all" && (
+        <Badge variant="secondary" className="text-xs cursor-pointer" onClick={clearLeaning}>
+          {leaningFilter} x
+        </Badge>
+      )}
+    </div>
+  );
+};
+
 const ReporterDirectoryFilters = ({
   leaningFilter,
   leaningOptions,
   onLeaningChange,
   onSearchChange,
   searchQuery,
-}: Readonly<ReporterDirectoryFiltersProps>) => {
-  const clearLeaning = useCallback(() => {
-      onLeaningChange("all");
-    }, [onLeaningChange]),
-    clearSearch = useCallback(() => {
-      onSearchChange("");
-    }, [onSearchChange]),
-    handleSearchChange = useCallback(
-      (event: TextInputChange) => {
-        onSearchChange(event.target.value);
-      },
-      [onSearchChange],
-    ),
-    hasActiveFilters = leaningFilter !== "all" || searchQuery.length > 0;
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder="Search reporters, topics..."
-            className="pl-9 h-9 bg-zinc-900/50 border-white/10 text-sm"
-          />
-        </div>
-        <Select value={leaningFilter} onValueChange={onLeaningChange}>
-          <SelectTrigger className="w-[160px] h-9 bg-zinc-900/50 border-white/10 text-sm">
-            <SelectValue placeholder="Leaning" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Leanings</SelectItem>
-            {leaningOptions.map((leaning) => (
-              <SelectItem key={leaning} value={leaning}>
-                {leaning}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {hasActiveFilters && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            Filters:
-          </span>
-          {searchQuery.length > 0 && (
-            <Badge
-              variant="secondary"
-              className="text-xs cursor-pointer"
-              onClick={clearSearch}
-            >
-              &quot;{searchQuery}&quot; x
-            </Badge>
-          )}
-          {leaningFilter !== "all" && (
-            <Badge
-              variant="secondary"
-              className="text-xs cursor-pointer"
-              onClick={clearLeaning}
-            >
-              {leaningFilter} x
-            </Badge>
-          )}
-        </div>
-      )}
-    </>
-  );
-};
+}: Readonly<ReporterDirectoryFiltersProps>) => (
+  <>
+    <div className="flex flex-wrap items-center gap-3 mb-6">
+      <ReporterSearchField onSearchChange={onSearchChange} searchQuery={searchQuery} />
+      <ReporterLeaningSelect
+        leaningFilter={leaningFilter}
+        leaningOptions={leaningOptions}
+        onLeaningChange={onLeaningChange}
+      />
+    </div>
+    <ReporterActiveFilters
+      leaningFilter={leaningFilter}
+      onLeaningChange={onLeaningChange}
+      onSearchChange={onSearchChange}
+      searchQuery={searchQuery}
+    />
+  </>
+);
 
 interface ReporterDirectoryResultsProps {
   readonly error: Readonly<Error> | null;
