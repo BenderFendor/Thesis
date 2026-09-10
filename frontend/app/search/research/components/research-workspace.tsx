@@ -165,10 +165,12 @@ const ResearchChatMain = ({
   </section>
 );
 
-const ResearchChatView = (props: ResearchChatViewProps) => (
+const ResearchChatView = ({
+  view,
+}: Readonly<{ readonly view: ResearchChatViewProps }>) => (
   <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row">
-    <ResearchChatMain view={props} />
-    <ResearchChatAside view={props} />
+    <ResearchChatMain view={view} />
+    <ResearchChatAside view={view} />
   </div>
 );
 interface WorkspaceHeaderProps {
