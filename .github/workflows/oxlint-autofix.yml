@@ -1,6 +1,9 @@
 name: Oxlint safe autofix
 
 on:
+  push:
+    branches:
+      - quality/crap-mi-oxlint-hardening
   workflow_dispatch:
 
 permissions:
