@@ -1,4 +1,5 @@
 import { hasText } from "@/lib/utils";
+
 const ARTICLE_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
@@ -30,9 +31,9 @@ const formatDate = (value: string | null | undefined, formatter: Intl.DateTimeFo
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-  return value;
-}
-return formatter.format(date);
+    return value;
+  }
+  return formatter.format(date);
 };
 
 const formatArticleDate = (value?: string | null): string =>
@@ -41,9 +42,7 @@ const formatArticleDate = (value?: string | null): string =>
 const formatArticleDateTime = (value?: string | null): string =>
   formatDate(value, ARTICLE_DATE_TIME_FORMATTER);
 
-const formatShortDate = (value?: string | null): string =>
-  formatDate(value, SHORT_DATE_FORMATTER);
+const formatShortDate = (value?: string | null): string => formatDate(value, SHORT_DATE_FORMATTER);
 
-const formatMonthYear = (value?: string | null): string =>
-  formatDate(value, MONTH_YEAR_FORMATTER);
+const formatMonthYear = (value?: string | null): string => formatDate(value, MONTH_YEAR_FORMATTER);
 export { formatArticleDate, formatArticleDateTime, formatShortDate, formatMonthYear };

@@ -1,4 +1,5 @@
 import { hasText } from "@/lib/utils";
+
 interface CountryFeatureProperties {
   readonly ISO_A2?: string;
   readonly ADM0_A3?: string;
