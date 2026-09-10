@@ -11,7 +11,77 @@ permissions:
   contents: read
 
 jobs:
+  oxlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Run Oxlint and summarize debt
+        shell: bash
+        run: |
+          set +e
+          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format json frontend scripts > oxlint-report.json
+          status=$?
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync('oxlint-report.json', 'utf8');
+          const parsed = JSON.parse(raw);
+          const diagnostics = Array.isArray(parsed)
+            ? parsed.flatMap((entry) => Array.isArray(entry?.warnings) ? entry.warnings : [])
+            : (Array.isArray(parsed?.diagnostics) ? parsed.diagnostics : []);
+          const severity = (d) => String(d?.severity ?? 'error').toLowerCase();
+          const fileOf = (d) => {
+            const labels = Array.isArray(d?.labels) ? d.labels : [];
+            return String(labels[0]?.span?.file ?? labels[0]?.file ?? d?.filename ?? d?.path ?? '<unknown>');
+          };
+          const ruleOf = (d) => String(d?.code ?? d?.rule ?? d?.ruleId ?? 'unknown');
+          const errors = diagnostics.filter((d) => !severity(d).startsWith('warn'));
+          const warnings = diagnostics.filter((d) => severity(d).startsWith('warn'));
+          const group = (items, keyFn) => {
+            const map = new Map();
+            for (const item of items) {
+              const key = keyFn(item);
+              map.set(key, (map.get(key) ?? 0) + 1);
+            }
+            return [...map.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+          };
+          const summary = {
+            errors: errors.length,
+            warnings: warnings.length,
+            total: diagnostics.length,
+            errorsByRule: group(errors, ruleOf),
+            errorsByFile: group(errors, fileOf),
+            warningsByRule: group(warnings, ruleOf),
+          };
+          fs.writeFileSync('oxlint-summary.json', JSON.stringify(summary, null, 2));
+          console.log(JSON.stringify({
+            errors: summary.errors,
+            warnings: summary.warnings,
+            topErrorRules: summary.errorsByRule.slice(0, 40),
+            topErrorFiles: summary.errorsByFile.slice(0, 80),
+          }, null, 2));
+          NODE
+          exit $status
+      - name: Upload Oxlint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxlint-report
+          path: |
+            oxlint-report.json
+            oxlint-summary.json
+          if-no-files-found: error
+          retention-days: 7
+
   quality:
+    needs: oxlint
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
