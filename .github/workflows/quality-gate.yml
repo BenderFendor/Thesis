@@ -27,6 +27,8 @@ jobs:
         shell: bash
         run: |
           set +e
+          export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          test -x "$OXLINT_TSGOLINT_PATH"
           frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format json frontend scripts > oxlint-report.json
           status=$?
           node - <<'NODE'
