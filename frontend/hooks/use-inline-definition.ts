@@ -4,6 +4,7 @@ import { hasText } from "@/lib/utils";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { requestInlineDefinition } from "../lib/api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
 
 interface InlineDefinitionResult {
   readonly term: string;
@@ -11,10 +12,12 @@ interface InlineDefinitionResult {
   readonly error?: string | null;
 }
 
-interface AnchorPosition {
-  readonly x: number;
-  readonly y: number;
-}
+const HORIZONTAL_POSITION = "x";
+const VERTICAL_POSITION = "y";
+type AnchorPosition = Readonly<{
+  [HORIZONTAL_POSITION]: number;
+  [VERTICAL_POSITION]: number;
+}>;
 
 type ReadonlySelection = Readonly<Pick<Selection, "getRangeAt">>;
 type InlineMouseEvent = Readonly<Pick<MouseEvent, "altKey" | "clientX" | "clientY">>;
@@ -27,14 +30,14 @@ const getSelectionAnchorPosition = (
   try {
     const rect = selection.getRangeAt(0).getBoundingClientRect();
     return {
-      x: rect.left + rect.width / 2 + globalThis.scrollX,
-      y: rect.top + globalThis.scrollY,
-    };
+      [HORIZONTAL_POSITION]: rect.left + rect.width / 2 + globalThis.scrollX,
+      [VERTICAL_POSITION]: rect.top + globalThis.scrollY,
+    } satisfies AnchorPosition;
   } catch {
     return {
-      x: event.clientX + globalThis.scrollX,
-      y: event.clientY + globalThis.scrollY,
-    };
+      [HORIZONTAL_POSITION]: event.clientX + globalThis.scrollX,
+      [VERTICAL_POSITION]: event.clientY + globalThis.scrollY,
+    } satisfies AnchorPosition;
   }
 };
 
@@ -62,10 +65,80 @@ const selectedDefinitionTerm = (event: InlineMouseEvent): string | undefined => 
   return text || undefined;
 };
 
+const buildInlineDefinitionResult = (
+  term: string,
+  response: DeepReadonly<Awaited<ReturnType<typeof requestInlineDefinition>>>,
+): InlineDefinitionResult => {
+  if (response.success) {
+    return { definition: response.definition, term };
+  }
+  return { error: response.error, term };
+};
+
+const inlineDefinitionErrorMessage = (error: Error | string): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return error;
+};
+
+const isRecentInlineDefinitionRequest = (
+  normalizedTerm: string,
+  now: number,
+  state: DeepReadonly<InlineDefinitionRequestState>,
+): boolean => state.getLastTerm() === normalizedTerm && now - state.getLastRequestAt() < 4000;
+
+const prepareInlineDefinitionRequest = (
+  text: string,
+  normalized: string,
+  now: number,
+  state: DeepReadonly<InlineDefinitionRequestState>,
+): void => {
+  state.setLastTerm(normalized);
+  state.setLastRequestAt(now);
+  state.getAbortController()?.abort();
+  state.setAbortController(new AbortController());
+  state.setResult({ definition: "Loading...", term: text });
+  state.setOpen(true);
+};
+
+const setInlineDefinitionError = (
+  state: DeepReadonly<InlineDefinitionRequestState>,
+  error: Error | string,
+): void => {
+  const message = inlineDefinitionErrorMessage(error);
+  state.setResult((result) => {
+    if (result) {
+      return { ...result, error: message };
+    }
+    return null;
+  });
+};
+
+const loadInlineDefinition = async (
+  text: string,
+  state: DeepReadonly<InlineDefinitionRequestState>,
+): Promise<void> => {
+  try {
+    const response = await requestInlineDefinition(text);
+    state.setResult(buildInlineDefinitionResult(text, response));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return;
+    }
+    console.error("Inline definition error:", error);
+    if (error instanceof Error) {
+      setInlineDefinitionError(state, error);
+      return;
+    }
+    setInlineDefinitionError(state, String(error));
+  }
+};
+
 const requestInlineDefinitionForTerm = async (
   text: string,
   event: InlineMouseEvent,
-  state: InlineDefinitionRequestState,
+  state: DeepReadonly<InlineDefinitionRequestState>,
 ): Promise<void> => {
   const selection = globalThis.getSelection();
   if (!selection) {
@@ -74,58 +147,14 @@ const requestInlineDefinitionForTerm = async (
   state.setAnchorPosition(getSelectionAnchorPosition(selection, event));
 
   const normalized = text.toLowerCase(),
-    now = Date.now(),
-    recentlyRequested =
-      state.getLastTerm() === normalized && now - state.getLastRequestAt() < 4000;
-  if (recentlyRequested) {
+    now = Date.now();
+  if (isRecentInlineDefinitionRequest(normalized, now, state)) {
     state.setOpen(true);
     return;
   }
 
-  state.setLastTerm(normalized);
-  state.setLastRequestAt(now);
-  state.getAbortController()?.abort();
-  state.setAbortController(new AbortController());
-  state.setResult({ definition: "Loading...", term: text });
-  state.setOpen(true);
-
-  try {
-    const response = await requestInlineDefinition(text);
-    state.setResult(
-      (() => {
-  if (response.success) {
-    return {
-      definition: response.definition,
-      term: text
-    };
-  }
-  return {
-    error: response.error,
-    term: text
-  };
-})(),
-    );
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return;
-    }
-    console.error("Inline definition error:", error);
-    const message = (() => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-})();
-    state.setResult((result) => ((() => {
-  if (result) {
-    return {
-      ...result,
-      error: message
-    };
-  }
-  return null;
-})()));
-  }
+  prepareInlineDefinitionRequest(text, normalized, now, state);
+  await loadInlineDefinition(text, state);
 };
 
 function useInlineDefinition() {
@@ -142,9 +171,9 @@ function useInlineDefinition() {
     if (globalThis.navigator?.userAgent.includes("jsdom")) {
       return () => {};
     }
-    const onKey = (e: InlineKeyboardEvent) => {
+    const onKey = (event: InlineKeyboardEvent) => {
         // Close on Escape
-        if (e.key === "Escape") {
+        if (event.key === "Escape") {
           setOpen(false);
         }
       },
@@ -178,9 +207,7 @@ function useInlineDefinition() {
     return () => {
       document.removeEventListener("mouseup", onMouseUp);
       document.removeEventListener("keydown", onKey);
-      if (abort) {
-        abort.abort();
-      }
+      abort?.abort();
     };
   }, []);
 
