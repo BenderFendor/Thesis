@@ -47,7 +47,7 @@ const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSumm
 
 const groupArticleSummaries = (
   summaries: readonly QueueArticleSummary[],
-): Record<string, QueueArticleSummary[]> => {
+) => {
   const grouped: Record<string, QueueArticleSummary[]> = {};
   for (const summary of summaries) {
     const existing = grouped[summary.category];

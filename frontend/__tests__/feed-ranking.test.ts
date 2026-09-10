@@ -1,4 +1,4 @@
-import type { ArticleTopic, NewsArticle } from "@/lib/api"
+import type { NewsArticle } from "@/lib/api"
 import { buildInterestProfile, rankFeedArticles } from '@/lib/feed-ranking';
 
 import { describe, expect, it } from '@jest/globals';
@@ -41,7 +41,7 @@ describe("feed ranking", () => {
      seeds: PersonalizationSeed[] = [
       { article: seedArticle, bookmarked: true, createdAt: new Date().toISOString(), liked: true },
     ],
-     topicsByArticleId: Record<number, ArticleTopic[]> = {
+     topicsByArticleId = {
       10: [{ cluster_id: 3, keywords: ["trade"], label: "Trade", similarity: 0.91 }],
     },
      profile = buildInterestProfile(seeds, topicsByArticleId),
@@ -61,7 +61,7 @@ describe("feed ranking", () => {
     fc.assert(
       fc.property(fc.integer({ max: 9999, min: 1 }), (articleId) => {
         const seedArticle = makeArticle({ category: "politics", id: articleId, sourceId: "newswire", title: "Election briefing" }),
-         topicsByArticleId: Record<number, ArticleTopic[]> = {
+         topicsByArticleId = {
           [articleId]: [{ cluster_id: 8, keywords: ["election", "vote"], label: "Election", similarity: 0.9 }],
         },
 

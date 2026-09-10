@@ -3134,7 +3134,7 @@ const useChatCreationAction = (
  removeChatMessages = (
   chatMessagesMap: Readonly<Record<string, readonly Message[]>>,
   id: string,
- ): Record<string, Message[]> => {
+ ) => {
   const nextMessages: Record<string, Message[]> = {};
   Object.entries(chatMessagesMap).forEach(([chatId, messages]) => {
    if (chatId !== id) {
@@ -3147,7 +3147,7 @@ const useChatCreationAction = (
  removeSelectedChatMessages = (
   chatMessagesMap: Readonly<Record<string, readonly Message[]>>,
   ids: readonly string[],
- ): Record<string, Message[]> => {
+ ) => {
   const nextMessages: Record<string, Message[]> = {};
   Object.entries(chatMessagesMap).forEach(([chatId, messages]) => {
    nextMessages[chatId] = [...messages];
@@ -3239,7 +3239,7 @@ const useChatCreationAction = (
 
  reviveStoredChatMessages = (
   messages: StoredChatState["messages"] | undefined,
- ): Record<string, Message[]> => {
+ ) => {
   const revivedMessages: Record<string, Message[]> = {};
   Object.entries(messages ?? {}).forEach(([chatId, items]) => {
    revivedMessages[chatId] = items.map((item) => ({

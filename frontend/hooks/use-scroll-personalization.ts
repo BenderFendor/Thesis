@@ -126,7 +126,7 @@ const NO_ITEMS = 0,
 
  buildTopicMap = (
   articleIds: readonly number[],
-): Record<number, readonly ArticleTopic[]> => {
+) => {
   const topicMap: Record<number, readonly ArticleTopic[]> = {};
   for (const articleId of articleIds) {
     const cached = topicCache.get(articleId);

@@ -537,7 +537,7 @@ const getLensArticles = (
   }))
 },
 
- buildVerificationStats = (articles: ArticleList): { readonly highPct: number } => {
+ buildVerificationStats = (articles: ArticleList) => {
   const total = articles.length
   if (total === EMPTY_COUNT) {return { highPct: EMPTY_COUNT }}
   const high = articles.filter((article) => article.credibility === "high").length

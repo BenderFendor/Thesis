@@ -58,11 +58,11 @@ const CITATION_LIMIT = 4,
   return `https://duckduckgo.com/?q=${encodeURIComponent(`${profile.name} journalist`)}`
 },
 
- statusBadgeClass: Readonly<Record<string, string>> = {
+ statusBadgeClass = {
   ambiguous: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   matched: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
   none: "border-white/10 bg-muted/20 text-muted-foreground",
-}
+} satisfies Readonly<Record<string, string>>
 
 interface ErrorProfileProps {
   readonly compact: boolean

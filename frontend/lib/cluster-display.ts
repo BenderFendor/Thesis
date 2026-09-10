@@ -81,7 +81,7 @@ const getClusterPreviewStats = (cluster:Readonly< {
   source_diversity: number;
   representative_article?: ClusterPreviewArticle | null;
   articles?: readonly ClusterPreviewArticle[];
-}>): { articleCount: number; sourceCount: number } => {
+}>) => {
   const previewArticles =
     cluster.articles && cluster.articles.length > 0
       ? cluster.articles

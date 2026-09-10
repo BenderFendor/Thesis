@@ -107,19 +107,19 @@ const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
   APPEARANCE_STORAGE_KEY = STORAGE_KEYS.APPEARANCE_SETTINGS,
 
 /** Root CSS properties overridden per color token; --ring follows --accent. */
-  COLOR_PROPERTY_BY_TOKEN: Record<keyof AppearanceColorTokens, string | string[]> = {
+  COLOR_PROPERTY_BY_TOKEN = {
   accent: ["--primary", "--ring"],
   background: "--background",
   border: "--border",
   foreground: "--foreground",
   secondaryText: "--muted-foreground",
   surface: "--card",
-},
+} satisfies Record<keyof AppearanceColorTokens, string | string[]>,
 
   HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u,
 
 /** Neutral values that mean "no override" for the numeric root properties. */
-  NEUTRAL_NUMBER_BY_PROPERTY: Record<string, number> = {
+  NEUTRAL_NUMBER_BY_PROPERTY = {
   "--appearance-text-scale": 1,
   "--appearance-font-weight-body": APPEARANCE_DEFAULTS.typography.bodyWeight,
   "--appearance-font-weight-heading": APPEARANCE_DEFAULTS.typography.headingWeight,
@@ -128,7 +128,7 @@ const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
   "--radius": APPEARANCE_DEFAULTS.layout.cornerRadius,
   "--appearance-shadow-strength": 1,
   "--appearance-motion-speed": 1,
-  };
+  } satisfies Record<string, number>;
 
 const getServerAppearanceSettings = (): AppearanceSettings => 
   // Stable frozen reference required by useSyncExternalStore server snapshots.

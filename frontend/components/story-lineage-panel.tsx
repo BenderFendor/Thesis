@@ -11,7 +11,11 @@ interface StoryLineagePanelProps {
   clusterId: number;
 }
 
-const relationLabels: Record<string, string> = {
+interface RelationLabels {
+  readonly [relation: string]: string;
+}
+
+const relationLabels: RelationLabels = {
   later_variant: "Later variant",
   likely_source: "Likely source",
   same_wire_story: "Wire reuse",

@@ -23,10 +23,7 @@ const STREAM_MESSAGE_TIMEOUT_MS = 120_000;
 const STREAM_STALL_CHECK_INTERVAL_MS = 3000;
 const STREAM_TIMEOUT_CHECK_INTERVAL_MS = 5000;
 
-export const streamNews = (options: StreamOptions = {}): {
-  promise: Promise<StreamResult>;
-  url: string;
-} => {
+export const streamNews = (options: StreamOptions = {}) => {
   const sseUrl = buildStreamUrl(options);
   console.debug(
     `Starting news stream with useCache=${options.useCache ?? true} and category=${options.category}`,

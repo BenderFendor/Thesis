@@ -2299,7 +2299,7 @@ const DIGEST_FENCE_PATTERN = /```json:articles\n[\s\S]*?\n```/gu,
 
  groupDigestArticles = (
   articles: readonly DigestArticleSummary[],
- ): Readonly<Record<string, readonly DigestArticleSummary[]>> => {
+ ) => {
   const grouped: Record<string, DigestArticleSummary[]> = {};
   articles.forEach((article) => {
    const { category } = article;

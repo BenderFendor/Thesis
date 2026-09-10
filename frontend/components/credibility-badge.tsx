@@ -22,11 +22,11 @@ const DEFAULT_DIMENSION_COUNT = 6,
  STRONG_SCORE_THRESHOLD = 70;
 type BadgeSize = "lg" | "md" | "sm";
 
-const ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+const ICON_SIZE_CLASSES = {
   lg: "h-4 w-4",
   md: "h-3.5 w-3.5",
   sm: "h-3 w-3",
-},
+} satisfies Readonly<Record<BadgeSize, string>>,
 
  SKELETON_IDS: readonly string[] = [
   "ownership",
@@ -37,11 +37,11 @@ const ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
   "history",
 ],
 
- TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {
+ TEXT_SIZE_CLASSES = {
   lg: "text-xs",
   md: "text-[11px]",
   sm: "text-[10px]",
-};
+} satisfies Readonly<Record<BadgeSize, string>>;
 
 interface CredibilityBadgeProps {
   readonly className?: string;

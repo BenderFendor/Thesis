@@ -828,7 +828,7 @@ const CountryFeatureSchema = z.object({
   return { iso, mentionCount, ratio, sourceCount }
  },
 
- remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]): Record<string, number> => {
+ remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]) => {
   const isoSet = new Set<string>(),
    nameToIso = new Map<string, string>()
 
@@ -970,15 +970,7 @@ const usePolygonPresentation = (context: Readonly<{
   mentionCounts: Record<string, number>;
   onCountrySelect: InteractiveGlobeProps["onCountrySelect"];
   selectedCountry: string | null;
-}>): Readonly<{
-  handlePolygonClick: (polygon: GlobePolygonInput) => void;
-  handlePolygonHover: (polygon: GlobePolygonInput | null) => void;
-  polygonAltitude: (polygon: GlobePolygonInput) => number;
-  polygonCapColor: (polygon: GlobePolygonInput) => string;
-  polygonLabel: (polygon: GlobePolygonInput) => string;
-  polygonSideColor: (polygon: GlobePolygonInput) => string;
-  polygonStrokeColor: (polygon: GlobePolygonInput) => string;
-}> => {
+}>) => {
   const { displayCounts, globeInstance, maxCount, maxMentionCount, mentionCounts, onCountrySelect, selectedCountry } = context,
    [hoverD, setHoverD] = useState<CountryFeature | null>(null),
    polygonStyleContext = useMemo<PolygonContext>(
