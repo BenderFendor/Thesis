@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 
-const createPopoverStyle = (x: number, y: number) =>
-  ({ left: x, position: "absolute" as const, top: y });
+const createPopoverStyle = (leftOffset: number, topOffset: number) =>
+  ({ left: leftOffset, position: "absolute" as const, top: topOffset });
 
 export interface InlineDefinitionPopoverProps {
   readonly result: Readonly<{
@@ -13,7 +13,7 @@ export interface InlineDefinitionPopoverProps {
   }> | null;
   readonly open: boolean;
   readonly setOpen: (open: boolean) => void;
-  readonly anchorPosition: Readonly<{ readonly x: number; readonly y: number }> | null;
+  readonly anchorPosition: Readonly<Record<"x" | "y", number>> | null;
 }
 
 export const InlineDefinitionPopover = ({
@@ -30,13 +30,13 @@ export const InlineDefinitionPopover = ({
     return null;
   }
 
-  const x = anchorPosition?.x ?? 0,
-    y = anchorPosition?.y ?? 0;
+  const leftOffset = anchorPosition?.x ?? 0,
+    topOffset = anchorPosition?.y ?? 0;
 
   return (
     <button
       type="button"
-      style={createPopoverStyle(x, y)}
+      style={createPopoverStyle(leftOffset, topOffset)}
       className="z-50 max-w-xs rounded-md border bg-white p-3 text-left text-sm shadow-lg"
       onClick={closePopover}
     >
