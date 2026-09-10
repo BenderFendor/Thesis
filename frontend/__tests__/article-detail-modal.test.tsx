@@ -29,7 +29,7 @@ const baseArticle: NewsArticle = {
  mockedApi = {
   analyzeArticle: jest.fn<ArticleDetailServices["analyzeArticle"]>(async () => ({ article_url: "", success: false })),
   createHighlight: jest.fn<ArticleDetailServices["createHighlight"]>(async (highlight) => highlight),
-  deleteHighlight: jest.fn<ArticleDetailServices["deleteHighlight"]>(async () => { }),
+  deleteHighlight: jest.fn<ArticleDetailServices["deleteHighlight"]>(async () => {}),
   fetchLanguageDiagnostics: jest.fn<ArticleDetailServices["fetchLanguageDiagnostics"]>(async () => ({
    article_url: "",
    sentence_count: 0,
@@ -40,7 +40,7 @@ const baseArticle: NewsArticle = {
    throw new Error("Source debugging is not expected in this test");
   }),
   getHighlightsForArticle: jest.fn<ArticleDetailServices["getHighlightsForArticle"]>(async () => []),
-  getSourceById: jest.fn<ArticleDetailServices["getSourceById"]>(() => Promise.resolve(undefined)),
+  getSourceById: jest.fn<ArticleDetailServices["getSourceById"]>(() => Promise.resolve()),
   performAgenticSearch: jest.fn<ArticleDetailServices["performAgenticSearch"]>(async () => ({ answer: "", success: false })),
   updateHighlight: jest.fn<ArticleDetailServices["updateHighlight"]>(async () => {
    throw new Error("Highlight updates are not expected in this test");

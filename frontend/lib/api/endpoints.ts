@@ -69,6 +69,7 @@ WikiReporterCard,
 WikiReporterDossier,
 WikiSourceProfile,
 } from "./types";
+
 const NOT_FOUND = 404;
 const UNAVAILABLE = 503;
 

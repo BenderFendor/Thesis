@@ -21,6 +21,6 @@ describe("fetchCategories", () => {
 
     const categories = await fetchCategories();
 
-    expect(categories).toEqual(["general", "technology", "politics"]);
+    expect(categories).toStrictEqual(["general", "technology", "politics"]);
   });
 });
