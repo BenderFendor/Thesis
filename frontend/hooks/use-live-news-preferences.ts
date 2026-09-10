@@ -19,6 +19,14 @@ const LiveNewsPreferencesSchema = z.object({
   muteState: z.enum(["all-muted", "per-source"]),
 });
 
+const parsePreferences = (raw: string): LiveNewsPreferences | null => {
+  const parsed = LiveNewsPreferencesSchema.safeParse(JSON.parse(raw));
+  if (!parsed.success) {
+    return null;
+  }
+  return parsed.data;
+};
+
 const loadPreferences = (): LiveNewsPreferences | null => {
   if (globalThis.window === undefined) {
     return null;
@@ -28,11 +36,7 @@ const loadPreferences = (): LiveNewsPreferences | null => {
     if (!hasText(raw)) {
       return null;
     }
-    const parsed = LiveNewsPreferencesSchema.safeParse(JSON.parse(raw));
-    if (parsed.success) {
-  return parsed.data;
-}
-return null;
+    return parsePreferences(raw);
   } catch {
     return null;
   }
@@ -50,7 +54,7 @@ const savePreferences = (prefs: DeepReadonly<LiveNewsPreferences>): void => {
 };
 
 const DEFAULT_PREFERENCES: LiveNewsPreferences = {
-  activeSourceIds: getDefaultSources().map((s) => s.id),
+  activeSourceIds: getDefaultSources().map((source) => source.id),
   layout: "3x3",
   muteState: "all-muted",
 };
@@ -61,29 +65,29 @@ function useLiveNewsPreferences(): [
   () => void,
 ] {
   const [prefs, setPrefs] = useState<LiveNewsPreferences>(
-      () => loadPreferences() ?? { ...DEFAULT_PREFERENCES },
-    );
+    () => loadPreferences() ?? { ...DEFAULT_PREFERENCES },
+  );
   const updatePreferences = useCallback((patch: DeepReadonly<Partial<LiveNewsPreferences>>) => {
-      setPrefs((prev) => {
-        const next: LiveNewsPreferences = {
-          ...prev,
-          ...patch,
-          activeSourceIds: (() => {
-  if (patch.activeSourceIds) {
-    return [...patch.activeSourceIds];
-  }
-  return prev.activeSourceIds;
-})(),
-        };
-        savePreferences(next);
-        return next;
-      });
-    }, []);
+    setPrefs((prev) => {
+      const next: LiveNewsPreferences = {
+        ...prev,
+        ...patch,
+        activeSourceIds: (() => {
+          if (patch.activeSourceIds) {
+            return [...patch.activeSourceIds];
+          }
+          return prev.activeSourceIds;
+        })(),
+      };
+      savePreferences(next);
+      return next;
+    });
+  }, []);
   const resetToDefaults = useCallback(() => {
-      const defaults = { ...DEFAULT_PREFERENCES };
-      savePreferences(defaults);
-      setPrefs(defaults);
-    }, []);
+    const defaults = { ...DEFAULT_PREFERENCES };
+    savePreferences(defaults);
+    setPrefs(defaults);
+  }, []);
 
   return [prefs, updatePreferences, resetToDefaults];
 }
