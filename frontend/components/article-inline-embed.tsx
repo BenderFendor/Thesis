@@ -31,8 +31,8 @@ const DEFAULT_ARTICLE_INLINE_EMBED_SERVICES: ArticleInlineEmbedServices = {
 
 const toSourceName = (url: string): string => {
   try {
-    const u = new URL(url);
-    return u.hostname.replace("www.", "");
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname.replace("www.", "");
   } catch {
     return "unknown";
   }
@@ -67,12 +67,15 @@ function articleTitle(analysis: DeepReadonly<ArticleAnalysis> | undefined, url: 
 }
 
 function articleSummary(analysis: DeepReadonly<ArticleAnalysis> | undefined): string {
-  return analysis?.summary ?? ((() => {
-  if (hasText(analysis?.full_text)) {
-    return `${analysis.full_text.slice(0, 220)}…`;
-  }
-  return "";
-})());
+  return (
+    analysis?.summary ??
+    (() => {
+      if (hasText(analysis?.full_text)) {
+        return `${analysis.full_text.slice(0, 220)}…`;
+      }
+      return "";
+    })()
+  );
 }
 
 function articleSource(analysis: DeepReadonly<ArticleAnalysis> | undefined, url: string): string {
@@ -82,6 +85,66 @@ function articleSource(analysis: DeepReadonly<ArticleAnalysis> | undefined, url:
 function articleContent(analysis: DeepReadonly<ArticleAnalysis> | undefined): string | undefined {
   return analysis?.full_text ?? analysis?.summary;
 }
+
+const truncateText = (value: string, maxLength: number): string => {
+  if (value.length > maxLength) {
+    return `${value.slice(0, maxLength)}...`;
+  }
+  return value;
+};
+
+interface ArticleInlinePreviewImageProps {
+  readonly hasPreviewImage: boolean;
+}
+
+const ArticleInlinePreviewImage = ({ hasPreviewImage }: ArticleInlinePreviewImageProps) => {
+  if (hasPreviewImage) {
+    return (
+      <SafeImage
+        src="/placeholder.svg"
+        alt="preview"
+        width={96}
+        height={64}
+        className="w-full h-full object-cover opacity-80"
+      />
+    );
+  }
+  return (
+    <div className="w-full h-full flex items-center justify-center text-zinc-700">
+      <ImageOff className="w-5 h-5" />
+    </div>
+  );
+};
+
+interface ArticleInlinePreviewProps {
+  readonly article: NewsArticle;
+  readonly hasPreviewImage: boolean;
+  readonly onOpen: () => void;
+}
+
+const ArticleInlinePreview = ({ article, hasPreviewImage, onOpen }: ArticleInlinePreviewProps) => (
+  <button
+    onClick={onOpen}
+    className="rounded-xl p-4 flex gap-4 items-center text-left hover:border-primary transition-all w-full shadow-lg border border-zinc-800 bg-gradient-to-br from-black via-zinc-900 to-zinc-950"
+    style={EMBED_BUTTON_STYLE}
+  >
+    <div className="h-16 w-24 overflow-hidden rounded-lg bg-zinc-950 border border-zinc-900 flex-shrink-0">
+      <ArticleInlinePreviewImage hasPreviewImage={hasPreviewImage} />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="text-sm font-semibold text-slate-50 line-clamp-2">
+        {truncateText(article.title, 100)}
+      </div>
+      <div className="text-xs mt-1 truncate text-slate-400">{article.source}</div>
+      {article.summary && (
+        <div className="text-xs mt-1 line-clamp-2 text-slate-400">
+          {truncateText(article.summary, 120)}
+        </div>
+      )}
+    </div>
+    <ExternalLink className="w-4 h-4" style={EMBED_ICON_STYLE} />
+  </button>
+);
 
 export const ArticleInlineEmbed = ({
   url,
@@ -117,43 +180,10 @@ export const ArticleInlineEmbed = ({
   }
 
   return (
-    <button
-      onClick={handleOpen}
-      className="rounded-xl p-4 flex gap-4 items-center text-left hover:border-primary transition-all w-full shadow-lg border border-zinc-800 bg-gradient-to-br from-black via-zinc-900 to-zinc-950"
-      style={EMBED_BUTTON_STYLE}
-    >
-      <div className="h-16 w-24 overflow-hidden rounded-lg bg-zinc-950 border border-zinc-900 flex-shrink-0">
-        {(() => {
-  if ((analysis?.grounding_metadata?.grounding_chunks?.length ?? 0) > 0) {
-    return <SafeImage src="/placeholder.svg" alt="preview" width={96} height={64} className="w-full h-full object-cover opacity-80" />;
-  }
-  return <div className="w-full h-full flex items-center justify-center text-zinc-700">
-            <ImageOff className="w-5 h-5" />
-          </div>;
-})()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-50 line-clamp-2">
-          {(() => {
-  if (article.title.length > 100) {
-    return `${article.title.slice(0, 100)}...`;
-  }
-  return article.title;
-})()}
-        </div>
-        <div className="text-xs mt-1 truncate text-slate-400">{article.source}</div>
-        {article.summary && (
-          <div className="text-xs mt-1 line-clamp-2 text-slate-400">
-            {(() => {
-  if (article.summary.length > 120) {
-    return `${article.summary.slice(0, 120)}...`;
-  }
-  return article.summary;
-})()}
-          </div>
-        )}
-      </div>
-      <ExternalLink className="w-4 h-4" style={EMBED_ICON_STYLE} />
-    </button>
+    <ArticleInlinePreview
+      article={article}
+      hasPreviewImage={(analysis?.grounding_metadata?.grounding_chunks?.length ?? 0) > 0}
+      onOpen={handleOpen}
+    />
   );
 };
