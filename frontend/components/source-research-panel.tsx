@@ -32,51 +32,69 @@ const selectSourceResearchData = function selectSourceResearchData(
   return researchData ?? cachedData;
 };
 
+const getSourceResearchUrls = (sourceName: string) => ({
+  sourceSearchUrl: `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`,
+  sourceWikiHref: `/wiki/source/${encodeURIComponent(sourceName)}`,
+});
+
+const useSourceResearchCacheQuery = (
+  sourceName: string,
+  website: string | undefined,
+  runFullResearch: boolean,
+) =>
+  useQuery({
+    enabled: sourceName.length > 0 && !runFullResearch,
+    queryFn: () => checkSourceProfileCache(sourceName, website),
+    queryKey: ["source-research-cache-check", sourceName],
+    retry: false,
+    staleTime: 1000 * 60 * 60,
+  });
+
+const useSourceResearchQuery = (
+  sourceName: string,
+  website: string | undefined,
+  runFullResearch: boolean,
+  refreshCounter: number,
+) =>
+  useQuery({
+    enabled: runFullResearch && sourceName.length > 0,
+    queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
+    queryKey: ["source-research", sourceName, refreshCounter],
+    retry: 1,
+    staleTime: 1000 * 60 * 60,
+  });
+
 const useSourceResearchController = ({
   sourceName,
   website,
   autoRun,
 }: Readonly<SourceResearchPanelProps>) => {
-  const [runFullResearch, setRunFullResearch] = useState(autoRun);
+  const [runFullResearch, setRunFullResearch] = useState(autoRun ?? false);
   const [refreshCounter, setRefreshCounter] = useState(0);
-  const sourceWikiHref = `/wiki/source/${encodeURIComponent(sourceName)}`;
-  const sourceSearchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(`${sourceName} media outlet`)}`;
-  const { data: cachedData, isFetching: isCheckingCache } = useQuery({
-      enabled: sourceName.length > 0 && runFullResearch !== true,
-      queryFn: () => checkSourceProfileCache(sourceName, website),
-      queryKey: ["source-research-cache-check", sourceName],
-      retry: false,
-      staleTime: 1000 * 60 * 60,
-    });
-  const {
-      data: researchData,
-      error,
-      isFetching: isResearching,
-    } = useQuery({
-      enabled: runFullResearch === true && sourceName.length > 0,
-      queryFn: () => researchSourceProfile(sourceName, website, refreshCounter > 0),
-      queryKey: ["source-research", sourceName, refreshCounter],
-      retry: 1,
-      staleTime: 1000 * 60 * 60,
-    });
-  const data = selectSourceResearchData(cachedData, researchData);
-  const isFetching = isCheckingCache || isResearching;
-  const hasData = Boolean(data);
+  const { sourceSearchUrl, sourceWikiHref } = getSourceResearchUrls(sourceName);
+  const cacheQuery = useSourceResearchCacheQuery(sourceName, website, runFullResearch);
+  const researchQuery = useSourceResearchQuery(
+    sourceName,
+    website,
+    runFullResearch,
+    refreshCounter,
+  );
+  const data = selectSourceResearchData(cacheQuery.data, researchQuery.data);
   const handleRun = () => {
-      setRunFullResearch(true);
-    };
+    setRunFullResearch(true);
+  };
   const handleRefresh = () => {
-      setRunFullResearch(true);
-      setRefreshCounter((count) => count + 1);
-    };
+    setRunFullResearch(true);
+    setRefreshCounter((count) => count + 1);
+  };
 
   return {
     data,
-    error,
+    error: researchQuery.error,
     handleRefresh,
     handleRun,
-    hasData,
-    isFetching,
+    hasData: Boolean(data),
+    isFetching: cacheQuery.isFetching || researchQuery.isFetching,
     sourceSearchUrl,
     sourceWikiHref,
   };
@@ -127,62 +145,105 @@ interface SourceResearchPanelHeaderProps {
   readonly sourceWikiHref: string;
 }
 
-const SourceResearchPanelHeader = ({
-  hasData,
-  isFetching,
-  onRefresh,
-  onRun,
-  sourceWikiHref,
-}: Readonly<SourceResearchPanelHeaderProps>) => (
-  <div className="border-b border-white/10 p-4 shrink-0">
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-          Source Wiki Preview
-        </p>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Deterministic public-source facts and record links.
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          asChild
-          className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
-        >
-          <Link href={sourceWikiHref}>
-            <ExternalLink className="mr-1 h-3 w-3" />
-            Full wiki
-          </Link>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(() => {
+const getResearchAction = (
+  hasData: boolean,
+  onRefresh: () => void,
+  onRun: () => void,
+): (() => void) => {
   if (hasData) {
     return onRefresh;
   }
   return onRun;
-})()}
-          className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
-        >
-          {(() => {
+};
+
+const getResearchActionLabel = (hasData: boolean): string => {
+  if (hasData) {
+    return "Refresh";
+  }
+  return "Run";
+};
+
+const SourceResearchPanelHeaderCopy = () => (
+  <div>
+    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+      Source Wiki Preview
+    </p>
+    <p className="mt-1 text-[11px] text-muted-foreground">
+      Deterministic public-source facts and record links.
+    </p>
+  </div>
+);
+
+const SourceResearchPanelWikiButton = ({ href }: Readonly<{ href: string }>) => (
+  <Button
+    variant="outline"
+    size="sm"
+    asChild
+    className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+  >
+    <Link href={href}>
+      <ExternalLink className="mr-1 h-3 w-3" />
+      Full wiki
+    </Link>
+  </Button>
+);
+
+const SourceResearchActionContent = ({
+  hasData,
+  isFetching,
+}: Readonly<{ hasData: boolean; isFetching: boolean }>) => {
   if (isFetching) {
     return <Loader2 className="h-3 w-3 animate-spin" />;
   }
-  return <>
-              <RefreshCw className="mr-1 h-3 w-3" />
-              {(() => {
-      if (hasData) {
-        return "Refresh";
-      }
-      return "Run";
-    })()}
-            </>;
-})()}
-        </Button>
-      </div>
+  return (
+    <>
+      <RefreshCw className="mr-1 h-3 w-3" />
+      {getResearchActionLabel(hasData)}
+    </>
+  );
+};
+
+const SourceResearchActionButton = ({
+  hasData,
+  isFetching,
+  onRefresh,
+  onRun,
+}: Readonly<
+  Pick<SourceResearchPanelHeaderProps, "hasData" | "isFetching" | "onRefresh" | "onRun">
+>) => (
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={getResearchAction(hasData, onRefresh, onRun)}
+    className="border-white/10 bg-transparent hover:bg-white/5 text-[9px] font-mono uppercase h-6 px-2"
+  >
+    <SourceResearchActionContent hasData={hasData} isFetching={isFetching} />
+  </Button>
+);
+
+const SourceResearchPanelActions = (props: Readonly<SourceResearchPanelHeaderProps>) => (
+  <div className="flex items-center gap-2">
+    <SourceResearchPanelWikiButton href={props.sourceWikiHref} />
+    <SourceResearchActionButton
+      hasData={props.hasData}
+      isFetching={props.isFetching}
+      onRefresh={props.onRefresh}
+      onRun={props.onRun}
+    />
+  </div>
+);
+
+const SourceResearchPanelHeader = (props: Readonly<SourceResearchPanelHeaderProps>) => (
+  <div className="border-b border-white/10 p-4 shrink-0">
+    <div className="flex items-start justify-between gap-3">
+      <SourceResearchPanelHeaderCopy />
+      <SourceResearchPanelActions
+        hasData={props.hasData}
+        isFetching={props.isFetching}
+        onRefresh={props.onRefresh}
+        onRun={props.onRun}
+        sourceWikiHref={props.sourceWikiHref}
+      />
     </div>
   </div>
 );
@@ -276,16 +337,18 @@ const ResearchProfileContent = ({
         className="border-white/10 text-[9px] font-mono uppercase text-muted-foreground rounded-sm px-1.5 py-0"
       >
         {(() => {
-  if (data.cached === true) {
-    return "Cached";
-  }
-  return "Live";
-})()}
+          if (data.cached === true) {
+            return "Cached";
+          }
+          return "Live";
+        })()}
       </Badge>
     </div>
 
     {hasText(data.overview) && <ResearchOverviewBlock overview={data.overview} />}
-    {hasText(data.match_explanation) && <ResearchMethodBlock matchExplanation={data.match_explanation} />}
+    {hasText(data.match_explanation) && (
+      <ResearchMethodBlock matchExplanation={data.match_explanation} />
+    )}
 
     {(data.dossier_sections ?? []).map((section) => (
       <DossierSectionCard key={section.id} section={section} />
@@ -306,16 +369,16 @@ const ResearchStatusBadge = ({
 }: Readonly<{ status?: ReadonlySourceResearchProfile["match_status"] }>) => (
   <Badge variant="outline" className={statusBadgeClass[status ?? "none"]}>
     {(() => {
-  if (status === "matched") {
-    return "verified";
-  }
-  return (() => {
-    if (status === "ambiguous") {
-      return "ambiguous";
-    }
-    return "no match";
-  })();
-})()}
+      if (status === "matched") {
+        return "verified";
+      }
+      return (() => {
+        if (status === "ambiguous") {
+          return "ambiguous";
+        }
+        return "no match";
+      })();
+    })()}
   </Badge>
 );
 
@@ -335,31 +398,78 @@ const ResearchMethodBlock = ({ matchExplanation }: Readonly<{ matchExplanation: 
   </div>
 );
 
-const DossierSectionCard = ({ section }: Readonly<{ section: ResearchSection }>) => (
-  <div
-    className={`rounded-lg border p-3 ${(() => {
-  if (section.items.length > 0) {
+const getDossierSectionClassName = (hasItems: boolean): string => {
+  if (hasItems) {
     return "border-white/10 bg-[var(--news-bg-primary)]";
   }
   return "border-white/10 bg-muted/20 opacity-70 grayscale";
-})()}`}
-  >
+};
+
+const DossierSectionItem = ({
+  item,
+  sectionId,
+}: Readonly<{ item: ResearchSection["items"][number]; sectionId: string }>) => (
+  <div key={`${sectionId}-${item.label ?? "Fact"}-${item.value ?? ""}`}>
+    <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
+      {item.label ?? "Fact"}
+    </p>
+    <p className="mt-1 break-words text-sm text-foreground/90">{item.value}</p>
+  </div>
+);
+
+const DossierSectionContent = ({ section }: Readonly<{ section: ResearchSection }>) => {
+  if (section.items.length === 0) {
+    return <p className="mt-2 text-xs text-muted-foreground">No public record found.</p>;
+  }
+  return (
+    <div className="mt-2 space-y-2">
+      {section.items.slice(0, 4).map((item) => (
+        <DossierSectionItem
+          key={`${section.id}-${item.label ?? "Fact"}-${item.value ?? ""}`}
+          item={item}
+          sectionId={section.id}
+        />
+      ))}
+    </div>
+  );
+};
+
+const DossierSectionCard = ({ section }: Readonly<{ section: ResearchSection }>) => (
+  <div className={`rounded-lg border p-3 ${getDossierSectionClassName(section.items.length > 0)}`}>
     <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
       {section.title}
     </p>
-    {(() => {
-  if (section.items.length > 0) {
-    return <div className="mt-2 space-y-2">
-        {section.items.slice(0, 4).map(item => <div key={`${section.id}-${item.label ?? "Fact"}-${item.value ?? ""}`}>
-            <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
-              {item.label ?? "Fact"}
-            </p>
-            <p className="mt-1 text-sm text-foreground/90 break-words">{item.value}</p>
-          </div>)}
-      </div>;
+    <DossierSectionContent section={section} />
+  </div>
+);
+
+type ResearchCitation = NonNullable<ReadonlySourceResearchProfile["citations"]>[number];
+
+const ResearchCitationLabel = ({ citation }: Readonly<{ citation: ResearchCitation }>) => {
+  if (hasText(citation.url)) {
+    return (
+      <a href={citation.url} target="_blank" rel="noreferrer" className="hover:text-primary">
+        {citation.label}
+      </a>
+    );
   }
-  return <p className="mt-2 text-xs text-muted-foreground">No public record found.</p>;
-})()}
+  return citation.label;
+};
+
+const getCitationNote = (note?: string | null): string => {
+  if (hasText(note)) {
+    return ` · ${note}`;
+  }
+  return "";
+};
+
+const ResearchCitationRow = ({ citation }: Readonly<{ citation: ResearchCitation }>) => (
+  <div
+    key={`${citation.label}-${citation.url ?? ""}-${citation.note ?? ""}`}
+    className="text-xs text-muted-foreground"
+  >
+    <ResearchCitationLabel citation={citation} />
+    {getCitationNote(citation.note)}
   </div>
 );
 
@@ -372,25 +482,7 @@ const ResearchCitationsBlock = ({
     </p>
     <div className="mt-2 space-y-1">
       {citations.slice(0, 5).map((citation) => (
-        <div
-          key={`${citation.label}-${citation.url ?? ""}-${citation.note ?? ""}`}
-          className="text-xs text-muted-foreground"
-        >
-          {(() => {
-  if (hasText(citation.url)) {
-    return <a href={citation.url} target="_blank" rel="noreferrer" className="hover:text-primary">
-              {citation.label}
-            </a>;
-  }
-  return citation.label;
-})()}
-          {(() => {
-  if (hasText(citation.note)) {
-    return ` · ${citation.note}`;
-  }
-  return "";
-})()}
-        </div>
+        <ResearchCitationRow key={citation.label} citation={citation} />
       ))}
     </div>
   </div>
@@ -403,6 +495,18 @@ const NoVerifiedOverviewBlock = () => (
       We did not find enough structured public data to build a full source wiki.
     </p>
   </div>
+);
+
+const ResearchPublicWebButton = ({
+  data,
+  sourceSearchUrl,
+}: Readonly<{ data: ReadonlySourceResearchProfile; sourceSearchUrl: string }>) => (
+  <Button variant="outline" size="sm" asChild>
+    <a href={data.search_links?.source_search ?? sourceSearchUrl} target="_blank" rel="noreferrer">
+      <Search className="mr-2 h-3.5 w-3.5" />
+      Search public web
+    </a>
+  </Button>
 );
 
 const ResearchLinksRow = ({
@@ -432,16 +536,7 @@ const ResearchLinksRow = ({
         Wikidata
       </a>
     )}
-    <Button variant="outline" size="sm" asChild>
-      <a
-        href={data.search_links?.source_search ?? sourceSearchUrl}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <Search className="mr-2 h-3.5 w-3.5" />
-        Search public web
-      </a>
-    </Button>
+    <ResearchPublicWebButton data={data} sourceSearchUrl={sourceSearchUrl} />
   </div>
 );
 
