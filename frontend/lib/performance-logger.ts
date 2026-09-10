@@ -341,7 +341,7 @@ class FrontendPerformanceLogger {
     }
 
     const performanceRuntime = globalThis.performance;
-    const navigationEntries = performanceRuntime.getEntriesByType("navigation");
+    const navigationEntries = performanceRuntime.getEntriesByType?.("navigation") ?? [];
     const navigationEntry = navigationEntries.find((entry) => isNavigationTimingEntry(entry));
 
     let domComplete = 0,

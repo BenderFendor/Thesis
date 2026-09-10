@@ -37,13 +37,13 @@ const getNextPageParam = (
   lastPage: DeepReadonly<PaginatedResponse>,
   useCached: boolean,
 ): number | string | undefined => {
+  if (!lastPage.has_more || lastPage.next_cursor === null) {
+    return void 0;
+  }
   if (useCached) {
-    return Math.trunc(Number(lastPage.next_cursor ?? "0"));
+    return Math.trunc(Number(lastPage.next_cursor));
   }
-  if (lastPage.has_more) {
-    return lastPage.next_cursor ?? void 0;
-  }
-  return void 0;
+  return lastPage.next_cursor;
 };
 
 const getInitialPageParam = (useCached: boolean): number | undefined => {
