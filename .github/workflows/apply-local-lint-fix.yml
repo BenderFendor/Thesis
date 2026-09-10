@@ -19,19 +19,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and verify patch
+      - name: Reconstruct payload
         shell: bash
         run: |
           set -euo pipefail
           cat .lint-fix/chunk-* > /tmp/lint-fix.patch.xz.b64
           base64 --decode /tmp/lint-fix.patch.xz.b64 > /tmp/lint-fix.patch.xz
-          echo "Reconstructed compressed payload:"
           sha256sum /tmp/lint-fix.patch.xz
           wc -c /tmp/lint-fix.patch.xz
-          xz --decompress --stdout --ignore-check /tmp/lint-fix.patch.xz > /tmp/lint-fix.patch
-          echo "Recovered patch:"
-          sha256sum /tmp/lint-fix.patch
-          wc -c /tmp/lint-fix.patch
+
+      - name: Export reconstructed payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-fix-reconstructed-payload
+          path: |
+            /tmp/lint-fix.patch.xz
+            /tmp/lint-fix.patch.xz.b64
+          if-no-files-found: error
+
+      - name: Verify and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          xz --decompress --stdout /tmp/lint-fix.patch.xz > /tmp/lint-fix.patch
           echo "b3eabe4c776e9984e2c5a3ed3274f837bf169dba200a6d0d3639807a29cfefaa  /tmp/lint-fix.patch" | sha256sum --check
           git apply --check /tmp/lint-fix.patch
           git apply /tmp/lint-fix.patch
