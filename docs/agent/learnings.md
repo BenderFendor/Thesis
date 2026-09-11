@@ -795,3 +795,11 @@ props used by current callers and the rendered children remain explicit. Propert
 generators must use the same equivalence relation as production grouping logic:
 case-sensitive uniqueness does not guarantee distinct sources when production
 normalizes source names case-insensitively.
+
+## 2026-09-11 — Capability views at mutable rendering boundaries
+
+Three.js uniforms and textures stay mutable at the runtime boundary, but helpers
+that only inspect scene structure or expose cleanup capabilities can use narrow
+readonly views. Uniform writes must update the existing wrapper objects so shader
+materials keep their references. Typed fixture builders also keep test callbacks
+under per-function line limits without weakening behavior assertions.

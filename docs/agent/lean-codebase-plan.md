@@ -1580,3 +1580,20 @@ Anonymous functions require inspection at that location before assigning a refac
 - Against the 7,949-finding baseline, 6,474 are cleared (81.44%) and 1,475 remain
   (18.56%). Dependency cycles, duplication, source-line, maintainability, dead-code,
   repository self-test, CRAP, and browser gates remain open as recorded above.
+
+## 2026-09-11 — Globe boundaries and blindspot fixture checkpoint
+
+The globe cleanup narrowed scene, lifecycle, material, and uniform interfaces to
+small capability views while preserving Three.js uniform object identity. The
+blindspot view test now builds typed fixtures outside the test cases, keeping the
+same two user interactions and assertions. Commits `21aa2e4`, `8f56321`,
+`fc6038e`, `51b5e43`, and `e8713a5` record the isolated changes; stream
+continuation cleanup is recorded in `c21c8e7`.
+
+Fresh whole-project Oxlint reports 1,446 findings: 10 errors and 1,436 warnings.
+Frontend is 53 warnings and 0 errors; scripts are 1,393 findings, including all
+10 errors, and remain outside the active cleanup scope by explicit user
+instruction. Against the 7,949-finding baseline, 6,503 are cleared (81.81%) and
+1,446 remain (18.19%). Full frontend Jest passes 56 suites and 199 tests, and
+frontend TypeScript passes. Strict maintainability, source-line, dead-code, CRAP,
+repository self-test, and browser gates remain open.

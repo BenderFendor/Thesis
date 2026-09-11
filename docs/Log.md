@@ -2178,3 +2178,17 @@ Fresh whole-project Oxlint: 1,475 findings, 10 errors, and 1,465 warnings. Front
 has 82 warnings and 0 errors; scripts have 1,393 findings and remain outside the
 active cleanup scope. Frontend Jest passes 56 suites and 199 tests, and TypeScript
 passes. Progress is 6,474/7,949 findings cleared (81.44%).
+
+## 2026-09-11 — Globe and blindspot cleanup checkpoint
+
+Narrowed Three.js globe scene, lifecycle, material, and uniform boundaries to
+capability views while preserving uniform wrapper identity. Simplified the
+blindspot test's typed fixtures and setup without changing its two tested flows.
+The full frontend suite passes 56 suites and 199 tests; frontend TypeScript and
+the focused globe checks pass.
+
+Fresh direct Oxlint reports 1,446 findings: 10 errors and 1,436 warnings. Frontend
+has 53 warnings and 0 errors; scripts have 1,393 findings and remain outside the
+active lint scope by explicit user instruction. Progress is 6,503/7,949 findings
+cleared (81.81%). Strict maintainability, source-line, dead-code, CRAP,
+repository self-test, and browser gates remain open.

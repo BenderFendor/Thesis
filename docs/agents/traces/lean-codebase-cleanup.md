@@ -630,3 +630,24 @@ Evidence:
 Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
 self-test, and browser verification. Scripts lint cleanup remains intentionally
 skipped.
+
+## 2026-09-11 — Globe boundaries and blindspot fixture checkpoint
+
+Status: active. Globe scene, lifecycle, material, and uniform helpers now use
+small capability views at mutable Three.js boundaries. The blindspot test keeps
+the same behavior while moving typed fixture construction and setup into bounded
+helpers. Commits `21aa2e4`, `8f56321`, `fc6038e`, `51b5e43`, and `e8713a5` cover
+the isolated changes; `c21c8e7` covers stream continuation cleanup.
+
+Evidence:
+
+- Whole direct Oxlint: 1,446 findings, 10 errors, 1,436 warnings; frontend 53
+  warnings and scripts 1,393 findings.
+- Frontend Jest: 56 suites and 199 tests passed.
+- Frontend TypeScript: passed.
+- Baseline progress: 6,503 of 7,949 findings cleared, 81.81% cleared, 18.19%
+  remaining.
+
+Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
+self-test, and browser verification. Scripts lint cleanup remains intentionally
+skipped.
