@@ -2,16 +2,9 @@
 
 import type { AllCluster, ClusterArticle, NewsArticle, TrendingCluster } from "@/lib/api";
 import { GridViewContent, VirtualizedModeView } from "./grid-view-layout";
-import {
-  buildSourceGroups,
-  compareSourceGroupsForGrid,
-  getVisibleSourceIds,
-} from "@/lib/source-groups";
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api";
-import { getStoredGridViewMode, setStoredGridViewMode } from "@/lib/view-mode-storage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeepReadonly } from "@/app/search/research/model/types";
-import type { GridChangeEvent } from "./grid-view-layout";
 import type { GridViewMode } from "@/lib/view-mode-storage";
 import { Loader2 } from "lucide-react";
 import { getLogger, hasText } from "@/lib/utils";
@@ -19,6 +12,7 @@ import { useArticleDetail } from "@/hooks/use-article-detail";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
+import { useGridSourceController } from "./grid-view-source-controller";
 
 type GridButtonEvent = Readonly<{ stopPropagation: () => void }>;
 type ReadonlyGridCluster = DeepReadonly<AllCluster>;
@@ -68,7 +62,6 @@ const copyGridClusterArticle = (article: ReadonlyGridClusterArticle): ClusterArt
   url: article.url,
 });
 
-const SOURCE_GROUP_BATCH_SIZE = 10;
 const LOADING_STYLE = { minHeight: "calc(100vh - 140px)" };
 const logger = getLogger("GridView");
 
@@ -130,115 +123,6 @@ const getGridClusterDisplayLabel = (cluster: ReadonlyGridCluster) => {
 }
 return chooseGridClusterLabel(label, titleCandidate, keywordLabel);
   };
-
-interface GridSourceControllerOptions {
-  readonly articles: readonly NewsArticle[];
-  readonly controlledViewMode?: GridViewMode;
-  readonly isFavorite: (sourceId: string) => boolean;
-  readonly onViewModeChange?: (mode: GridViewMode) => void;
-}
-
-const useGridSourceController = ({
-  articles,
-  controlledViewMode,
-  isFavorite,
-  onViewModeChange,
-}: Readonly<GridSourceControllerOptions>) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [uncontrolledViewMode, setUncontrolledViewMode] = useState<GridViewMode>(
-      () => controlledViewMode ?? getStoredGridViewMode(),
-    );
-  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
-  const [sourceBatchCount, setSourceBatchCount] = useState(1);
-  const viewMode = controlledViewMode ?? uncontrolledViewMode;
-  const filteredNews = useMemo(() => {
-      if (!searchTerm) {
-        return articles;
-      }
-      const normalizedSearch = searchTerm.toLowerCase();
-      return articles.filter(
-        (article) =>
-          article.title.toLowerCase().includes(normalizedSearch) ||
-          article.summary?.toLowerCase().includes(normalizedSearch) ||
-          article.source.toLowerCase().includes(normalizedSearch),
-      );
-    }, [articles, searchTerm]);
-  const sourceGroups = useMemo(
-      () =>
-        buildSourceGroups(filteredNews).toSorted((a, b) => {
-          const favoriteDifference =
-            Number(isFavorite(b.sourceId)) - Number(isFavorite(a.sourceId));
-          return favoriteDifference || compareSourceGroupsForGrid(a, b);
-        }),
-      [filteredNews, isFavorite],
-    );
-  const sortedSourceIds = useMemo(() => sourceGroups.map((group) => group.sourceId), [sourceGroups]);
-  const visibleSourceIds = useMemo(() => {
-      if (viewMode !== "source") {
-        return new Set<string>();
-      }
-      const favoriteSourceIds = new Set(
-        sourceGroups.filter((group) => isFavorite(group.sourceId)).map((group) => group.sourceId),
-      );
-      return getVisibleSourceIds(
-        sourceGroups,
-        favoriteSourceIds,
-        sourceBatchCount,
-        SOURCE_GROUP_BATCH_SIZE,
-      );
-    }, [isFavorite, sourceBatchCount, sourceGroups, viewMode]);
-  const visibleSourceGroups = useMemo(
-      () => sourceGroups.filter((group) => visibleSourceIds.has(group.sourceId)),
-      [sourceGroups, visibleSourceIds],
-    );
-  const hasMoreSourceGroups = viewMode === "source" && visibleSourceIds.size < sortedSourceIds.length;
-
-  useEffect(() => {
-    if (!controlledViewMode) {
-      setStoredGridViewMode(viewMode);
-    }
-  }, [controlledViewMode, viewMode]);
-
-  const resetSourceBrowseState = () => {
-      setSourceBatchCount(1);
-      setExpandedSourceId(null);
-    };
-  const handleSearchChange = (event: GridChangeEvent) => {
-      resetSourceBrowseState();
-      setSearchTerm(event.target.value);
-    };
-  const handleModeSelect = (mode: GridViewMode) => {
-      resetSourceBrowseState();
-      setUncontrolledViewMode(mode);
-      onViewModeChange?.(mode);
-    };
-  const toggleSource = (sourceId: string) => {
-      setExpandedSourceId((previous) => ((() => {
-  if (previous === sourceId) {
-    return null;
-  }
-  return sourceId;
-})()));
-    };
-  const loadMoreSources = () => {
-      setSourceBatchCount((previous) => previous + 1);
-    };
-
-  return {
-    expandedSourceId,
-    filteredNews,
-    handleModeSelect,
-    handleSearchChange,
-    hasMoreSourceGroups,
-    loadMoreSources,
-    searchTerm,
-    sortedSourceIds,
-    toggleSource,
-    viewMode,
-    visibleSourceGroups,
-    visibleSourceIds,
-  };
-};
 
 interface GridTopicControllerOptions {
   readonly clusterWindow: GridClusterWindow;
@@ -460,14 +344,17 @@ const useGridModalController = () => {
       }, [clusters]);
     const sortedClusters = useMemo(() => {
         const items = [...clusters];
-        items.sort((a, b) => {
+        items.sort((clusterA, clusterB) => {
           if (topicSortMode === "articles") {
-            return b.article_count - a.article_count;
+            return clusterB.article_count - clusterA.article_count;
           }
           if (topicSortMode === "recent") {
-            return (clusterTimes.get(b.cluster_id) ?? 0) - (clusterTimes.get(a.cluster_id) ?? 0);
+            return (
+              (clusterTimes.get(clusterB.cluster_id) ?? 0) -
+              (clusterTimes.get(clusterA.cluster_id) ?? 0)
+            );
           }
-          return b.source_diversity - a.source_diversity;
+          return clusterB.source_diversity - clusterA.source_diversity;
         });
         return items;
       }, [clusterTimes, clusters, topicSortMode]);
