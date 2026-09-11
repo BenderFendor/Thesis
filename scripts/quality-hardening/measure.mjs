@@ -11,7 +11,7 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 /** @typedef {Record<string, unknown>} JsonObject */
 /** @typedef {Readonly<{coverage: Readonly<{crap: number|null, percent?: number, state: string}>, kind: string, line?: number, metrics: Readonly<Record<string, Readonly<Record<string, number|undefined>>>>, path: string, symbol: string, unit_id: string}>} QualityUnit */
 /** @typedef {Readonly<{exclude_directories: readonly string[], exclude_test_files: boolean, extensions: readonly string[], roots: readonly string[]}>} SourceScope */
-/** @typedef {Readonly<{analyzers: Readonly<{cccc: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>, crap: Readonly<{command: readonly string[], output_limit_bytes: number, version: string, working_directory: string}>, oxlint: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>}>, policy_version: string, schema_version: number, source_scope: SourceScope, thresholds: Readonly<{crap: Readonly<{cluster_ceiling: number}>}>}>} QualityConfig */
+/** @typedef {Readonly<{analyzers: Readonly<{cccc: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>, crap: Readonly<{command: readonly string[], output_limit_bytes: number, version: string, working_directory: string}>, oxlint: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>}>, policy_version: string, schema_version: number, source_scope: SourceScope, thresholds: Readonly<{crap: Readonly<{cluster_ceiling: number}>, mi: Readonly<{cluster_floor: number}>}>}>} QualityConfig */
 /** @typedef {Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Readonly<Record<string, string>>, repositoryRoot: string}>} Policy */
 /** @typedef {{path: string, rule: string, unit_id?: string}} LintFinding */
 /** @typedef {{by_rule: JsonObject, errors: number|null, findings: readonly LintFinding[], status: string, warnings: number|null}} LintRecord */
@@ -24,6 +24,7 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 /** @typedef {Readonly<{policy: Policy, scope: string, selectedPaths: readonly string[], hashes: Readonly<Record<string, string>>, cccc: CcccRecord, mi: MiRecord, lint: LintRecord, crap: CrapRecord, lintFailure?: string, crapFailure?: string}>} MeasurementInput */
 
 const EMPTY_PATH_COUNT = 0;
+const TEST_FILE_PATTERN = /(?:^|\.)(?:spec|test)\.[cm]?[jt]sx?$/u;
 
 /** @param {string} value */
 const runHash = (value) => 
@@ -154,6 +155,15 @@ const applyCoverage = (units, crapUnits) => {
 
 /** @param {MeasurementInput} input @returns {Measurement} */
 const createMeasurement = ({policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure}) => {
+  const miViolations = mi.units.filter((unit) => {
+    const score = unit.metrics.code_multivitals?.maintainability_index;
+    return unit.path.startsWith("frontend/")
+      && !unit.path.includes("/__tests__/")
+      && !TEST_FILE_PATTERN.test(unit.path)
+      && score !== undefined
+      && Number.isFinite(score)
+      && score < policy.config.thresholds.mi.cluster_floor;
+  });
   /** @type {Measurement} */
   const record = {
     crap: {
@@ -206,6 +216,11 @@ const createMeasurement = ({policy, scope, selectedPaths, hashes, cccc, mi, lint
         analyzer: "crap-typescript",
         status: crap.status,
         violations: crap.violations.length,
+      },
+      {
+        analyzer: "code-multivitals",
+        status: mi.status === "passed" && miViolations.length > 0 ? "failed" : mi.status,
+        violations: miViolations.length,
       },
     ],
   };

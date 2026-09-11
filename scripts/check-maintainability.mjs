@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { analyse } from "code-multivitals";
+import { DEFAULT_THRESHOLDS, analyseFile } from "code-multivitals";
 import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
 
 const excludedDirectories = new Set(["node_modules", ".next", "coverage", "generated", "target", ".venv", "__pycache__"]),
@@ -30,7 +30,8 @@ const expandPath = async (path) => {
 
 const metricRows = (files) => {
   const rows = [];
-  for (const file of analyse(files, {}).files) {
+  for (const path of files) {
+    const file = analyseFile(path, DEFAULT_THRESHOLDS);
     for (const item of file.functions ?? []) {
       const score = item.mi ?? item.maintainabilityIndex;
       if (score === undefined || score === null) { continue; }

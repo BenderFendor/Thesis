@@ -21,6 +21,17 @@ const outputText = (value) => {
 /** @typedef {Readonly<{duration_ms: number, exit_code?: number|null, label: string, output: string, status: "passed"|"failed"}>} CheckResult */
 /** @typedef {Readonly<{profiles: Readonly<Record<string, readonly string[]>>, verification: Readonly<{checks: Readonly<Record<string, Readonly<{command: readonly string[], label: string}>>>, defaults: Readonly<{output_limit_bytes: number, timeout_ms: number}>}>}>} VerificationPolicy */
 /** @typedef {Readonly<{checks: readonly CheckResult[], exit_code: number, measurement: Record<string, unknown>, scope: "path"|"task"|"changed"|"repo", tracked_unchanged: boolean}>} VerifyResult */
+/** @typedef {(check: Check, repositoryRoot: string) => Promise<CheckResult>} CheckRunner */
+/** @typedef {readonly [number, CheckResult]} IndexedCheckResult */
+
+const DEFAULT_CHECK_CONCURRENCY = 4;
+
+/** @returns {number} */
+const checkConcurrency = () => {
+  const requested = Number(process.env.THESIS_VERIFY_CONCURRENCY ?? DEFAULT_CHECK_CONCURRENCY);
+  if (Number.isInteger(requested) && requested > 0) { return requested; }
+  return DEFAULT_CHECK_CONCURRENCY;
+};
 
 /** @param {string} repositoryRoot @returns {Promise<string>} */
 const trackedStatus = async (repositoryRoot) => {
@@ -65,6 +76,26 @@ ${outputText(result.stderr)}`.trim().slice(-4000),
   };
 }
 
+/** @param {readonly Check[]} checks @param {string} repositoryRoot @param {number} concurrency @param {CheckRunner} [runner] @returns {Promise<CheckResult[]>} */
+const runChecks = async (checks, repositoryRoot, concurrency, runner = runCheck) => {
+  if (checks.length === 0) { return []; }
+  const workerCount = Math.max(1, Math.min(concurrency, checks.length));
+  let nextIndex = 0;
+  /** @returns {Promise<IndexedCheckResult[]>} */
+  const worker = async () => {
+    /** @type {IndexedCheckResult[]} */
+    const workerResults = [];
+    while (nextIndex < checks.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      workerResults.push([index, await runner(checks[index], repositoryRoot)]);
+    }
+    return workerResults;
+  };
+  const groups = await Promise.all(Array.from({ length: workerCount }, worker));
+  return groups.flat().toSorted(([left], [right]) => left - right).map(([, result]) => result);
+};
+
 /** @param {"path"|"task"|"changed"|"repo"} scope @param {VerificationPolicy} config @returns {Check[]} */
 const checksForScope = (scope, config) => config.profiles[scope].map((id) => {
   const definition = config.verification.checks[id];
@@ -88,8 +119,7 @@ const verify = async ({ config, repositoryRoot, scope, measure }) => {
   } catch (error) {
     measurement = { message: error instanceof Error ? error.message : String(error), status: "analyzer_error" };
   }
-  const checks = [];
-  for (const check of checksForScope(scope, config)) {checks.push(await runCheck(check, repositoryRoot));}
+  const checks = await runChecks(checksForScope(scope, config), repositoryRoot, checkConcurrency());
   const trackedAfter = await trackedStatus(repositoryRoot),
    checksPassed = checks.every((check) => check.status === "passed"),
    worktreeClean = trackedBefore === trackedAfter;
@@ -102,4 +132,4 @@ const verify = async ({ config, repositoryRoot, scope, measure }) => {
   };
 }
 
-export { checksForScope, execFileAsync, runCheck, trackedStatus, verify };
+export { checksForScope, execFileAsync, runCheck, runChecks, trackedStatus, verify };

@@ -2262,3 +2262,14 @@ and 952 warnings. That is 87.88% cleared from the 7,949 baseline, but it is not 
 because the latest remote changes introduced the dedicated scripts policy and removed obsolete script
 files. The scripts typecheck and configured lint gates are closed; repository maintainability,
 source-line, CRAP completion, self-test, and browser verification remain open.
+
+## 2026-09-11 — Verifier speed checkpoint
+
+The repository verifier was spending its time in code-multivitals' whole-project clone pass and
+then repeating CCCC, maintainability, CRAP, and Oxlint as separate checks. Maintainability-only
+paths now call `analyseFile`, the measurement result owns those analyzer gates once, and the
+remaining repository checks run through a bounded four-worker pool. `verify.sh` also works from
+any caller directory and exposes `THESIS_VERIFY_CONCURRENCY`.
+
+The speed change includes a regression test for bounded check concurrency. A fresh full verifier
+run is still required to record the new duration and remaining quality failures.

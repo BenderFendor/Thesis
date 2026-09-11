@@ -818,3 +818,23 @@ The configured scripts lint and typecheck gates are closed.
 
 Rollback or next executable step: keep the two focused commits; rerun `scripts/self-test` and then
 continue the remaining repository quality gates with only focused staging.
+
+## 2026-09-11 — Verifier speed checkpoint
+
+Goal and done criteria: remove repeated expensive analyzer work from `verify.sh`, preserve every
+quality gate, and make concurrency bounded and testable.
+
+Status: `verify.sh` now resolves the repository root, uses four verification workers by default,
+and accepts `THESIS_VERIFY_CONCURRENCY`. `code-multivitals` maintainability paths use `analyseFile`,
+which avoids its unrelated whole-project O(n²) clone detector. Repository verification consumes the
+fresh CCCC, Oxlint, CRAP, and MI results already produced by measurement instead of running those
+analyzers a second time.
+
+Files changed: `verify.sh`, `scripts/check-maintainability.mjs`,
+`scripts/quality-hardening/adapters/code-multivitals.mjs`, `scripts/quality-hardening/measure.mjs`,
+`scripts/quality-hardening/verify.mjs`, `quality-hardening.config.json`, and the verifier regression
+test.
+
+Remaining failures or blockers: the optimized verifier still needs a fresh repository run; strict
+maintainability and CRAP findings, source-line limits, dead-code review, browser verification, and
+preserved unrelated worktree changes remain open until that run completes.

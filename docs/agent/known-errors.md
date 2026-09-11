@@ -496,3 +496,20 @@ Handling:
 Stop the unbounded run with exit 130 after retaining its direct census and independent
 gate results. Report the self-test as incomplete; do not convert targeted frontend
 passes into a repository-wide completion claim.
+
+## 2026-09-11 — Full quality verifier repeated expensive analyzers
+
+Cause:
+
+`measureRepository` already runs CCCC, code-multivitals, split-policy Oxlint, and CRAP, while
+the repository verification profile ran those analyzers again through separate checks. The
+code-multivitals `analyse` API also performs whole-project O(n²) clone detection even when the
+caller only needs per-file maintainability metrics.
+
+Fix:
+
+Use `analyseFile` for maintainability-only checks, use the measurement's CCCC/Oxlint/CRAP/MI
+results as the repository analyzer gates, and run the remaining independent checks through a
+bounded four-worker pool. Set `THESIS_VERIFY_CONCURRENCY` to tune the pool when the host has a
+different resource budget. `verify.sh` now resolves and enters the repository root before it
+starts the optimized verifier.

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { analyse } from "code-multivitals";
+import { DEFAULT_THRESHOLDS, analyseFile } from "code-multivitals";
 import { sourceUnitId } from "../source-units.mjs";
 
 /** @typedef {Readonly<{coverage: Readonly<{crap: null, state: "unknown"}>, kind: "function", line: number, metrics: Readonly<{code_multivitals: Readonly<{maintainability_index: number}>}>, path: string, symbol: string, unit_id: string}>} MultivitalsUnit */
@@ -16,11 +16,12 @@ const normalizePath = (path, repositoryRoot) => {
 /** @param {string} repositoryRoot @param {readonly string[]} paths @returns {MultivitalsReport} */
 const runCodeMultivitals = (repositoryRoot, paths) => {
   if (paths.length === 0) {return { analyzer: "code-multivitals", units: [], warnings: [] };}
-  const result = analyse(paths.map((path) => `${repositoryRoot}/${path}`), {}),
+  const
   /** @type {MultivitalsUnit[]} */
    units = [];
-  for (const file of result.files ?? []) {
-    const path = normalizePath(file.filePath, repositoryRoot);
+  for (const sourcePath of paths) {
+    const file = analyseFile(`${repositoryRoot}/${sourcePath}`, DEFAULT_THRESHOLDS),
+      path = normalizePath(file.filePath, repositoryRoot);
     for (const fn of file.functions ?? []) {
       const startLine = Number(fn.startLine),
        maintainabilityIndex = Number(fn.maintainabilityIndex);
