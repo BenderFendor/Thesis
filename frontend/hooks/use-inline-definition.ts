@@ -157,6 +157,33 @@ const requestInlineDefinitionForTerm = async (
   await loadInlineDefinition(text, state);
 };
 
+const setupInlineDefinitionListeners = (
+  state: DeepReadonly<InlineDefinitionRequestState>,
+): (() => void) => {
+  const onKey = (event: InlineKeyboardEvent) => {
+      // Close on Escape
+      if (event.key === "Escape") {
+        state.setOpen(false);
+      }
+    },
+    onMouseUp = (event: InlineMouseEvent) => {
+      const text = selectedDefinitionTerm(event);
+      if (!hasText(text)) {
+        return;
+      }
+      void requestInlineDefinitionForTerm(text, event, state);
+    };
+
+  document.addEventListener("mouseup", onMouseUp);
+  document.addEventListener("keydown", onKey);
+  const abort = state.getAbortController();
+  return () => {
+    document.removeEventListener("mouseup", onMouseUp);
+    document.removeEventListener("keydown", onKey);
+    abort?.abort();
+  };
+};
+
 function useInlineDefinition() {
   const [result, setResult] = useState<InlineDefinitionResult | null>(null);
   const [open, setOpen] = useState(false);
@@ -171,44 +198,23 @@ function useInlineDefinition() {
     if (globalThis.navigator?.userAgent.includes("jsdom")) {
       return () => {};
     }
-    const onKey = (event: InlineKeyboardEvent) => {
-        // Close on Escape
-        if (event.key === "Escape") {
-          setOpen(false);
-        }
+    return setupInlineDefinitionListeners({
+      getAbortController: () => abortRef.current,
+      getLastRequestAt: () => lastRequestAtRef.current,
+      getLastTerm: () => lastTermRef.current,
+      setAbortController: (controller) => {
+        abortRef.current = controller;
       },
-      onMouseUp = (event: InlineMouseEvent) => {
-        const text = selectedDefinitionTerm(event);
-        if (!hasText(text)) {
-          return;
-        }
-        void requestInlineDefinitionForTerm(text, event, {
-          getAbortController: () => abortRef.current,
-          getLastRequestAt: () => lastRequestAtRef.current,
-          getLastTerm: () => lastTermRef.current,
-          setAbortController: (controller) => {
-            abortRef.current = controller;
-          },
-          setAnchorPosition,
-          setLastRequestAt: (value) => {
-            lastRequestAtRef.current = value;
-          },
-          setLastTerm: (value) => {
-            lastTermRef.current = value;
-          },
-          setOpen,
-          setResult,
-        });
-      };
-
-    document.addEventListener("mouseup", onMouseUp);
-    document.addEventListener("keydown", onKey);
-    const abort = abortRef.current;
-    return () => {
-      document.removeEventListener("mouseup", onMouseUp);
-      document.removeEventListener("keydown", onKey);
-      abort?.abort();
-    };
+      setAnchorPosition,
+      setLastRequestAt: (value) => {
+        lastRequestAtRef.current = value;
+      },
+      setLastTerm: (value) => {
+        lastTermRef.current = value;
+      },
+      setOpen,
+      setResult,
+    });
   }, []);
 
   return { anchorPosition, open, result, setOpen };
