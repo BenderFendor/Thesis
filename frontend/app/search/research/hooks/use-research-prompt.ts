@@ -316,5 +316,5 @@ const useResearchPromptSubmission = (
   );
 };
 
-export { submitResearchPrompt, useResearchPromptSubmission };
+export { useResearchPromptSubmission };
 export type { SubmitPromptParameters };

@@ -113,4 +113,3 @@ const createResearchPageViewProps = ({
 });
 
 export { createResearchPageViewProps };
-export type { ResearchPageAssemblyContext };

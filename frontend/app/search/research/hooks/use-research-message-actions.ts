@@ -163,4 +163,4 @@ const useResearchMessageActions = (
 });
 
 export { useResearchMessageActions };
-export type { ResearchMessageActions, ResearchMessageActionsContext };
+export type { ResearchMessageActions };
