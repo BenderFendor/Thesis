@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
-import { mapBackendArticles } from "@/lib/api"
-
-const globeCountryModulePath = "@/lib/globe-country"
+import { describe, expect, it } from "@jest/globals";
+import { mapBackendArticles } from "@/lib/api";
+import { getCountryIso } from "@/lib/globe-country";
 
 describe("country mapping", () => {
-  it("normalizes backend country names to ISO codes and preserves lens fields", () => {  expect.hasAssertions();
+  it("normalizes backend country names to ISO codes and preserves lens fields", () => {
+    expect.hasAssertions();
 
     const [mapped] = mapBackendArticles([
       {
@@ -18,30 +18,31 @@ describe("country mapping", () => {
         title: "Trade brief",
         url: "https://example.com/story",
       },
-    ])
+    ]);
 
-    expect(mapped).toBeDefined()
-    if (mapped === undefined) { throw new Error("expected mapped article"); }
-    expect(mapped.country).toBe("GB")
-    expect(mapped.source_country).toBe("GB")
-    expect(mapped.mentioned_countries).toStrictEqual(["CN", "US"])
-  })
+    expect(mapped).toStrictEqual(
+      expect.objectContaining({
+        country: "GB",
+        mentioned_countries: ["CN", "US"],
+        source_country: "GB",
+      }),
+    );
+  });
 
-  it("maps known globe fallback countries away from -99 ISO codes", async () => {  expect.hasAssertions();
+  it("maps known globe fallback countries away from -99 ISO codes", () => {
+    expect.hasAssertions();
 
-    const { getCountryIso } = await import(globeCountryModulePath)
-
-    expect(
-      getCountryIso({ properties: { ADM0_A3: "FRA", ISO_A2: "-99", NAME: "France" } }),
-    ).toBe("FR")
-    expect(
-      getCountryIso({ properties: { ADM0_A3: "NOR", ISO_A2: "-99", NAME: "Norway" } }),
-    ).toBe("NO")
-    expect(
-      getCountryIso({ properties: { ADM0_A3: "DEU", ISO_A2: "DE", NAME: "Germany" } }),
-    ).toBe("DE")
+    expect(getCountryIso({ properties: { ADM0_A3: "FRA", ISO_A2: "-99", NAME: "France" } })).toBe(
+      "FR",
+    );
+    expect(getCountryIso({ properties: { ADM0_A3: "NOR", ISO_A2: "-99", NAME: "Norway" } })).toBe(
+      "NO",
+    );
+    expect(getCountryIso({ properties: { ADM0_A3: "DEU", ISO_A2: "DE", NAME: "Germany" } })).toBe(
+      "DE",
+    );
     expect(
       getCountryIso({ properties: { ADM0_A3: "CYN", ISO_A2: "-99", NAME: "N. Cyprus" } }),
-    ).toBeNull()
-  })
-})
+    ).toBeNull();
+  });
+});
