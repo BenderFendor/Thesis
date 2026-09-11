@@ -1,14 +1,14 @@
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { SCROLL_RENDER_CHUNK_SIZE, SCROLL_REVEAL_THRESHOLD } from "@/lib/feed-ranking";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NewsArticle } from "@/lib/api";
-import type { DeepReadonly } from "@/lib/deep-readonly";
 import { fetchOGImage } from "@/lib/api";
 import { hasText } from "@/lib/utils";
 import { isUsableImage } from "@/lib/article-image";
 
 const OG_FETCH_CONCURRENCY = 4;
 const OG_LOOKAHEAD = 6;
+type ReadonlyContainerRef = Readonly<{ current: HTMLDivElement | null }>;
 
 interface FeedImageLoaderOptions {
   readonly activeIndex: number;
@@ -102,7 +102,7 @@ const useFeedImageLoader = ({
 };
 
 interface FeedIntersectionOptions {
-  readonly containerRef: RefObject<HTMLDivElement | null>;
+  readonly containerRef: ReadonlyContainerRef;
   readonly visibleCount: number;
   readonly rankedArticles: readonly NewsArticle[];
   readonly renderCount: number;
@@ -120,7 +120,7 @@ const setupFeedIntersectionObserver = (
     setRenderCount,
     setActiveArticleId,
     setActiveIndex,
-  }: DeepReadonly<Omit<FeedIntersectionOptions, "containerRef">>,
+  }: Readonly<Omit<FeedIntersectionOptions, "containerRef">>,
 ): (() => void) => {
   const observer = new IntersectionObserver(
     (entries) => {
@@ -164,7 +164,7 @@ const useFeedIntersectionObserver = ({
   setRenderCount,
   setActiveArticleId,
   setActiveIndex,
-}: DeepReadonly<FeedIntersectionOptions>): void => {
+}: Readonly<FeedIntersectionOptions>): void => {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) {
@@ -190,7 +190,7 @@ const useFeedIntersectionObserver = ({
 };
 
 interface FeedScrollNavigationOptions {
-  readonly containerRef: RefObject<HTMLDivElement | null>;
+  readonly containerRef: ReadonlyContainerRef;
   readonly activeIndex: number;
   readonly visibleCount: number;
   readonly modalOpen: boolean;
@@ -211,7 +211,7 @@ const useFeedScrollNavigation = ({
   activeIndex,
   visibleCount,
   modalOpen,
-}: DeepReadonly<FeedScrollNavigationOptions>): FeedScrollNavigation => {
+}: Readonly<FeedScrollNavigationOptions>): FeedScrollNavigation => {
   const scrollToNext = useCallback(() => {
       const container = containerRef.current;
       if (!container || activeIndex >= visibleCount - 1) {
