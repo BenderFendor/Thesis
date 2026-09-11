@@ -9,8 +9,7 @@ import { NoveltyBadge } from "@/components/novelty-badge";
 import { SafeImage } from "@/components/safe-image";
 import { SemanticTags } from "@/components/semantic-tags";
 import { activateCardFromKeyDown } from "@/lib/keyboard-activation";
-import { getArticlePreview } from "@/lib/reading-queue-content";
-import { isUsableImage } from "@/lib/article-image";
+import { getArticlePreview, isUsableImage } from "@/lib/reading-queue-content";
 import { useCallback } from "react";
 
 const CARD_IMAGE_HEIGHT = 160;
