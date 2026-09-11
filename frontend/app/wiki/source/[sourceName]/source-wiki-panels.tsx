@@ -43,7 +43,9 @@ const SourcePageBody = (props: SourcePageBodyProps): ReactElement => (
   </>
 );
 
-const SourcePageOptionalPanels = (props: SourcePageBodyProps): ReactElement => (
+const SourcePageProfilePanels = (
+  props: DeepReadonly<{ data: ReadonlySourceProfile }>,
+): ReactElement => (
   <>
     {props.data.source_ledger !== null && props.data.source_ledger !== undefined && (
       <SourceLedgerPanel ledger={props.data.source_ledger} />
@@ -54,6 +56,12 @@ const SourcePageOptionalPanels = (props: SourcePageBodyProps): ReactElement => (
         ownershipChain={props.data.ownership_chain}
       />
     )}
+  </>
+);
+
+const SourcePageOptionalPanels = (props: SourcePageBodyProps): ReactElement => (
+  <>
+    <SourcePageProfilePanels data={props.data} />
     {props.fundingAndBias !== null && <FundingBiasBlock fundingAndBias={props.fundingAndBias} />}
     {props.ownershipChain.length > 1 && hasText(props.outletEntityId) && (
       <OwnershipChainBlock
