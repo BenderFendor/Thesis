@@ -1,4 +1,3 @@
-import type { Texture } from "three";
 import { useEffect } from "react";
 import {
   DESKTOP_FOCUS_ALTITUDE,
@@ -12,7 +11,11 @@ import {
 } from "./interactive-globe-visuals";
 import type { EarthLightingMode, GlobeInstance } from "./interactive-globe-types";
 import type { GlobeCountryData } from "./interactive-globe-hooks";
-import type { GlobeUniforms, QualityTier } from "./interactive-globe-visuals";
+import type {
+  GlobeUniformView,
+  QualityTier,
+  TextureReference,
+} from "./interactive-globe-visuals";
 
 interface GlobeContainerRef {
   readonly current: HTMLDivElement | null;
@@ -46,7 +49,7 @@ const getLatitudeOffset = (): number => {
   return -5;
 };
 
-const useGlobeLighting = (uniforms: GlobeUniforms, lightingMode: EarthLightingMode): void => {
+const useGlobeLighting = (uniforms: GlobeUniformView, lightingMode: EarthLightingMode): void => {
   useEffect(() => {
     setLightingModeUniform(uniforms, lightingMode);
   }, [lightingMode, uniforms]);
@@ -140,7 +143,7 @@ const useGlobeRendererQuality = (
 
 interface GlobeCleanupResources {
   readonly material: Readonly<{ dispose: () => void }>;
-  readonly placeholderTextures: readonly Texture[];
+  readonly placeholderTextures: readonly TextureReference[];
 }
 
 const useGlobeMaterialCleanup = (resources: GlobeCleanupResources): void => {
