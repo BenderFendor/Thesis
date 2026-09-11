@@ -812,3 +812,11 @@ semantic cleanup so existing refactors remain separate. Table-driving equivalent
 reduces per-callback line debt while preserving behavior when each case keeps its own
 assertions. The current census is 1,435 findings, with 42 frontend warnings after scripts
 are excluded from the active cleanup scope.
+
+## 2026-09-11 — Extract modal boundaries before changing contracts
+
+When a modal layout or chrome file is already over its line and dependency limits, moving a
+self-contained renderer or overlay group clears the structural finding while preserving the
+existing prop flow. Verify the extracted runtime path before staging; generic readonly wrappers
+remain a poor fit for nested service and third-party types when the rule still reports the
+boundary.

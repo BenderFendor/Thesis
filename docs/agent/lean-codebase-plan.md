@@ -1614,3 +1614,20 @@ repository self-test, and browser gates remain open.
 - Remaining gates are strict maintainability, source-line cap, dead-code, CRAP,
   repository self-test, and browser verification. Existing dirty user WIP remains in the
   worktree and is being staged only through focused patches.
+
+## 2026-09-11 — Modal boundary extraction checkpoint
+
+- Split the article modal hero source links and visual renderer into a focused module, and moved
+  the article modal overlay group out of the layout module. The modal regression suite passes 6
+  tests after both extractions. Pagination cases were also split into named runners and saved in
+  commit `8380fc6`; the current modal extraction remains in the worktree with existing dirty
+  refactors for focused staging.
+- The fresh whole-project Oxlint census is 1,424 findings: 10 errors and 1,414 warnings.
+  Frontend is 31 warnings and 0 errors. Scripts are 1,393 findings, including all 10 errors,
+  and remain outside the active lint cleanup scope by explicit user instruction.
+- Against the 7,949-finding baseline, 6,525 are cleared (82.09%) and 1,424 remain (17.91%).
+  Frontend has 91.48% of the post-pull 364-warning queue cleared, with 8.52% remaining.
+- Focused Oxlint and frontend TypeScript pass for the modal files; the article modal tests pass
+  1 suite and 6 tests. The prior full frontend result remains 56 suites and 199 tests.
+- Strict maintainability, source-line cap, dead-code, CRAP completion, repository self-test, and
+  browser verification remain open. Scripts lint cleanup remains intentionally skipped.

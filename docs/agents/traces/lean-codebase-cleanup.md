@@ -673,3 +673,36 @@ Evidence:
 Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
 self-test, and browser verification. The documented self-test timeout remains an open
 gate; no new attempt was made during this checkpoint.
+
+## 2026-09-11 — Modal boundary extraction checkpoint
+
+Goal and done criteria: continue the lean-codebase plan, reduce active frontend findings with
+behavior-preserving slices, verify changed runtime paths, preserve unrelated dirty work, and
+record exact whole-project counts.
+
+Status: active. The article modal hero source links and visual renderer now live in a focused
+module, and the modal overlay group now has its own boundary. Pagination test cases were split
+into named runners and committed as `8380fc6`. The modal files remain in the worktree alongside
+pre-existing dirty refactors so those changes can be staged separately.
+
+Evidence:
+
+- Whole measurement `8fce51b1b6cb9f754b401d5e.json`: 1,424 Oxlint findings, 10 errors and 1,414
+  warnings; frontend 31 warnings and scripts 1,393 findings.
+- Baseline progress: 6,525 of 7,949 findings cleared, 82.09% cleared and 17.91% remaining.
+- Focused type-aware Oxlint and frontend TypeScript pass for the modal extraction.
+- `npm test -- --runInBand __tests__/article-detail-modal.test.tsx`: 1 suite and 6 tests passed.
+- The last full frontend run remains 56 suites and 199 tests passed.
+
+Assumptions and risks: scripts remain outside active lint cleanup by explicit user scope. The
+current checkout contains substantial user-owned dirty refactors; only isolated clean files have
+been committed. The direct CRAP adapter reports no violations but coverage is incomplete, so the
+repository CRAP gate is not claimed closed.
+
+Remaining failures or blockers: strict maintainability, source-line cap, dead-code, CRAP
+completion, repository self-test, and browser verification remain open. The repository verifier
+has previously exceeded the practical run window while its type-aware worker stayed CPU-active.
+
+Rollback or next executable step: inspect the 31 frontend findings from the saved measurement,
+starting with clean or clearly bounded modules; use focused staging for dirty files, then rerun
+the full frontend suite and a fresh repository measurement before the next checkpoint.

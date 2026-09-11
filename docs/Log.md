@@ -2202,3 +2202,11 @@ Oxlint is 1,435 findings: 10 errors and 1,425 warnings. Frontend has 42 warnings
 errors; scripts have 1,393 findings and remain outside the active cleanup scope by explicit
 user instruction. Progress is 6,514/7,949 findings cleared (81.95%). Maintainability,
 source-line, dead-code, CRAP, repository self-test, and browser gates remain open.
+
+## 2026-09-11 — Modal boundary extraction checkpoint
+
+Split the article modal hero links/visuals and overlay group into focused modules, then verified
+the modal path with 6 passing tests, frontend TypeScript, and focused type-aware Oxlint. The
+fresh census is 1,424 findings: 10 errors and 1,414 warnings; frontend has 31 warnings and
+scripts have 1,393 findings under the explicit scripts exclusion. Progress is 6,525/7,949
+findings cleared (82.09%).
