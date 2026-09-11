@@ -1,67 +1,22 @@
 "use client";
 
-import type { AllCluster, ClusterArticle, NewsArticle, TrendingCluster } from "@/lib/api";
+import type { AllCluster, NewsArticle } from "@/lib/api";
 import { GridViewContent, VirtualizedModeView } from "./grid-view-layout";
 import { fetchAllClusters, fetchClusterArticles } from "@/lib/api";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DeepReadonly } from "@/app/search/research/model/types";
 import type { GridViewMode } from "@/lib/view-mode-storage";
 import { Loader2 } from "lucide-react";
 import { getLogger, hasText } from "@/lib/utils";
-import { useArticleDetail } from "@/hooks/use-article-detail";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
+import { useGridModalController } from "./grid-view-modal-controller";
 import { useGridSourceController } from "./grid-view-source-controller";
 
 type GridButtonEvent = Readonly<{ stopPropagation: () => void }>;
 type ReadonlyGridCluster = DeepReadonly<AllCluster>;
-type ReadonlyGridClusterArticle = DeepReadonly<ClusterArticle>;
-type ReadonlyGridGdeltContext = NonNullable<ReadonlyGridCluster["gdelt_context"]>;
-type GridGdeltContext = NonNullable<ClusterArticle["gdelt_context"]>;
 type GridClusterWindow = "1d" | "1w" | "1m";
-
-const copyGridGdeltContext = (context: ReadonlyGridGdeltContext): GridGdeltContext => ({
-  goldstein_avg: context.goldstein_avg,
-  goldstein_bucket: context.goldstein_bucket,
-  goldstein_max: context.goldstein_max,
-  goldstein_min: context.goldstein_min,
-  tone_avg: context.tone_avg,
-  tone_baseline_avg: context.tone_baseline_avg,
-  tone_delta_vs_cluster: context.tone_delta_vs_cluster,
-  top_cameo: context.top_cameo?.map((cameo) => ({
-    code: cameo.code,
-    count: cameo.count,
-    label: cameo.label,
-  })),
-  total_events: context.total_events,
-});
-
-const copyGridClusterArticle = (article: ReadonlyGridClusterArticle): ClusterArticle => ({
-  author: article.author,
-  authors: (() => {
-  if (article.authors) {
-    return [...article.authors];
-  }
-  return void 0;
-})(),
-  gdelt_context: (() => {
-  if (article.gdelt_context) {
-    return copyGridGdeltContext(article.gdelt_context);
-  }
-  return null;
-})(),
-  id: article.id,
-  image_url: article.image_url,
-  published_at: article.published_at,
-  similarity: article.similarity,
-  source: article.source,
-  source_id: article.source_id,
-  summary: article.summary,
-  title: article.title,
-  url: article.url,
-});
-
 const LOADING_STYLE = { minHeight: "calc(100vh - 140px)" };
 const logger = getLogger("GridView");
 
@@ -130,138 +85,7 @@ interface GridTopicControllerOptions {
   readonly topicSortMode: "sources" | "articles" | "recent";
 }
 
-const useGridModalController = () => {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const setContainerElement = (element: HTMLDivElement | null) => {
-        containerRef.current = element;
-      };
-    const {
-        article: selectedArticle,
-        close: closeArticleDetail,
-        isOpen: isArticleModalOpen,
-        open: openArticleDetail,
-      } = useArticleDetail();
-    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
-    const [modalArticles, setModalArticles] = useState<NewsArticle[]>([]);
-    const [selectedCluster, setSelectedCluster] = useState<TrendingCluster | null>(null);
-    const [isClusterModalOpen, setIsClusterModalOpen] = useState(false);
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const handleArticleClick = useCallback(
-        (article: NewsArticle, contextArticles: readonly NewsArticle[]) => {
-          const nextIndex = contextArticles.findIndex((item) =>
-            (() => {
-  if (article.url && item.url) {
-    return item.url === article.url;
-  }
-  return item.id === article.id;
-})(),
-          );
-          setModalArticles([...contextArticles]);
-          setSelectedArticleIndex((() => {
-  if (nextIndex === -1) {
-    return null;
-  }
-  return nextIndex;
-})());
-          openArticleDetail(article);
-        },
-        [openArticleDetail, setModalArticles, setSelectedArticleIndex],
-      );
-    const handleModalNavigate = useCallback(
-        (direction: "prev" | "next") => {
-          if (selectedArticleIndex === null) {
-            return;
-          }
-          const nextIndex =
-            (() => {
-  if (direction === "next") {
-    return selectedArticleIndex + 1;
-  }
-  return selectedArticleIndex - 1;
-})();
-          if (nextIndex < 0 || nextIndex >= modalArticles.length) {
-            return;
-          }
-          const nextArticle = modalArticles[nextIndex];
-          if (nextArticle === undefined) {
-            return;
-          }
-          setSelectedArticleIndex(nextIndex);
-          openArticleDetail(nextArticle);
-        },
-        [modalArticles, openArticleDetail, selectedArticleIndex, setSelectedArticleIndex],
-      );
-    const handleModalClose = useCallback(() => {
-        closeArticleDetail();
-        setSelectedArticleIndex(null);
-        setModalArticles([]);
-      }, [closeArticleDetail, setModalArticles, setSelectedArticleIndex]);
-    const handleOpenClusterCompare = useCallback(
-        (cluster: ReadonlyGridCluster, event: GridButtonEvent) => {
-          event.stopPropagation();
-          setSelectedCluster({
-            ...cluster,
-            articles: (cluster.articles ?? []).map((article) => copyGridClusterArticle(article)),
-            gdelt_context: (() => {
-  if (cluster.gdelt_context) {
-    return copyGridGdeltContext(cluster.gdelt_context);
-  }
-  return null;
-})(),
-            keywords: [...cluster.keywords],
-            representative_article: (() => {
-  if (cluster.representative_article) {
-    return copyGridClusterArticle(cluster.representative_article);
-  }
-  return null;
-})(),
-            trending_score: cluster.source_diversity,
-            velocity: cluster.window_count,
-          });
-          setIsClusterModalOpen(true);
-        },
-        [],
-      );
-    const closeClusterModal = () => {
-        setIsClusterModalOpen(false);
-        setSelectedCluster(null);
-      };
-
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container) {
-        return () => {};
-      }
-      const handleScroll = () => {
-        setShowScrollTop(container.scrollTop > 500);
-      };
-      handleScroll();
-      container.addEventListener("scroll", handleScroll, { passive: true });
-      return () => {
-        container.removeEventListener("scroll", handleScroll);
-      };
-    }, []);
-    const scrollToTop = () => {
-      containerRef.current?.scrollTo({ behavior: "smooth", top: 0 });
-    };
-
-    return {
-      closeClusterModal,
-      containerRef,
-      handleArticleClick,
-      handleModalClose,
-      handleModalNavigate,
-      handleOpenClusterCompare,
-      isArticleModalOpen,
-      isClusterModalOpen,
-      scrollToTop,
-      selectedArticle,
-      selectedCluster,
-      setContainerElement,
-      showScrollTop,
-    };
-  },
-  useGridTopicController = ({
+const useGridTopicController = ({
     clusterWindow,
     viewMode,
     topicSortMode,
