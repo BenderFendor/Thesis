@@ -4,7 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 import dynamic from "next/dynamic";
+import type { ReactElement } from "react";
 import { useMemo } from "react";
+
+type ProviderChildren = Readonly<ReactElement> | readonly Readonly<ReactElement>[];
+type ProviderProps = Readonly<{ readonly children: ProviderChildren }>;
 
 const AppearanceSettingsSync = dynamic(
     async () => {
@@ -24,20 +28,20 @@ const AppearanceSettingsSync = dynamic(
     },
   );
 
-const ProviderServices = (
-  props: Readonly<{ readonly children: Readonly<React.ReactNode> }>,
-) => (
+const ProviderServices = ({
+  children,
+}: ProviderProps) => (
   <>
-    {props.children}
+    {children}
     <Toaster />
     <ReadingQueueSidebar />
     <AppearanceSettingsSync />
   </>
 );
 
-export const Providers = (
-  props: Readonly<{ readonly children: Readonly<React.ReactNode> }>,
-) => {
+export const Providers = ({
+  children,
+}: ProviderProps) => {
   const queryClient = useMemo(
     () =>
       new QueryClient({
@@ -57,7 +61,7 @@ export const Providers = (
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-        <ProviderServices>{props.children}</ProviderServices>
+        <ProviderServices>{children}</ProviderServices>
       </ThemeProvider>
     </QueryClientProvider>
   );
