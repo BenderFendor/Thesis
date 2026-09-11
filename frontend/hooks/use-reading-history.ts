@@ -30,6 +30,30 @@ const ReadingHistoryEntrySchema = z.object({
 
 const ReadingHistorySchema = createStorageSchema(z.array(ReadingHistoryEntrySchema));
 
+const updateExistingHistory = (
+  currentHistory: readonly Readonly<ReadingHistoryEntry>[],
+  existing: Readonly<ReadingHistoryEntry>,
+  title?: string,
+  source?: string,
+): ReadingHistoryEntry[] | undefined => {
+  const nextSource = existing.source ?? source,
+    nextTitle = existing.title ?? title;
+  if (nextTitle === existing.title && nextSource === existing.source) {
+    return undefined;
+  }
+
+  return currentHistory.map((entry) => {
+    if (entry.articleId === existing.articleId) {
+      return {
+        ...entry,
+        source: nextSource,
+        title: nextTitle,
+      };
+    }
+    return entry;
+  });
+};
+
 const markArticleAsRead = (articleId: number, title?: string, source?: string): void => {
   const currentHistory = getStorageSnapshot(
       STORAGE_KEY,
@@ -38,22 +62,10 @@ const markArticleAsRead = (articleId: number, title?: string, source?: string): 
     ),
     existing = currentHistory.find((entry) => entry.articleId === articleId);
   if (existing) {
-    const nextSource = existing.source ?? source,
-      nextTitle = existing.title ?? title;
-    if (nextTitle === existing.title && nextSource === existing.source) {
+    const updated = updateExistingHistory(currentHistory, existing, title, source);
+    if (updated === undefined) {
       return;
     }
-
-    const updated = currentHistory.map((entry) => {
-      if (entry.articleId === articleId) {
-        return {
-          ...entry,
-          source: nextSource,
-          title: nextTitle,
-        };
-      }
-      return entry;
-    });
     saveToStorage(STORAGE_KEY, updated);
     return;
   }
