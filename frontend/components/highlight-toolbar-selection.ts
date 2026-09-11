@@ -41,12 +41,25 @@ interface HighlightElementView {
 
 type ReadonlyHighlightElement = Readonly<HighlightElementView>;
 
+interface UsableSelection<TSelection extends Selection> {
+  readonly selection: Readonly<TSelection>;
+  readonly text: string;
+}
+
 const EMPTY_RANGE_COUNT = 0,
   FIRST_RANGE_INDEX = 0,
   createNodeSnapshot = <TNode extends Node>(node: Readonly<TNode>): HighlightNodeSnapshot => ({
     asNode: () => node,
     nodeName: node.nodeName,
   }),
+  createNullableNodeSnapshot = <TNode extends Node>(
+    node: Readonly<TNode> | null,
+  ): HighlightNodeSnapshot | null => {
+    if (node === null) {
+      return null;
+    }
+    return createNodeSnapshot(node);
+  },
   getHighlightElementView = <TElement extends HTMLElement>(
     element: Readonly<TElement>,
   ): ReadonlyHighlightElement => ({
@@ -57,14 +70,11 @@ const EMPTY_RANGE_COUNT = 0,
     nodeName: element.nodeName,
   }),
   getSelectionSnapshot = (): SelectionSnapshot | undefined => {
-    const selection = globalThis.getSelection();
-    if (selection === null || selection.rangeCount === EMPTY_RANGE_COUNT) {
+    const usableSelection = getUsableSelection(globalThis.getSelection());
+    if (usableSelection === undefined) {
       return void 0;
     }
-    const text = selection.toString();
-    if (selection.isCollapsed || text.trim().length === EMPTY_RANGE_COUNT) {
-      return void 0;
-    }
+    const { selection, text } = usableSelection;
     const range = selection.getRangeAt(FIRST_RANGE_INDEX);
     return {
       range: {
@@ -76,21 +86,23 @@ const EMPTY_RANGE_COUNT = 0,
         startOffset: range.startOffset,
       },
       selection: {
-        anchorNode: (() => {
-          if (selection.anchorNode === null) {
-            return null;
-          }
-          return createNodeSnapshot(selection.anchorNode);
-        })(),
-        focusNode: (() => {
-          if (selection.focusNode === null) {
-            return null;
-          }
-          return createNodeSnapshot(selection.focusNode);
-        })(),
+        anchorNode: createNullableNodeSnapshot(selection.anchorNode),
+        focusNode: createNullableNodeSnapshot(selection.focusNode),
       },
       text,
     };
+  },
+  getUsableSelection = <TSelection extends Selection>(
+    selection: Readonly<TSelection> | null,
+  ): UsableSelection<TSelection> | undefined => {
+    if (selection === null || selection.rangeCount === EMPTY_RANGE_COUNT) {
+      return void 0;
+    }
+    const text = selection.toString();
+    if (selection.isCollapsed || text.trim().length === EMPTY_RANGE_COUNT) {
+      return void 0;
+    }
+    return { selection, text };
   };
 
 const isDeletedHighlight = (highlight: Readonly<Highlight>): boolean =>
