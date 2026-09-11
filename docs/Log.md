@@ -2245,3 +2245,20 @@ hook/listener functions measure MI 50.3/56.5.
 The whole direct census remains 1,393 findings: 10 errors and 1,383 warnings, all in `scripts/`,
 which remain outside active lint cleanup by explicit user instruction. Against the 7,949-finding
 baseline, 6,556 are cleared (82.48%) and 1,393 remain (17.52%).
+
+## 2026-09-11 — Scripts quality gate checkpoint
+
+Pulled the latest remote script hardening changes. Fast-forward was unavailable because the local
+branch had independent commits, so the remote work was merged as `c11a531`. Strict script typing,
+JSON output behavior, adapter guards, and script regression tests were then fixed in `5160795`.
+
+The configured split-policy Oxlint scan now reports 0 errors and 0 warnings across 41 script files;
+the whole `node scripts/run-oxlint.mjs --json` scan reports 0 diagnostics, 0 errors, and 0 warnings.
+`npm run cli:typecheck` passes, `npm run cli:test` passes 14 tests, and the quality controller tests
+and policy validation pass with 22 tests and a valid policy.
+
+For historical comparison only, the old root Oxlint policy reports 963 script findings: 11 errors
+and 952 warnings. That is 87.88% cleared from the 7,949 baseline, but it is not a completion gate
+because the latest remote changes introduced the dedicated scripts policy and removed obsolete script
+files. The scripts typecheck and configured lint gates are closed; repository maintainability,
+source-line, CRAP completion, self-test, and browser verification remain open.

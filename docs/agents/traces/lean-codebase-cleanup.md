@@ -789,3 +789,32 @@ lint findings remain open.
 
 Rollback or next executable step: revert either focused commit independently, or continue with the
 next clean low-MI frontend file while staging only its verified changes.
+
+## 2026-09-11 — Scripts quality gate checkpoint
+
+Goal and done criteria: incorporate the latest remote script hardening and close the script lint and
+typecheck gates without weakening the configured rules or disturbing unrelated dirty work.
+
+Status: the remote branch was fetched and merged as `c11a531` because local work made a fast-forward
+impossible. Commit `5160795` fixes the remaining script type contracts, JSON output behavior, adapter
+guards, and script test lifecycle issues.
+
+Evidence:
+
+- Configured scripts Oxlint: 41 files, 0 diagnostics, 0 errors, and 0 warnings.
+- Whole configured split-policy scan: `node scripts/run-oxlint.mjs --json` reports 0 diagnostics,
+  0 errors, and 0 warnings.
+- `npm run cli:typecheck`: passed.
+- `npm run cli:test`: 14 tests passed.
+- `npm run quality:controller:test`: 22 tests passed.
+- `npm run quality:controller:validate`: passed.
+- Old root-policy comparison: 963 script findings, 11 errors and 952 warnings. This is about
+  87.88% cleared from the 7,949 baseline, but the changed policy and removed files make it a
+  comparison metric rather than the active completion gate.
+
+Remaining failures or blockers: strict repository-wide maintainability, source-line cap, CRAP
+completion, repository self-test, browser verification, and substantial unrelated dirty WIP remain.
+The configured scripts lint and typecheck gates are closed.
+
+Rollback or next executable step: keep the two focused commits; rerun `scripts/self-test` and then
+continue the remaining repository quality gates with only focused staging.
