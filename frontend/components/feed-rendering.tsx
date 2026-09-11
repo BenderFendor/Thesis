@@ -1,7 +1,6 @@
 "use client";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import type { FeedScoreBreakdown } from "@/lib/feed-ranking";
 import type { NewsArticle } from "@/lib/api";
@@ -63,7 +62,7 @@ const FeedScrollControls = ({
 );
 
 interface FeedResultsProps {
-  readonly containerRef: RefObject<HTMLDivElement | null>;
+  readonly containerRef: Readonly<{ current: HTMLDivElement | null }>;
   readonly visibleArticles: readonly NewsArticle[];
   readonly rankedArticles: readonly NewsArticle[];
   readonly breakdown: FeedScoreBreakdown | null;
