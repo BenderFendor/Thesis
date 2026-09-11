@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNotificationPopupHandlers } from "./notification-popup-hooks";
 import { NotificationPopupCard } from "./notification-popup-content";
 import type {
@@ -11,6 +11,45 @@ import type {
   NotificationsPopupProps,
   PopupClickEvent,
 } from "./notification-popup-types";
+
+const useNotificationPortalEffects = (
+  getPopup: () => HTMLDialogElement | null,
+  anchorId: string | undefined,
+  onClose: () => void,
+): void => {
+  useEffect(() => {
+    getPopup()?.focus();
+  }, [getPopup]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: Readonly<PopupMouseEvent>) => {
+      const target = event.target;
+      const popup = getPopup();
+      if (
+        popup &&
+        target instanceof globalThis.Node &&
+        !popup.contains(target) &&
+        (anchorId === undefined ||
+          anchorId === "" ||
+          globalThis.document.querySelector(`#${anchorId}`)?.contains(target) !== true)
+      ) {
+        onClose();
+      }
+    };
+    const handleEscape = (event: Readonly<PopupKeyboardEvent>) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    globalThis.document.addEventListener("mousedown", handleClickOutside);
+    globalThis.document.addEventListener("keydown", handleEscape);
+    return () => {
+      globalThis.document.removeEventListener("mousedown", handleClickOutside);
+      globalThis.document.removeEventListener("keydown", handleEscape);
+    };
+  }, [anchorId, getPopup, onClose]);
+};
 
 const NotificationsPopup = (props: NotificationsPopupProps) => {
   const { notifications, onClear, onClearAll, onAction, onClose, anchorId } = props;
@@ -53,37 +92,8 @@ const NotificationPortal = ({
   handleClearNotification: (event: Readonly<PopupClickEvent>) => void;
 }>) => {
   const popupRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    popupRef.current?.focus();
-  }, [popupRef]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: Readonly<PopupMouseEvent>) => {
-      const target = event.target;
-      if (
-        popupRef.current &&
-        target instanceof globalThis.Node &&
-        !popupRef.current.contains(target) &&
-        (anchorId === undefined ||
-          anchorId === "" ||
-          globalThis.document.querySelector(`#${anchorId}`)?.contains(target) !== true)
-      ) {
-        onClose();
-      }
-    };
-    const handleEscape = (event: Readonly<PopupKeyboardEvent>) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    globalThis.document.addEventListener("mousedown", handleClickOutside);
-    globalThis.document.addEventListener("keydown", handleEscape);
-    return () => {
-      globalThis.document.removeEventListener("mousedown", handleClickOutside);
-      globalThis.document.removeEventListener("keydown", handleEscape);
-    };
-  }, [anchorId, onClose, popupRef]);
+  const getPopup = useCallback(() => popupRef.current, []);
+  useNotificationPortalEffects(getPopup, anchorId, onClose);
   const portalTarget = globalThis.document?.body ?? null;
   if (portalTarget === null) {
     return null;
