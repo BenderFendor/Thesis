@@ -6,7 +6,7 @@ import {
   metricPercentage,
   parseFundingAndBias,
 } from "../lib/atlas-schema";
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from "@jest/globals";
 
 const EXPECTED_CHI_SQUARE = 7.2,
   EXPECTED_CRAMERS_V = 0.6,
@@ -209,7 +209,8 @@ describe("atlas runtime graph schema", () => {
 });
 
 describe("parseFundingAndBias", () => {
-  it("returns undefined when the details bag has no funding_and_bias key", () => {  expect.hasAssertions();
+  it("returns undefined when the details bag has no funding_and_bias key", () => {
+    expect.hasAssertions();
 
     expect(parseFundingAndBias({})).toBeNull();
   });
@@ -237,7 +238,8 @@ describe("parseFundingAndBias", () => {
     expect(result?.bias_rating.evidence).toStrictEqual([]);
   });
 
-  it("returns undefined when a required field is missing from the block", () => {  expect.hasAssertions();
+  it("returns undefined when a required field is missing from the block", () => {
+    expect.hasAssertions();
 
     expect(parseFundingAndBias({ funding_and_bias: { funding_type: {} } })).toBeNull();
   });
@@ -264,7 +266,10 @@ describe("atlas stats research-coverage metric", () => {
   it("parses research_coverage and its per-entity-type breakdown", () => {
     expect.hasAssertions();
     const parsed = AtlasStatsResponseSchema.parse(FIXTURE_RESEARCH_COVERAGE);
-    expect(parsed.research_coverage).toStrictEqual({ denominator: EXPECTED_FOUR, numerator: EXPECTED_TWO });
+    expect(parsed.research_coverage).toStrictEqual({
+      denominator: EXPECTED_FOUR,
+      numerator: EXPECTED_TWO,
+    });
     expect(parsed.research_coverage_by_entity_type.organization).toStrictEqual({
       denominator: EXPECTED_ONE,
       numerator: EXPECTED_ONE,
@@ -274,7 +279,10 @@ describe("atlas stats research-coverage metric", () => {
   it("defaults research_coverage when the backend omits it", () => {
     expect.hasAssertions();
     const parsed = AtlasStatsResponseSchema.parse(FIXTURE_DEFAULT_COVERAGE);
-    expect(parsed.research_coverage).toStrictEqual({ denominator: EXPECTED_ZERO, numerator: EXPECTED_ZERO });
+    expect(parsed.research_coverage).toStrictEqual({
+      denominator: EXPECTED_ZERO,
+      numerator: EXPECTED_ZERO,
+    });
     expect(parsed.research_coverage_by_entity_type).toStrictEqual({});
   });
 });
@@ -283,6 +291,9 @@ describe("atlas index kind facet", () => {
   it("parses the kind facet alongside the existing country/funding/bias facets", () => {
     expect.hasAssertions();
     const parsed = AtlasIndexResponseSchema.parse(FIXTURE_INDEX_KIND);
-    expect(parsed.facets.kind).toStrictEqual({ "legal entity": EXPECTED_ONE, "organization without legal identity": EXPECTED_ONE });
+    expect(parsed.facets.kind).toStrictEqual({
+      "legal entity": EXPECTED_ONE,
+      "organization without legal identity": EXPECTED_ONE,
+    });
   });
 });
