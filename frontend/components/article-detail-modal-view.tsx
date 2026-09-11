@@ -167,7 +167,7 @@ const ArticleDetailModalView = ({
         onNavigateArticle={handleNavigateArticle}
         wikiPanelOpen={viewProps.wikiPanelOpen}
       />
-      <ArticleDetailDialogBody {...viewProps} />
+      <ArticleDetailDialogBody bodyProps={viewProps} />
     </>
   );
 };

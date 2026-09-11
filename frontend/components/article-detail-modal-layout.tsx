@@ -77,19 +77,19 @@ interface ArticleDetailPrimaryActionsProps {
 }
 
 const
- ArticleDetailDialogBody = (props: Readonly<ArticleDetailDialogBodyProps>) => {
-  const bodyHandlers = getBodyHandlers(props),
-   handleNavigateArticle = props.handleNavigate
+ ArticleDetailDialogBody = ({ bodyProps }: Readonly<ArticleDetailBodyBoundaryProps>) => {
+  const bodyHandlers = getBodyHandlers(bodyProps),
+   handleNavigateArticle = bodyProps.handleNavigate
   return (
-   <Dialog open={props.isOpen} onOpenChange={bodyHandlers.handleDialogOpenChange}>
+   <Dialog open={bodyProps.isOpen} onOpenChange={bodyHandlers.handleDialogOpenChange}>
     <DialogContent
      showCloseButton={false}
-     className={`${getDialogBodyClassName(props.isExpanded)} gap-0 overflow-hidden border border-border/50 bg-background/95 p-0 shadow-2xl shadow-black/60`}
+     className={`${getDialogBodyClassName(bodyProps.isExpanded)} gap-0 overflow-hidden border border-border/50 bg-background/95 p-0 shadow-2xl shadow-black/60`}
     >
-     <DialogTitle className="sr-only">{props.currentArticle.title}</DialogTitle>
-     <ArticleDetailDialogOverlays bodyProps={props} />
+     <DialogTitle className="sr-only">{bodyProps.currentArticle.title}</DialogTitle>
+     <ArticleDetailDialogOverlays bodyProps={bodyProps} />
      <ArticleDetailDialogChrome
-      bodyProps={props}
+      bodyProps={bodyProps}
       onClose={bodyHandlers.handleClose}
       onNavigateArticle={handleNavigateArticle}
       onToggleExpanded={bodyHandlers.handleToggleExpanded}
