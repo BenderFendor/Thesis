@@ -101,6 +101,41 @@ Checkpoint commits include `c610410`, `09f42d3`, `125bb79`, `bd79ea4`, `3eaae7a`
 `1a26888`. The goal remains active; frontend warnings, maintainability, CRAP, source-line,
 dead-code, browser, and the user-excluded scripts lint work are not complete.
 
+## 2026-09-11 — Research controller extraction checkpoint
+
+The next largest frontend cluster was the 1,157-line research controller. Commit `71e0a5e`
+split its existing state, prompt submission, chat actions, persistence, derived state,
+message actions, transport, and view-prop assembly into nine focused hook modules without
+changing the page entry point. Commit `0193f7b` removed three exports that the live dead-code
+scan identified as private implementation details.
+
+The post-change direct Oxlint census reports 142 frontend warnings and 0 errors across
+42 files with findings. The combined `frontend scripts` census reports 1,535 findings:
+10 errors and 1,525 warnings. Frontend contributes 142 warnings; scripts contribute
+1,393 findings (10 errors and 1,383 warnings). Scripts remain outside active cleanup by
+explicit user scope, with their lint configuration unchanged.
+
+Against the 7,949-finding plan baseline, 6,414 findings are cleared and 1,535 remain:
+80.69% cleared and 19.31% remaining. Relative to the post-pull 364-frontend-warning and
+1,757-combined-finding checkpoint, this slice removed 222 frontend warnings and 222 total
+findings: a 60.99% reduction in the active frontend queue and a 12.64% reduction in the
+combined count. These are direct-lint percentages only.
+
+Verification: the full frontend Jest suite passes 56 suites and 199 tests; frontend
+TypeScript passes; the production Next build compiles and generates all 12 pages; the
+research hook directory has zero direct Oxlint diagnostics; and `git diff --check` passes.
+The file-line gate now has one over-limit file, `frontend/lib/api/endpoints.ts` at 1,082
+lines against the 1,057 debt cap. Dead-code still reports two unused files, one unused
+dependency, one unused dev dependency, 71 unused exports, 30 unused exported types, and
+11 configuration hints. Strict maintainability now reports 6,074 functions, 144 failures
+below MI 50, and 882 warnings below MI 60. The full `scripts/self-test` remains an open
+gate because its previous type-aware repository verification exceeded the practical run
+window; browser verification remains unavailable.
+
+The goal remains active. The next bounded frontend queue is the globe scene/material
+cluster, followed by the remaining UI warnings and the open MI, CRAP, dead-code,
+duplication, source-line, runtime, browser, and scripts-excluded gates.
+
 ## 2026-09-08 — Confirmed codemod checkpoint
 
 The [confirmed codemod audit](../agents/traces/confirmed-codemods-2026-09-08.md)

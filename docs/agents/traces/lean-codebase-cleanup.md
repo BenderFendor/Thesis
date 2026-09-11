@@ -96,6 +96,40 @@ bounded research-controller or non-framework warning cluster. Preserve the exist
 scripts configuration and rerun direct frontend lint, TypeScript, focused behavior tests,
 and a checkpoint commit after each coherent slice.
 
+## 2026-09-11 — Research controller extraction
+
+Goal: reduce the largest remaining frontend controller cluster while preserving the
+research page behavior and keeping scripts outside the active lint queue.
+
+Status: complete for this bounded slice; repository cleanup remains active. The former
+1,157-line controller was split into nine focused modules in `71e0a5e`. The follow-up
+`0193f7b` removed three unused exports found by Knip. No lint thresholds, ignores, or
+suppression comments changed.
+
+Files changed: `frontend/app/search/research/hooks/use-research-controller.ts`,
+`research-chat-state.ts`, `research-page-view-props.ts`, `use-research-chat-actions.ts`,
+`use-research-chat-persistence.ts`, `use-research-derived-state.ts`,
+`use-research-message-actions.ts`, `use-research-prompt.ts`, and
+`use-research-transport.ts`.
+
+Evidence: the focused hook directory has zero direct Oxlint diagnostics; full frontend
+Jest passes 56 suites and 199 tests; frontend TypeScript passes; the production build
+passes and generates all 12 routes; `git diff --check` passes; and the combined direct
+Oxlint census is 1,535 findings, consisting of 142 frontend warnings plus 1,393 scripts
+findings (10 errors and 1,383 warnings). Against the 7,949 baseline, 6,414 findings are
+cleared (80.69%) and 1,535 remain (19.31%).
+
+Remaining failures: one frontend file exceeds the line debt cap (`frontend/lib/api/endpoints.ts`,
+1,082 lines); dead-code reports 2 unused files, 1 unused dependency, 1 unused dev dependency,
+71 unused exports, 30 unused exported types, and 11 configuration hints; maintainability
+reports 6,074 functions with 144 MI failures and 882 MI warnings. `scripts/self-test`
+still has the prior repository-verifier run-window failure, and browser verification is
+unavailable.
+
+Rollback: revert `0193f7b` and `71e0a5e` together. Next executable step: inspect the
+interactive globe scene/material warnings, then rerun the same direct frontend gates and
+make another focused checkpoint.
+
 ## Baseline and safeguards
 
 - Starting commit: bc93b24f7cd134c49a79927f768b682c28839dac.

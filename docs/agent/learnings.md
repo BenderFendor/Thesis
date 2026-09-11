@@ -768,3 +768,12 @@ with scripts intentionally excluded from active lint work. Full frontend Jest,
 TypeScript, build, cycle, duplication, and Oxlint-rule gates pass; the repository
 quality verifier remains an open gate when its type-aware scan exceeds the practical
 run window.
+
+## 2026-09-11 — Split controllers at behavior boundaries
+
+When a React controller owns state, persistence, transport, mutation handlers, and view
+assembly, moving those existing responsibilities into focused modules clears the line and
+statement gates without changing the page contract. Keep the entry hook as orchestration,
+type each module boundary, run the real page tests, and remove exports that are only needed
+inside the split. The research controller slice reduced the frontend queue from 156 to 142
+warnings while keeping the full 56-suite/199-test run, TypeScript, and production build green.

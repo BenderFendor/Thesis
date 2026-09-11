@@ -2137,3 +2137,12 @@ modules and typed inputs, and record metric deltas before integration.
 - `scripts/self-test` reached the repository quality verifier but produced no output for
   ten minutes while its type-aware worker remained active; it was stopped with exit 130.
   This checkpoint does not claim full repository completion or browser verification.
+
+## 2026-09-11 — Research controller checkpoint
+
+Split the 1,157-line research controller into nine focused hook modules and removed three
+unused exports in commits `71e0a5e` and `0193f7b`. Full frontend Jest passes 56 suites and
+199 tests, TypeScript and the production build pass, and the extracted hook directory has
+zero direct Oxlint diagnostics. The live combined count is 1,535 findings: 142 frontend
+warnings and 1,393 scripts findings, including the 10 script errors intentionally outside
+the active cleanup scope. The plan baseline is now 80.69% cleared with 19.31% remaining.
