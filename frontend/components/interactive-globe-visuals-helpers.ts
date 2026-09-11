@@ -7,7 +7,7 @@ import type {
   MutableCountryCountMap,
   CountryCenter,
   ReadonlyCountryFeature,
-  GlobeUniforms,
+  GlobeUniformView,
   PolygonHeat,
   QualityTier,
   PolygonContext,
@@ -433,12 +433,12 @@ const remapCountryCounts = (
   return remappedCounts satisfies CountryCountMap;
 };
 
-const setLightingModeUniform = (uniforms: GlobeUniforms, lightingMode: EarthLightingMode): void => {
+const setLightingModeUniform = (uniforms: GlobeUniformView, lightingMode: EarthLightingMode): void => {
   if (lightingMode === "day-night") {
-    uniforms.uLightingMode.value = LIGHTING_MODE_DAY_NIGHT;
+    Object.assign(uniforms.uLightingMode, { value: LIGHTING_MODE_DAY_NIGHT });
     return;
   }
-  uniforms.uLightingMode.value = LIGHTING_MODE_ALL_LIT;
+  Object.assign(uniforms.uLightingMode, { value: LIGHTING_MODE_ALL_LIT });
 };
 
 const sourceHeatRatio = (count: number, maxCount: number): number => {
@@ -460,9 +460,11 @@ const sourceStrokeColor = (ratio: number): string => {
   return `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(COLOR_PRECISION)})`;
 };
 
-const updateAnimationUniforms = (uniforms: GlobeUniforms, elapsed: number): void => {
-  uniforms.uTime.value = elapsed;
-  uniforms.uCloudOffset.value = (elapsed * CLOUD_DRIFT_SPEED) % FULL_RATIO;
+const updateAnimationUniforms = (uniforms: GlobeUniformView, elapsed: number): void => {
+  Object.assign(uniforms.uTime, { value: elapsed });
+  Object.assign(uniforms.uCloudOffset, {
+    value: (elapsed * CLOUD_DRIFT_SPEED) % FULL_RATIO,
+  });
 };
 export {
   buildCountryLabel,
