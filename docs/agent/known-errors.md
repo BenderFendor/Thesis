@@ -464,3 +464,35 @@ component/app lint and metric slices; frontend library/hooks lint and metric
 slices; scripts lint/type safety; test-confidence and coverage improvements;
 and a final integrator pass. Each packet owns explicit files, records its
 before/after metrics, and must leave the full verification command runnable.
+
+## 2026-09-11 — Recursive DeepReadonly is unsafe for Three.js runtime objects
+
+Symptom:
+
+Applying `DeepReadonly` to globe setup parameters caused TypeScript errors for
+Three.js texture `mipmaps` and left the readonly-parameter diagnostics unchanged.
+
+Cause:
+
+The mapped type recursively converts mutable Three.js arrays and class fields to
+readonly values, while the runtime helpers intentionally configure, dispose, and
+update those objects.
+
+Fix:
+
+Revert the recursive mapping. Define narrow capability or view interfaces for
+read-only consumers before changing the globe boundary; do not cast or suppress
+the resulting type errors.
+
+## 2026-09-11 — Full quality verifier can exceed the practical gate window
+
+Symptom:
+
+`scripts/self-test` reached `node scripts/quality-hardening.mjs verify --scope repo`
+and produced no output for ten minutes while its type-aware worker remained CPU-active.
+
+Handling:
+
+Stop the unbounded run with exit 130 after retaining its direct census and independent
+gate results. Report the self-test as incomplete; do not convert targeted frontend
+passes into a repository-wide completion claim.

@@ -2119,3 +2119,21 @@ modules and typed inputs, and record metric deltas before integration.
 - The comparable `frontend scripts` Oxlint scope fell from 14,356 to 14,147
   diagnostics. The remaining repository-wide Oxlint, maintainability,
   dead-code, CRAP, and backend mypy gates remain open.
+
+## 2026-09-11 — Pulled-checkout cleanup checkpoint
+
+- Continued from remote commit `596ecc9` with the retained dirty worktree preserved.
+  User-authorized checkpoint commits now reach `1a26888`.
+- Fresh direct Oxlint reports 156 frontend warnings and 0 errors across 44 files with
+  findings. The combined `frontend scripts` scan reports 1,549 findings: 10 errors and
+  1,539 warnings. Scripts account for all 10 errors and 1,383 warnings and remain outside
+  the active cleanup scope by explicit user instruction.
+- Against the plan baseline of 7,949 findings, 6,400 are cleared (80.51%) and 1,549
+  remain (19.49%). Full frontend Jest passes 56 suites and 199 tests; frontend TypeScript,
+  the production build, and 204 Oxlint-rule tests pass.
+- Dependency cycles pass with 0 frontend cycles and no backend cycles. Duplication passes
+  at 1.04% with 118 clones. Strict maintainability still reports 150 MI failures below 50
+  and 875 warnings below 60; source-line and dead-code gates remain open.
+- `scripts/self-test` reached the repository quality verifier but produced no output for
+  ten minutes while its type-aware worker remained active; it was stopped with exit 130.
+  This checkpoint does not claim full repository completion or browser verification.

@@ -754,3 +754,17 @@ Future agents should:
 - Use the disposable-cluster replay rather than clearing or cloning the configured database.
 - Make additive migrations tolerate the clean-database table creation order.
 - Treat capture completion, parser expectations, engine execution, and independent review as separate gates.
+
+## 2026-09-11 — Use capability views at mutable rendering boundaries
+
+Recursive readonly utilities work for plain application data but map mutable
+Three.js texture arrays and class fields into incompatible types. Keep the
+runtime object type where code configures or disposes the object, and introduce
+small capability/view interfaces only for helpers that truly read it. A lint
+warning that survives a generic wrapper needs a semantic boundary, not a cast.
+
+The pulled-checkout cleanup now measures 156 frontend warnings and 0 errors,
+with scripts intentionally excluded from active lint work. Full frontend Jest,
+TypeScript, build, cycle, duplication, and Oxlint-rule gates pass; the repository
+quality verifier remains an open gate when its type-aware scan exceeds the practical
+run window.
