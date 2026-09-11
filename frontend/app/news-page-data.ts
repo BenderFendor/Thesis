@@ -243,6 +243,41 @@ interface NewsPageViewData extends NewsPageSortedData {
   readonly sourceCount: number;
 }
 
+const getNewsPageSummary = (
+  queries: Readonly<NewsPageViewQueriesInput>,
+  sorted: Readonly<NewsPageSortedData>,
+  loading: boolean,
+): Readonly<Pick<NewsPageViewData, "articleCount" | "leadArticle" | "sourceCount">> => {
+  const leadArticle = sorted.activeViewArticles[0] ?? null;
+  const articleCount = getSharedArticleCount(
+    queries.cacheStatus,
+    queries.browseIndexTotalCount,
+    sorted.browseArticles,
+    loading,
+  );
+  const sourceCount = getSharedSourceCount(queries.cacheStatus, sorted.browseArticles, loading);
+  return { articleCount, leadArticle, sourceCount };
+};
+
+const useNewsPageNotifications = (
+  state: Readonly<NewsPageViewStateInput>,
+  queries: Readonly<NewsPageViewQueriesInput>,
+  sorted: Readonly<NewsPageSortedData>,
+  loading: boolean,
+  filterActive: boolean,
+) => {
+  const notifications = usePageNotifications({
+    activeCategory: state.activeCategory,
+    activeViewArticles: sorted.activeViewArticles,
+    browseIndexError: queries.browseIndexError,
+    browseIndexLoading: queries.browseIndexLoading,
+    filterActive,
+    loading,
+    selectedSourceCount: state.selectedSources.size,
+  });
+  return usePageNotificationState(notifications);
+};
+
 const useNewsPageViewData = (
   state: NewsPageViewStateInput,
   queries: NewsPageViewQueriesInput,
@@ -257,32 +292,20 @@ const useNewsPageViewData = (
   });
   const loading = getSharedViewLoading(queries.browseIndexLoading);
   const filterActive = state.isFilterActive();
-  const notifications = usePageNotifications({
-    activeCategory: state.activeCategory,
-    activeViewArticles: sorted.activeViewArticles,
-    browseIndexError: queries.browseIndexError,
-    browseIndexLoading: queries.browseIndexLoading,
+  const notificationState = useNewsPageNotifications(
+    state,
+    queries,
+    sorted,
+    loading,
     filterActive,
-    loading,
-    selectedSourceCount: state.selectedSources.size,
-  });
-  const notificationState = usePageNotificationState(notifications);
-  const leadArticle = sorted.activeViewArticles[0] ?? null;
-  const articleCount = getSharedArticleCount(
-    queries.cacheStatus,
-    queries.browseIndexTotalCount,
-    sorted.browseArticles,
-    loading,
   );
-  const sourceCount = getSharedSourceCount(queries.cacheStatus, sorted.browseArticles, loading);
+  const summary = getNewsPageSummary(queries, sorted, loading);
   return {
     ...sorted,
     ...notificationState,
-    articleCount,
     filterActive,
-    leadArticle,
     loading,
-    sourceCount,
+    ...summary,
   };
 };
 
