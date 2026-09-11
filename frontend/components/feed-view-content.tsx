@@ -20,9 +20,41 @@ const ArticleDetailModal = dynamic(
   },
 );
 
-type FeedViewContentProps = Readonly<{ model: DeepReadonly<FeedViewModel> }>;
+interface FeedViewContentModel {
+  readonly breakdowns: FeedViewModel["breakdowns"];
+  readonly containerRef: Readonly<{ current: HTMLDivElement | null }>;
+  readonly debugMode: FeedViewModel["debugMode"];
+  readonly effectiveActiveIndex: FeedViewModel["effectiveActiveIndex"];
+  readonly effectiveVisibleArticles: FeedViewModel["effectiveVisibleArticles"];
+  readonly handleArticlePreview: FeedViewModel["handleArticlePreview"];
+  readonly handleBookmark: FeedViewModel["handleBookmark"];
+  readonly handleLike: FeedViewModel["handleLike"];
+  readonly handleModalBookmarkChange: FeedViewModel["handleModalBookmarkChange"];
+  readonly handleModalClose: FeedViewModel["handleModalClose"];
+  readonly handleModalNavigate: FeedViewModel["handleModalNavigate"];
+  readonly isArticleModalOpen: FeedViewModel["isArticleModalOpen"];
+  readonly isFavorite: FeedViewModel["isFavorite"];
+  readonly likedIds: FeedViewModel["likedIds"];
+  readonly bookmarkIds: FeedViewModel["bookmarkIds"];
+  readonly ogImages: FeedViewModel["ogImages"];
+  readonly profile?: FeedViewModel["profile"];
+  readonly rankedArticles: FeedViewModel["rankedArticles"];
+  readonly scrollToNext: FeedViewModel["scrollToNext"];
+  readonly scrollToPrev: FeedViewModel["scrollToPrev"];
+  readonly seedCount: FeedViewModel["seedCount"];
+  readonly selectedArticle: FeedViewModel["selectedArticle"];
+  readonly status: FeedViewModel["status"];
+  readonly toggleFavorite: FeedViewModel["toggleFavorite"];
+  readonly topicsLoaded: FeedViewModel["topicsLoaded"];
+  readonly totalCount?: FeedViewModel["totalCount"];
+  readonly loading: FeedViewModel["loading"];
+}
 
-const getCurrentBreakdown = (model: DeepReadonly<FeedViewModel>) => {
+interface FeedViewContentProps {
+  readonly model: FeedViewContentModel;
+}
+
+const getCurrentBreakdown = (model: DeepReadonly<FeedViewContentModel>) => {
   const activeArticle = model.effectiveVisibleArticles[model.effectiveActiveIndex];
   if (activeArticle === undefined) {
     return null;
@@ -30,7 +62,8 @@ const getCurrentBreakdown = (model: DeepReadonly<FeedViewModel>) => {
   return model.breakdowns[activeArticle.id] ?? null;
 };
 
-const FeedRankingOverlay = ({ model }: FeedViewContentProps) => {
+const FeedRankingOverlay = (props: DeepReadonly<FeedViewContentProps>) => {
+  const { model } = props;
   const currentBreakdown = getCurrentBreakdown(model);
   const topKeywords = model.profile?.topKeywords ?? EMPTY_FEED_KEYWORDS;
   const topClusters = model.profile?.topClusters ?? EMPTY_FEED_CLUSTERS;
@@ -54,7 +87,8 @@ const FeedRankingOverlay = ({ model }: FeedViewContentProps) => {
   );
 };
 
-const FeedResultList = ({ model }: FeedViewContentProps) => {
+const FeedResultList = (props: DeepReadonly<FeedViewContentProps>) => {
+  const { model } = props;
   const handleFavorite = model.toggleFavorite;
   const handlePrevious = model.scrollToPrev;
   const handleNext = model.scrollToNext;
@@ -81,7 +115,8 @@ const FeedResultList = ({ model }: FeedViewContentProps) => {
   );
 };
 
-const FeedArticleModal = ({ model }: FeedViewContentProps) => {
+const FeedArticleModal = (props: DeepReadonly<FeedViewContentProps>) => {
+  const { model } = props;
   if (!model.isArticleModalOpen || model.selectedArticle === null) {
     return null;
   }
@@ -97,15 +132,19 @@ const FeedArticleModal = ({ model }: FeedViewContentProps) => {
   );
 };
 
-const FeedReadyView = ({ model }: FeedViewContentProps) => (
-  <div className="relative flex-1 h-full min-h-0 w-full overflow-hidden bg-background">
-    <FeedRankingOverlay model={model} />
-    <FeedResultList model={model} />
-    <FeedArticleModal model={model} />
-  </div>
-);
+const FeedReadyView = (props: DeepReadonly<FeedViewContentProps>) => {
+  const { model } = props;
+  return (
+    <div className="relative flex-1 h-full min-h-0 w-full overflow-hidden bg-background">
+      <FeedRankingOverlay model={model} />
+      <FeedResultList model={model} />
+      <FeedArticleModal model={model} />
+    </div>
+  );
+};
 
-const FeedViewContent = ({ model }: FeedViewContentProps) => {
+const FeedViewContent = (props: DeepReadonly<FeedViewContentProps>) => {
+  const { model } = props;
   if (model.loading) {
     return <FeedLoadingState />;
   }
