@@ -1,31 +1,44 @@
-"use client"
+"use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ReactNode} from "react";
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "sonner"
-import dynamic from "next/dynamic"
-import { useState } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
+import dynamic from "next/dynamic";
+import { useMemo } from "react";
 
 const AppearanceSettingsSync = dynamic(
-  () => import("@/components/appearance-settings-sync").then((mod) => mod.AppearanceSettingsSync),
-  { ssr: false },
-),
+    async () => {
+      const appearanceModule = await import("@/components/appearance-settings-sync");
+      return appearanceModule.AppearanceSettingsSync;
+    },
+    { ssr: false },
+  ),
+  ReadingQueueSidebar = dynamic(
+    async () => {
+      const queueModule = await import("@/components/reading-queue-sidebar");
+      return queueModule.ReadingQueueSidebar;
+    },
+    {
+      loading: () => null,
+      ssr: false,
+    },
+  );
 
- ReadingQueueSidebar = dynamic(
-  () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),
-  {
-    loading: () => null,
-    ssr: false,
-  },
-)
+const ProviderServices = (
+  props: Readonly<{ readonly children: Readonly<React.ReactNode> }>,
+) => (
+  <>
+    {props.children}
+    <Toaster />
+    <ReadingQueueSidebar />
+    <AppearanceSettingsSync />
+  </>
+);
 
-interface ProvidersProps {
-  children: ReactNode
-}
-
-export function Providers({ children }: ProvidersProps) {
-  const [queryClient] = useState(
+export const Providers = (
+  props: Readonly<{ readonly children: Readonly<React.ReactNode> }>,
+) => {
+  const queryClient = useMemo(
     () =>
       new QueryClient({
         defaultOptions: {
@@ -33,29 +46,19 @@ export function Providers({ children }: ProvidersProps) {
             gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             retry: 3,
-            retryDelay: (attemptIndex) =>
-              Math.min(1000 * 2 ** attemptIndex, 30_000),
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30_000),
             staleTime: 30 * 1000,
           },
         },
-      })
-  )
+      }),
+    [],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <>
-          {children}
-          <Toaster />
-          <ReadingQueueSidebar />
-          <AppearanceSettingsSync />
-        </>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ProviderServices>{props.children}</ProviderServices>
       </ThemeProvider>
     </QueryClientProvider>
-  )
-}
+  );
+};
