@@ -23,24 +23,29 @@ const CLIENT_HIGHLIGHT: Highlight = {
     note: "",
   };
 
+const createAnchor = (): HTMLButtonElement => {
+  const anchor = document.createElement("button");
+  document.body.append(anchor);
+  Object.defineProperty(anchor, "getBoundingClientRect", {
+    value: () => ({
+      bottom: 30,
+      height: 20,
+      left: 20,
+      right: 60,
+      toJSON: () => ({}),
+      top: 10,
+      width: 40,
+      "x": 20,
+      "y": 10,
+    }),
+  });
+  return anchor;
+};
+
 describe("highlightNotePopover", () => {
   it("saves notes for client-only highlights", async () => {
     expect.hasAssertions();
-    const anchor = document.createElement("button");
-    document.body.append(anchor);
-    Object.defineProperty(anchor, "getBoundingClientRect", {
-      value: () => ({
-        bottom: 30,
-        height: 20,
-        left: 20,
-        right: 60,
-        toJSON: () => ({}),
-        top: 10,
-        width: 40,
-        "x": 20,
-        "y": 10,
-      }),
-    });
+    const anchor = createAnchor();
 
     const onSave = jest.fn(async (..._args: readonly [string, string]): Promise<void> => {
         await Promise.resolve();
@@ -64,25 +69,12 @@ describe("highlightNotePopover", () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith("client:client-123", "local draft note");
     });
+    expect(onSave).toHaveBeenCalledWith("client:client-123", "local draft note");
   });
 
   it("keeps the popover open while typing inside the note field", async () => {
     expect.hasAssertions();
-    const anchor = document.createElement("button");
-    document.body.append(anchor);
-    Object.defineProperty(anchor, "getBoundingClientRect", {
-      value: () => ({
-        bottom: 30,
-        height: 20,
-        left: 20,
-        right: 60,
-        toJSON: () => ({}),
-        top: 10,
-        width: 40,
-        "x": 20,
-        "y": 10,
-      }),
-    });
+    const anchor = createAnchor();
 
     const onClose = jest.fn<() => void>();
 
