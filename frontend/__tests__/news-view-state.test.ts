@@ -1,7 +1,12 @@
-import type { CacheStatus, NewsArticle } from "@/lib/api"
-import { describe, expect, it } from '@jest/globals';
-import { getSharedArticleCount, getSharedSourceCount, getSharedViewArticles, getSharedViewLoading } from '@/lib/news-view-state';
-import type { UnifiedNewsView } from '@/lib/news-view-state';
+import type { CacheStatus, NewsArticle } from "@/lib/api";
+import { describe, expect, it } from "@jest/globals";
+import {
+  getSharedArticleCount,
+  getSharedSourceCount,
+  getSharedViewArticles,
+  getSharedViewLoading,
+} from "@/lib/news-view-state";
+import type { UnifiedNewsView } from "@/lib/news-view-state";
 
 const sampleArticles: NewsArticle[] = [
   {
@@ -21,73 +26,53 @@ const sampleArticles: NewsArticle[] = [
     translated: false,
     url: "https://example.com/a",
   },
-]
+];
+
+const sampleCacheStatus: CacheStatus = {
+  cache_age_seconds: 0,
+  category_breakdown: {},
+  last_updated: "2026-04-09T00:00:00.000Z",
+  sources_with_errors: 0,
+  sources_with_warnings: 0,
+  sources_working: 205,
+  total_articles: 3000,
+  total_sources: 205,
+  update_in_progress: false,
+};
 
 describe("news view state", () => {
   it.each<UnifiedNewsView>(["globe", "grid", "scroll", "blindspot"])(
     "returns the same shared article dataset for %s",
     (view) => {
-      expect(getSharedViewArticles(view, sampleArticles)).toBe(sampleArticles)
+      expect(getSharedViewArticles(view, sampleArticles)).toBe(sampleArticles);
     },
-  )
+  );
 
-  it("uses the current dataset total once the live index has resolved", () => {  expect.hasAssertions();
+  it("uses the current dataset total once the live index has resolved", () => {
+    expect.hasAssertions();
 
-    const cacheStatus: CacheStatus = {
-      cache_age_seconds: 0,
-      category_breakdown: {},
-      last_updated: "2026-04-09T00:00:00.000Z",
-      sources_with_errors: 0,
-      sources_with_warnings: 0,
-      sources_working: 205,
-      total_articles: 3000,
-      total_sources: 205,
-      update_in_progress: false,
-    }
+    expect(getSharedArticleCount(sampleCacheStatus, 1200, sampleArticles, false)).toBe(1200);
+  });
 
-    expect(getSharedArticleCount(cacheStatus, 1200, sampleArticles, false)).toBe(1200)
-  })
+  it("falls back to cache totals only while the live index is still loading", () => {
+    expect.hasAssertions();
 
-  it("falls back to cache totals only while the live index is still loading", () => {  expect.hasAssertions();
+    expect(getSharedArticleCount(sampleCacheStatus, 0, [], true)).toBe(3000);
+    expect(getSharedArticleCount(undefined, 1200, sampleArticles, false)).toBe(1200);
+    expect(getSharedArticleCount(undefined, 0, [], false)).toBe(0);
+  });
 
-    const cacheStatus: CacheStatus = {
-      cache_age_seconds: 0,
-      category_breakdown: {},
-      last_updated: "2026-04-09T00:00:00.000Z",
-      sources_with_errors: 0,
-      sources_with_warnings: 0,
-      sources_working: 205,
-      total_articles: 3000,
-      total_sources: 205,
-      update_in_progress: false,
-    }
+  it("counts live sources from the current dataset after loading", () => {
+    expect.hasAssertions();
 
-    expect(getSharedArticleCount(cacheStatus, 0, [], true)).toBe(3000)
-    expect(getSharedArticleCount(undefined, 1200, sampleArticles, false)).toBe(1200)
-    expect(getSharedArticleCount(undefined, 0, [], false)).toBe(0)
-  })
+    expect(getSharedSourceCount(sampleCacheStatus, sampleArticles, false)).toBe(1);
+    expect(getSharedSourceCount(sampleCacheStatus, [], true)).toBe(205);
+  });
 
-  it("counts live sources from the current dataset after loading", () => {  expect.hasAssertions();
+  it("shares the same loading state across views", () => {
+    expect.hasAssertions();
 
-    const cacheStatus: CacheStatus = {
-      cache_age_seconds: 0,
-      category_breakdown: {},
-      last_updated: "2026-04-09T00:00:00.000Z",
-      sources_with_errors: 0,
-      sources_with_warnings: 0,
-      sources_working: 205,
-      total_articles: 3000,
-      total_sources: 205,
-      update_in_progress: false,
-    }
-
-    expect(getSharedSourceCount(cacheStatus, sampleArticles, false)).toBe(1)
-    expect(getSharedSourceCount(cacheStatus, [], true)).toBe(205)
-  })
-
-  it("shares the same loading state across views", () => {  expect.hasAssertions();
-
-    expect(getSharedViewLoading(true)).toBe(true)
-    expect(getSharedViewLoading(false)).toBe(false)
-  })
-})
+    expect(getSharedViewLoading(true)).toBe(true);
+    expect(getSharedViewLoading(false)).toBe(false);
+  });
+});
