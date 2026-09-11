@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 
 import { usePaginatedNews } from "@/hooks/use-paginated-news";
 
@@ -109,7 +109,7 @@ const createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFix
           },
         },
       });
-    const QueryClientWrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
+    const QueryClientWrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       );
     QueryClientWrapper.displayName = "QueryClientWrapper";
@@ -167,25 +167,27 @@ const createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFix
     });
   };
 
-describe("usePaginatedNews", () => {
-  beforeEach(() => {
-    fetchMock.mockReset();
-    Object.defineProperty(globalThis, "fetch", {
-      configurable: true,
-      value: fetchMock,
-      writable: true,
-    });
-  });
+const createDuplicateArticles = (): TestArticle[] => {
+  const [firstArticle, secondArticle] = mockArticles;
+  if (firstArticle === undefined || secondArticle === undefined) {
+    throw new Error("Expected pagination fixture articles");
+  }
+  return [
+    firstArticle,
+    {
+      ...firstArticle,
+      bias: "left",
+      source: "Test Source 2",
+      sourceId: "test-source-2",
+      summary: "Duplicate summary",
+      title: "Test Article 1 Duplicate",
+      url: "https://example.com/1-duplicate",
+    },
+    secondArticle,
+  ];
+};
 
-  afterEach(() => {
-    if (originalFetchDescriptor === undefined) {
-      Reflect.deleteProperty(globalThis, "fetch");
-    } else {
-      Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
-    }
-  });
-
-  it("should fetch initial page of articles", async () => {
+const runShouldFetchInitialPageOfArticles = async () => {
     expect.hasAssertions();
 
     respondWithPage(
@@ -211,9 +213,9 @@ describe("usePaginatedNews", () => {
     expect(result.current.articles).toHaveLength(2);
     expect(result.current.totalCount).toBe(100);
     expect(result.current.hasNextPage).toBe(true);
-  });
+};
 
-  it("should handle empty results", async () => {
+const runShouldHandleEmptyResults = async () => {
     expect.hasAssertions();
 
     respondWithPage(
@@ -236,9 +238,9 @@ describe("usePaginatedNews", () => {
     expect(result.current.articles).toHaveLength(0);
     expect(result.current.totalCount).toBe(0);
     expect(result.current.hasNextPage).toBe(false);
-  });
+};
 
-  it("should apply category filter", async () => {
+const runShouldApplyCategoryFilter = async () => {
     expect.hasAssertions();
 
     respondWithPage(
@@ -270,9 +272,9 @@ describe("usePaginatedNews", () => {
     const requestUrl = getRequestedUrl(fetchMock.mock.calls[0]?.[0]);
     expect(requestUrl.pathname).toBe("/news/page/cached");
     expect(requestUrl.searchParams.get("category")).toBe("technology");
-  });
+};
 
-  it("should forward multi-source filters without mutating the input array", async () => {
+const runShouldForwardMultiSourceFiltersWithoutMutatingTheInputArray = async () => {
     expect.hasAssertions();
 
     respondWithPage(
@@ -302,9 +304,9 @@ describe("usePaginatedNews", () => {
     const requestUrl = getRequestedUrl(fetchMock.mock.calls[0]?.[0]);
     expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news");
     expect(sources).toStrictEqual(["zeta-news", "alpha-news"]);
-  });
+};
 
-  it("should not fetch when disabled", () => {
+const runShouldNotFetchWhenDisabled = () => {
     expect.hasAssertions();
 
     const { result } = renderHook(
@@ -320,9 +322,9 @@ describe("usePaginatedNews", () => {
     // Should not be loading when disabled
     expect(result.current.isLoading).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
+};
 
-  it("should handle API errors gracefully", async () => {
+const runShouldHandleApiErrorsGracefully = async () => {
     expect.hasAssertions();
 
     fetchMock.mockRejectedValueOnce(new Error("Network error"));
@@ -337,69 +339,13 @@ describe("usePaginatedNews", () => {
 
     expect(result.current.error).toBeTruthy();
     expect(result.current.articles).toHaveLength(0);
-  });
+};
 
-  it("should deduplicate articles with the same ID", async () => {
+const runShouldDeduplicateArticlesWithTheSameId = async () => {
     expect.hasAssertions();
 
-    // Create duplicate articles with the same ID
-    const duplicateArticles: TestArticle[] = [
-      {
-        bias: "center",
-        category: "technology",
-        country: "United States",
-        credibility: "high",
-        id: 1,
-        image: "/placeholder.svg",
-        originalLanguage: "en",
-        publishedAt: new Date().toISOString(),
-        source: "Test Source",
-        sourceId: "test-source",
-        summary: "Test summary",
-        tags: ["test"],
-        title: "Test Article 1",
-        translated: false,
-        url: "https://example.com/1",
-      },
-      {
-        bias: "left",
-        category: "technology",
-        country: "United States",
-        credibility: "high",
-        // Same ID as above
-        id: 1,
-        image: "/placeholder.svg",
-        originalLanguage: "en",
-        publishedAt: new Date().toISOString(),
-        source: "Test Source 2",
-        sourceId: "test-source-2",
-        summary: "Duplicate summary",
-        tags: ["test"],
-        title: "Test Article 1 Duplicate",
-        translated: false,
-        url: "https://example.com/1-duplicate",
-      },
-      {
-        bias: "center",
-        category: "technology",
-        country: "United States",
-        credibility: "high",
-        id: 2,
-        image: "/placeholder.svg",
-        originalLanguage: "en",
-        publishedAt: new Date().toISOString(),
-        source: "Test Source",
-        sourceId: "test-source",
-        summary: "Test summary 2",
-        tags: ["test"],
-        title: "Test Article 2",
-        translated: false,
-        url: "https://example.com/2",
-      },
-    ];
-
     respondWithPage(
-      createPagePayload(duplicateArticles, {
+      createPagePayload(createDuplicateArticles(), {
         hasMore: false,
         limit: 50,
         nextCursor: null,
@@ -422,9 +368,9 @@ describe("usePaginatedNews", () => {
     expect(firstArticle?.id).toBe(1);
     expect(firstArticle?.title).toBe("Test Article 1");
     expect(secondArticle?.id).toBe(2);
-  });
+};
 
-  it("should request 500 articles for scroll-sized cached fetches", async () => {
+const runShouldRequest500ArticlesForScrollSizedCachedFetches = async () => {
     expect.hasAssertions();
 
     respondWithPage(
@@ -447,5 +393,63 @@ describe("usePaginatedNews", () => {
     const requestUrl = getRequestedUrl(fetchMock.mock.calls[0]?.[0]);
     expect(requestUrl.searchParams.get("limit")).toBe("500");
     expect(result.current.hasNextPage).toBe(true);
+};
+
+describe("usePaginatedNews", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    if (originalFetchDescriptor === undefined) {
+      Reflect.deleteProperty(globalThis, "fetch");
+    } else {
+      Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
+    }
+  });
+
+  it("should fetch initial page of articles", async () => {
+    await runShouldFetchInitialPageOfArticles();
+    expect.hasAssertions();
+  });
+
+  it("should handle empty results", async () => {
+    await runShouldHandleEmptyResults();
+    expect.hasAssertions();
+  });
+
+  it("should apply category filter", async () => {
+    await runShouldApplyCategoryFilter();
+    expect.hasAssertions();
+  });
+
+  it("should forward multi-source filters without mutating the input array", async () => {
+    await runShouldForwardMultiSourceFiltersWithoutMutatingTheInputArray();
+    expect.hasAssertions();
+  });
+
+  it("should not fetch when disabled", () => {
+    runShouldNotFetchWhenDisabled();
+    expect.hasAssertions();
+  });
+
+  it("should handle API errors gracefully", async () => {
+    await runShouldHandleApiErrorsGracefully();
+    expect.hasAssertions();
+  });
+
+  it("should deduplicate articles with the same ID", async () => {
+    await runShouldDeduplicateArticlesWithTheSameId();
+    expect.hasAssertions();
+  });
+
+  it("should request 500 articles for scroll-sized cached fetches", async () => {
+    await runShouldRequest500ArticlesForScrollSizedCachedFetches();
+    expect.hasAssertions();
   });
 });
