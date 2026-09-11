@@ -214,4 +214,3 @@ function useInlineDefinition() {
   return { anchorPosition, open, result, setOpen };
 }
 export { useInlineDefinition };
-export type { InlineDefinitionResult };

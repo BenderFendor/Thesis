@@ -120,11 +120,9 @@ const buildDetails = (
 };
 
 export {
-  AtlasDisplayValueSchema,
   AtlasMeasurementResultSchema,
   buildAnalysisScores,
   buildDetails,
   dateLabel,
-  displayValue,
   humanize,
 };

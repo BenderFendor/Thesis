@@ -105,7 +105,6 @@ const scoreStyleFor = (score: number) =>
   ({ color: scoreColor(score) }) satisfies Readonly<{ color: string }>;
 
 export {
-  ANALYSIS_META,
   ANALYSIS_ORDER,
   formatLedgerValue,
   getAverageScore,
@@ -113,7 +112,6 @@ export {
   getFundingAndBias,
   getOwnershipChain,
   hasText,
-  isAnalysisMetaKey,
   runWikiIndex,
   scoreStyleFor,
   useEmbeddedFlag,

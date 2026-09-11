@@ -126,7 +126,6 @@ export {
   hasExactDuplicate,
   type HighlightElementView,
   type HighlightRangeSnapshot,
-  type ReadonlyHighlightElement,
   type SelectionOffsets,
   type SelectionSnapshot,
 };

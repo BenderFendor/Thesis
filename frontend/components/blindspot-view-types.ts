@@ -147,7 +147,6 @@ export type {
   BlindspotLaneSectionsProps,
   BlindspotPoleLabels,
   BlindspotResultsProps,
-  BlindspotViewProps,
   BlindspotViewServices,
   CoverageBarProps,
   GeographySignalBadgesProps,

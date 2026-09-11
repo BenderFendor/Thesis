@@ -270,4 +270,4 @@ const useAddRssDialogController = (
 };
 
 export { useAddRssDialogController };
-export type { RssDialogController, RssDialogState };
+export type { RssDialogController };

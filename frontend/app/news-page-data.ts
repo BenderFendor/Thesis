@@ -286,4 +286,4 @@ const useNewsPageViewData = (
   };
 };
 
-export { useNewsPageQueryData, useNewsPageViewData, type NewsPageQueryData, type NewsPageViewData };
+export { useNewsPageQueryData, useNewsPageViewData, type NewsPageViewData };

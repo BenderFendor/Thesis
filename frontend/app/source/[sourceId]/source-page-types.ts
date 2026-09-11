@@ -30,7 +30,6 @@ interface SourcePageLayoutProps {
 }
 
 export type {
-  DeepReadonly,
   ReadonlySourcePageSource,
   SourcePageLayoutProps,
   SourcePageProps,

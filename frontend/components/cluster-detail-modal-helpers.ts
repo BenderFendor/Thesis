@@ -77,7 +77,6 @@ const getClusterArticleCount = (cluster: ClusterDetailCluster): number => {
   return 0;
 };
 
-export type { ToneView };
 export {
   clusterContextOf,
   formatSignedNumber,

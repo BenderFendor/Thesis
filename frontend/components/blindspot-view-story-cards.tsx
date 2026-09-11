@@ -451,4 +451,4 @@ const MobileBlindspotTile = (props: MobileBlindspotTileProps): ReactElement => {
   );
 };
 
-export { CoverageBar, GeographySignalBadges, LeadStory, MobileBlindspotTile, StoryRow };
+export { LeadStory, MobileBlindspotTile, StoryRow };

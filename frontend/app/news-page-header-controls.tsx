@@ -196,7 +196,4 @@ export {
   CategorySelect,
   MobileViewTabs,
   SortSelect,
-  type CategorySelectProps,
-  type MobileViewTabsProps,
-  type SortSelectProps,
 };

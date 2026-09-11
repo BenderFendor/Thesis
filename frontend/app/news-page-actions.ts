@@ -108,4 +108,4 @@ const useNewsPageActions = (
   };
 };
 
-export { useNewsPageActions, type NewsPageActions };
+export { useNewsPageActions };

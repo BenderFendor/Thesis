@@ -331,7 +331,6 @@ const refreshCache = async (
 
 
 export {
-  fetchNewsIndex,
   fetchLiveBrowseIndex,
   fetchBrowseIndex,
   fetchCachedNewsPaginated,

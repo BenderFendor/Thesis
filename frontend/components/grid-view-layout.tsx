@@ -418,4 +418,3 @@ const GridViewContent = ({
 };
 
 export { GridViewContent, VirtualizedModeView };
-export type { GridChangeEvent };

@@ -94,16 +94,6 @@ const DialogHeader: React.FC<React.ComponentProps<"div">> = ({ className, ...pro
     return React.createElement("div", headerProps);
   };
 
-const DialogFooter: React.FC<React.ComponentProps<"div">> = ({ className, ...props }) =>
-  {
-    const footerProps = {
-      className: cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className),
-      "data-slot": "dialog-footer",
-      ...props,
-    };
-    return React.createElement("div", footerProps);
-  };
-
 const DialogTitle: React.FC<React.ComponentProps<typeof DialogTitlePrimitive>> = ({
   className,
   ...props
@@ -132,13 +122,9 @@ const DialogDescription: React.FC<React.ComponentProps<typeof DialogDescriptionP
 
 export {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 };

@@ -101,4 +101,3 @@ function useReadingHistory() {
   };
 }
 export { useReadingHistory };
-export type { ReadingHistoryEntry };

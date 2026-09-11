@@ -400,12 +400,7 @@ const QueueTab = (props: Readonly<ControllerProps>): ReactElement => {
 
 export {
   DigestPanel,
-  LibraryStat,
-  LibraryStatsCard,
   LoadingState,
-  QueueArticle,
-  QueuePreview,
   QueueTab,
-  ReadingQueueCard,
   SavedSidebar,
 };

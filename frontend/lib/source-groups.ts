@@ -130,4 +130,3 @@ const getVisibleSourceIds = (
 };
 
 export { buildSourceGroups, compareSourceGroupsForGrid, getVisibleSourceIds };
-export type { SourceGroup };

@@ -1,6 +1,5 @@
 // Public API endpoint barrel. Domain modules keep request definitions small and focused.
 
-export type { AgenticResearchCitation, AgenticResearchResult } from "./primitives";
 export type * from "./types";
 export * from "./endpoints-browse";
 export * from "./endpoints-library";

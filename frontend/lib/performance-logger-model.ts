@@ -218,7 +218,6 @@ export {
   buildFrontendDebugReport,
   streamEventDetails,
   updateStreamMetrics,
-  type DebugReportSummaryInput,
   type EventType,
   type PerformanceEvent,
   type PerformanceSummary,

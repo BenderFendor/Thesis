@@ -37,7 +37,6 @@ export type {
   ClaimCardProps,
   ReadonlySourceInfo,
   ReadonlyVerificationResult,
-  ReadonlyVerifiedClaim,
   SourceCardProps,
   VerificationPanelContentProps,
   VerificationPanelProps,

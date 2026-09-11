@@ -89,7 +89,6 @@ export type {
   GlobeInstance,
   GlobePolygon,
   GlobeRef,
-  GlobeRenderProps,
   InteractiveGlobeComponent,
   InteractiveGlobeProps,
   ReadonlyInteractiveGlobeProps,

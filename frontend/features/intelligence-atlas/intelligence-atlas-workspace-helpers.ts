@@ -242,14 +242,9 @@ const formatAtlasLastSuccess = (value: string | null | undefined): string => {
 
 export {
   ATLAS_QUERY_KEY,
-  DOCK_LIMIT,
   EMPTY_NODES,
   ENTITY_STALE_MS,
-  GRAPH_EDGE_LIMIT,
-  GRAPH_NODE_LIMIT,
   GRAPH_STALE_MS,
-  POPULAR_NODE_LIMIT,
-  RECENT_NODE_LIMIT,
   SEARCH_DEBOUNCE_MS,
   SEARCH_STALE_MS,
   STATUS_STALE_MS,
@@ -262,7 +257,6 @@ export {
   flattenSearchResults,
   focusPatch,
   formatAtlasLastSuccess,
-  isWorkspaceTab,
   nextSearchIndex,
   resolveCoverage,
   resolveOperationsTab,
@@ -278,10 +272,7 @@ export {
   type AtlasNavigationRouter,
   type AtlasSearchResponse,
   type AtlasStatsResponse,
-  type AtlasFocusableInput,
   type DirectoryFilterPatch,
-  type NavigationMode,
-  type ViewTab,
   type WorkspaceTab,
   type WriteState,
 };

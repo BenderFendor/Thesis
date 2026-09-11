@@ -117,14 +117,5 @@ const VerifiedDateFact = ({ value }: VerifiedDateFactProps) => {
   };
 
 export {
-  BadgeValue,
-  NeighborhoodLink,
-  OptionalBadge,
-  OptionalSidebarFact,
-  OrganizationBadges,
-  OrganizationIdentity,
   OrganizationSidebar,
-  QuickFacts,
-  RoleBreakdownCard,
-  VerifiedDateFact,
 };

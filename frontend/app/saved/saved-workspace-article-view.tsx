@@ -491,15 +491,7 @@ const ArticleList = (props: Readonly<ArticleListProps>): ReactElement => {
 };
 
 export {
-  ArticleCard,
-  ArticleCardHeader,
-  ArticleKindIcon,
   ArticleList,
-  CardActionButtons,
   EmptyStateCard,
-  ExpandIndicator,
-  ExpandedArticleContent,
-  ResearchShelvesCard,
   SavedShelfCard,
-  ShelfList,
 };

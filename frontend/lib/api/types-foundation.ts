@@ -437,7 +437,6 @@ export type {
   ContradictionPanelResponse,
   LanguageDiagnosticExample,
   LanguageDiagnosticMetric,
-  LanguageDiagnosticOverall,
   ReadingQueueItem,
   ReadingShelf,
   SourceReporterSummary,
@@ -457,9 +456,7 @@ export type {
   BlindspotCard,
   BlindspotLane,
   BlindspotLens,
-  BlindspotPreviewArticle,
   CacheDeltaResponse,
-  ChromaDebugArticle,
   ChromaDebugResponse,
   CountryArticleCounts,
   CountryListItem,
@@ -471,5 +468,4 @@ export type {
   FactCheckResult,
   FrontendDebugReportPayload,
   GdeltContext,
-  GdeltTopCameo,
 };

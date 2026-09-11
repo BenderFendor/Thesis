@@ -367,5 +367,5 @@ const FactCheckClaimSources = ({ sources }: Readonly<{ sources: FactCheckResult[
   </div>
 );
 
-export { FactCheckClaimDetails, FactCheckClaimEvidence, FactCheckClaimSources };
+export { FactCheckClaimDetails };
 export type { FactCheckHistoryEntry };

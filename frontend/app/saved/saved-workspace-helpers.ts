@@ -55,9 +55,6 @@ const hasUsableArticleImage = (article: Readonly<{ image?: string | null }>): bo
 
 export {
   ARTICLE_THUMBNAIL_SIZE,
-  CARD_OFFSET_LIMIT_PX,
-  CARD_OFFSET_STEP_PX,
-  CARD_OVERLAP_PX,
   LIST_POSITION_OFFSET,
   QUEUE_PREVIEW_LIMIT,
   QUEUE_THUMBNAIL_SIZE,

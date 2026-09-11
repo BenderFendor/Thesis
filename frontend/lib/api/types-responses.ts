@@ -7,8 +7,6 @@ import type { StartupEventMetric } from "./types-runtime";
 
 type CacheStatus = DeepReadonly<components["schemas"]["CacheStatus"]>;
 
-type SourceStatsList = components["schemas"]["SourceStatsList"];
-
 type CacheDebugResponse = components["schemas"]["CacheDebugResponse"];
 
 type DatabaseDebugResponse = components["schemas"]["DatabaseDebugResponse"];
@@ -123,7 +121,6 @@ interface SemanticSearchResponse {
 
 export type {
   CacheStatus,
-  SourceStatsList,
   CacheDebugResponse,
   DatabaseDebugResponse,
   CountryGeoData,

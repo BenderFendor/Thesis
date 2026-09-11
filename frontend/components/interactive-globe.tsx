@@ -194,4 +194,4 @@ const InteractiveGlobe = ({
 
 export { InteractiveGlobe };
 export { computePolygonHeatFast } from "./interactive-globe-visuals";
-export type { GlobeInstance, GlobeRef, InteractiveGlobeComponent } from "./interactive-globe-types";
+export type { GlobeInstance, InteractiveGlobeComponent } from "./interactive-globe-types";

@@ -102,4 +102,4 @@ const useNewsPageNavigation = (
   };
 };
 
-export { useNewsPageNavigation, type NewsPageNavigation };
+export { useNewsPageNavigation };

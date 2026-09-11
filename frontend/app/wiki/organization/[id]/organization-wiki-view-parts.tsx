@@ -403,20 +403,11 @@ const Percentage = ({ value }: PercentageProps) => {
   };
 
 export {
-  AmbientBackground,
   AtlasBackLink,
-  ConnectionsPanel,
-  ControlsPanel,
-  EvidencePanel,
   ExternalIdentifiersCard,
-  FundingAndBiasSection,
-  OptionalExcerpt,
   OrganizationErrorState,
   OrganizationLayout,
   OrganizationLoadingState,
   OrganizationMain,
   OrganizationPageShell,
-  OwnershipPanel,
-  PanelEmptyMessage,
-  Percentage,
 };
