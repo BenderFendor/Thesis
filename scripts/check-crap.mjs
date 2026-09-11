@@ -34,7 +34,7 @@ const parseReport = (text) => {
     }
     return report;
   } catch (error) {
-    throw new Error(`CRAP check returned an unreadable JSON report: ${String(error)}`);
+    throw new Error(`CRAP check returned an unreadable JSON report: ${String(error)}`, { cause: error });
   }
 };
 

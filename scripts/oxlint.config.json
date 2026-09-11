@@ -115,7 +115,8 @@
         ]
       }
     ],
-    "import/no-unassigned-import": "off"
+    "import/no-unassigned-import": "off",
+    "eslint/no-await-in-loop": "off"
   },
   "overrides": [
     {

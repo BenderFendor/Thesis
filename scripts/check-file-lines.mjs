@@ -7,10 +7,10 @@ const root = resolve(import.meta.dirname, ".."),
   warningLines = 750,
   sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".py", ".rs"]),
   ignoredDirectories = new Set(["node_modules", ".next", ".git", "coverage", "dist", "build", "__pycache__"]),
-  ignoredPrefixes = [".agent", ".agents", ".claude", ".codex", ".continue", ".cursor", ".gemini", ".opencode", ".pi", ".roo", ".windsurf"];
+  ignoredPrefixes = new Set([".agent", ".agents", ".claude", ".codex", ".continue", ".cursor", ".gemini", ".opencode", ".pi", ".roo", ".windsurf"]);
 
 const shouldSkipDirectory = (name) =>
-  name.startsWith(".") || ignoredDirectories.has(name) || ignoredPrefixes.includes(name);
+  name.startsWith(".") || ignoredDirectories.has(name) || ignoredPrefixes.has(name);
 
 const collectFiles = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true }),
