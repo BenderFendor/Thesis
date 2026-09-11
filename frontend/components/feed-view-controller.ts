@@ -55,16 +55,37 @@ const useFeedViewModalState = () => {
 };
 
 interface FeedViewActionsOptions {
-  readonly data: ReturnType<typeof useFeedViewData>;
-  readonly modal: ReturnType<typeof useFeedViewModalState>;
-  readonly ranking: ReturnType<typeof useFeedRankingState>;
+  readonly data: {
+    readonly bookmarkIds: ReadonlySet<number>;
+    readonly rankedArticles: readonly NewsArticle[];
+    readonly toggleBookmark: ReturnType<typeof useFeedViewData>["toggleBookmark"];
+    readonly toggleLike: ReturnType<typeof useFeedViewData>["toggleLike"];
+  };
+  readonly modal: {
+    readonly isArticleModalOpen: boolean;
+    readonly selectedArticleIndex: number | null;
+    readonly setIsArticleModalOpen: ReturnType<
+      typeof useFeedViewModalState
+    >["setIsArticleModalOpen"];
+    readonly setSelectedArticle: ReturnType<
+      typeof useFeedViewModalState
+    >["setSelectedArticle"];
+    readonly setSelectedArticleIndex: ReturnType<
+      typeof useFeedViewModalState
+    >["setSelectedArticleIndex"];
+  };
+  readonly ranking: {
+    readonly containerRef: Readonly<{ current: HTMLDivElement | null }>;
+    readonly effectiveActiveIndex: number;
+    readonly effectiveVisibleArticles: readonly NewsArticle[];
+  };
 }
 
 const useFeedViewActions = ({
   data,
   modal,
   ranking,
-}: DeepReadonly<FeedViewActionsOptions>) => {
+}: Readonly<FeedViewActionsOptions>) => {
   const navigation = useFeedScrollNavigation({
     activeIndex: ranking.effectiveActiveIndex,
     containerRef: ranking.containerRef,
