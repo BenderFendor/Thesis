@@ -274,6 +274,7 @@
     "import/no-duplicates",
     "import/no-namespace",
     "import/no-nodejs-modules",
+    "import/no-self-import",
     "import/no-unassigned-import",
     "jest/max-expects",
     "jest/no-conditional-in-test",

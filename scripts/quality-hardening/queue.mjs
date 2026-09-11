@@ -174,7 +174,7 @@ const overrideTradeoffRules = (overrides) => {
 
 /** @param {QueueTaxonomy} taxonomy @returns {string[]} */
 const tradeoffRules = (taxonomy) =>
- [...new Set([...familyTradeoffRules(taxonomy.family_defaults, taxonomy.rule_ids), ...overrideTradeoffRules(taxonomy.overrides)])];
+ [...new Set([...familyTradeoffRules(taxonomy.family_defaults, taxonomy.rule_ids), ...overrideTradeoffRules(taxonomy.overrides ?? {})])];
 
 /** @param {QueuePolicy} policy @param {Measurement} measurement @param {readonly Effect[]} [effects] @returns {Task[]} */
 const buildTasks = (policy, measurement, effects) => {

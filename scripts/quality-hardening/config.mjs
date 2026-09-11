@@ -64,6 +64,14 @@ const CONFIG_NAME = "quality-hardening.config.json",
 /** @typedef {string | number | readonly [string | number, ...readonly (string | number | boolean)[]]} OxlintRuleSetting */
 /** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>}>} OxlintOverride */
 /** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>, overrides?: readonly OxlintOverride[]}>} OxlintPolicy */
+/** @typedef {Record<string, unknown>} JsonObject */
+
+/** @param {unknown} value @returns {JsonObject} */
+function asObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? /** @type {JsonObject} */ (value)
+    : {};
+}
 
 /**
  * JSON.parse is the single untyped I/O boundary for policy files. The loaded
@@ -128,7 +136,7 @@ const resolvedTaxonomyRule = (id, taxonomy) => {
   if (family === undefined) { return undefined; }
   const rule = {
     ...taxonomy.family_defaults[family],
-    ...taxonomy.overrides[id],
+    ...taxonomy.overrides?.[id],
   };
   if (!rule.cluster_key || !rule.quality_factor || !rule.repair_class) {
     throw new Error(`taxonomy rule is incomplete: ${id}`);

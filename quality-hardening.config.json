@@ -240,6 +240,13 @@
         ],
         "label": "Oxlint"
       },
+      "imports": {
+        "command": [
+          "node",
+          "scripts/check-imports.mjs"
+        ],
+        "label": "imports"
+      },
       "rust-clippy": {
         "command": [
           "cargo",
