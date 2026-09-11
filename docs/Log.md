@@ -2146,3 +2146,7 @@ unused exports in commits `71e0a5e` and `0193f7b`. Full frontend Jest passes 56 
 zero direct Oxlint diagnostics. The live combined count is 1,535 findings: 142 frontend
 warnings and 1,393 scripts findings, including the 10 script errors intentionally outside
 the active cleanup scope. The plan baseline is now 80.69% cleared with 19.31% remaining.
+
+The repeat `scripts/self-test` reached the repository verifier, produced no output for
+about 4.5 minutes, and was stopped with exit 130 while its type-aware worker remained
+CPU-active. It remains an open gate rather than a pass.

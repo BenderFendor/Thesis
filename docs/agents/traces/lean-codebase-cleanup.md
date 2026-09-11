@@ -122,9 +122,10 @@ cleared (80.69%) and 1,535 remain (19.31%).
 Remaining failures: one frontend file exceeds the line debt cap (`frontend/lib/api/endpoints.ts`,
 1,082 lines); dead-code reports 2 unused files, 1 unused dependency, 1 unused dev dependency,
 71 unused exports, 30 unused exported types, and 11 configuration hints; maintainability
-reports 6,074 functions with 144 MI failures and 882 MI warnings. `scripts/self-test`
-still has the prior repository-verifier run-window failure, and browser verification is
-unavailable.
+reports 6,074 functions with 144 MI failures and 882 MI warnings. A repeat
+`scripts/self-test` reached `node scripts/quality-hardening.mjs verify --scope repo`,
+produced no output for about 4.5 minutes, and was stopped with exit 130 while its
+type-aware worker remained CPU-active. Browser verification is unavailable.
 
 Rollback: revert `0193f7b` and `71e0a5e` together. Next executable step: inspect the
 interactive globe scene/material warnings, then rerun the same direct frontend gates and

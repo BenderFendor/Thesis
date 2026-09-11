@@ -128,9 +128,10 @@ The file-line gate now has one over-limit file, `frontend/lib/api/endpoints.ts` 
 lines against the 1,057 debt cap. Dead-code still reports two unused files, one unused
 dependency, one unused dev dependency, 71 unused exports, 30 unused exported types, and
 11 configuration hints. Strict maintainability now reports 6,074 functions, 144 failures
-below MI 50, and 882 warnings below MI 60. The full `scripts/self-test` remains an open
-gate because its previous type-aware repository verification exceeded the practical run
-window; browser verification remains unavailable.
+below MI 50, and 882 warnings below MI 60. A repeat `scripts/self-test` from this
+checkpoint reached `node scripts/quality-hardening.mjs verify --scope repo`, produced no
+output for about 4.5 minutes, and was stopped with exit 130 while its type-aware worker
+remained CPU-active. Browser verification remains unavailable.
 
 The goal remains active. The next bounded frontend queue is the globe scene/material
 cluster, followed by the remaining UI warnings and the open MI, CRAP, dead-code,
