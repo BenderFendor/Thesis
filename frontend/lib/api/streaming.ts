@@ -2,28 +2,35 @@
 // This is the genuinely complex part of the API layer (cancellation, retries,
 // event parsing with double-encoded payloads).
 
+import type {
+  NewsArticle,
+  ReadonlyNewsArticle,
+  StreamOptions,
+  StreamProgress,
+  StreamReader,
+  StreamRejectHandler,
+  StreamResolveHandler,
+  StreamResult,
+  StreamRuntime,
+} from "./types";
 import { API_BASE_URL } from "./client";
 import { StreamEventSchema } from "./schemas";
 import { mapBackendArticles } from "./article";
-import type {
-ReadonlyNewsArticle,
-StreamReader,
-  StreamOptions,
-  StreamProgress,
-  StreamResult,
-  StreamEvent,
-  StreamRuntime,
-  StreamResolveHandler,
-  StreamRejectHandler,
-  NewsArticle,
-} from "./types";
+import type { DeepReadonly } from "../deep-readonly";
 
 const STREAM_CACHE_LOAD_TIMEOUT_MS = 15_000;
 const STREAM_MESSAGE_TIMEOUT_MS = 120_000;
 const STREAM_STALL_CHECK_INTERVAL_MS = 3000;
 const STREAM_TIMEOUT_CHECK_INTERVAL_MS = 5000;
 
-export const streamNews = (options: StreamOptions = {}) => {
+interface StreamConnection {
+  readonly promise: Promise<StreamResult>;
+  readonly url: string;
+}
+
+type ParsedStreamEvent = DeepReadonly<ReturnType<typeof StreamEventSchema.parse>>;
+
+const streamNews = (options: StreamOptions = {}): StreamConnection => {
   const sseUrl = buildStreamUrl(options);
   console.debug(
     `Starting news stream with useCache=${options.useCache ?? true} and category=${options.category}`,
@@ -31,7 +38,7 @@ export const streamNews = (options: StreamOptions = {}) => {
   {
     const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
     startStreamConnection(sseUrl, options, createStreamRuntime(options, resolve, reject));
-    return { promise, url: sseUrl };
+    return { promise, url: sseUrl } satisfies StreamConnection;
   }
 };
 
@@ -39,7 +46,7 @@ const buildStreamUrl = (options: Readonly<StreamOptions>): string => {
   const params = new URLSearchParams({
     use_cache: String(options.useCache ?? true),
   });
-  if (options.category) {
+  if (options.category !== undefined && options.category !== null && options.category !== "") {
     params.set("category", options.category);
   }
   return `${API_BASE_URL}/news/stream?${params.toString()}`;
@@ -73,7 +80,11 @@ const connectAndPumpStream = async (
   rt: Readonly<StreamRuntime>,
 ): Promise<void> => {
   const abortController = new AbortController();
-  Object.assign(rt, { abort: () => { abortController.abort(); } });
+  Object.assign(rt, {
+    abort: () => {
+      abortController.abort();
+    },
+  });
   if (signal !== undefined) {
     if (signal.aborted) {
       rt.abort();
@@ -107,14 +118,20 @@ const createStreamRuntime = (
   resolve: StreamResolveHandler,
   reject: StreamRejectHandler,
 ): StreamRuntime => {
-  const articles: NewsArticle[] = [],
-    sources = new Set<string>(),
-    errors: string[] = [];
+  const articles: NewsArticle[] = [];
+  const sources = new Set<string>();
+  const errors: string[] = [];
   return {
     abort: () => {},
-    addArticles: (...newArticles: readonly NewsArticle[]) => { articles.push(...newArticles); },
-    addError: (error: string) => { errors.push(error); },
-    addSource: (source: string) => { sources.add(source); },
+    addArticles: (...newArticles: readonly NewsArticle[]) => {
+      articles.push(...newArticles);
+    },
+    addError: (error: string) => {
+      errors.push(error);
+    },
+    addSource: (source: string) => {
+      sources.add(source);
+    },
     articles,
     clearTimers: () => {},
     errors,
@@ -126,15 +143,15 @@ const createStreamRuntime = (
     reject,
     resolve,
     settled: false,
-    get sources(): readonly string[] { return [...sources]; },
+    get sources(): readonly string[] {
+      return [...sources];
+    },
     streamId: undefined,
   };
 };
 
-const parseStreamEvent = (eventData: string): StreamEvent => {
+const parseStreamEvent = (eventData: string): ParsedStreamEvent => {
   try {
-    // SAFETY: StreamEventSchema validates the wire shape; the parsed event is
-    // structurally the StreamEvent domain type (schema permits trailing nulls).
     return StreamEventSchema.parse(JSON.parse(eventData));
   } catch {
     console.warn("[streamNews] First JSON.parse failed, attempting to re-parse");
@@ -142,10 +159,7 @@ const parseStreamEvent = (eventData: string): StreamEvent => {
   }
 };
 
-const dispatchStreamEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const dispatchStreamEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   if (data.stream_id !== undefined && rt.streamId === undefined) {
     Object.assign(rt, { streamId: data.stream_id });
   }
@@ -159,10 +173,7 @@ const dispatchStreamEvent = (
   streamEventHandlers[data.status](data, rt);
 };
 
-const settleStreamConnectionError = (
-  error: Readonly<Error>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const settleStreamConnectionError = (error: Readonly<Error>, rt: Readonly<StreamRuntime>): void => {
   if (rt.settled) {
     return;
   }
@@ -185,17 +196,12 @@ const reportStreamParseError = (
   eventData: string,
   rt: Readonly<StreamRuntime>,
 ): void => {
-  console.error(
-    "Error parsing stream event:",
-    error,
-    "Raw data:",
-    eventData,
-  );
+  console.error("Error parsing stream event:", error, "Raw data:", eventData);
   const message = error.message;
   rt.onError?.(`Parse error: ${message}`);
 };
 
-export const removeDuplicateArticles = (articles: readonly NewsArticle[]): NewsArticle[] => {
+const removeDuplicateArticles = (articles: readonly NewsArticle[]): NewsArticle[] => {
   const seen = new Set<string>(),
     seenIds = new Set<number>();
   return articles.filter((article) => {
@@ -215,23 +221,29 @@ export const removeDuplicateArticles = (articles: readonly NewsArticle[]): NewsA
   });
 };
 
-const streamResolve = (
-  rt: Readonly<StreamRuntime>,
-  extraErrors?: readonly string[],
-): void => {
-  if (rt.settled) { return; }
+const streamResolve = (rt: Readonly<StreamRuntime>, extraErrors?: readonly string[]): void => {
+  if (rt.settled) {
+    return;
+  }
   Object.assign(rt, { settled: true });
   rt.clearTimers();
   rt.resolve({
     articles: removeDuplicateArticles(rt.articles),
-    errors: extraErrors ? [...rt.errors, ...extraErrors] : rt.errors,
+    errors: (() => {
+  if (extraErrors) {
+    return [...rt.errors, ...extraErrors];
+  }
+  return rt.errors;
+})(),
     sources: [...rt.sources],
     streamId: rt.streamId,
   });
 };
 
 const streamReject = (rt: Readonly<StreamRuntime>, error: Readonly<Error>): void => {
-  if (rt.settled) { return; }
+  if (rt.settled) {
+    return;
+  }
   Object.assign(rt, { settled: true });
   rt.clearTimers();
   rt.reject(error);
@@ -273,7 +285,7 @@ const installStreamTimers = (rt: Readonly<StreamRuntime>): void => {
     clearTimers: () => {
       clearInterval(timeoutInterval);
       clearInterval(stallInterval);
-    }
+    },
   });
   timeoutInterval = setInterval(() => {
     const timeSinceLastMessage = Date.now() - rt.lastMessageTime;
@@ -288,24 +300,17 @@ const installStreamTimers = (rt: Readonly<StreamRuntime>): void => {
       !rt.settled &&
       Date.now() - rt.lastMessageTime > STREAM_CACHE_LOAD_TIMEOUT_MS;
     if (isStalled) {
-      console.warn(
-        `Stream ${rt.streamId} stalled after cache load - auto-completing`,
-      );
-      streamResolve(rt, [
-        "Stream auto-completed due to inactivity after cache load",
-      ]);
+      console.warn(`Stream ${rt.streamId} stalled after cache load - auto-completing`);
+      streamResolve(rt, ["Stream auto-completed due to inactivity after cache load"]);
     }
   }, STREAM_STALL_CHECK_INTERVAL_MS);
 };
 
-const handleCacheDataEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleCacheDataEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   Object.assign(rt, { hasReceivedData: true });
   if (data.articles && Array.isArray(data.articles)) {
-    const mappedArticles = mapBackendArticles(data.articles),
-      cacheAge = data.cache_age_seconds || 999;
+    const mappedArticles = mapBackendArticles(data.articles);
+    const cacheAge = data.cache_age_seconds ?? 999;
     console.debug(
       `Stream ${rt.streamId} cache data: ${mappedArticles.length} articles (cache age: ${cacheAge}s, fresh: ${cacheAge < 120})`,
     );
@@ -316,9 +321,7 @@ const handleCacheDataEvent = (
       total: rt.sources.length,
     }));
     if (cacheAge < 120) {
-      console.debug(
-        `Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`,
-      );
+      console.debug(`Cache is fresh (${cacheAge}s), waiting for completion or timeout after 5s...`);
       setTimeout(() => {
         if (!rt.settled && rt.hasReceivedData) {
           console.debug("Auto-completing stream after fresh cache timeout");
@@ -334,10 +337,7 @@ const handleCacheDataEvent = (
   }
 };
 
-const handleCompleteEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleCompleteEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   console.debug(`Stream ${rt.streamId} complete:`, {
     failedSources: data.failed_sources,
     message: data.message,
@@ -347,26 +347,20 @@ const handleCompleteEvent = (
   streamResolve(rt);
 };
 
-const handleErrorEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleErrorEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   console.error(`Stream ${rt.streamId} error:`, data.error);
   if (rt.hasReceivedData) {
-    streamResolve(rt, [data.error || "Stream error"]);
+    streamResolve(rt, [data.error ?? "Stream error"]);
   } else {
-    streamReject(rt, new Error(data.error || "Stream error"));
+    streamReject(rt, new Error(data.error ?? "Stream error"));
   }
 };
 
-const handleInitialEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleInitialEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   Object.assign(rt, { hasReceivedData: true });
   if (data.articles && Array.isArray(data.articles)) {
-    const mappedArticles = mapBackendArticles(data.articles),
-      cacheAge = data.cache_age_seconds || 999;
+    const mappedArticles = mapBackendArticles(data.articles);
+    const cacheAge = data.cache_age_seconds ?? 999;
     console.debug(
       `Stream ${rt.streamId} INITIAL data: ${mappedArticles.length} articles (cache age: ${cacheAge}s)`,
     );
@@ -384,12 +378,14 @@ const handleInitialEvent = (
   }
 };
 
-const handleSourceCompleteEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleSourceCompleteEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   Object.assign(rt, { hasReceivedData: true });
-  if (data.articles && data.source) {
+  if (
+    data.articles &&
+    data.source !== undefined &&
+    data.source !== null &&
+    data.source !== ""
+  ) {
     const mappedArticles = mapBackendArticles(data.articles);
     rt.addArticles(...mappedArticles);
     rt.addSource(data.source);
@@ -397,25 +393,23 @@ const handleSourceCompleteEvent = (
       `Stream ${rt.streamId} source complete: ${data.source} (${mappedArticles.length} articles)`,
     );
     rt.onSourceComplete?.(data.source, mappedArticles);
-    if (data.progress) { rt.onProgress?.(data.progress); }
+    if (data.progress) {
+      rt.onProgress?.(data.progress);
+    }
   }
 };
 
-const handleSourceErrorEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleSourceErrorEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   const errorMsg = `Error loading ${data.source}: ${data.error}`;
   console.warn(`Stream ${rt.streamId} source error:`, errorMsg);
   rt.addError(errorMsg);
   rt.onError?.(errorMsg);
-  if (data.progress) { rt.onProgress?.(data.progress); }
+  if (data.progress) {
+    rt.onProgress?.(data.progress);
+  }
 };
 
-const handleStartingEvent = (
-  data: Readonly<StreamEvent>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleStartingEvent = (data: ParsedStreamEvent, rt: Readonly<StreamRuntime>): void => {
   console.debug(`Stream ${rt.streamId} starting: ${data.message}`);
   rt.onProgress?.({
     completed: 0,
@@ -443,15 +437,19 @@ const queueStreamBatches = (
 ): void => {
   void (async () => {
     const BATCH_SIZE = 500;
-    for (let i = 0; i < articlesToQueue.length; i += BATCH_SIZE) {
-      const batch = articlesToQueue.slice(i, i + BATCH_SIZE);
+    for (let offset = 0; offset < articlesToQueue.length; offset += BATCH_SIZE) {
+      const batch = articlesToQueue.slice(offset, offset + BATCH_SIZE);
       rt.addArticles(...batch);
-      batch.forEach((article) => { rt.addSource(article.source); });
+      batch.forEach((article) => {
+        rt.addSource(article.source);
+      });
       if (rt.onSourceComplete) {
-        rt.onSourceComplete(`${batchLabel}-${Math.floor(i / BATCH_SIZE)}`, batch);
+        rt.onSourceComplete(`${batchLabel}-${Math.floor(offset / BATCH_SIZE)}`, batch);
       }
-      if (i + BATCH_SIZE < articlesToQueue.length) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+      if (offset + BATCH_SIZE < articlesToQueue.length) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
       }
     }
     rt.onProgress?.(finalProgress());
@@ -465,7 +463,9 @@ const processStreamChunk = (
   rt: Readonly<StreamRuntime>,
 ): string => {
   const lines = `${buffer}${decoder.decode(chunk, { stream: true })}`.split("\n");
-  lines.slice(0, -1).forEach((line) => { processStreamDataLine(line, rt); });
+  lines.slice(0, -1).forEach((line) => {
+    processStreamDataLine(line, rt);
+  });
   return lines.at(-1) ?? "";
 };
 
@@ -480,14 +480,20 @@ const processStreamDataLine = (line: string, rt: Readonly<StreamRuntime>): void 
   try {
     dispatchStreamEvent(parseStreamEvent(eventData), rt);
   } catch (parseError) {
-    reportStreamParseError(parseError instanceof Error ? parseError : new Error(String(parseError)), eventData, rt);
+    reportStreamParseError(
+      (() => {
+  if (parseError instanceof Error) {
+    return parseError;
+  }
+  return new Error(String(parseError));
+})(),
+      eventData,
+      rt,
+    );
   }
 };
 
-const handleStreamReadError = (
-  readError: Readonly<Error>,
-  rt: Readonly<StreamRuntime>,
-): void => {
+const handleStreamReadError = (readError: Readonly<Error>, rt: Readonly<StreamRuntime>): void => {
   rt.clearTimers();
   if (readError.name === "AbortError") {
     console.warn("Stream reader aborted");
@@ -522,3 +528,4 @@ const resolveCompletedStream = (rt: Readonly<StreamRuntime>): void => {
     streamReject(rt, new Error("Stream ended without receiving data"));
   }
 };
+export { streamNews, removeDuplicateArticles };

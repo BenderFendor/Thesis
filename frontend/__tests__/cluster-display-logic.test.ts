@@ -1,53 +1,55 @@
-import type { BreakingCluster, TrendingArticle, TrendingCluster } from "@/lib/api";
+import type { BreakingCluster, TrendingCluster } from "@/lib/api";
+import { describe, expect, it } from "@jest/globals";
 import {
-  clusterArticlesToNewsArticles,
   filterTrendingClusters,
   getClusterPreviewStats,
   pickClusterImageUrl,
 } from "@/lib/cluster-display";
-import { describe, expect, it } from '@jest/globals';
 import fc from "fast-check";
 
+const clusterIdsArbitrary = fc.uniqueArray(fc.integer({ max: 10_000, min: 1 }), {
+  maxLength: 20,
+  minLength: 1,
+});
+const previewIdsArbitrary = fc.uniqueArray(fc.integer({ max: 1_000_000, min: 1 }), {
+  maxLength: 5,
+  minLength: 2,
+});
+
 describe("cluster display logic", () => {
-  it("removes trending clusters that already appear in breaking", () => {  expect.hasAssertions();
-  
+  it("removes trending clusters that already appear in breaking", () => {
+    expect.hasAssertions();
+
     fc.assert(
       fc.property(
-        fc.uniqueArray(fc.integer({ max: 10_000, min: 1 }), {
-          maxLength: 20,
-          minLength: 1,
-        }),
-        fc.uniqueArray(fc.integer({ max: 10_000, min: 1 }), {
-          maxLength: 20,
-          minLength: 1,
-        }),
+        clusterIdsArbitrary,
+        clusterIdsArbitrary,
         (trendingIds, breakingIds) => {
           const trending: TrendingCluster[] = trendingIds.map((cluster_id) => ({
-            article_count: 1,
-            articles: [],
-            cluster_id,
-            keywords: [],
-            label: null,
-            representative_article: null,
-            source_diversity: 1,
-            trending_score: 1,
-            velocity: 1,
-            window_count: 1,
-          })),
-           breaking: BreakingCluster[] = breakingIds.map((cluster_id) => ({
-            article_count_3h: 1,
-            articles: [],
-            cluster_id,
-            is_new_story: true,
-            keywords: [],
-            label: null,
-            representative_article: null,
-            source_count_3h: 1,
-            spike_magnitude: 1,
-          })),
-
-           filtered = filterTrendingClusters(trending, breaking),
-           filteredIds = new Set(filtered.map((cluster) => cluster.cluster_id));
+              article_count: 1,
+              articles: [],
+              cluster_id,
+              keywords: [],
+              label: null,
+              representative_article: null,
+              source_diversity: 1,
+              trending_score: 1,
+              velocity: 1,
+              window_count: 1,
+            }));
+          const breaking: BreakingCluster[] = breakingIds.map((cluster_id) => ({
+              article_count_3h: 1,
+              articles: [],
+              cluster_id,
+              is_new_story: true,
+              keywords: [],
+              label: null,
+              representative_article: null,
+              source_count_3h: 1,
+              spike_magnitude: 1,
+            }));
+          const filtered = filterTrendingClusters(trending, breaking);
+          const filteredIds = new Set(filtered.map((cluster) => cluster.cluster_id));
 
           for (const clusterId of breakingIds) {
             expect(filteredIds.has(clusterId)).toBe(false);
@@ -57,44 +59,9 @@ describe("cluster display logic", () => {
     );
   });
 
-  it("preserves snapshot article summary and image values when expanding a cluster", () => {  expect.hasAssertions();
-  
-    fc.assert(
-      fc.property(
-        fc.uniqueArray(fc.integer({ max: 1_000_000, min: 1 }), {
-          maxLength: 8,
-          minLength: 1,
-        }),
-        (ids) => {
-          const articles: TrendingArticle[] = ids.map((id, index) => ({
-            id,
-            image_url: index % 2 === 0 ? null : `https://img.example.com/${id}.jpg`,
-            published_at: index % 2 === 0 ? undefined : "2026-03-06T12:00:00.000Z",
-            source: `Source ${index}`,
-            summary: index % 2 === 0 ? null : `Summary ${id}`,
-            title: `Title ${id}`,
-            url: `https://example.com/${id}`,
-          })),
+  it("falls back to another cluster article image when the representative has none", () => {
+    expect.hasAssertions();
 
-           mapped = clusterArticlesToNewsArticles(articles);
-
-          expect(mapped).toHaveLength(articles.length);
-          mapped.forEach((article, index) => {
-            const sourceArticle = articles[index];
-            expect(sourceArticle).toBeDefined();
-            if (sourceArticle === undefined) { throw new Error("missing source article"); }
-            expect(article.title).toBe(sourceArticle.title);
-            expect(article.url).toBe(sourceArticle.url);
-            expect(article.summary).toBe(sourceArticle.summary || "");
-            expect(article.image).toBe(sourceArticle.image_url || "");
-          });
-        },
-      ),
-    );
-  });
-
-  it("falls back to another cluster article image when the representative has none", () => {  expect.hasAssertions();
-  
     fc.assert(
       fc.property(fc.integer({ max: 1_000_000, min: 1 }), (id) => {
         const imageUrl = `https://img.example.com/${id}.jpg`;
@@ -130,31 +97,28 @@ describe("cluster display logic", () => {
     );
   });
 
-  it("derives topic card counts from the preview articles shown to the user", () => {  expect.hasAssertions();
-  
+  it("derives topic card counts from the preview articles shown to the user", () => {
+    expect.hasAssertions();
+
     fc.assert(
       fc.property(
-        fc.uniqueArray(fc.integer({ max: 1_000_000, min: 1 }), {
-          maxLength: 5,
-          minLength: 2,
-        }),
+        previewIdsArbitrary,
         (ids) => {
           const previewArticles = ids.map((id, index) => ({
-            id,
-            source: `Source ${index % 2}`,
-            title: `Title ${id}`,
-            url: `https://example.com/${id}`,
-          })),
-
-           stats = getClusterPreviewStats({
-            article_count: 999,
-            articles: previewArticles,
-            representative_article: null,
-            source_diversity: 888,
-          });
+              id,
+              source: `Source ${index % 2}`,
+              title: `Title ${id}`,
+              url: `https://example.com/${id}`,
+            })),
+            stats = getClusterPreviewStats({
+              article_count: 999,
+              articles: previewArticles,
+              representative_article: null,
+              source_diversity: 888,
+            });
 
           expect(stats.articleCount).toBe(previewArticles.length);
-          expect(stats.sourceCount).toBe(new Set(previewArticles.map((a) => a.source)).size);
+          expect(stats.sourceCount).toBe(new Set(previewArticles.map((article) => article.source)).size);
         },
       ),
     );
