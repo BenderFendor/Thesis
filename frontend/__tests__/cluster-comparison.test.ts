@@ -13,6 +13,7 @@ const articleIdsArbitrary = fc.uniqueArray(fc.integer({ max: 1_000_000, min: 1 }
 const sourceNamesArbitrary = fc.uniqueArray(fc.stringMatching(/^[A-Za-z]{1,12}$/u), {
   maxLength: 5,
   minLength: 2,
+  selector: (source) => source.toLowerCase(),
 });
 const sourceNameArbitrary = fc.stringMatching(/^[A-Za-z]{1,12}$/u);
 
