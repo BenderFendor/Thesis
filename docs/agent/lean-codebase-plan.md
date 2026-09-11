@@ -1631,3 +1631,18 @@ repository self-test, and browser gates remain open.
   1 suite and 6 tests. The prior full frontend result remains 56 suites and 199 tests.
 - Strict maintainability, source-line cap, dead-code, CRAP completion, repository self-test, and
   browser verification remain open. Scripts lint cleanup remains intentionally skipped.
+
+## 2026-09-11 — Frontend warning queue cleared
+
+The remaining 18 frontend warnings were removed by splitting the oversized API endpoint/type
+barrels and the organization wiki view into focused modules. Commit `8b6f8b2` records the
+checkpoint. The direct frontend Oxlint census now reports 0 errors and 0 warnings.
+
+The combined `frontend scripts` census reports 1,393 findings: 10 errors and 1,383 warnings.
+All remaining findings are in `scripts/`, which stays outside the active lint scope under the
+user's explicit instruction. Against the 7,949-finding baseline, 6,556 are cleared (82.48%) and
+1,393 remain (17.52%). The active frontend lint queue is 100% cleared.
+
+Verification: frontend TypeScript passes; the eight affected API and UI regression suites pass
+with 27 tests; and the staged checkpoint passes `git diff --cached --check`. Strict maintainability,
+source-line, dead-code, CRAP, repository self-test, and browser gates remain open.

@@ -706,3 +706,28 @@ has previously exceeded the practical run window while its type-aware worker sta
 Rollback or next executable step: inspect the 31 frontend findings from the saved measurement,
 starting with clean or clearly bounded modules; use focused staging for dirty files, then rerun
 the full frontend suite and a fresh repository measurement before the next checkpoint.
+
+## 2026-09-11 — Frontend warning queue cleared
+
+Goal and done criteria: clear the remaining active frontend Oxlint findings with behavior-preserving
+module splits, verify API and UI callers, preserve unrelated dirty work, and record exact counts.
+
+Status: the 18 remaining frontend warnings are cleared. Commit `8b6f8b2` splits the API endpoint
+and type barrels and the organization wiki view. The direct frontend census is 0 errors and 0
+warnings. The combined `frontend scripts` census remains 1,393 findings: 10 errors and 1,383
+warnings; scripts remain excluded by explicit user scope.
+
+Files changed: `frontend/lib/api/endpoints.ts` and its five focused modules; `frontend/lib/api/types.ts`
+and its four focused modules; and the organization view, types, parts, and sidebar modules.
+
+Commands and tests: type-aware Oxlint over the changed modules; frontend `tsc --noEmit`; eight
+affected Jest suites with 27 tests; whole `frontend scripts` Oxlint census; and staged
+`git diff --cached --check` all passed, except the expected whole-scope Oxlint exit caused by the
+remaining script findings.
+
+Assumptions and risks: scripts lint cleanup remains intentionally skipped. The worktree still
+contains unrelated user-owned WIP, which was left unstaged. The project-wide maintainability,
+source-line, dead-code, CRAP, repository self-test, and browser gates remain open.
+
+Rollback or next executable step: revert `8b6f8b2` to restore the pre-split module layout, or
+continue with the non-lint quality gates while keeping `scripts/` outside the active queue.

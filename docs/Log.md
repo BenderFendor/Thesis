@@ -2210,3 +2210,13 @@ the modal path with 6 passing tests, frontend TypeScript, and focused type-aware
 fresh census is 1,424 findings: 10 errors and 1,414 warnings; frontend has 31 warnings and
 scripts have 1,393 findings under the explicit scripts exclusion. Progress is 6,525/7,949
 findings cleared (82.09%).
+
+## 2026-09-11 — Frontend warning queue cleared
+
+Split the API endpoint/type barrels and organization wiki view into focused modules. Commit
+`8b6f8b2` records the checkpoint. Direct frontend Oxlint is now 0 errors and 0 warnings.
+
+The combined `frontend scripts` census is 1,393 findings: 10 errors and 1,383 warnings. Scripts
+remain outside the active lint scope by explicit user instruction. Against the 7,949-finding
+baseline, 6,556 are cleared (82.48%) and 1,393 remain (17.52%). Frontend TypeScript passes, and
+eight affected regression suites pass with 27 tests.
