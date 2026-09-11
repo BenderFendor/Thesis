@@ -2275,3 +2275,15 @@ The speed change includes a regression test for bounded check concurrency. The f
 completed in 118.8 seconds without timing out. It still fails on 2 CCCC violations, 136 low
 maintainability-index violations, dead code, backend mypy, Ruff format, and backend tests; the
 frontend, CLI, Rust, Oxlint, cycles, duplication, and source-line checks passed.
+
+## 2026-09-11 — PR 35 merge baseline and backlog policy
+
+PR 35 is the merge baseline for the script-quality and verifier-speed work. The configured
+scripts policy is green with 0 Oxlint errors and warnings across 42 files; CLI typecheck, 14 CLI
+tests, 23 controller tests, and policy validation pass. The repository self-test completes in
+118.8 seconds without timing out, while the full gate still reports 2 CCCC violations, 136 MI
+violations, dead-code findings, 25 mypy errors across 19 files, one Ruff format failure, and five
+backend test failures.
+
+The active quality backlog and the rule that future features repair open debt in the same touched
+system are recorded in `docs/agent/lean-codebase-plan.md` and `AGENTS.md`.

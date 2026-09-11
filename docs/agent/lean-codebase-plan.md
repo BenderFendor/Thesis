@@ -1693,3 +1693,34 @@ The whole direct census is unchanged at 1,393 findings: 10 errors and 1,383 warn
 - Script lint and typecheck are closed under the configured policy. Remaining project gates are
   maintainability, source-line, CRAP completion, repository self-test, browser verification, and
   review of preserved dirty work.
+
+## 2026-09-11 — PR 35 merge baseline and quality backlog
+
+PR 35 contains the branch's completed script-quality and verifier-speed work. The configured
+script policy is green: 0 Oxlint errors and warnings across 42 files, CLI typecheck passes, 14
+CLI tests pass, 23 quality-controller tests pass, and policy validation passes. The repository
+self-test now completes in 118.8 seconds without timing out, but the full gate is not green.
+
+Active backlog:
+
+- `QH-001 CCCC`: reduce `main` in `scripts/check-file-lines.mjs` (cyclomatic 11) and
+  `parseFinding` in `scripts/quality-hardening/adapters/oxlint.mjs` (cyclomatic 12) to the
+  thresholds of cyclomatic 10 and cognitive 15.
+- `QH-002 MI`: repair the 136 owned frontend functions below MI 50 and the remaining warning
+  cohort below MI 60. Acceptance is no owned frontend function below MI 60, with the controller
+  measurement retained for JavaScript tooling.
+- `QH-003 dead code`: resolve the current Knip unused-file, dependency, export/type, and
+  configuration-hint findings after tracing live callers and preserved WIP.
+- `QH-004 backend typing`: fix the 25 mypy errors across 19 files without broadening types or
+  adding suppressions.
+- `QH-005 backend behavior`: fix the five failing backend tests for article contracts, bookmark
+  listing, liked listing, and scroll personalization; retain their regression coverage.
+- `QH-006 backend formatting`: format `backend/app/models/api_contracts.py` and keep the Ruff
+  format gate green.
+- `QH-007 runtime proof`: exercise the changed user journeys in a browser at desktop and mobile
+  sizes and record the evidence; source checks alone do not close this item.
+
+Feature rule: before editing a feature, identify its frontend, backend, CLI, Rust, API, and
+quality-tooling boundaries. If any boundary maps to an open backlog item, the feature change
+must repair that applicable item in the same change and add the behavior and quality evidence.
+Update this backlog when a finding is closed or a new touched-system finding is discovered.

@@ -47,6 +47,14 @@ If the script fails, inspect `README.md`, `verify.sh`, and stack manifests manua
 - Pre-existing lint/type errors discovered during verification must be fixed in the same session. Do not push blame or leave them for later.
 - Rust modules exposed via PyO3 bindings are the authoritative implementation path. Python code must call the Rust bindings directly without try/except fallbacks. If the Rust module is broken, fix the Rust module -- do not add a Python fallback.
 
+## Feature Work And Quality Backlog
+
+The active quality backlog is recorded in `docs/agent/lean-codebase-plan.md`. When a new
+feature touches a system named in that backlog, the same change must include the applicable
+backlog repair, regression coverage, and before/after evidence for its MI, CRAP, CCCC, Oxlint,
+typecheck, and behavior-test gates. Keep unrelated backlog items separate, but do not add new
+debt to a touched system while deferring its existing repair without recording the reason.
+
 ## Documentation Health
 
 Treat `README.md`, `docs/`, and the GitHub Wiki as part of repo health.
