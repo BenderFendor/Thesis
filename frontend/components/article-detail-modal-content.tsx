@@ -79,7 +79,7 @@ const ArticleDetailModalContent = ({
     state,
   });
 
-  return <ArticleDetailModalView {...viewProps} />;
+  return <ArticleDetailModalView viewProps={viewProps} />;
 };
 
 export { ArticleDetailModal };

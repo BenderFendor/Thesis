@@ -123,7 +123,9 @@ const scrollArticleContent = (container: HTMLDivElement | null, nextProgress: nu
   container.scrollTo({ behavior: "auto", top: maxScroll * clampedProgress });
 };
 
-const ArticleDetailModalView = (viewProps: DeepReadonly<ArticleDetailModalViewProps>) => {
+const ArticleDetailModalView = ({
+  viewProps,
+}: Readonly<{ readonly viewProps: DeepReadonly<ArticleDetailModalViewProps> }>) => {
   const { setHighlights } = viewProps;
   const setModalHighlights = useCallback(
     (highlights: readonly Readonly<LocalHighlight>[]): void => {
