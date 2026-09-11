@@ -7,7 +7,7 @@ import { HighlightToolbar } from "@/components/highlight-toolbar";
 
 type HighlightToolbarProps = ComponentProps<typeof HighlightToolbar>;
 interface TestContainerRef {
-  current: HTMLElement | null;
+  current: HTMLDivElement | null;
 }
 interface OutsideSelection {
   readonly articleContainer: HTMLDivElement;

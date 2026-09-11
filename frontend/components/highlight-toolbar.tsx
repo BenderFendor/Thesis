@@ -6,13 +6,21 @@ import { Button } from "@/components/ui/button";
 import { ENABLE_HIGHLIGHTS } from "@/lib/api";
 
 import type { Highlight } from "@/lib/api";
-import { createHighlightFingerprint } from "@/lib/highlight-store";
 import { getGlobalOffset } from "@/lib/highlight-utils";
 import { toast } from "sonner";
+import {
+  getHighlightElementView,
+  getSelectionSnapshot,
+  hasExactDuplicate,
+} from "./highlight-toolbar-selection";
+import type {
+  HighlightElementView,
+  HighlightRangeSnapshot,
+  SelectionSnapshot,
+  SelectionOffsets,
+} from "./highlight-toolbar-selection";
 
-const EMPTY_RANGE_COUNT = 0,
-  FIRST_RANGE_INDEX = 0,
-  HALF_DIVISOR = 2,
+const HALF_DIVISOR = 2,
   HIGHLIGHT_DEBUG = true,
   INVALID_OFFSET = -1,
   SELECTION_RESET_DELAY_MS = 120,
@@ -33,7 +41,7 @@ interface CreateHighlightPayload {
   readonly range: HighlightRange;
 }
 
-interface HighlightToolbarProps<TElement extends HTMLElement = HTMLElement> {
+interface HighlightToolbarProps<TElement extends HTMLDivElement = HTMLDivElement> {
   readonly articleUrl: string;
   readonly autoCreate: boolean;
   readonly containerRef: { readonly current: TElement | null };
@@ -46,46 +54,7 @@ interface HighlightToolbarProps<TElement extends HTMLElement = HTMLElement> {
   ) => Promise<void> | void;
 }
 
-interface SelectionSnapshot {
-  readonly range: HighlightRangeSnapshot;
-  readonly selection: HighlightSelectionSnapshot;
-  readonly text: string;
-}
-
-interface HighlightNodeSnapshot {
-  readonly asNode: () => Node;
-  readonly nodeName: string;
-}
-
-interface HighlightRangeSnapshot {
-  readonly commonAncestorContainer: HighlightNodeSnapshot;
-  readonly endContainer: HighlightNodeSnapshot;
-  readonly endOffset: number;
-  readonly getBoundingClientRect: () => DOMRect;
-  readonly startContainer: HighlightNodeSnapshot;
-  readonly startOffset: number;
-}
-
-interface HighlightSelectionSnapshot {
-  readonly anchorNode: HighlightNodeSnapshot | null;
-  readonly focusNode: HighlightNodeSnapshot | null;
-}
-
-interface SelectionOffsets {
-  readonly end: number;
-  readonly start: number;
-}
-
-interface HighlightElementView {
-  readonly clientHeight: number;
-  readonly contains: HTMLElement["contains"];
-  readonly getBoundingClientRect: () => DOMRect;
-  readonly isConnected: boolean;
-  readonly nodeName: string;
-}
-
-type ReadonlyHighlightElement = Readonly<HighlightElementView>;
-type ReadonlyHighlightToolbarProps<TElement extends HTMLElement> = Readonly<
+type ReadonlyHighlightToolbarProps<TElement extends HTMLDivElement> = Readonly<
   HighlightToolbarProps<TElement>
 >;
 
@@ -93,19 +62,7 @@ type OffsetResult =
   | Readonly<{ ok: true; offsets: SelectionOffsets }>
   | Readonly<{ message: string; ok: false }>;
 
-const createNodeSnapshot = <TNode extends Node>(node: Readonly<TNode>): HighlightNodeSnapshot => ({
-    asNode: () => node,
-    nodeName: node.nodeName,
-  }),
-  getHighlightElementView = <TElement extends HTMLElement>(
-    element: Readonly<TElement>,
-  ): ReadonlyHighlightElement => ({
-  clientHeight: element.clientHeight,
-  contains: (node) => element.contains(node),
-  getBoundingClientRect: () => element.getBoundingClientRect(),
-  isConnected: element.isConnected,
-  nodeName: element.nodeName,
-});
+type ToolbarRect = Readonly<Pick<DOMRect, "left" | "top">>;
 
 const hideToolbar = (toolbar: HTMLDivElement | null): void => {
     if (toolbar !== null) {
@@ -114,44 +71,6 @@ const hideToolbar = (toolbar: HTMLDivElement | null): void => {
   };
 const clearBrowserSelection = (): void => {
     globalThis.getSelection()?.removeAllRanges();
-  };
-const getSelectionSnapshot = (): SelectionSnapshot | undefined => {
-    const selection = globalThis.getSelection();
-    if (selection === null || selection.rangeCount === EMPTY_RANGE_COUNT) {
-      return void 0;
-    }
-    const text = selection.toString();
-    if (selection.isCollapsed || text.trim().length === EMPTY_RANGE_COUNT) {
-      return void 0;
-    }
-    const range = selection.getRangeAt(FIRST_RANGE_INDEX);
-    return {
-      range: {
-        commonAncestorContainer: createNodeSnapshot(range.commonAncestorContainer),
-        endContainer: createNodeSnapshot(range.endContainer),
-        endOffset: range.endOffset,
-        getBoundingClientRect: () => range.getBoundingClientRect(),
-        startContainer: createNodeSnapshot(range.startContainer),
-        startOffset: range.startOffset,
-      },
-      selection: {
-        anchorNode:
-          (() => {
-  if (selection.anchorNode === null) {
-    return null;
-  }
-  return createNodeSnapshot(selection.anchorNode);
-})(),
-        focusNode:
-          (() => {
-  if (selection.focusNode === null) {
-    return null;
-  }
-  return createNodeSnapshot(selection.focusNode);
-})(),
-      },
-      text,
-    };
   };
 const selectionInsideContainer = (
     container: Readonly<HighlightElementView>,
@@ -164,6 +83,21 @@ const selectionInsideContainer = (
     const commonInside = container.contains(snapshot.range.commonAncestorContainer.asNode());
     return anchorInside || focusInside || commonInside;
   };
+
+const logComputedOffsets = (
+  snapshot: Readonly<SelectionSnapshot>,
+  startOffset: number,
+  endOffset: number,
+): void => {
+  if (HIGHLIGHT_DEBUG) {
+    console.debug("[HighlightToolbar] computed offsets", {
+      endOffset,
+      selectedText: snapshot.text.slice(TEXT_PREVIEW_START, TEXT_PREVIEW_LENGTH),
+      startOffset,
+    });
+  }
+};
+
 const resolveSelectionOffsets = <TRoot extends Node>(
     container: Readonly<HighlightElementView>,
     root: Readonly<TRoot>,
@@ -179,13 +113,7 @@ const resolveSelectionOffsets = <TRoot extends Node>(
         snapshot.range.endContainer.asNode(),
         snapshot.range.endOffset,
       );
-    if (HIGHLIGHT_DEBUG) {
-      console.debug("[HighlightToolbar] computed offsets", {
-        endOffset,
-        selectedText: snapshot.text.slice(TEXT_PREVIEW_START, TEXT_PREVIEW_LENGTH),
-        startOffset,
-      });
-    }
+    logComputedOffsets(snapshot, startOffset, endOffset);
     if (startOffset === INVALID_OFFSET || endOffset === INVALID_OFFSET) {
       return { message: "Selection outside of article content", ok: false };
     }
@@ -196,40 +124,29 @@ const resolveSelectionOffsets = <TRoot extends Node>(
     }
     return { offsets: { end, start }, ok: true };
   };
-const isDeletedHighlight = (highlight: Readonly<Highlight>): boolean =>
-    "deleted" in highlight && highlight.deleted === true;
-const hasExactDuplicate = (
-    highlights: readonly Highlight[],
-    highlightedText: string,
-    offsets: Readonly<SelectionOffsets>,
-  ): boolean => {
-    const fingerprint = createHighlightFingerprint({
-      character_end: offsets.end,
-      character_start: offsets.start,
-      highlighted_text: highlightedText,
-    });
-    return highlights.some((highlight) => {
-      if (isDeletedHighlight(highlight)) {
-        return false;
-      }
-      return (
-        createHighlightFingerprint({
-          character_end: highlight.character_end,
-          character_start: highlight.character_start,
-          highlighted_text: highlight.highlighted_text,
-        }) === fingerprint
-      );
-    });
-  };
-const getRangeRect = (range: Readonly<HighlightRangeSnapshot>): DOMRect | undefined => {
+const getRangeRect = (range: Readonly<HighlightRangeSnapshot>): ToolbarRect | undefined => {
     try {
       return range.getBoundingClientRect();
     } catch {
       return void 0;
     }
   };
-const positionToolbar = <TToolbar extends HTMLDivElement>(
-    toolbar: Readonly<TToolbar>,
+const applyToolbarPosition = (
+    toolbar: HTMLDivElement,
+    rect: ToolbarRect | undefined,
+  ): void => {
+    let left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX,
+      top = globalThis.innerHeight / HALF_DIVISOR;
+    if (rect !== undefined) {
+      top = rect.top - TOOLBAR_VERTICAL_OFFSET_PX;
+      left = rect.left;
+    }
+    toolbar.style.top = `${Math.max(TOOLBAR_MIN_POSITION_PX, top)}px`;
+    toolbar.style.left = `${Math.max(TOOLBAR_MIN_POSITION_PX, left)}px`;
+    toolbar.style.display = "flex";
+  };
+const positionToolbar = (
+    toolbar: HTMLDivElement,
     range: Readonly<HighlightRangeSnapshot>,
     container: Readonly<HighlightElementView>,
   ): void => {
@@ -245,15 +162,7 @@ const positionToolbar = <TToolbar extends HTMLDivElement>(
         rectTop: rect?.top,
       });
     }
-    let left = globalThis.innerWidth / HALF_DIVISOR - TOOLBAR_HORIZONTAL_FALLBACK_PX,
-      top = globalThis.innerHeight / HALF_DIVISOR;
-    if (rect !== undefined) {
-      top = rect.top - TOOLBAR_VERTICAL_OFFSET_PX;
-      left = rect.left;
-    }
-    toolbar.style.top = `${Math.max(TOOLBAR_MIN_POSITION_PX, top)}px`;
-    toolbar.style.left = `${Math.max(TOOLBAR_MIN_POSITION_PX, left)}px`;
-    toolbar.style.display = "flex";
+    applyToolbarPosition(toolbar, rect);
   };
 const logOutsideSelection = (
     container: Readonly<HighlightElementView>,
@@ -281,61 +190,202 @@ const logInsideSelection = (snapshot: Readonly<SelectionSnapshot>): void => {
     });
   };
 
-export const HighlightToolbar = <TElement extends HTMLElement,>({
-  autoCreate,
-  containerRef,
+interface ValidHighlightSelection {
+  readonly offsets: SelectionOffsets;
+  readonly snapshot: SelectionSnapshot;
+}
+
+type HighlightSelectionResult =
+  | (Readonly<ValidHighlightSelection> & Readonly<{ ok: true }>)
+  | Readonly<{ message: string; ok: false }>;
+
+interface HighlightCreationOptions {
+  readonly container: HTMLDivElement | null;
+  readonly highlightColor: Highlight["color"];
+  readonly highlights: readonly Highlight[];
+  readonly markSelectionHandled: () => void;
+  readonly onCreate: (payload: CreateHighlightPayload) => Promise<void> | void;
+  readonly toolbar: HTMLDivElement | null;
+}
+
+const resolveHighlightSelection = (
+  container: HTMLDivElement | null,
+): HighlightSelectionResult => {
+  const snapshot = getSelectionSnapshot();
+  if (container === null || snapshot === undefined) {
+    return { message: "No text selected", ok: false };
+  }
+  const offsetResult = resolveSelectionOffsets(getHighlightElementView(container), container, snapshot);
+  if (!offsetResult.ok) {
+    return offsetResult;
+  }
+  return { offsets: offsetResult.offsets, ok: true, snapshot };
+};
+
+const completeHighlightCreation = (
+  toolbar: HTMLDivElement | null,
+  markSelectionHandled: () => void,
+): void => {
+  toast.success("Highlight created");
+  clearBrowserSelection();
+  markSelectionHandled();
+  hideToolbar(toolbar);
+};
+
+const persistHighlight = async (
+  selection: Readonly<ValidHighlightSelection>,
+  highlightColor: Highlight["color"],
+  onCreate: (payload: CreateHighlightPayload) => Promise<void> | void,
+): Promise<boolean> => {
+  try {
+    await onCreate({
+      color: highlightColor,
+      highlightedText: selection.snapshot.text,
+      range: selection.offsets,
+    });
+    return true;
+  } catch (error: unknown) {
+    toast.error("Failed to create highlight");
+    console.error(error);
+    return false;
+  }
+};
+
+const createHighlightFromSelection = async ({
+  container,
   highlightColor,
   highlights,
+  markSelectionHandled,
   onCreate,
-}: ReadonlyHighlightToolbarProps<TElement>) => {
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const selectionHandledRef = useRef(false);
-  const closeToolbar = useCallback(() => {
-      hideToolbar(toolbarRef.current);
-      clearBrowserSelection();
-    }, []);
-  const handleCreateHighlight = useCallback(async () => {
-      const container = containerRef.current,
-        snapshot = getSelectionSnapshot();
-      if (container === null || snapshot === undefined) {
-        toast.error("No text selected");
-        return;
-      }
-      const offsetResult = resolveSelectionOffsets(
-        getHighlightElementView(container),
-        container,
-        snapshot,
-      );
-      if (!offsetResult.ok) {
-        toast.error(offsetResult.message);
-        return;
-      }
-      if (hasExactDuplicate(highlights, snapshot.text, offsetResult.offsets)) {
-        toast.error("That exact text is already highlighted");
-        return;
-      }
-      try {
-        await onCreate({
-          color: highlightColor,
-          highlightedText: snapshot.text,
-          range: offsetResult.offsets,
-        });
-        toast.success("Highlight created");
-        clearBrowserSelection();
-        selectionHandledRef.current = true;
-        globalThis.setTimeout(() => {
-          selectionHandledRef.current = false;
-        }, SELECTION_RESET_DELAY_MS);
-        hideToolbar(toolbarRef.current);
-      } catch (error: unknown) {
-        toast.error("Failed to create highlight");
-        console.error(error);
-      }
-    }, [containerRef, highlightColor, highlights, onCreate]);
-  const handleCreateHighlightClick = useCallback(() => {
-      void handleCreateHighlight();
-    }, [handleCreateHighlight]);
+  toolbar,
+}: HighlightCreationOptions): Promise<void> => {
+  const selection = resolveHighlightSelection(container);
+  if (!selection.ok) {
+    toast.error(selection.message);
+    return;
+  }
+  if (hasExactDuplicate(highlights, selection.snapshot.text, selection.offsets)) {
+    toast.error("That exact text is already highlighted");
+    return;
+  }
+  if (await persistHighlight(selection, highlightColor, onCreate)) {
+    completeHighlightCreation(toolbar, markSelectionHandled);
+  }
+};
 
+interface HighlightSelectionEventContext {
+  readonly autoCreate: boolean;
+  readonly containerRef: { readonly current: HTMLDivElement | null };
+  readonly handleCreateHighlight: () => Promise<void>;
+  readonly selectionHandledRef: Readonly<{ readonly current: boolean }>;
+  readonly toolbarRef: { readonly current: HTMLDivElement | null };
+}
+
+const shouldAutoCreateHighlight = (context: HighlightSelectionEventContext): boolean => {
+  if (context.autoCreate && !context.selectionHandledRef.current) {
+    void context.handleCreateHighlight();
+    hideToolbar(context.toolbarRef.current);
+    return true;
+  }
+  return false;
+};
+
+const processHighlightSelection = (
+  snapshot: SelectionSnapshot,
+  element: HTMLDivElement,
+  context: HighlightSelectionEventContext,
+): void => {
+  const container = getHighlightElementView(element);
+  if (!selectionInsideContainer(container, snapshot)) {
+    logOutsideSelection(container, snapshot);
+    hideToolbar(context.toolbarRef.current);
+    return;
+  }
+  if (shouldAutoCreateHighlight(context)) {
+    return;
+  }
+  showToolbarForSelection(snapshot, container, context);
+};
+
+const showToolbarForSelection = (
+  snapshot: SelectionSnapshot,
+  container: Readonly<HighlightElementView>,
+  context: HighlightSelectionEventContext,
+): void => {
+  logInsideSelection(snapshot);
+  const toolbar = context.toolbarRef.current;
+  if (toolbar !== null) {
+    positionToolbar(toolbar, snapshot.range, container);
+  }
+};
+
+const handleHighlightSelectionEvent = (
+  context: HighlightSelectionEventContext,
+): void => {
+  if (HIGHLIGHT_DEBUG) {
+    console.debug("[HighlightToolbar] handleSelection fired");
+  }
+  const snapshot = getSelectionSnapshot();
+  const element = context.containerRef.current;
+  if (snapshot === undefined || element === null) {
+    hideToolbar(context.toolbarRef.current);
+    return;
+  }
+  processHighlightSelection(snapshot, element, context);
+};
+
+interface HighlightSelectionHandlers {
+  readonly handleSelection: () => void;
+  readonly handleSelectionChange: () => void;
+}
+
+const createHighlightSelectionHandlers = (
+  context: HighlightSelectionEventContext,
+): HighlightSelectionHandlers => ({
+  handleSelection: () => {
+    handleHighlightSelectionEvent(context);
+  },
+  handleSelectionChange: () => {
+    if (HIGHLIGHT_DEBUG) {
+      console.debug("[HighlightToolbar] selectionchange event");
+    }
+    if (getSelectionSnapshot() === undefined) {
+      hideToolbar(context.toolbarRef.current);
+    }
+  },
+});
+
+const HIGHLIGHT_EVENT_OPTIONS = { capture: true } as const;
+
+const addHighlightSelectionListeners = (handlers: HighlightSelectionHandlers): void => {
+  globalThis.document.addEventListener("pointerup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.addEventListener("mouseup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.addEventListener("keyup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.addEventListener(
+    "selectionchange",
+    handlers.handleSelectionChange,
+    HIGHLIGHT_EVENT_OPTIONS,
+  );
+};
+
+const removeHighlightSelectionListeners = (handlers: HighlightSelectionHandlers): void => {
+  globalThis.document.removeEventListener("pointerup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.removeEventListener("mouseup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.removeEventListener("keyup", handlers.handleSelection, HIGHLIGHT_EVENT_OPTIONS);
+  globalThis.document.removeEventListener(
+    "selectionchange",
+    handlers.handleSelectionChange,
+    HIGHLIGHT_EVENT_OPTIONS,
+  );
+};
+
+const useHighlightSelectionListeners = (
+  autoCreate: boolean,
+  containerRef: { readonly current: HTMLDivElement | null },
+  handleCreateHighlight: () => Promise<void>,
+  selectionHandledRef: Readonly<{ readonly current: boolean }>,
+  toolbarRef: { readonly current: HTMLDivElement | null },
+): void => {
   useEffect(() => {
     if (!ENABLE_HIGHLIGHTS) {
       return () => {};
@@ -346,71 +396,112 @@ export const HighlightToolbar = <TElement extends HTMLElement,>({
         hasContainer: containerRef.current !== null,
       });
     }
-
-    const handleSelection = () => {
-        if (HIGHLIGHT_DEBUG) {
-          console.debug("[HighlightToolbar] handleSelection fired");
-        }
-        const snapshot = getSelectionSnapshot();
-        const element = containerRef.current;
-        if (snapshot === undefined || element === null) {
-          hideToolbar(toolbarRef.current);
-          return;
-        }
-        const container = getHighlightElementView(element);
-        if (!selectionInsideContainer(container, snapshot)) {
-          logOutsideSelection(container, snapshot);
-          hideToolbar(toolbarRef.current);
-          return;
-        }
-        if (autoCreate && !selectionHandledRef.current) {
-          void handleCreateHighlight();
-          hideToolbar(toolbarRef.current);
-          return;
-        }
-        logInsideSelection(snapshot);
-        const toolbar = toolbarRef.current;
-        if (toolbar !== null) {
-          positionToolbar(toolbar, snapshot.range, container);
-        }
-      },
-      handleSelectionChange = () => {
-        if (HIGHLIGHT_DEBUG) {
-          console.debug("[HighlightToolbar] selectionchange event");
-        }
-        if (getSelectionSnapshot() === undefined) {
-          hideToolbar(toolbarRef.current);
-        }
-      };
-
-    globalThis.document.addEventListener("pointerup", handleSelection, {
-      capture: true,
-    });
-    globalThis.document.addEventListener("mouseup", handleSelection, {
-      capture: true,
-    });
-    globalThis.document.addEventListener("keyup", handleSelection, {
-      capture: true,
-    });
-    globalThis.document.addEventListener("selectionchange", handleSelectionChange, {
-      capture: true,
-    });
-
-    return () => {
-      globalThis.document.removeEventListener("pointerup", handleSelection, {
-        capture: true,
-      });
-      globalThis.document.removeEventListener("mouseup", handleSelection, {
-        capture: true,
-      });
-      globalThis.document.removeEventListener("keyup", handleSelection, {
-        capture: true,
-      });
-      globalThis.document.removeEventListener("selectionchange", handleSelectionChange, {
-        capture: true,
-      });
+    const context: HighlightSelectionEventContext = {
+      autoCreate,
+      containerRef,
+      handleCreateHighlight,
+      selectionHandledRef,
+      toolbarRef,
     };
-  }, [autoCreate, containerRef, handleCreateHighlight]);
+    const handlers = createHighlightSelectionHandlers(context);
+    addHighlightSelectionListeners(handlers);
+    return () => {
+      removeHighlightSelectionListeners(handlers);
+    };
+  }, [autoCreate, containerRef, handleCreateHighlight, selectionHandledRef, toolbarRef]);
+};
+
+const HighlightToolbarHeader = ({ onClose }: Readonly<{ onClose: () => void }>) => (
+  <div className="mb-1 flex w-full items-center justify-between gap-1">
+    <div className="flex items-center gap-1">
+      <Highlighter className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+      <span className="text-xs font-semibold text-gray-500">Highlight</span>
+    </div>
+    <Button size="sm" variant="ghost" onClick={onClose} className="h-5 w-5 p-0">
+      <X className="h-3 w-3" />
+    </Button>
+  </div>
+);
+
+type HighlightToolbarControllerProps<TElement extends HTMLDivElement> = Readonly<
+  Pick<HighlightToolbarProps<TElement>, "containerRef" | "highlightColor" | "highlights" | "onCreate">
+>;
+
+interface HighlightToolbarController {
+  readonly closeToolbar: () => void;
+  readonly handleCreateHighlight: () => Promise<void>;
+  readonly handleCreateHighlightClick: () => void;
+  readonly markSelectionHandled: () => void;
+  readonly selectionHandledRef: Readonly<{ readonly current: boolean }>;
+  readonly toolbarRef: { readonly current: HTMLDivElement | null };
+}
+
+const useHighlightToolbarController = <TElement extends HTMLDivElement>(
+  {
+    containerRef,
+    highlightColor,
+    highlights,
+    onCreate,
+  }: HighlightToolbarControllerProps<TElement>,
+): HighlightToolbarController => {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const selectionHandledRef = useRef(false);
+  const closeToolbar = useCallback(() => {
+    hideToolbar(toolbarRef.current);
+    clearBrowserSelection();
+  }, []);
+  const markSelectionHandled = useCallback(() => {
+    selectionHandledRef.current = true;
+    globalThis.setTimeout(() => {
+      selectionHandledRef.current = false;
+    }, SELECTION_RESET_DELAY_MS);
+  }, []);
+  const handleCreateHighlight = useCallback(async () => {
+    await createHighlightFromSelection({
+      container: containerRef.current,
+      highlightColor,
+      highlights,
+      markSelectionHandled,
+      onCreate,
+      toolbar: toolbarRef.current,
+    });
+  }, [containerRef, highlightColor, highlights, markSelectionHandled, onCreate]);
+  const handleCreateHighlightClick = useCallback(() => {
+    void handleCreateHighlight();
+  }, [handleCreateHighlight]);
+
+  return {
+    closeToolbar,
+    handleCreateHighlight,
+    handleCreateHighlightClick,
+    markSelectionHandled,
+    selectionHandledRef,
+    toolbarRef,
+  };
+};
+
+export const HighlightToolbar = <TElement extends HTMLDivElement,>({
+  autoCreate,
+  containerRef,
+  highlightColor,
+  highlights,
+  onCreate,
+}: ReadonlyHighlightToolbarProps<TElement>) => {
+  const {
+    closeToolbar,
+    handleCreateHighlight,
+    handleCreateHighlightClick,
+    selectionHandledRef,
+    toolbarRef,
+  } = useHighlightToolbarController({ containerRef, highlightColor, highlights, onCreate });
+
+  useHighlightSelectionListeners(
+    autoCreate,
+    containerRef,
+    handleCreateHighlight,
+    selectionHandledRef,
+    toolbarRef,
+  );
 
   if (!ENABLE_HIGHLIGHTS) {
     return null;
@@ -421,15 +512,7 @@ export const HighlightToolbar = <TElement extends HTMLElement,>({
       ref={toolbarRef}
       className="fixed z-50 hidden max-w-xs flex-wrap gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg duration-200 animate-in fade-in zoom-in-95 dark:border-slate-700 dark:bg-slate-800"
     >
-      <div className="mb-1 flex w-full items-center justify-between gap-1">
-        <div className="flex items-center gap-1">
-          <Highlighter className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-          <span className="text-xs font-semibold text-gray-500">Highlight</span>
-        </div>
-        <Button size="sm" variant="ghost" onClick={closeToolbar} className="h-5 w-5 p-0">
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
+      <HighlightToolbarHeader onClose={closeToolbar} />
       <div className="flex w-full gap-1">
         <Button
           size="sm"
