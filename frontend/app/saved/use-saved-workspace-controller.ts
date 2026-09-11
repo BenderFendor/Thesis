@@ -5,17 +5,16 @@ import {
   fetchLikedArticles,
   getAllHighlights,
   getReadingShelves,
+  mapBackendArticle,
 } from "@/lib/api";
 
-import {
-  mergeSavedArticles,
-  requestQueueDigest,
-} from "@/app/saved/saved-workspace-model";
+import { mergeSavedArticles, requestQueueDigest } from "@/app/saved/saved-workspace-model";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SavedArticle } from "@/app/saved/saved-workspace-model";
 import { logger } from "@/lib/logger";
-import { useBookmarks } from "@/hooks/useBookmarks";
+import { useArticleDetail } from "@/hooks/use-article-detail";
+import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 
@@ -34,6 +33,17 @@ interface SavedLibraryState {
   readonly toggleLike: (articleId: number) => Promise<void>;
 }
 
+interface SavedLibraryLoadResult {
+  readonly bookmarks: readonly NewsArticle[];
+  readonly highlightCount: number;
+  readonly likedArticles: readonly NewsArticle[];
+  readonly loadIssues: readonly string[];
+}
+
+type SettledResult<Value> = Readonly<PromiseSettledResult<Value>>;
+type IssueCollector = Readonly<{ push: (message: string) => number }>;
+const EMPTY_SAVED_ARTICLES: readonly NewsArticle[] = [];
+
 interface ShelfState {
   readonly createShelf: () => void;
   readonly isPending: boolean;
@@ -51,7 +61,7 @@ interface DigestState {
   readonly showDigest: boolean;
 }
 
-export interface SavedWorkspaceController {
+interface SavedWorkspaceController {
   readonly activeTab: string;
   readonly allSavedArticles: readonly SavedArticle[];
   readonly bookmarkIds: ReadonlySet<number>;
@@ -87,51 +97,69 @@ export interface SavedWorkspaceController {
   readonly toggleQueue: (article: Readonly<NewsArticle>) => void;
 }
 
-const useSavedLibraryState = (): SavedLibraryState => {
-  const [bookmarks, setBookmarks] = useState<readonly NewsArticle[]>([]),
-   [likedArticles, setLikedArticles] = useState<readonly NewsArticle[]>([]),
-   [highlightCount, setHighlightCount] = useState(0),
-   [loadIssues, setLoadIssues] = useState<readonly string[]>([]),
-   [loading, setLoading] = useState(true),
-   { bookmarkIds, toggleBookmark } = useBookmarks(),
-   { likedIds, toggleLike } = useLikedArticles(),
+const readSettledResult = <SourceValue, ResultValue>(
+  result: SettledResult<SourceValue>,
+  mapValue: (value: SourceValue) => ResultValue,
+  fallback: ResultValue,
+  issue: string,
+  issues: IssueCollector,
+): ResultValue => {
+  if (result.status === "fulfilled") {
+    return mapValue(result.value);
+  }
+  issues.push(issue);
+  return fallback;
+};
 
-   reload = useCallback(async () => {
-    setLoading(true);
-    const results = await Promise.allSettled([
+const loadSavedLibraryData = async (): Promise<SavedLibraryLoadResult> => {
+  const issues: string[] = [];
+  const [bookmarksResult, likedResult, highlightsResult] = await Promise.allSettled([
       fetchBookmarks(),
       fetchLikedArticles(),
       getAllHighlights(),
-    ]),
-     issues: string[] = [],
-     [bookmarksResult, likedResult, highlightsResult] = results;
+    ]);
+  const bookmarks = readSettledResult(
+      bookmarksResult,
+      (value) => value.bookmarks.map((entry) => mapBackendArticle(entry)),
+      EMPTY_SAVED_ARTICLES,
+      "Bookmarks could not be loaded.",
+      issues,
+    );
+  const likedArticles = readSettledResult(
+      likedResult,
+      (value) => value.liked.map((entry) => mapBackendArticle(entry)),
+      EMPTY_SAVED_ARTICLES,
+      "Liked articles could not be loaded.",
+      issues,
+    );
+  const highlightCount = readSettledResult(
+      highlightsResult,
+      (value) => value.length,
+      0,
+      "Highlights could not be loaded.",
+      issues,
+    );
 
-    if (bookmarksResult.status === "fulfilled") {
-      // SAFETY: backend returns full NewsArticle objects inside bookmark entries;
-      // the OpenAPI schema only narrows them to opaque objects.
-      setBookmarks(
-        bookmarksResult.value.bookmarks.map((entry) => entry.article),
-      );
-    } else {
-      issues.push("Bookmarks could not be loaded.");
-    }
-    if (likedResult.status === "fulfilled") {
-      // SAFETY: backend returns full NewsArticle objects inside liked entries;
-      // the OpenAPI schema only narrows them to opaque objects.
-      setLikedArticles(
-        likedResult.value.liked.map((entry) => entry.article),
-      );
-    } else {
-      issues.push("Liked articles could not be loaded.");
-    }
-    if (highlightsResult.status === "fulfilled") {
-      setHighlightCount(highlightsResult.value.length);
-    } else {
-      issues.push("Highlights could not be loaded.");
-    }
-    setLoadIssues(issues);
-    setLoading(false);
-  }, []);
+  return { bookmarks, highlightCount, likedArticles, loadIssues: issues };
+};
+
+const useSavedLibraryState = (): SavedLibraryState => {
+  const [bookmarks, setBookmarks] = useState<readonly NewsArticle[]>([]),
+    [likedArticles, setLikedArticles] = useState<readonly NewsArticle[]>([]),
+    [highlightCount, setHighlightCount] = useState(0),
+    [loadIssues, setLoadIssues] = useState<readonly string[]>([]),
+    [loading, setLoading] = useState(true),
+    { bookmarkIds, toggleBookmark } = useBookmarks(),
+    { likedIds, toggleLike } = useLikedArticles(),
+    reload = useCallback(async () => {
+      setLoading(true);
+      const result = await loadSavedLibraryData();
+      setBookmarks(result.bookmarks);
+      setLikedArticles(result.likedArticles);
+      setHighlightCount(result.highlightCount);
+      setLoadIssues(result.loadIssues);
+      setLoading(false);
+    }, []);
 
   useEffect(() => {
     void reload();
@@ -149,140 +177,116 @@ const useSavedLibraryState = (): SavedLibraryState => {
     toggleBookmark,
     toggleLike,
   };
-}
+};
 
 const useShelfState = (): ShelfState => {
-  const [newShelfName, setNewShelfName] = useState(""),
-   queryClient = useQueryClient(),
-   shelvesQuery = useQuery({
-    queryFn: getReadingShelves,
-    queryKey: ["reading-shelves"],
-    retry: SHELF_QUERY_RETRY_COUNT,
-  }),
-   { mutate: createShelfMutation, isPending } = useMutation({
-    mutationFn: createReadingShelf,
-    onSuccess: () => {
-      setNewShelfName("");
-      void queryClient.invalidateQueries({ queryKey: ["reading-shelves"] });
-    },
-  }),
-
-   createShelf = useCallback(() => {
-    const name = newShelfName.trim();
-    if (name.length === 0) {
-      return;
-    }
-    createShelfMutation({ name });
-  }, [createShelfMutation, newShelfName]);
+  const [newShelfName, setNewShelfName] = useState("");
+  const queryClient = useQueryClient();
+  const shelvesQuery = useQuery({
+      queryFn: getReadingShelves,
+      queryKey: ["reading-shelves"],
+      retry: SHELF_QUERY_RETRY_COUNT,
+    });
+  const shelfMutation = useMutation({
+      mutationFn: createReadingShelf,
+      onSuccess: () => {
+        setNewShelfName("");
+        void queryClient.invalidateQueries({ queryKey: ["reading-shelves"] });
+      },
+    });
+  const { isPending: shelfPending, mutate: mutateShelf } = shelfMutation;
+  const createShelf = useCallback(() => {
+      const name = newShelfName.trim();
+      if (name.length === 0) {
+        return;
+      }
+      mutateShelf({ name });
+    }, [mutateShelf, newShelfName]);
 
   return {
     createShelf,
-    isPending,
+    isPending: shelfPending,
     newShelfName,
     setNewShelfName,
     shelves: shelvesQuery.data,
     shelvesLoading: shelvesQuery.isLoading,
   };
-}
+};
 
 const useDigestState = (queuedArticles: readonly NewsArticle[]): DigestState => {
   const [digest, setDigest] = useState<string>(),
-   [loading, setLoading] = useState(false),
-   [showDigest, setShowDigest] = useState(false),
-
-   generateDigest = useCallback(async () => {
-    if (queuedArticles.length === 0) {
-      return;
-    }
-    setLoading(true);
-    try {
-      setDigest(await requestQueueDigest(queuedArticles));
-      setShowDigest(true);
-    } catch (error: unknown) {
-      logger.error("Failed to generate queue digest", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [queuedArticles]),
-
-   hideDigest = useCallback(() => {
-    setShowDigest(false);
-  }, []);
-
-  return { digest, generateDigest, hideDigest, loading, showDigest };
-}
-
-export function useSavedWorkspaceController(): SavedWorkspaceController {
-  const [activeTab, setActiveTab] = useState("all"),
-   [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null),
-   [isArticleModalOpen, setIsArticleModalOpen] = useState(false),
-   [expandedArticleUrl, setExpandedArticleUrl] = useState<string>(),
-   library = useSavedLibraryState(),
-   shelf = useShelfState(),
-   {
-    addArticleToQueue,
-    isArticleInQueue,
-    queuedArticles,
-    removeArticleFromQueue,
-   } = useReadingQueue(),
-   digest = useDigestState(queuedArticles),
-   allSavedArticles = useMemo(
-    () => mergeSavedArticles(library.bookmarks, library.likedArticles),
-    [library.bookmarks, library.likedArticles],
-  ),
-
-   openArticle = useCallback((article: Readonly<NewsArticle>) => {
-    setSelectedArticle(article);
-    setIsArticleModalOpen(true);
-  }, []),
-   closeArticle = useCallback(() => {
-    setIsArticleModalOpen(false);
-    setSelectedArticle(null);
-  }, []),
-   toggleQueue = useCallback(
-    (article: Readonly<NewsArticle>) => {
-      if (isArticleInQueue(article.url)) {
-        void removeArticleFromQueue(article.url);
+    [loading, setLoading] = useState(false),
+    [showDigest, setShowDigest] = useState(false),
+    generateDigest = useCallback(async () => {
+      if (queuedArticles.length === 0) {
         return;
       }
-      void addArticleToQueue(article);
-    },
-    [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
-  );
+      setLoading(true);
+      try {
+        setDigest(await requestQueueDigest(queuedArticles));
+        setShowDigest(true);
+      } catch (error: unknown) {
+        logger.error("Failed to generate queue digest", error);
+      } finally {
+        setLoading(false);
+      }
+    }, [queuedArticles]),
+    hideDigest = useCallback(() => {
+      setShowDigest(false);
+    }, []);
+
+  return { digest, generateDigest, hideDigest, loading, showDigest };
+};
+
+function useSavedWorkspaceController(): SavedWorkspaceController {
+  const [activeTab, setActiveTab] = useState("all");
+  const articleDetail = useArticleDetail();
+  const [expandedArticleUrl, setExpandedArticleUrl] = useState<string>();
+  const library = useSavedLibraryState();
+  const shelf = useShelfState();
+  const {
+      addArticleToQueue,
+      isArticleInQueue,
+      queuedArticles,
+      removeArticleFromQueue,
+    } = useReadingQueue();
+  const digest = useDigestState(queuedArticles);
+  const allSavedArticles = useMemo(
+      () => mergeSavedArticles(library.bookmarks, library.likedArticles),
+      [library.bookmarks, library.likedArticles],
+    ),
+    toggleQueue = useCallback(
+      (article: Readonly<NewsArticle>) => {
+        if (isArticleInQueue(article.url)) {
+          void removeArticleFromQueue(article.url);
+          return;
+        }
+        void addArticleToQueue(article);
+      },
+      [addArticleToQueue, isArticleInQueue, removeArticleFromQueue],
+    );
+  const { isPending: shelfPending, ...shelfView } = shelf,
+    { loading: digestLoading, ...digestView } = digest;
 
   return {
+    ...library,
+    ...shelfView,
+    ...digestView,
     activeTab,
     allSavedArticles,
-    bookmarkIds: library.bookmarkIds,
-    bookmarks: library.bookmarks,
-    closeArticle,
-    createShelf: shelf.createShelf,
-    digest: digest.digest,
-    digestLoading: digest.loading,
+    closeArticle: articleDetail.close,
+    digestLoading,
     expandedArticleUrl,
-    generateDigest: digest.generateDigest,
-    hideDigest: digest.hideDigest,
-    highlightCount: library.highlightCount,
     isArticleInQueue,
-    isArticleModalOpen,
-    likedArticles: library.likedArticles,
-    likedIds: library.likedIds,
-    loadIssues: library.loadIssues,
-    loading: library.loading,
-    newShelfName: shelf.newShelfName,
-    openArticle,
+    isArticleModalOpen: articleDetail.isOpen,
+    openArticle: articleDetail.open,
     queuedArticles,
-    reload: library.reload,
-    selectedArticle,
+    selectedArticle: articleDetail.article,
     setActiveTab,
     setExpandedArticleUrl,
-    setNewShelfName: shelf.setNewShelfName,
-    shelfPending: shelf.isPending,
-    shelves: shelf.shelves,
-    shelvesLoading: shelf.shelvesLoading,
-    showDigest: digest.showDigest,
-    toggleBookmark: library.toggleBookmark,
-    toggleLike: library.toggleLike,
+    shelfPending,
     toggleQueue,
   };
 }
+export { useSavedWorkspaceController };
+export type { SavedWorkspaceController };
