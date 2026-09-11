@@ -1668,12 +1668,12 @@ source-line, CRAP, repository self-test, and browser gates remain open.
 
 ## 2026-09-11 — One-file maintainability batches
 
-Commits `f4bbfa2` and `e1a4f8e` split globe surface rendering and inline-definition listener
-setup into focused boundaries. Each changed file has 0 direct Oxlint errors and warnings;
+Commits `f4bbfa2` and `9ffa0b8` split globe surface/runtime composition, and `e1a4f8e` split
+inline-definition listener setup into focused boundaries. Each changed file has 0 direct Oxlint errors and warnings;
 frontend TypeScript passes; the full frontend Jest suite passes 56 suites and 199 tests. The
-scoped quality measurements report no CRAP violations. The globe parent/surface functions now
-measure MI 52.8/54.7, and the inline-definition hook/listener functions measure MI 50.3/56.5;
-the globe runtime hook remains at MI 46.8 for a later batch.
+scoped quality measurements report no CRAP violations. Globe runtime, environment, data, surface,
+and parent functions measure MI 51.5, 55.1, 59.2, 54.7, and 52.8; inline-definition
+hook/listener functions measure MI 50.3/56.5.
 
 The whole direct census is unchanged at 1,393 findings: 10 errors and 1,383 warnings, all in
 `scripts/`, which remain outside active lint cleanup by explicit user instruction. Against the

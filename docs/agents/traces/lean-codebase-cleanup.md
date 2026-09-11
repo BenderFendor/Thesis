@@ -772,11 +772,12 @@ WIP boundaries.
 Goal and done criteria: reduce maintainability debt in clean frontend files without changing
 behavior, preserve unrelated WIP, and commit each verified batch.
 
-Status: active. Commit `f4bbfa2` split globe surface rendering and commit `e1a4f8e` isolated
-inline-definition listener setup. Both changed files pass direct Oxlint with 0 errors and 0
-warnings, frontend TypeScript, and the full frontend Jest suite with 56 suites and 199 tests.
-Their scoped quality measurements report no CRAP violations. Globe parent/surface MI is 52.8/54.7;
-inline-definition hook/listener MI is 50.3/56.5. The globe runtime hook remains at MI 46.8.
+Status: active. Commits `f4bbfa2` and `9ffa0b8` split globe surface/runtime composition, and
+`e1a4f8e` isolated inline-definition listener setup. Both changed files pass direct Oxlint with
+0 errors and 0 warnings, frontend TypeScript, and the full frontend Jest suite with 56 suites and
+199 tests. Their scoped quality measurements report no CRAP violations. Globe runtime, environment,
+data, surface, and parent MI is 51.5, 55.1, 59.2, 54.7, and 52.8; inline-definition
+hook/listener MI is 50.3/56.5.
 
 Whole direct Oxlint remains 1,393 findings: 10 errors and 1,383 warnings, all under `scripts/`,
 which remains outside active lint cleanup by explicit user scope. Baseline progress remains
