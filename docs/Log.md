@@ -2220,3 +2220,15 @@ The combined `frontend scripts` census is 1,393 findings: 10 errors and 1,383 wa
 remain outside the active lint scope by explicit user instruction. Against the 7,949-finding
 baseline, 6,556 are cleared (82.48%) and 1,393 remain (17.52%). Frontend TypeScript passes, and
 eight affected regression suites pass with 27 tests.
+
+## 2026-09-11 — Frontend reachability cleanup checkpoint
+
+Removed two unused frontend utility files, `@tanstack/react-virtual`, and verified unused
+exports in clean tracked modules. Commit `7465956` records the 42-file cleanup. Existing modal
+data and untracked debug, response-schema, settings, and stream WIP stayed unstaged.
+
+Fresh direct frontend Oxlint is 0 errors and 0 warnings. Whole direct Oxlint is 1,393 findings:
+10 errors and 1,383 warnings, all in `scripts/` under the explicit scripts exclusion. Progress is
+6,556 of 7,949 findings cleared (82.48%). Full frontend Jest passes 56 suites and 199 tests;
+frontend TypeScript passes. Knip reports no unused files or dependencies, with the intentional
+cross-package CRAP devDependency finding and preserved WIP exports/types still open.

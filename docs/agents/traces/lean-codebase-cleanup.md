@@ -731,3 +731,38 @@ source-line, dead-code, CRAP, repository self-test, and browser gates remain ope
 
 Rollback or next executable step: revert `8b6f8b2` to restore the pre-split module layout, or
 continue with the non-lint quality gates while keeping `scripts/` outside the active queue.
+
+## 2026-09-11 — Frontend reachability cleanup checkpoint
+
+Goal and done criteria: remove proven unused frontend files, dependencies, and public exports in
+small batches; preserve user WIP; verify lint, types, tests, and exact project counts.
+
+Status: active. Commit `7465956` removes `frontend/lib/json-value.ts`,
+`frontend/lib/type-guards.ts`, `@tanstack/react-virtual`, and unused exports from 39 other clean
+tracked modules. The modal data WIP and untracked debug, response-schema, settings, and stream
+modules were restored and left unstaged.
+
+Evidence:
+
+- Direct frontend Oxlint: 0 diagnostics, 0 errors, 0 warnings.
+- Whole direct Oxlint: 1,393 diagnostics, 10 errors and 1,383 warnings; every finding is under
+  `scripts/`.
+- Baseline progress: 6,556 of 7,949 findings cleared, 82.48% cleared, 17.52% remaining.
+- Error progress: 2,550 of 2,560 cleared, 99.61% cleared, 10 remaining.
+- Warning progress: 4,006 of 5,389 cleared, 74.34% cleared, 1,383 remaining.
+- Package-local Knip: 0 unused files, 0 unused dependencies, one intentional CRAP dependency
+  finding, 31 exported values, and 12 exported types.
+- Frontend TypeScript: passed.
+- Full frontend Jest: 56 suites and 199 tests passed.
+
+Assumptions and risks: scripts lint remains outside the active user scope. Knip findings in
+preserved WIP and the modal data reexport were not changed. The repository still has open
+maintainability, source-line, CRAP, self-test, and browser gates.
+
+Remaining failures or blockers: the 10 script errors and 1,383 script warnings are intentionally
+skipped; the repository self-test previously hung in its type-aware worker; browser verification
+is unavailable; strict maintainability and CRAP completion remain unverified.
+
+Rollback or next executable step: revert `7465956` to restore the removed utilities, dependency,
+and exports, or continue with the remaining non-lint quality measurements while preserving dirty
+WIP boundaries.

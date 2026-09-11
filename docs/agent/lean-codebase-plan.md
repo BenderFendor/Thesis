@@ -1646,3 +1646,22 @@ user's explicit instruction. Against the 7,949-finding baseline, 6,556 are clear
 Verification: frontend TypeScript passes; the eight affected API and UI regression suites pass
 with 27 tests; and the staged checkpoint passes `git diff --cached --check`. Strict maintainability,
 source-line, dead-code, CRAP, repository self-test, and browser gates remain open.
+
+## 2026-09-11 — Frontend reachability cleanup checkpoint
+
+Removed two unused frontend utility files, the unused `@tanstack/react-virtual` dependency, and
+verified unused exports and type aliases in clean tracked modules. Commit `7465956` records the
+42-file cleanup. The modal data WIP and untracked debug, response-schema, settings, and stream
+modules were preserved and left unstaged.
+
+Fresh direct frontend Oxlint reports 0 errors and 0 warnings. The combined `frontend scripts`
+census remains 1,393 findings: 10 errors and 1,383 warnings, all under `scripts/`, which stays
+outside the active lint scope by explicit user instruction. Against the 7,949-finding baseline,
+6,556 are cleared (82.48%) and 1,393 remain (17.52%). Errors are 10 of 2,560 (0.39%) and
+warnings are 1,383 of 5,389 (25.66%).
+
+Package-local Knip reports 0 unused files and 0 unused dependencies. It still reports one
+intentional cross-package `@barney-media/crap-typescript` devDependency finding, 31 exported
+values, and 12 exported types in preserved WIP or duplicate public surfaces. Frontend TypeScript
+passes, and the full frontend Jest suite passes 56 suites and 199 tests. Strict maintainability,
+source-line, CRAP, repository self-test, and browser gates remain open.
