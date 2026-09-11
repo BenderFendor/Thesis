@@ -7,7 +7,6 @@ import type {
   ArticleDetailModalProps,
   ArticleDetailModalViewProps,
   ArticleDetailServices,
-  ArticleScrollAction,
   CreateHighlightPayload,
   DebugLoaderState,
   DeleteHighlightPayload,
@@ -22,7 +21,6 @@ import type {
   ModalHighlightActionsProps,
   ModalHighlightEditorActionsProps,
   ModalHighlightHistoryProps,
-  ModalHighlightLoaderProps,
   NewsArticle,
   NewsSource,
   SourceDebugData,
@@ -39,7 +37,6 @@ import {
   getArticleCacheKey,
   getInitialArticleText,
   highlightStableId,
-  loadModalHighlights,
   markPending,
   saveHighlightStore,
   toRemoteHighlights,
@@ -51,12 +48,11 @@ import {
   getArticleWordMetrics,
   getRenderedLanguageDiagnostics,
   getReporterName,
-  isTextInputFocused,
   shouldShowSummary,
   syncHighlights,
 } from "./article-detail-modal-reader";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArticleDetailDialogBody } from "./article-detail-modal-layout";
+import { useCallback, useRef, useState } from "react";
+import { ArticleDetailModalView } from "./article-detail-modal-view";
 import type { DeepReadonly } from "@/lib/deep-readonly";
 import { toast } from "sonner";
 import { useModalIntegrations } from "../hooks/use-modal-integrations";
@@ -65,21 +61,6 @@ import { useQuery } from "@tanstack/react-query";
 interface HighlightHistoryState {
   readonly nextHistory: LocalHighlight[][];
   readonly previousState: LocalHighlight[] | undefined;
-}
-
-interface ModalKeyboardEvent {
-  readonly ctrlKey: boolean;
-  readonly key: string;
-  readonly metaKey: boolean;
-  readonly preventDefault: () => void;
-  readonly stopImmediatePropagation: () => void;
-  readonly stopPropagation: () => void;
-}
-
-interface ModalPointerEvent {
-  readonly clientY: number;
-  readonly preventDefault: () => void;
-  readonly target: EventTarget | null;
 }
 
 const useArticleLanguageDiagnostics = ({
@@ -131,16 +112,6 @@ const useArticleLanguageDiagnostics = ({
 
 const AGENTIC_HISTORY_LIMIT = 5,
   AGENTIC_MAX_RESULTS = 10,
-  ARROW_DOWN_SCROLL_FACTOR = 0.12,
-  ARROW_UP_SCROLL_FACTOR = -0.12,
-  ARTICLE_PAGE_DOWN_SCROLL_FACTOR = 0.9,
-  ARTICLE_PAGE_UP_SCROLL_FACTOR = -0.9,
-  ARTICLE_SCROLL_FACTORS = new Map([
-    ["ArrowDown", ARROW_DOWN_SCROLL_FACTOR],
-    ["ArrowUp", ARROW_UP_SCROLL_FACTOR],
-    ["PageDown", ARTICLE_PAGE_DOWN_SCROLL_FACTOR],
-    ["PageUp", ARTICLE_PAGE_UP_SCROLL_FACTOR],
-  ]),
   ARTICLE_TEXT_PREVIEW_LENGTH = 120,
   ArticleDetailModal = (props: Readonly<ArticleDetailModalProps>) => {
     const { article, isOpen } = props;
@@ -553,352 +524,13 @@ const AGENTIC_HISTORY_LIMIT = 5,
       return <ArticleDetailModalView {...viewProps} />;
     }
   },
-  ArticleDetailModalView = (props: DeepReadonly<ArticleDetailModalViewProps>) => {
-    const { setHighlights } = props,
-      setModalHighlights = useCallback(
-        (highlights: readonly Readonly<LocalHighlight>[]): void => {
-          setHighlights([...highlights]);
-        },
-        [setHighlights],
-      );
-
-    return (
-      <>
-        <ModalUndoShortcut onUndo={props.handleUndo} />
-        <ModalHighlightLoader
-          articleUrl={props.article.url}
-          debugEnabled={props.debugEnabled}
-          services={props.services}
-          setHighlights={setModalHighlights}
-          setStatus={props.setHighlightSyncStatus}
-        />
-        <ModalReadingHistoryTracker
-          article={props.article}
-          isOpen={props.isOpen}
-          markAsRead={props.markAsRead}
-        />
-        <ModalProgressPointer
-          contentScrollRef={props.contentScrollRef}
-          isOpen={props.isOpen}
-          progressTrackRef={props.progressTrackRef}
-        />
-        <ModalClaimSelectionEffect
-          claimsOpen={props.claimsOpen}
-          factCheckResults={props.factCheckResults}
-          selectedClaim={props.selectedClaim}
-          setSelectedClaim={props.setSelectedClaim}
-        />
-        <ModalScrollProgressTracker
-          contentScrollRef={props.contentScrollRef}
-          isOpen={props.isOpen}
-          setArticleScrollProgress={props.setArticleScrollProgress}
-        />
-        <ArticleScrollKeyListener
-          claimsOpen={props.claimsOpen}
-          contentScrollRef={props.contentScrollRef}
-          onArticleNavigate={props.handleNavigate}
-          isExpanded={props.isExpanded}
-          isOpen={props.isOpen}
-          onNavigate={props.onNavigate}
-          wikiPanelOpen={props.wikiPanelOpen}
-        />
-        <ArticleDetailDialogBody {...props} />
-      </>
-    );
-  },
-  ArticleScrollKeyListener = ({
-    claimsOpen,
-    contentScrollRef,
-    onArticleNavigate,
-    isExpanded,
-    isOpen,
-    onNavigate,
-    wikiPanelOpen,
-  }: DeepReadonly<{
-    claimsOpen: boolean;
-    contentScrollRef: { current: HTMLDivElement | null };
-    onArticleNavigate: (direction: "prev" | "next") => void;
-    isExpanded: boolean;
-    isOpen: boolean;
-    onNavigate?: (direction: "prev" | "next") => void;
-    wikiPanelOpen: boolean;
-  }>): false => {
-    const applyArticleScrollAction = useCallback(
-      (
-        event: ModalKeyboardEvent,
-        action: ArticleScrollAction,
-        container: HTMLDivElement,
-      ): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        if (action.kind === "scroll") {
-          container.scrollBy({ behavior: "smooth", top: action.amount });
-          return;
-        }
-        onArticleNavigate(action.direction);
-      },
-      [onArticleNavigate],
-    );
-
-    useEffect(() => {
-      if (!isOpen) {
-        return () => {};
-      }
-
-      const handleKeyDown = (event: ModalKeyboardEvent) => {
-        if (isTextInputFocused() || claimsOpen || wikiPanelOpen) {
-          return;
-        }
-        const container = contentScrollRef.current;
-        if (!container) {
-          return;
-        }
-        {
-          const action = getArticleScrollAction(
-            event.key,
-            container.clientHeight,
-            isExpanded,
-            onNavigate,
-          );
-          if (!action) {
-            return;
-          }
-
-          applyArticleScrollAction(event, action, container);
-        }
-      };
-
-      globalThis.addEventListener("keydown", handleKeyDown, true);
-      return () => {
-        globalThis.removeEventListener("keydown", handleKeyDown, true);
-      };
-    }, [
-      applyArticleScrollAction,
-      claimsOpen,
-      contentScrollRef,
-      isExpanded,
-      isOpen,
-      onNavigate,
-      wikiPanelOpen,
-    ]);
-    return false;
-  },
   COUNT_INCREMENT = 1,
   EMPTY_COUNT = 0,
   HIGHLIGHT_HISTORY_LIMIT = 20,
   HIGHLIGHT_POPOVER_DELAY_MS = 10,
   MILLISECONDS_PER_SECOND = 1000,
-  MINIMUM_SCROLL_DISTANCE = 72,
   MIN_LANGUAGE_DIAGNOSTIC_WORD_COUNT = 20,
-  ModalClaimSelectionEffect = ({
-    claimsOpen,
-    factCheckResults,
-    selectedClaim,
-    setSelectedClaim,
-  }: Readonly<{
-    readonly claimsOpen: boolean;
-    readonly factCheckResults: readonly FactCheckResult[];
-    readonly selectedClaim: FactCheckResult | undefined;
-    readonly setSelectedClaim: (claim: FactCheckResult | undefined) => void;
-  }>): false => {
-    useEffect(() => {
-      if (!claimsOpen) {
-        return;
-      }
-
-      if (factCheckResults.length === EMPTY_COUNT || selectedClaim === undefined) {
-        setSelectedClaim(factCheckResults[EMPTY_COUNT]);
-        return;
-      }
-
-      const stillPresent = factCheckResults.some((claim) => claim.claim === selectedClaim.claim);
-      if (!stillPresent) {
-        setSelectedClaim(factCheckResults[EMPTY_COUNT]);
-      }
-    }, [claimsOpen, factCheckResults, selectedClaim, setSelectedClaim]);
-
-    return false;
-  },
-  ModalHighlightLoader = ({
-    articleUrl,
-    debugEnabled,
-    services,
-    setHighlights,
-    setStatus,
-  }: Readonly<ModalHighlightLoaderProps>): false => {
-    useEffect(() => {
-      if (!articleUrl) {
-        setHighlights([]);
-        setStatus("idle");
-        return;
-      }
-
-      loadModalHighlights({ articleUrl, debugEnabled, services, setHighlights, setStatus });
-    }, [articleUrl, debugEnabled, services, setHighlights, setStatus]);
-
-    return false;
-  },
-  ModalProgressPointer = ({
-    contentScrollRef,
-    isOpen,
-    progressTrackRef,
-  }: DeepReadonly<{
-    readonly contentScrollRef: { current: HTMLDivElement | null };
-    readonly isOpen: boolean;
-    readonly progressTrackRef: { current: HTMLDivElement | null };
-  }>): false => {
-      const resolveProgressFromPointer = useCallback(
-        (clientY: number) => {
-          const track = progressTrackRef.current;
-          if (!track) {
-            return void 0;
-          }
-
-          {
-            const rect = track.getBoundingClientRect();
-            if (rect.height <= EMPTY_COUNT) {
-              return void 0;
-            }
-            return (clientY - rect.top) / rect.height;
-          }
-        },
-        [progressTrackRef],
-      ),
-      scrollArticleContentToProgress = useCallback(
-        (nextProgress: number) => {
-          const container = contentScrollRef.current;
-          if (!container) {
-            return;
-          }
-
-          {
-            const clampedProgress = Math.min(PROGRESS_MAXIMUM, Math.max(EMPTY_COUNT, nextProgress)),
-              maxScroll = Math.max(EMPTY_COUNT, container.scrollHeight - container.clientHeight);
-            container.scrollTo({ behavior: "auto", top: maxScroll * clampedProgress });
-          }
-        },
-        [contentScrollRef],
-      );
-
-    useEffect(() => {
-      if (!isOpen) {
-        return () => {};
-      }
-
-      const handlePointerMove = (event: ModalPointerEvent) => {
-          const nextProgress = resolveProgressFromPointer(event.clientY);
-          if (nextProgress === undefined) {
-            return;
-          }
-          scrollArticleContentToProgress(nextProgress);
-        };
-      const handlePointerUp = () => {
-          globalThis.removeEventListener("pointermove", handlePointerMove);
-          globalThis.removeEventListener("pointerup", handlePointerUp);
-        };
-      const handlePointerDown = (event: ModalPointerEvent) => {
-          const track = progressTrackRef.current;
-          const target = event.target;
-          if (!track || !(target instanceof Node) || !track.contains(target)) {
-            return;
-          }
-
-          event.preventDefault();
-          {
-            const nextProgress = resolveProgressFromPointer(event.clientY);
-            if (nextProgress !== undefined) {
-              scrollArticleContentToProgress(nextProgress);
-            }
-          }
-
-          globalThis.addEventListener("pointermove", handlePointerMove);
-          globalThis.addEventListener("pointerup", handlePointerUp);
-        };
-
-      globalThis.addEventListener("pointerdown", handlePointerDown);
-      return () => {
-        globalThis.removeEventListener("pointerdown", handlePointerDown);
-        globalThis.removeEventListener("pointermove", handlePointerMove);
-        globalThis.removeEventListener("pointerup", handlePointerUp);
-      };
-    }, [isOpen, progressTrackRef, resolveProgressFromPointer, scrollArticleContentToProgress]);
-
-    return false;
-  },
-  ModalReadingHistoryTracker = ({
-    article,
-    isOpen,
-    markAsRead,
-  }: Readonly<{
-    readonly article: NewsArticle;
-    readonly isOpen: boolean;
-    readonly markAsRead: (articleId: number, title: string, source: string) => void;
-  }>): false => {
-    useEffect(() => {
-      if (isOpen) {
-        markAsRead(article.id, article.title, article.source);
-      }
-    }, [article, isOpen, markAsRead]);
-
-    return false;
-  },
-  ModalScrollProgressTracker = ({
-    contentScrollRef,
-    isOpen,
-    setArticleScrollProgress,
-  }: DeepReadonly<{
-    readonly contentScrollRef: { current: HTMLDivElement | null };
-    readonly isOpen: boolean;
-    readonly setArticleScrollProgress: (progress: number) => void;
-  }>): false => {
-    useEffect(() => {
-      const container = contentScrollRef.current;
-      if (!container || !isOpen) {
-        return () => {};
-      }
-
-      {
-        const updateProgress = () => {
-          const maxScroll = Math.max(EMPTY_COUNT, container.scrollHeight - container.clientHeight);
-          if (maxScroll === EMPTY_COUNT) {
-            setArticleScrollProgress(EMPTY_COUNT);
-            return;
-          }
-          setArticleScrollProgress(Math.min(PROGRESS_MAXIMUM, container.scrollTop / maxScroll));
-        };
-
-        updateProgress();
-        container.addEventListener("scroll", updateProgress, { passive: true });
-        globalThis.addEventListener("resize", updateProgress);
-
-        return () => {
-          container.removeEventListener("scroll", updateProgress);
-          globalThis.removeEventListener("resize", updateProgress);
-        };
-      }
-    }, [contentScrollRef, isOpen, setArticleScrollProgress]);
-
-    return false;
-  },
-  ModalUndoShortcut = ({ onUndo }: Readonly<{ readonly onUndo: () => void }>): false => {
-    useEffect(() => {
-      const handleGlobalKeyDown = (event: ModalKeyboardEvent) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === "z" && !isTextInputFocused()) {
-          event.preventDefault();
-          onUndo();
-        }
-      };
-      globalThis.addEventListener("keydown", handleGlobalKeyDown);
-      return () => {
-        globalThis.removeEventListener("keydown", handleGlobalKeyDown);
-      };
-    }, [onUndo]);
-
-    return false;
-  },
   NOT_FOUND = -1,
-  PROGRESS_MAXIMUM = 1,
   SECONDS_PER_MINUTE = 60,
   STALE_TIME_MINUTES = 5,
   appendAgenticQueryPart = (
@@ -1073,22 +705,6 @@ const AGENTIC_HISTORY_LIMIT = 5,
       wordCount,
     };
   },
-  getArticleNavigationAction = (
-    key: string,
-    isExpanded: boolean,
-    onNavigate?: (direction: "prev" | "next") => void,
-  ): ArticleScrollAction | undefined => {
-    if (!isExpanded || !onNavigate) {
-      return void 0;
-    }
-    if (key === "ArrowRight") {
-      return { direction: "next", kind: "navigate" };
-    }
-    if (key === "ArrowLeft") {
-      return { direction: "prev", kind: "navigate" };
-    }
-    return void 0;
-  },
   getArticleObsidianMarkdown = (
     article: Readonly<NewsArticle>,
     fullArticleText: string | undefined,
@@ -1107,22 +723,6 @@ const AGENTIC_HISTORY_LIMIT = 5,
       fullArticleText,
       highlights,
     }),
-  getArticleScrollAction = (
-    key: string,
-    height: number,
-    isExpanded: boolean,
-    onNavigate?: (direction: "prev" | "next") => void,
-  ): ArticleScrollAction | undefined => {
-    const factor = ARTICLE_SCROLL_FACTORS.get(key);
-    if (factor !== undefined) {
-      const minimum = MINIMUM_SCROLL_DISTANCE;
-      return {
-        amount: Math.max(height * Math.abs(factor), minimum) * Math.sign(factor),
-        kind: "scroll",
-      };
-    }
-    return getArticleNavigationAction(key, isExpanded, onNavigate);
-  },
   getErrorMessage = (error: Error | string, fallback: string): string => {
     if (error instanceof Error) {
       return error.message;
