@@ -787,3 +787,11 @@ pass the smallest `Pick`-based capability view; route uniform writes through exp
 callbacks. The globe checkpoint reduced the live frontend queue from 142 to 121 warnings
 while keeping 56 suites and 199 tests, TypeScript, build, cycle, and duplication checks
 green.
+
+## 2026-09-11 — Explicit wrapper contracts expose test equivalence assumptions
+
+UI wrapper prop-spread cleanup is safest when the wrapper contract is narrowed to
+props used by current callers and the rendered children remain explicit. Property
+generators must use the same equivalence relation as production grouping logic:
+case-sensitive uniqueness does not guarantee distinct sources when production
+normalizes source names case-insensitively.

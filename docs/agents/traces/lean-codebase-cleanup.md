@@ -609,3 +609,24 @@ cases. The full suite is queued once more to confirm no unrelated regressions.
 - Root reran the focused interaction set (7 suites, 23 tests), the full frontend suite,
   TypeScript, and `git diff --check`; all passed. Browser verification remains unavailable
   because Chrome MCP cannot connect in this environment.
+
+## 2026-09-11 — Select and table wrapper checkpoint
+
+Status: active. The select and table wrapper slices now have zero direct Oxlint
+diagnostics after replacing prop spreads with explicit current caller contracts.
+The existing dirty file refactors were preserved in place rather than committed
+with unrelated changes. The case-insensitive comparison property generator fix is
+committed as `f31f258`.
+
+Evidence:
+
+- Whole direct Oxlint: 1,475 findings, 10 errors, 1,465 warnings; frontend 82
+  warnings and scripts 1,393 findings.
+- Frontend Jest: 56 suites and 199 tests passed.
+- Frontend TypeScript: passed.
+- Baseline progress: 6,474 of 7,949 findings cleared, 81.44% cleared, 18.56%
+  remaining.
+
+Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
+self-test, and browser verification. Scripts lint cleanup remains intentionally
+skipped.

@@ -1562,3 +1562,21 @@ Anonymous functions require inspection at that location before assigning a refac
 | frontend/components/article-detail-modal-layout.tsx:160                   | ArticleDetailDialogScrollContent  | 49.9 |           2 |
 | frontend/components/article-detail-modal-sidebar.tsx:100                  | ArticleDetailSidebarResearch      | 49.9 |           1 |
 | frontend/components/highlight-toolbar.tsx:286                             | handleSelection                   | 49.9 |           8 |
+
+## 2026-09-11 — Select and table wrapper checkpoint
+
+- Removed eight direct Oxlint findings from `frontend/components/ui/select.tsx` and
+  eight from `frontend/components/ui/table.tsx` by forwarding the current callers'
+  explicit props. The existing dirty refactors in those files remain in the worktree
+  and were not folded into a misleading focused commit.
+- Fixed the case-insensitive source generator in
+  `frontend/__tests__/cluster-comparison.test.ts`; commit `f31f258` records that
+  isolated regression fix. The full frontend suite passes 56 suites and 199 tests,
+  and frontend TypeScript passes.
+- The fresh whole-project Oxlint census is 1,475 findings: 10 errors and 1,465
+  warnings. Frontend is 82 warnings and 0 errors; scripts are 1,393 findings,
+  including all 10 errors, and remain outside the active lint scope by explicit
+  user instruction.
+- Against the 7,949-finding baseline, 6,474 are cleared (81.44%) and 1,475 remain
+  (18.56%). Dependency cycles, duplication, source-line, maintainability, dead-code,
+  repository self-test, CRAP, and browser gates remain open as recorded above.

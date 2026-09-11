@@ -2166,3 +2166,15 @@ combined count is 1,514 findings, or 80.95% cleared and 19.05% remaining against
 7,949 baseline. Dependency cycles remain clear at 0 frontend and 0 backend cycles;
 duplication remains 1.04% with 118 clones. The line gate, MI, dead-code, repository
 self-test, and browser gates remain open as recorded in the plan.
+
+## 2026-09-11 — Select and table wrapper checkpoint
+
+Removed eight direct Oxlint findings from each of the select and table UI wrappers
+by passing only their current explicit props. The existing dirty refactors in those
+files remain uncommitted to preserve the user's worktree. Fixed and committed the
+case-insensitive comparison property generator as `f31f258`.
+
+Fresh whole-project Oxlint: 1,475 findings, 10 errors, and 1,465 warnings. Frontend
+has 82 warnings and 0 errors; scripts have 1,393 findings and remain outside the
+active cleanup scope. Frontend Jest passes 56 suites and 199 tests, and TypeScript
+passes. Progress is 6,474/7,949 findings cleared (81.44%).
