@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ZERO_COUNT, createGlobeMaterial, getQualityTier } from "./interactive-globe-visuals";
 import type { GlobeUniformView, TextureReference } from "./interactive-globe-visuals";
 import {
@@ -10,6 +10,7 @@ import {
 } from "./interactive-globe-hooks";
 import { GlobeAdapter } from "./interactive-globe-adapter";
 import { GlobeCanvas } from "./interactive-globe-canvas";
+import type { DeepReadonly } from "@/lib/deep-readonly";
 import {
   useGlobeCamera,
   useGlobeLighting,
@@ -39,7 +40,7 @@ interface GlobeRuntime {
   readonly dimensions: { readonly height: number; readonly width: number };
   readonly displayCounts: ReturnType<typeof useGlobeCounts>["displayCounts"];
   readonly globeInstance: GlobeInstance | null;
-  readonly globeRef: GlobeRef;
+  readonly globeRef: Readonly<GlobeRef>;
   readonly globeSetup: ReturnType<typeof createGlobeMaterial>;
   readonly maxCount: ReturnType<typeof useGlobeCounts>["maxCount"];
   readonly maxMentionCount: ReturnType<typeof useGlobeCounts>["maxMentionCount"];
@@ -141,43 +142,32 @@ const useGlobeRuntime = ({
   };
 };
 
-const InteractiveGlobe = ({
-  articles,
-  countryMetrics,
-  globeComponent: GlobeComponent = GlobeAdapter,
-  onCountrySelect,
-  selectedCountry,
-  lightingMode,
-}: ReadonlyInteractiveGlobeProps) => {
-  const {
-    dimensions,
-    displayCounts,
-    globeInstance,
-    globeRef,
-    globeSetup,
-    maxCount,
-    maxMentionCount,
-    mentionCounts,
-    visibleCountries,
-  } = useGlobeRuntime({ articles, countryMetrics, lightingMode, selectedCountry });
-  const presentation = usePolygonPresentation({
-    displayCounts,
-    globeInstance,
-    maxCount,
-    maxMentionCount,
-    mentionCounts,
-    onCountrySelect,
-    selectedCountry,
-  });
-  const mutablePolygonsData = useMemo(() => [...visibleCountries], [visibleCountries]);
+interface GlobeSurfaceProps {
+  readonly dimensions: GlobeRuntime["dimensions"];
+  readonly globeComponent: NonNullable<ReadonlyInteractiveGlobeProps["globeComponent"]>;
+  readonly globeRef: Readonly<{ readonly current: GlobeRef["current"] }>;
+  readonly globeMaterial: () => GlobeRuntime["globeSetup"]["material"];
+  readonly mutablePolygonsData: readonly Readonly<GlobeRuntime["visibleCountries"][number]>[];
+  readonly presentation: ReturnType<typeof usePolygonPresentation>;
+}
 
+const GlobeSurface = ({
+  dimensions,
+  globeComponent: GlobeComponent,
+  globeRef,
+  globeMaterial,
+  mutablePolygonsData,
+  presentation,
+}: DeepReadonly<GlobeSurfaceProps> &
+  Readonly<Pick<GlobeSurfaceProps, "globeComponent">>) => {
+  const polygonsData = useMemo(() => [...mutablePolygonsData], [mutablePolygonsData]);
   return (
     <GlobeCanvas>
       <GlobeComponent
-        ref={globeRef} globeMaterial={globeSetup.material}
+        ref={globeRef} globeMaterial={globeMaterial()}
         backgroundColor="rgba(0,0,0,0)" showAtmosphere={false}
         atmosphereAltitude={0} polygonsTransitionDuration={0} lineHoverPrecision={0}
-        polygonsData={mutablePolygonsData}
+        polygonsData={polygonsData}
         polygonAltitude={presentation.polygonAltitude}
         polygonCapColor={presentation.polygonCapColor}
         polygonSideColor={presentation.polygonSideColor}
@@ -189,6 +179,38 @@ const InteractiveGlobe = ({
         height={dimensions.height}
       />
     </GlobeCanvas>
+  );
+};
+
+const InteractiveGlobe = ({
+  articles,
+  countryMetrics,
+  globeComponent: GlobeComponent = GlobeAdapter,
+  onCountrySelect,
+  selectedCountry,
+  lightingMode,
+}: ReadonlyInteractiveGlobeProps) => {
+  const runtime = useGlobeRuntime({ articles, countryMetrics, lightingMode, selectedCountry });
+  const presentation = usePolygonPresentation({
+    displayCounts: runtime.displayCounts,
+    globeInstance: runtime.globeInstance,
+    maxCount: runtime.maxCount,
+    maxMentionCount: runtime.maxMentionCount,
+    mentionCounts: runtime.mentionCounts,
+    onCountrySelect,
+    selectedCountry,
+  });
+  const globeMaterial = useCallback(() => runtime.globeSetup.material, [runtime.globeSetup]);
+
+  return (
+    <GlobeSurface
+      dimensions={runtime.dimensions}
+      globeComponent={GlobeComponent}
+      globeRef={runtime.globeRef}
+      globeMaterial={globeMaterial}
+      mutablePolygonsData={runtime.visibleCountries}
+      presentation={presentation}
+    />
   );
 };
 
