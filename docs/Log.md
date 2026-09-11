@@ -2192,3 +2192,13 @@ has 53 warnings and 0 errors; scripts have 1,393 findings and remain outside the
 active lint scope by explicit user instruction. Progress is 6,503/7,949 findings
 cleared (81.81%). Strict maintainability, source-line, dead-code, CRAP,
 repository self-test, and browser gates remain open.
+
+## 2026-09-11 — Modal, navigation, and wrapper cleanup checkpoint
+
+Removed current prop spreads from modal, tooltip, and scroll-area boundaries; table-driven
+the navigation and news-index tests; and narrowed the globe scene and provider contracts.
+The full frontend suite passes 56 suites and 199 tests, and TypeScript passes. Whole direct
+Oxlint is 1,435 findings: 10 errors and 1,425 warnings. Frontend has 42 warnings and 0
+errors; scripts have 1,393 findings and remain outside the active cleanup scope by explicit
+user instruction. Progress is 6,514/7,949 findings cleared (81.95%). Maintainability,
+source-line, dead-code, CRAP, repository self-test, and browser gates remain open.

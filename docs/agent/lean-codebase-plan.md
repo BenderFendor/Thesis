@@ -1597,3 +1597,20 @@ instruction. Against the 7,949-finding baseline, 6,503 are cleared (81.81%) and
 1,446 remain (18.19%). Full frontend Jest passes 56 suites and 199 tests, and
 frontend TypeScript passes. Strict maintainability, source-line, dead-code, CRAP,
 repository self-test, and browser gates remain open.
+
+## 2026-09-11 — Modal, navigation, and wrapper checkpoint
+
+- Removed prop spreads from the article modal content/body boundaries, tooltip, and scroll
+  area wrappers. Table-driven the global navigation, browse index, and live browse index
+  tests without changing their assertions. Narrowed the globe scene context and provider
+  children contracts. Commits `3f8e486`, `bea7be3`, `18e6285`, `ec11894`, `7079129`,
+  `317ecb2`, `1aa6608`, and `410b70c` record the isolated changes.
+- The fresh whole-project Oxlint census is 1,435 findings: 10 errors and 1,425 warnings.
+  Frontend is 42 warnings and 0 errors. Scripts are 1,393 findings, including all 10
+  errors, and remain outside the active lint cleanup scope by explicit user instruction.
+- Against the 7,949-finding baseline, 6,514 are cleared (81.95%) and 1,435 remain
+  (18.05%). Full frontend Jest passes 56 suites and 199 tests; frontend TypeScript and
+  the focused changed-scope checks pass.
+- Remaining gates are strict maintainability, source-line cap, dead-code, CRAP,
+  repository self-test, and browser verification. Existing dirty user WIP remains in the
+  worktree and is being staged only through focused patches.

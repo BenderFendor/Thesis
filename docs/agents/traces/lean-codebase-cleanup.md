@@ -651,3 +651,25 @@ Evidence:
 Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
 self-test, and browser verification. Scripts lint cleanup remains intentionally
 skipped.
+
+## 2026-09-11 — Modal, navigation, and wrapper checkpoint
+
+Status: active. Modal content/body, tooltip, and scroll-area prop boundaries now pass
+explicit current caller props. Global navigation, browse index, and live browse index
+tests are table-driven with the original behaviors and assertions. Globe scene context
+and provider children use narrower contracts. The isolated commits are `3f8e486`,
+`bea7be3`, `18e6285`, `ec11894`, `7079129`, `317ecb2`, `1aa6608`, and `410b70c`.
+
+Evidence:
+
+- Whole direct Oxlint: 1,435 findings, 10 errors, 1,425 warnings; frontend 42 warnings
+  and scripts 1,393 findings. Scripts remain outside the active lint scope by explicit
+  user instruction.
+- Frontend Jest: 56 suites and 199 tests passed.
+- Frontend TypeScript and focused changed-scope checks passed.
+- Baseline progress: 6,514 of 7,949 findings cleared, 81.95% cleared, 18.05%
+  remaining.
+
+Open gates: strict maintainability, source-line cap, dead-code, CRAP, repository
+self-test, and browser verification. The documented self-test timeout remains an open
+gate; no new attempt was made during this checkpoint.

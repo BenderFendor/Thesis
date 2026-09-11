@@ -803,3 +803,12 @@ that only inspect scene structure or expose cleanup capabilities can use narrow
 readonly views. Uniform writes must update the existing wrapper objects so shader
 materials keep their references. Typed fixture builders also keep test callbacks
 under per-function line limits without weakening behavior assertions.
+
+## 2026-09-11 — Focused wrapper and test cleanup
+
+Prop-spread warnings are easiest to remove at the wrapper boundary when the contract is
+derived from the props current callers actually use. For dirty files, stage only the
+semantic cleanup so existing refactors remain separate. Table-driving equivalent tests
+reduces per-callback line debt while preserving behavior when each case keeps its own
+assertions. The current census is 1,435 findings, with 42 frontend warnings after scripts
+are excluded from the active cleanup scope.
