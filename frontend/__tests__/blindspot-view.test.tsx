@@ -176,10 +176,7 @@ describe("blindspotView", () => {
     const initialCampaignLabels = await screen.findAllByText("Campaign rally");
     expect(initialCampaignLabels.length).toBeGreaterThan(0);
 
-    const [lensSelect] = await screen.findAllByRole("combobox");
-    if (lensSelect === undefined) {
-      throw new Error("Expected a lens selector");
-    }
+    const lensSelect = screen.getByDisplayValue("Left vs Right");
     await user.selectOptions(lensSelect, "credibility");
 
     await waitFor(() => {
