@@ -2271,5 +2271,7 @@ paths now call `analyseFile`, the measurement result owns those analyzer gates o
 remaining repository checks run through a bounded four-worker pool. `verify.sh` also works from
 any caller directory and exposes `THESIS_VERIFY_CONCURRENCY`.
 
-The speed change includes a regression test for bounded check concurrency. A fresh full verifier
-run is still required to record the new duration and remaining quality failures.
+The speed change includes a regression test for bounded check concurrency. The fresh self-test
+completed in 118.8 seconds without timing out. It still fails on 2 CCCC violations, 136 low
+maintainability-index violations, dead code, backend mypy, Ruff format, and backend tests; the
+frontend, CLI, Rust, Oxlint, cycles, duplication, and source-line checks passed.

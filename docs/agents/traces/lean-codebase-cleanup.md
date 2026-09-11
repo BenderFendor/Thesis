@@ -835,6 +835,7 @@ Files changed: `verify.sh`, `scripts/check-maintainability.mjs`,
 `scripts/quality-hardening/verify.mjs`, `quality-hardening.config.json`, and the verifier regression
 test.
 
-Remaining failures or blockers: the optimized verifier still needs a fresh repository run; strict
-maintainability and CRAP findings, source-line limits, dead-code review, browser verification, and
-preserved unrelated worktree changes remain open until that run completes.
+Remaining failures or blockers: the fresh self-test completed in 118.8 seconds without timing out,
+but the repository still has 2 CCCC violations, 136 low maintainability-index violations, dead
+code, backend mypy, Ruff format, and backend test failures. Browser verification and the preserved
+unrelated worktree changes remain open.
