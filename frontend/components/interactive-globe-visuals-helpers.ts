@@ -1,6 +1,6 @@
 import { getCountryIso } from "@/lib/globe-country";
 import { z } from "zod";
-import type { Object3D, Scene } from "three";
+import type { Object3D } from "three";
 import type {
   EarthLightingMode,
   CountryCountMap,
@@ -254,12 +254,17 @@ const externalStrokeColor = (ratio: number): string => {
   return `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(COLOR_PRECISION)})`;
 };
 
-const findGlobeAnchor = (scene: Scene): Object3D => {
-  const globeObject = scene.children.find((child) => {
+type GlobeAnchorView = Readonly<Pick<Object3D, "add">>;
+
+const findGlobeAnchor = (
+  children: readonly GlobeAnchorView[],
+  fallback: () => GlobeAnchorView,
+): GlobeAnchorView => {
+  const globeObject = children.find((child) => {
     const marker: unknown = Object.getOwnPropertyDescriptor(child, "__globeObjType")?.value;
     return z.string().safeParse(marker).data === "globe";
   });
-  return globeObject ?? scene;
+  return globeObject ?? fallback();
 };
 
 interface CoordinateBounds {

@@ -151,7 +151,7 @@ const createSceneResourceState = (
   const scene = context.globe.scene();
   const lights = createSceneLights(scene, context.uniforms);
   const globeRadius = context.globe.getGlobeRadius();
-  const globeAnchor = findGlobeAnchor(scene);
+  const globeAnchor = findGlobeAnchor(scene.children, () => scene);
   const starField = createStarFieldLayer(scene, qualityTier, globeRadius);
   return {
     ...lights,
