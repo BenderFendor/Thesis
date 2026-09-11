@@ -2,23 +2,21 @@
 
 import type { AllCluster, NewsArticle } from "@/lib/api";
 import { GridViewContent, VirtualizedModeView } from "./grid-view-layout";
-import { fetchAllClusters, fetchClusterArticles } from "@/lib/api";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { DeepReadonly } from "@/app/search/research/model/types";
 import type { GridViewMode } from "@/lib/view-mode-storage";
 import { Loader2 } from "lucide-react";
-import { getLogger, hasText } from "@/lib/utils";
+import { hasText } from "@/lib/utils";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
 import { useGridModalController } from "./grid-view-modal-controller";
 import { useGridSourceController } from "./grid-view-source-controller";
+import { useGridTopicController } from "./grid-view-topic-controller";
 
 type GridButtonEvent = Readonly<{ stopPropagation: () => void }>;
 type ReadonlyGridCluster = DeepReadonly<AllCluster>;
-type GridClusterWindow = "1d" | "1w" | "1m";
 const LOADING_STYLE = { minHeight: "calc(100vh - 140px)" };
-const logger = getLogger("GridView");
 
 interface GridViewProps {
   readonly articles: readonly NewsArticle[];
@@ -77,163 +75,6 @@ const getGridClusterDisplayLabel = (cluster: ReadonlyGridCluster) => {
   return titleCandidate;
 }
 return chooseGridClusterLabel(label, titleCandidate, keywordLabel);
-  };
-
-interface GridTopicControllerOptions {
-  readonly clusterWindow: GridClusterWindow;
-  readonly viewMode: GridViewMode;
-  readonly topicSortMode: "sources" | "articles" | "recent";
-}
-
-const useGridTopicController = ({
-    clusterWindow,
-    viewMode,
-    topicSortMode,
-  }: Readonly<GridTopicControllerOptions>) => {
-    const [clusters, setClusters] = useState<AllCluster[]>([]),
-      [clustersLoading, setClustersLoading] = useState(false),
-      [clustersStatus, setClustersStatus] = useState<string | null>(null),
-      [expandedClusterId, setExpandedClusterId] = useState<number | null>(null),
-      [clusterArticlesCache, setClusterArticlesCache] = useState<Map<number, NewsArticle[]>>(
-        new Map(),
-      );
-
-    useEffect(() => {
-      if (viewMode !== "topic") {
-        return () => {};
-      }
-      let cancelled = false,
-        retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-      const loadClusters = async () => {
-        setClustersLoading(true);
-        try {
-          const data = await fetchAllClusters(clusterWindow, 2, 100);
-          if (cancelled) {
-            return;
-          }
-          setClusters(data.clusters);
-          setClustersStatus(data.status ?? null);
-          setExpandedClusterId((previous) =>
-            (() => {
-  if (previous !== null && data.clusters.some(cluster => cluster.cluster_id === previous)) {
-    return previous;
-  }
-  return null;
-})(),
-          );
-          if (data.status === "initializing") {
-            retryTimer = setTimeout(() => {
-              void loadClusters();
-            }, 15_000);
-          }
-        } catch (error) {
-          if (!cancelled) {
-            logger.error("Failed to load clusters:", error);
-          }
-        } finally {
-          if (!cancelled) {
-            setClustersLoading(false);
-          }
-        }
-      };
-
-      void loadClusters();
-      return () => {
-        cancelled = true;
-        if (retryTimer) {
-          clearTimeout(retryTimer);
-        }
-      };
-    }, [clusterWindow, viewMode]);
-
-    const clusterTimes = useMemo(() => {
-        const times = new Map<number, number>();
-        for (const cluster of clusters) {
-          const publishedAt = cluster.representative_article?.published_at,
-            timestamp = (() => {
-  if (hasText(publishedAt)) {
-    return new Date(publishedAt).getTime();
-  }
-  return 0;
-})();
-          times.set(cluster.cluster_id, (() => {
-  if (Number.isNaN(timestamp)) {
-    return 0;
-  }
-  return timestamp;
-})());
-        }
-        return times;
-      }, [clusters]);
-    const sortedClusters = useMemo(() => {
-        const items = [...clusters];
-        items.sort((clusterA, clusterB) => {
-          if (topicSortMode === "articles") {
-            return clusterB.article_count - clusterA.article_count;
-          }
-          if (topicSortMode === "recent") {
-            return (
-              (clusterTimes.get(clusterB.cluster_id) ?? 0) -
-              (clusterTimes.get(clusterA.cluster_id) ?? 0)
-            );
-          }
-          return clusterB.source_diversity - clusterA.source_diversity;
-        });
-        return items;
-      }, [clusterTimes, clusters, topicSortMode]);
-    const expandedCluster =
-        (() => {
-  if (expandedClusterId === null) {
-    return void 0;
-  }
-  return sortedClusters.find(cluster => cluster.cluster_id === expandedClusterId) ?? null;
-})();
-    const expandedClusterArticles = (() => {
-  if (expandedCluster) {
-    return clusterArticlesCache.get(expandedCluster.cluster_id) ?? [];
-  }
-  return [];
-})();
-    const handleExpandCluster = useCallback(
-        async (cluster: ReadonlyGridCluster) => {
-          const clusterId = cluster.cluster_id;
-          if (expandedClusterId === clusterId) {
-            setExpandedClusterId(null);
-            return;
-          }
-
-          const section = document.querySelector<HTMLElement>(`[data-cluster-id="${clusterId}"]`);
-          setExpandedClusterId(clusterId);
-          globalThis.setTimeout(() => {
-            section?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }, 0);
-          const cachedArticles = clusterArticlesCache.get(clusterId);
-          if (cachedArticles && cachedArticles.length > 0) {
-            return;
-          }
-
-          try {
-            const fullArticles = await fetchClusterArticles(clusterId);
-            setClusterArticlesCache((previous) => new Map(previous).set(clusterId, fullArticles));
-          } catch (error) {
-            logger.warn("Failed to load full topic cluster articles", { clusterId, error });
-          }
-        },
-        [clusterArticlesCache, expandedClusterId],
-      );
-
-    return {
-      clusters,
-      clustersLoading,
-      clustersStatus,
-      expandedCluster,
-      expandedClusterArticles,
-      expandedClusterId,
-      handleExpandCluster,
-      setExpandedClusterId,
-      sortedClusters,
-    };
   };
 
 export const GridView = ({
