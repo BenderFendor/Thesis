@@ -1,5 +1,18 @@
 # Log
 
+## 2026-09-10: Remote pull and article detail modal cleanup checkpoint
+
+- Fast-forwarded `quality/crap-mi-oxlint-hardening` to remote commit `596ecc9` and preserved
+  the overlapping user worktree changes in the retained pre-pull stash.
+- Split `frontend/components/article-detail-modal.tsx` into focused content, state, model,
+  operations, and highlight modules. Commit: `0cf1299`.
+- Verified the article modal regression (1 suite, 6 tests), frontend TypeScript, focused
+  Oxlint, and `git diff --check`. The focused files have zero Oxlint errors and two boundary
+  warnings remain.
+- Current direct Oxlint scan: frontend 364 warnings / 0 errors; whole project 1,757 findings
+  (8 errors, 1,749 warnings). Scripts account for 1,393 findings and are excluded from active
+  cleanup by user scope without changing lint rules or configuration.
+
 ## 2026-09-03: lib/api lint zero pass and rule-config baseline
 
 - `frontend/lib/api/` lint errors 126 -> 0. Fixed: unused imports (23),
