@@ -1,6 +1,6 @@
 import type { CountryArticleCounts, NewsArticle } from "@/lib/api";
 import type { DeepReadonly } from "@/lib/deep-readonly";
-import type { ComponentType } from "react";
+import type { ComponentType, JSXElementConstructor } from "react";
 import type { GlobeProps } from "react-globe.gl";
 import type { Scene } from "three";
 
@@ -78,7 +78,7 @@ interface InteractiveGlobeProps {
 interface ReadonlyInteractiveGlobeProps {
   readonly articles: readonly DeepReadonly<NewsArticle>[];
   readonly countryMetrics?: DeepReadonly<CountryArticleCounts>;
-  readonly globeComponent?: InteractiveGlobeComponent;
+  readonly globeComponent?: JSXElementConstructor<GlobeRenderProps>;
   readonly lightingMode: EarthLightingMode;
   readonly onCountrySelect: InteractiveGlobeProps["onCountrySelect"];
   readonly selectedCountry: string | null;

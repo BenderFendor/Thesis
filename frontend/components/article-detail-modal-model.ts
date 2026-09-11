@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import type { DeepReadonly } from "../lib/deep-readonly";
 import type {
   ArticleAnalysis,
   ArticleDetailModalProps,
@@ -447,44 +448,54 @@ type ModalContentData = Readonly<
   >
 >;
 
+interface ModalLibraryActionsView {
+  readonly onBookmark: () => void;
+  readonly onFavorite: () => void;
+  readonly onLike: () => void;
+  readonly onQueueToggle: () => void;
+}
+
 const createArticleDetailModalViewProps = (
   input: Readonly<{
-    readonly actions: Readonly<ReturnType<typeof useModalLibraryActions>>;
-    readonly analysisActions: Readonly<ReturnType<typeof useModalAnalysisActions>>;
+    readonly actions: ModalLibraryActionsView;
+    readonly analysisActions: DeepReadonly<ReturnType<typeof useModalAnalysisActions>>;
     readonly article: Readonly<NewsArticle>;
-    readonly claimActions: Readonly<ReturnType<typeof useModalClaimActions>>;
-    readonly data: ModalContentData;
-    readonly debugActions: Readonly<ReturnType<typeof useModalDebugActions>>;
-    readonly dialogActions: Readonly<ReturnType<typeof useModalDialogActions>>;
+    readonly claimActions: DeepReadonly<ReturnType<typeof useModalClaimActions>>;
+    readonly data: Readonly<ModalContentData>;
+    readonly debugActions: DeepReadonly<ReturnType<typeof useModalDebugActions>>;
+    readonly dialogActions: DeepReadonly<ReturnType<typeof useModalDialogActions>>;
     readonly isOpen: boolean;
     readonly layoutIdPrefix?: string;
     readonly onClose: () => void;
     readonly onNavigate?: (direction: "prev" | "next") => void;
-    readonly services: Readonly<ArticleDetailServices>;
-    readonly state: Readonly<ModalArticleState>;
-    readonly wikiActions: Readonly<ReturnType<typeof useModalWikiActions>>;
+    readonly getServices: () => ArticleDetailServices;
+    readonly getState: () => ModalArticleState;
+    readonly wikiActions: DeepReadonly<ReturnType<typeof useModalWikiActions>>;
   }>,
-): ArticleDetailModalViewProps => ({
-  ...input.state,
-  ...input.data,
-  ...input.actions,
-  ...input.analysisActions,
-  ...input.debugActions,
-  ...input.dialogActions,
-  ...input.wikiActions,
-  article: input.article,
-  currentArticle: input.article,
-  debugEnabled: getHighlightDebugEnabled(),
-  ...getModalHighlightProps(input.state),
-  isOpen: input.isOpen,
-  layoutIdPrefix: input.layoutIdPrefix,
-  onClaimsOpenChange: input.claimActions.onClaimsOpenChange,
-  onClose: input.onClose,
-  onNavigate: input.onNavigate,
-  onSelectClaim: input.claimActions.onSelectClaim,
-  services: input.services,
-  source: input.state.source ?? undefined,
-});
+): ArticleDetailModalViewProps => {
+  const state = input.getState();
+  return {
+    ...state,
+    ...input.data,
+    ...input.actions,
+    ...input.analysisActions,
+    ...input.debugActions,
+    ...input.dialogActions,
+    ...input.wikiActions,
+    article: input.article,
+    currentArticle: input.article,
+    debugEnabled: getHighlightDebugEnabled(),
+    ...getModalHighlightProps(state),
+    isOpen: input.isOpen,
+    layoutIdPrefix: input.layoutIdPrefix,
+    onClaimsOpenChange: input.claimActions.onClaimsOpenChange,
+    onClose: input.onClose,
+    onNavigate: input.onNavigate,
+    onSelectClaim: input.claimActions.onSelectClaim,
+    services: input.getServices(),
+    source: state.source ?? undefined,
+  };
+};
 
 export {
   createArticleDetailModalViewProps,

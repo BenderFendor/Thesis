@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ZERO_COUNT, createGlobeMaterial, getQualityTier } from "./interactive-globe-visuals";
+import type { GlobeUniformView, TextureReference } from "./interactive-globe-visuals";
 import {
   useGlobeCounts,
   useGlobeCountryData,
@@ -50,11 +51,17 @@ interface GlobeLifecycleContext {
   readonly containerRef: { readonly current: HTMLDivElement | null };
   readonly countryCenters: ReturnType<typeof useGlobeCountryData>["countryCenters"];
   readonly globeInstance: GlobeInstance | null;
-  readonly globeSetup: ReturnType<typeof createGlobeMaterial>;
+  readonly globeSetup: GlobeSetupView;
   readonly lightingMode: ReadonlyInteractiveGlobeProps["lightingMode"];
   readonly qualityTier: ReturnType<typeof getQualityTier>;
   readonly selectedCountry: ReadonlyInteractiveGlobeProps["selectedCountry"];
   readonly setDimensions: (dimensions: { readonly height: number; readonly width: number }) => void;
+}
+
+interface GlobeSetupView {
+  readonly material: Readonly<{ dispose: () => void }>;
+  readonly placeholderTextures: readonly TextureReference[];
+  readonly uniforms: GlobeUniformView;
 }
 
 type GlobeInstanceSetter = (instance: GlobeInstance | null) => void;
@@ -162,22 +169,26 @@ const InteractiveGlobe = ({
     onCountrySelect,
     selectedCountry,
   });
+  const mutablePolygonsData = useMemo(() => [...visibleCountries], [visibleCountries]);
 
   return (
-    <GlobeCanvas
-      component={GlobeComponent}
-      dimensions={dimensions}
-      globeMaterial={globeSetup.material}
-      globeRef={globeRef}
-      onPolygonClick={presentation.handlePolygonClick}
-      onPolygonHover={presentation.handlePolygonHover}
-      polygonAltitude={presentation.polygonAltitude}
-      polygonCapColor={presentation.polygonCapColor}
-      polygonLabel={presentation.polygonLabel}
-      polygonSideColor={presentation.polygonSideColor}
-      polygonStrokeColor={presentation.polygonStrokeColor}
-      polygonsData={visibleCountries}
-    />
+    <GlobeCanvas>
+      <GlobeComponent
+        ref={globeRef} globeMaterial={globeSetup.material}
+        backgroundColor="rgba(0,0,0,0)" showAtmosphere={false}
+        atmosphereAltitude={0} polygonsTransitionDuration={0} lineHoverPrecision={0}
+        polygonsData={mutablePolygonsData}
+        polygonAltitude={presentation.polygonAltitude}
+        polygonCapColor={presentation.polygonCapColor}
+        polygonSideColor={presentation.polygonSideColor}
+        polygonStrokeColor={presentation.polygonStrokeColor}
+        polygonLabel={presentation.polygonLabel}
+        onPolygonHover={presentation.handlePolygonHover}
+        onPolygonClick={presentation.handlePolygonClick}
+        width={dimensions.width}
+        height={dimensions.height}
+      />
+    </GlobeCanvas>
   );
 };
 

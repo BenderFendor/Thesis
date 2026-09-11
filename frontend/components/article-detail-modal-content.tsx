@@ -71,12 +71,12 @@ const ArticleDetailModalContent = ({
     article,
     ...actions,
     data,
+    getServices: () => services,
+    getState: () => state,
     isOpen,
     layoutIdPrefix,
     onClose,
     onNavigate,
-    services,
-    state,
   });
 
   return <ArticleDetailModalView viewProps={viewProps} />;
