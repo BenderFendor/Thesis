@@ -18,8 +18,38 @@ interface UsePaginatedNewsOptions {
   readonly enabled?: boolean;
 }
 
+interface ResolvedPaginatedNewsOptions {
+  readonly limit: number;
+  readonly category: string | undefined;
+  readonly source: string | undefined;
+  readonly sources: readonly string[] | undefined;
+  readonly search: string | undefined;
+  readonly useCached: boolean;
+  readonly enabled: boolean;
+}
+
+const resolvePaginatedNewsOptions = ({
+  category,
+  enabled = true,
+  limit = 50,
+  search,
+  source,
+  sources,
+  useCached = true,
+}: UsePaginatedNewsOptions): ResolvedPaginatedNewsOptions => ({
+  category,
+  enabled,
+  limit,
+  search,
+  source,
+  sources,
+  useCached,
+});
+
 const pageNumberSchema = z.number();
 const pageStringSchema = z.string();
+const pageParamSchema = z.union([pageNumberSchema, pageStringSchema]);
+type PaginatedPageParam = z.infer<typeof pageParamSchema> | undefined;
 
 interface UsePaginatedNewsReturn {
   articles: NewsArticle[];
@@ -53,91 +83,103 @@ const getInitialPageParam = (useCached: boolean): number | undefined => {
   return void 0;
 };
 
-export function usePaginatedNews(options: UsePaginatedNewsOptions = {}): UsePaginatedNewsReturn {
-  const {
-      limit = 50,
-      category,
-      source,
-      sources,
-      search,
-      useCached = true,
-      enabled = true,
-    } = options;
-  const queryClient = useQueryClient();
-  const queryKey = useMemo(
-      () => [
-        "news",
-        "paginated",
-        {
-          category: category ?? null,
-          limit,
-          search: search ?? null,
-          source: source ?? null,
-          sources: serializeSources(sources),
-          useCached,
-        },
-      ],
-      [limit, category, source, sources, search, useCached],
-    );
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
-      useInfiniteQuery<PaginatedResponse>({
-        enabled,
-        // 5 minutes (formerly cacheTime)
-        gcTime: 5 * 60 * 1000,
-        getNextPageParam: (lastPage) => getNextPageParam(lastPage, useCached),
-        initialPageParam: getInitialPageParam(useCached),
-        queryFn: async ({ pageParam }) => {
-          const params: PaginationParams & { offset?: number } = {
-              category,
-              limit,
-              search,
-            },
-            serializedSources = serializeSources(sources);
-          if (serializedSources !== undefined && serializedSources !== "") {
-            params.sources = serializedSources;
-          } else if (source !== undefined && source !== "") {
-            params.source = source;
-          }
+const getPaginationRequestParams = (
+  pageParam: PaginatedPageParam,
+  options: Readonly<ResolvedPaginatedNewsOptions>,
+): PaginationParams & { offset?: number } => {
+  const serializedSources = serializeSources(options.sources);
+  const params: PaginationParams & { offset?: number } = {
+    category: options.category,
+    limit: options.limit,
+    search: options.search,
+  };
+  if (serializedSources !== undefined && serializedSources !== "") {
+    params.sources = serializedSources;
+  } else if (options.source !== undefined && options.source !== "") {
+    params.source = options.source;
+  }
 
-          if (useCached) {
-            params.offset = pageNumberSchema.safeParse(pageParam).data ?? 0;
-            return fetchCachedNewsPaginated(params);
-          }
-          params.cursor = pageStringSchema.safeParse(pageParam).data;
-          return fetchNewsPaginated(params);
-        },
-        queryKey,
-        refetchOnWindowFocus: false,
-        // 30 seconds,
-        staleTime: 30 * 1000,
-      });
-  const articles = useMemo(() => {
-      if (!data?.pages) {
-        return [];
+  if (options.useCached) {
+    params.offset = pageNumberSchema.safeParse(pageParam).data ?? 0;
+  } else {
+    params.cursor = pageStringSchema.safeParse(pageParam).data;
+  }
+  return params;
+};
+
+const usePaginatedNewsQuery = (options: Readonly<ResolvedPaginatedNewsOptions>) => {
+  const queryKey = useMemo(
+    () => [
+      "news",
+      "paginated",
+      {
+        category: options.category ?? null,
+        limit: options.limit,
+        search: options.search ?? null,
+        source: options.source ?? null,
+        sources: serializeSources(options.sources),
+        useCached: options.useCached,
+      },
+    ],
+    [options.category, options.limit, options.search, options.source, options.sources, options.useCached],
+  );
+
+  return useInfiniteQuery<PaginatedResponse>({
+    enabled: options.enabled,
+    gcTime: 5 * 60 * 1000,
+    getNextPageParam: (lastPage) => getNextPageParam(lastPage, options.useCached),
+    initialPageParam: getInitialPageParam(options.useCached),
+    queryFn: async ({ pageParam }) => {
+      const parsedPageParam = pageParamSchema.safeParse(pageParam).data;
+      const params = getPaginationRequestParams(parsedPageParam, options);
+      if (options.useCached) {
+        return fetchCachedNewsPaginated(params);
       }
-      const allArticles = data.pages.flatMap((page) => page.articles),
-        // Deduplicate by ID to handle potential backend duplicates
-        seen = new Set<number>();
-      return allArticles.filter((article) => {
-        if (seen.has(article.id)) {
-          return false;
-        }
-        seen.add(article.id);
-        return true;
-      });
-    }, [data]);
+      return fetchNewsPaginated(params);
+    },
+    queryKey,
+    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000,
+  });
+};
+
+const getUniqueArticles = (
+  pages:
+    | readonly Readonly<{ readonly articles: readonly NewsArticle[] }>[]
+    | undefined,
+): NewsArticle[] => {
+  if (!pages) {
+    return [];
+  }
+  const allArticles = pages.flatMap((page) => page.articles);
+  const seen = new Set<number>();
+  return allArticles.filter((article) => {
+    if (seen.has(article.id)) {
+      return false;
+    }
+    seen.add(article.id);
+    return true;
+  });
+};
+
+export function usePaginatedNews(options: UsePaginatedNewsOptions = {}): UsePaginatedNewsReturn {
+  const resolvedOptions = resolvePaginatedNewsOptions(options);
+  const queryClient = useQueryClient();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
+      usePaginatedNewsQuery(resolvedOptions);
+  const articles = useMemo(() => getUniqueArticles(data?.pages), [data]);
   const totalCount = useMemo(() => data?.pages[0]?.total ?? 0, [data]);
   const handleFetchNextPage = useCallback(() => {
-      if (hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
   const invalidate = useCallback(() => {
-      void queryClient.invalidateQueries({ queryKey: ["news"] });
-    }, [queryClient]);
+    void queryClient.invalidateQueries({ queryKey: ["news"] });
+  }, [queryClient]);
   const handleRefetch = useCallback(() => {
-      void refetch();
-    }, [refetch]);
+    void refetch();
+  }, [refetch]);
 
   return {
     articles,
