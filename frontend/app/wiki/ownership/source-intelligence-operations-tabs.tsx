@@ -6,7 +6,6 @@ import {
   DataRow,
   PanelTitle,
   SourcesTable,
-  StatGrid,
   SURFACE_CLASS,
 } from "./source-intelligence-operations-common";
 import { ParserTab } from "./source-intelligence-operations-parser";
@@ -163,7 +162,7 @@ const CacheSummaryCard = ({
 }>) => (
   <div className={SURFACE_CLASS}>
     <PanelTitle>Cache Summary</PanelTitle>
-    <StatGrid>
+    <div className="grid grid-cols-2 gap-3">
       <StatCard
         label="Total Articles"
         value={cacheStatus?.total_articles?.toLocaleString() ?? "—"}
@@ -171,7 +170,7 @@ const CacheSummaryCard = ({
       <StatCard label="Source Records" value={cacheStatus?.total_sources ?? "—"} />
       <StatCard label="Working Sources" value={cacheStatus?.sources_working ?? "—"} />
       <StatCard label="Average Articles" value={averageArticles || "—"} />
-    </StatGrid>
+    </div>
     <CacheMetadataRows cacheStatus={cacheStatus} />
   </div>
 );
@@ -210,12 +209,12 @@ const WikiIndexCard = ({
 }: Readonly<{ wikiIndexStatus: WikiIndexStatus | undefined }>) => (
   <div className={SURFACE_CLASS}>
     <PanelTitle>Wiki Index</PanelTitle>
-    <StatGrid>
+    <div className="grid grid-cols-2 gap-3">
       <StatCard label="Entries" value={wikiIndexStatus?.total_entries ?? "—"} />
       <StatCard label="Indexed" value={wikiIndexStatus?.by_status.indexed ?? 0} />
       <StatCard label="Sources" value={wikiIndexStatus?.by_type.source ?? 0} />
       <StatCard label="Organizations" value={wikiIndexStatus?.by_type.organization ?? 0} />
-    </StatGrid>
+    </div>
     <WikiIndexStatusRows status={wikiIndexStatus?.by_status} />
   </div>
 );

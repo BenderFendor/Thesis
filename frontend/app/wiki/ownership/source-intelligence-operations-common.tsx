@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
 import type { SourceStats } from "@/lib/api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
 import {
   Table,
   TableBody,
@@ -10,7 +10,13 @@ import {
 } from "@/components/ui/table";
 import { displaySourceValue, formatCheckedTime } from "./source-intelligence-operations-helpers";
 
-const SourcesTable = ({ sources }: Readonly<{ sources: readonly SourceStats[] }>) => (
+type ReadonlySourceStats = DeepReadonly<SourceStats>;
+
+interface TextChildProps {
+  readonly children: string;
+}
+
+const SourcesTable = ({ sources }: Readonly<{ sources: readonly ReadonlySourceStats[] }>) => (
   <Table className="text-foreground">
     <SourceTableHeader />
     <TableBody>
@@ -40,13 +46,13 @@ const SourceTableHeaderRow = () => (
   </TableRow>
 );
 
-const Th = ({ children }: Readonly<{ children: ReactNode }>) => (
+const Th = (props: TextChildProps) => (
   <TableHead className="h-8 px-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-    {children}
+    {props.children}
   </TableHead>
 );
 
-const SourceRow = ({ source }: Readonly<{ source: SourceStats }>) => (
+const SourceRow = ({ source }: Readonly<{ source: ReadonlySourceStats }>) => (
   <TableRow className="border-white/5 hover:bg-white/[0.02]">
     <SourceIdentityCell source={source} />
     <TableCell className="px-3 py-2 text-muted-foreground">
@@ -71,13 +77,13 @@ const SourceRow = ({ source }: Readonly<{ source: SourceStats }>) => (
   </TableRow>
 );
 
-const SourceIdentityCell = ({ source }: Readonly<{ source: SourceStats }>) => (
+const SourceIdentityCell = ({ source }: Readonly<{ source: ReadonlySourceStats }>) => (
   <TableCell className="px-3 py-2">
     <SourceIdentity source={source} />
   </TableCell>
 );
 
-const SourceIdentity = ({ source }: Readonly<{ source: SourceStats }>) => (
+const SourceIdentity = ({ source }: Readonly<{ source: ReadonlySourceStats }>) => (
   <div className="flex items-center gap-2">
     <span className="flex h-5 w-5 items-center justify-center rounded border border-white/10 bg-black/40 text-[9px] text-muted-foreground">
       {(source.country || source.name).slice(0, 2).toUpperCase()}
@@ -104,13 +110,9 @@ const StatCard = ({ label, value }: Readonly<{ label: string; value: string | nu
   </div>
 );
 
-const StatGrid = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <div className="grid grid-cols-2 gap-3">{children}</div>
-);
-
-const PanelTitle = ({ children }: Readonly<{ children: ReactNode }>) => (
+const PanelTitle = (props: TextChildProps) => (
   <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-    {children}
+    {props.children}
   </div>
 );
 
@@ -121,9 +123,5 @@ const DataRow = ({ label, value }: Readonly<{ label: string; value: string }>) =
   </div>
 );
 
-const DataRows = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <div className="space-y-2 text-sm text-muted-foreground">{children}</div>
-);
-
-export { DataRow, DataRows, PanelTitle, SourcesTable, StatCard, StatGrid };
+export { DataRow, PanelTitle, SourcesTable, StatCard };
 export { SURFACE_CLASS } from "./source-intelligence-operations-helpers";

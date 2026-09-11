@@ -2,7 +2,7 @@ import type { LlmLogEntry, SourceStats } from "@/lib/api";
 import { hasText } from "@/lib/utils";
 import type { NormalizedErrorEvent } from "./source-intelligence-operations-types";
 import { formatAverageLatency, SURFACE_CLASS } from "./source-intelligence-operations-helpers";
-import { DataRow, PanelTitle, StatCard, StatGrid } from "./source-intelligence-operations-common";
+import { DataRow, PanelTitle, StatCard } from "./source-intelligence-operations-common";
 
 const ActivityTab = ({
   entries,
@@ -37,7 +37,7 @@ const ActivitySummary = ({
 }>) => (
   <div className={SURFACE_CLASS}>
     <PanelTitle>Model Activity</PanelTitle>
-    <StatGrid>
+    <div className="grid grid-cols-2 gap-3">
       <StatCard label="Calls" value={callCount} />
       <StatCard label="Success" value={successCount} />
       <StatCard label="Failed" value={failureCount} />
@@ -45,7 +45,7 @@ const ActivitySummary = ({
         label="Avg latency"
         value={formatAverageLatency(entries.map((entry) => entry.duration_ms))}
       />
-    </StatGrid>
+    </div>
   </div>
 );
 
@@ -138,10 +138,10 @@ const IssueSummaryCard = ({
 }>) => (
   <div className={SURFACE_CLASS}>
     <PanelTitle>Current Issues</PanelTitle>
-    <StatGrid>
+    <div className="grid grid-cols-2 gap-3">
       <StatCard label="Open issues" value={issueCount} />
       <StatCard label="Recent errors" value={errorCount} />
-    </StatGrid>
+    </div>
     <IssueRows sources={problematicSources} />
   </div>
 );
