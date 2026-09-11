@@ -51,28 +51,15 @@ interface PlaceholderTextures {
 }
 
 type ManagedTextureImage = HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+type TextureResizeView = Readonly<{ dispose: () => void; image: unknown }>;
 
-const applyGlobeTextures = (uniforms: GlobeUniforms, textures: GlobeTextureSet): void => {
-  uniforms.uDayTexture.value = textures.dayTexture;
-  uniforms.uNightTexture.value = textures.nightTexture;
-  uniforms.uBumpTexture.value = textures.bumpTexture;
-  uniforms.uSurfaceMask.value = textures.surfaceMaskTexture;
-  uniforms.uCloudTexture.value = textures.cloudTexture;
-  uniforms.uCloudOffset.value = ZERO_COUNT;
-};
-
-const configureTexture = (
-  texture: Texture,
-  options: Readonly<{ anisotropy: number; color?: boolean }>,
-): void => {
-  texture.anisotropy = options.anisotropy;
-  texture.colorSpace = getTextureColorSpace(options.color);
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.magFilter = LinearFilter;
-  texture.wrapS = RepeatWrapping;
-  texture.wrapT = ClampToEdgeWrapping;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
+const applyGlobeTextures = (uniforms: GlobeUniformView, textures: GlobeTextureSet): void => {
+  Object.assign(uniforms.uDayTexture, { value: textures.dayTexture });
+  Object.assign(uniforms.uNightTexture, { value: textures.nightTexture });
+  Object.assign(uniforms.uBumpTexture, { value: textures.bumpTexture });
+  Object.assign(uniforms.uSurfaceMask, { value: textures.surfaceMaskTexture });
+  Object.assign(uniforms.uCloudTexture, { value: textures.cloudTexture });
+  Object.assign(uniforms.uCloudOffset, { value: ZERO_COUNT });
 };
 
 const getTextureColorSpace = (color: boolean | undefined) => {
@@ -81,6 +68,17 @@ const getTextureColorSpace = (color: boolean | undefined) => {
   }
   return NoColorSpace;
 };
+
+const getTextureConfiguration = (options: Readonly<{ anisotropy: number; color?: boolean }>) => ({
+  anisotropy: options.anisotropy,
+  colorSpace: getTextureColorSpace(options.color),
+  generateMipmaps: true,
+  magFilter: LinearFilter,
+  minFilter: LinearMipmapLinearFilter,
+  needsUpdate: true,
+  wrapS: RepeatWrapping,
+  wrapT: ClampToEdgeWrapping,
+});
 
 const createCloudsMaterial = (
   uniforms: GlobeUniformView,
@@ -158,7 +156,7 @@ const createPlaceholderTexture = (
     PLACEHOLDER_TEXTURE_HEIGHT,
     RGBAFormat,
   );
-  configureTexture(texture, { anisotropy: 1, color: options.color });
+  Object.assign(texture, getTextureConfiguration({ anisotropy: 1, color: options.color }));
   return texture;
 };
 
@@ -205,20 +203,21 @@ const createStarField = (count: number, spread: number): Points<BufferGeometry, 
 };
 
 const resizeTexture = (
-  texture: Texture,
+  texture: TextureResizeView,
   options: Readonly<{ maxTextureSize: number }>,
+  fallback: () => Texture,
 ): Texture => {
   const sourceImage = getTextureImage(texture);
   if (
     sourceImage === null ||
     (sourceImage.width <= options.maxTextureSize && sourceImage.height <= options.maxTextureSize)
   ) {
-    return texture;
+    return fallback();
   }
   const canvas = createTextureCanvas(sourceImage.width, sourceImage.height, options.maxTextureSize);
   const context = canvas.getContext("2d");
   if (context === null) {
-    return texture;
+    return fallback();
   }
   context.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
   texture.dispose();
@@ -254,9 +253,9 @@ const loadManagedTexture = async (
   path: string,
   options: Readonly<{ anisotropy: number; color?: boolean; maxTextureSize: number }>,
 ): Promise<Texture> => {
-  let texture = await textureLoader.loadAsync(path);
-  texture = resizeTexture(texture, options);
-  configureTexture(texture, { anisotropy: options.anisotropy, color: options.color });
+  const loadedTexture = await textureLoader.loadAsync(path);
+  const texture = resizeTexture(loadedTexture, options, () => loadedTexture);
+  Object.assign(texture, getTextureConfiguration(options));
   return texture;
 };
 export {
