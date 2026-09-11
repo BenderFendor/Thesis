@@ -766,3 +766,25 @@ is unavailable; strict maintainability and CRAP completion remain unverified.
 Rollback or next executable step: revert `7465956` to restore the removed utilities, dependency,
 and exports, or continue with the remaining non-lint quality measurements while preserving dirty
 WIP boundaries.
+
+## 2026-09-11 — One-file maintainability batches
+
+Goal and done criteria: reduce maintainability debt in clean frontend files without changing
+behavior, preserve unrelated WIP, and commit each verified batch.
+
+Status: active. Commit `f4bbfa2` split globe surface rendering and commit `e1a4f8e` isolated
+inline-definition listener setup. Both changed files pass direct Oxlint with 0 errors and 0
+warnings, frontend TypeScript, and the full frontend Jest suite with 56 suites and 199 tests.
+Their scoped quality measurements report no CRAP violations. Globe parent/surface MI is 52.8/54.7;
+inline-definition hook/listener MI is 50.3/56.5. The globe runtime hook remains at MI 46.8.
+
+Whole direct Oxlint remains 1,393 findings: 10 errors and 1,383 warnings, all under `scripts/`,
+which remains outside active lint cleanup by explicit user scope. Baseline progress remains
+6,556/7,949 findings cleared (82.48%), with 1,393 (17.52%) remaining.
+
+Remaining failures or blockers: strict repository-wide maintainability and CRAP closure, source-line
+cap, dead-code review, repository self-test, browser verification, and the user-excluded scripts
+lint findings remain open.
+
+Rollback or next executable step: revert either focused commit independently, or continue with the
+next clean low-MI frontend file while staging only its verified changes.

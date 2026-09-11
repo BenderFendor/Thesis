@@ -1665,3 +1665,16 @@ intentional cross-package `@barney-media/crap-typescript` devDependency finding,
 values, and 12 exported types in preserved WIP or duplicate public surfaces. Frontend TypeScript
 passes, and the full frontend Jest suite passes 56 suites and 199 tests. Strict maintainability,
 source-line, CRAP, repository self-test, and browser gates remain open.
+
+## 2026-09-11 — One-file maintainability batches
+
+Commits `f4bbfa2` and `e1a4f8e` split globe surface rendering and inline-definition listener
+setup into focused boundaries. Each changed file has 0 direct Oxlint errors and warnings;
+frontend TypeScript passes; the full frontend Jest suite passes 56 suites and 199 tests. The
+scoped quality measurements report no CRAP violations. The globe parent/surface functions now
+measure MI 52.8/54.7, and the inline-definition hook/listener functions measure MI 50.3/56.5;
+the globe runtime hook remains at MI 46.8 for a later batch.
+
+The whole direct census is unchanged at 1,393 findings: 10 errors and 1,383 warnings, all in
+`scripts/`, which remain outside active lint cleanup by explicit user instruction. Against the
+7,949-finding baseline, 6,556 are cleared (82.48%) and 1,393 remain (17.52%).

@@ -2232,3 +2232,15 @@ Fresh direct frontend Oxlint is 0 errors and 0 warnings. Whole direct Oxlint is 
 6,556 of 7,949 findings cleared (82.48%). Full frontend Jest passes 56 suites and 199 tests;
 frontend TypeScript passes. Knip reports no unused files or dependencies, with the intentional
 cross-package CRAP devDependency finding and preserved WIP exports/types still open.
+
+## 2026-09-11 — One-file maintainability batches
+
+Commits `f4bbfa2` and `e1a4f8e` split globe surface rendering and inline-definition listener
+setup into focused boundaries. Both changed files pass direct Oxlint with 0 errors and 0 warnings;
+frontend TypeScript passes; and the full frontend Jest suite passes 56 suites and 199 tests. Their
+scoped quality measurements report no CRAP violations. The globe parent/surface functions measure
+MI 52.8/54.7, and the inline-definition hook/listener functions measure MI 50.3/56.5.
+
+The whole direct census remains 1,393 findings: 10 errors and 1,383 warnings, all in `scripts/`,
+which remain outside active lint cleanup by explicit user instruction. Against the 7,949-finding
+baseline, 6,556 are cleared (82.48%) and 1,393 remain (17.52%).
