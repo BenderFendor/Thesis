@@ -58,11 +58,12 @@ const main = async () => {
   if (json) {
     console.log(JSON.stringify({ capAt: minimum, errorAt: warningMinimum, fails: failures, total: rows.length, warns: warnings }));
   }
-  console.log(`Maintainability check: ${rows.length} functions, ${failures.length} fails (MI < ${minimum}), ${warnings.length} warns (MI < ${warningMinimum})`);
+  const log = json ? console.error : console.log;
+  log(`Maintainability check: ${rows.length} functions, ${failures.length} fails (MI < ${minimum}), ${warnings.length} warns (MI < ${warningMinimum})`);
   for (const row of failures.slice(0, 40)) {
-    console.log(`  FAIL ${row.file}:${row.line} ${row.name} MI=${row.mi} CC=${row.cc}`);
+    log(`  FAIL ${row.file}:${row.line} ${row.name} MI=${row.mi} CC=${row.cc}`);
   }
-  if (failures.length > 40) { console.log(`  ... ${failures.length - 40} more fails`); }
+  if (failures.length > 40) { log(`  ... ${failures.length - 40} more fails`); }
   return strict && failures.length > 0 ? 1 : 0;
 };
 

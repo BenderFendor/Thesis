@@ -13,11 +13,15 @@ import { runOxlint } from "./adapters/oxlint.mjs";
 /** @typedef {Readonly<{exclude_directories: readonly string[], exclude_test_files: boolean, extensions: readonly string[], roots: readonly string[]}>} SourceScope */
 /** @typedef {Readonly<{analyzers: Readonly<{cccc: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>, crap: Readonly<{command: readonly string[], output_limit_bytes: number, version: string, working_directory: string}>, oxlint: Readonly<{command: readonly string[], native_config: string, output_limit_bytes: number, version: string}>}>, policy_version: string, schema_version: number, source_scope: SourceScope, thresholds: Readonly<{crap: Readonly<{cluster_ceiling: number}>}>}>} QualityConfig */
 /** @typedef {Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Readonly<Record<string, string>>, repositoryRoot: string}>} Policy */
-/** @typedef {{by_rule: JsonObject, errors: number|null, findings: readonly unknown[], status: string, warnings: number|null}} LintRecord */
+/** @typedef {{path: string, rule: string, unit_id?: string}} LintFinding */
+/** @typedef {{by_rule: JsonObject, errors: number|null, findings: readonly LintFinding[], status: string, warnings: number|null}} LintRecord */
 /** @typedef {{analyzer: string, message?: string, status: string, units: readonly QualityUnit[], warnings: readonly string[]}} MiRecord */
 /** @typedef {{units: readonly QualityUnit[], violations: readonly unknown[]}} CcccRecord */
 /** @typedef {{analyzer: string, status: string, units: readonly QualityUnit[], violations: readonly QualityUnit[]}} CrapRecord */
-/** @typedef {{measurement_id: string, measured_at: string, schema_version: number, policy_version: string, repository: JsonObject, tools: JsonObject, scope: JsonObject, source_files: Readonly<Record<string, string>>, units: readonly QualityUnit[], mi: JsonObject, lint: JsonObject, verification: readonly JsonObject[]}} Measurement */
+/** @typedef {{analyzer: string, measured_units: number, message?: string, status: string, unknown_units: number, violations: number}} MeasurementCrap */
+/** @typedef {{analyzer: string, errors?: number|null, message?: string, status: string, violations?: number, warnings?: number|null}} VerificationRecord */
+/** @typedef {{crap: MeasurementCrap, measurement_id: string, measured_at: string, schema_version: number, policy_version: string, repository: {head: string, root: string, worktree_fingerprint: string}, tools: JsonObject, scope: {kind: string, paths: readonly string[]}, source_files: Readonly<Record<string, string>>, units: readonly QualityUnit[], mi: MiRecord, lint: LintRecord, verification: VerificationRecord[]}} Measurement */
+/** @typedef {Readonly<{policy: Policy, scope: string, selectedPaths: readonly string[], hashes: Readonly<Record<string, string>>, cccc: CcccRecord, mi: MiRecord, lint: LintRecord, crap: CrapRecord, lintFailure?: string, crapFailure?: string}>} MeasurementInput */
 
 const EMPTY_PATH_COUNT = 0;
 
@@ -109,6 +113,7 @@ const measureMi = (repositoryRoot, paths) => {
 
 /** @param {string} repositoryRoot @param {QualityConfig["analyzers"]["oxlint"]} analyzer @param {readonly string[]} paths @returns {Promise<{failure?: string, lint: LintRecord}>} */
 const measureLint = async (repositoryRoot, analyzer, paths) => {
+  /** @type {LintRecord} */
   const empty = { by_rule: {}, errors: null, findings: [], status: "not_selected", warnings: null };
   if (paths.length === 0) {return { lint: empty };}
   try {
@@ -147,8 +152,9 @@ const applyCoverage = (units, crapUnits) => {
   return units.map((unit) => ({ ...unit, coverage: coverageByUnit.get(`${unit.path}\0${unit.symbol}`) ?? unit.coverage }));
 }
 
-/** @param {Policy} policy @param {string} scope @param {readonly string[]} selectedPaths @param {Readonly<Record<string, string>>} hashes @param {CcccRecord} cccc @param {MiRecord} mi @param {LintRecord} lint @param {CrapRecord} crap @param {string|undefined} lintFailure @param {string|undefined} crapFailure */
+/** @param {MeasurementInput} input @returns {Measurement} */
 const createMeasurement = ({policy, scope, selectedPaths, hashes, cccc, mi, lint, crap, lintFailure, crapFailure}) => {
+  /** @type {Measurement} */
   const record = {
     crap: {
       analyzer: crap.analyzer,

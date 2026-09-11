@@ -20,6 +20,7 @@ const outputText = (value) => {
 /** @typedef {Readonly<{command: readonly string[], label: string, output_limit_bytes: number, timeout_ms: number}>} Check */
 /** @typedef {Readonly<{duration_ms: number, exit_code?: number|null, label: string, output: string, status: "passed"|"failed"}>} CheckResult */
 /** @typedef {Readonly<{profiles: Readonly<Record<string, readonly string[]>>, verification: Readonly<{checks: Readonly<Record<string, Readonly<{command: readonly string[], label: string}>>>, defaults: Readonly<{output_limit_bytes: number, timeout_ms: number}>}>}>} VerificationPolicy */
+/** @typedef {Readonly<{checks: readonly CheckResult[], exit_code: number, measurement: Record<string, unknown>, scope: "path"|"task"|"changed"|"repo", tracked_unchanged: boolean}>} VerifyResult */
 
 /** @param {string} repositoryRoot @returns {Promise<string>} */
 const trackedStatus = async (repositoryRoot) => {
@@ -75,7 +76,7 @@ const checksForScope = (scope, config) => config.profiles[scope].map((id) => {
   };
 });
 
-/** @param {{config: VerificationPolicy, repositoryRoot: string, scope: "path"|"task"|"changed"|"repo", measure: () => Promise<Record<string, unknown>>}} options @returns {Promise<Record<string, unknown>>} */
+/** @param {{config: VerificationPolicy, repositoryRoot: string, scope: "path"|"task"|"changed"|"repo", measure: () => Promise<Record<string, unknown>>}} options @returns {Promise<VerifyResult>} */
 const verify = async ({ config, repositoryRoot, scope, measure }) => {
   const trackedBefore = await trackedStatus(repositoryRoot);
   let measurement;

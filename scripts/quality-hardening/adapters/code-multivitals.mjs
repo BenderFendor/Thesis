@@ -22,13 +22,15 @@ const runCodeMultivitals = (repositoryRoot, paths) => {
   for (const file of result.files ?? []) {
     const path = normalizePath(file.filePath, repositoryRoot);
     for (const fn of file.functions ?? []) {
-      if (!Number.isFinite(fn.maintainabilityIndex)) {continue;}
+      const startLine = Number(fn.startLine),
+       maintainabilityIndex = Number(fn.maintainabilityIndex);
+      if (!Number.isFinite(startLine) || !Number.isFinite(maintainabilityIndex)) {continue;}
       const symbol = fn.name ?? "<anonymous>";
       units.push({
         coverage: { crap: null, state: "unknown" },
         kind: "function",
-        line: fn.startLine,
-        metrics: { code_multivitals: { maintainability_index: fn.maintainabilityIndex } },
+        line: startLine,
+        metrics: { code_multivitals: { maintainability_index: maintainabilityIndex } },
         path,
         symbol,
         unit_id: sourceUnitId({ kind: "function", language: "ecmascript", path, symbol }),

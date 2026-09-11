@@ -235,7 +235,7 @@ const runVerify = async (argumentsList) => {
    scope,
   });
  if (options.json) { console.log(JSON.stringify(result)); }
- else { console.error(`verification ${String(result.scope)}: ${result.exit_code === 0 ? "passed" : "failed"}`); }
+ else { console.error(`verification ${result.scope}: ${result.exit_code === 0 ? "passed" : "failed"}`); }
  return result.exit_code;
 }
 

@@ -17,6 +17,7 @@ import { resolvedTaxonomyRule } from "./config.mjs";
 /** @typedef {{allowed_lint_rules: string[], cluster_key: string, factor: string, finding_count: number, gate_distance: number, hard_findings: number, paths: string[], repair_class: string, required_profiles: string[], rules: string[], source_units: string[]}} TaskDraft */
 /** @typedef {TaskDraft & {cluster_fingerprint: string, created_from?: string, factors: string[], gates: string[], priority: string, scope: string[], state: string, task_id: string, unit_ids: string[], claimed_by?: string, reason?: string|null, updated_at?: string}} Task */
 /** @typedef {Readonly<{units?: readonly Unit[], lint?: Readonly<{findings?: readonly Finding[]}> , measurement_id?: string}>} Measurement */
+/** @typedef {{groups: Map<string, TaskDraft>, factor: string, repairClass: string, clusterKey: string, path: string, finding: Unit|Finding, groupKey?: string}} FindingInput */
 
 /** @param {Readonly<Record<string, unknown>>} value */
 const taskHash = (value) => 
@@ -28,16 +29,7 @@ const pathCluster = (value) =>
  value.split("/").slice(0, -1).join("/") || "."
 
 
-/**
- * @param {Map<string, TaskDraft>} groups Finding groups.
- * @param {string} factor Quality factor.
- * @param {string} repairClass Repair class.
- * @param {string} clusterKey Taxonomy cluster.
- * @param {string} path Affected repository path.
- * @param {Unit|Finding} finding Normalized finding.
- * @param {string} [groupKey] Optional cross-file grouping key.
- * @returns {TaskDraft} Updated task draft.
- */
+/** @param {FindingInput} input @returns {TaskDraft} */
 const addFinding = ({groups, factor, repairClass, clusterKey, path, finding, groupKey = path}) => {
  const key = `${factor}\0${clusterKey}\0${groupKey}`,
   task = groups.get(key) ?? ({

@@ -174,8 +174,9 @@ const successRateFor = (effects, task) => {
 
 /**
  * Non-dominated tasks of one priority class, ordered by tie-break.
- * @param {ScheduleTask[]} tasks
- * @returns {ScheduleTask[]}
+ * @template {ScheduleTask} T
+ * @param {T[]} tasks
+ * @returns {T[]}
  */
 const paretoFrontier = (tasks) => {
  const frontier = tasks.filter(

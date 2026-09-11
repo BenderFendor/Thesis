@@ -1,10 +1,9 @@
 import { callOperation, evaluateSmoke, listOperations, listWebSockets, parseOptions, prepareRequest, runInvestigateCommand } from '../scoop.ts';
 import type { OpenApiSpec } from '../scoop.ts';
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { createServer } from "node:http";
 
-
-const { after, before, test } = process.getBuiltinModule("node:test");
-const assert = process.getBuiltinModule("node:assert/strict");
-const { createServer } = process.getBuiltinModule("node:http");
 
 type TestServer = ReturnType<typeof createServer>;
 type ServerAddress = ReturnType<TestServer["address"]>;
@@ -126,7 +125,7 @@ after(async () => {
   });
   await promise;
 });
-await test("OpenAPI and WebSocket inventories expose the backend contract", () => {
+void test("OpenAPI and WebSocket inventories expose the backend contract", () => {
 
 
   const operations = listOperations(SPEC).map(({ operationId, method, path }) => ({

@@ -16,24 +16,24 @@ type JsonValue = undefined | boolean | number | string | JsonValue[] | JsonObjec
 interface JsonObject { [key: string]: JsonValue }
 type ParameterLocation = "path" | "query" | "header" | "cookie";
 
-interface SchemaObject {
+interface SchemaObject extends JsonObject {
   type?: string | string[];
   items?: SchemaObject;
 }
 
-interface ParameterObject {
+interface ParameterObject extends JsonObject {
   name: string;
   in: ParameterLocation;
   required?: boolean;
   schema?: SchemaObject;
 }
 
-interface RequestBodyObject {
+interface RequestBodyObject extends JsonObject {
   required?: boolean;
   content?: JsonObject;
 }
 
-interface OperationObject {
+interface OperationObject extends JsonObject {
   operationId?: string;
   summary?: string;
   tags?: string[];
@@ -54,6 +54,7 @@ interface WebSocketOperation {
 }
 
 interface OpenApiSpec {
+  openapi?: string;
   paths?: Record<string, PathItemObject>;
   "x-scoop-websockets"?: WebSocketOperation[];
 }
@@ -178,12 +179,13 @@ const listPathOperations = (path: string, pathItem: PathItemObject): OperationDe
   const operations: OperationDescriptor[] = [];
   for (const [method, value] of Object.entries(pathItem)) {
     if (!HTTP_METHODS.has(method) || Array.isArray(value) || value === undefined) {continue;}
-    const operation = value;
-    if (!operation.operationId) {fail(`OpenAPI operation is missing operationId: ${method.toUpperCase()} ${path}`);}
+    const operation = value,
+      operationId = operation.operationId;
+    if (!operationId) {throw new CliError(`OpenAPI operation is missing operationId: ${method.toUpperCase()} ${path}`);}
     operations.push({
       method: method.toUpperCase(),
       operation,
-      operationId: operation.operationId,
+      operationId,
       path,
       pathParameters: pathItem.parameters ?? [],
       summary: operation.summary ?? "",
@@ -208,7 +210,7 @@ const listWebSockets = (spec: OpenApiSpec): WebSocketOperation[] =>
 
 const findOperation = (spec: OpenApiSpec, operationId: string): OperationDescriptor => {
   const operation = listOperations(spec).find((item) => item.operationId === operationId);
-  if (!operation) {fail(`Unknown operationId: ${operationId}`);}
+  if (!operation) {throw new CliError(`Unknown operationId: ${operationId}`);}
   return operation;
 }
 
@@ -440,8 +442,9 @@ const callOperation = async (
   });
 
   if (options.stream) {
-    if (!response.body) {fail("Response has no stream", 1);}
-    for await (const chunk of response.body) {process.stdout.write(chunk);}
+    const body = response.body;
+    if (!body) {throw new CliError("Response has no stream", 1);}
+    for await (const chunk of body) {process.stdout.write(chunk);}
     return { body: undefined, request, response };
   }
   return { body: await responseBody(response), request, response };
@@ -518,7 +521,7 @@ const listenWebSocket = async (
   const descriptor = listWebSockets(spec).find(
     (item) => item.operationId === operationIdOrPath || item.path === operationIdOrPath,
   );
-  if (!descriptor) {fail(`Unknown WebSocket operation or path: ${operationIdOrPath}`);}
+  if (!descriptor) {throw new CliError(`Unknown WebSocket operation or path: ${operationIdOrPath}`);}
   const baseUrl = options["base-url"] ?? process.env.SCOOP_API_URL ?? "http://127.0.0.1:8000",
    socketUrl = `${baseUrl.replace(/^http/u, "ws").replace(/\/$/u, "")}${descriptor.path}`,
    count = Number(options.count ?? 1),
@@ -666,7 +669,7 @@ const runInvestigateCommand = async (
   fetchImpl: typeof fetch = fetch,
 ): Promise<number> => {
   const workflow = INVESTIGATE_WORKFLOWS.get(subcommand);
-  if (!workflow) {fail(`Unknown investigate subcommand: ${subcommand}`);}
+  if (!workflow) {throw new CliError(`Unknown investigate subcommand: ${subcommand}`);}
 
   const params = investigateParameters(workflow, target, options),
    body = investigateBody(workflow, target, options),
@@ -711,8 +714,9 @@ const apiListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
 }
 
 const apiDescribeCommand = (spec: OpenApiSpec, target: string | undefined): number => {
-  if (!target) {fail("api describe requires an operationId");}
-  const item = findOperation(spec, target);
+  if (!target) {throw new CliError("api describe requires an operationId");}
+  const operationId = target,
+    item = findOperation(spec, operationId);
   printValue({
     method: item.method,
     operationId: item.operationId,
@@ -727,8 +731,9 @@ const apiDescribeCommand = (spec: OpenApiSpec, target: string | undefined): numb
 }
 
 const apiCallCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
-  if (!target) {fail("api call requires an operationId");}
-  const result = await callOperation(spec, target, options),
+  if (!target) {throw new CliError("api call requires an operationId");}
+  const operationId = target,
+    result = await callOperation(spec, operationId, options),
    output = options["include-meta"]
     ? {
         body: result.body,
@@ -743,8 +748,9 @@ const apiCallCommand = async (spec: OpenApiSpec, target: string | undefined, opt
 }
 
 const apiSmokeCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
-  if (!target) {fail("api smoke requires an operationId");}
-  const result = await callOperation(spec, target, options),
+  if (!target) {throw new CliError("api smoke requires an operationId");}
+  const operationId = target,
+    result = await callOperation(spec, operationId, options),
    report = evaluateSmoke(result, options);
   printValue({ ...report, checks: report.checks.map((check) => ({ ...check })) }, options.output);
   return report.ok ? 0 : 1;
@@ -775,8 +781,9 @@ const wsListCommand = (spec: OpenApiSpec, options: CliOptions): number => {
 }
 
 const wsListenCommand = async (spec: OpenApiSpec, target: string | undefined, options: CliOptions): Promise<number> => {
-  if (!target) {fail("ws listen requires an operationId or path");}
-  const result = await listenWebSocket(spec, target, options);
+  if (!target) {throw new CliError("ws listen requires an operationId or path");}
+  const operationIdOrPath = target,
+    result = await listenWebSocket(spec, operationIdOrPath, options);
   if (options["include-meta"] || Number(options.count ?? 1) === 0) {
     printValue(result, options.output);
   }
@@ -800,13 +807,15 @@ const runInvestigateGroup = (
   target: string | undefined,
   options: CliOptions,
 ): Promise<number> => {
-  if (!action) {fail("investigate requires a subcommand: organization, ownership, source, or reporter");}
-  if (!target) {fail(`investigate ${action} requires a name`);}
-  return runInvestigateCommand(spec, action, target, options);
+  if (!action) {throw new CliError("investigate requires a subcommand: organization, ownership, source, or reporter");}
+  if (!target) {throw new CliError(`investigate ${action} requires a name`);}
+  const subcommand = action,
+    name = target;
+  return runInvestigateCommand(spec, subcommand, name, options);
 }
 
 const usage = (): string => {
-  const workflows = INVESTIGATE_WORKFLOWS.entries()
+  const workflows = [...INVESTIGATE_WORKFLOWS.entries()]
     .map(([name, wf]) => {
       const args: string[] = [];
       if (wf.bodyOptionKeys?.includes("website")) {args.push("[--website URL]");}
