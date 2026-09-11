@@ -5,11 +5,11 @@ import { TabsContent } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import type { ClusterArticle } from "@/lib/api";
 import type { DeepReadonly } from "@/lib/deep-readonly";
-import type { RefObject } from "react";
 import { ArticleTabActions } from "./cluster-detail-modal-article-actions";
 import { ArticleTabHeader } from "./cluster-detail-modal-article-header";
 
 const EMPTY_HIGHLIGHTS: readonly [] = [];
+type ArticleContentRef = Readonly<{ current: HTMLDivElement | null }>;
 
 interface ArticleTabProps {
   readonly article: ClusterArticle;
@@ -17,7 +17,7 @@ interface ArticleTabProps {
   readonly loadingArticleId: number | null;
   readonly likedIds: ReadonlySet<number>;
   readonly isArticleInQueue: (url: string) => boolean;
-  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly contentRef: ArticleContentRef;
   readonly onLike: (articleId: number) => void;
   readonly onQueueToggle: (article: ClusterArticle) => void;
   readonly onClose: () => void;
@@ -76,7 +76,7 @@ const ArticleTabBody = ({
 }: DeepReadonly<{
   readonly article: ClusterArticle;
   readonly activeContent: string | null | undefined;
-  readonly contentRef: RefObject<HTMLDivElement | null>;
+  readonly contentRef: ArticleContentRef;
   readonly loadingArticleId: number | null;
 }>) => {
   if (loadingArticleId === article.id) {
