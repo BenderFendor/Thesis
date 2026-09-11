@@ -48,6 +48,16 @@ interface GlobeRuntime {
   readonly visibleCountries: ReturnType<typeof useGlobeCountryData>["visibleCountries"];
 }
 
+interface GlobeRuntimeEnvironment {
+  readonly containerRef: { readonly current: HTMLDivElement | null };
+  readonly dimensions: GlobeRuntime["dimensions"];
+  readonly globeInstance: GlobeInstance | null;
+  readonly globeRef: Readonly<GlobeRef>;
+  readonly globeSetup: ReturnType<typeof createGlobeMaterial>;
+  readonly qualityTier: ReturnType<typeof getQualityTier>;
+  readonly setDimensions: (dimensions: GlobeRuntime["dimensions"]) => void;
+}
+
 interface GlobeLifecycleContext {
   readonly containerRef: { readonly current: HTMLDivElement | null };
   readonly countryCenters: ReturnType<typeof useGlobeCountryData>["countryCenters"];
@@ -98,12 +108,7 @@ const useGlobeLifecycle = ({
   useGlobeMaterialCleanup(globeSetup);
 };
 
-const useGlobeRuntime = ({
-  articles,
-  countryMetrics,
-  lightingMode,
-  selectedCountry,
-}: GlobeRuntimeContext): GlobeRuntime => {
+const useGlobeRuntimeEnvironment = (): GlobeRuntimeEnvironment => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ height: ZERO_COUNT, width: ZERO_COUNT });
   const [globeInstance, setGlobeInstance] = useState<GlobeInstance | null>(null);
@@ -112,33 +117,66 @@ const useGlobeRuntime = ({
     () => getQualityTier(dimensions.width, dimensions.height),
     [dimensions.height, dimensions.width],
   );
-  const { countryCenters, visibleCountries } = useGlobeCountryData();
   const globeSetup = useMemo(() => createGlobeMaterial(), []);
+  return {
+    containerRef,
+    dimensions,
+    globeInstance,
+    globeRef,
+    globeSetup,
+    qualityTier,
+    setDimensions,
+  };
+};
+
+const useGlobeRuntimeData = ({
+  articles,
+  countryMetrics,
+}: DeepReadonly<Pick<GlobeRuntimeContext, "articles" | "countryMetrics">>) => {
+  const { countryCenters, visibleCountries } = useGlobeCountryData();
   const { displayCounts, maxCount, maxMentionCount, mentionCounts } = useGlobeCounts(
     articles,
     countryMetrics,
     visibleCountries,
   );
-  useGlobeLifecycle({
-    containerRef,
-    countryCenters,
-    globeInstance,
-    globeSetup,
-    lightingMode,
-    qualityTier,
-    selectedCountry,
-    setDimensions,
-  });
   return {
-    dimensions,
+    countryCenters,
     displayCounts,
-    globeInstance,
-    globeRef,
-    globeSetup,
     maxCount,
     maxMentionCount,
     mentionCounts,
     visibleCountries,
+  };
+};
+
+const useGlobeRuntime = ({
+  articles,
+  countryMetrics,
+  lightingMode,
+  selectedCountry,
+}: GlobeRuntimeContext): GlobeRuntime => {
+  const environment = useGlobeRuntimeEnvironment();
+  const data = useGlobeRuntimeData({ articles, countryMetrics });
+  useGlobeLifecycle({
+    containerRef: environment.containerRef,
+    countryCenters: data.countryCenters,
+    globeInstance: environment.globeInstance,
+    globeSetup: environment.globeSetup,
+    lightingMode,
+    qualityTier: environment.qualityTier,
+    selectedCountry,
+    setDimensions: environment.setDimensions,
+  });
+  return {
+    dimensions: environment.dimensions,
+    displayCounts: data.displayCounts,
+    globeInstance: environment.globeInstance,
+    globeRef: environment.globeRef,
+    globeSetup: environment.globeSetup,
+    maxCount: data.maxCount,
+    maxMentionCount: data.maxMentionCount,
+    mentionCounts: data.mentionCounts,
+    visibleCountries: data.visibleCountries,
   };
 };
 
