@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, CircleHelp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchClusterContradictions } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 interface ContradictionPanelProps {
   clusterId: number;
@@ -11,8 +11,8 @@ interface ContradictionPanelProps {
 
 export function ContradictionPanel({ clusterId }: ContradictionPanelProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["cluster-contradictions", clusterId],
     queryFn: () => fetchClusterContradictions(clusterId),
+    queryKey: ["cluster-contradictions", clusterId],
     staleTime: 60 * 1000,
   });
 
@@ -60,16 +60,16 @@ export function ContradictionPanel({ clusterId }: ContradictionPanelProps) {
         </Badge>
       </div>
 
-      {data.claims.length > 0 ? (
+      {(data.claims ?? []).length > 0 ? (
         <div className="space-y-3">
-          {data.claims.map((claim) => (
+          {(data.claims ?? []).map((claim) => (
             <div key={claim.claim} className="rounded-md border border-red-400/20 bg-red-500/5 p-3">
               <div className="flex items-center gap-2 text-sm text-foreground">
                 <AlertTriangle className="h-4 w-4 text-red-300" />
                 {claim.claim}
               </div>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {claim.evidence.slice(0, 4).map((item) => (
+                {(claim.evidence ?? []).slice(0, 4).map((item) => (
                   <a
                     key={`${item.source}-${item.article_url}-${item.snippet}`}
                     href={item.article_url}
@@ -93,13 +93,13 @@ export function ContradictionPanel({ clusterId }: ContradictionPanelProps) {
         </div>
       )}
 
-      {data.agreed_facts.length > 0 && (
+      {(data.agreed_facts ?? []).length > 0 && (
         <div className="space-y-2 border-t border-white/10 pt-4">
           <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
             <CheckCircle2 className="h-4 w-4" />
             What sources broadly agree on
           </div>
-          {data.agreed_facts.map((fact) => (
+          {(data.agreed_facts ?? []).map((fact) => (
             <div key={fact.claim} className="text-sm text-foreground/80">
               {fact.claim}
             </div>
@@ -107,12 +107,12 @@ export function ContradictionPanel({ clusterId }: ContradictionPanelProps) {
         </div>
       )}
 
-      {data.unconfirmed_gaps.length > 0 && (
+      {(data.unconfirmed_gaps ?? []).length > 0 && (
         <div className="space-y-2 border-t border-white/10 pt-4">
           <div className="text-xs uppercase tracking-widest text-muted-foreground">
             Still unconfirmed
           </div>
-          {data.unconfirmed_gaps.map((gap) => (
+          {(data.unconfirmed_gaps ?? []).map((gap) => (
             <div key={gap} className="text-sm text-muted-foreground">
               {gap}
             </div>

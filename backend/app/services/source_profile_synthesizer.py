@@ -133,30 +133,39 @@ def _parse_json_payload(text: str) -> dict[str, Any]:
         return {}
 
 
+def _normalize_entry(entry: Any) -> dict[str, Any] | None:
+    """Normalize one field entry, or None when it carries no usable value."""
+    if not isinstance(entry, dict):
+        return None
+    value = str(entry.get("value", "")).strip()
+    if not value:
+        return None
+    notes = entry.get("notes")
+    return {
+        "value": value,
+        "sources": _normalize_sources(entry.get("sources")),
+        "notes": str(notes).strip() if notes else None,
+    }
+
+
+def _clean_field_entries(entries: Any) -> list[dict[str, Any]]:
+    """Normalize every usable entry of one field."""
+    if not isinstance(entries, list):
+        return []
+    cleaned_entries: list[dict[str, Any]] = []
+    for entry in entries:
+        cleaned_entry = _normalize_entry(entry)
+        if cleaned_entry is not None:
+            cleaned_entries.append(cleaned_entry)
+    return cleaned_entries
+
+
 def _normalize_fields(
     fields_payload: dict[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
     normalized: dict[str, list[dict[str, Any]]] = {}
     for key in FIELD_KEYS:
-        entries = fields_payload.get(key, [])
-        if not isinstance(entries, list):
-            continue
-        cleaned_entries: list[dict[str, Any]] = []
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            value = str(entry.get("value", "")).strip()
-            if not value:
-                continue
-            sources_list = _normalize_sources(entry.get("sources"))
-            notes = entry.get("notes")
-            cleaned_entries.append(
-                {
-                    "value": value,
-                    "sources": sources_list,
-                    "notes": str(notes).strip() if notes else None,
-                }
-            )
+        cleaned_entries = _clean_field_entries(fields_payload.get(key, []))
         if cleaned_entries:
             normalized[key] = cleaned_entries
     return normalized

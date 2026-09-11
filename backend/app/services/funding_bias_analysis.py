@@ -103,69 +103,66 @@ class OutletSample:
     claim_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
+def _resolve_population_attribute(
+    claims: dict[str, Any],
+    key: str,
+    legacy_value: str | None,
+    catalog_value: Any,
+) -> tuple[str | None, str, str | None]:
+    claim = claims.get(key)
+    value = _claim_object_text(claim) if claim is not None else None
+    if value is not None:
+        return value.strip() or None, "claim", cast(str, claim.id)
+    fallback = (legacy_value or catalog_value or "").strip() or None
+    return fallback, "legacy", None
+
+
+async def _collect_outlet_sample(
+    db: AsyncSession, name: str, config: dict[str, Any]
+) -> OutletSample | None:
+    metadata = (
+        await db.execute(select(SourceMetadata).where(SourceMetadata.source_name == name))
+    ).scalar_one_or_none()
+    evidence_entity_id = await _outlet_evidence_entity_id(db, f"outlet:{stable_source_id(name)}")
+    claims = (
+        await _accepted_attribute_claims(db, evidence_entity_id, ("funding_type", "bias_rating"))
+        if evidence_entity_id is not None
+        else {}
+    )
+    funding_value, funding_origin, funding_claim_id = _resolve_population_attribute(
+        claims,
+        "funding_type",
+        metadata.funding_type if metadata else None,
+        config.get("funding_type"),
+    )
+    bias_value, bias_origin, bias_claim_id = _resolve_population_attribute(
+        claims,
+        "bias_rating",
+        metadata.political_bias if metadata else None,
+        config.get("bias_rating"),
+    )
+    if funding_value is None or bias_value is None:
+        return None
+    claim_ids = tuple(
+        claim_id for claim_id in (funding_claim_id, bias_claim_id) if claim_id is not None
+    )
+    return OutletSample(
+        name=name,
+        funding_type=funding_value,
+        bias_rating=bias_value,
+        funding_origin=funding_origin,
+        bias_origin=bias_origin,
+        claim_ids=claim_ids,
+    )
+
+
 async def collect_population(db: AsyncSession) -> list[OutletSample]:
-    """Every catalog outlet with both a known funding_type and bias_rating.
-
-    Each value independently prefers an accepted evidence-spine claim over
-    the legacy SourceMetadata/rss_sources.py value (`atlas_entity._funding_
-    and_bias_block`'s exact preference order for the per-entity panel, so
-    the catalog-wide statistic and the per-entity panel can never disagree
-    about which value an outlet is showing). Outlets missing either value
-    are excluded outright -- never imputed -- per the preregistered
-    population definition.
-    """
-    catalog = _catalog_sources()
+    """Return catalog outlets with both funding and bias values resolved."""
     samples: list[OutletSample] = []
-    for name, config in catalog.items():
-        metadata = (
-            await db.execute(select(SourceMetadata).where(SourceMetadata.source_name == name))
-        ).scalar_one_or_none()
-
-        outlet_node_id = f"outlet:{stable_source_id(name)}"
-        evidence_entity_id = await _outlet_evidence_entity_id(db, outlet_node_id)
-        claims: dict[str, Any] = {}
-        if evidence_entity_id is not None:
-            claims = await _accepted_attribute_claims(
-                db, evidence_entity_id, ("funding_type", "bias_rating")
-            )
-
-        claim_ids: list[str] = []
-        funding_claim = claims.get("funding_type")
-        funding_value = _claim_object_text(funding_claim) if funding_claim is not None else None
-        funding_origin = "claim"
-        if funding_value is None:
-            funding_value = (
-                (metadata.funding_type if metadata else None) or config.get("funding_type") or None
-            )
-            funding_origin = "legacy"
-        elif funding_claim is not None:
-            claim_ids.append(cast(str, funding_claim.id))
-
-        bias_claim = claims.get("bias_rating")
-        bias_value = _claim_object_text(bias_claim) if bias_claim is not None else None
-        bias_origin = "claim"
-        if bias_value is None:
-            bias_value = (
-                (metadata.political_bias if metadata else None) or config.get("bias_rating") or None
-            )
-            bias_origin = "legacy"
-        elif bias_claim is not None:
-            claim_ids.append(cast(str, bias_claim.id))
-
-        funding_value = (funding_value or "").strip() or None
-        bias_value = (bias_value or "").strip() or None
-        if not funding_value or not bias_value:
-            continue
-        samples.append(
-            OutletSample(
-                name=name,
-                funding_type=funding_value,
-                bias_rating=bias_value,
-                funding_origin=funding_origin,
-                bias_origin=bias_origin,
-                claim_ids=tuple(claim_ids),
-            )
-        )
+    for name, config in _catalog_sources().items():
+        sample = await _collect_outlet_sample(db, name, config)
+        if sample is not None:
+            samples.append(sample)
     return samples
 
 
@@ -183,6 +180,21 @@ def build_contingency_table(
     return rows, cols, table
 
 
+def _chi_square(
+    table: list[list[int]],
+    row_totals: list[int],
+    col_totals: list[int],
+    population_size: int,
+) -> float:
+    chi_square = 0.0
+    for row_index, row in enumerate(table):
+        for col_index, observed in enumerate(row):
+            expected = row_totals[row_index] * col_totals[col_index] / population_size
+            if expected > 0:
+                chi_square += (observed - expected) ** 2 / expected
+    return chi_square
+
+
 def cramers_v(table: list[list[int]]) -> dict[str, Any]:
     """Chi-square and Cramer's V for a contingency table -- stdlib only.
 
@@ -197,34 +209,19 @@ def cramers_v(table: list[list[int]]) -> dict[str, Any]:
     - fewer than 2 categories on either axis: `min(rows, cols) - 1 <= 0`,
       the denominator would be zero.
     """
-    rows = len(table)
-    cols = len(table[0]) if table else 0
-    n = sum(sum(row) for row in table)
-    if n == 0 or rows < 2 or cols < 2:
-        return {
-            "n": n,
-            "rows": rows,
-            "cols": cols,
-            "chi_square": None,
-            "degrees_of_freedom": None,
-            "cramers_v": None,
-            "note": (
-                "degenerate: empty population or fewer than two categories "
-                "on one axis -- no association statistic is computable"
-            ),
-        }
+    rows, cols, n = _contingency_dimensions(table)
+    if _is_degenerate_contingency(rows, cols, n):
+        return _degenerate_cramers_result(n, rows, cols)
     row_totals = [sum(row) for row in table]
     col_totals = [sum(table[i][j] for i in range(rows)) for j in range(cols)]
-    chi_square = 0.0
-    for i in range(rows):
-        for j in range(cols):
-            expected = row_totals[i] * col_totals[j] / n
-            if expected <= 0:
-                continue
-            chi_square += (table[i][j] - expected) ** 2 / expected
-    degrees_of_freedom = (rows - 1) * (cols - 1)
-    denominator = n * (min(rows, cols) - 1)
-    value = math.sqrt(chi_square / denominator) if denominator > 0 else None
+    chi_square, degrees_of_freedom, value = _cramers_statistics(
+        table,
+        row_totals,
+        col_totals,
+        rows,
+        cols,
+        n,
+    )
     return {
         "n": n,
         "rows": rows,
@@ -234,6 +231,51 @@ def cramers_v(table: list[list[int]]) -> dict[str, Any]:
         "cramers_v": round(value, 6) if value is not None else None,
         "note": None,
     }
+
+
+def _contingency_dimensions(table: list[list[int]]) -> tuple[int, int, int]:
+    rows = len(table)
+    cols = len(table[0]) if table else 0
+    n = sum(sum(row) for row in table)
+    return rows, cols, n
+
+
+def _is_degenerate_contingency(rows: int, cols: int, population_size: int) -> bool:
+    return population_size == 0 or rows < 2 or cols < 2
+
+
+def _degenerate_cramers_result(
+    population_size: int,
+    rows: int,
+    cols: int,
+) -> dict[str, Any]:
+    return {
+        "n": population_size,
+        "rows": rows,
+        "cols": cols,
+        "chi_square": None,
+        "degrees_of_freedom": None,
+        "cramers_v": None,
+        "note": (
+            "degenerate: empty population or fewer than two categories "
+            "on one axis -- no association statistic is computable"
+        ),
+    }
+
+
+def _cramers_statistics(
+    table: list[list[int]],
+    row_totals: list[int],
+    col_totals: list[int],
+    rows: int,
+    cols: int,
+    population_size: int,
+) -> tuple[float, int, float | None]:
+    chi_square = _chi_square(table, row_totals, col_totals, population_size)
+    degrees_of_freedom = (rows - 1) * (cols - 1)
+    denominator = population_size * (min(rows, cols) - 1)
+    value = math.sqrt(chi_square / denominator) if denominator > 0 else None
+    return chi_square, degrees_of_freedom, value
 
 
 async def preregister_funding_bias_methodology(db: AsyncSession) -> Preregistration:

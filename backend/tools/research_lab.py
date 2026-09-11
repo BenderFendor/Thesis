@@ -62,6 +62,21 @@ def _load_history_file(path: str | None) -> list[dict[str, str]]:
     return _normalize_history_payload(raw_history)
 
 
+def _nonempty_lines(raw_text: str) -> list[str]:
+    return [line.strip() for line in raw_text.splitlines() if line.strip()]
+
+
+def _queries_from_json(parsed: Any) -> list[str]:
+    if isinstance(parsed, list):
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    if not isinstance(parsed, dict):
+        return []
+    raw_queries = parsed.get("queries")
+    if not isinstance(raw_queries, list):
+        return []
+    return [str(item).strip() for item in raw_queries if str(item).strip()]
+
+
 def _load_queries_file(path: str | None) -> list[str]:
     if not path:
         return []
@@ -76,15 +91,8 @@ def _load_queries_file(path: str | None) -> list[str]:
     try:
         parsed = json.loads(raw_text)
     except json.JSONDecodeError:
-        return [line.strip() for line in raw_text.splitlines() if line.strip()]
-
-    if isinstance(parsed, list):
-        return [str(item).strip() for item in parsed if str(item).strip()]
-    if isinstance(parsed, dict):
-        raw_queries = parsed.get("queries")
-        if isinstance(raw_queries, list):
-            return [str(item).strip() for item in raw_queries if str(item).strip()]
-    return []
+        return _nonempty_lines(raw_text)
+    return _queries_from_json(parsed)
 
 
 def _append_history_turn(
@@ -141,56 +149,100 @@ def _resolve_final_answer(
     return ""
 
 
-def _build_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+def _record_requested_tools(counter: Counter[str], result: dict[str, Any]) -> None:
+    for tool_result in result.get("tool_sequence", []):
+        if not isinstance(tool_result, dict):
+            continue
+        tool_name = str(tool_result.get("tool", "")).strip()
+        if tool_name:
+            counter[tool_name] += 1
+
+
+def _record_tool_names(counter: Counter[str], tool_names: Any) -> None:
+    for tool_name in tool_names:
+        normalized_name = str(tool_name).strip()
+        if normalized_name:
+            counter[normalized_name] += 1
+
+
+def _record_source_providers(counter: Counter[str], providers: Any) -> None:
+    for provider in providers:
+        provider_name = str(provider).strip()
+        if provider_name:
+            counter[provider_name] += 1
+
+
+def _record_summary_result(
+    result: dict[str, Any],
+    requested_tools: Counter[str],
+    executed_tools: Counter[str],
+    source_providers: Counter[str],
+    queries_without_tool_calls: list[str],
+    history_recall_failures: list[str],
+) -> None:
+    if int(result.get("tool_calls", 0)) <= 0:
+        queries_without_tool_calls.append(str(result.get("query", "")))
+    if int(result.get("history_messages_sent", 0)) > 0 and _history_recall_failed(
+        str(result.get("answer", ""))
+    ):
+        history_recall_failures.append(str(result.get("query", "")))
+    _record_requested_tools(requested_tools, result)
+    _record_tool_names(executed_tools, result.get("executed_tools", []))
+    _record_source_providers(source_providers, result.get("source_providers", []))
+
+
+def _collect_summary_details(
+    results: list[dict[str, Any]],
+) -> tuple[Counter[str], Counter[str], Counter[str], list[str], list[str]]:
     requested_tool_counter: Counter[str] = Counter()
     executed_tool_counter: Counter[str] = Counter()
     source_provider_counter: Counter[str] = Counter()
     queries_without_tool_calls: list[str] = []
     history_recall_failures: list[str] = []
-
     for result in results:
-        if int(result.get("tool_calls", 0)) <= 0:
-            queries_without_tool_calls.append(str(result.get("query", "")))
+        _record_summary_result(
+            result,
+            requested_tool_counter,
+            executed_tool_counter,
+            source_provider_counter,
+            queries_without_tool_calls,
+            history_recall_failures,
+        )
+    return (
+        requested_tool_counter,
+        executed_tool_counter,
+        source_provider_counter,
+        queries_without_tool_calls,
+        history_recall_failures,
+    )
 
-        if int(result.get("history_messages_sent", 0)) > 0 and _history_recall_failed(
-            str(result.get("answer", ""))
-        ):
-            history_recall_failures.append(str(result.get("query", "")))
 
-        for tool_result in result.get("tool_sequence", []):
-            if not isinstance(tool_result, dict):
-                continue
-            tool_name = str(tool_result.get("tool", "")).strip()
-            if tool_name:
-                requested_tool_counter[tool_name] += 1
+def _count_truthy_results(results: list[dict[str, Any]], key: str) -> int:
+    return sum(1 for result in results if bool(result.get(key)))
 
-        for tool_name in result.get("executed_tools", []):
-            tool_name_str = str(tool_name).strip()
-            if tool_name_str:
-                executed_tool_counter[tool_name_str] += 1
 
-        for provider in result.get("source_providers", []):
-            provider_name = str(provider).strip()
-            if provider_name:
-                source_provider_counter[provider_name] += 1
+def _average_result_metric(results: list[dict[str, Any]], key: str) -> float:
+    return _round_average([float(result.get(key, 0.0)) for result in results])
+
+
+def _build_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    (
+        requested_tool_counter,
+        executed_tool_counter,
+        source_provider_counter,
+        queries_without_tool_calls,
+        history_recall_failures,
+    ) = _collect_summary_details(results)
 
     return {
-        "completed": sum(1 for result in results if bool(result.get("completed"))),
+        "completed": _count_truthy_results(results, "completed"),
         "failures": sum(1 for result in results if not bool(result.get("has_sections"))),
-        "errors": sum(1 for result in results if bool(result.get("error"))),
-        "stopped_early": sum(1 for result in results if bool(result.get("stopped_early"))),
-        "avg_elapsed_seconds": _round_average(
-            [float(result.get("elapsed_seconds", 0.0)) for result in results]
-        ),
-        "avg_time_to_first_event": _round_average(
-            [float(result.get("time_to_first_event", 0.0)) for result in results]
-        ),
-        "avg_tool_calls": _round_average(
-            [float(result.get("tool_calls", 0.0)) for result in results]
-        ),
-        "avg_executed_tool_calls": _round_average(
-            [float(result.get("executed_tool_calls", 0.0)) for result in results]
-        ),
+        "errors": _count_truthy_results(results, "error"),
+        "stopped_early": _count_truthy_results(results, "stopped_early"),
+        "avg_elapsed_seconds": _average_result_metric(results, "elapsed_seconds"),
+        "avg_time_to_first_event": _average_result_metric(results, "time_to_first_event"),
+        "avg_tool_calls": _average_result_metric(results, "tool_calls"),
+        "avg_executed_tool_calls": _average_result_metric(results, "executed_tool_calls"),
         "unique_tools": sorted(executed_tool_counter),
         "tool_usage_counts": dict(sorted(executed_tool_counter.items())),
         "unique_requested_tools": sorted(requested_tool_counter),
@@ -269,80 +321,103 @@ def _record_event(state: dict[str, Any], event: dict[str, Any]) -> None:
     state["raw_events"].append(event)
 
 
+def _process_status_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    status_message = str(event.get("message", ""))
+    state["streaming_status"] = status_message
+    state["status_history"].append(status_message)
+
+
+def _process_thinking_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    step = event.get("step") or {}
+    if not isinstance(step, dict):
+        return
+    state["thinking_steps"].append(step)
+    step_type = str(step.get("type", ""))
+    state["streaming_status"] = _step_status_label(step_type)
+    if step_type == "tool_start":
+        state["tool_calls"].append(step)
+
+
+def _process_articles_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    payload = event.get("data")
+    if not isinstance(payload, str) or not payload.strip():
+        return
+    try:
+        state["structured_articles"] = json.loads(payload)
+        state["streaming_status"] = "Article data ready."
+    except json.JSONDecodeError:
+        state["structured_articles"] = payload
+
+
+def _process_referenced_articles_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    articles = event.get("articles")
+    state["referenced_articles"] = articles if isinstance(articles, list) else []
+    state["streaming_status"] = "Reviewing articles."
+
+
+def _process_tool_result_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    tool_name = str(event.get("tool", "")).strip()
+    if tool_name:
+        state["executed_tools"].append(tool_name)
+    state["streaming_status"] = "Reviewing results."
+
+
+def _process_complete_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    result = event.get("result")
+    state["final_result"] = result if isinstance(result, dict) else None
+    state["streaming_status"] = None
+
+
+def _process_error_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    state["error"] = str(event.get("message", "Research hit an error."))
+    state["streaming_status"] = None
+
+
+EVENT_HANDLERS = {
+    "articles_json": _process_articles_event,
+    "complete": _process_complete_event,
+    "error": _process_error_event,
+    "referenced_articles": _process_referenced_articles_event,
+    "status": _process_status_event,
+    "thinking_step": _process_thinking_event,
+    "tool_result": _process_tool_result_event,
+}
+
+
 def _process_event_like_frontend(state: dict[str, Any], event: dict[str, Any]) -> None:
     _record_event(state, event)
     message_type = str(event.get("type", "unknown"))
-
-    if _is_status_message(message_type):
-        status_message = str(event.get("message", ""))
-        state["streaming_status"] = status_message
-        state["status_history"].append(status_message)
-        return
-
-    if _is_thinking_step_message(message_type):
-        step = event.get("step") or {}
-        if isinstance(step, dict):
-            state["thinking_steps"].append(step)
-            step_type = str(step.get("type", ""))
-            state["streaming_status"] = _step_status_label(step_type)
-            if step_type == "tool_start":
-                state["tool_calls"].append(step)
-        return
-
-    if _is_articles_json_message(message_type):
-        payload = event.get("data")
-        if isinstance(payload, str) and payload.strip():
-            try:
-                state["structured_articles"] = json.loads(payload)
-                state["streaming_status"] = "Article data ready."
-            except json.JSONDecodeError:
-                state["structured_articles"] = payload
-        return
-
-    if _is_referenced_articles_message(message_type):
-        articles = event.get("articles")
-        state["referenced_articles"] = articles if isinstance(articles, list) else []
-        state["streaming_status"] = "Reviewing articles."
-        return
-
-    if message_type == "tool_result":
-        tool_name = str(event.get("tool", "")).strip()
-        if tool_name:
-            state["executed_tools"].append(tool_name)
-        state["streaming_status"] = "Reviewing results."
-        return
-
-    if _is_complete_message(message_type):
-        result = event.get("result")
-        state["final_result"] = result if isinstance(result, dict) else None
-        state["streaming_status"] = None
-        return
-
-    if _is_error_message(message_type):
-        error_message = str(event.get("message", "Research hit an error."))
-        state["error"] = error_message
-        state["streaming_status"] = None
+    handler = EVENT_HANDLERS.get(message_type)
+    if handler:
+        handler(state, event)
 
 
-async def run_once(
-    query: str,
+def _parse_sse_event(line: str) -> dict[str, Any] | None:
+    if not line or not line.startswith("data:"):
+        return None
+    payload = line.replace("data:", "", 1).strip()
+    if not payload:
+        return None
+    try:
+        event = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def _should_stop_stream(event: dict[str, Any]) -> bool:
+    message_type = str(event.get("type", ""))
+    return _is_complete_message(message_type) or _is_error_message(message_type)
+
+
+async def _consume_research_stream(
+    *,
     api_base: str,
+    params: dict[str, str],
     max_seconds: float,
-    history: list[dict[str, str]] | None = None,
-) -> dict[str, Any]:
-    """Run Once."""
-    params = {
-        "query": query,
-        "include_thinking": "true",
-    }
-    history_payload = _normalize_history_payload(history or [])
-    if history_payload:
-        params["history"] = json.dumps(history_payload)
-    start_time = time.time()
+    state: dict[str, Any],
+) -> tuple[float | None, bool]:
     first_event_time: float | None = None
-    state = _new_state(query)
-    stopped_early = False
-
     try:
         async with asyncio.timeout(max_seconds):
             async with httpx.AsyncClient(timeout=None) as client:
@@ -354,40 +429,40 @@ async def run_once(
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
-                        if not line or not line.startswith("data:"):
-                            continue
-                        payload = line.replace("data:", "", 1).strip()
-                        if not payload:
-                            continue
-                        try:
-                            event = json.loads(payload)
-                        except json.JSONDecodeError:
+                        event = _parse_sse_event(line)
+                        if event is None:
                             continue
                         if first_event_time is None:
                             first_event_time = time.time()
-
                         _process_event_like_frontend(state, event)
-
-                        if _is_complete_message(str(event.get("type", ""))):
-                            break
-
-                        if _is_error_message(str(event.get("type", ""))):
+                        if _should_stop_stream(event):
                             break
     except TimeoutError:
-        stopped_early = True
+        return first_event_time, True
+    return first_event_time, False
 
+
+def _tool_events(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [event for event in state["raw_events"] if str(event.get("type", "")) == "tool_start"]
+
+
+def _build_run_result(
+    *,
+    query: str,
+    history_payload: list[dict[str, str]],
+    state: dict[str, Any],
+    start_time: float,
+    first_event_time: float | None,
+    stopped_early: bool,
+) -> dict[str, Any]:
     elapsed = time.time() - start_time
     ttf = (first_event_time - start_time) if first_event_time else 0.0
     final_result = state["final_result"] if isinstance(state["final_result"], dict) else {}
     final_answer = _resolve_final_answer(final_result, state["thinking_steps"])
-
     repeated_checking = sum(
         1 for status in state["status_history"] if status == "Checking more sources."
     )
-    tool_events = [
-        event for event in state["raw_events"] if str(event.get("type", "")) == "tool_start"
-    ]
-
+    tool_events = _tool_events(state)
     return {
         "query": query,
         "elapsed_seconds": round(elapsed, 2),
@@ -396,10 +471,7 @@ async def run_once(
         "tool_calls": len(tool_events),
         "executed_tool_calls": len(state["executed_tools"]),
         "tool_sequence": [
-            {
-                "tool": str(event.get("tool", "")),
-                "args": event.get("args", {}),
-            }
+            {"tool": str(event.get("tool", "")), "args": event.get("args", {})}
             for event in tool_events
         ],
         "executed_tools": list(state["executed_tools"]),
@@ -417,6 +489,38 @@ async def run_once(
         "source_providers": list(final_result.get("source_providers") or []),
         "answer": final_answer,
     }
+
+
+async def run_once(
+    query: str,
+    api_base: str,
+    max_seconds: float,
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Run Once."""
+    params = {
+        "query": query,
+        "include_thinking": "true",
+    }
+    history_payload = _normalize_history_payload(history or [])
+    if history_payload:
+        params["history"] = json.dumps(history_payload)
+    start_time = time.time()
+    state = _new_state(query)
+    first_event_time, stopped_early = await _consume_research_stream(
+        api_base=api_base,
+        params=params,
+        max_seconds=max_seconds,
+        state=state,
+    )
+    return _build_run_result(
+        query=query,
+        history_payload=history_payload,
+        state=state,
+        start_time=start_time,
+        first_event_time=first_event_time,
+        stopped_early=stopped_early,
+    )
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -465,15 +569,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    """Main."""
-    args = build_arg_parser().parse_args()
-    file_queries = _load_queries_file(args.query_file)
-    queries = args.query or file_queries or DEFAULT_QUERIES
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    seed_history = _load_history_file(args.history_file)
-
+def _run_query_batch(
+    args: argparse.Namespace,
+    queries: list[str],
+    seed_history: list[dict[str, str]],
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for run_index in range(args.runs):
         history = list(seed_history)
@@ -492,6 +592,18 @@ def main() -> None:
             results.append(result)
             if args.carry_history:
                 history = _append_history_turn(history, query, result.get("answer", ""))
+    return results
+
+
+def main() -> None:
+    """Main."""
+    args = build_arg_parser().parse_args()
+    file_queries = _load_queries_file(args.query_file)
+    queries = args.query or file_queries or DEFAULT_QUERIES
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    seed_history = _load_history_file(args.history_file)
+    results = _run_query_batch(args, queries, seed_history)
 
     summary = {
         "timestamp": _utc_now(),

@@ -1,236 +1,171 @@
-import React from "react"
-
 import type { Highlight } from "./api"
-import { createHighlightFingerprint } from "./highlight-store"
+import type { ReactNode } from "react"
+import { getRenderableHighlights } from "./highlight-processing"
 
-export type HighlightStableId = string
+type HighlightStableId = string
 
-export function getGlobalOffset(root: HTMLElement, node: Node, offset: number): number {
-  if (!root.contains(node) && node !== root) {
-    return -1
-  }
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let currentNode = walker.nextNode()
-  let globalOffset = 0
-
-  while (currentNode) {
-    if (currentNode === node) {
-      return globalOffset + Math.min(offset, currentNode.textContent?.length ?? 0)
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE && node === currentNode.parentNode) {
-      const parent = node as HTMLElement
-      const childOffset = Math.min(offset, parent.childNodes.length)
-      for (let i = 0; i < childOffset; i += 1) {
-        const child = parent.childNodes[i]
-        if (child === currentNode) {
-          return globalOffset
-        }
-        globalOffset += child!.textContent?.length ?? 0
-      }
-    }
-
-    globalOffset += currentNode.textContent?.length ?? 0
-    currentNode = walker.nextNode()
-  }
-
-  return node === root ? Math.min(offset, root.textContent?.length ?? 0) : -1
+interface HighlightAnchorElement {
+  readonly contains: HTMLElement["contains"]
+  readonly getBoundingClientRect: () => DOMRect
 }
 
-export function highlightStableId(highlight: Highlight): HighlightStableId {
-  if (highlight.id !== undefined && highlight.id !== null) {
+interface HighlightPointerEvent {
+  readonly currentTarget: HighlightAnchorElement
+  readonly stopPropagation: () => void
+}
+
+interface HighlightKeyboardEvent {
+  readonly currentTarget: HighlightAnchorElement
+  readonly key: string
+  readonly preventDefault: () => void
+  readonly stopPropagation: () => void
+}
+
+type HighlightClickHandler = (
+  stableId: HighlightStableId,
+  element: HighlightAnchorElement,
+) => void
+
+interface HighlightHandlers {
+  readonly handleClick: (event: Readonly<HighlightPointerEvent>) => void
+  readonly handleKeyDown: (event: Readonly<HighlightKeyboardEvent>) => void
+}
+
+interface HighlightRenderState {
+  cursor: number
+  nodes: ReactNode[]
+}
+
+interface HighlightRange {
+  readonly end: number
+  readonly start: number
+}
+
+const EMPTY_TEXT_LENGTH = 0,
+ FIRST_INDEX = 0,
+ FIRST_TAB_INDEX = 0,
+ HIGHLIGHT_COLOR_CLASSES = new Map<string, string>([
+  ["blue", "bg-blue-200 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100"],
+  ["green", "bg-green-200 dark:bg-green-900/60 text-green-900 dark:text-green-100"],
+  ["purple", "bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100"],
+  ["red", "bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-100"],
+  ["yellow", "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100"],
+ ]),
+ HIGHLIGHT_MARK_STYLE = { WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" } as const,
+ HIGHLIGHT_PREVIEW_LENGTH = 32,
+
+ createHighlightHandlers = (
+  stableId: HighlightStableId,
+  onHighlightClick: HighlightClickHandler | undefined,
+): HighlightHandlers => {
+  const activateHighlight = (element: HighlightAnchorElement): void => {
+    onHighlightClick?.(stableId, element)
+  },
+   handleClick = (event: Readonly<HighlightPointerEvent>): void => {
+    event.stopPropagation()
+    activateHighlight(event.currentTarget)
+  },
+   handleKeyDown = (event: Readonly<HighlightKeyboardEvent>): void => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    activateHighlight(event.currentTarget)
+  }
+
+  return { handleClick, handleKeyDown }
+ },
+
+ getActiveHighlightClassName = (
+  stableId: HighlightStableId,
+  activeHighlightId: HighlightStableId | null | undefined,
+): string => {
+  if (stableId === activeHighlightId) {
+    return " ring-2 ring-primary/70"
+  }
+  return ""
+ },
+
+ getHighlightColorClass = (color: string): string =>
+  HIGHLIGHT_COLOR_CLASSES.get(color) ?? HIGHLIGHT_COLOR_CLASSES.get("yellow") ?? "",
+
+ getHighlightRange = (highlight: Readonly<Highlight>, cursor: number): HighlightRange => ({
+  end: highlight.character_end,
+  start: Math.max(cursor, highlight.character_start),
+ }),
+
+ highlightStableId = (highlight: Readonly<Highlight>): HighlightStableId => {
+  if (highlight.id !== undefined) {
     return `server:${highlight.id}`
   }
-  const anyHighlight = highlight as Highlight & { client_id?: string }
-  if (anyHighlight.client_id) {
-    return `client:${anyHighlight.client_id}`
+  if (highlight.client_id !== undefined && highlight.client_id.length > EMPTY_TEXT_LENGTH) {
+    return `client:${highlight.client_id}`
   }
-  return `range:${highlight.character_start}:${highlight.character_end}:${(highlight.highlighted_text || "").slice(0, 32)}`
-}
+  return `range:${highlight.character_start}:${highlight.character_end}:${highlight.highlighted_text.slice(FIRST_INDEX, HIGHLIGHT_PREVIEW_LENGTH)}`
+ },
 
-function getRenderableHighlights(textLength: number, highlights: Highlight[]): Highlight[] {
-  const deduped = new Map<string, Highlight>()
-
-  ;[...highlights]
-    .filter((highlight) => highlight.character_end > highlight.character_start)
-    .map((highlight) => ({
-      ...highlight,
-      character_start: Math.max(0, Math.min(highlight.character_start, textLength)),
-      character_end: Math.max(0, Math.min(highlight.character_end, textLength)),
-    }))
-    .filter((highlight) => highlight.character_end > highlight.character_start)
-    .sort((a, b) => a.character_start - b.character_start)
-    .forEach((highlight) => {
-      const key = createHighlightFingerprint(highlight)
-      const existing = deduped.get(key)
-      if (!existing) {
-        deduped.set(key, highlight)
-        return
-      }
-
-      if ((highlight.id ?? 0) > (existing.id ?? 0)) {
-        deduped.set(key, highlight)
-      }
-    })
-
-  return [...deduped.values()].sort((a, b) => a.character_start - b.character_start)
-}
-
-function renderTextWithHighlights(
+ renderHighlightedContent = (
   text: string,
-  highlights: Highlight[],
-  onHighlightClick?: (id: HighlightStableId, element: HTMLElement) => void,
+  highlights: readonly Readonly<Highlight>[],
+  onHighlightClick?: HighlightClickHandler,
   activeHighlightId?: HighlightStableId | null,
-): React.ReactNode[] {
-  if (!text) return []
+): ReactNode[] => renderTextWithHighlights(text, highlights, onHighlightClick, activeHighlightId),
 
-  const safeHighlights = getRenderableHighlights(text.length, highlights)
-  if (safeHighlights.length === 0) {
+ renderTextWithHighlights = (
+  text: string,
+  highlights: readonly Readonly<Highlight>[],
+  onHighlightClick: HighlightClickHandler | undefined,
+  activeHighlightId: HighlightStableId | null | undefined,
+): ReactNode[] => {
+  const renderState: HighlightRenderState = { cursor: FIRST_INDEX, nodes: [] },
+   safeHighlights = getRenderableHighlights(text.length, highlights)
+  if (text.length === EMPTY_TEXT_LENGTH) {
+    return []
+  }
+  if (safeHighlights.length === EMPTY_TEXT_LENGTH) {
     return [text]
   }
 
-  const nodes: React.ReactNode[] = []
-  let cursor = 0
-
   safeHighlights.forEach((highlight) => {
-    const start = Math.max(cursor, highlight.character_start)
-    const end = highlight.character_end
-    if (end <= cursor) return
-    if (start > cursor) {
-      nodes.push(text.slice(cursor, start))
+    const { end, start } = getHighlightRange(highlight, renderState.cursor),
+     stableId = highlightStableId(highlight),
+     { handleClick, handleKeyDown } = createHighlightHandlers(stableId, onHighlightClick)
+    if (end <= renderState.cursor) {
+      return
     }
-
-    const stableId = highlightStableId(highlight)
-    nodes.push(
-      <mark
+    if (start > renderState.cursor) {
+      renderState.nodes.push(text.slice(renderState.cursor, start))
+    }
+    renderState.nodes.push(
+      <button
         key={stableId}
+        type="button"
         data-highlight-stable-id={stableId}
-        className={`cursor-pointer transition-colors hover:opacity-80 ${getHighlightColorClass(highlight.color)} ${stableId === activeHighlightId ? "ring-2 ring-primary/70" : ""}`}
-        onClick={(event) => {
-          event.stopPropagation()
-          onHighlightClick?.(stableId, event.currentTarget)
-        }}
-        title={highlight.note || "Click to edit"}
-        style={{ WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" }}
+        className={`appearance-none border-0 bg-transparent p-0 font-inherit text-inherit text-left cursor-pointer transition-colors hover:opacity-80 ${getHighlightColorClass(highlight.color)}${getActiveHighlightClassName(stableId, activeHighlightId)}`}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        tabIndex={FIRST_TAB_INDEX}
+        title={highlight.note ?? "Click to edit"}
+        style={HIGHLIGHT_MARK_STYLE}
       >
         {text.slice(start, end)}
-      </mark>,
+      </button>,
     )
-    cursor = end
+    renderState.cursor = end
   })
 
-  if (cursor < text.length) {
-    nodes.push(text.slice(cursor))
+  if (renderState.cursor < text.length) {
+    renderState.nodes.push(text.slice(renderState.cursor))
   }
+  return renderState.nodes
+ }
 
-  return nodes
+export {
+  getHighlightColorClass,
+  highlightStableId,
+  renderHighlightedContent,
 }
-
-export function renderHighlightedContent(
-  text: string,
-  highlights: Highlight[],
-  onHighlightClick?: (id: HighlightStableId, element: HTMLElement) => void,
-  activeHighlightId?: HighlightStableId | null,
-): React.ReactNode[] {
-  if (!text) return []
-
-  return renderTextWithHighlights(text, highlights, onHighlightClick, activeHighlightId)
-}
-
-export function getHighlightColorClass(color: string) {
-  switch (color) {
-    case "yellow":
-      return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100"
-    case "blue":
-      return "bg-blue-200 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100"
-    case "red":
-      return "bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-100"
-    case "green":
-      return "bg-green-200 dark:bg-green-900/60 text-green-900 dark:text-green-100"
-    case "purple":
-      return "bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100"
-    default:
-      return "bg-yellow-200 dark:bg-yellow-900/60 text-yellow-900 dark:text-yellow-100"
-  }
-}
-
-export function getMarkdownWithHighlights(text: string, highlights: Highlight[]): string {
-  if (!text) return ""
-
-  const validHighlights = getRenderableHighlights(text.length, highlights || [])
-  if (validHighlights.length === 0) return text
-
-  let result = ""
-  let cursor = 0
-
-  validHighlights.forEach((highlight) => {
-    const start = Math.max(cursor, highlight.character_start)
-    const end = highlight.character_end
-    if (end <= cursor) return
-    if (start > cursor) {
-      result += text.slice(cursor, start)
-    }
-    result += `==${text.slice(start, end)}==`
-    cursor = end
-  })
-
-  if (cursor < text.length) {
-    result += text.slice(cursor)
-  }
-
-  return result
-}
-
-export function buildObsidianMarkdown(params: {
-  article: {
-    url: string
-    title: string
-    author?: string
-    publishedAt: string
-    content?: string
-    summary: string
-  }
-  fullArticleText?: string | null
-  highlights: Highlight[]
-}) {
-  const { article, fullArticleText, highlights } = params
-  const lines: string[] = [
-    "---",
-    `source: \"${article.url}\"`,
-    "author:",
-    article.author ? `  - \"[[${article.author}]]\"` : '  - ""',
-    `published: \"${article.publishedAt}\"`,
-    'tags:',
-    '  - "news"',
-    'backlinks: ""',
-    "---",
-    "",
-  ]
-
-  const activeHighlights = highlights
-    .filter((highlight) => highlight.character_end > highlight.character_start)
-    .sort((a, b) => a.character_start - b.character_start)
-
-  if (activeHighlights.length > 0) {
-    lines.push("## Highlights\n")
-    activeHighlights.forEach((highlight) => {
-      const text = highlight.highlighted_text.replace(/\s+/g, " ").trim()
-      if (!text) return
-      lines.push(`> ${text}`)
-      lines.push("")
-      lines.push(`- Color: ${highlight.color}`)
-      if (highlight.note?.trim()) {
-        lines.push(`- Note: ${highlight.note.trim()}`)
-      }
-      lines.push("")
-    })
-    lines.push("---", "")
-  }
-
-  lines.push("## Full Article\n")
-  const fullContent = fullArticleText || article.summary || article.content || ""
-  lines.push(getMarkdownWithHighlights(fullContent, activeHighlights))
-
-  return [...lines, "", "[[News Clippings]]"].join("\n")
-}
+export { getGlobalOffset } from "./highlight-offset"
+export { buildObsidianMarkdown, getMarkdownWithHighlights } from "./highlight-markdown"
+export type { HighlightStableId }

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   getStorageSnapshot,
   removeFromStorage,
@@ -5,49 +6,51 @@ import {
 } from "@/lib/storage";
 
 describe("getStorageSnapshot", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
+  it("reuses the fallback reference when storage is empty", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
+    const fallback: string[] = [],
 
-  it("reuses the fallback reference when storage is empty", () => {
-    const fallback: string[] = [];
-
-    const firstSnapshot = getStorageSnapshot("missing-key", fallback);
-    const secondSnapshot = getStorageSnapshot("missing-key", fallback);
+     firstSnapshot = getStorageSnapshot("missing-key", fallback),
+     secondSnapshot = getStorageSnapshot("missing-key", fallback);
 
     expect(firstSnapshot).toBe(fallback);
     expect(secondSnapshot).toBe(fallback);
     expect(secondSnapshot).toBe(firstSnapshot);
   });
 
-  it("reuses the parsed snapshot while the stored value is unchanged", () => {
+  it("reuses the parsed snapshot while the stored value is unchanged", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
     saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
 
-    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
-    const secondSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
+    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []),
+     secondSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
 
     expect(secondSnapshot).toBe(firstSnapshot);
-    expect(secondSnapshot).toEqual(["bbc", "reuters"]);
+    expect(secondSnapshot).toStrictEqual(["bbc", "reuters"]);
   });
 
-  it("returns a new snapshot after the stored value changes", () => {
+  it("returns a new snapshot after the stored value changes", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
     saveToStorage("favoriteSourceIds", ["bbc"]);
-    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
-
-    saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
-    const secondSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []);
+    const firstSnapshot = getStorageSnapshot<string[]>("favoriteSourceIds", []),
+      secondSnapshot = (() => {
+        saveToStorage("favoriteSourceIds", ["bbc", "reuters"]);
+        return getStorageSnapshot<string[]>("favoriteSourceIds", []);
+      })();
 
     expect(secondSnapshot).not.toBe(firstSnapshot);
-    expect(secondSnapshot).toEqual(["bbc", "reuters"]);
+    expect(secondSnapshot).toStrictEqual(["bbc", "reuters"]);
   });
 
-  it("returns the fallback after the key is removed", () => {
-    const fallback: string[] = [];
-    saveToStorage("favoriteSourceIds", ["bbc"]);
-    getStorageSnapshot<string[]>("favoriteSourceIds", fallback);
-
-    removeFromStorage("favoriteSourceIds");
-    const nextSnapshot = getStorageSnapshot("favoriteSourceIds", fallback);
+  it("returns the fallback after the key is removed", () => {expect.hasAssertions();
+    globalThis.localStorage.clear();
+    const fallback: string[] = [],
+      nextSnapshot = (() => {
+        saveToStorage("favoriteSourceIds", ["bbc"]);
+        getStorageSnapshot<string[]>("favoriteSourceIds", fallback);
+        removeFromStorage("favoriteSourceIds");
+        return getStorageSnapshot("favoriteSourceIds", fallback);
+      })();
 
     expect(nextSnapshot).toBe(fallback);
   });

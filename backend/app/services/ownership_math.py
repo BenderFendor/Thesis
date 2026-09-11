@@ -229,16 +229,18 @@ def _enumerate_paths(
         if len(paths) >= max_paths:
             raise OwnershipMathError(f"ownership path count exceeds safety limit {max_paths}")
         if current == target_id:
-            group_values = {group for group in groups if group}
-            paths.append(
-                InterestPath(
-                    entity_ids=entity_ids,
-                    claim_ids=claim_ids,
-                    interest=interest,
-                    disjoint_group=next(iter(group_values)) if len(group_values) == 1 else None,
-                )
-            )
+            paths.append(_build_interest_path(entity_ids, claim_ids, interest, groups))
             return
+
+        walk_edges(current, entity_ids, claim_ids, interest, groups)
+
+    def walk_edges(
+        current: str,
+        entity_ids: tuple[str, ...],
+        claim_ids: tuple[str, ...],
+        interest: InterestRange,
+        groups: tuple[str, ...],
+    ) -> None:
         for edge in adjacency.get(current, []):
             if edge.owned_id in entity_ids:
                 continue
@@ -252,6 +254,21 @@ def _enumerate_paths(
 
     walk(owner_id, (owner_id,), (), InterestRange.point(1), ())
     return tuple(paths)
+
+
+def _build_interest_path(
+    entity_ids: tuple[str, ...],
+    claim_ids: tuple[str, ...],
+    interest: InterestRange,
+    groups: tuple[str, ...],
+) -> InterestPath:
+    group_values = {group for group in groups if group}
+    return InterestPath(
+        entity_ids=entity_ids,
+        claim_ids=claim_ids,
+        interest=interest,
+        disjoint_group=next(iter(group_values)) if len(group_values) == 1 else None,
+    )
 
 
 def compute_indirect_interest(

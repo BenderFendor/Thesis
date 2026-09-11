@@ -63,6 +63,7 @@ from app.models.evidence import (
     EvidenceEntity,
     EvidenceObservation,
 )
+from app.services.ad_supply_transparency import ADS_TXT_MAX_BYTES, ads_txt_url, parse_ads_txt
 from app.services.entity_resolver import resolve_or_create
 from app.services.evidence_spine import (
     ContradictionError,
@@ -81,7 +82,6 @@ from app.services.littlesis_integration import (
     load_littlesis_entities,
     load_littlesis_relationships,
 )
-from app.services.ad_supply_transparency import ADS_TXT_MAX_BYTES, ads_txt_url, parse_ads_txt
 from app.services.mbfc_integration import build_mbfc_lookup
 
 logger = get_logger("evidence_ingest")
@@ -437,7 +437,7 @@ async def _ingest_wikidata_qid(
     Returns the list of owner QIDs discovered (P127 + P749), for BFS
     expansion by the caller.
     """
-    result = await researcher._fetch_wikidata_by_qid(qid)  # noqa: SLF001 -- intentional reuse
+    result = await researcher._fetch_wikidata_by_qid(qid)
     if not result:
         return []
     raw_claims = cast(dict[str, Any], result.get("raw_claims") or {})
@@ -609,27 +609,12 @@ async def _ingest_wikidata_qid(
     return owner_qids
 
 
-async def ingest_wikidata_ownership_claims(
+async def _load_wikidata_seeds(
     db: AsyncSession,
-    *,
-    seed_entity_ids: list[str] | None = None,
-    limit: int | None = None,
-    max_depth: int = 3,
-    researcher: FundingResearcher | None = None,
-) -> IngestReport:
-    """BFS Wikidata P127/P749/P112/P169 outward from catalog outlets.
-
-    `seed_entity_ids` are `EvidenceEntity.id`s (normally `publication`
-    entities already resolved to a `wikidata_qid` external id by
-    `entity_backfill`). When omitted, every publication entity carrying a
-    `wikidata_qid` external id is used (capped by `limit`). Walks ownership
-    ancestors (ownership ancestors only, not descendants) up to `max_depth`
-    hops -- not a bulk import.
-    """
-    report = IngestReport(source="wikidata")
-    active_researcher = researcher or FundingResearcher()
-
-    seeds: list[tuple[str, str]] = []  # (entity_id, qid)
+    seed_entity_ids: list[str] | None,
+    limit: int | None,
+) -> list[tuple[str, str]]:
+    seeds: list[tuple[str, str]] = []
     if seed_entity_ids:
         for entity_id in seed_entity_ids:
             row = (
@@ -655,60 +640,107 @@ async def ingest_wikidata_ownership_claims(
                 )
             ).all()
         )
-        for ext_id, entity in rows:
-            seeds.append((cast(str, entity.id), cast(str, ext_id.value)))
-    if limit is not None:
-        seeds = seeds[:limit]
+        seeds.extend((cast(str, entity.id), cast(str, ext_id.value)) for ext_id, entity in rows)
+    return seeds[:limit] if limit is not None else seeds
 
+
+async def _next_wikidata_owner(
+    db: AsyncSession,
+    owner_qids: list[str],
+    visited_qids: set[str],
+) -> tuple[EvidenceEntity | None, str | None]:
+    for owner_qid in owner_qids:
+        owner_row = (
+            await db.execute(
+                select(EntityExternalId).where(
+                    EntityExternalId.scheme == "wikidata_qid",
+                    EntityExternalId.value == owner_qid,
+                )
+            )
+        ).scalar_one_or_none()
+        if owner_row is None:
+            continue
+        owner_entity = await db.get(EvidenceEntity, owner_row.entity_id)
+        if owner_entity is not None and owner_qid not in visited_qids:
+            return owner_entity, owner_qid
+    return None, None
+
+
+async def _walk_wikidata_ancestors(
+    db: AsyncSession,
+    researcher: FundingResearcher,
+    entity: EvidenceEntity,
+    qid: str,
+    max_depth: int,
+    reviewer: str,
+    report: IngestReport,
+    visited_qids: set[str],
+) -> None:
+    frontier = [qid]
+    depth = 0
+    current_entity = entity
+    while frontier and depth < max_depth:
+        next_frontier: list[str] = []
+        for current_qid in frontier:
+            if current_qid in visited_qids:
+                continue
+            visited_qids.add(current_qid)
+            owners = await _ingest_wikidata_qid(
+                db,
+                researcher,
+                qid=current_qid,
+                subject_entity=current_entity,
+                reviewer=reviewer,
+                report=report,
+            )
+            next_frontier.extend(owners)
+        if not next_frontier:
+            break
+        owner_entity, owner_qid = await _next_wikidata_owner(db, next_frontier, visited_qids)
+        if owner_entity is None or owner_qid is None:
+            break
+        current_entity = owner_entity
+        frontier = [owner_qid]
+        depth += 1
+
+
+async def ingest_wikidata_ownership_claims(
+    db: AsyncSession,
+    *,
+    seed_entity_ids: list[str] | None = None,
+    limit: int | None = None,
+    max_depth: int = 3,
+    researcher: FundingResearcher | None = None,
+) -> IngestReport:
+    """BFS Wikidata P127/P749/P112/P169 outward from catalog outlets.
+
+    `seed_entity_ids` are `EvidenceEntity.id`s (normally `publication`
+    entities already resolved to a `wikidata_qid` external id by
+    `entity_backfill`). When omitted, every publication entity carrying a
+    `wikidata_qid` external id is used (capped by `limit`). Walks ownership
+    ancestors (ownership ancestors only, not descendants) up to `max_depth`
+    hops -- not a bulk import.
+    """
+    report = IngestReport(source="wikidata")
+    active_researcher = researcher or FundingResearcher()
+
+    seeds = await _load_wikidata_seeds(db, seed_entity_ids, limit)
     reviewer = "auto-ingest:wikidata:" + METHOD_VERSION
     visited_qids: set[str] = set()
     for entity_id, qid in seeds:
         entity = await db.get(EvidenceEntity, entity_id)
         if entity is None:
             continue
-        frontier = [qid]
-        depth = 0
-        current_entity = entity
-        while frontier and depth < max_depth:
-            next_frontier: list[str] = []
-            for current_qid in frontier:
-                if current_qid in visited_qids:
-                    continue
-                visited_qids.add(current_qid)
-                owner_qids = await _ingest_wikidata_qid(
-                    db,
-                    active_researcher,
-                    qid=current_qid,
-                    subject_entity=current_entity,
-                    reviewer=reviewer,
-                    report=report,
-                )
-                next_frontier.extend(owner_qids)
-            if not next_frontier:
-                break
-            # Each subsequent hop's "subject" is whichever owner entity we
-            # just resolved -- walk ancestors one owner at a time so every
-            # hop's claim subject/object direction stays correct.
-            for owner_qid in next_frontier:
-                owner_row = (
-                    await db.execute(
-                        select(EntityExternalId).where(
-                            EntityExternalId.scheme == "wikidata_qid",
-                            EntityExternalId.value == owner_qid,
-                        )
-                    )
-                ).scalar_one_or_none()
-                if owner_row is None:
-                    continue
-                owner_entity = await db.get(EvidenceEntity, owner_row.entity_id)
-                if owner_entity is None or owner_qid in visited_qids:
-                    continue
-                current_entity = owner_entity
-                frontier = [owner_qid]
-                break
-            else:
-                break
-            depth += 1
+        await _walk_wikidata_ancestors(
+            db,
+            active_researcher,
+            entity,
+            qid,
+            max_depth,
+            reviewer,
+            report,
+            visited_qids,
+        )
     return report
 
 
@@ -719,6 +751,100 @@ async def ingest_wikidata_ownership_claims(
 
 def _littlesis_document_id(relationship_id: Any) -> str:
     return f"doc_littlesis_rel_{relationship_id}"
+
+
+def _littlesis_entity_index(entities: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    return {int(entity["id"]): entity for entity in entities if entity.get("id") is not None}
+
+
+def _is_littlesis_hierarchy_relationship(rel: dict[str, Any]) -> bool:
+    raw_category_id = str(rel.get("category_id", ""))
+    category_id = int(raw_category_id) if raw_category_id.lstrip("-").isdigit() else -1
+    return RELATIONSHIP_CATEGORIES_OF_INTEREST.get(category_id) in ("ownership", "hierarchy")
+
+
+async def _ingest_littlesis_relationship(
+    db: AsyncSession,
+    rel: dict[str, Any],
+    entities_by_id: dict[int, dict[str, Any]],
+    report: IngestReport,
+) -> bool:
+    entity1_id = rel.get("entity1_id")
+    entity2_id = rel.get("entity2_id")
+    rel_id = rel.get("id")
+    if entity1_id is None or entity2_id is None or rel_id is None:
+        return False
+    owner_raw = entities_by_id.get(int(entity1_id))
+    owned_raw = entities_by_id.get(int(entity2_id))
+    if not owner_raw or not owned_raw:
+        return False
+    owner_name = str(owner_raw.get("name", "")).strip()
+    owned_name = str(owned_raw.get("name", "")).strip()
+    if not owner_name or not owned_name:
+        return False
+
+    owner_entity = await resolve_or_create(
+        db,
+        record_kind="legal_entity",
+        external_ids={"littlesis_id": str(entity1_id)},
+        candidate_name=owner_name,
+    )
+    owned_entity = await resolve_or_create(
+        db,
+        record_kind="legal_entity",
+        external_ids={"littlesis_id": str(entity2_id)},
+        candidate_name=owned_name,
+    )
+    document = await _get_or_create_document(
+        db,
+        document_id=_littlesis_document_id(rel_id),
+        source_url=f"https://littlesis.org/relationships/{rel_id}",
+        document_type="littlesis_relationship",
+        source_class="third_party_assessment",
+        title=f"LittleSis relationship {rel_id}: {owner_name} / {owned_name}",
+        report=report,
+    )
+    snapshot = await _get_or_create_snapshot(
+        db,
+        document_id=cast(str, document.id),
+        raw_bytes=canonical_json(rel).encode("utf-8"),
+        retriever="evidence_ingest.littlesis",
+        retriever_version=METHOD_VERSION,
+        retrieved_at=datetime.now(UTC).replace(tzinfo=None),
+        content_type="application/json",
+        report=report,
+    )
+    observation = await _get_or_create_observation(
+        db,
+        snapshot_id=cast(str, snapshot.id),
+        locator={"relationship_id": rel_id},
+        extractor="evidence_ingest.littlesis",
+        extractor_version=METHOD_VERSION,
+        structured_value={
+            "entity1": owner_name,
+            "entity2": owned_name,
+            "category_id": rel.get("category_id"),
+            "description1": rel.get("description1"),
+            "description2": rel.get("description2"),
+        },
+        report=report,
+    )
+    claim, _created = await _get_or_create_claim(
+        db,
+        subject_entity_id=cast(str, owned_entity.id),
+        predicate="directly_owns",
+        object_entity_id=cast(str, owner_entity.id),
+        object_value=None,
+        qualifiers={"direct": True, "interest": "economic"},
+        asserted_by="evidence_ingest:littlesis",
+        evidence_class="third_party_assessment",
+        report=report,
+    )
+    await _link_claim_evidence(
+        db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
+    )
+    report.candidates += 1
+    return True
 
 
 async def ingest_littlesis_ownership(
@@ -752,103 +878,17 @@ async def ingest_littlesis_ownership(
     entities = load_littlesis_entities(entities_file)
     if not entities:
         return report
-    entities_by_id: dict[int, dict[str, Any]] = {}
-    for entity in entities:
-        eid = entity.get("id")
-        if eid is not None:
-            entities_by_id[int(eid)] = entity
+    entities_by_id = _littlesis_entity_index(entities)
 
     relationships = load_littlesis_relationships(relationships_file)
     ownership_relationships = [
-        rel
-        for rel in relationships
-        if RELATIONSHIP_CATEGORIES_OF_INTEREST.get(
-            int(rel.get("category_id", -1))
-            if str(rel.get("category_id", "")).lstrip("-").isdigit()
-            else -1
-        )
-        in ("ownership", "hierarchy")
+        rel for rel in relationships if _is_littlesis_hierarchy_relationship(rel)
     ]
     if limit is not None:
         ownership_relationships = ownership_relationships[:limit]
 
     for rel in ownership_relationships:
-        entity1_id = rel.get("entity1_id")
-        entity2_id = rel.get("entity2_id")
-        rel_id = rel.get("id")
-        if entity1_id is None or entity2_id is None or rel_id is None:
-            continue
-        owner_raw = entities_by_id.get(int(entity1_id))
-        owned_raw = entities_by_id.get(int(entity2_id))
-        if not owner_raw or not owned_raw:
-            continue
-        owner_name = str(owner_raw.get("name", "")).strip()
-        owned_name = str(owned_raw.get("name", "")).strip()
-        if not owner_name or not owned_name:
-            continue
-
-        owner_entity = await resolve_or_create(
-            db,
-            record_kind="legal_entity",
-            external_ids={"littlesis_id": str(entity1_id)},
-            candidate_name=owner_name,
-        )
-        owned_entity = await resolve_or_create(
-            db,
-            record_kind="legal_entity",
-            external_ids={"littlesis_id": str(entity2_id)},
-            candidate_name=owned_name,
-        )
-
-        document = await _get_or_create_document(
-            db,
-            document_id=_littlesis_document_id(rel_id),
-            source_url=f"https://littlesis.org/relationships/{rel_id}",
-            document_type="littlesis_relationship",
-            source_class="third_party_assessment",
-            title=f"LittleSis relationship {rel_id}: {owner_name} / {owned_name}",
-            report=report,
-        )
-        snapshot = await _get_or_create_snapshot(
-            db,
-            document_id=cast(str, document.id),
-            raw_bytes=canonical_json(rel).encode("utf-8"),
-            retriever="evidence_ingest.littlesis",
-            retriever_version=METHOD_VERSION,
-            retrieved_at=datetime.now(UTC).replace(tzinfo=None),
-            content_type="application/json",
-            report=report,
-        )
-        observation = await _get_or_create_observation(
-            db,
-            snapshot_id=cast(str, snapshot.id),
-            locator={"relationship_id": rel_id},
-            extractor="evidence_ingest.littlesis",
-            extractor_version=METHOD_VERSION,
-            structured_value={
-                "entity1": owner_name,
-                "entity2": owned_name,
-                "category_id": rel.get("category_id"),
-                "description1": rel.get("description1"),
-                "description2": rel.get("description2"),
-            },
-            report=report,
-        )
-        claim, _created = await _get_or_create_claim(
-            db,
-            subject_entity_id=cast(str, owned_entity.id),
-            predicate="directly_owns",
-            object_entity_id=cast(str, owner_entity.id),
-            object_value=None,
-            qualifiers={"direct": True, "interest": "economic"},
-            asserted_by="evidence_ingest:littlesis",
-            evidence_class="third_party_assessment",
-            report=report,
-        )
-        await _link_claim_evidence(
-            db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
-        )
-        report.candidates += 1
+        await _ingest_littlesis_relationship(db, rel, entities_by_id, report)
 
     return report
 
@@ -1040,21 +1080,26 @@ def _parse_exhibit_21(html: str) -> list[tuple[str, str]]:
     text = re.sub(r"\|+", "|", text)
     tokens = [tok.strip() for tok in text.split("|") if tok.strip()]
 
-    header_idx = None
-    for i in range(len(tokens) - 1):
-        if tokens[i].lower().startswith("entity name") and "country" in tokens[i + 1].lower():
-            header_idx = i + 2
-            break
-        if tokens[i].lower().startswith("entity name") and "state" in tokens[i + 1].lower():
-            header_idx = i + 2
-            break
+    header_idx = _exhibit_header_index(tokens)
     if header_idx is None:
         return []
 
+    return _exhibit_pairs(tokens[header_idx:])
+
+
+def _exhibit_header_index(tokens: list[str]) -> int | None:
+    for index in range(len(tokens) - 1):
+        header = tokens[index].lower()
+        next_token = tokens[index + 1].lower()
+        if header.startswith("entity name") and ("country" in next_token or "state" in next_token):
+            return index + 2
+    return None
+
+
+def _exhibit_pairs(tokens: list[str]) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
-    remaining = tokens[header_idx:]
-    for i in range(0, len(remaining) - 1, 2):
-        name, jurisdiction = remaining[i], remaining[i + 1]
+    for index in range(0, len(tokens) - 1, 2):
+        name, jurisdiction = tokens[index], tokens[index + 1]
         if len(name) > 200 or len(jurisdiction) > 100:
             break
         pairs.append((name, jurisdiction))
@@ -1077,6 +1122,129 @@ async def _find_latest_10k(client: httpx.AsyncClient, cik: str) -> tuple[str, st
         filing_date = recent["filingDate"][i]
         return accession.replace("-", ""), accession, primary_doc, filing_date
     return None
+
+
+async def _ingest_edgar_subsidiary_rows(
+    db: AsyncSession,
+    *,
+    subsidiaries: list[tuple[str, str]],
+    cik_clean: str,
+    parent_entity: EvidenceEntity,
+    snapshot: DocumentSnapshot,
+    reviewer: str,
+    report: IngestReport,
+) -> None:
+    for index, (name, jurisdiction) in enumerate(subsidiaries):
+        subsidiary_entity = await resolve_or_create(
+            db,
+            record_kind="legal_entity",
+            external_ids={"edgar_subsidiary": f"{cik_clean}:{name.lower()}"},
+            candidate_name=name,
+        )
+        observation = await _get_or_create_observation(
+            db,
+            snapshot_id=cast(str, snapshot.id),
+            locator={"row": index, "field": "entity_name"},
+            extractor="evidence_ingest.edgar",
+            extractor_version=METHOD_VERSION,
+            quoted_text=f"{name} | {jurisdiction}",
+            structured_value={"name": name, "jurisdiction": jurisdiction},
+            report=report,
+        )
+        claim, _created = await _get_or_create_claim(
+            db,
+            subject_entity_id=cast(str, subsidiary_entity.id),
+            predicate="directly_owns",
+            object_entity_id=cast(str, parent_entity.id),
+            object_value=None,
+            qualifiers={
+                "direct": True,
+                "interest": "economic",
+                "consolidation_basis": "sec_exhibit_21_consolidated_subsidiary",
+            },
+            asserted_by="evidence_ingest:edgar",
+            evidence_class="registry_filing",
+            report=report,
+        )
+        await _link_claim_evidence(
+            db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
+        )
+        await _mark_observation_reviewed(db, observation, reviewer=reviewer)
+        await _auto_accept_relationship_claim(db, claim, reviewer=reviewer, report=report)
+
+
+async def _ingest_edgar_company(
+    db: AsyncSession,
+    *,
+    cik: str,
+    parent_name: str,
+    http_client: httpx.AsyncClient,
+    reviewer: str,
+    report: IngestReport,
+) -> None:
+    cik_clean = cik.lstrip("0") or "0"
+    parent_entity = await resolve_or_create(
+        db,
+        record_kind="legal_entity",
+        external_ids={"cik": cik_clean},
+        candidate_name=parent_name,
+    )
+    found = await _find_latest_10k(http_client, cik_clean)
+    if found is None:
+        return
+    accession_nodash, accession, _primary_doc, filing_date = found
+    index_url = f"https://www.sec.gov/Archives/edgar/data/{cik_clean}/{accession_nodash}/"
+    index_result = await _fetch_edgar_text(http_client, index_url)
+    if index_result is None:
+        return
+    index_html, _ = index_result
+    link_match = _EX21_LINK_RE.search(index_html)
+    if link_match is None:
+        return
+    ex21_path = link_match.group(1)
+    ex21_url = (
+        ex21_path
+        if ex21_path.startswith("http")
+        else f"https://www.sec.gov/Archives/edgar/data/{cik_clean}/{accession_nodash}/{ex21_path.lstrip('/')}"
+    )
+    ex21_result = await _fetch_edgar_text(http_client, ex21_url)
+    if ex21_result is None:
+        return
+    ex21_html, ex21_bytes = ex21_result
+    subsidiaries = _parse_exhibit_21(ex21_html)
+    if not subsidiaries:
+        return
+    document = await _get_or_create_document(
+        db,
+        document_id=f"doc_edgar_ex21_{cik_clean}_{accession_nodash}",
+        source_url=ex21_url,
+        document_type="sec_exhibit_21",
+        source_class="registry_filing",
+        title=f"Exhibit 21 - {parent_name} - {accession}",
+        issuer_entity_id=cast(str, parent_entity.id),
+        published_at=datetime.strptime(filing_date, "%Y-%m-%d") if filing_date else None,
+        jurisdiction="US",
+        report=report,
+    )
+    snapshot = await _get_or_create_snapshot(
+        db,
+        document_id=cast(str, document.id),
+        raw_bytes=ex21_bytes,
+        retriever="evidence_ingest.edgar",
+        retriever_version=METHOD_VERSION,
+        retrieved_at=datetime.now(UTC).replace(tzinfo=None),
+        content_type="text/html",
+        report=report,
+    )
+    await _ingest_edgar_subsidiary_rows(
+        db,
+        subsidiaries=subsidiaries,
+        cik_clean=cik_clean,
+        parent_entity=parent_entity,
+        snapshot=snapshot,
+        reviewer=reviewer,
+        report=report,
+    )
 
 
 async def ingest_edgar_subsidiaries(
@@ -1111,105 +1279,144 @@ async def ingest_edgar_subsidiaries(
 
     try:
         for cik, parent_name in ciks.items():
-            cik_clean = cik.lstrip("0") or "0"
-            parent_entity = await resolve_or_create(
+            await _ingest_edgar_company(
                 db,
-                record_kind="legal_entity",
-                external_ids={"cik": cik_clean},
-                candidate_name=parent_name,
-            )
-
-            found = await _find_latest_10k(http_client, cik_clean)
-            if found is None:
-                continue
-            accession_nodash, accession, primary_doc, filing_date = found
-
-            index_url = f"https://www.sec.gov/Archives/edgar/data/{cik_clean}/{accession_nodash}/"
-            index_result = await _fetch_edgar_text(http_client, index_url)
-            if index_result is None:
-                continue
-            index_html, _ = index_result
-            link_match = _EX21_LINK_RE.search(index_html)
-            if link_match is None:
-                continue
-            ex21_path = link_match.group(1)
-            ex21_url = (
-                ex21_path
-                if ex21_path.startswith("http")
-                else f"https://www.sec.gov/Archives/edgar/data/{cik_clean}/{accession_nodash}/{ex21_path.lstrip('/')}"
-            )
-            ex21_result = await _fetch_edgar_text(http_client, ex21_url)
-            if ex21_result is None:
-                continue
-            ex21_html, ex21_bytes = ex21_result
-            subsidiaries = _parse_exhibit_21(ex21_html)
-            if not subsidiaries:
-                continue
-
-            document = await _get_or_create_document(
-                db,
-                document_id=f"doc_edgar_ex21_{cik_clean}_{accession_nodash}",
-                source_url=ex21_url,
-                document_type="sec_exhibit_21",
-                source_class="registry_filing",
-                title=f"Exhibit 21 - {parent_name} - {accession}",
-                issuer_entity_id=cast(str, parent_entity.id),
-                published_at=datetime.strptime(filing_date, "%Y-%m-%d") if filing_date else None,
-                jurisdiction="US",
+                cik=cik,
+                parent_name=parent_name,
+                http_client=http_client,
+                reviewer=reviewer,
                 report=report,
             )
-            snapshot = await _get_or_create_snapshot(
-                db,
-                document_id=cast(str, document.id),
-                raw_bytes=ex21_bytes,
-                retriever="evidence_ingest.edgar",
-                retriever_version=METHOD_VERSION,
-                retrieved_at=datetime.now(UTC).replace(tzinfo=None),
-                content_type="text/html",
-                report=report,
-            )
-            for index, (name, jurisdiction) in enumerate(subsidiaries):
-                subsidiary_entity = await resolve_or_create(
-                    db,
-                    record_kind="legal_entity",
-                    external_ids={"edgar_subsidiary": f"{cik_clean}:{name.lower()}"},
-                    candidate_name=name,
-                )
-                observation = await _get_or_create_observation(
-                    db,
-                    snapshot_id=cast(str, snapshot.id),
-                    locator={"row": index, "field": "entity_name"},
-                    extractor="evidence_ingest.edgar",
-                    extractor_version=METHOD_VERSION,
-                    quoted_text=f"{name} | {jurisdiction}",
-                    structured_value={"name": name, "jurisdiction": jurisdiction},
-                    report=report,
-                )
-                claim, _created = await _get_or_create_claim(
-                    db,
-                    subject_entity_id=cast(str, subsidiary_entity.id),
-                    predicate="directly_owns",
-                    object_entity_id=cast(str, parent_entity.id),
-                    object_value=None,
-                    qualifiers={
-                        "direct": True,
-                        "interest": "economic",
-                        "consolidation_basis": "sec_exhibit_21_consolidated_subsidiary",
-                    },
-                    asserted_by="evidence_ingest:edgar",
-                    evidence_class="registry_filing",
-                    report=report,
-                )
-                await _link_claim_evidence(
-                    db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
-                )
-                await _mark_observation_reviewed(db, observation, reviewer=reviewer)
-                await _auto_accept_relationship_claim(db, claim, reviewer=reviewer, report=report)
     finally:
         if owned_client:
             await http_client.aclose()
 
     return report
+
+
+async def _ingest_ads_txt_record(
+    db: AsyncSession,
+    *,
+    snapshot_id: str,
+    index: int,
+    record: dict[str, str],
+    publisher_entity_id: str,
+    publisher_domain: str,
+    capture_time: datetime,
+    report: IngestReport,
+) -> None:
+    ad_system = record["ad_system_domain"]
+    account_id = record["publisher_account_id"]
+    relationship_type = record["relationship"]
+    seller = await resolve_or_create(
+        db,
+        record_kind="legal_entity",
+        entity_kind="seller_account",
+        external_ids={"seller_account": f"{ad_system}:{account_id}"},
+        candidate_name=f"{ad_system} seller {account_id}",
+    )
+    observation = await _get_or_create_observation(
+        db,
+        snapshot_id=snapshot_id,
+        locator={"record_index": index},
+        quoted_text=f"{ad_system}, {account_id}, {relationship_type}",
+        structured_value=record,
+        extractor="ads_txt_parser",
+        extractor_version=METHOD_VERSION,
+        report=report,
+    )
+    claim, created = await _get_or_create_claim(
+        db,
+        subject_entity_id=publisher_entity_id,
+        predicate="authorizes_inventory_seller",
+        object_entity_id=cast(str, seller.id),
+        object_value=None,
+        qualifiers={
+            "publisher_domain": publisher_domain,
+            "seller_account_id": account_id,
+            "ad_system_domain": ad_system,
+            "relationship_type": relationship_type,
+            "captured_at": capture_time.isoformat(),
+            "lifecycle_state": "current",
+        },
+        asserted_by="ads_txt",
+        evidence_class="ads_txt",
+        valid_from=capture_time,
+        report=report,
+    )
+    await _link_claim_evidence(
+        db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
+    )
+    if created:
+        report.candidates += 1
+
+
+async def _ingest_ads_txt_publisher(
+    db: AsyncSession,
+    *,
+    publisher_entity_id: str,
+    website: str,
+    client: httpx.AsyncClient,
+    report: IngestReport,
+) -> tuple[bool, bool]:
+    from urllib.parse import urlparse
+
+    from app.core.config import SCOOP_BROWSER_UA
+
+    url = ads_txt_url(website)
+    if url is None:
+        return False, False
+    try:
+        response = await client.get(
+            url,
+            headers={"User-Agent": SCOOP_BROWSER_UA, "Accept": "text/plain,*/*;q=0.8"},
+            follow_redirects=True,
+        )
+    except httpx.HTTPError as exc:
+        logger.debug("ads_txt: publisher %s unreachable: %s", website, exc)
+        return True, True
+    if response.status_code != 200:
+        return True, False
+
+    raw = response.content[:ADS_TXT_MAX_BYTES]
+    text = raw.decode(response.encoding or "utf-8", errors="replace")
+    parsed = parse_ads_txt(text)
+    retrieved_at = datetime.now(UTC).replace(tzinfo=None)
+    publisher_domain = (urlparse(website).hostname or website).lower().removeprefix("www.")
+    document = await _get_or_create_document(
+        db,
+        document_id=f"doc_ads_txt_{stable_hash(publisher_domain)[:24]}",
+        source_url=str(response.url),
+        document_type="ads_txt",
+        source_class="ads_txt",
+        issuer_entity_id=publisher_entity_id,
+        report=report,
+    )
+    snapshot = await _get_or_create_snapshot(
+        db,
+        document_id=cast(str, document.id),
+        raw_bytes=raw,
+        retriever="httpx",
+        retriever_version=METHOD_VERSION,
+        retrieved_at=retrieved_at,
+        http_status=response.status_code,
+        content_type=response.headers.get("content-type"),
+        report=report,
+    )
+    capture_time = cast(datetime, snapshot.retrieved_at)
+    records = cast(list[dict[str, str]], parsed["records"])
+    for index, record in enumerate(records):
+        await _ingest_ads_txt_record(
+            db,
+            snapshot_id=cast(str, snapshot.id),
+            index=index,
+            record=record,
+            publisher_entity_id=publisher_entity_id,
+            publisher_domain=publisher_domain,
+            capture_time=capture_time,
+            report=report,
+        )
+    return True, False
 
 
 async def ingest_ads_supply(
@@ -1226,107 +1433,25 @@ async def ingest_ads_supply(
     DIRECT/RESELLER relationship, and capture time. This adapter never
     accepts or materializes a relationship.
     """
-    from urllib.parse import urlparse
-
-    from app.core.config import SCOOP_BROWSER_UA
-
     report = IngestReport(source="ads_txt")
     owned_client = client is None
     http_client = client or httpx.AsyncClient(timeout=20.0, follow_redirects=True)
     try:
-        items = (
-            sorted(publishers.items())[:limit] if limit is not None else sorted(publishers.items())
-        )
+        items = sorted(publishers.items())
+        if limit is not None:
+            items = items[:limit]
         unreachable_count = 0
         eligible_count = 0
         for publisher_entity_id, website in items:
-            url = ads_txt_url(website)
-            if url is None:
-                continue
-            eligible_count += 1
-            try:
-                response = await http_client.get(
-                    url,
-                    headers={"User-Agent": SCOOP_BROWSER_UA, "Accept": "text/plain,*/*;q=0.8"},
-                    follow_redirects=True,
-                )
-            except httpx.HTTPError as exc:
-                unreachable_count += 1
-                logger.debug("ads_txt: publisher %s unreachable: %s", website, exc)
-                continue
-            if response.status_code != 200:
-                continue
-            raw = response.content[:ADS_TXT_MAX_BYTES]
-            text = raw.decode(response.encoding or "utf-8", errors="replace")
-            parsed = parse_ads_txt(text)
-            retrieved_at = datetime.now(UTC).replace(tzinfo=None)
-            publisher_domain = (urlparse(website).hostname or website).lower().removeprefix("www.")
-            document = await _get_or_create_document(
+            eligible, unreachable = await _ingest_ads_txt_publisher(
                 db,
-                document_id=f"doc_ads_txt_{stable_hash(publisher_domain)[:24]}",
-                source_url=str(response.url),
-                document_type="ads_txt",
-                source_class="ads_txt",
-                issuer_entity_id=publisher_entity_id,
+                publisher_entity_id=publisher_entity_id,
+                website=website,
+                client=http_client,
                 report=report,
             )
-            snapshot = await _get_or_create_snapshot(
-                db,
-                document_id=cast(str, document.id),
-                raw_bytes=raw,
-                retriever="httpx",
-                retriever_version=METHOD_VERSION,
-                retrieved_at=retrieved_at,
-                http_status=response.status_code,
-                content_type=response.headers.get("content-type"),
-                report=report,
-            )
-            capture_time = cast(datetime, snapshot.retrieved_at)
-            for index, record in enumerate(cast(list[dict[str, str]], parsed["records"])):
-                ad_system = record["ad_system_domain"]
-                account_id = record["publisher_account_id"]
-                relationship_type = record["relationship"]
-                seller = await resolve_or_create(
-                    db,
-                    record_kind="legal_entity",
-                    entity_kind="seller_account",
-                    external_ids={"seller_account": f"{ad_system}:{account_id}"},
-                    candidate_name=f"{ad_system} seller {account_id}",
-                )
-                observation = await _get_or_create_observation(
-                    db,
-                    snapshot_id=cast(str, snapshot.id),
-                    locator={"record_index": index},
-                    quoted_text=f"{ad_system}, {account_id}, {relationship_type}",
-                    structured_value=record,
-                    extractor="ads_txt_parser",
-                    extractor_version=METHOD_VERSION,
-                    report=report,
-                )
-                claim, created = await _get_or_create_claim(
-                    db,
-                    subject_entity_id=publisher_entity_id,
-                    predicate="authorizes_inventory_seller",
-                    object_entity_id=cast(str, seller.id),
-                    object_value=None,
-                    qualifiers={
-                        "publisher_domain": publisher_domain,
-                        "seller_account_id": account_id,
-                        "ad_system_domain": ad_system,
-                        "relationship_type": relationship_type,
-                        "captured_at": capture_time.isoformat(),
-                        "lifecycle_state": "current",
-                    },
-                    asserted_by="ads_txt",
-                    evidence_class="ads_txt",
-                    valid_from=capture_time,
-                    report=report,
-                )
-                await _link_claim_evidence(
-                    db, claim_id=cast(str, claim.id), observation_id=cast(str, observation.id)
-                )
-                if created:
-                    report.candidates += 1
+            eligible_count += int(eligible)
+            unreachable_count += int(unreachable)
         if unreachable_count:
             logger.info("ads_txt: skipped %d unreachable publishers", unreachable_count)
         if eligible_count and unreachable_count == eligible_count:

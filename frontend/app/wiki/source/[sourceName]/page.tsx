@@ -1,9 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { SourceWikiView } from "./source-wiki-view";
+import { useParams } from "next/navigation";
 
-export default function SourceWikiPage() {
+const SourceWikiPage = () => {
   const params = useParams();
-  return <SourceWikiView sourceName={decodeURIComponent(params.sourceName as string)} />;
-}
+  return <SourceWikiView sourceName={decodeURIComponent(String(params.sourceName))} />;
+};
+
+export default SourceWikiPage;

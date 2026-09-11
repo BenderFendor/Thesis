@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SpanExportResult, SpanExporter
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import format_span_id, format_trace_id
 
 from app.core.jsonl import append_jsonl
@@ -29,7 +29,7 @@ def _json_safe(value: Any) -> Any:
 
 def _iso_from_ns(value: int | None) -> str | None:
     if value is None:
-        return None
+        return
     return datetime.fromtimestamp(value / 1_000_000_000, tz=UTC).isoformat()
 
 
@@ -57,48 +57,49 @@ class JsonlSpanExporter(SpanExporter):
         try:
             with self._lock:
                 for span in spans:
-                    context = span.context
-                    parent = span.parent
-                    start_ns = span.start_time
-                    end_ns = span.end_time
-                    duration_ms = (
-                        (end_ns - start_ns) / 1_000_000
-                        if start_ns is not None and end_ns is not None
-                        else None
-                    )
-                    payload = {
-                        "timestamp": _iso_from_ns(end_ns) or datetime.now(UTC).isoformat(),
-                        "kind": "trace_span",
-                        "service": span.resource.attributes.get("service.name"),
-                        "trace_id": format_trace_id(context.trace_id),
-                        "span_id": format_span_id(context.span_id),
-                        "parent_span_id": format_span_id(parent.span_id) if parent else None,
-                        "operation": span.name,
-                        "span_kind": span.kind.name,
-                        "status": span.status.status_code.name,
-                        "status_description": span.status.description,
-                        "start_time": _iso_from_ns(start_ns),
-                        "end_time": _iso_from_ns(end_ns),
-                        "duration_ms": round(duration_ms, 3) if duration_ms is not None else None,
-                        "attributes": _json_safe(dict(span.attributes or {})),
-                        "events": [
-                            {
-                                "name": event.name,
-                                "timestamp": _iso_from_ns(event.timestamp),
-                                "attributes": _json_safe(dict(event.attributes or {})),
-                            }
-                            for event in span.events
-                        ],
-                    }
-                    append_jsonl(self._path, payload)
+                    append_jsonl(self._path, _span_payload(span))
         except OSError:
             return SpanExportResult.FAILURE
         return SpanExportResult.SUCCESS
 
     def shutdown(self) -> None:
         """Release exporter resources; writes do not keep an open handle."""
-        return None
+        return
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
         """Report success because every export is flushed on append."""
         return True
+
+
+def _span_payload(span: ReadableSpan) -> dict[str, Any]:
+    context = span.context
+    parent = span.parent
+    start_ns = span.start_time
+    end_ns = span.end_time
+    duration_ms = (
+        (end_ns - start_ns) / 1_000_000 if start_ns is not None and end_ns is not None else None
+    )
+    return {
+        "timestamp": _iso_from_ns(end_ns) or datetime.now(UTC).isoformat(),
+        "kind": "trace_span",
+        "service": span.resource.attributes.get("service.name"),
+        "trace_id": format_trace_id(context.trace_id),
+        "span_id": format_span_id(context.span_id),
+        "parent_span_id": format_span_id(parent.span_id) if parent else None,
+        "operation": span.name,
+        "span_kind": span.kind.name,
+        "status": span.status.status_code.name,
+        "status_description": span.status.description,
+        "start_time": _iso_from_ns(start_ns),
+        "end_time": _iso_from_ns(end_ns),
+        "duration_ms": round(duration_ms, 3) if duration_ms is not None else None,
+        "attributes": _json_safe(dict(span.attributes or {})),
+        "events": [
+            {
+                "name": event.name,
+                "timestamp": _iso_from_ns(event.timestamp),
+                "attributes": _json_safe(dict(event.attributes or {})),
+            }
+            for event in span.events
+        ],
+    }

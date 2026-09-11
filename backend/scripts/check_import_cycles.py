@@ -44,51 +44,84 @@ def closest_known_module(name: str, known_modules: set[str]) -> str | None:
     return None
 
 
+def _parse_module(path: Path) -> ast.AST | None:
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return None
+
+
+def _relative_anchor(module: str, level: int) -> list[str] | None:
+    package_parts = module.split(".")[:-1]
+    if level == 0:
+        return []
+    levels_up = level - 1
+    if levels_up > len(package_parts):
+        return None
+    return package_parts[: len(package_parts) - levels_up]
+
+
+def _import_targets(node: ast.Import, known_modules: set[str]) -> set[str]:
+    return {
+        target
+        for alias in node.names
+        if (target := closest_known_module(alias.name, known_modules)) is not None
+    }
+
+
+def _from_import_candidates(node: ast.ImportFrom, module: str) -> list[str]:
+    anchor = _relative_anchor(module, node.level)
+    if anchor is None:
+        return []
+
+    base_name = ".".join(anchor + node.module.split(".")) if node.module else None
+    candidates = [base_name] if base_name else []
+    for alias in node.names:
+        if alias.name == "*":
+            continue
+        first_segment = alias.name.split(".", 1)[0]
+        candidate = (
+            f"{base_name}.{first_segment}" if base_name else ".".join(anchor + [first_segment])
+        )
+        candidates.append(candidate)
+    return candidates
+
+
+def _from_import_targets(
+    node: ast.ImportFrom,
+    module: str,
+    known_modules: set[str],
+) -> set[str]:
+    return {
+        target
+        for candidate in _from_import_candidates(node, module)
+        if (target := closest_known_module(candidate, known_modules)) is not None
+    }
+
+
+def _node_targets(node: ast.AST, module: str, known_modules: set[str]) -> set[str]:
+    if isinstance(node, ast.Import):
+        return _import_targets(node, known_modules)
+    if isinstance(node, ast.ImportFrom):
+        return _from_import_targets(node, module, known_modules)
+    return set()
+
+
+def _module_dependencies(tree: ast.AST, module: str, known_modules: set[str]) -> set[str]:
+    dependencies: set[str] = set()
+    for node in ast.walk(tree):
+        dependencies.update(_node_targets(node, module, known_modules))
+    return dependencies
+
+
 def build_graph(source_dir: Path, package_root: Path) -> dict[str, set[str]]:
+    """Build the internal import graph from independently parsed modules."""
     modules = {module_name(path, package_root): path for path in iter_python_files(source_dir)}
     known_modules = set(modules)
-    graph: dict[str, set[str]] = {module: set() for module in modules}
-
+    graph: dict[str, set[str]] = {}
     for module, path in modules.items():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError:
-            continue
-
-        package_parts = module.split(".")[:-1]
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    target = closest_known_module(alias.name, known_modules)
-                    if target:
-                        graph[module].add(target)
-            elif isinstance(node, ast.ImportFrom):
-                if node.level == 0:
-                    anchor_parts: list[str] = []
-                else:
-                    levels_up = node.level - 1
-                    if levels_up > len(package_parts):
-                        continue
-                    anchor_parts = package_parts[: len(package_parts) - levels_up]
-
-                base_name: str | None = None
-                if node.module:
-                    base_name = ".".join(anchor_parts + node.module.split("."))
-                    target = closest_known_module(base_name, known_modules)
-                    if target:
-                        graph[module].add(target)
-
-                for alias in node.names:
-                    if alias.name == "*":
-                        continue
-                    if base_name:
-                        candidate = f"{base_name}.{alias.name.split('.')[0]}"
-                    else:
-                        candidate = ".".join(anchor_parts + [alias.name.split(".")[0]])
-                    target = closest_known_module(candidate, known_modules)
-                    if target:
-                        graph[module].add(target)
-
+        tree = _parse_module(path)
+        graph[module] = _module_dependencies(tree, module, known_modules) if tree else set()
     return graph
 
 

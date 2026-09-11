@@ -1,9 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { ReporterWikiView } from "./reporter-wiki-view";
+import { useParams } from "next/navigation";
 
-export default function ReporterProfilePage() {
+const ReporterProfilePage = () => {
   const params = useParams();
   return <ReporterWikiView reporterId={Number(params.id)} />;
-}
+};
+
+export default ReporterProfilePage;

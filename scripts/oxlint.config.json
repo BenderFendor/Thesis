@@ -1,0 +1,131 @@
+{
+  "$schema": "../frontend/node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "plugins": [
+    "eslint",
+    "typescript",
+    "oxc",
+    "unicorn",
+    "import",
+    "jest",
+    "promise",
+    "node"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "off",
+    "perf": "error",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".quality-hardening/**"
+  ],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "../frontend/tools/oxlint/anti-slop/index.ts"
+    }
+  ],
+  "rules": {
+    "max-depth": [
+      "error",
+      {
+        "max": 4
+      }
+    ],
+    "max-params": [
+      "error",
+      {
+        "max": 5
+      }
+    ],
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": [
+      "error",
+      {
+        "allowInTypeGuards": true
+      }
+    ],
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/consistent-type-definitions": [
+      "error",
+      "interface"
+    ],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "import/no-self-import": "error",
+    "no-duplicate-imports": [
+      "error",
+      {
+        "allowSeparateTypeImports": true
+      }
+    ],
+    "eslint/no-shadow": "error",
+    "oxc/no-accumulating-spread": "error",
+    "typescript/no-floating-promises": "error",
+    "jest/no-disabled-tests": "error",
+    "jest/no-focused-tests": "error",
+    "import/no-nodejs-modules": [
+      "error",
+      {
+        "allow": [
+          "node:assert/strict",
+          "node:child_process",
+          "node:crypto",
+          "node:events",
+          "node:fs",
+          "node:fs/promises",
+          "node:http",
+          "node:os",
+          "node:path",
+          "node:stream",
+          "node:test",
+          "node:url",
+          "node:util"
+        ]
+      }
+    ],
+    "import/no-unassigned-import": "off",
+    "eslint/no-await-in-loop": "off"
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/*.{js,mjs,cjs,ts}"
+      ],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

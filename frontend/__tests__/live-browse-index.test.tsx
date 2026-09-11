@@ -1,92 +1,152 @@
-import { renderHook, waitFor } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { renderHook, waitFor } from "@testing-library/react";
+import { Component } from "react";
+import type { ReactNode } from "react";
 
-jest.mock("@/lib/api", () => {
-  const actual = jest.requireActual("@/lib/api")
-  return {
-    ...actual,
-    fetchLiveBrowseIndex: jest.fn(),
-  }
-})
+import { useNewsIndex } from "@/hooks/use-news-index";
 
-import { useLiveBrowseIndex } from "@/hooks/useLiveBrowseIndex"
-import { fetchLiveBrowseIndex } from "@/lib/api"
-
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        gcTime: 0,
-      },
-    },
-  })
-
-  const QueryClientWrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  )
-
-  QueryClientWrapper.displayName = "QueryClientWrapper"
-  return QueryClientWrapper
+interface BrowseResponse {
+  readonly articles: readonly {
+    readonly bias: "center";
+    readonly category: string;
+    readonly country: string;
+    readonly credibility: "high";
+    readonly image_url: string;
+    readonly id: number;
+    readonly summary: string;
+    readonly original_language: string;
+    readonly published_at: string;
+    readonly source: string;
+    readonly source_id: string;
+    readonly title: string;
+    readonly translated: boolean;
+    readonly url: string;
+  }[];
+  readonly total: number;
 }
 
-describe("useLiveBrowseIndex", () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
+type FetchBoundary = (
+  input: string,
+  init?: RequestInit,
+) => Promise<FetchResponseFixture>;
 
-  it("fetches the live browse index with stable multi-source serialization", async () => {
-    ;(fetchLiveBrowseIndex as jest.Mock).mockResolvedValue({
-      articles: [
-        {
-          id: 1,
-          title: "Live Article",
-          source: "Test News",
-          sourceId: "test-news",
-          country: "US",
-          credibility: "high",
-          bias: "center",
-          summary: "Summary",
-          image: "/placeholder.svg",
-          publishedAt: new Date().toISOString(),
-          category: "general",
-          url: "https://example.com/live",
-          tags: [],
-          originalLanguage: "en",
-          translated: false,
+interface FetchResponseFixture {
+  readonly json: () => Promise<BrowseResponse>;
+  readonly ok: boolean;
+  readonly status: number;
+}
+
+type QueryClientWrapperProps = Readonly<{ children?: ReactNode }>;
+
+const createWrapper = () => {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            gcTime: 0,
+            retry: false,
+          },
         },
-      ],
-      total: 1,
-    })
+      });
+    class QueryClientWrapper extends Component<QueryClientWrapperProps> {
+      public static displayName = "QueryClientWrapper";
 
-    const { result } = renderHook(
-      () =>
-        useLiveBrowseIndex({
-          sources: ["zeta-news", "alpha-news"],
-        }),
-      { wrapper: createWrapper() },
-    )
+      public render(): ReactNode {
+        return <QueryClientProvider client={queryClient}>{this.props.children}</QueryClientProvider>;
+      }
+    }
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
-    })
+    return QueryClientWrapper;
+  },
+  fetchMock = jest.fn<FetchBoundary>(),
+  originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
 
-    expect(fetchLiveBrowseIndex).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sources: "alpha-news,zeta-news",
-      }),
-    )
-    expect(result.current.totalCount).toBe(1)
-    expect(result.current.articles).toHaveLength(1)
-  })
+type LiveBrowseTestCase = readonly [string, () => Promise<void> | void];
 
-  it("does not fetch when disabled", () => {
-    const { result } = renderHook(() => useLiveBrowseIndex({ enabled: false }), {
-      wrapper: createWrapper(),
-    })
+const liveBrowseTestCases: readonly LiveBrowseTestCase[] = [
+  [
+    "fetches the live browse index with stable multi-source serialization",
+    async () => {
+      const response: BrowseResponse = {
+        articles: [
+          {
+            bias: "center",
+            category: "general",
+            country: "US",
+            credibility: "high",
+            id: 1,
+            image_url: "/placeholder.svg",
+            original_language: "en",
+            published_at: "2026-08-31T00:00:00.000Z",
+            source: "Test News",
+            source_id: "test-news",
+            summary: "Summary",
+            title: "Live Article",
+            translated: false,
+            url: "https://example.com/live",
+          },
+        ],
+        total: 1,
+      };
+      fetchMock.mockResolvedValue({
+        json: () => Promise.resolve(response),
+        ok: true,
+        status: 200,
+      });
 
-    expect(result.current.isLoading).toBe(false)
-    expect(fetchLiveBrowseIndex).not.toHaveBeenCalled()
-  })
-})
+      const { result } = renderHook(
+        () =>
+          useNewsIndex({
+            mode: "live",
+            sources: ["zeta-news", "alpha-news"],
+          }),
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(requestUrl.pathname).toBe("/news/index/cached");
+      expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news");
+      expect(result.current.totalCount).toBe(1);
+      expect(result.current.articles).toHaveLength(1);
+    },
+  ],
+  [
+    "does not fetch when disabled",
+    () => {
+      const { result } = renderHook(() => useNewsIndex({ enabled: false, mode: "live" }), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  ],
+];
+
+describe("useNewsIndex (live mode)", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    if (originalFetchDescriptor === undefined) {
+      Reflect.deleteProperty(globalThis, "fetch");
+    } else {
+      Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
+    }
+  });
+
+  it.each(liveBrowseTestCases)("%s", async (_name, run): Promise<void> => {
+    await run();
+    expect.hasAssertions();
+  });
+});

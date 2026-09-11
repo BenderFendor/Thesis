@@ -34,47 +34,12 @@ pub async fn fetch_all(
     for source in sources {
         for url in &source.urls {
             let permit = acquire_permit(semaphore.clone()).await;
-            let client = client.clone();
-            let url = url.clone();
-            let source_name = source.name.clone();
-
-            join_set.spawn(async move {
-                let _permit = permit;
-                let request_started = Instant::now();
-                match client.get(&url).send().await {
-                    Ok(resp) => match resp.error_for_status() {
-                        Ok(ok_resp) => match ok_resp.text().await {
-                            Ok(body) => FetchResult::Success(RawFeed {
-                                source_name,
-                                url,
-                                xml: body,
-                                duration_ms: request_started.elapsed().as_millis(),
-                            }),
-                            Err(err) => FetchResult::Error(FetchError {
-                                source_name,
-                                url,
-                                message: format!("Failed to read body: {err}"),
-                                duration_ms: request_started.elapsed().as_millis(),
-                                timed_out: err.is_timeout(),
-                            }),
-                        },
-                        Err(status_err) => FetchResult::Error(FetchError {
-                            source_name,
-                            url,
-                            message: status_err.to_string(),
-                            duration_ms: request_started.elapsed().as_millis(),
-                            timed_out: status_err.is_timeout(),
-                        }),
-                    },
-                    Err(err) => FetchResult::Error(FetchError {
-                        source_name,
-                        url,
-                        message: err.to_string(),
-                        duration_ms: request_started.elapsed().as_millis(),
-                        timed_out: err.is_timeout(),
-                    }),
-                }
-            });
+            join_set.spawn(fetch_url(
+                client.clone(),
+                permit,
+                source.name.clone(),
+                url.clone(),
+            ));
         }
     }
 
@@ -86,6 +51,54 @@ pub async fn fetch_all(
     }
 
     results
+}
+
+async fn fetch_url(
+    client: Arc<Client>,
+    _permit: OwnedSemaphorePermit,
+    source_name: String,
+    url: String,
+) -> FetchResult {
+    let request_started = Instant::now();
+    match client.get(&url).send().await {
+        Ok(response) => read_response(response, source_name, url, request_started).await,
+        Err(error) => request_error(source_name, url, request_started, error),
+    }
+}
+
+async fn read_response(
+    response: reqwest::Response,
+    source_name: String,
+    url: String,
+    request_started: Instant,
+) -> FetchResult {
+    match response.error_for_status() {
+        Ok(response) => match response.text().await {
+            Ok(xml) => FetchResult::Success(RawFeed {
+                source_name,
+                url,
+                xml,
+                duration_ms: request_started.elapsed().as_millis(),
+            }),
+            Err(error) => request_error(source_name, url, request_started, error),
+        },
+        Err(error) => request_error(source_name, url, request_started, error),
+    }
+}
+
+fn request_error(
+    source_name: String,
+    url: String,
+    request_started: Instant,
+    error: reqwest::Error,
+) -> FetchResult {
+    FetchResult::Error(FetchError {
+        source_name,
+        url,
+        message: error.to_string(),
+        duration_ms: request_started.elapsed().as_millis(),
+        timed_out: error.is_timeout(),
+    })
 }
 
 async fn acquire_permit(semaphore: Arc<Semaphore>) -> OwnedSemaphorePermit {

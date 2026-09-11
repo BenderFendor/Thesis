@@ -72,6 +72,34 @@ async def _byline_timeline_entries(db: AsyncSession, reporter_id: int) -> list[d
     return entries
 
 
+def _affiliation_pick(affiliation: dict[str, Any], keys: list[str]) -> Any:
+    """Return the first truthy value of the given affiliation keys."""
+    for key in keys:
+        value = affiliation.get(key)
+        if value:
+            return value
+    return None
+
+
+def _affiliation_timeline_entry(affiliation: Any) -> dict[str, Any] | None:
+    """Build one timeline entry for an affiliation dict, or None when not usable."""
+    if not isinstance(affiliation, dict):
+        return None
+    raw_name = _affiliation_pick(affiliation, ["org", "name", "organization"])
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        return None
+    evidence_url = _affiliation_pick(affiliation, ["url", "source_url", "littlesis_url"])
+    return {
+        "source": "affiliation",
+        "outlet": raw_name,
+        "start_date": _affiliation_pick(affiliation, ["start_date", "start"]),
+        "end_date": _affiliation_pick(affiliation, ["end_date", "end"]),
+        "article_count": None,
+        "role": _affiliation_pick(affiliation, ["role", "category"]),
+        "evidence_url": evidence_url if isinstance(evidence_url, str) else None,
+    }
+
+
 def _affiliation_timeline_entries(reporter: Reporter) -> list[dict[str, Any]]:
     """One entry per `Reporter.institutional_affiliations` record with an org name."""
     affiliations = cast(list[Any] | None, reporter.institutional_affiliations) or []
@@ -80,29 +108,9 @@ def _affiliation_timeline_entries(reporter: Reporter) -> list[dict[str, Any]]:
 
     entries: list[dict[str, Any]] = []
     for affiliation in affiliations:
-        if not isinstance(affiliation, dict):
-            continue
-        raw_name = (
-            affiliation.get("org") or affiliation.get("name") or affiliation.get("organization")
-        )
-        if not isinstance(raw_name, str) or not raw_name.strip():
-            continue
-        evidence_url = (
-            affiliation.get("url")
-            or affiliation.get("source_url")
-            or affiliation.get("littlesis_url")
-        )
-        entries.append(
-            {
-                "source": "affiliation",
-                "outlet": raw_name,
-                "start_date": affiliation.get("start_date") or affiliation.get("start"),
-                "end_date": affiliation.get("end_date") or affiliation.get("end"),
-                "article_count": None,
-                "role": affiliation.get("role") or affiliation.get("category"),
-                "evidence_url": evidence_url if isinstance(evidence_url, str) else None,
-            }
-        )
+        entry = _affiliation_timeline_entry(affiliation)
+        if entry is not None:
+            entries.append(entry)
     return entries
 
 
@@ -130,6 +138,65 @@ def _node_ref(node: AtlasNode | None, *, fallback_id: str, fallback_label: str) 
     }
 
 
+def _owner_groups(
+    unique_names: list[str],
+    edge_by_owned: dict[str, Any],
+) -> dict[str, list[tuple[str, str, list[AtlasEdge]]]]:
+    """Group outlet chains by their ultimate accepted owner root id."""
+    groups: dict[str, list[tuple[str, str, list[AtlasEdge]]]] = defaultdict(list)
+    for name in unique_names:
+        outlet_node_id = stable_source_id(name)
+        chain = walk_ownership_chain(outlet_node_id, edge_by_owned)
+        if not chain:
+            continue
+        groups[chain[-1].source_id].append((outlet_node_id, name, chain))
+    return groups
+
+
+def _owner_finding(
+    root_id: str,
+    members: list[tuple[str, str, list[AtlasEdge]]],
+    node_by_id: dict[str, AtlasNode],
+) -> dict[str, Any] | None:
+    """Build one shared-owner finding for a group, or None when not reportable."""
+    if len(members) < 2:
+        return None
+    owner_node = node_by_id.get(root_id)
+    if owner_node is None:
+        return None
+
+    outlets: list[dict[str, Any]] = []
+    claim_ids: set[str] = set()
+    evidence_count = 0
+    for outlet_node_id, name, chain in members:
+        outlet_node = node_by_id.get(outlet_node_id)
+        outlets.append(_node_ref(outlet_node, fallback_id=outlet_node_id, fallback_label=name))
+        for edge in chain:
+            claim_ids.update(edge.claim_ids)
+            evidence_count += edge.evidence_count
+
+    return {
+        "owner": _node_ref(owner_node, fallback_id=root_id, fallback_label=owner_node.label),
+        "outlets": outlets,
+        "evidence_count": evidence_count,
+        "claim_ids": sorted(claim_ids),
+    }
+
+
+def _owner_findings(
+    groups: dict[str, list[tuple[str, str, list[AtlasEdge]]]],
+    node_by_id: dict[str, AtlasNode],
+) -> list[dict[str, Any]]:
+    """Build and sort all reportable shared-owner findings."""
+    findings: list[dict[str, Any]] = []
+    for root_id, members in groups.items():
+        finding = _owner_finding(root_id, members, node_by_id)
+        if finding is not None:
+            findings.append(finding)
+    findings.sort(key=lambda finding: cast(str, finding["owner"]["label"]))
+    return findings
+
+
 async def _shared_owner_findings(db: AsyncSession, outlet_names: list[str]) -> list[dict[str, Any]]:
     """Group the reporter's outlets by ultimate accepted owner.
 
@@ -155,47 +222,7 @@ async def _shared_owner_findings(db: AsyncSession, outlet_names: list[str]) -> l
     )
     node_by_id = {node.id: node for node in graph.nodes}
     edge_by_owned = build_interest_edge_index(graph.edges)
-
-    groups: dict[str, list[tuple[str, str, list[AtlasEdge]]]] = defaultdict(list)
-    for name in unique_names:
-        outlet_node_id = stable_source_id(name)
-        chain = walk_ownership_chain(outlet_node_id, edge_by_owned)
-        if not chain:
-            continue
-        root_id = chain[-1].source_id
-        groups[root_id].append((outlet_node_id, name, chain))
-
-    findings: list[dict[str, Any]] = []
-    for root_id, members in groups.items():
-        if len(members) < 2:
-            continue
-        owner_node = node_by_id.get(root_id)
-        if owner_node is None:
-            continue
-
-        outlets: list[dict[str, Any]] = []
-        claim_ids: set[str] = set()
-        evidence_count = 0
-        for outlet_node_id, name, chain in members:
-            outlet_node = node_by_id.get(outlet_node_id)
-            outlets.append(_node_ref(outlet_node, fallback_id=outlet_node_id, fallback_label=name))
-            for edge in chain:
-                claim_ids.update(edge.claim_ids)
-                evidence_count += edge.evidence_count
-
-        findings.append(
-            {
-                "owner": _node_ref(
-                    owner_node, fallback_id=root_id, fallback_label=owner_node.label
-                ),
-                "outlets": outlets,
-                "evidence_count": evidence_count,
-                "claim_ids": sorted(claim_ids),
-            }
-        )
-
-    findings.sort(key=lambda finding: cast(str, finding["owner"]["label"]))
-    return findings
+    return _owner_findings(_owner_groups(unique_names, edge_by_owned), node_by_id)
 
 
 async def build_reporter_career_timeline(db: AsyncSession, reporter: Reporter) -> dict[str, Any]:

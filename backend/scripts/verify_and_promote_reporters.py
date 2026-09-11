@@ -1,27 +1,18 @@
-"""Verify and promote local-byline reporters by confirming author-page identity.
-
-For each source, discovers author-page URLs from article structured data (JSON-LD,
-anchor links, meta tags), scrapes the author page to extract the visible name,
-and promotes reporters to verified when the page name matches the reporter name.
-
-This is the universal author-parsing pipeline — it works across all sources by
-using article-page signals instead of per-source URL-pattern guessing.
-
-Usage:
-    python scripts/verify_and_promote_reporters.py
-    python scripts/verify_and_promote_reporters.py --source BBC
-    python scripts/verify_and_promote_reporters.py --limit 100
-    python scripts/verify_and_promote_reporters.py --dry-run
-"""
+"""Verify and promote local-byline reporters from publisher identity evidence."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+import re
 import sys
+import xml.etree.ElementTree as ET
 from copy import deepcopy
+from html import unescape
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 REPO_BACKEND = Path(__file__).resolve().parents[1]
 if str(REPO_BACKEND) not in sys.path:
@@ -56,160 +47,150 @@ logger = get_logger("verify_promote")
 CONCURRENT_ARTICLE_FETCHES = 8
 CONCURRENT_PROFILE_SCRAPES = 6
 PROMOTE_NAME_SIMILARITY = 0.70
-
-# Sources where standard httpx always returns 403 — try curl_cffi TLS impersonation
 BLOCKED_SOURCE_HOSTS: set[str] = set()
+_ATOM_NS = "http://www.w3.org/2005/Atom"
+_DC_NS = "http://purl.org/dc/elements/1.1/"
 
 
 def _domain_from_url(url: str) -> str:
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    return parsed.netloc.lower().replace("www.", "") or ""
+    return urlparse(url).netloc.lower().replace("www.", "") or ""
 
 
-def _try_curl_cffi_article_signals(article_url: str) -> dict[str, Any] | None:
-    """Fetch article with curl_cffi TLS impersonation and extract JSON-LD author signals.
-
-    Returns dict with author_names, author_urls, or None if fetch failed.
-    For many blocked sites (Washington Times, WSJ, etc), this gets past TLS fingerprinting.
-    """
+def _curl_cffi_module() -> Any | None:
     try:
         import curl_cffi  # type: ignore[import-untyped]
     except ImportError:
         return None
+    return curl_cffi
 
+
+def _curl_get(url: str, *, accept: str = "text/html,application/xhtml+xml,*/*") -> Any | None:
+    curl_cffi = _curl_cffi_module()
+    if curl_cffi is None:
+        return None
     try:
-        resp = curl_cffi.requests.get(
-            article_url,
-            impersonate="chrome120",
-            timeout=15,
-            allow_redirects=True,
-            headers={
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.8",
-            },
-        )
-    except Exception:
-        return None
-
-    if resp.status_code != 200:
-        return None
-
-    html = resp.text
-    if not html or len(html) < 500:
-        return None
-
-    import json as _json
-    import re as _re
-
-    author_names: list[str] = []
-    author_urls: list[str] = []
-
-    # Extract JSON-LD Person/NewsArticle author data
-    for raw_ld in _re.findall(
-        r"<script[^>]+type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>",
-        html,
-        _re.IGNORECASE | _re.DOTALL,
-    ):
-        try:
-            data = _json.loads(raw_ld.strip())
-        except _json.JSONDecodeError:
-            continue
-        _extract_author_from_jsonld(data, author_names, author_urls)
-
-    # Also try meta author tag
-    meta_match = _re.search(
-        r"<meta[^>]+name=[\"']author[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>",
-        html,
-        _re.IGNORECASE,
-    )
-    if meta_match:
-        author_names.append(meta_match.group(1).strip())
-
-    if not author_names and not author_urls:
-        return None
-
-    return {
-        "article_url": article_url,
-        "author_names": list(dict.fromkeys(author_names)),
-        "author_urls": list(dict.fromkeys(author_urls)),
-        "access_path": "curl_cffi",
-    }
-
-
-def _extract_author_from_jsonld(data: Any, names: list[str], urls: list[str]) -> None:
-    """Recursively extract author names and URLs from JSON-LD."""
-    if isinstance(data, dict):
-        types = data.get("@type") or []
-        if isinstance(types, str):
-            types = [types]
-        if any(t in ("Person", "NewsArticle") for t in types):
-            author = data.get("author")
-            if isinstance(author, list):
-                for a in author:
-                    if isinstance(a, dict):
-                        if a.get("name"):
-                            names.append(str(a["name"]))
-                        if a.get("url"):
-                            urls.append(str(a["url"]))
-            elif isinstance(author, dict):
-                if author.get("name"):
-                    names.append(str(author["name"]))
-                if author.get("url"):
-                    urls.append(str(author["url"]))
-        for _key, value in data.items():
-            _extract_author_from_jsonld(value, names, urls)
-    elif isinstance(data, list):
-        for item in data:
-            _extract_author_from_jsonld(item, names, urls)
-
-
-def _try_curl_cffi_scrape(url: str) -> dict[str, Any] | None:
-    """Scrape author profile page with curl_cffi, extracting visible name from <title>."""
-    try:
-        import curl_cffi  # type: ignore[import-untyped]
-    except ImportError:
-        return None
-
-    try:
-        resp = curl_cffi.requests.get(
+        return curl_cffi.requests.get(
             url,
             impersonate="chrome120",
             timeout=15,
             allow_redirects=True,
-            headers={
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.8",
-            },
+            headers={"Accept": accept, "Accept-Language": "en-US,en;q=0.8"},
         )
     except Exception:
         return None
 
-    if resp.status_code != 200 or not resp.text or len(resp.text) < 200:
+
+def _jsonld_types(data: dict[str, Any]) -> list[str]:
+    raw = data.get("@type") or []
+    return [raw] if isinstance(raw, str) else [str(item) for item in raw if isinstance(item, str)]
+
+
+def _append_author(author: object, names: list[str], urls: list[str]) -> None:
+    if not isinstance(author, dict):
+        return
+    name = author.get("name")
+    url = author.get("url")
+    if name:
+        names.append(str(name))
+    if url:
+        urls.append(str(url))
+
+
+def _extract_author_value(author: object, names: list[str], urls: list[str]) -> None:
+    authors = author if isinstance(author, list) else [author]
+    for item in authors:
+        _append_author(item, names, urls)
+
+
+def _extract_author_from_jsonld(data: Any, names: list[str], urls: list[str]) -> None:
+    """Recursively extract author names and URLs from JSON-LD."""
+    if isinstance(data, list):
+        for item in data:
+            _extract_author_from_jsonld(item, names, urls)
+        return
+    if not isinstance(data, dict):
+        return
+    if {"Person", "NewsArticle"}.intersection(_jsonld_types(data)):
+        _extract_author_value(data.get("author"), names, urls)
+    for value in data.values():
+        _extract_author_from_jsonld(value, names, urls)
+
+
+def _jsonld_author_signals(html: str) -> tuple[list[str], list[str]]:
+    names: list[str] = []
+    urls: list[str] = []
+    pattern = r"<script[^>]+type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>"
+    for raw in re.findall(pattern, html, re.IGNORECASE | re.DOTALL):
+        try:
+            payload = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            continue
+        _extract_author_from_jsonld(payload, names, urls)
+    return names, urls
+
+
+def _meta_author_name(html: str) -> str | None:
+    match = re.search(
+        r"<meta[^>]+name=[\"']author[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>",
+        html,
+        re.IGNORECASE,
+    )
+    return match.group(1).strip() if match else None
+
+
+def _try_curl_cffi_article_signals(article_url: str) -> dict[str, Any] | None:
+    """Fetch an article with browser TLS impersonation and extract author signals."""
+    response = _curl_get(article_url)
+    if response is None or response.status_code != 200:
+        return None
+    html = response.text
+    if not html or len(html) < 500:
         return None
 
-    import re as _re
-    from html import unescape as _unescape
+    names, urls = _jsonld_author_signals(html)
+    meta_author = _meta_author_name(html)
+    if meta_author:
+        names.append(meta_author)
+    if not names and not urls:
+        return None
+    return {
+        "article_url": article_url,
+        "author_names": list(dict.fromkeys(names)),
+        "author_urls": list(dict.fromkeys(urls)),
+        "access_path": "curl_cffi",
+    }
 
-    _title_pat = _re.compile(r"<title\b[^>]*>(.*?)</title>", _re.IGNORECASE | _re.DOTALL)
-    title_match = _title_pat.search(resp.text)
-    profile_name: str | None = None
-    if title_match:
-        raw = _re.sub(r"(?is)<[^>]+>", " ", title_match.group(1))
-        raw = _unescape(raw)
-        raw = _re.sub(r"\s+", " ", raw).strip()
-        for sep in (" - ", " | ", " — ", " – "):
-            if sep in raw:
-                raw = raw.split(sep, 1)[0].strip()
-        if len(_re.findall(r"[^\W\d_]+", raw, flags=_re.UNICODE)) >= 2:
-            profile_name = raw
 
-    return {"url": url, "full_name": profile_name, "access_path": "curl_cffi"}
+def _title_text(html: str) -> str | None:
+    match = re.search(r"<title\b[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    raw = re.sub(r"(?is)<[^>]+>", " ", match.group(1))
+    raw = re.sub(r"\s+", " ", unescape(raw)).strip()
+    for separator in (" - ", " | ", " — ", " – "):
+        if separator in raw:
+            raw = raw.split(separator, 1)[0].strip()
+    return raw
+
+
+def _person_like_title(html: str) -> str | None:
+    title = _title_text(html)
+    if not title:
+        return None
+    return title if len(re.findall(r"[^\W\d_]+", title, flags=re.UNICODE)) >= 2 else None
+
+
+def _try_curl_cffi_scrape(url: str) -> dict[str, Any] | None:
+    """Scrape an author profile page with browser TLS impersonation."""
+    response = _curl_get(url)
+    if response is None or response.status_code != 200:
+        return None
+    if not response.text or len(response.text) < 200:
+        return None
+    return {"url": url, "full_name": _person_like_title(response.text), "access_path": "curl_cffi"}
 
 
 def _name_overlap(a: str, b: str) -> float:
-    """Simple token overlap scorer for name matching."""
     tokens_a = set(a.lower().split())
     tokens_b = set(b.lower().split())
     if not tokens_a or not tokens_b:
@@ -229,56 +210,91 @@ def _person_name_match(
     return _name_overlap(cleaned_reporter, cleaned_profile) >= threshold
 
 
-async def _discover_author_urls_for_reporter(
-    session: AsyncSession,
-    reporter: Reporter,
-    http_client: httpx.AsyncClient,
+async def _recent_reporter_article_urls(
+    session: AsyncSession, reporter_id: int, *, limit: int
 ) -> list[str]:
-    """Fetch recent articles for this reporter and extract author-page URLs."""
-    reporter_id = int(reporter.id or 0)
-
-    article_result = await session.execute(
+    result = await session.execute(
         select(Article.url)
         .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
         .where(ArticleAuthor.reporter_id == reporter_id)
         .where(Article.url.isnot(None))
         .where(Article.url != "")
         .order_by(Article.published_at.desc().nullslast())
-        .limit(10)
+        .limit(limit)
     )
-    article_urls_raw: list[str] = []
-    for (url,) in article_result.all():
-        if url not in article_urls_raw:
-            article_urls_raw.append(str(url))
+    return list(dict.fromkeys(str(url) for (url,) in result.all() if url))
 
-    author_urls: list[str] = []
-    fetchable = [
-        (url, str(reporter.name or ""))
-        for url in article_urls_raw
-        if _is_fetchable_article_url(url)
-    ]
 
-    sem = asyncio.Semaphore(CONCURRENT_ARTICLE_FETCHES)
+async def _fetch_author_pages_one(
+    semaphore: asyncio.Semaphore,
+    client: httpx.AsyncClient,
+    author_name: str,
+    url: str,
+) -> list[str]:
+    async with semaphore:
+        try:
+            result = await _fetch_article_author_signals(client, author_name, url)
+        except Exception:
+            return []
+    pages = result.get("author_pages", []) if isinstance(result, dict) else []
+    return [page for page in pages if isinstance(page, str)]
 
-    async def _fetch_one(url: str, author_name: str) -> list[str]:
-        async with sem:
-            try:
-                result = await _fetch_article_author_signals(http_client, author_name, url)
-                if isinstance(result, dict):
-                    return result.get("author_pages", [])
-            except Exception:
-                pass
-        return []
 
-    tasks = [_fetch_one(url, author) for url, author in fetchable[:8]]
-    all_pages = await asyncio.gather(*tasks, return_exceptions=True)
-    for page_list in all_pages:
-        if isinstance(page_list, list):
-            for page_url in page_list:
-                if isinstance(page_url, str) and page_url not in author_urls:
-                    author_urls.append(page_url)
+async def _discover_author_urls_for_reporter(
+    session: AsyncSession,
+    reporter: Reporter,
+    http_client: httpx.AsyncClient,
+) -> list[str]:
+    """Fetch recent articles and collect publisher author-page URLs."""
+    article_urls = await _recent_reporter_article_urls(session, int(reporter.id or 0), limit=10)
+    fetchable = [url for url in article_urls if _is_fetchable_article_url(url)][:8]
+    semaphore = asyncio.Semaphore(CONCURRENT_ARTICLE_FETCHES)
+    pages = await asyncio.gather(
+        *(
+            _fetch_author_pages_one(semaphore, http_client, str(reporter.name or ""), url)
+            for url in fetchable
+        ),
+        return_exceptions=True,
+    )
+    flattened = [page for group in pages if isinstance(group, list) for page in group]
+    return list(dict.fromkeys(flattened))
 
-    return author_urls
+
+def _citation_label(evidence_source: str) -> str:
+    labels = {
+        "author_page": "Official author page",
+        "rss_dc_creator": "RSS dc:creator attribution",
+        "wayback_machine": "Wayback Machine archive",
+        "wikidata_employer_match": "Wikidata employer match",
+        "curl_cffi_jsonld": "Article JSON-LD author",
+    }
+    return labels.get(evidence_source, "Verified identity source")
+
+
+def _ensure_profile_citation(
+    reporter: Reporter, author_url: str, profile_name: str, evidence_source: str
+) -> None:
+    citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
+    if any(
+        isinstance(item, dict) and str(item.get("url") or "") == author_url for item in citations
+    ):
+        return
+    citations.insert(
+        0,
+        {
+            "label": _citation_label(evidence_source),
+            "url": author_url,
+            "note": f"Profile name verified as '{profile_name}' via {evidence_source}.",
+        },
+    )
+    reporter.citations = citations
+
+
+async def _refresh_confidence(session: AsyncSession, reporter: Reporter) -> bool:
+    await session.commit()
+    await update_reporter_confidence(session, int(reporter.id or 0))
+    await session.refresh(reporter)
+    return reporter.confidence_tier == "verified"
 
 
 async def _promote_reporter(
@@ -289,9 +305,7 @@ async def _promote_reporter(
     *,
     evidence_source: str = "author_page",
 ) -> bool:
-    """Set author page URLs and citations on a reporter, then recompute confidence."""
-    reporter_id = int(reporter.id or 0)
-
+    """Persist verified author-page evidence and recompute reporter confidence."""
     if not is_author_profile_url(author_url):
         return await _record_supporting_evidence(
             session,
@@ -301,59 +315,18 @@ async def _promote_reporter(
             label="Article JSON-LD author",
             note=f"Article metadata names '{profile_name}' via {evidence_source}.",
         )
-
-    if not reporter.author_page_url:
-        reporter.author_page_url = author_url
-    if not reporter.canonical_author_url:
-        reporter.canonical_author_url = author_url
-
-    label_map = {
-        "author_page": "Official author page",
-        "rss_dc_creator": "RSS dc:creator attribution",
-        "wayback_machine": "Wayback Machine archive",
-        "wikidata_employer_match": "Wikidata employer match",
-        "curl_cffi_jsonld": "Article JSON-LD author",
-    }
-    citation_label = label_map.get(evidence_source, "Verified identity source")
-
-    citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    has_citation = any(
-        isinstance(c, dict) and str(c.get("url") or "") == author_url for c in citations
-    )
-    if not has_citation:
-        citations.insert(
-            0,
-            {
-                "label": citation_label,
-                "url": author_url,
-                "note": f"Profile name verified as '{profile_name}' via {evidence_source}.",
-            },
-        )
-    reporter.citations = citations
+    reporter.author_page_url = reporter.author_page_url or author_url
+    reporter.canonical_author_url = reporter.canonical_author_url or author_url
+    _ensure_profile_citation(reporter, author_url, profile_name, evidence_source)
     reporter.updated_at = get_utc_now()
-
-    await session.commit()
-    await update_reporter_confidence(session, reporter_id)
-    await session.refresh(reporter)
-
-    new_tier = reporter.confidence_tier or "unmatched"
-    promoted = new_tier == "verified"
-    if promoted:
-        logger.debug(
-            "Promoted %s to verified (url=%s, profile_name=%s, via=%s)",
-            reporter.name,
-            author_url,
-            profile_name,
-            evidence_source,
-        )
-    else:
-        logger.debug(
-            "Not promoted %s: tier=%s score=%s after setting via=%s",
-            reporter.name,
-            new_tier,
-            reporter.confidence_score,
-            evidence_source,
-        )
+    promoted = await _refresh_confidence(session, reporter)
+    logger.debug(
+        "%s %s after author evidence (url=%s, via=%s)",
+        "Promoted" if promoted else "Retained tier for",
+        reporter.name,
+        author_url,
+        evidence_source,
+    )
     return promoted
 
 
@@ -366,53 +339,35 @@ async def _record_supporting_evidence(
     label: str,
     note: str,
 ) -> bool:
-    """Record non-author-page evidence without marking it as profile verification."""
-    reporter_id = int(reporter.id or 0)
+    """Record non-profile identity evidence and recompute confidence."""
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    if not any(
-        isinstance(c, dict)
-        and str(c.get("url") or "") == evidence_url
-        and str(c.get("source_type") or "") == evidence_source
-        for c in citations
-    ):
+    duplicate = any(
+        isinstance(item, dict)
+        and str(item.get("url") or "") == evidence_url
+        and str(item.get("source_type") or "") == evidence_source
+        for item in citations
+    )
+    if not duplicate:
         citations.append(
-            {
-                "label": label,
-                "url": evidence_url,
-                "source_type": evidence_source,
-                "note": note,
-            }
+            {"label": label, "url": evidence_url, "source_type": evidence_source, "note": note}
         )
     reporter.citations = citations
     reporter.research_sources = sorted(set((reporter.research_sources or []) + [evidence_source]))
     reporter.updated_at = get_utc_now()
-    await session.commit()
-    await update_reporter_confidence(session, reporter_id)
-    await session.refresh(reporter)
-    return reporter.confidence_tier == "verified"
-
-
-# ── Bloomberg article API author extraction ────────────────────────────
+    return await _refresh_confidence(session, reporter)
 
 
 def _try_bloomberg_api_authors(article_url: str) -> list[str] | None:
     """Hit Bloomberg's unauthenticated article API for author names."""
-    try:
-        import curl_cffi  # type: ignore[import-untyped]
-    except ImportError:
+    curl_cffi = _curl_cffi_module()
+    if curl_cffi is None:
         return None
-    import re as _re
-    from urllib.parse import urlparse as _urlparse
-
-    path = _urlparse(article_url).path
-    slug_match = _re.match(r"/(?:news/)?(?:articles)/([\w-]+/[\w-]+.*)", path)
-    if not slug_match:
+    match = re.match(r"/(?:news/)?(?:articles)/([\w-]+/[\w-]+.*)", urlparse(article_url).path)
+    if not match:
         return None
-    slug = slug_match.group(1)
-
-    api_url = f"https://www.bloomberg.com/article/api/story/slug/{slug}"
+    api_url = f"https://www.bloomberg.com/article/api/story/slug/{match.group(1)}"
     try:
-        resp = curl_cffi.requests.get(
+        response = curl_cffi.requests.get(
             api_url,
             impersonate="chrome120",
             timeout=15,
@@ -424,69 +379,112 @@ def _try_bloomberg_api_authors(article_url: str) -> list[str] | None:
         )
     except Exception:
         return None
-
-    if resp.status_code != 200:
+    if response.status_code != 200:
         return None
+    with suppress_exception():
+        authors = response.json().get("data", {}).get("authors", [])
+        return [author["name"] for author in authors if author.get("name")]
+    return None
+
+
+class suppress_exception:
+    """Tiny context manager used where third-party response parsing is best-effort."""
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
+        return exc_type is not None
+
+
+def _split_creator_part(part: str) -> list[str]:
+    if not part:
+        return []
+    separator = next((candidate for candidate in (" and ", " & ") if candidate in part), None)
+    if separator is None:
+        return [part]
+    return [piece.strip() for piece in part.split(separator) if piece.strip()]
+
+
+def _split_creator(value: str) -> list[str]:
+    return [
+        author
+        for part in (piece.strip() for piece in value.split(","))
+        for author in _split_creator_part(part)
+    ]
+
+
+def _rss_item_record(item: ET.Element) -> tuple[str, list[str]] | None:
+    link_element = item.find("link")
+    link = (link_element.text or "").strip() if link_element is not None else ""
+    creator = item.find(f"{{{_DC_NS}}}creator")
+    author = item.find("author")
+    authors = _split_creator(creator.text.strip()) if creator is not None and creator.text else []
+    if author is not None and author.text:
+        authors.append(author.text.strip())
+    return (link, list(dict.fromkeys(authors))) if link and authors else None
+
+
+def _atom_entry_record(entry: ET.Element) -> tuple[str, list[str]] | None:
+    link_element = entry.find(f"{{{_ATOM_NS}}}link")
+    link = (link_element.get("href") or "").strip() if link_element is not None else ""
+    authors = []
+    for author in entry.iter(f"{{{_ATOM_NS}}}author"):
+        name = author.find(f"{{{_ATOM_NS}}}name")
+        if name is not None and name.text:
+            authors.append(name.text.strip())
+    return (link, list(dict.fromkeys(authors))) if link and authors else None
+
+
+def _parse_rss_authors(rss_text: str) -> dict[str, list[str]]:
+    """Return article URLs mapped to RSS/Atom author names."""
     try:
-        data = resp.json()
-        authors = data.get("data", {}).get("authors", [])
-        return [a["name"] for a in authors if a.get("name")]
+        root = ET.fromstring(rss_text)
+    except ET.ParseError:
+        return {}
+    records = [record for item in root.iter("item") if (record := _rss_item_record(item))]
+    records.extend(
+        record
+        for entry in root.iter(f"{{{_ATOM_NS}}}entry")
+        if (record := _atom_entry_record(entry))
+    )
+    return dict(records)
+
+
+def _source_feed_urls(source_name: str) -> list[str]:
+    normalized = source_name.lower()
+    for name, config in get_rss_sources().items():
+        if normalized != name.split(" - ")[0].strip().lower():
+            continue
+        raw = config.get("url")
+        if isinstance(raw, str):
+            return [raw]
+        return [str(url) for url in raw or []]
+    return []
+
+
+async def _fetch_feed_text(feed_url: str) -> str | None:
+    curl_cffi = _curl_cffi_module()
+    try:
+        if curl_cffi is not None:
+            response = curl_cffi.requests.get(
+                feed_url,
+                impersonate="chrome120",
+                timeout=15,
+                headers={"Accept": "application/xml,text/xml,*/*"},
+            )
+            return response.text
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            return (await client.get(feed_url)).text
     except Exception:
         return None
 
 
-# ── RSS feed dc:creator verification ───────────────────────────────────
-
-
-def _parse_rss_authors(rss_text: str) -> dict[str, list[str]]:
-    """Parse RSS/Atom XML, return {article_url: [author_names]} from dc:creator/author."""
-    import xml.etree.ElementTree as _ET
-
-    results: dict[str, list[str]] = {}
-    ns = {"dc": "http://purl.org/dc/elements/1.1/", "atom": "http://www.w3.org/2005/Atom"}
-
-    try:
-        root = _ET.fromstring(rss_text)
-    except _ET.ParseError:
-        return results
-
-    for item in root.iter("item"):
-        link_el = item.find("link")
-        link = (link_el.text or "").strip() if link_el is not None else ""
-        authors: list[str] = []
-
-        creator_el = item.find("dc:creator", ns)
-        if creator_el is not None and creator_el.text:
-            raw = creator_el.text.strip()
-            # Split by comma, then split each part by "and"/"&"
-            for part in [p.strip() for p in raw.split(",") if p.strip()]:
-                if " and " in part:
-                    authors.extend(s.strip() for s in part.split(" and ") if s.strip())
-                elif " & " in part:
-                    authors.extend(s.strip() for s in part.split(" & ") if s.strip())
-                else:
-                    authors.append(part)
-
-        author_el = item.find("author")
-        if author_el is not None and author_el.text:
-            authors.append(author_el.text.strip())
-
-        if link and authors:
-            results[link] = list(dict.fromkeys(authors))
-
-    # Also try Atom namespace
-    for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
-        link_el = entry.find("atom:link", ns) or entry.find("{http://www.w3.org/2005/Atom}link")
-        link = (link_el.get("href") or "").strip() if link_el is not None else ""
-        authors: list[str] = []
-        for author_el in entry.iter("{http://www.w3.org/2005/Atom}author"):
-            name_el = author_el.find("{http://www.w3.org/2005/Atom}name")
-            if name_el is not None and name_el.text:
-                authors.append(name_el.text.strip())
-        if link and authors:
-            results[link] = list(dict.fromkeys(authors))
-
-    return results
+def _rss_match_count(reporter_name: str, rss_authors: dict[str, list[str]]) -> int:
+    return sum(
+        any(_person_name_match(reporter_name, author) for author in authors)
+        for authors in rss_authors.values()
+    )
 
 
 async def _try_rss_feed_verification(
@@ -495,188 +493,95 @@ async def _try_rss_feed_verification(
     reporter_id: int,
     session: AsyncSession,
 ) -> dict[str, str] | None:
-    """Parse the source's RSS feeds and verify the reporter via dc:creator."""
-    sources = get_rss_sources()
-    source_config: dict[str, Any] | None = None
-    for name, cfg in sources.items():
-        base = name.split(" - ")[0].strip().lower()
-        if source_name.lower() == base:
-            source_config = cfg
-            break
-    if not source_config:
-        return None
-
-    feed_urls = source_config.get("url")
-    if not feed_urls:
-        return None
-    if isinstance(feed_urls, str):
-        feed_urls = [feed_urls]
-
-    import httpx as _httpx
-
-    try:
-        import curl_cffi  # type: ignore[import-untyped]
-
-        use_cffi = True
-    except ImportError:
-        use_cffi = False
-
-    for feed_url in feed_urls[:3]:
-        try:
-            if use_cffi:
-                resp = curl_cffi.requests.get(
-                    str(feed_url),
-                    impersonate="chrome120",
-                    timeout=15,
-                    headers={"Accept": "application/xml,text/xml,*/*"},
-                )
-                rss_text = resp.text
-            else:
-                async with _httpx.AsyncClient(timeout=15.0) as client:
-                    r = await client.get(str(feed_url))
-                    rss_text = r.text
-        except Exception:
-            continue
-
-        rss_authors = _parse_rss_authors(rss_text)
-        if not rss_authors:
-            continue
-
-        matches = 0
-        for article_url, author_list in rss_authors.items():
-            for author_name in author_list:
-                if _person_name_match(reporter_name, author_name):
-                    matches += 1
-                    break  # count once per article
-
-        if matches >= 1:
+    """Verify a reporter against dc:creator/Atom author fields in source feeds."""
+    del reporter_id, session
+    for feed_url in _source_feed_urls(source_name)[:3]:
+        rss_text = await _fetch_feed_text(feed_url)
+        authors = _parse_rss_authors(rss_text) if rss_text else {}
+        matches = _rss_match_count(reporter_name, authors)
+        if matches:
             return {
-                "url": str(feed_url),
+                "url": feed_url,
                 "profile_name": reporter_name,
                 "source": f"rss_dc_creator:{matches}_matches",
             }
     return None
 
 
-# ── Wayback Machine author page verification ───────────────────────────
+def _wayback_rows(author_page_url: str) -> list[list[str]]:
+    url = (
+        "http://web.archive.org/cdx/search/cdx?"
+        f"url={author_page_url}&output=json&limit=3&fl=timestamp,original,statuscode"
+    )
+    response = _curl_get(url)
+    if response is None or response.status_code != 200:
+        return []
+    try:
+        payload = json.loads(response.text)
+    except Exception:
+        return []
+    return payload[1:4] if isinstance(payload, list) and len(payload) >= 2 else []
+
+
+def _wayback_snapshot_name(row: list[str]) -> tuple[str, str, str] | None:
+    if len(row) < 3 or row[2] != "200":
+        return None
+    timestamp, original_url = row[0], row[1]
+    snapshot_url = f"http://web.archive.org/web/{timestamp}id_/{original_url}"
+    response = _curl_get(snapshot_url)
+    if response is None or response.status_code != 200:
+        return None
+    name = _person_like_title(response.text)
+    return (timestamp, original_url, name) if name else None
 
 
 async def _try_wayback_author_page(
     reporter_name: str, author_page_url: str
 ) -> dict[str, str] | None:
-    """Fetch Wayback Machine snapshots of an author page and check visible name."""
-    if not author_page_url:
+    """Check archived author pages for a visible matching person name."""
+    if not author_page_url or _curl_cffi_module() is None:
         return None
-
-    try:
-        import curl_cffi  # type: ignore[import-untyped]
-    except ImportError:
-        return None
-
-    from html import unescape as _unescape
-    import re as _re
-
-    # Use Wayback CDX to find snapshots
-    wb_url = f"http://web.archive.org/cdx/search/cdx?url={author_page_url}&output=json&limit=3&fl=timestamp,original,statuscode"
-    try:
-        resp = curl_cffi.requests.get(wb_url, impersonate="chrome120", timeout=15)
-    except Exception:
-        return None
-
-    if resp.status_code != 200:
-        return None
-
-    try:
-        import json as _json
-
-        cdx_rows = _json.loads(resp.text)
-    except Exception:
-        return None
-
-    if not isinstance(cdx_rows, list) or len(cdx_rows) < 2:
-        return None
-
-    # Try each snapshot
-    for row in cdx_rows[1:4]:
-        if len(row) < 3:
+    for row in _wayback_rows(author_page_url):
+        snapshot = _wayback_snapshot_name(row)
+        if snapshot is None:
             continue
-        timestamp, original_url, statuscode = row[0], row[1], row[2]
-        if statuscode != "200":
-            continue
-
-        snapshot_url = f"http://web.archive.org/web/{timestamp}id_/{original_url}"
-        try:
-            snap_resp = curl_cffi.requests.get(snapshot_url, impersonate="chrome120", timeout=15)
-        except Exception:
-            continue
-
-        if snap_resp.status_code != 200:
-            continue
-
-        # Extract visible name from page title
-        _title_pat = _re.compile(r"<title\b[^>]*>(.*?)</title>", _re.IGNORECASE | _re.DOTALL)
-        title_match = _title_pat.search(snap_resp.text)
-        if not title_match:
-            continue
-
-        raw = _re.sub(r"(?is)<[^>]+>", " ", title_match.group(1))
-        raw = _unescape(raw)
-        raw = _re.sub(r"\s+", " ", raw).strip()
-        for sep in (" - ", " | ", " — ", " – "):
-            if sep in raw:
-                raw = raw.split(sep, 1)[0].strip()
-
-        if len(_re.findall(r"[^\W\d_]+", raw, flags=_re.UNICODE)) >= 2:
-            if _person_name_match(reporter_name, raw):
-                return {
-                    "url": original_url,
-                    "profile_name": raw,
-                    "source": f"wayback_machine:{timestamp}",
-                }
-
-    return None
-
-
-# ── Wikidata employer cross-check ──────────────────────────────────────
-
-
-def _try_wikidata_employer_check(reporter: Reporter, source_name: str) -> dict[str, str] | None:
-    """Check if Wikidata employer label matches the reporter's source name."""
-    wikidata_url = reporter.wikidata_url or ""
-    if not wikidata_url and reporter.wikidata_qid:
-        wikidata_url = f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
-
-    career = reporter.career_history if isinstance(reporter.career_history, list) else []
-    for entry in career:
-        if not isinstance(entry, dict):
-            continue
-        org = str(entry.get("organization") or "").strip().lower()
-        source_lower = source_name.lower()
-        if org and source_lower and (org in source_lower or source_lower in org):
+        timestamp, original_url, profile_name = snapshot
+        if _person_name_match(reporter_name, profile_name):
             return {
-                "url": wikidata_url,
-                "profile_name": str(reporter.name or ""),
-                "source": "wikidata_employer_match",
+                "url": original_url,
+                "profile_name": profile_name,
+                "source": f"wayback_machine:{timestamp}",
             }
     return None
 
 
-async def _process_reporter(
-    session: AsyncSession,
-    reporter_id: int,
-    http_client: httpx.AsyncClient,
-    dry_run: bool,
-) -> dict[str, Any]:
-    """Discover author page for a reporter, scrape it, and promote if name matches."""
-    # Load fresh copy in this session
-    reporter = (
-        await session.execute(select(Reporter).where(Reporter.id == reporter_id))
-    ).scalar_one_or_none()
-    if reporter is None:
-        return {"reporter_id": reporter_id, "name": "", "error": "not_found"}
+def _career_organization_matches(reporter: Reporter, source_name: str) -> bool:
+    source = source_name.lower()
+    career = reporter.career_history if isinstance(reporter.career_history, list) else []
+    organizations = [
+        str(entry.get("organization") or "").strip().lower()
+        for entry in career
+        if isinstance(entry, dict)
+    ]
+    return any(org and source and (org in source or source in org) for org in organizations)
 
-    name = str(reporter.name or "")
-    result = {
+
+def _try_wikidata_employer_check(reporter: Reporter, source_name: str) -> dict[str, str] | None:
+    """Check whether profile career evidence names the reporter's current source."""
+    if not _career_organization_matches(reporter, source_name):
+        return None
+    wikidata_url = reporter.wikidata_url or ""
+    if not wikidata_url and reporter.wikidata_qid:
+        wikidata_url = f"https://www.wikidata.org/wiki/{reporter.wikidata_qid}"
+    return {
+        "url": wikidata_url,
+        "profile_name": str(reporter.name or ""),
+        "source": "wikidata_employer_match",
+    }
+
+
+def _verification_result(reporter_id: int, name: str) -> dict[str, Any]:
+    return {
         "reporter_id": reporter_id,
         "name": name,
         "discovered_urls": 0,
@@ -685,224 +590,296 @@ async def _process_reporter(
         "error": None,
     }
 
+
+async def _load_reporter(session: AsyncSession, reporter_id: int) -> Reporter | None:
+    return (
+        await session.execute(select(Reporter).where(Reporter.id == reporter_id))
+    ).scalar_one_or_none()
+
+
+async def _curl_article_signal_results(
+    session: AsyncSession, reporter: Reporter
+) -> tuple[list[str], list[dict[str, Any]]]:
+    article_urls = await _recent_reporter_article_urls(session, int(reporter.id or 0), limit=5)
+    fetchable = [url for url in article_urls if _is_fetchable_article_url(url)][:5]
+    results = await asyncio.gather(
+        *(
+            asyncio.get_running_loop().run_in_executor(None, _try_curl_cffi_article_signals, url)
+            for url in fetchable
+        ),
+        return_exceptions=True,
+    )
+    signals = [item for item in results if isinstance(item, dict)]
+    return fetchable, signals
+
+
+async def _apply_direct_cffi_match(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    article_urls: list[str],
+    signals: dict[str, Any],
+    dry_run: bool,
+) -> bool:
+    matching_name = next(
+        (
+            author
+            for author in signals.get("author_names", [])
+            if _person_name_match(str(reporter.name or ""), str(author))
+        ),
+        None,
+    )
+    if matching_name is None:
+        return False
+    author_urls = [str(url) for url in signals.get("author_urls", []) if url]
+    evidence_url = author_urls[0] if author_urls else article_urls[0]
+    if dry_run:
+        result["promoted"] = bool(author_urls)
+        result["evidence_recorded"] = not author_urls
+        result["_dry_run_match"] = {
+            "url": evidence_url,
+            "profile_name": matching_name,
+            "source": "curl_cffi_jsonld",
+        }
+        return True
+    if author_urls:
+        result["promoted"] = await _promote_reporter(
+            session,
+            reporter,
+            evidence_url,
+            str(matching_name),
+            evidence_source="curl_cffi_jsonld",
+        )
+    else:
+        result["promoted"] = await _record_supporting_evidence(
+            session,
+            reporter,
+            evidence_url,
+            evidence_source="article_jsonld_author",
+            label="Article JSON-LD author",
+            note=f"Article JSON-LD names '{matching_name}'.",
+        )
+        result["evidence_recorded"] = True
+    return True
+
+
+async def _augment_author_urls_from_cffi(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    author_urls: list[str],
+    dry_run: bool,
+) -> bool:
+    article_urls, signal_results = await _curl_article_signal_results(session, reporter)
+    for signals in signal_results:
+        if await _apply_direct_cffi_match(
+            session, reporter, result, article_urls, signals, dry_run
+        ):
+            return True
+        author_urls.extend(str(url) for url in signals.get("author_urls", []) if url)
+    author_urls[:] = list(dict.fromkeys(author_urls))
+    return False
+
+
+async def _scrape_profile(
+    semaphore: asyncio.Semaphore,
+    client: httpx.AsyncClient,
+    url: str,
+) -> tuple[str, dict[str, Any]]:
+    async with semaphore:
+        try:
+            profile = await scrape_author_profile(client, url)
+        except Exception as exc:
+            profile = {"url": url, "error": str(exc)}
+    if not profile.get("error"):
+        return url, profile
+    fallback = await asyncio.get_running_loop().run_in_executor(None, _try_curl_cffi_scrape, url)
+    if fallback and fallback.get("full_name"):
+        logger.info("curl_cffi author page fallback succeeded for %s", _domain_from_url(url))
+        return url, fallback
+    return url, profile
+
+
+async def _scrape_and_promote(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    client: httpx.AsyncClient,
+    author_urls: list[str],
+    dry_run: bool,
+) -> None:
+    semaphore = asyncio.Semaphore(CONCURRENT_PROFILE_SCRAPES)
+    scrapes = await asyncio.gather(
+        *(_scrape_profile(semaphore, client, url) for url in author_urls[:5]),
+        return_exceptions=True,
+    )
+    valid = [item for item in scrapes if isinstance(item, tuple) and not item[1].get("error")]
+    result["scraped"] = len(valid)
+    for url, profile in valid:
+        profile_name = profile.get("full_name")
+        if not _person_name_match(str(reporter.name or ""), profile_name):
+            continue
+        if dry_run:
+            result["promoted"] = True
+            result["_dry_run_match"] = {"url": url, "profile_name": profile_name}
+            return
+        result["promoted"] = await _promote_reporter(
+            session,
+            reporter,
+            url,
+            str(profile_name),
+            evidence_source="author_page",
+        )
+        if result["promoted"]:
+            return
+
+
+async def _source_for_reporter(session: AsyncSession, reporter_id: int) -> str:
+    result = await session.execute(
+        select(Article.source)
+        .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
+        .where(ArticleAuthor.reporter_id == reporter_id)
+        .limit(1)
+    )
+    source = result.scalar_one_or_none()
+    return str(source) if source else ""
+
+
+async def _record_rss_match(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    match: dict[str, str],
+    dry_run: bool,
+) -> None:
+    result["evidence_recorded"] = True
+    if dry_run:
+        result["_dry_run_match"] = match
+        return
+    await _record_supporting_evidence(
+        session,
+        reporter,
+        match["url"],
+        evidence_source="rss_feed_author",
+        label="RSS dc:creator attribution",
+        note=f"RSS feed byline matches '{match['profile_name']}'.",
+    )
+
+
+async def _try_wayback_candidates(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    author_urls: list[str],
+    dry_run: bool,
+) -> bool:
+    name = str(reporter.name or "")
+    for candidate_url in author_urls[:3]:
+        match = await _try_wayback_author_page(name, candidate_url)
+        if match is None:
+            continue
+        if dry_run:
+            result["promoted"] = True
+            result["_dry_run_match"] = match
+            return True
+        result["promoted"] = await _promote_reporter(
+            session,
+            reporter,
+            match["url"],
+            match["profile_name"],
+            evidence_source=match.get("source", "wayback_machine"),
+        )
+        return bool(result["promoted"])
+    return False
+
+
+async def _try_wikidata_support(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    source_name: str,
+    dry_run: bool,
+) -> None:
+    eligible = reporter.confidence_tier == "strong" or bool(reporter.wikidata_qid)
+    match = _try_wikidata_employer_check(reporter, source_name) if eligible else None
+    if match is None:
+        return
+    result["evidence_recorded"] = True
+    if dry_run:
+        result["_dry_run_match"] = match
+        return
+    result["promoted"] = await _record_supporting_evidence(
+        session,
+        reporter,
+        match["url"],
+        evidence_source="wikidata_employer_match",
+        label="Wikidata employer match",
+        note=f"Wikidata employer evidence matches source '{source_name}'.",
+    )
+
+
+async def _advanced_verification(
+    session: AsyncSession,
+    reporter: Reporter,
+    result: dict[str, Any],
+    author_urls: list[str],
+    dry_run: bool,
+) -> None:
+    source = await _source_for_reporter(session, int(reporter.id or 0))
+    rss_match = await _try_rss_feed_verification(
+        str(reporter.name or ""), source, int(reporter.id or 0), session
+    )
+    if rss_match:
+        await _record_rss_match(session, reporter, result, rss_match, dry_run)
+    if await _try_wayback_candidates(session, reporter, result, author_urls, dry_run):
+        return
+    await _try_wikidata_support(session, reporter, result, source, dry_run)
+
+
+async def _process_reporter(
+    session: AsyncSession,
+    reporter_id: int,
+    http_client: httpx.AsyncClient,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """Run the ordered publisher-evidence verification pipeline for one reporter."""
+    reporter = await _load_reporter(session, reporter_id)
+    if reporter is None:
+        return {"reporter_id": reporter_id, "name": "", "error": "not_found"}
+    name = str(reporter.name or "")
+    result = _verification_result(reporter_id, name)
     if not name.strip():
         result["error"] = "empty_name"
         return result
 
     author_urls = await _discover_author_urls_for_reporter(session, reporter, http_client)
-    discovered = len(author_urls)
-    result["discovered_urls"] = discovered
-
-    if not author_urls:
-        # Standard httpx got nothing — try curl_cffi on article pages directly
-        reporter_id_int = int(reporter.id or 0)
-        article_urls_raw = await session.execute(
-            select(Article.url)
-            .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
-            .where(ArticleAuthor.reporter_id == reporter_id_int)
-            .where(Article.url.isnot(None))
-            .where(Article.url != "")
-            .order_by(Article.published_at.desc().nullslast())
-            .limit(5)
-        )
-        article_urls_to_try = [
-            str(row[0]) for row in article_urls_raw.all() if _is_fetchable_article_url(str(row[0]))
-        ]
-
-        cffi_signals_results = await asyncio.gather(
-            *[
-                asyncio.get_running_loop().run_in_executor(
-                    None, _try_curl_cffi_article_signals, url
-                )
-                for url in article_urls_to_try[:5]
-            ],
-            return_exceptions=True,
-        )
-
-        for signals in cffi_signals_results:
-            if isinstance(signals, BaseException) or signals is None:
-                continue
-            cffi_author_names = signals.get("author_names", [])
-            cffi_author_urls = signals.get("author_urls", [])
-
-            # If any JSON-LD author name matches our reporter, promote directly
-            for author_name in cffi_author_names:
-                if _person_name_match(name, author_name):
-                    author_url = cffi_author_urls[0] if cffi_author_urls else article_urls_to_try[0]
-                    if not dry_run:
-                        if cffi_author_urls:
-                            promoted = await _promote_reporter(
-                                session,
-                                reporter,
-                                author_url,
-                                author_name,
-                                evidence_source="curl_cffi_jsonld",
-                            )
-                        else:
-                            promoted = await _record_supporting_evidence(
-                                session,
-                                reporter,
-                                author_url,
-                                evidence_source="article_jsonld_author",
-                                label="Article JSON-LD author",
-                                note=f"Article JSON-LD names '{author_name}'.",
-                            )
-                            result["evidence_recorded"] = True
-                        result["promoted"] = promoted
-                    else:
-                        result["promoted"] = bool(cffi_author_urls)
-                        result["evidence_recorded"] = not cffi_author_urls
-                        result["_dry_run_match"] = {
-                            "url": author_url,
-                            "profile_name": author_name,
-                            "source": "curl_cffi_jsonld",
-                        }
-                    return result
-
-            # Also add any discovered author URLs for the scrape path
-            for url in cffi_author_urls:
-                if url not in author_urls:
-                    author_urls.append(url)
-
+    result["discovered_urls"] = len(author_urls)
+    if not author_urls and await _augment_author_urls_from_cffi(
+        session, reporter, result, author_urls, dry_run
+    ):
+        return result
     if not author_urls:
         logger.debug("No author URLs discovered for %s", name)
         return result
 
-    sem = asyncio.Semaphore(CONCURRENT_PROFILE_SCRAPES)
-
-    async def _scrape_one(url: str) -> tuple[str, dict[str, Any]]:
-        async with sem:
-            try:
-                profile = await scrape_author_profile(http_client, url)
-            except Exception as exc:
-                profile = {"url": url, "error": str(exc)}
-
-            # If author page scrape failed, try curl_cffi as fallback
-            if profile.get("error"):
-                domain = _domain_from_url(url)
-                cffi_profile = await asyncio.get_running_loop().run_in_executor(
-                    None, _try_curl_cffi_scrape, url
-                )
-                if cffi_profile and cffi_profile.get("full_name"):
-                    logger.info("curl_cffi author page fallback succeeded for %s (%s)", url, domain)
-                    return url, cffi_profile
-        return url, profile
-
-    scrapes = await asyncio.gather(
-        *[_scrape_one(url) for url in author_urls[:5]],
-        return_exceptions=True,
-    )
-
-    scraped_count = 0
-    for scrape_item in scrapes:
-        if isinstance(scrape_item, BaseException):
-            continue
-        url, profile = scrape_item
-        if profile.get("error"):
-            continue
-
-        profile_name = profile.get("full_name")
-        scraped_count += 1
-        result["scraped"] = scraped_count
-
-        if profile_name and _person_name_match(name, profile_name):
-            if not dry_run:
-                promoted = await _promote_reporter(
-                    session, reporter, url, profile_name, evidence_source="author_page"
-                )
-                result["promoted"] = promoted
-                if promoted:
-                    break
-            else:
-                result["promoted"] = True
-                result["_dry_run_match"] = {
-                    "url": url,
-                    "profile_name": profile_name,
-                }
-                break
-
-    # ── If we still haven't promoted, try advanced verification methods ──
-
-    vid = int(reporter.id or 0)
-    source_attr = ""
-    source_result = await session.execute(
-        select(Article.source)
-        .join(ArticleAuthor, ArticleAuthor.article_id == Article.id)
-        .where(ArticleAuthor.reporter_id == vid)
-        .limit(1)
-    )
-    source_row = source_result.scalar_one_or_none()
-    if source_row:
-        source_attr = str(source_row)
-
-    # Tier 5: RSS feed dc:creator verification
-    rss_match = await _try_rss_feed_verification(name, source_attr, vid, session)
-    if rss_match:
-        promoted = False
-        if not dry_run:
-            await _record_supporting_evidence(
-                session,
-                reporter,
-                rss_match["url"],
-                evidence_source="rss_feed_author",
-                label="RSS dc:creator attribution",
-                note=f"RSS feed byline matches '{rss_match['profile_name']}'.",
-            )
-            result["evidence_recorded"] = True
-        else:
-            result["promoted"] = False
-            result["evidence_recorded"] = True
-            result["_dry_run_match"] = rss_match
-        if promoted:
-            return result
-
-    # Tier 6: Wayback Machine author page content
-    for candidate_url in author_urls[:3]:
-        wb_match = await _try_wayback_author_page(name, candidate_url)
-        if wb_match:
-            if not dry_run:
-                promoted = await _promote_reporter(
-                    session,
-                    reporter,
-                    wb_match["url"],
-                    wb_match["profile_name"],
-                    evidence_source=wb_match.get("source", "wayback_machine"),
-                )
-                result["promoted"] = promoted
-            else:
-                result["promoted"] = True
-                result["_dry_run_match"] = wb_match
-            if promoted:
-                return result
-            break
-
-    # Tier 7: Wikidata employer cross-check (for strong-tier reporters)
-    if reporter.confidence_tier == "strong" or reporter.wikidata_qid:
-        wd_match = _try_wikidata_employer_check(reporter, source_attr)
-        if wd_match:
-            if not dry_run:
-                promoted = await _record_supporting_evidence(
-                    session,
-                    reporter,
-                    wd_match["url"],
-                    evidence_source="wikidata_employer_match",
-                    label="Wikidata employer match",
-                    note=f"Wikidata employer evidence matches source '{source_attr}'.",
-                )
-                result["promoted"] = promoted
-                result["evidence_recorded"] = True
-            else:
-                result["promoted"] = False
-                result["evidence_recorded"] = True
-                result["_dry_run_match"] = wd_match
-
+    await _scrape_and_promote(session, reporter, result, http_client, author_urls, dry_run)
+    if not result["promoted"]:
+        await _advanced_verification(session, reporter, result, author_urls, dry_run)
     return result
 
 
-async def _get_session():
+async def _get_session() -> AsyncSession:
     if AsyncSessionLocal is None:
         raise RuntimeError("Database not available")
     return AsyncSessionLocal()
+
+
+def _source_matches_filter(source: str, source_filter: str | None) -> bool:
+    if not source_filter:
+        return True
+    query = source_filter.lower()
+    base = source.split(" - ")[0].strip()
+    return query in source.lower() or query in base.lower()
 
 
 async def _get_non_verified_reporter_ids(
@@ -910,103 +887,79 @@ async def _get_non_verified_reporter_ids(
     source_filter: str | None = None,
     limit: int | None = None,
 ) -> list[tuple[int, str]]:
-    """Get unique (reporter_id, source) pairs for non-verified reporters."""
-    subq = (
+    """Get unique reporter/source pairs for non-verified reporters."""
+    result = await session.execute(
         select(Reporter.id, Article.source)
         .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
         .join(Article, Article.id == ArticleAuthor.article_id)
         .where(Reporter.confidence_tier != "verified")
         .distinct()
     )
-    subq_result = await session.execute(subq)
-    pairs = [(int(row[0]), str(row[1] or "")) for row in subq_result.all()]
-
-    seen: set[int] = set()
-    result: list[tuple[int, str]] = []
-    for rid, source in pairs:
-        if rid in seen:
-            continue
-        if source_filter and source_filter.lower() not in source.lower():
-            base = source.split(" - ")[0].strip()
-            if source_filter.lower() not in base.lower():
-                continue
-        seen.add(rid)
-        result.append((rid, source))
-        if limit and len(result) >= limit:
+    pairs = [(int(row[0]), str(row[1] or "")) for row in result.all()]
+    unique: dict[int, str] = {}
+    for reporter_id, source in pairs:
+        if reporter_id not in unique and _source_matches_filter(source, source_filter):
+            unique[reporter_id] = source
+        if limit and len(unique) >= limit:
             break
+    return list(unique.items())
 
-    return result
+
+async def _process_one_reporter(
+    semaphore: asyncio.Semaphore, reporter_id: int, dry_run: bool
+) -> dict[str, Any]:
+    async with semaphore:
+        session = await _get_session()
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                return await _process_reporter(session, reporter_id, client, dry_run)
+        finally:
+            await session.close()
+
+
+def _verification_summary(results: list[Any]) -> tuple[int, int, list[str]]:
+    promoted = [item for item in results if isinstance(item, dict) and item.get("promoted")]
+    errors = sum(
+        isinstance(item, BaseException) or (isinstance(item, dict) and bool(item.get("error")))
+        for item in results
+    )
+    names = [str(item.get("name") or "") for item in promoted]
+    return len(promoted), errors, names
+
+
+def _print_summary(total: int, promoted: int, errors: int, names: list[str], dry_run: bool) -> None:
+    print()
+    print("=" * 72)
+    print(f"REPORTER VERIFICATION SUMMARY  (dry_run={dry_run})")
+    print("=" * 72)
+    print(f"Local-byline rptrs:   {total}")
+    print(f"Promoted to verified: {promoted}")
+    print(f"Promotion rate:       {round(100 * promoted / max(total, 1), 1)}%")
+    print(f"Errors:               {errors}")
+    if names:
+        suffix = f"\n  ... and {len(names) - 10} more" if len(names) > 10 else ""
+        print(f"Promoted names:       {', '.join(names[:10])}{suffix}")
+    print("=" * 72)
 
 
 async def main_async(args: argparse.Namespace) -> int:
     session = await _get_session()
     try:
-        pairs = await _get_non_verified_reporter_ids(
-            session,
-            source_filter=args.source,
-            limit=args.limit,
-        )
+        pairs = await _get_non_verified_reporter_ids(session, args.source, args.limit)
     finally:
         await session.close()
-
     if not pairs:
         logger.info("No local_byline reporters found")
         print("No local_byline reporters found")
         return 0
 
-    total = len(pairs)
-    logger.info(
-        "Processing %d local_byline reporters with concurrency=%d (dry_run=%s)",
-        total,
-        args.concurrency,
-        args.dry_run,
-    )
-
-    sem = asyncio.Semaphore(args.concurrency)
-
-    async def _process_one(reporter_id: int) -> dict[str, Any]:
-        async with sem:
-            session = await _get_session()
-            try:
-                async with httpx.AsyncClient(timeout=20.0) as client:
-                    return await _process_reporter(session, reporter_id, client, args.dry_run)
-            finally:
-                await session.close()
-
+    semaphore = asyncio.Semaphore(args.concurrency)
     results = await asyncio.gather(
-        *[_process_one(rid) for rid, _s in pairs],
+        *(_process_one_reporter(semaphore, reporter_id, args.dry_run) for reporter_id, _ in pairs),
         return_exceptions=True,
     )
-
-    total = len(pairs)
-    total_promoted = 0
-    total_errors = 0
-    promoted_names: list[str] = []
-
-    for r in results:
-        if isinstance(r, BaseException):
-            total_errors += 1
-            continue
-        if r.get("promoted"):
-            total_promoted += 1
-            promoted_names.append(r.get("name", ""))
-        if r.get("error"):
-            total_errors += 1
-
-    print()
-    print("=" * 72)
-    print(f"REPORTER VERIFICATION SUMMARY  (dry_run={args.dry_run})")
-    print("=" * 72)
-    print(f"Local-byline rptrs:   {total}")
-    print(f"Promoted to verified: {total_promoted}")
-    print(f"Promotion rate:       {round(100 * total_promoted / max(total, 1), 1)}%")
-    print(f"Errors:               {total_errors}")
-    if promoted_names:
-        print(f"Promoted names:       {', '.join(promoted_names[:10])}")
-        if len(promoted_names) > 10:
-            print(f"  ... and {len(promoted_names) - 10} more")
-    print("=" * 72)
-
+    promoted, errors, names = _verification_summary(results)
+    _print_summary(len(pairs), promoted, errors, names, args.dry_run)
     return 0
 
 
@@ -1016,16 +969,9 @@ def main() -> int:
     )
     parser.add_argument("--source", help="Process a single source (substring match)")
     parser.add_argument("--limit", type=int, help="Limit number of sources to process")
+    parser.add_argument("--concurrency", type=int, default=6, help="Sources to process in parallel")
     parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=6,
-        help="Number of sources to process in parallel",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Discover and scrape but do not write to DB",
+        "--dry-run", action="store_true", help="Discover and scrape without DB writes"
     )
     return asyncio.run(main_async(parser.parse_args()))
 

@@ -67,6 +67,74 @@ def _read_cached_response(content_path: Path, meta_path: Path) -> tuple[bytes, s
     return content, content_type
 
 
+def _cache_headers(content: bytes, content_type: str, cache_status: str) -> dict[str, str]:
+    return {
+        "Cache-Control": f"public, max-age={CACHE_MAX_AGE}, stale-while-revalidate={CACHE_STALE_WHILE_REVALIDATE}",
+        "Content-Length": str(len(content)),
+        "X-Cache": cache_status,
+    }
+
+
+def _cached_response(content_path: Path, meta_path: Path, url: str) -> Response | None:
+    """Serve from cache when readable, or log and fall through to fetch."""
+    try:
+        content, content_type = _read_cached_response(content_path, meta_path)
+        logger.debug("Cache HIT for %s", url[:50])
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                **_cache_headers(content, content_type, "HIT"),
+                "X-Cache-Age": str(int(time.time() - meta_path.stat().st_mtime)),
+            },
+        )
+    except Exception as e:
+        logger.warning("Cache read error for %s: %s", url[:50], e)
+        return None
+
+
+def _validate_image_content_type(content_type: str, url: str) -> None:
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        logger.warning("Unsupported content type %s for %s", content_type, url[:50])
+        raise HTTPException(
+            status_code=400,
+            detail=f"IMAGE_UNSUPPORTED_TYPE: {content_type}",
+        )
+
+
+def _validate_image_size(content: bytes) -> None:
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"IMAGE_TOO_LARGE: {len(content)} bytes exceeds {MAX_IMAGE_SIZE}",
+        )
+
+
+async def _fetch_image_payload(url: str) -> tuple[bytes, str]:
+    """Fetch an image and validate its content type and size."""
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(FETCH_TIMEOUT),
+        follow_redirects=True,
+        headers={"User-Agent": SCOOP_BROWSER_UA},
+    ) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "").split(";")[0].strip()
+        _validate_image_content_type(content_type, url)
+        content = response.content
+        _validate_image_size(content)
+        return content, content_type
+
+
+def _write_cache(content_path: Path, meta_path: Path, content: bytes, content_type: str) -> None:
+    try:
+        content_path.write_bytes(content)
+        meta_path.write_text(content_type)
+    except Exception as e:
+        logger.warning("Cache write error: %s", e)
+        # Continue without caching
+
+
 @router.get("/proxy")
 async def proxy_image(
     url: str = Query(..., description="URL of the image to proxy"),
@@ -91,85 +159,36 @@ async def proxy_image(
 
     # Check cache
     if content_path.exists() and _is_cache_valid(meta_path):
-        try:
-            content, content_type = _read_cached_response(content_path, meta_path)
-            logger.debug("Cache HIT for %s", url[:50])
-            return Response(
-                content=content,
-                media_type=content_type,
-                headers={
-                    "Cache-Control": f"public, max-age={CACHE_MAX_AGE}, stale-while-revalidate={CACHE_STALE_WHILE_REVALIDATE}",
-                    "Content-Length": str(len(content)),
-                    "X-Cache": "HIT",
-                    "X-Cache-Age": str(int(time.time() - meta_path.stat().st_mtime)),
-                },
-            )
-        except Exception as e:
-            logger.warning("Cache read error for %s: %s", url[:50], e)
-            # Fall through to fetch
+        cached = _cached_response(content_path, meta_path, url)
+        if cached is not None:
+            return cached
 
     # Fetch from origin
     logger.info("Fetching image: %s", url[:80])
 
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(FETCH_TIMEOUT),
-            follow_redirects=True,
-            headers={"User-Agent": SCOOP_BROWSER_UA},
-        ) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-
-            content_type = response.headers.get("content-type", "").split(";")[0].strip()
-
-            # Validate content type
-            if content_type not in ALLOWED_CONTENT_TYPES:
-                logger.warning("Unsupported content type %s for %s", content_type, url[:50])
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"IMAGE_UNSUPPORTED_TYPE: {content_type}",
-                )
-
-            # Check size
-            content = response.content
-            if len(content) > MAX_IMAGE_SIZE:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"IMAGE_TOO_LARGE: {len(content)} bytes exceeds {MAX_IMAGE_SIZE}",
-                )
-
-            # Cache to disk
-            try:
-                content_path.write_bytes(content)
-                meta_path.write_text(content_type)
-            except Exception as e:
-                logger.warning("Cache write error: %s", e)
-                # Continue without caching
-
-            return Response(
-                content=content,
-                media_type=content_type,
-                headers={
-                    "Cache-Control": f"public, max-age={CACHE_MAX_AGE}, stale-while-revalidate={CACHE_STALE_WHILE_REVALIDATE}",
-                    "Content-Length": str(len(content)),
-                    "X-Cache": "MISS",
-                },
-            )
-
+        content, content_type = await _fetch_image_payload(url)
     except httpx.TimeoutException:
         logger.error("Timeout fetching image: %s", url[:50])
         raise HTTPException(status_code=504, detail="IMAGE_FETCH_TIMEOUT")
-
     except httpx.HTTPStatusError as e:
         logger.error("HTTP error %s fetching image: %s", e.response.status_code, url[:50])
         raise HTTPException(
             status_code=502,
             detail=f"IMAGE_FETCH_FAILED: HTTP {e.response.status_code}",
         )
-
     except Exception as e:
         logger.error("Error fetching image %s: %s", url[:50], e)
         raise HTTPException(status_code=502, detail=f"IMAGE_FETCH_FAILED: {str(e)}")
+
+    # Cache to disk
+    _write_cache(content_path, meta_path, content, content_type)
+
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers=_cache_headers(content, content_type, "MISS"),
+    )
 
 
 @router.get("/cache/stats")

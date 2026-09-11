@@ -1,43 +1,66 @@
-import { useCallback, useEffect, useState } from "react"
 import { createBookmark, deleteBookmark, fetchBookmarks } from "@/lib/api"
+import { useCallback, useEffect, useState } from "react"
 
-type BookmarkListener = (ids: Set<number>) => void
+type BookmarkListener = (ids: ReadonlySet<number>) => void
 
-let bookmarkCache: Set<number> | null = null
-let bookmarkLoaded = false
-let bookmarkLoading = false
-const bookmarkListeners = new Set<BookmarkListener>()
+let bookmarkCache: Set<number> | null,
+  bookmarkLoaded: boolean,
+  bookmarkLoading: boolean
 
-const notifyBookmarkListeners = (ids: Set<number>) => {
-  bookmarkListeners.forEach((listener) => listener(new Set(ids)))
-}
+const bookmarkListeners = new Set<BookmarkListener>(),
+  loadBookmarksFromApi = async () => {
+    if (bookmarkLoading) {
+      return
+    }
+    bookmarkLoading = true
+    try {
+      const response = await fetchBookmarks()
+      bookmarkCache = new Set(response.bookmarks.map((entry) => entry.articleId))
+      bookmarkLoaded = true
+      notifyBookmarkListeners(bookmarkCache)
+    } catch (error) {
+      console.error("Failed to load bookmarks:", error)
+    } finally {
+      bookmarkLoading = false
+    }
+  },
+  persistBookmark = async (wasBookmarked: boolean, articleId: number) => {
+    if (!wasBookmarked) {
+      await createBookmark(articleId)
+      return
+    }
+    await deleteBookmark(articleId)
+  },
+  toggleBookmarkState = (articleId: number) => {
+    const current = bookmarkCache ?? new Set<number>(),
+      next = new Set(current),
+      wasBookmarked = next.has(articleId)
 
-const loadBookmarksFromApi = async () => {
-  if (bookmarkLoading) return
-  bookmarkLoading = true
-  try {
-    const entries = await fetchBookmarks()
-    bookmarkCache = new Set(entries.map((entry) => entry.articleId))
-    bookmarkLoaded = true
-    notifyBookmarkListeners(bookmarkCache)
-    return entries
-  } catch (error) {
-    console.error("Failed to load bookmarks:", error)
-    return []
-  } finally {
-    bookmarkLoading = false
-  }
-}
+    if (wasBookmarked) {
+      next.delete(articleId)
+    } else {
+      next.add(articleId)
+    }
 
-export function useBookmarks() {
+    bookmarkCache = next
+    notifyBookmarkListeners(next)
+    return { current, wasBookmarked }
+  },
+  notifyBookmarkListeners = (ids: ReadonlySet<number>) => {
+    bookmarkListeners.forEach((listener) => { listener(new Set(ids)); })
+  };
+
+export const useBookmarks = () => {
   const [bookmarkIds, setBookmarkIds] = useState<Set<number>>(
-    bookmarkCache ? new Set(bookmarkCache) : new Set()
-  )
-  const [isLoaded, setIsLoaded] = useState(bookmarkLoaded)
+    bookmarkCache === null || bookmarkCache === undefined
+      ? new Set()
+      : new Set(bookmarkCache),
+  ),
+    [isLoaded, setIsLoaded] = useState(bookmarkLoaded)
 
   useEffect(() => {
-    const listener = (ids: Set<number>) => {
-      setBookmarkIds(ids)
+    const listener = (ids: ReadonlySet<number>) => {
+      setBookmarkIds(new Set(ids))
       setIsLoaded(true)
     }
     bookmarkListeners.add(listener)
@@ -51,53 +74,35 @@ export function useBookmarks() {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
-    return loadBookmarksFromApi()
-  }, [])
-
   const isBookmarked = useCallback(
-    (articleId: number) => {
-      return bookmarkIds.has(articleId)
-    },
-    [bookmarkIds]
-  )
-
-  const toggleBookmark = useCallback(
-    async (articleId: number) => {
-      if (!articleId) return
-      const current = bookmarkCache ?? bookmarkIds
-      const next = new Set(current)
-      const wasBookmarked = next.has(articleId)
-
-      if (wasBookmarked) {
-        next.delete(articleId)
-      } else {
-        next.add(articleId)
-      }
-
-      bookmarkCache = next
-      notifyBookmarkListeners(next)
-
-      try {
-        if (wasBookmarked) {
-          await deleteBookmark(articleId)
-        } else {
-          await createBookmark(articleId)
+    (articleId: number) => bookmarkIds.has(articleId),
+    [bookmarkIds],
+  ),
+    refresh = useCallback(() => {
+      void loadBookmarksFromApi()
+    }, []),
+    toggleBookmark = useCallback(
+      async (articleId: number) => {
+        if (!articleId) {
+          return
         }
-      } catch (error) {
-        console.error("Failed to toggle bookmark:", error)
-        bookmarkCache = new Set(current)
-        notifyBookmarkListeners(bookmarkCache)
-      }
-    },
-    [bookmarkIds]
-  )
+        const { current, wasBookmarked } = toggleBookmarkState(articleId)
+        try {
+          await persistBookmark(wasBookmarked, articleId)
+        } catch (error) {
+          console.error("Failed to toggle bookmark:", error)
+          bookmarkCache = new Set(current)
+          notifyBookmarkListeners(bookmarkCache)
+        }
+      },
+      [],
+    )
 
   return {
     bookmarkIds,
     isBookmarked,
-    toggleBookmark,
-    refresh,
     isLoaded,
+    refresh,
+    toggleBookmark,
   }
 }

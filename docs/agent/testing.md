@@ -18,8 +18,29 @@
   - Frontend focused: `npm --prefix frontend test`
 
 - lint command
-  - Frontend: `npm --prefix frontend run lint`
+  - Frontend: `npm --prefix frontend run lint` (the root `.oxlintrc.json` scans
+    `frontend` and `scripts` with strict Oxlint categories)
   - Backend: `uvx ruff check backend/ --fix`
+
+- test policy
+  - `anti-slop/no-module-mocking` is a repo-wide Oxlint error. Application and
+    test code must not use `jest.mock`, `vi.mock`, `doMock`, or
+    `unstable_mockModule`.
+  - Tests exercise the real components and implementation modules with real,
+    typed inputs. Use explicit fetch/service/browser-boundary injection when a
+    test needs deterministic I/O; do not replace an implementation with a mock
+    module or mock component.
+  - A fixture is acceptable only as representative input data at the boundary
+    being tested. It must not replace the production component, transform, or
+    service whose behavior the test claims to verify.
+  - Verify the rule itself with `npm --prefix frontend run test:oxlint-rules`.
+    Its rule fixtures are excluded from the application scan because they
+    intentionally contain invalid examples.
+  - The root `no-duplicate-imports` rule allows separate top-level type-only
+    imports so TypeScript types stay out of the runtime bundle while value
+    schema imports remain explicit.
+  - The normal frontend behavior suite is
+    `npm --prefix frontend test -- --runInBand`.
 
 - typecheck command
   - Frontend: `npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit`

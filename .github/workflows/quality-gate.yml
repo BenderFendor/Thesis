@@ -1,0 +1,125 @@
+name: Quality hard gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - quality/crap-mi-oxlint-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  oxlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Run Oxlint and summarize debt
+        shell: bash
+        run: |
+          set +e
+          export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          test -x "$OXLINT_TSGOLINT_PATH"
+          node scripts/run-oxlint.mjs --json frontend scripts > oxlint-report.json
+          status=$?
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync('oxlint-report.json', 'utf8');
+          const parsed = JSON.parse(raw);
+          const diagnostics = Array.isArray(parsed)
+            ? parsed.flatMap((entry) => Array.isArray(entry?.warnings) ? entry.warnings : [])
+            : (Array.isArray(parsed?.diagnostics) ? parsed.diagnostics : []);
+          const severity = (d) => String(d?.severity ?? 'error').toLowerCase();
+          const fileOf = (d) => {
+            const labels = Array.isArray(d?.labels) ? d.labels : [];
+            return String(labels[0]?.span?.file ?? labels[0]?.file ?? d?.filename ?? d?.path ?? '<unknown>');
+          };
+          const ruleOf = (d) => String(d?.code ?? d?.rule ?? d?.ruleId ?? 'unknown');
+          const errors = diagnostics.filter((d) => !severity(d).startsWith('warn'));
+          const warnings = diagnostics.filter((d) => severity(d).startsWith('warn'));
+          const group = (items, keyFn) => {
+            const map = new Map();
+            for (const item of items) {
+              const key = keyFn(item);
+              map.set(key, (map.get(key) ?? 0) + 1);
+            }
+            return [...map.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+          };
+          const summary = {
+            errors: errors.length,
+            warnings: warnings.length,
+            total: diagnostics.length,
+            errorsByRule: group(errors, ruleOf),
+            errorsByFile: group(errors, fileOf),
+            warningsByRule: group(warnings, ruleOf),
+          };
+          fs.writeFileSync('oxlint-summary.json', JSON.stringify(summary, null, 2));
+          console.log(JSON.stringify({
+            errors: summary.errors,
+            warnings: summary.warnings,
+            topErrorRules: summary.errorsByRule.slice(0, 40),
+            topErrorFiles: summary.errorsByFile.slice(0, 80),
+          }, null, 2));
+          NODE
+          exit $status
+      - name: Upload Oxlint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxlint-report
+          path: |
+            oxlint-report.json
+            oxlint-summary.json
+          if-no-files-found: error
+          retention-days: 7
+
+  quality:
+    needs: oxlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Install repository analyzers
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix frontend ci --no-audit --no-fund
+          python -m pip install --quiet radon==6.0.1 vulture==2.14
+          curl -fsSL -o /tmp/cccc.tar.gz https://github.com/moznion/cccc/releases/download/v1.6.0/cccc-v1.6.0-x86_64-unknown-linux-musl.tar.gz
+          echo "8a4492a877d566edb75aa8b8501f28a21fdb43789d125e6ac99dfc67a00a919b  /tmp/cccc.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/cccc-extract
+          tar -xzf /tmp/cccc.tar.gz -C /tmp/cccc-extract
+          CCCC="$(find /tmp/cccc-extract -type f -name cccc -perm -111 | head -1)"
+          test -n "$CCCC"
+          sudo cp "$CCCC" /usr/local/bin/cccc
+      - name: Run repository quality gate
+        run: node scripts/quality-hardening.mjs verify --scope repo
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate-logs
+          path: .quality-hardening/measurements/*.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,63 +1,86 @@
-export interface ComparisonCandidateArticle {
-  id: number;
-  source: string;
-  source_id?: string;
-  published_at?: string | null;
-  _parsedTimestamp?: number;
+import { hasText } from "@/lib/utils";
+
+interface ComparisonCandidateArticle {
+  readonly id: number;
+  readonly source: string;
+  readonly source_id?: string;
+  readonly published_at?: string | null;
+  readonly _parsedTimestamp?: number;
 }
 
-export interface ComparisonSourceOption<T extends ComparisonCandidateArticle> {
+interface ComparisonSourceOption<ArticleType extends ComparisonCandidateArticle> {
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly articles: readonly ArticleType[];
+}
+
+interface MutableComparisonSourceOption<ArticleType extends ComparisonCandidateArticle> {
+  articles: ArticleType[];
   sourceId: string;
   sourceName: string;
-  articles: T[];
 }
 
-function normalizeSourceKey<T extends ComparisonCandidateArticle>(article: T): string {
+const PARSED_TIMESTAMP_KEY = "_parsedTimestamp" as const;
+
+const normalizeSourceKey = function normalizeSourceKey(
+  article: ComparisonCandidateArticle,
+): string {
   const explicit = article.source_id?.trim().toLowerCase();
-  if (explicit) return explicit;
-  return article.source.trim().toLowerCase().replace(/\s+/g, "-");
-}
-
-function recencyValue<T extends ComparisonCandidateArticle>(article: T): number {
-  if (typeof article._parsedTimestamp === "number") {
-    return article._parsedTimestamp;
+  if (hasText(explicit)) {
+    return explicit;
   }
-  if (!article.published_at) return 0;
-  const timestamp = new Date(article.published_at).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
+  return article.source.trim().toLowerCase().replaceAll(/\s+/gu, "-");
+};
 
-export function buildComparisonSourceOptions<
-  T extends ComparisonCandidateArticle,
->(articles: readonly T[]): ComparisonSourceOption<T>[] {
-  const groups = new Map<string, ComparisonSourceOption<T>>();
+const recencyValue = function recencyValue(article: ComparisonCandidateArticle): number {
+  const parsedTimestamp = article[PARSED_TIMESTAMP_KEY];
+  if (parsedTimestamp !== undefined) {
+    return parsedTimestamp;
+  }
+  if (!hasText(article.published_at)) {
+    return 0;
+  }
+  const timestamp = new Date(article.published_at).getTime();
+  if (Number.isFinite(timestamp)) {
+  return timestamp;
+}
+return 0;
+};
+
+const buildComparisonSourceOptions = function buildComparisonSourceOptions<
+  ArticleType extends ComparisonCandidateArticle,
+>(articles: readonly ArticleType[]): ComparisonSourceOption<ArticleType>[] {
+  const groups = new Map<string, MutableComparisonSourceOption<ArticleType>>();
 
   articles.forEach((article) => {
     const sourceId = normalizeSourceKey(article);
-    if (!groups.has(sourceId)) {
-      groups.set(sourceId, {
-        sourceId,
-        sourceName: article.source,
-        articles: [],
-      });
+    const group = groups.get(sourceId);
+    if (group) {
+      group.articles.push(article);
+      return;
     }
-    groups.get(sourceId)!.articles.push(article);
+    groups.set(sourceId, {
+      articles: [article],
+      sourceId,
+      sourceName: article.source,
+    });
   });
 
-  return Array.from(groups.values())
+  return [...groups.values()]
     .map((group) => ({
-      ...group,
       articles: group.articles
         .map((article) => ({ article, recency: recencyValue(article) }))
-        .sort((a, b) => b.recency - a.recency)
+        .toSorted((first, second) => second.recency - first.recency)
         .map(({ article }) => article),
+      sourceId: group.sourceId,
+      sourceName: group.sourceName,
     }))
-    .sort((a, b) => b.articles.length - a.articles.length);
-}
+    .toSorted((first, second) => second.articles.length - first.articles.length);
+};
 
-export function getDefaultComparisonArticleIds<
-  T extends ComparisonCandidateArticle,
->(articles: readonly T[]): number[] {
+const getDefaultComparisonArticleIds = function getDefaultComparisonArticleIds(
+  articles: readonly ComparisonCandidateArticle[],
+): number[] {
   const groups = buildComparisonSourceOptions(articles);
   if (groups.length < 2) {
     return articles.slice(0, 2).map((article) => article.id);
@@ -67,13 +90,19 @@ export function getDefaultComparisonArticleIds<
     .slice(0, 2)
     .map((group) => group.articles[0]?.id)
     .filter((value): value is number => typeof value === "number");
-}
+};
 
-export function getSelectedComparisonArticles<
-  T extends ComparisonCandidateArticle,
->(articles: readonly T[], selectedIds: readonly number[]): T[] {
+const getSelectedComparisonArticles = function getSelectedComparisonArticles<
+  ArticleType extends ComparisonCandidateArticle,
+>(articles: readonly ArticleType[], selectedIds: readonly number[]): ArticleType[] {
   const articleById = new Map(articles.map((article) => [article.id, article]));
   return selectedIds
     .map((id) => articleById.get(id))
-    .filter((article): article is T => Boolean(article));
-}
+    .filter((article): article is ArticleType => Boolean(article));
+};
+export {
+  buildComparisonSourceOptions,
+  getDefaultComparisonArticleIds,
+  getSelectedComparisonArticles,
+};
+export type { ComparisonSourceOption };

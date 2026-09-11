@@ -389,35 +389,11 @@ async def _initial_reporter_index() -> None:
         _logger.error("Initial reporter index failed: %s", exc, exc_info=True)
 
 
-@app.on_event("startup")
-async def on_startup() -> None:
-    """Elect a single worker as leader, then start background services.
-
-    Uses a file-based lock at /tmp/thesis_startup_lock to ensure only one
-    worker across all gunicorn processes runs background refresh, persistence,
-    vector store sync, cluster computation, and credibility scoring. Every
-    worker loads its own in-memory article cache before it serves requests.
-
-    Non-leader workers skip all startup tasks and serve API traffic only.
-    """
-    startup_start = time.time()
-    startup_metrics.mark_app_started()
-    startup_metrics.add_note(
-        "app_version",
-        {
-            "version": settings.app_version,
-            "title": settings.app_title,
-        },
-    )
-    logger.info("Starting Global News Aggregation API...")
-
+def _prepare_startup_process() -> None:
     loop = asyncio.get_running_loop()
     set_main_event_loop(loop)
-
-    # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     signal.signal(signal.SIGINT, _handle_shutdown_signal)
-
     raise_nofile_soft_limit(logger)
     soft_nofile, hard_nofile = get_nofile_limits()
     logger.info(
@@ -427,138 +403,140 @@ async def on_startup() -> None:
         hard_nofile,
     )
 
-    # Fail fast if llama.cpp backend is selected but the server is not running
+
+def _configure_llm_backend() -> None:
     if settings.llm_backend == "llamacpp":
         from app.core.config import check_llamacpp_server
 
         check_llamacpp_server(logger)
-        startup_metrics.add_note("llm_backend", "llamacpp")
-    else:
-        startup_metrics.add_note("llm_backend", settings.llm_backend)
+    startup_metrics.add_note("llm_backend", settings.llm_backend)
 
-    if settings.enable_database:
-        db_start = time.time()
-        await init_db()
-        logger.info("Database initialisation complete (%.2fs)", time.time() - db_start)
-        startup_metrics.record_event("database_initialised", db_start)
-    else:
+
+async def _initialize_database_for_startup() -> None:
+    if not settings.enable_database:
         logger.info("Database disabled; skipping initialisation and persistence")
         startup_metrics.add_note("database_disabled", True)
-    # Use file-based lock to ensure startup tasks run only once across all workers
-    lock_file_path = _startup_leader_lock_path()
-    is_leader = False
+        return
+    db_start = time.time()
+    await init_db()
+    logger.info("Database initialisation complete (%.2fs)", time.time() - db_start)
+    startup_metrics.record_event("database_initialised", db_start)
+
+
+def _remove_stale_leader_lock(path: Path) -> None:
+    if not path.exists():
+        return
+    old_pid_text = "?"
     try:
-        lock_file_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_file = str(lock_file_path)
+        old_pid_text = path.read_text().strip()
+        os.kill(int(old_pid_text), 0)
+        return
+    except (ValueError, ProcessLookupError, PermissionError) as exc:
+        logger.warning(
+            "Removing stale leader lock (PID %s no longer running): %s", old_pid_text, exc
+        )
+    with contextlib.suppress(FileNotFoundError):
+        path.unlink()
 
-        # Remove a stale lock file left by a previous process that was killed
-        # without running on_shutdown (e.g. SIGKILL).
-        if Path(lock_file).exists():
-            old_pid_str = "?"
-            try:
-                old_pid_str = Path(lock_file).read_text().strip()
-                old_pid = int(old_pid_str)
-                # Check if that PID is still alive (signal 0 = existence check).
-                os.kill(old_pid, 0)
-                # PID is alive — another worker legitimately holds the lock.
-            except (ValueError, ProcessLookupError, PermissionError) as stale_err:
-                # PID is dead or unreadable — remove the stale lock.
-                logger.warning(
-                    "Removing stale leader lock (PID %s no longer running): %s",
-                    old_pid_str,
-                    stale_err,
-                )
-                with contextlib.suppress(FileNotFoundError):
-                    Path(lock_file).unlink()
 
-        # O_CREAT|O_EXCL is atomic and raises FileExistsError if file exists.
-        # os.rename silently overwrites on Linux so it cannot be used here.
-        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, str(os.getpid()).encode())
-        os.close(fd)
-        global _leader_lock_file
-        _leader_lock_file = lock_file
-        is_leader = True
-        logger.info("This worker (PID %d) is the leader for startup tasks", os.getpid())
+def _claim_startup_leadership() -> bool:
+    global _leader_lock_file
+    path = _startup_leader_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _remove_stale_leader_lock(path)
+    try:
+        fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         logger.info("Another worker is handling startup tasks, skipping")
         startup_metrics.add_note("startup_role", "follower")
+        return False
+    try:
+        os.write(fd, str(os.getpid()).encode())
+    finally:
+        os.close(fd)
+    _leader_lock_file = str(path)
+    logger.info("This worker (PID %d) is the leader for startup tasks", os.getpid())
+    return True
+
+
+def _register_named_task(coro: object, name: str, note: str | None = None) -> asyncio.Task[object]:
+    task = asyncio.create_task(coro, name=name)  # type: ignore[arg-type]
+    _register_background_task(task)
+    if note:
+        startup_metrics.add_note(note, task.get_name())
+    return task
+
+
+def _start_rss_background_tasks() -> None:
+    apply_saved_polling_state()
+    _register_named_task(
+        periodic_rss_refresh(interval_seconds=600), "rss_refresh_scheduler", "rss_scheduler_task"
+    )
+    _register_named_task(_start_initial_rss_refresh(), "initial_rss_refresh")
+
+
+def _start_persistence_background_tasks() -> None:
+    _register_named_task(article_persistence_worker(), "article_persistence_worker")
+    if not settings.enable_vector_store:
+        return
+    _register_named_task(embedding_generation_worker(), "embedding_generation_worker")
+    _register_named_task(cluster_computation_worker(), "cluster_computation_worker")
+    _register_named_task(chroma_sync_worker(), "chroma_sync_worker")
+
+
+def _start_database_schedulers() -> None:
+    _register_named_task(_maybe_migrate_cached_articles(), "conditional_migration")
+    _register_named_task(
+        periodic_wiki_refresh(interval_seconds=86400), "wiki_refresh_scheduler", "wiki_refresh_task"
+    )
+    _register_named_task(_initial_reporter_index(), "initial_reporter_index")
+    _register_named_task(_start_auto_ingest(), "auto_ingest_pipeline", "auto_ingest_task")
+    _register_named_task(
+        run_credibility_scoring_scheduler(interval_seconds=86400),
+        "credibility_scoring_scheduler",
+        "credibility_scoring_task",
+    )
+
+
+def _start_optional_blind_spots_scheduler() -> None:
+    if not settings.enable_vector_store:
+        return
+    _register_named_task(
+        periodic_blind_spots_update(interval_seconds=86400),
+        "blind_spots_scheduler",
+        "blind_spots_task",
+    )
+
+
+def _start_leader_background_tasks() -> None:
+    _start_rss_background_tasks()
+    if not settings.enable_database:
+        return
+    _start_persistence_background_tasks()
+    _start_database_schedulers()
+    _start_optional_blind_spots_scheduler()
+
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    """Initialize worker-local state and leader-only background services."""
+    startup_start = time.time()
+    startup_metrics.mark_app_started()
+    startup_metrics.add_note(
+        "app_version", {"version": settings.app_version, "title": settings.app_title}
+    )
+    logger.info("Starting Global News Aggregation API...")
+
+    _prepare_startup_process()
+    _configure_llm_backend()
+    await _initialize_database_for_startup()
+    is_leader = _claim_startup_leadership()
 
     if settings.enable_database and AsyncSessionLocal is not None:
         await _initial_cache_load()
         startup_metrics.add_note("cache_loaded_by_worker", True)
-
-    # Only leader runs initial RSS refresh
     if is_leader:
-        apply_saved_polling_state()
-        scheduler_task = asyncio.create_task(
-            periodic_rss_refresh(interval_seconds=600), name="rss_refresh_scheduler"
-        )
-        _register_background_task(scheduler_task)
-        startup_metrics.add_note("rss_scheduler_task", scheduler_task.get_name())
-
-        refresh_task = asyncio.create_task(_start_initial_rss_refresh(), name="initial_rss_refresh")
-        _register_background_task(refresh_task)
-
-    if settings.enable_database and is_leader:
-        persistence_task = asyncio.create_task(
-            article_persistence_worker(), name="article_persistence_worker"
-        )
-        _register_background_task(persistence_task)
-        if settings.enable_vector_store:
-            embedding_task = asyncio.create_task(
-                embedding_generation_worker(), name="embedding_generation_worker"
-            )
-            _register_background_task(embedding_task)
-            cluster_task = asyncio.create_task(
-                cluster_computation_worker(), name="cluster_computation_worker"
-            )
-            _register_background_task(cluster_task)
-            chroma_sync_task = asyncio.create_task(chroma_sync_worker(), name="chroma_sync_worker")
-            _register_background_task(chroma_sync_task)
-
-    # Only migrate if cache has stale articles (> 6 hours old) - leader only
-    if settings.enable_database and is_leader:
-        migration_task = asyncio.create_task(
-            _maybe_migrate_cached_articles(), name="conditional_migration"
-        )
-        _register_background_task(migration_task)
-
-    # Start blind spots analysis scheduler
-    if settings.enable_database and settings.enable_vector_store and is_leader:
-        blind_spots_task = asyncio.create_task(
-            periodic_blind_spots_update(interval_seconds=86400),
-            name="blind_spots_scheduler",
-        )
-        _register_background_task(blind_spots_task)
-        startup_metrics.add_note("blind_spots_task", blind_spots_task.get_name())
-
-    # Start wiki indexer refresh (daily, re-indexes stale entries)
-    if settings.enable_database and is_leader:
-        wiki_task = asyncio.create_task(
-            periodic_wiki_refresh(interval_seconds=86400),
-            name="wiki_refresh_scheduler",
-        )
-        _register_background_task(wiki_task)
-        startup_metrics.add_note("wiki_refresh_task", wiki_task.get_name())
-
-        reporter_index_task = asyncio.create_task(
-            _initial_reporter_index(), name="initial_reporter_index"
-        )
-        _register_background_task(reporter_index_task)
-
-        auto_ingest_task = asyncio.create_task(_start_auto_ingest(), name="auto_ingest_pipeline")
-        _register_background_task(auto_ingest_task)
-        startup_metrics.add_note("auto_ingest_task", auto_ingest_task.get_name())
-
-    # Start credibility scoring scheduler (daily)
-    if settings.enable_database and is_leader:
-        credibility_task = asyncio.create_task(
-            run_credibility_scoring_scheduler(interval_seconds=86400),
-            name="credibility_scoring_scheduler",
-        )
-        _register_background_task(credibility_task)
-        startup_metrics.add_note("credibility_scoring_task", credibility_task.get_name())
+        _start_leader_background_tasks()
 
     log_progress(
         logger,

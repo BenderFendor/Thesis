@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import json
 import os
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -105,7 +106,7 @@ async def _entity_id_for_domain(db: AsyncSession, domain: str) -> str | None:
 async def _catalog_publishers(db: AsyncSession) -> dict[str, str]:
     """Return publication entity id -> canonical website for ads.txt capture."""
     publishers: dict[str, str] = {}
-    for _name, config in _catalog_sources().items():
+    for config in _catalog_sources().values():
         domain = _catalog_domain(config)
         website = cast(str | None, config.get("site_url") or config.get("url"))
         if not domain or not website:
@@ -152,6 +153,68 @@ async def _run_smoke_check(db: AsyncSession) -> None:
         aggregate = trace.get("aggregate")
         paths = cast(list[object], trace.get("paths") or [])
         print(f"  {label}: aggregate={aggregate!r} paths={len(paths)}")
+
+
+async def _ingest_catalog_source(db: AsyncSession, source: str, limit: int | None) -> IngestReport:
+    if source == "wikidata":
+        return await ingest_wikidata_ownership_claims(db, limit=limit)
+    if source == "littlesis":
+        return await ingest_littlesis_ownership(db, limit=limit)
+    return await ingest_mbfc_ownership(db, catalog_domains=_catalog_domain_map(), limit=limit)
+
+
+async def _ingest_edgar_source(db: AsyncSession, limit: int | None) -> IngestReport:
+    ciks = dict(EDGAR_PARENT_CIKS)
+    if limit is not None:
+        ciks = dict(list(ciks.items())[:limit])
+    return await ingest_edgar_subsidiaries(db, ciks=ciks)
+
+
+async def _ingest_ads_source(db: AsyncSession, limit: int | None) -> IngestReport:
+    return await ingest_ads_supply(db, publishers=await _catalog_publishers(db), limit=limit)
+
+
+def _load_captured_payload(input_path: Path) -> tuple[CapturedPayload, list[dict[str, object]]]:
+    raw_input = json.loads(input_path.read_text(encoding="utf-8"))
+    captured = raw_input["capture"]
+    payload = CapturedPayload(
+        source_url=str(captured["source_url"]),
+        body=Path(str(captured["body_path"])).read_bytes(),
+        retrieved_at=datetime.fromisoformat(str(captured["retrieved_at"])).replace(tzinfo=None),
+        http_status=int(captured.get("http_status", 200)),
+        content_type=str(captured.get("content_type", "application/json")),
+    )
+    return payload, cast(list[dict[str, object]], raw_input["records"])
+
+
+async def _ingest_frozen_adapter(
+    db: AsyncSession,
+    source: str,
+    input_path: Path,
+    adapters: dict[str, Callable[..., Awaitable[IngestReport]]],
+) -> IngestReport:
+    payload, records = _load_captured_payload(input_path)
+    adapter = adapters[source]
+    return await adapter(db, payload=payload, records=records)
+
+
+async def _ingest_source(
+    db: AsyncSession,
+    source: str,
+    limit: int | None,
+    input_path: Path | None,
+    broad_adapters: dict[str, Callable[..., Awaitable[IngestReport]]],
+) -> IngestReport:
+    if source in broad_adapters:
+        assert input_path is not None
+        return await _ingest_frozen_adapter(db, source, input_path, broad_adapters)
+    if source in {"wikidata", "littlesis", "mbfc"}:
+        return await _ingest_catalog_source(db, source, limit)
+    if source == "edgar":
+        return await _ingest_edgar_source(db, limit)
+    if source == "ads_txt":
+        return await _ingest_ads_source(db, limit)
+    raise ValueError(f"unknown source {source!r}")
 
 
 async def main() -> None:
@@ -222,43 +285,7 @@ async def main() -> None:
 
     async with factory() as db:
         for source in sources:
-            if source == "wikidata":
-                report = await ingest_wikidata_ownership_claims(db, limit=args.limit)
-            elif source == "littlesis":
-                report = await ingest_littlesis_ownership(db, limit=args.limit)
-            elif source == "mbfc":
-                report = await ingest_mbfc_ownership(
-                    db, catalog_domains=_catalog_domain_map(), limit=args.limit
-                )
-            elif source == "edgar":
-                ciks = dict(EDGAR_PARENT_CIKS)
-                if args.limit is not None:
-                    ciks = dict(list(ciks.items())[: args.limit])
-                report = await ingest_edgar_subsidiaries(db, ciks=ciks)
-            elif source == "ads_txt":
-                report = await ingest_ads_supply(
-                    db, publishers=await _catalog_publishers(db), limit=args.limit
-                )
-            elif source in broad_adapters:
-                assert args.input is not None
-                raw_input = json.loads(args.input.read_text(encoding="utf-8"))
-                captured = raw_input["capture"]
-                payload = CapturedPayload(
-                    source_url=str(captured["source_url"]),
-                    body=Path(str(captured["body_path"])).read_bytes(),
-                    retrieved_at=datetime.fromisoformat(
-                        str(captured["retrieved_at"]).replace("Z", "+00:00")
-                    ).replace(tzinfo=None),
-                    http_status=int(captured.get("http_status", 200)),
-                    content_type=str(captured.get("content_type", "application/json")),
-                )
-                report = await broad_adapters[source](
-                    db,
-                    payload=payload,
-                    records=cast(list[dict[str, object]], raw_input["records"]),
-                )
-            else:  # pragma: no cover - argparse choices already restrict this
-                raise ValueError(f"unknown source {source!r}")
+            report = await _ingest_source(db, source, args.limit, args.input, broad_adapters)
             await db.commit()
             _print_report(report)
 

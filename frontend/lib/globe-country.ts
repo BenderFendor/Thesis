@@ -1,30 +1,44 @@
-export interface CountryFeatureProperties {
-  ISO_A2?: string
-  ADM0_A3?: string
-  NAME?: string
-  [key: string]: unknown
+import { hasText } from "@/lib/utils";
+
+interface CountryFeatureProperties {
+  readonly ISO_A2?: string;
+  readonly ADM0_A3?: string;
+  readonly NAME?: string;
 }
 
-export interface CountryFeature {
-  properties: CountryFeatureProperties
-  geometry?: { coordinates?: unknown } | null
+interface CountryFeature {
+  readonly properties: CountryFeatureProperties;
+  readonly geometry?: { readonly coordinates?: unknown } | null;
 }
 
-export interface CountryFeatureCollection {
-  features: CountryFeature[]
+interface CountryFeatureCollection {
+  readonly features: readonly CountryFeature[];
 }
 
-const GEOJSON_ISO_FALLBACKS: Record<string, string> = {
-  FRA: "FR",
-  NOR: "NO",
-}
+const getFallbackIso = (adm0: string): string | null => {
+  if (adm0 === "FRA") {
+    return "FR";
+  }
+  if (adm0 === "NOR") {
+    return "NO";
+  }
+  return null;
+};
 
-export function getCountryIso(feature: CountryFeature | null): string | null {
-  if (!feature) return null
-  const iso = feature.properties.ISO_A2?.trim()
-  if (iso && iso !== "-99") return iso
+const getCountryIso = (feature: CountryFeature | null): string | null => {
+  if (!feature) {
+    return null;
+  }
+  const iso = feature.properties.ISO_A2?.trim();
+  if (hasText(iso) && iso !== "-99") {
+    return iso;
+  }
 
-  const adm0 = feature.properties.ADM0_A3?.trim()
-  if (!adm0) return null
-  return GEOJSON_ISO_FALLBACKS[adm0] ?? null
-}
+  const adm0 = feature.properties.ADM0_A3?.trim();
+  if (!hasText(adm0)) {
+    return null;
+  }
+  return getFallbackIso(adm0);
+};
+export { getCountryIso };
+export type { CountryFeature, CountryFeatureCollection };

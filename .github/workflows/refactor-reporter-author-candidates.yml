@@ -1,0 +1,224 @@
+name: Refactor reporter author candidates
+
+on:
+  push:
+    branches: ["quality/crap-mi-oxlint-hardening"]
+    paths:
+      - ".github/workflows/refactor-reporter-author-candidates.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: .
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quality/crap-mi-oxlint-hardening
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply responsibility-based parser refactor
+        run: |
+          python - <<'PY'
+          import textwrap
+          from pathlib import Path
+
+          path = Path("backend/app/services/reporter_public_records.py")
+          text = path.read_text()
+          if "from dataclasses import dataclass, field\n" not in text:
+              text = text.replace(
+                  "from collections import Counter, OrderedDict\n",
+                  "from collections import Counter, OrderedDict\nfrom dataclasses import dataclass, field\n",
+                  1,
+              )
+
+          start = text.index("def extract_article_author_candidates(")
+          end = text.index("\n\nasync def _fetch_article_author_signals", start)
+          replacement = textwrap.dedent('''
+          @dataclass(slots=True)
+          class _AuthorCandidateSignals:
+              names: list[str] = field(default_factory=list)
+              author_pages: list[str] = field(default_factory=list)
+              social_links: list[str] = field(default_factory=list)
+              structured_person_names: list[str] = field(default_factory=list)
+              microdata_author_names: list[str] = field(default_factory=list)
+              metadata_author_names: list[str] = field(default_factory=list)
+              publisher_names: list[str] = field(default_factory=list)
+              site_names: list[str] = field(default_factory=list)
+
+
+          def _author_types(author: dict[str, Any]) -> list[Any]:
+              raw_type = author.get("@type")
+              return raw_type if isinstance(raw_type, list) else [raw_type]
+
+
+          def _extend_same_as(
+              signals: _AuthorCandidateSignals,
+              same_as: Any,
+              page_url: str,
+          ) -> None:
+              if isinstance(same_as, str):
+                  signals.social_links.append(urljoin(page_url, same_as))
+                  return
+              if isinstance(same_as, list):
+                  signals.social_links.extend(
+                      urljoin(page_url, value) for value in same_as if isinstance(value, str)
+                  )
+
+
+          def _collect_json_ld_candidate_signals(
+              html: str,
+              page_url: str,
+          ) -> _AuthorCandidateSignals:
+              signals = _AuthorCandidateSignals()
+              for raw_json in _JSON_LD_PATTERN.findall(html):
+                  try:
+                      payload = json.loads(raw_json.strip())
+                  except json.JSONDecodeError:
+                      continue
+                  signals.publisher_names.extend(_collect_json_ld_publishers(payload))
+                  for author in _collect_author_objects(payload):
+                      name = clean_author_name(author.get("name"))
+                      if name:
+                          signals.names.append(name)
+                          if "Person" in _author_types(author):
+                              signals.structured_person_names.append(name)
+                      url = author.get("url")
+                      if isinstance(url, str):
+                          signals.author_pages.append(urljoin(page_url, url))
+                      _extend_same_as(signals, author.get("sameAs"), page_url)
+              return signals
+
+
+          def _collect_metadata_candidate_signals(
+              html: str,
+              page_url: str,
+          ) -> _AuthorCandidateSignals:
+              metadata = _parse_metadata_author_data(html, page_url)
+              return _AuthorCandidateSignals(
+                  names=list(metadata["names"]),
+                  author_pages=list(metadata["author_pages"]),
+                  metadata_author_names=list(metadata["names"]),
+                  publisher_names=list(metadata["publisher_names"]),
+                  site_names=list(metadata["site_names"]),
+              )
+
+
+          def _collect_microdata_candidate_signals(html: str) -> _AuthorCandidateSignals:
+              signals = _AuthorCandidateSignals()
+              for raw_author in _ITEMPROP_AUTHOR_PATTERN.findall(html):
+                  author = clean_author_name(raw_author)
+                  if author:
+                      signals.names.append(author)
+                      signals.microdata_author_names.append(author)
+              return signals
+
+
+          def _collect_anchor_candidate_signals(
+              html: str,
+              page_url: str,
+          ) -> _AuthorCandidateSignals:
+              signals = _AuthorCandidateSignals()
+              for raw_attrs, raw_text in _ANCHOR_PATTERN.findall(html):
+                  attrs = _parse_tag_attrs(raw_attrs)
+                  href = attrs.get("href")
+                  if not href:
+                      continue
+                  absolute = urljoin(page_url, href)
+                  author_name = clean_author_name(raw_text)
+                  if not author_name:
+                      continue
+                  if "author" in attrs.get("rel", "").lower() or _AUTHOR_PATH_PATTERN.search(
+                      urlparse(absolute).path
+                  ):
+                      signals.names.append(author_name)
+                      signals.author_pages.append(absolute)
+              return signals
+
+
+          def _merge_candidate_signals(groups: list[_AuthorCandidateSignals]) -> _AuthorCandidateSignals:
+              merged = _AuthorCandidateSignals()
+              for group in groups:
+                  merged.names.extend(group.names)
+                  merged.author_pages.extend(group.author_pages)
+                  merged.social_links.extend(group.social_links)
+                  merged.structured_person_names.extend(group.structured_person_names)
+                  merged.microdata_author_names.extend(group.microdata_author_names)
+                  merged.metadata_author_names.extend(group.metadata_author_names)
+                  merged.publisher_names.extend(group.publisher_names)
+                  merged.site_names.extend(group.site_names)
+              return merged
+
+
+          def _candidate_signal_payload(signals: _AuthorCandidateSignals) -> dict[str, Any]:
+              return {
+                  "names": _ordered_unique(signals.names),
+                  "author_pages": _ordered_unique(signals.author_pages),
+                  "social_links": _ordered_unique(signals.social_links),
+                  "structured_person_names": _ordered_unique(signals.structured_person_names),
+                  "microdata_author_names": _ordered_unique(signals.microdata_author_names),
+                  "metadata_author_names": _ordered_unique(signals.metadata_author_names),
+                  "publisher_names": _ordered_unique(signals.publisher_names),
+                  "site_names": _ordered_unique(signals.site_names),
+              }
+
+
+          def extract_article_author_candidates(html: str, page_url: str) -> dict[str, Any]:
+              """Extract possible author names/pages from an article page without a known name."""
+              signals = _merge_candidate_signals(
+                  [
+                      _collect_json_ld_candidate_signals(html, page_url),
+                      _collect_metadata_candidate_signals(html, page_url),
+                      _collect_microdata_candidate_signals(html),
+                      _collect_anchor_candidate_signals(html, page_url),
+                  ]
+              )
+              return _candidate_signal_payload(signals)
+          ''').lstrip()
+          path.write_text(text[:start] + replacement + text[end:])
+          PY
+      - name: Install focused validation tools
+        run: |
+          python -m pip install --quiet \
+            ruff==0.15.22 \
+            httpx \
+            pytest \
+            pytest-asyncio \
+            sqlalchemy \
+            aiosqlite \
+            python-dotenv \
+            google-genai \
+            openai
+      - name: Format and lint parser
+        run: |
+          ruff format backend/app/services/reporter_public_records.py backend/tests/test_reporter_public_records_author_candidates.py
+          ruff check backend/app/services/reporter_public_records.py backend/tests/test_reporter_public_records_author_candidates.py
+      - name: Compile parser
+        run: python -m compileall -q backend/app/services/reporter_public_records.py
+      - name: Run author-candidate regression
+        working-directory: backend
+        run: pytest -q tests/test_reporter_public_records_author_candidates.py
+      - name: Commit verified parser refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app/services/reporter_public_records.py backend/tests/test_reporter_public_records_author_candidates.py
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: simplify reporter author candidate extraction"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:quality/crap-mi-oxlint-hardening; then
+              exit 0
+            fi
+            echo "Branch advanced; rebasing verified reporter refactor (attempt $attempt)."
+            git pull --rebase origin quality/crap-mi-oxlint-hardening
+          done
+          echo "Failed to persist verified reporter refactor after retries." >&2
+          exit 1

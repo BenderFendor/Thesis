@@ -1,0 +1,12 @@
+{
+  "head": "6d3ed024b8c16760fd3efde72916401aca3841d0",
+  "measurement_id": "qh-measure:37c7b065925716640f37e6bd",
+  "policy_version": "1",
+  "rebuilt_at": "2026-09-02T17:42:50.534Z",
+  "status": "open",
+  "task_count": 263,
+  "task_states": {
+    "queued": 172,
+    "stale": 91
+  }
+}

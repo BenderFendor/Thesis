@@ -121,6 +121,31 @@ def _matched_terms(text: str, patterns: Sequence[str]) -> list[str]:
     return _unique_strings(matches)
 
 
+def _policy_signal_for_pages(
+    checked_pages: Sequence[dict[str, Any]],
+    signal_id: str,
+    label: str,
+    patterns: Sequence[str],
+) -> dict[str, Any] | None:
+    sources: list[str] = []
+    matched: list[str] = []
+    for page in checked_pages:
+        page_matches = _matched_terms(str(page.get("summary") or ""), patterns)
+        if not page_matches:
+            continue
+        sources.append(str(page["url"]))
+        matched.extend(page_matches)
+    if not sources:
+        return None
+    return {
+        "id": signal_id,
+        "label": label,
+        "status": "available",
+        "sources": _unique_strings(sources),
+        "matched_terms": _unique_strings(matched),
+    }
+
+
 def build_policy_transparency_summary(
     official_pages: Sequence[dict[str, Any]],
 ) -> dict[str, Any] | None:
@@ -135,25 +160,9 @@ def build_policy_transparency_summary(
 
     signals: list[dict[str, Any]] = []
     for signal_id, label, patterns in POLICY_SIGNAL_PATTERNS:
-        sources: list[str] = []
-        matched: list[str] = []
-        for page in checked_pages:
-            summary = str(page.get("summary") or "")
-            page_matches = _matched_terms(summary, patterns)
-            if not page_matches:
-                continue
-            sources.append(str(page["url"]))
-            matched.extend(page_matches)
-        if sources:
-            signals.append(
-                {
-                    "id": signal_id,
-                    "label": label,
-                    "status": "available",
-                    "sources": _unique_strings(sources),
-                    "matched_terms": _unique_strings(matched),
-                }
-            )
+        signal = _policy_signal_for_pages(checked_pages, signal_id, label, patterns)
+        if signal is not None:
+            signals.append(signal)
 
     if not signals:
         return {

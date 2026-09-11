@@ -34,6 +34,39 @@ def _confidence_color(level: ConfidenceLevel) -> str:
     }.get(level, "text-gray-600")
 
 
+def _claim_footnote_refs(
+    claim: VerifiedClaim,
+    footnote_map: dict[str, int],
+    footnote_counter: int,
+) -> tuple[list[str], int]:
+    """Build footnote references for one claim, registering new sources."""
+    footnote_refs = []
+    for source_id in claim.supporting_sources + claim.conflicting_sources:
+        if source_id not in footnote_map:
+            footnote_counter += 1
+            footnote_map[source_id] = footnote_counter
+        footnote_refs.append(f"[^{footnote_map[source_id]}]")
+    return footnote_refs, footnote_counter
+
+
+def _sources_section(sources: dict[str, SourceInfo], footnote_map: dict[str, int]) -> list[str]:
+    """Render the source footnote definitions sorted by footnote number."""
+    lines = []
+    for source_id, footnote_num in sorted(footnote_map.items(), key=lambda x: x[1]):
+        source = sources.get(source_id)
+        if not source:
+            continue
+
+        title = source.title or source.domain
+        support_text = "supports" if source.supports_claim else "contradicts"
+        cred_pct = f"{source.credibility_score:.0%}"
+
+        lines.append(
+            f"[^{footnote_num}]: [{title}]({source.url}) ({support_text}, credibility: {cred_pct})"
+        )
+    return lines
+
+
 def format_markdown_report(
     claims: list[VerifiedClaim],
     sources: dict[str, SourceInfo],
@@ -69,13 +102,9 @@ def format_markdown_report(
         indicator = _confidence_indicator(claim.confidence_level)
         lines.append(f"- {indicator} {claim.claim_text}")
 
-        footnote_refs = []
-        for source_id in claim.supporting_sources + claim.conflicting_sources:
-            if source_id not in footnote_map:
-                footnote_counter += 1
-                footnote_map[source_id] = footnote_counter
-            footnote_refs.append(f"[^{footnote_map[source_id]}]")
-
+        footnote_refs, footnote_counter = _claim_footnote_refs(
+            claim, footnote_map, footnote_counter
+        )
         if footnote_refs:
             lines[-1] += " " + "".join(footnote_refs)
 
@@ -87,20 +116,7 @@ def format_markdown_report(
     if footnote_map:
         lines.append("## Sources")
         lines.append("")
-
-        for source_id, footnote_num in sorted(footnote_map.items(), key=lambda x: x[1]):
-            source = sources.get(source_id)
-            if not source:
-                continue
-
-            title = source.title or source.domain
-            support_text = "supports" if source.supports_claim else "contradicts"
-            cred_pct = f"{source.credibility_score:.0%}"
-
-            lines.append(
-                f"[^{footnote_num}]: [{title}]({source.url}) "
-                f"({support_text}, credibility: {cred_pct})"
-            )
+        lines.extend(_sources_section(sources, footnote_map))
 
     return "\n".join(lines)
 

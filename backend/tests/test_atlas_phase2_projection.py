@@ -18,8 +18,9 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.api.routes.wiki_atlas import _validated_entity_types
 from app.database import Article, ArticleAuthor, Base, Reporter
-from app.models.atlas import AtlasGraphFilters
+from app.models.atlas import AtlasGraphFilters, AtlasGraphResponse
 from app.models.evidence import (
     ClaimEvidence,
     DocumentSnapshot,
@@ -32,7 +33,6 @@ from app.models.evidence import (
 )
 from app.services.atlas_graph import build_atlas_graph
 from app.services.atlas_graph_helpers import stable_source_id
-from app.api.routes.wiki_atlas import _validated_entity_types
 from app.services.evidence_spine import materialize_claim
 
 NOW = datetime(2026, 7, 20, tzinfo=UTC).replace(tzinfo=None)
@@ -151,6 +151,47 @@ async def _seed_publication(db: AsyncSession, *, entity_id: str, name: str) -> E
     return entity
 
 
+def _assert_ownership_nodes(graph: AtlasGraphResponse) -> None:
+    outlet_ids = {node.id for node in graph.nodes if node.entity_type == "outlet"}
+    assert stable_source_id("Daily Beacon") in outlet_ids
+    assert stable_source_id("Nightly Ledger") in outlet_ids
+    org_nodes = [node for node in graph.nodes if node.entity_type == "organization"]
+    assert org_nodes and org_nodes[0].id == "organization:ent_owner"
+    person_nodes = [node for node in graph.nodes if node.entity_type == "person"]
+    assert person_nodes and person_nodes[0].id == "person:ent_founder"
+
+
+def _assert_ownership_edges(graph: AtlasGraphResponse) -> None:
+    ownership_edges = [edge for edge in graph.edges if edge.raw_relation_type == "directly_owns"]
+    assert len(ownership_edges) == 2
+    for edge in ownership_edges:
+        assert edge.fact_status == "accepted"
+        assert edge.accepted_fact is True
+        assert edge.source_id == "organization:ent_owner"
+        assert edge.evidence_count > 0
+        assert edge.claim_ids
+        assert edge.acceptance_policy_version
+    beacon_edge = next(
+        edge for edge in ownership_edges if edge.target_id == stable_source_id("Daily Beacon")
+    )
+    assert beacon_edge.ownership_percentage == pytest.approx(100.0)
+
+
+def _assert_derived_edges(graph: AtlasGraphResponse) -> None:
+    founded_edges = [edge for edge in graph.edges if edge.relation_type == "founded_by"]
+    assert len(founded_edges) == 1
+    assert founded_edges[0].source_id == "person:ent_founder"
+    assert founded_edges[0].target_id == "organization:ent_owner"
+    sibling_edges = [edge for edge in graph.edges if edge.relation_type == "sibling_via_owner"]
+    assert len(sibling_edges) == 1
+    sibling_pair = {sibling_edges[0].source_id, sibling_edges[0].target_id}
+    assert sibling_pair == {stable_source_id("Daily Beacon"), stable_source_id("Nightly Ledger")}
+    assert sibling_edges[0].direction == "undirected"
+    assert sibling_edges[0].is_inferred is True
+    assert not any(edge.raw_relation_type == "exact_canonical_label" for edge in graph.edges)
+    assert not any(edge.relation_type in {"coauthor", "shared_outlet"} for edge in graph.edges)
+
+
 @pytest.mark.asyncio
 async def test_ownership_edges_populate_from_accepted_relationships(db: AsyncSession) -> None:
     beacon = await _seed_publication(db, entity_id="ent_beacon", name="Daily Beacon")
@@ -208,45 +249,9 @@ async def test_ownership_edges_populate_from_accepted_relationships(db: AsyncSes
         ),
     )
 
-    outlet_ids = {node.id for node in graph.nodes if node.entity_type == "outlet"}
-    assert stable_source_id("Daily Beacon") in outlet_ids
-    assert stable_source_id("Nightly Ledger") in outlet_ids
-    org_nodes = [node for node in graph.nodes if node.entity_type == "organization"]
-    assert org_nodes and org_nodes[0].id == "organization:ent_owner"
-    person_nodes = [node for node in graph.nodes if node.entity_type == "person"]
-    assert person_nodes and person_nodes[0].id == "person:ent_founder"
-
-    ownership_edges = [e for e in graph.edges if e.raw_relation_type == "directly_owns"]
-    assert len(ownership_edges) == 2
-    for edge in ownership_edges:
-        assert edge.fact_status == "accepted"
-        assert edge.accepted_fact is True
-        assert edge.source_id == "organization:ent_owner"
-        assert edge.evidence_count > 0
-        assert edge.claim_ids
-        assert edge.acceptance_policy_version
-
-    beacon_edge = next(
-        e for e in ownership_edges if e.target_id == stable_source_id("Daily Beacon")
-    )
-    assert beacon_edge.ownership_percentage == pytest.approx(100.0)
-
-    founded_edges = [e for e in graph.edges if e.relation_type == "founded_by"]
-    assert len(founded_edges) == 1
-    assert founded_edges[0].source_id == "person:ent_founder"
-    assert founded_edges[0].target_id == "organization:ent_owner"
-
-    # Sibling rollup: both outlets share the same ultimate owner.
-    sibling_edges = [e for e in graph.edges if e.relation_type == "sibling_via_owner"]
-    assert len(sibling_edges) == 1
-    sibling_pair = {sibling_edges[0].source_id, sibling_edges[0].target_id}
-    assert sibling_pair == {stable_source_id("Daily Beacon"), stable_source_id("Nightly Ledger")}
-    assert sibling_edges[0].direction == "undirected"
-    assert sibling_edges[0].is_inferred is True
-
-    # No name-collision hack survives the rewrite.
-    assert not any(e.raw_relation_type == "exact_canonical_label" for e in graph.edges)
-    assert not any(e.relation_type in {"coauthor", "shared_outlet"} for e in graph.edges)
+    _assert_ownership_nodes(graph)
+    _assert_ownership_edges(graph)
+    _assert_derived_edges(graph)
 
 
 @pytest.mark.asyncio

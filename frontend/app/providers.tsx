@@ -1,64 +1,68 @@
-"use client"
+"use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import dynamic from "next/dynamic"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "sonner"
-import type { ReactNode} from "react";
-import { useState } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
+import dynamic from "next/dynamic";
+import type { ReactElement } from "react";
+import { useMemo } from "react";
+
+type ProviderChildren = Readonly<ReactElement> | readonly Readonly<ReactElement>[];
+type ProviderProps = Readonly<{ readonly children: ProviderChildren }>;
 
 const AppearanceSettingsSync = dynamic(
-  () => import("@/components/appearance-settings-sync").then((mod) => mod.AppearanceSettingsSync),
-  { ssr: false },
-)
+    async () => {
+      const appearanceModule = await import("@/components/appearance-settings-sync");
+      return appearanceModule.AppearanceSettingsSync;
+    },
+    { ssr: false },
+  ),
+  ReadingQueueSidebar = dynamic(
+    async () => {
+      const queueModule = await import("@/components/reading-queue-sidebar");
+      return queueModule.ReadingQueueSidebar;
+    },
+    {
+      loading: () => null,
+      ssr: false,
+    },
+  );
 
-const ReadingQueueSidebar = dynamic(
-  () => import("@/components/reading-queue-sidebar").then((mod) => mod.ReadingQueueSidebar),
-  {
-    ssr: false,
-    loading: () => null,
-  },
-)
+const ProviderServices = ({
+  children,
+}: ProviderProps) => (
+  <>
+    {children}
+    <Toaster />
+    <ReadingQueueSidebar />
+    <AppearanceSettingsSync />
+  </>
+);
 
-interface ProvidersProps {
-  children: ReactNode
-}
-
-export function Providers({ children }: ProvidersProps) {
-  // Create query client with optimized defaults
-  const [queryClient] = useState(
+export const Providers = ({
+  children,
+}: ProviderProps) => {
+  const queryClient = useMemo(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Data considered fresh for 30 seconds
-            staleTime: 30 * 1000,
-            // Keep unused data in cache for 5 minutes
             gcTime: 5 * 60 * 1000,
-            // Retry failed requests 3 times with exponential backoff
-            retry: 3,
-            retryDelay: (attemptIndex) =>
-              Math.min(1000 * 2 ** attemptIndex, 30000),
-            // Don't refetch on window focus (user controls refresh)
             refetchOnWindowFocus: false,
+            retry: 3,
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30_000),
+            staleTime: 30 * 1000,
           },
         },
-      })
-  )
+      }),
+    [],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        enableSystem
-        disableTransitionOnChange
-      >
-        {children}
-        <Toaster />
-        <ReadingQueueSidebar />
-        <AppearanceSettingsSync />
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ProviderServices>{children}</ProviderServices>
       </ThemeProvider>
     </QueryClientProvider>
-  )
-}
+  );
+};

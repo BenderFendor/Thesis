@@ -1,23 +1,30 @@
-import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, type RenderOptions } from "@testing-library/react";
+import React from "react";
+import { render } from "@testing-library/react";
 
-export function renderWithQueryClient(
-  ui: ReactElement,
-  options?: Omit<RenderOptions, "wrapper">,
-) {
+export const renderWithQueryClient = (
+  ui: Readonly<React.ReactElement>,
+): ReturnType<typeof render> => {
   const client = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
       },
     },
-  });
+  }),
+    wrapper = class QueryClientWrapper extends React.Component<
+      Readonly<React.PropsWithChildren>
+    > {
+      render(): React.ReactNode {
+        return (
+          <QueryClientProvider client={client}>
+            {this.props.children}
+          </QueryClientProvider>
+        );
+      }
+    };
 
   return render(ui, {
-    wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    ),
-    ...options,
+    wrapper,
   });
-}
+};

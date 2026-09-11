@@ -135,21 +135,7 @@ export interface paths {
         };
         /**
          * Get News Paginated
-         * @description Paginated article endpoint with cursor-based navigation.
-         *
-         *     Cursor pagination is more efficient than offset for large datasets:
-         *     - Consistent performance regardless of page number
-         *     - No "skipping" issues when new data is inserted
-         *     - Better index utilization
-         *
-         *     Supports filtering by:
-         *     - category: Single category filter
-         *     - source: Single source filter (legacy)
-         *     - sources: Comma-separated list for multi-source filtering
-         *     - search: Text search in title and summary
-         *
-         *     Returns:
-         *         PaginatedResponse with articles, cursors, and metadata
+         * @description Return a cursor-paginated article page with optional source/search filters.
          */
         get: operations["get_news_paginated_news_page_get"];
         put?: never;
@@ -169,14 +155,7 @@ export interface paths {
         };
         /**
          * Get Cached News Paginated
-         * @description Paginated endpoint using in-memory cache (faster for frequently accessed data).
-         *
-         *     Uses offset pagination since cache is in-memory array.
-         *
-         *     Best for:
-         *     - Initial page loads
-         *     - Common category filters
-         *     - Real-time updates
+         * @description Return a filtered page from the in-memory news cache.
          */
         get: operations["get_cached_news_paginated_news_page_cached_get"];
         put?: never;
@@ -196,7 +175,7 @@ export interface paths {
         };
         /**
          * Get Cached Browse Index
-         * @description Return lightweight article cards for the current in-memory RSS cache.
+         * @description Return a filtered lightweight index from the in-memory cache.
          */
         get: operations["get_cached_browse_index_news_index_cached_get"];
         put?: never;
@@ -216,7 +195,7 @@ export interface paths {
         };
         /**
          * Get Browse Index
-         * @description Return lightweight article cards for the full browse corpus.
+         * @description Return lightweight article cards from the persisted browse corpus.
          */
         get: operations["get_browse_index_news_index_get"];
         put?: never;
@@ -236,9 +215,7 @@ export interface paths {
         };
         /**
          * Get Recent News
-         * @description Lightweight recent articles endpoint for historical paging.
-         *
-         *     Uses keyset pagination and avoids total counts for faster queries.
+         * @description Return a cursor-paginated page of recent articles.
          */
         get: operations["get_recent_news_news_recent_get"];
         put?: never;
@@ -260,11 +237,7 @@ export interface paths {
         put?: never;
         /**
          * Post Ranked Articles
-         * @description Rank articles using the Rust backend ranking engine.
-         *
-         *     Accepts article metadata, liked/bookmarked article IDs, and favorite
-         *     source IDs. Returns articles sorted by personalized ranking including
-         *     score breakdowns.
+         * @description Rank submitted articles with the Rust engine and return the sorted page.
          */
         post: operations["post_ranked_articles_news_ranked_post"];
         delete?: never;
@@ -282,7 +255,7 @@ export interface paths {
         };
         /**
          * Get News By Source
-         * @description Get News By Source.
+         * @description Return cached articles for one configured source.
          */
         get: operations["get_news_by_source_news_source__source_name__get"];
         put?: never;
@@ -302,7 +275,7 @@ export interface paths {
         };
         /**
          * Get News By Category
-         * @description Get News By Category.
+         * @description Return cached articles for one category.
          */
         get: operations["get_news_by_category_news_category__category_name__get"];
         put?: never;
@@ -322,7 +295,7 @@ export interface paths {
         };
         /**
          * Get Sources
-         * @description Get Sources.
+         * @description Return configured sources with persisted credibility metadata.
          */
         get: operations["get_sources_news_sources_get"];
         put?: never;
@@ -342,7 +315,7 @@ export interface paths {
         };
         /**
          * Get Categories
-         * @description Get Categories.
+         * @description Return the distinct categories in the configured source catalog.
          */
         get: operations["get_categories_news_categories_get"];
         put?: never;
@@ -362,7 +335,7 @@ export interface paths {
         };
         /**
          * Get Source Stats
-         * @description Return stats for all configured sources.
+         * @description Return cache statistics for configured sources.
          */
         get: operations["get_source_stats_news_sources_stats_get"];
         put?: never;
@@ -402,7 +375,7 @@ export interface paths {
         };
         /**
          * Get Article Counts By Country
-         * @description Get Article Counts By Country.
+         * @description Return recent country-mention and source-origin article counts.
          */
         get: operations["get_article_counts_by_country_news_by_country_get"];
         put?: never;
@@ -522,7 +495,7 @@ export interface paths {
         };
         /**
          * Stream News
-         * @description Stream News.
+         * @description Stream cached news immediately, then source-by-source fresh updates.
          */
         get: operations["stream_news_news_stream_get"];
         put?: never;
@@ -682,7 +655,7 @@ export interface paths {
         };
         /**
          * Get Cache Db Delta
-         * @description Get Cache Db Delta.
+         * @description Compare a cache sample with persisted article URLs.
          */
         get: operations["get_cache_db_delta_debug_cache_delta_get"];
         put?: never;
@@ -702,7 +675,7 @@ export interface paths {
         };
         /**
          * Get Storage Drift
-         * @description Get Storage Drift.
+         * @description Compare database embedding mappings with the vector store.
          */
         get: operations["get_storage_drift_debug_storage_drift_get"];
         put?: never;
@@ -1026,9 +999,7 @@ export interface paths {
         };
         /**
          * Read Debug Log File
-         * @description Read events from a specific debug log file.
-         *
-         *     Supports pagination and filtering by event type.
+         * @description Read paginated events from one debug JSONL file.
          */
         get: operations["read_debug_log_file_debug_logs_file__filename__get"];
         put?: never;
@@ -1610,6 +1581,11 @@ export interface paths {
         /**
          * Get Reporter
          * @description Get a reporter by ID.
+         *
+         *     A soft-retired (merged, see audit rec 3) id serves its winner's profile
+         *     instead of 404ing, so old bookmarks/links keep working. Follows at most
+         *     a few hops in case of a chained merge, then falls back to whatever row
+         *     it last reached rather than looping forever on bad data.
          */
         get: operations["get_reporter_research_entity_reporter__reporter_id__get"];
         put?: never;
@@ -4720,6 +4696,32 @@ export interface components {
             article_id: number;
         };
         /**
+         * BookmarkEntry
+         * @description BookmarkEntry API response model.
+         */
+        BookmarkEntry: {
+            /** Article */
+            article: {
+                [key: string]: unknown;
+            };
+            /** Articleid */
+            articleId: number;
+            /** Bookmarkid */
+            bookmarkId: number;
+            /** Createdat */
+            createdAt?: string | null;
+        };
+        /**
+         * BookmarkListResponse
+         * @description BookmarkListResponse API response model.
+         */
+        BookmarkListResponse: {
+            /** Bookmarks */
+            bookmarks: components["schemas"]["BookmarkEntry"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * BreakingCluster
          * @description Breaking Cluster.
          */
@@ -4757,7 +4759,7 @@ export interface components {
         };
         /**
          * BrowseIndexResponse
-         * @description Lightweight full-corpus response for browse views.
+         * @description Lightweight browse-index response.
          */
         BrowseIndexResponse: {
             /** Articles */
@@ -4766,6 +4768,74 @@ export interface components {
             }[];
             /** Total */
             total: number;
+        };
+        /**
+         * CacheDebugArticle
+         * @description CacheDebugArticle API response model.
+         */
+        CacheDebugArticle: {
+            /** Category */
+            category: string;
+            /** Country */
+            country?: string | null;
+            /** Description */
+            description: string;
+            /** Id */
+            id?: number | null;
+            /** Image */
+            image?: string | null;
+            /** Link */
+            link: string;
+            /** Published */
+            published: string;
+            /** Source */
+            source: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CacheDebugResponse
+         * @description CacheDebugResponse API response model.
+         */
+        CacheDebugResponse: {
+            /** Articles */
+            articles: components["schemas"]["CacheDebugArticle"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Returned */
+            returned: number;
+            /** Source */
+            source?: string | null;
+            /** Total */
+            total: number;
+        };
+        /**
+         * CacheStatus
+         * @description CacheStatus API response model.
+         */
+        CacheStatus: {
+            /** Cache Age Seconds */
+            cache_age_seconds: number;
+            /** Category Breakdown */
+            category_breakdown: {
+                [key: string]: number;
+            };
+            /** Last Updated */
+            last_updated: string;
+            /** Sources With Errors */
+            sources_with_errors: number;
+            /** Sources With Warnings */
+            sources_with_warnings: number;
+            /** Sources Working */
+            sources_working: number;
+            /** Total Articles */
+            total_articles: number;
+            /** Total Sources */
+            total_sources: number;
+            /** Update In Progress */
+            update_in_progress: boolean;
         };
         /**
          * ClusterArticle
@@ -4918,6 +4988,20 @@ export interface components {
             article_count: number;
         };
         /**
+         * CountryGeoData
+         * @description CountryGeoData API response model.
+         */
+        CountryGeoData: {
+            /** Countries */
+            countries: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Total */
+            total: number;
+        };
+        /**
          * CoverageReportResponse
          * @description Response for comprehensive coverage report.
          */
@@ -4975,6 +5059,62 @@ export interface components {
             name: string;
             /** Description */
             description?: string | null;
+        };
+        /**
+         * DatabaseDebugArticle
+         * @description DatabaseDebugArticle API response model.
+         */
+        DatabaseDebugArticle: {
+            /** Chroma Id */
+            chroma_id?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Embedding Generated */
+            embedding_generated?: boolean | null;
+            /** Id */
+            id: number;
+            /** Image Url */
+            image_url?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Source */
+            source: string;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * DatabaseDebugResponse
+         * @description DatabaseDebugResponse API response model.
+         */
+        DatabaseDebugResponse: {
+            /** Articles */
+            articles: components["schemas"]["DatabaseDebugArticle"][];
+            /** Limit */
+            limit: number;
+            /** Missing Embeddings Only */
+            missing_embeddings_only: boolean;
+            /** Newest Published */
+            newest_published?: string | null;
+            /** Offset */
+            offset: number;
+            /** Oldest Published */
+            oldest_published?: string | null;
+            /** Published After */
+            published_after?: string | null;
+            /** Published Before */
+            published_before?: string | null;
+            /** Returned */
+            returned: number;
+            /** Sort Direction */
+            sort_direction: string;
+            /** Source */
+            source?: string | null;
+            /** Total */
+            total: number;
         };
         /**
          * EvidenceClaimRecord
@@ -5492,6 +5632,32 @@ export interface components {
             error?: string | null;
         };
         /**
+         * LikedEntry
+         * @description LikedEntry API response model.
+         */
+        LikedEntry: {
+            /** Article */
+            article: {
+                [key: string]: unknown;
+            };
+            /** Articleid */
+            articleId: number;
+            /** Createdat */
+            createdAt?: string | null;
+            /** Likedid */
+            likedId: number;
+        };
+        /**
+         * LikedListResponse
+         * @description LikedListResponse API response model.
+         */
+        LikedListResponse: {
+            /** Liked */
+            liked: components["schemas"]["LikedEntry"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * LineageArticleEdge
          * @description Article lineage edge.
          */
@@ -5896,7 +6062,7 @@ export interface components {
         };
         /**
          * PaginatedResponse
-         * @description Response model for paginated article lists.
+         * @description Article page and its pagination metadata.
          */
         PaginatedResponse: {
             /** Articles */
@@ -6047,32 +6213,23 @@ export interface components {
         };
         /**
          * RankRequest
-         * @description Request model for the ranked feed endpoint.
+         * @description Article ranking inputs from the frontend.
          */
         RankRequest: {
             /** Articles */
             articles: {
                 [key: string]: unknown;
             }[];
-            /**
-             * Liked Article Ids
-             * @default []
-             */
-            liked_article_ids: number[];
-            /**
-             * Bookmarked Article Ids
-             * @default []
-             */
-            bookmarked_article_ids: number[];
-            /**
-             * Favorite Source Ids
-             * @default []
-             */
-            favorite_source_ids: string[];
+            /** Liked Article Ids */
+            liked_article_ids?: number[];
+            /** Bookmarked Article Ids */
+            bookmarked_article_ids?: number[];
+            /** Favorite Source Ids */
+            favorite_source_ids?: string[];
         };
         /**
          * RankResponse
-         * @description Response model for the ranked feed endpoint.
+         * @description Ranked article response.
          */
         RankResponse: {
             /** Articles */
@@ -6163,7 +6320,7 @@ export interface components {
         };
         /**
          * RecentPageResponse
-         * @description Lightweight response for recent articles without total counts.
+         * @description Recent article page and its next cursor.
          */
         RecentPageResponse: {
             /** Articles */
@@ -6376,6 +6533,8 @@ export interface components {
         ReporterProfileResponse: {
             /** Id */
             id?: number | null;
+            /** Redirected From Id */
+            redirected_from_id?: number | null;
             /** Name */
             name: string;
             /** Normalized Name */
@@ -6668,6 +6827,42 @@ export interface components {
             notes?: string | null;
         };
         /**
+         * SourceStats
+         * @description SourceStats API response model.
+         */
+        SourceStats: {
+            /** Article Count */
+            article_count: number;
+            /** Bias Rating */
+            bias_rating?: string | null;
+            /** Category */
+            category: string;
+            /** Country */
+            country: string;
+            /** Error Message */
+            error_message?: string | null;
+            /** Funding Type */
+            funding_type?: string | null;
+            /** Last Checked */
+            last_checked: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * SourceStatsList
+         * @description SourceStatsList API response model.
+         */
+        SourceStatsList: {
+            /** Sources */
+            sources: components["schemas"]["SourceStats"][];
+            /** Total Sources */
+            total_sources: number;
+        };
+        /**
          * SourceType
          * @description Classification of a source's organizational nature.
          * @enum {string}
@@ -6799,6 +6994,44 @@ export interface components {
             last_indexed_at?: string | null;
         };
         /**
+         * StartupEventMetric
+         * @description StartupEventMetric API response model.
+         */
+        StartupEventMetric: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name: string;
+            /** Started At */
+            started_at?: string | null;
+        };
+        /**
+         * StartupMetricsResponse
+         * @description StartupMetricsResponse API response model.
+         */
+        StartupMetricsResponse: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /** Events */
+            events: components["schemas"]["StartupEventMetric"][];
+            /** Notes */
+            notes: {
+                [key: string]: unknown;
+            };
+            /** Started At */
+            started_at?: string | null;
+        };
+        /**
          * StoryLineageResponse
          * @description Story lineage graph for a topic cluster.
          */
@@ -6892,6 +7125,24 @@ export interface components {
             clusters: components["schemas"]["TrendingCluster"][];
             /** Total */
             total: number;
+        };
+        /**
+         * TrendingStats
+         * @description TrendingStats API response model.
+         */
+        TrendingStats: {
+            /** Active Clusters */
+            active_clusters: number;
+            /** Baseline Days */
+            baseline_days: number;
+            /** Breaking Window Hours */
+            breaking_window_hours: number;
+            /** Recent Spikes */
+            recent_spikes: number;
+            /** Similarity Threshold */
+            similarity_threshold: number;
+            /** Total Article Assignments */
+            total_article_assignments: number;
         };
         /**
          * UpdateHighlightRequest
@@ -7618,9 +7869,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SourceStatsList"];
                 };
             };
         };
@@ -7640,9 +7889,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CountryGeoData"];
                 };
             };
         };
@@ -7797,9 +8044,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CacheStatus"];
                 };
             };
         };
@@ -7928,9 +8173,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StartupMetricsResponse"];
                 };
             };
         };
@@ -7995,9 +8238,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DatabaseDebugResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8031,9 +8272,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CacheDebugResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8742,9 +8981,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BookmarkListResponse"];
                 };
             };
         };
@@ -8898,9 +9135,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LikedListResponse"];
                 };
             };
         };
@@ -10826,9 +11061,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrendingStats"];
                 };
             };
         };

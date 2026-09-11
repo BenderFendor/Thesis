@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
 import {
   getStorageSnapshot,
   removeFromStorage,
   saveToStorage,
   subscribeToStorageKey,
 } from "@/lib/storage";
+import { useCallback, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "thesis_reading_history";
-const MAX_HISTORY_SIZE = 100;
-const EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [];
+const EMPTY_READING_HISTORY: ReadingHistoryEntry[] = [],
+ MAX_HISTORY_SIZE = 100,
+ STORAGE_KEY = "thesis_reading_history";
 
 export interface ReadingHistoryEntry {
   articleId: number;
@@ -28,18 +28,18 @@ export function useReadingHistory() {
         EMPTY_READING_HISTORY
       ),
     () => EMPTY_READING_HISTORY
-  );
+  ),
 
-  const markAsRead = useCallback(
+   markAsRead = useCallback(
     (articleId: number, title?: string, source?: string) => {
       const currentHistory = getStorageSnapshot<ReadingHistoryEntry[]>(
         STORAGE_KEY,
         EMPTY_READING_HISTORY
-      );
-      const exists = currentHistory.find((entry) => entry.articleId === articleId);
+      ),
+       exists = currentHistory.find((entry) => entry.articleId === articleId);
       if (exists) {
-        const nextTitle = exists.title ?? title;
-        const nextSource = exists.source ?? source;
+        const nextSource = exists.source ?? source,
+         nextTitle = exists.title ?? title;
         if (nextTitle === exists.title && nextSource === exists.source) {
           return;
         }
@@ -48,8 +48,8 @@ export function useReadingHistory() {
           entry.articleId === articleId
             ? {
                 ...entry,
-                title: nextTitle,
                 source: nextSource,
+                title: nextTitle,
               }
             : entry
         );
@@ -60,44 +60,44 @@ export function useReadingHistory() {
       const newEntry: ReadingHistoryEntry = {
         articleId,
         readAt: new Date().toISOString(),
-        title,
         source,
-      };
-      const updated = [newEntry, ...currentHistory].slice(0, MAX_HISTORY_SIZE);
+        title,
+      },
+       updated = [newEntry, ...currentHistory].slice(0, MAX_HISTORY_SIZE);
       saveToStorage(STORAGE_KEY, updated);
     },
     []
-  );
+  ),
 
-  const isRead = useCallback(
-    (articleId: number) => {
-      return history.some((e) => e.articleId === articleId);
-    },
+   isRead = useCallback(
+    (articleId: number) => 
+      history.some((e) => e.articleId === articleId)
+    ,
     [history]
-  );
+  ),
 
-  const getArticleIds = useCallback(() => {
-    return history.map((e) => e.articleId);
-  }, [history]);
+   getArticleIds = useCallback(() => 
+    history.map((e) => e.articleId)
+  , [history]),
 
-  const clearHistory = useCallback(() => {
+   clearHistory = useCallback(() => {
     removeFromStorage(STORAGE_KEY);
-  }, []);
+  }, []),
 
-  const getRecentIds = useCallback(
-    (limit: number = 50) => {
-      return history.slice(0, limit).map((e) => e.articleId);
-    },
+   getRecentIds = useCallback(
+    (limit: number = 50) => 
+      history.slice(0, limit).map((e) => e.articleId)
+    ,
     [history]
   );
 
   return {
-    history,
-    markAsRead,
-    isRead,
+    clearHistory,
     getArticleIds,
     getRecentIds,
-    clearHistory,
+    history,
     historySize: history.length,
+    isRead,
+    markAsRead,
   };
 }

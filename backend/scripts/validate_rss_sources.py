@@ -8,9 +8,9 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO_BACKEND = ROOT / "backend"
@@ -27,19 +27,34 @@ from app.services.source_url_guard import (  # noqa: E402
 )
 
 RSS_SOURCES_PATH = ROOT / "backend" / "app" / "data" / "rss_sources.json"
-
 _SSL_CONTEXT = ssl._create_unverified_context()
 HEADERS = {"User-Agent": "NewsAggregator/1.0"}
+_ATOM_NS = "http://www.w3.org/2005/Atom"
+
+
+@dataclass(slots=True)
+class _UrlValidation:
+    ok: bool
+    detail: str
+    status: int | None
+
+
+@dataclass(slots=True)
+class _GuardContext:
+    feed_host: str
+    configured_host: str
+    site_host: str
+    inferred_site_host: str
+    article_domain: str | None
 
 
 def _trim_to_feed_document(body: bytes) -> bytes:
     """Keep the first complete RSS/Atom document when a feed appends junk."""
     lowered = body.lower()
-    for closing_tag in (b"</rss>", b"</feed>"):
-        end = lowered.rfind(closing_tag)
-        if end != -1:
-            return body[: end + len(closing_tag)]
-    return body
+    endings = [
+        end + len(tag) for tag in (b"</rss>", b"</feed>") if (end := lowered.rfind(tag)) != -1
+    ]
+    return body[: max(endings)] if endings else body
 
 
 def _strip_invalid_xml_bytes(body: bytes) -> bytes:
@@ -59,18 +74,23 @@ def _strip_invalid_xml_chars(body: bytes) -> str:
     )
 
 
+def _parse_invalid_token_feed(body: bytes) -> ET.Element:
+    trimmed = _trim_to_feed_document(body)
+    try:
+        return ET.fromstring(_strip_invalid_xml_bytes(trimmed))
+    except ET.ParseError:
+        return ET.fromstring(_strip_invalid_xml_chars(trimmed))
+
+
 def _parse_feed_xml(body: bytes) -> ET.Element:
     try:
         return ET.fromstring(body)
     except ET.ParseError as exc:
-        if "junk after document element" in str(exc):
+        message = str(exc)
+        if "junk after document element" in message:
             return ET.fromstring(_trim_to_feed_document(body))
-        if "invalid token" in str(exc):
-            trimmed = _trim_to_feed_document(body)
-            try:
-                return ET.fromstring(_strip_invalid_xml_bytes(trimmed))
-            except ET.ParseError:
-                return ET.fromstring(_strip_invalid_xml_chars(trimmed))
+        if "invalid token" in message:
+            return _parse_invalid_token_feed(body)
         raise
 
 
@@ -78,61 +98,48 @@ def count_items(root: ET.Element) -> int:
     tag = root.tag.lower()
     if "rss" in tag:
         return len(root.findall("./channel/item"))
-    if "feed" in tag or "atom" in tag:
-        atom_ns = {"atom": "http://www.w3.org/2005/Atom"}
-        entries = root.findall("./atom:entry", atom_ns)
-        if entries:
-            return len(entries)
-        return len(root.findall("./entry"))
-    return 0
+    if "feed" not in tag and "atom" not in tag:
+        return 0
+    entries = root.findall(f"./{{{_ATOM_NS}}}entry")
+    return len(entries) if entries else len(root.findall("./entry"))
+
+
+def _element_url_host(element: ET.Element | None, *, attribute: str | None = None) -> str | None:
+    if element is None:
+        return None
+    raw = element.get(attribute) if attribute else element.text
+    value = str(raw or "").strip()
+    return extract_host(value) if value else None
+
+
+def _rss_candidate_hosts(root: ET.Element) -> list[str | None]:
+    return [
+        _element_url_host(root.find("./channel/item/source"), attribute="url"),
+        _element_url_host(root.find("./channel/item/link")),
+        _element_url_host(root.find("./channel/link")),
+    ]
+
+
+def _atom_candidate_hosts(root: ET.Element) -> list[str | None]:
+    return [
+        _element_url_host(root.find(f"./{{{_ATOM_NS}}}entry/{{{_ATOM_NS}}}link"), attribute="href"),
+        _element_url_host(root.find("./entry/link"), attribute="href"),
+    ]
 
 
 def _first_article_domain(url: str) -> str | None:
-    req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=30, context=_SSL_CONTEXT) as response:
-        body = response.read()
-
-    root = _parse_feed_xml(body)
-    source_url = root.find("./channel/item/source")
-    if source_url is not None:
-        source_attr = source_url.get("url")
-        if isinstance(source_attr, str) and source_attr.strip():
-            host = extract_host(source_attr.strip())
-            if host:
-                return host
-    # RSS
-    item_link = root.findtext("./channel/item/link")
-    if isinstance(item_link, str) and item_link.strip():
-        host = extract_host(item_link.strip())
-        if host:
-            return host
-    channel_link = root.findtext("./channel/link")
-    if isinstance(channel_link, str) and channel_link.strip():
-        host = extract_host(channel_link.strip())
-        if host:
-            return host
-    # Atom
-    atom_ns = {"atom": "http://www.w3.org/2005/Atom"}
-    entry_link = root.find("./atom:entry/atom:link", atom_ns)
-    if entry_link is not None:
-        href = entry_link.get("href")
-        if isinstance(href, str) and href.strip():
-            host = extract_host(href.strip())
-            if host:
-                return host
-    entry_link_plain = root.find("./entry/link")
-    if entry_link_plain is not None:
-        href = entry_link_plain.get("href")
-        if isinstance(href, str) and href.strip():
-            host = extract_host(href.strip())
-            if host:
-                return host
-    return None
+    request = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(request, timeout=30, context=_SSL_CONTEXT) as response:
+        root = _parse_feed_xml(response.read())
+    return next(
+        (host for host in _rss_candidate_hosts(root) + _atom_candidate_hosts(root) if host),
+        None,
+    )
 
 
 def validate_url(url: str) -> tuple[bool, str, int | None]:
-    req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=30, context=_SSL_CONTEXT) as response:
+    request = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(request, timeout=30, context=_SSL_CONTEXT) as response:
         status = getattr(response, "status", None)
         content_type = response.headers.get("Content-Type", "")
         body = response.read()
@@ -141,108 +148,162 @@ def validate_url(url: str) -> tuple[bool, str, int | None]:
     items = count_items(root)
     if items <= 0:
         return False, f"parsed XML but found {items} items", status
-
     root_tag = root.tag.lower()
-    is_feed_root = "rss" in root_tag or "feed" in root_tag or "atom" in root_tag
+    is_feed_root = any(marker in root_tag for marker in ("rss", "feed", "atom"))
     if "html" in content_type.lower() and not is_feed_root:
         return False, f"returned HTML content-type {content_type}", status
-
     return True, f"status={status} items={items} root={root.tag}", status
 
 
-def validate_sources(data: dict[str, Any], *, only_names: set[str] | None = None) -> int:
-    failures = 0
-    status_counts: Counter[str] = Counter()
+def _validate_url_safely(url: str) -> _UrlValidation:
+    try:
+        ok, detail, status = validate_url(url)
+        return _UrlValidation(ok, detail, status)
+    except urllib.error.HTTPError as exc:
+        return _UrlValidation(False, f"HTTPError status={exc.code}", exc.code)
+    except Exception as exc:
+        return _UrlValidation(False, f"{type(exc).__name__}: {exc}", None)
 
-    for source_name, source_info in data.items():
-        if only_names is not None and source_name not in only_names:
-            continue
-        if not isinstance(source_info, dict):
-            print(f"FAIL\t{source_name}\tinvalid entry type")
-            failures += 1
-            continue
 
-        urls = iter_urls(source_info.get("url"))
-        if not urls:
-            print(f"FAIL\t{source_name}\tmissing url")
-            failures += 1
-            continue
+def _print_url_validation(source_name: str, url: str, validation: _UrlValidation) -> None:
+    label = "OK" if validation.ok else "FAIL"
+    print(f"{label}\t{source_name}\t{url}\t{validation.detail}")
 
-        for url in urls:
-            try:
-                ok, detail, status = validate_url(url)
-            except urllib.error.HTTPError as exc:
-                ok = False
-                detail = f"HTTPError status={exc.code}"
-                status = exc.code
-            except Exception as exc:
-                ok = False
-                detail = f"{type(exc).__name__}: {exc}"
-                status = None
 
-            status_key = str(status) if status is not None else "error"
-            status_counts[status_key] += 1
-
-            if ok:
-                print(f"OK\t{source_name}\t{url}\t{detail}")
-            else:
-                print(f"FAIL\t{source_name}\t{url}\t{detail}")
-                failures += 1
-
-        # Lightweight URL quality guard
-        feed_host = extract_host(urls[0]) if urls else ""
-        configured_host = extract_domain(urls[0]) or ""
-        site_url = source_info.get("site_url")
-        site_host = extract_domain(site_url) or ""
-
-        inferred_site = normalize_site_url(urls[0]) if urls else None
-        inferred_site_host = extract_domain(inferred_site) or ""
-
+def _guard_context(source_info: dict[str, Any], urls: list[str]) -> _GuardContext:
+    first_url = urls[0]
+    feed_host = extract_host(first_url) or ""
+    configured_host = extract_domain(first_url) or ""
+    site_host = extract_domain(source_info.get("site_url")) or ""
+    inferred_site = normalize_site_url(first_url)
+    inferred_site_host = extract_domain(inferred_site) or ""
+    try:
+        article_domain = _first_article_domain(first_url)
+    except Exception:
         article_domain = None
-        try:
-            article_domain = _first_article_domain(urls[0]) if urls else None
-        except Exception:
-            article_domain = None
+    return _GuardContext(
+        feed_host=feed_host,
+        configured_host=configured_host,
+        site_host=site_host,
+        inferred_site_host=inferred_site_host,
+        article_domain=article_domain,
+    )
 
-        if feed_host in AGGREGATOR_HOSTS:
-            if configured_host and (
-                (site_host and hosts_match(configured_host, site_host))
-                or (article_domain and hosts_match(configured_host, article_domain))
-            ):
-                print(
-                    f"GUARD\t{source_name}\tstatus=ok\treason=site_scoped_aggregator_matches_target\tconfigured={configured_host}\tfeed_host={feed_host}\tsite_url={site_host or '-'}\tarticle_domain={article_domain or '-'}"
-                )
-            else:
-                print(
-                    f"GUARD\t{source_name}\tstatus=mismatch\treason=aggregator_feed\tconfigured={configured_host or feed_host}\tfeed_host={feed_host}\tinferred_site={inferred_site_host or '-'}\tarticle_domain={article_domain or '-'}"
-                )
-        elif site_host and configured_host and not hosts_match(configured_host, site_host):
-            print(
-                f"GUARD\t{source_name}\tstatus=mismatch\treason=site_url_mismatch\tconfigured={configured_host}\tsite_url={site_host}\tarticle_domain={article_domain or '-'}"
-            )
-        elif (
-            inferred_site_host
-            and configured_host
-            and not hosts_match(configured_host, inferred_site_host)
-        ):
-            print(
-                f"GUARD\t{source_name}\tstatus=mismatch\treason=inferred_site_mismatch\tconfigured={configured_host}\tinferred_site={inferred_site_host}\tarticle_domain={article_domain or '-'}"
-            )
-        elif (
-            article_domain and configured_host and not hosts_match(configured_host, article_domain)
-        ):
-            print(
-                f"GUARD\t{source_name}\tstatus=mismatch\treason=first_article_domain_mismatch\tconfigured={configured_host}\tarticle_domain={article_domain}"
-            )
-        else:
-            print(
-                f"GUARD\t{source_name}\tstatus=ok\tconfigured={configured_host or '-'}\tsite_url={site_host or inferred_site_host or '-'}\tarticle_domain={article_domain or '-'}"
-            )
 
+def _aggregator_guard(context: _GuardContext) -> tuple[str, str]:
+    configured_matches = bool(
+        context.configured_host
+        and (
+            context.site_host
+            and hosts_match(context.configured_host, context.site_host)
+            or context.article_domain
+            and hosts_match(context.configured_host, context.article_domain)
+        )
+    )
+    if configured_matches:
+        return "ok", "site_scoped_aggregator_matches_target"
+    return "mismatch", "aggregator_feed"
+
+
+def _non_aggregator_guard(context: _GuardContext) -> tuple[str, str | None]:
+    comparisons = (
+        (context.site_host, "site_url_mismatch"),
+        (context.inferred_site_host, "inferred_site_mismatch"),
+        (context.article_domain or "", "first_article_domain_mismatch"),
+    )
+    for candidate_host, reason in comparisons:
+        if (
+            candidate_host
+            and context.configured_host
+            and not hosts_match(context.configured_host, candidate_host)
+        ):
+            return "mismatch", reason
+    return "ok", None
+
+
+def _guard_decision(context: _GuardContext) -> tuple[str, str | None]:
+    if context.feed_host in AGGREGATOR_HOSTS:
+        return _aggregator_guard(context)
+    return _non_aggregator_guard(context)
+
+
+def _guard_fields(context: _GuardContext) -> str:
+    return (
+        f"configured={context.configured_host or context.feed_host or '-'}"
+        f"\tfeed_host={context.feed_host or '-'}"
+        f"\tsite_url={context.site_host or '-'}"
+        f"\tinferred_site={context.inferred_site_host or '-'}"
+        f"\tarticle_domain={context.article_domain or '-'}"
+    )
+
+
+def _print_guard(source_name: str, source_info: dict[str, Any], urls: list[str]) -> None:
+    context = _guard_context(source_info, urls)
+    status, reason = _guard_decision(context)
+    reason_field = f"\treason={reason}" if reason else ""
+    print(f"GUARD\t{source_name}\tstatus={status}{reason_field}\t{_guard_fields(context)}")
+
+
+def _selected_source_entries(
+    data: dict[str, Any], only_names: set[str] | None
+) -> list[tuple[str, Any]]:
+    return [(name, info) for name, info in data.items() if only_names is None or name in only_names]
+
+
+def _source_urls(source_name: str, source_info: Any) -> tuple[list[str], int]:
+    if not isinstance(source_info, dict):
+        print(f"FAIL\t{source_name}\tinvalid entry type")
+        return [], 1
+    urls = iter_urls(source_info.get("url"))
+    if not urls:
+        print(f"FAIL\t{source_name}\tmissing url")
+        return [], 1
+    return urls, 0
+
+
+def _validate_source_urls(
+    source_name: str,
+    urls: list[str],
+    status_counts: Counter[str],
+) -> int:
+    failures = 0
+    for url in urls:
+        validation = _validate_url_safely(url)
+        status_counts[str(validation.status) if validation.status is not None else "error"] += 1
+        _print_url_validation(source_name, url, validation)
+        failures += int(not validation.ok)
+    return failures
+
+
+def _validate_source(
+    source_name: str,
+    source_info: Any,
+    status_counts: Counter[str],
+) -> int:
+    urls, failures = _source_urls(source_name, source_info)
+    if not urls:
+        return failures
+    failures += _validate_source_urls(source_name, urls, status_counts)
+    assert isinstance(source_info, dict)
+    _print_guard(source_name, source_info, urls)
+    return failures
+
+
+def _print_summary(status_counts: Counter[str], failures: int) -> None:
     print("SUMMARY")
     for key, count in sorted(status_counts.items()):
         print(f"{key}\t{count}")
     print(f"FAILURES\t{failures}")
+
+
+def validate_sources(data: dict[str, Any], *, only_names: set[str] | None = None) -> int:
+    """Validate every selected source feed and its URL-domain quality guard."""
+    status_counts: Counter[str] = Counter()
+    failures = sum(
+        _validate_source(source_name, source_info, status_counts)
+        for source_name, source_info in _selected_source_entries(data, only_names)
+    )
+    _print_summary(status_counts, failures)
     return failures
 
 
@@ -263,10 +324,8 @@ def main() -> int:
         help="Optional list of source names to validate",
     )
     args = parser.parse_args()
-
     data = json.loads(args.json_path.read_text(encoding="utf-8"))
-    only_names = set(args.only) if args.only else None
-    failures = validate_sources(data, only_names=only_names)
+    failures = validate_sources(data, only_names=set(args.only) if args.only else None)
     return 1 if failures else 0
 
 

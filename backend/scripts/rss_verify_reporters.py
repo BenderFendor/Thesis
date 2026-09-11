@@ -119,6 +119,79 @@ async def _promote_via_rss(
     return reporter.confidence_tier in {"verified", "strong"}
 
 
+def _rss_author_names(articles: list[dict[str, Any]]) -> set[str]:
+    names: set[str] = set()
+    for article in articles:
+        for name in article.get("authors", []):
+            cleaned = _clean_rss_name(str(name))
+            if cleaned:
+                names.add(cleaned)
+    return names
+
+
+def _source_variants(source_name: str) -> list[str]:
+    variants = sorted(
+        name
+        for name in get_rss_sources()
+        if name.split(" - ")[0].strip().lower() == source_name.lower()
+    )
+    return variants or [source_name]
+
+
+async def _reporters_for_source(
+    session: AsyncSession,
+    source_variants: list[str],
+) -> dict[str, Reporter]:
+    id_result = await session.execute(
+        select(Reporter.id)
+        .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
+        .join(Article, Article.id == ArticleAuthor.article_id)
+        .where(Article.source.in_(source_variants))
+        .distinct()
+    )
+    reporter_ids = [int(row[0]) for row in id_result.all()]
+    if not reporter_ids:
+        return {}
+
+    full_result = await session.execute(select(Reporter).where(Reporter.id.in_(reporter_ids)))
+    reporters: dict[str, Reporter] = {}
+    for r in full_result.scalars().all():
+        if r.name and r.confidence_tier != "verified":
+            key = _clean_rss_name(str(r.name or ""))
+            if key:
+                reporters[key] = r
+    return reporters
+
+
+def _match_rss_reporter(rss_name: str, reporters: dict[str, Reporter]) -> Reporter | None:
+    reporter = reporters.get(rss_name)
+    if reporter is not None:
+        return reporter
+    for rname, r in reporters.items():
+        if _name_subsumes(rss_name, rname):
+            return r
+    return None
+
+
+async def _match_and_promote_reporters(
+    session: AsyncSession,
+    all_names: set[str],
+    reporters: dict[str, Reporter],
+    rss_url: str,
+    dry_run: bool,
+) -> tuple[int, int]:
+    matched = 0
+    promoted = 0
+    for rss_name in all_names:
+        reporter = _match_rss_reporter(rss_name, reporters)
+        if reporter is None:
+            continue
+        matched += 1
+        if not dry_run and await _promote_via_rss(session, reporter, rss_url):
+            promoted += 1
+    return matched, promoted
+
+
 async def verify_source_rss(
     session: AsyncSession,
     source_name: str,
@@ -143,64 +216,22 @@ async def verify_source_rss(
     if not articles:
         return result
 
-    # Collect all author names from parsed articles
-    all_names: set[str] = set()
-    for article in articles:
-        for name in article.get("authors", []):
-            cleaned = _clean_rss_name(str(name))
-            if cleaned:
-                all_names.add(cleaned)
-
+    all_names = _rss_author_names(articles)
     if not all_names:
         return result
     result["rss_authors"] = len(all_names)
 
-    # Find reporters for this source
-    source_variants = sorted(
-        name
-        for name in get_rss_sources()
-        if name.split(" - ")[0].strip().lower() == source_name.lower()
-    )
-    if not source_variants:
-        source_variants = [source_name]
-
-    id_result = await session.execute(
-        select(Reporter.id)
-        .join(ArticleAuthor, ArticleAuthor.reporter_id == Reporter.id)
-        .join(Article, Article.id == ArticleAuthor.article_id)
-        .where(Article.source.in_(source_variants))
-        .distinct()
-    )
-    reporter_ids = [int(row[0]) for row in id_result.all()]
-
-    if not reporter_ids:
-        return result
-
-    full_result = await session.execute(select(Reporter).where(Reporter.id.in_(reporter_ids)))
-    reporters: dict[str, Reporter] = {}
-    for r in full_result.scalars().all():
-        if r.name and r.confidence_tier != "verified":
-            key = _clean_rss_name(str(r.name or ""))
-            if key:
-                reporters[key] = r
-
+    reporters = await _reporters_for_source(session, _source_variants(source_name))
     if not reporters:
         return result
 
-    matched = 0
-    promoted = 0
-    for rss_name in all_names:
-        reporter = reporters.get(rss_name)
-        if not reporter:
-            for rname, r in reporters.items():
-                if _name_subsumes(rss_name, rname):
-                    reporter = r
-                    break
-        if reporter:
-            matched += 1
-            if not dry_run:
-                if await _promote_via_rss(session, reporter, str(rss_urls[0])):
-                    promoted += 1
+    matched, promoted = await _match_and_promote_reporters(
+        session,
+        all_names,
+        reporters,
+        str(rss_urls[0]),
+        dry_run,
+    )
 
     result["matched"] = matched
     result["promoted"] = promoted

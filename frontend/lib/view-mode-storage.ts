@@ -1,24 +1,28 @@
-export type GridViewMode = "source" | "topic"
+type GridViewMode = "source" | "topic"
 
-export const GRID_VIEW_MODE_STORAGE_KEY = "viewMode"
+const DEFAULT_GRID_VIEW_MODE: GridViewMode = "source",
+ GRID_VIEW_MODE_STORAGE_KEY = "viewMode",
 
-export function isGridViewMode(value: string | null): value is GridViewMode {
-  return value === "source" || value === "topic"
-}
+ getStoredGridViewMode = (): GridViewMode => {
+  const storedValue = getStoredGridViewModeValue()
+  if (isGridViewMode(storedValue)) {return storedValue}
 
-export function getStoredGridViewMode(): GridViewMode {
-  if (typeof window === "undefined") {
-    return "source"
-  }
+  return DEFAULT_GRID_VIEW_MODE
+ },
 
-  const saved = window.localStorage.getItem(GRID_VIEW_MODE_STORAGE_KEY)
-  return isGridViewMode(saved) ? saved : "source"
-}
+ getStoredGridViewModeValue = (): string | undefined => {
+  if (!Object.hasOwn(globalThis, "window")) {return undefined}
+  return globalThis.window.localStorage.getItem(GRID_VIEW_MODE_STORAGE_KEY) ?? undefined
+ },
 
-export function setStoredGridViewMode(mode: GridViewMode): void {
-  if (typeof window === "undefined") {
-    return
-  }
+ isGridViewMode = (value?: string | null): value is GridViewMode =>
+  value === DEFAULT_GRID_VIEW_MODE || value === "topic",
 
-  window.localStorage.setItem(GRID_VIEW_MODE_STORAGE_KEY, mode)
-}
+ setStoredGridViewMode = (mode: GridViewMode): void => {
+  if (!Object.hasOwn(globalThis, "window")) {return}
+
+  globalThis.window.localStorage.setItem(GRID_VIEW_MODE_STORAGE_KEY, mode)
+ }
+
+export { GRID_VIEW_MODE_STORAGE_KEY, getStoredGridViewMode, isGridViewMode, setStoredGridViewMode }
+export type { GridViewMode }

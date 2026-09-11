@@ -77,6 +77,61 @@ class SplitByline:
     was_split: bool = False
 
 
+def _split_comma_parts(part: str) -> list[str]:
+    """Split one byline part on commas and return the trimmed non-empty pieces."""
+    return [piece.strip() for piece in _COMMA_SPLIT_RE.split(part) if piece.strip()]
+
+
+def _is_agency_segment(segment: str) -> bool:
+    return segment.lower() in _AGENCY_SEGMENTS
+
+
+def _single_author_result(text: str) -> SplitByline:
+    """Split one name with a trailing agency segment, or return the name as-is."""
+    comma_parts = _split_comma_parts(text)
+    if len(comma_parts) >= 2 and _is_agency_segment(comma_parts[-1]):
+        return SplitByline(
+            authors=[comma_parts[0]], agency_context=comma_parts[-1], was_split=False
+        )
+    return SplitByline(authors=[text], was_split=False)
+
+
+def _peel_trailing_agency(and_parts: list[str]) -> tuple[list[str], str | None]:
+    """Remove a trailing wire-agency credit from the last author part.
+
+    The credit may be its own "and"-joined part ("... and agencies") or
+    comma-attached to the last part ("... GENE JOHNSON, Associated Press").
+    Returns the updated parts and the peeled agency context.
+    """
+    agency_context: str | None = None
+    if _is_agency_segment(and_parts[-1]):
+        agency_context = and_parts.pop()
+
+    if len(and_parts) >= 2:
+        comma_parts = _split_comma_parts(and_parts[-1])
+        if len(comma_parts) >= 2 and _is_agency_segment(comma_parts[-1]):
+            agency_context = comma_parts[-1]
+            and_parts[-1] = comma_parts[0]
+    return and_parts, agency_context
+
+
+def _expand_comma_authors(and_parts: list[str]) -> list[str]:
+    """Expand comma-separated names inside each part when every piece looks like a name."""
+    authors: list[str] = []
+    for part in and_parts:
+        # A part may itself contain a comma-separated list of names ("X, Y
+        # and Z" splits " and " into ["X, Y", "Z"]); only explode it on
+        # comma when every resulting piece looks like a name, never when
+        # the trailing piece looks like a title/role (conservative: keep it
+        # attached rather than risk fabricating a third "author").
+        sub_parts = _split_comma_parts(part)
+        if len(sub_parts) > 1 and all(_looks_like_person_name(p) for p in sub_parts):
+            authors.extend(sub_parts)
+        else:
+            authors.append(part)
+    return [author for author in authors if author]
+
+
 def split_byline(raw: str) -> SplitByline:
     """Split a raw byline string into individual author names.
 
@@ -89,18 +144,12 @@ def split_byline(raw: str) -> SplitByline:
         return SplitByline(authors=[], was_split=False)
 
     and_parts = [part.strip() for part in _AND_SPLIT_RE.split(text) if part.strip()]
-    agency_context: str | None = None
 
     if len(and_parts) < 2:
         # No " and "/" & " separator. Still handle a single trailing
         # ", Associated Press"-style agency segment on an otherwise single
         # name, e.g. "Gene Johnson, Associated Press".
-        comma_parts = [part.strip() for part in _COMMA_SPLIT_RE.split(text) if part.strip()]
-        if len(comma_parts) >= 2 and comma_parts[-1].lower() in _AGENCY_SEGMENTS:
-            return SplitByline(
-                authors=[comma_parts[0]], agency_context=comma_parts[-1], was_split=False
-            )
-        return SplitByline(authors=[text], was_split=False)
+        return _single_author_result(text)
 
     # Multi-author. A trailing wire-agency credit may appear either as its
     # own "and"-joined part ("... Anna Betts and agencies") or comma-
@@ -108,28 +157,6 @@ def split_byline(raw: str) -> SplitByline:
     # Press"). Peel it off either way before treating each part as an
     # author name -- "agencies"/"Associated Press" is context, not a third
     # byline.
-    if and_parts[-1].lower() in _AGENCY_SEGMENTS:
-        agency_context = and_parts.pop()
-
-    if len(and_parts) >= 2:
-        last = and_parts[-1]
-        comma_parts = [part.strip() for part in _COMMA_SPLIT_RE.split(last) if part.strip()]
-        if len(comma_parts) >= 2 and comma_parts[-1].lower() in _AGENCY_SEGMENTS:
-            agency_context = comma_parts[-1]
-            and_parts[-1] = comma_parts[0]
-
-    authors: list[str] = []
-    for part in and_parts:
-        # A part may itself contain a comma-separated list of names ("X, Y
-        # and Z" splits " and " into ["X, Y", "Z"]); only explode it on
-        # comma when every resulting piece looks like a name, never when
-        # the trailing piece looks like a title/role (conservative: keep it
-        # attached rather than risk fabricating a third "author").
-        sub_parts = [part.strip() for part in _COMMA_SPLIT_RE.split(part) if part.strip()]
-        if len(sub_parts) > 1 and all(_looks_like_person_name(p) for p in sub_parts):
-            authors.extend(sub_parts)
-        else:
-            authors.append(part)
-
-    authors = [author for author in authors if author]
+    and_parts, agency_context = _peel_trailing_agency(and_parts)
+    authors = _expand_comma_authors(and_parts)
     return SplitByline(authors=authors, agency_context=agency_context, was_split=len(authors) > 1)

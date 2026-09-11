@@ -394,7 +394,56 @@ def print_summary(results: dict[str, Any]) -> None:
                 )
 
 
-def main():
+def _run_requested_benchmarks(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    user_counts: list[int],
+) -> dict[str, Any]:
+    if not wait_for_server(BACKEND_URL, timeout=30):
+        print("ERROR: Server not available. Exiting.")
+        sys.exit(1)
+
+    if args.all:
+        return run_all_benchmarks(user_counts, args.duration, args.warmup)
+    if not args.endpoint:
+        parser.print_help()
+        sys.exit(1)
+
+    endpoint = next((item for item in ENDPOINTS if item.path == args.endpoint), None)
+    if not endpoint:
+        print(f"ERROR: Unknown endpoint: {args.endpoint}")
+        print(f"Available endpoints: {[item.path for item in ENDPOINTS]}")
+        sys.exit(1)
+    all_results = _run_endpoint_benchmarks(endpoint, user_counts, args.duration, args.warmup)
+    return {
+        "metadata": {
+            "backend_url": BACKEND_URL,
+            "user_counts": user_counts,
+            "duration_seconds": args.duration,
+        },
+        "endpoints": {
+            endpoint.path: {
+                "description": endpoint.description,
+                "results": all_results,
+            }
+        },
+    }
+
+
+def _run_endpoint_benchmarks(
+    endpoint: Any,
+    user_counts: list[int],
+    duration: int,
+    warmup: int,
+) -> list[Any]:
+    results = []
+    for users in user_counts:
+        print(f"\nBenchmarking {endpoint.path} with {users} users...")
+        results.append(run_http_benchmark(endpoint, users, duration, warmup))
+    return results
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description="Performance Benchmark Suite")
     parser.add_argument(
         "--endpoint",
@@ -440,41 +489,7 @@ def main():
     print(f"User counts: {user_counts}")
     print(f"Duration: {args.duration}s (warmup: {args.warmup}s)")
 
-    if not wait_for_server(BACKEND_URL, timeout=30):
-        print("ERROR: Server not available. Exiting.")
-        sys.exit(1)
-
-    if args.all:
-        results = run_all_benchmarks(user_counts, args.duration, args.warmup)
-    elif args.endpoint:
-        endpoint = next((e for e in ENDPOINTS if e.path == args.endpoint), None)
-        if not endpoint:
-            print(f"ERROR: Unknown endpoint: {args.endpoint}")
-            print(f"Available endpoints: {[e.path for e in ENDPOINTS]}")
-            sys.exit(1)
-
-        all_results = []
-        for users in user_counts:
-            print(f"\nBenchmarking {endpoint.path} with {users} users...")
-            result = run_http_benchmark(endpoint, users, args.duration, args.warmup)
-            all_results.append(result)
-
-        results = {
-            "metadata": {
-                "backend_url": BACKEND_URL,
-                "user_counts": user_counts,
-                "duration_seconds": args.duration,
-            },
-            "endpoints": {
-                endpoint.path: {
-                    "description": endpoint.description,
-                    "results": all_results,
-                }
-            },
-        }
-    else:
-        parser.print_help()
-        sys.exit(1)
+    results = _run_requested_benchmarks(parser, args, user_counts)
 
     filepath = save_results(results, args.output)
     print(f"\nResults saved to: {filepath}")

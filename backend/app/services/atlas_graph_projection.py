@@ -138,6 +138,22 @@ async def _reporters(db: AsyncSession, filters: AtlasGraphFilters) -> list[Repor
     return list((await db.execute(reporter_stmt)).scalars().all())
 
 
+def _outlet_meta_or_config(
+    meta: SourceMetadata | None,
+    attr: str,
+    config: dict[str, Any],
+    config_key: str,
+) -> Any:
+    meta_value = getattr(meta, attr) if meta else None
+    return meta_value or config.get(config_key)
+
+
+def _outlet_meta_only(meta: SourceMetadata | None, attr: str) -> Any:
+    if meta is None:
+        return None
+    return getattr(meta, attr)
+
+
 def _outlet_node(
     source_name: str,
     node_id: str,
@@ -151,31 +167,26 @@ def _outlet_node(
     normalized = normalize_entity_label(source_name)
     meta = metadata_by_source.get(normalized)
     status = index_by_key.get(("source", normalized))
+    flags = ["needs-review"] if status and cast(str, status.status) in {"failed", "stale"} else []
     return AtlasNode(
         id=node_id,
         entity_type="outlet",
         label=source_name,
-        subtitle=cast(
-            str | None,
-            (meta.source_type if meta else None) or config.get("category"),
-        ),
-        country_code=cast(
-            str | None,
-            (meta.country if meta else None) or config.get("country"),
-        ),
+        subtitle=cast(str | None, _outlet_meta_or_config(meta, "source_type", config, "category")),
+        country_code=cast(str | None, _outlet_meta_or_config(meta, "country", config, "country")),
         funding_type=cast(
             str | None,
-            (meta.funding_type if meta else None) or config.get("funding_type"),
+            _outlet_meta_or_config(meta, "funding_type", config, "funding_type"),
         ),
         bias_rating=cast(
             str | None,
-            (meta.political_bias if meta else None) or config.get("bias_rating"),
+            _outlet_meta_or_config(meta, "political_bias", config, "bias_rating"),
         ),
         factual_reporting=cast(
             str | None,
-            (meta.factual_rating if meta else None) or config.get("factual_reporting"),
+            _outlet_meta_or_config(meta, "factual_rating", config, "factual_reporting"),
         ),
-        credibility_score=cast(float | None, meta.credibility_score if meta else None),
+        credibility_score=cast(float | None, _outlet_meta_only(meta, "credibility_score")),
         analysis_scores=scores_by_source.get(normalized, {}),
         article_count=article_counts.get(source_name, 0),
         status=status.status if status else None,
@@ -185,9 +196,7 @@ def _outlet_node(
         profile_path=f"/wiki/source/{source_name}",
         updated_at=(status.last_indexed_at if status else None)
         or (meta.updated_at if meta else None),
-        flags=["needs-review"]
-        if status and cast(str, status.status) in {"failed", "stale"}
-        else [],
+        flags=flags,
     )
 
 
@@ -254,6 +263,61 @@ def _byline_edges(
     return edges
 
 
+def _resolved_affiliations(
+    affiliations: list[Any],
+    org_id_by_normalized: dict[str, str],
+) -> list[tuple[dict[str, Any], str, str]]:
+    resolved: list[tuple[dict[str, Any], str, str]] = []
+    for affiliation in affiliations:
+        if not isinstance(affiliation, dict):
+            continue
+        raw_name = (
+            affiliation.get("org") or affiliation.get("name") or affiliation.get("organization")
+        )
+        if not isinstance(raw_name, str):
+            continue
+        affiliation_org_id = org_id_by_normalized.get(normalize_entity_label(raw_name))
+        if not affiliation_org_id:
+            continue
+        resolved.append((affiliation, raw_name, affiliation_org_id))
+    return resolved
+
+
+def _affiliation_edge(
+    reporter: Reporter,
+    affiliation: dict[str, Any],
+    raw_name: str,
+    affiliation_org_id: str,
+    include_evidence_preview: bool,
+) -> AtlasEdge:
+    evidence_url = affiliation.get("url") or affiliation.get("source_url")
+    evidence: list[AtlasEvidenceRef] = []
+    if isinstance(evidence_url, str) and evidence_url:
+        evidence.append(
+            AtlasEvidenceRef(
+                id=f"reporter-affiliation:{reporter.id}:{affiliation_org_id}",
+                source_type="person_profile",
+                source_name=cast(str, reporter.name),
+                source_url=evidence_url,
+                excerpt=cast(str | None, affiliation.get("role")),
+            )
+        )
+    confidence = 0.9 if evidence else 0.62
+    source_id = f"reporter:{reporter.id}"
+    return AtlasEdge(
+        id=_edge_id(source_id, affiliation_org_id, "employed_by", raw_name),
+        source_id=source_id,
+        target_id=affiliation_org_id,
+        relation_type="employed_by",
+        confidence=confidence,
+        confidence_tier=confidence_tier(confidence),
+        evidence_count=len(evidence),
+        evidence_preview=evidence if include_evidence_preview else [],
+        is_inferred=not bool(evidence),
+        raw_relation_type="institutional_affiliation",
+    )
+
+
 def _affiliation_edges(
     reporters: list[Reporter],
     *,
@@ -265,43 +329,16 @@ def _affiliation_edges(
         affiliations = reporter.institutional_affiliations or []
         if not isinstance(affiliations, list):
             continue
-        for affiliation in affiliations:
-            if not isinstance(affiliation, dict):
-                continue
-            raw_name = (
-                affiliation.get("org") or affiliation.get("name") or affiliation.get("organization")
-            )
-            if not isinstance(raw_name, str):
-                continue
-            affiliation_org_id = org_id_by_normalized.get(normalize_entity_label(raw_name))
-            if not affiliation_org_id:
-                continue
-            evidence_url = affiliation.get("url") or affiliation.get("source_url")
-            evidence: list[AtlasEvidenceRef] = []
-            if isinstance(evidence_url, str) and evidence_url:
-                evidence.append(
-                    AtlasEvidenceRef(
-                        id=f"reporter-affiliation:{reporter.id}:{affiliation_org_id}",
-                        source_type="person_profile",
-                        source_name=cast(str, reporter.name),
-                        source_url=evidence_url,
-                        excerpt=cast(str | None, affiliation.get("role")),
-                    )
-                )
-            confidence = 0.9 if evidence else 0.62
-            source_id = f"reporter:{reporter.id}"
+        for affiliation, raw_name, affiliation_org_id in _resolved_affiliations(
+            affiliations, org_id_by_normalized
+        ):
             edges.append(
-                AtlasEdge(
-                    id=_edge_id(source_id, affiliation_org_id, "employed_by", raw_name),
-                    source_id=source_id,
-                    target_id=affiliation_org_id,
-                    relation_type="employed_by",
-                    confidence=confidence,
-                    confidence_tier=confidence_tier(confidence),
-                    evidence_count=len(evidence),
-                    evidence_preview=evidence if include_evidence_preview else [],
-                    is_inferred=not bool(evidence),
-                    raw_relation_type="institutional_affiliation",
+                _affiliation_edge(
+                    reporter,
+                    affiliation,
+                    raw_name,
+                    affiliation_org_id,
+                    include_evidence_preview,
                 )
             )
     return edges
@@ -346,44 +383,7 @@ async def _load_graph_projection(
     filters: AtlasGraphFilters,
 ) -> tuple[list[AtlasNode], list[AtlasEdge], dict[str, int], datetime | None, bool]:
     catalog = _catalog_sources()
-    metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
-    score_rows = list((await db.execute(select(SourceAnalysisScore))).scalars().all())
-
-    article_counts = {
-        cast(str, source): int(count)
-        for source, count in (
-            await db.execute(
-                select(Article.source, func.count(Article.id)).group_by(Article.source)
-            )
-        ).all()
-    }
-
-    index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
-    index_by_key = {
-        (
-            cast(str, row.entity_type),
-            normalize_entity_label(cast(str, row.entity_name)),
-        ): row
-        for row in index_rows
-    }
-    index_counts = Counter(cast(str, row.status) for row in index_rows)
-    last_indexed_at = max(
-        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
-        default=None,
-    )
-    indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
-
-    metadata_by_source = {
-        normalize_entity_label(cast(str, row.source_name)): row for row in metadata
-    }
-    scores_by_source: dict[str, dict[str, int]] = defaultdict(dict)
-    for score_row in score_rows:
-        scores_by_source[normalize_entity_label(cast(str, score_row.source_name))][
-            cast(str, score_row.axis_name)
-        ] = cast(int, score_row.score)
-
-    nodes: list[AtlasNode] = []
-    edges: list[AtlasEdge] = []
+    lookups, index_counts, last_indexed_at, indexing_active = await _load_graph_lookups(db)
     reporters = await _reporters(db, filters)
 
     survivors = await entity_survivor_map(db)
@@ -392,27 +392,9 @@ async def _load_graph_projection(
     ]
     outlet_id_by_entity = await outlet_node_ids(db, publications)
 
-    lookups: _OutletLookups = {
-        "metadata_by_source": metadata_by_source,
-        "index_by_key": index_by_key,
-        "article_counts": article_counts,
-        "scores_by_source": scores_by_source,
-    }
-    if publications:
-        for entity in publications:
-            node_id = outlet_id_by_entity[cast(str, entity.id)]
-            source_name = cast(str, entity.canonical_name)
-            config = catalog.get(source_name, {})
-            nodes.append(_outlet_node(source_name, node_id, config, **lookups))
-    else:
-        # Fallback: Phase 0 backfill has not run on this database yet. Project
-        # outlets straight from the RSS catalog so the Atlas is never empty.
-        for source_name, config in catalog.items():
-            nodes.append(
-                _outlet_node(source_name, stable_source_id(source_name), config, **lookups)
-            )
-
-    nodes.extend(_reporter_node(reporter, index_by_key) for reporter in reporters)
+    nodes = _project_outlet_nodes(publications, outlet_id_by_entity, catalog, lookups)
+    edges: list[AtlasEdge] = []
+    nodes.extend(_reporter_node(reporter, lookups["index_by_key"]) for reporter in reporters)
 
     if reporters:
         edges.extend(
@@ -432,3 +414,86 @@ async def _load_graph_projection(
         last_indexed_at,
         indexing_active,
     )
+
+
+async def _load_graph_lookups(
+    db: AsyncSession,
+) -> tuple[_OutletLookups, Counter[str], datetime | None, bool]:
+    metadata = list((await db.execute(select(SourceMetadata))).scalars().all())
+    score_rows = list((await db.execute(select(SourceAnalysisScore))).scalars().all())
+    article_counts = {
+        cast(str, source): int(count)
+        for source, count in (
+            await db.execute(
+                select(Article.source, func.count(Article.id)).group_by(Article.source)
+            )
+        ).all()
+    }
+    index_rows = list((await db.execute(select(WikiIndexStatus))).scalars().all())
+    index_by_key = {
+        (cast(str, row.entity_type), normalize_entity_label(cast(str, row.entity_name))): row
+        for row in index_rows
+    }
+    index_counts = Counter(cast(str, row.status) for row in index_rows)
+    last_indexed_at = max(
+        (row.last_indexed_at for row in index_rows if row.last_indexed_at),
+        default=None,
+    )
+    indexing_active = any(cast(str, row.status) == "indexing" for row in index_rows)
+    metadata_by_source = {
+        normalize_entity_label(cast(str, row.source_name)): row for row in metadata
+    }
+    scores_by_source: dict[str, dict[str, int]] = defaultdict(dict)
+    for score_row in score_rows:
+        scores_by_source[normalize_entity_label(cast(str, score_row.source_name))][
+            cast(str, score_row.axis_name)
+        ] = cast(int, score_row.score)
+    return (
+        {
+            "metadata_by_source": metadata_by_source,
+            "index_by_key": index_by_key,
+            "article_counts": article_counts,
+            "scores_by_source": scores_by_source,
+        },
+        index_counts,
+        last_indexed_at,
+        indexing_active,
+    )
+
+
+def _project_outlet_nodes(
+    publications: list[EvSpineEntity],
+    outlet_id_by_entity: dict[str, str],
+    catalog: dict[str, dict[str, Any]],
+    lookups: _OutletLookups,
+) -> list[AtlasNode]:
+    if publications:
+        return _outlet_nodes(publications, outlet_id_by_entity, catalog, lookups)
+    return _catalog_outlet_nodes(catalog, lookups)
+
+
+def _outlet_nodes(
+    publications: list[EvSpineEntity],
+    outlet_id_by_entity: dict[str, str],
+    catalog: dict[str, dict[str, Any]],
+    lookups: _OutletLookups,
+) -> list[AtlasNode]:
+    nodes: list[AtlasNode] = []
+    for entity in publications:
+        node_id = outlet_id_by_entity[cast(str, entity.id)]
+        source_name = cast(str, entity.canonical_name)
+        config = catalog.get(source_name, {})
+        nodes.append(_outlet_node(source_name, node_id, config, **lookups))
+    return nodes
+
+
+def _catalog_outlet_nodes(
+    catalog: dict[str, dict[str, Any]],
+    lookups: _OutletLookups,
+) -> list[AtlasNode]:
+    # Fallback: Phase 0 backfill has not run on this database yet. Project
+    # outlets straight from the RSS catalog so the Atlas is never empty.
+    return [
+        _outlet_node(source_name, stable_source_id(source_name), config, **lookups)
+        for source_name, config in catalog.items()
+    ]

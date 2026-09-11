@@ -1,0 +1,68 @@
+name: Oxlint zero gate
+
+on:
+  push:
+    branches:
+      - quality/crap-mi-oxlint-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oxlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Run frontend Oxlint
+        id: oxlint
+        shell: bash
+        run: |
+          set +e
+          export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          test -x "$OXLINT_TSGOLINT_PATH"
+          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format json frontend > oxlint-frontend.json
+          status=$?
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync('oxlint-frontend.json', 'utf8');
+          const parsed = JSON.parse(raw);
+          const diagnostics = Array.isArray(parsed)
+            ? parsed.flatMap((entry) => Array.isArray(entry?.warnings) ? entry.warnings : [])
+            : (Array.isArray(parsed?.diagnostics) ? parsed.diagnostics : []);
+          const severity = (d) => String(d?.severity ?? 'error').toLowerCase();
+          const errors = diagnostics.filter((d) => !severity(d).startsWith('warn')).length;
+          const warnings = diagnostics.length - errors;
+          const byRule = new Map();
+          for (const d of diagnostics) {
+            const rule = String(d?.code ?? d?.rule ?? d?.ruleId ?? 'unknown');
+            const current = byRule.get(rule) ?? { errors: 0, warnings: 0 };
+            if (severity(d).startsWith('warn')) current.warnings += 1;
+            else current.errors += 1;
+            byRule.set(rule, current);
+          }
+          const summary = [...byRule.entries()]
+            .map(([rule, counts]) => ({ rule, ...counts, total: counts.errors + counts.warnings }))
+            .sort((a, b) => b.errors - a.errors || b.warnings - a.warnings || a.rule.localeCompare(b.rule));
+          fs.writeFileSync('oxlint-summary.json', JSON.stringify({ errors, warnings, total: diagnostics.length, byRule: summary }, null, 2));
+          console.log(JSON.stringify({ errors, warnings, total: diagnostics.length, topRules: summary.slice(0, 30) }, null, 2));
+          NODE
+          exit $status
+      - name: Upload Oxlint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxlint-zero-report
+          path: |
+            oxlint-frontend.json
+            oxlint-summary.json
+          if-no-files-found: error
+          retention-days: 7

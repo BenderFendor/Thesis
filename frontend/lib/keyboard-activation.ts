@@ -1,26 +1,25 @@
-import type { KeyboardEvent } from "react"
-
-export function isActivationKey(key: string): boolean {
-  return key === "Enter" || key === " "
+interface KeyDownEvent {
+  readonly currentTarget: Readonly<EventTarget>
+  readonly key: string
+  readonly target: Readonly<EventTarget> | null
 }
 
-export function shouldActivateCardFromKeyDown(
-  event: Pick<KeyboardEvent<HTMLElement>, "key" | "target" | "currentTarget">,
-): boolean {
-  return event.target === event.currentTarget && isActivationKey(event.key)
+interface KeyDownActivationEvent extends KeyDownEvent {
+  readonly preventDefault: () => void
 }
 
-export function activateCardFromKeyDown(
-  event: Pick<
-    KeyboardEvent<HTMLElement>,
-    "key" | "target" | "currentTarget" | "preventDefault"
-  >,
+const activateCardFromKeyDown = (
+  event: Readonly<KeyDownActivationEvent>,
   onActivate: () => void,
-): void {
+): void => {
   if (!shouldActivateCardFromKeyDown(event)) {
     return
   }
-
   event.preventDefault()
   onActivate()
-}
+},
+  isActivationKey = (key: string): boolean => key === "Enter" || key === " ",
+  shouldActivateCardFromKeyDown = (event: Readonly<KeyDownEvent>): boolean =>
+  event.target === event.currentTarget && isActivationKey(event.key);
+
+export { activateCardFromKeyDown, isActivationKey, shouldActivateCardFromKeyDown }

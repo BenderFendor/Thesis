@@ -1,52 +1,351 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownAZ, Loader2, Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
-import { Input } from "@/components/ui/input";
-
-import { fetchAtlasIndex } from "./lib/atlas-api";
-import type { AtlasEntityType, AtlasNode } from "./lib/atlas-schema";
 import styles from "./atlas.module.css";
+import { DirectoryHeader } from "./atlas-entity-list-header";
+import type { AtlasEntityListVariant, FilterPatch } from "./atlas-entity-list-header";
+import { useAtlasEntityListState } from "./atlas-entity-list-state";
+import type { AtlasEntityListState } from "./atlas-entity-list-state";
+import type { AtlasEntityType, AtlasNode } from "./lib/atlas-schema";
 
 interface AtlasEntityListProps {
-  entityTypes: AtlasEntityType[];
-  country: string[];
-  funding: string[];
-  bias: string[];
-  onFiltersChange: (filters: { country?: string[]; funding?: string[]; bias?: string[] }) => void;
-  onSelect: (node: AtlasNode) => void;
-  /** "page" fills its container (the directory landing surface); "modal" keeps the bounded height used inside a dialog. */
-  variant?: "page" | "modal";
-  active?: boolean;
+  readonly entityTypes: readonly AtlasEntityType[];
+  readonly country: readonly string[];
+  readonly funding: readonly string[];
+  readonly bias: readonly string[];
+  readonly onFiltersChange: (filters: FilterPatch) => void;
+  readonly onSelect: (node: AtlasNode) => void;
+  /** "page" fills its container; "modal" keeps the bounded height used inside a dialog. */
+  readonly variant?: AtlasEntityListVariant;
+  readonly active?: boolean;
 }
 
-function humanizeKind(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const analysisSummary = (node: AtlasNode): string => {
+  const count = Object.keys(node.analysis_scores).length;
+  if (count > 0) {
+    return ` · ${count} analysis scores`;
+  }
+  return "";
+};
+
+const connectionSummary = (count: number): string => {
+  if (count > 0) {
+    return `${count} links`;
+  }
+  return "—";
+};
+
+const isResearchedNode = (node: AtlasNode): boolean =>
+  (node.current_parent !== null && node.current_parent !== undefined) ||
+  node.connection_count > 0 ||
+  node.evidence_coverage !== "not researched" ||
+  Object.keys(node.analysis_scores).length > 0;
+
+const ownershipSummary = (node: AtlasNode): string => {
+  if (node.current_parent !== null && node.current_parent !== undefined) {
+    return `Owned by ${node.current_parent}`;
+  }
+  return node.evidence_coverage;
+};
+
+const pendingSummary = (node: AtlasNode): string => {
+  if (node.pending_change === null || node.pending_change === undefined || node.pending_change.length === 0) {
+    return "";
+  }
+  return ` · ${node.pending_change}`;
+};
+
+const IndexHeaderRow = () => (
+    <div className={styles.indexHeaderRow} aria-hidden="true">
+      <span />
+      <span>Name</span>
+      <span>Country</span>
+      <span>Funding</span>
+      <span>Links</span>
+      <span>Confidence</span>
+    </div>
+  );
+
+interface EntityRowProps {
+  readonly node: AtlasNode;
+  readonly height: number;
+  readonly start: number;
+  readonly onSelect: (node: AtlasNode) => void;
 }
 
-// "People" pulls in both `person` and `reporter` node types: reporters are a
-// subtype of person (every reporter is a person; not every person is a
-// reporter, e.g. owners/founders), so the People tab is the "everyone"
-// directory view while Reporters stays a narrower, reporters-only cut.
-const TYPE_TABS: Array<{ key: "all" | AtlasEntityType; label: string; types: AtlasEntityType[] }> = [
-  { key: "all", label: "All", types: [] },
-  { key: "outlet", label: "Outlets", types: ["outlet"] },
-  { key: "organization", label: "Organizations", types: ["organization"] },
-  { key: "person", label: "People", types: ["person", "reporter"] },
-  { key: "reporter", label: "Reporters", types: ["reporter"] },
-];
+const EntityRow = ({ node, height, start, onSelect }: EntityRowProps) => {
+  const researched = isResearchedNode(node);
+  const rowStyle = useMemo(
+      () => ({ height, transform: `translateY(${start}px)` }),
+      [height, start],
+    );
+  const handleClick = useCallback(() => {
+      onSelect(node);
+    }, [node, onSelect]);
 
-/**
- * The paginated/faceted entity list: search + type tabs + facet selects +
- * a virtualized, server-filtered list. Extracted from the former
- * `AtlasIndexSheet` modal so the same list core backs both the directory
- * landing surface (`variant="page"`) and any bounded/dialog usage
- * (`variant="modal"`).
- */
-export function AtlasEntityList({
+  return (
+    <button
+      type="button"
+      className={styles.indexCard}
+      style={rowStyle}
+      onClick={handleClick}
+    >
+      <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
+        {node.entity_type.slice(0, 2).toUpperCase()}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm text-[#f0ede4]">{node.label}</span>
+        <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.13em] text-[#77736a]">
+          {node.subtitle ?? node.entity_type}
+          {analysisSummary(node)}
+        </span>
+        {(() => {
+  if (researched) {
+    return <span className={`mt-1 block truncate text-[10px] ${styles.indexParent}`}>
+            {ownershipSummary(node)}
+            {pendingSummary(node)}
+          </span>;
+  }
+  return <span className={`mt-1 block truncate text-[10px] ${styles.indexUnresearched}`}>
+            Not yet researched
+          </span>;
+})()}
+      </span>
+      <span className="text-xs text-[#c9c3b6]">{node.country_code ?? "—"}</span>
+      <span className="text-xs text-[#c9c3b6]">{node.funding_type ?? "—"}</span>
+      <span className="text-xs text-[#c9c3b6]">{connectionSummary(node.connection_count)}</span>
+      <span className={styles.confidence} data-tier={node.confidence_tier ?? "unresolved"}>
+        {node.confidence_tier ?? "unresolved"}
+      </span>
+    </button>
+  );
+};
+
+interface EntityRowsProps {
+  readonly items: readonly AtlasNode[];
+  readonly virtualItems: readonly Readonly<{ index: number; size: number; start: number }>[];
+  readonly totalSize: number;
+  readonly onSelect: (node: AtlasNode) => void;
+}
+
+const EntityRows = ({ items, virtualItems, totalSize, onSelect }: EntityRowsProps) => {
+  const viewportStyle = useMemo(
+    () => ({ height: totalSize, position: "relative" as const }),
+    [totalSize],
+  );
+  return (
+    <>
+      <IndexHeaderRow />
+      <div style={viewportStyle}>
+        {virtualItems.map((row) => {
+          const node = items[row.index];
+          if (node === undefined) {
+            return null;
+          }
+          return (
+            <EntityRow
+              key={node.id}
+              node={node}
+              height={row.size}
+              start={row.start}
+              onSelect={onSelect}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+};
+
+interface IndexViewportContentProps {
+  readonly isLoading: boolean;
+  readonly error: unknown;
+  readonly items: readonly AtlasNode[];
+  readonly virtualItems: readonly Readonly<{ index: number; size: number; start: number }>[];
+  readonly totalSize: number;
+  readonly onSelect: (node: AtlasNode) => void;
+}
+
+const IndexViewportContent = ({
+    isLoading,
+    error,
+    items,
+    virtualItems,
+    totalSize,
+    onSelect,
+  }: IndexViewportContentProps) => {
+    if (isLoading) {
+      return (
+        <div className={styles.emptyState}>
+          <Loader2
+            className="h-6 w-6 animate-spin text-[#d7b35f]"
+            aria-label="Loading entity index"
+          />
+        </div>
+      );
+    }
+
+    if (error instanceof Error) {
+      return (
+        <div className={styles.emptyState}>
+          <div>
+            <div className={styles.brandTitle}>Index unavailable</div>
+            <p className={styles.contextCopy}>{error.message}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className={styles.emptyState}>No entity records match the current index filters.</div>
+      );
+    }
+
+    return (
+      <EntityRows
+        items={items}
+        virtualItems={virtualItems}
+        totalSize={totalSize}
+        onSelect={onSelect}
+      />
+    );
+  },
+  LoadingMore = ({ active }: Readonly<{ active: boolean }>) => {
+    if (!active) {
+      return null;
+    }
+    return (
+      <div className="flex items-center justify-center gap-2 border-t border-white/10 p-3 text-xs text-[#77736a]">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more records
+      </div>
+    );
+  };
+
+const getAtlasRootClass = (variant: AtlasEntityListVariant): string | undefined => {
+  if (variant === "page") {
+    return "flex min-h-0 flex-1 flex-col";
+  }
+  return undefined;
+};
+
+const getAtlasViewportClass = (variant: AtlasEntityListVariant): string | undefined => {
+  if (variant === "page") {
+    return "relative min-h-0 flex-1 overflow-auto";
+  }
+  return styles.indexViewport;
+};
+
+interface AtlasEntityListViewProps {
+  readonly state: AtlasEntityListState;
+  readonly country: readonly string[];
+  readonly funding: readonly string[];
+  readonly bias: readonly string[];
+  readonly onFiltersChange: (filters: FilterPatch) => void;
+  readonly onSelect: (node: AtlasNode) => void;
+  readonly variant: AtlasEntityListVariant;
+}
+
+type AtlasEntityListHeaderProps = Omit<AtlasEntityListViewProps, "onSelect">;
+
+const AtlasEntityListHeader = ({
+  state,
+  country,
+  funding,
+  bias,
+  onFiltersChange,
+  variant,
+}: AtlasEntityListHeaderProps) => {
+  const {
+    biasOptions,
+    changeKind: handleKindChange,
+    changeType: handleTypeChange,
+    clearKinds: handleClearKinds,
+    countryOptions,
+    fundingOptions,
+    kind,
+    kindOptions,
+    query,
+    setQuery: handleQueryChange,
+    setSort: handleSortChange,
+    sort,
+    total,
+    type,
+  } = state;
+  return (
+    <DirectoryHeader
+      variant={variant}
+      total={total}
+      query={query}
+      sort={sort}
+      type={type}
+      kind={kind}
+      kindOptions={kindOptions}
+      country={country}
+      funding={funding}
+      bias={bias}
+      countryOptions={countryOptions}
+      fundingOptions={fundingOptions}
+      biasOptions={biasOptions}
+      onQueryChange={handleQueryChange}
+      onSortChange={handleSortChange}
+      onTypeChange={handleTypeChange}
+      onKindChange={handleKindChange}
+      onClearKinds={handleClearKinds}
+      onFiltersChange={onFiltersChange}
+    />
+  );
+};
+
+const AtlasEntityListView = ({
+  state,
+  country,
+  funding,
+  bias,
+  onFiltersChange,
+  onSelect,
+  variant,
+}: AtlasEntityListViewProps) => {
+  const {
+    error,
+    isFetchingNextPage,
+    isLoading,
+    items,
+    totalSize,
+    virtualItems,
+    viewportRef,
+  } = state;
+  const rootClass = getAtlasRootClass(variant);
+  const viewportClass = getAtlasViewportClass(variant);
+
+  return (
+    <div className={rootClass}>
+      <AtlasEntityListHeader
+        state={state}
+        country={country}
+        funding={funding}
+        bias={bias}
+        onFiltersChange={onFiltersChange}
+        variant={variant}
+      />
+      <div ref={viewportRef} className={viewportClass}>
+        <IndexViewportContent
+          isLoading={isLoading}
+          error={error}
+          items={items}
+          virtualItems={virtualItems}
+          totalSize={totalSize}
+          onSelect={onSelect}
+        />
+      </div>
+      <LoadingMore active={isFetchingNextPage} />
+    </div>
+  );
+};
+
+const AtlasEntityList = ({
   entityTypes,
   country,
   funding,
@@ -55,292 +354,19 @@ export function AtlasEntityList({
   onSelect,
   variant = "page",
   active = true,
-}: AtlasEntityListProps) {
-  const [type, setType] = useState<"all" | AtlasEntityType>("all");
-  const [kind, setKind] = useState<string[]>([]);
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState("most_connected");
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const activeTab = TYPE_TABS.find((tab) => tab.key === type);
-  const effectiveTypes = type === "all" ? entityTypes : (activeTab?.types ?? []);
-
-  const indexQuery = useInfiniteQuery({
-    queryKey: ["atlas", "index", effectiveTypes, query, country, funding, bias, kind, sort],
-    queryFn: ({ pageParam, signal }) =>
-      fetchAtlasIndex(
-        {
-          entityTypes: effectiveTypes,
-          q: query || undefined,
-          country,
-          funding,
-          bias,
-          kind,
-          sort,
-          cursor: pageParam,
-          limit: 80,
-        },
-        signal,
-      ),
-    initialPageParam: null as string | null,
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-    enabled: active,
-    staleTime: 60_000,
-  });
-
-  const {
-    data,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  } = indexQuery;
-  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
-  const total = data?.pages[0]?.total ?? 0;
-  const facets = data?.pages[0]?.facets;
-  const kindOptions = useMemo(() => Object.keys(facets?.kind ?? {}).sort(), [facets]);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => viewportRef.current,
-    estimateSize: () => 66,
-    overscan: 8,
-  });
-  const { getTotalSize, getVirtualItems } = virtualizer;
-
-  useEffect(() => {
-    if (!active) return;
-    const virtualItems = getVirtualItems();
-    const last = virtualItems[virtualItems.length - 1];
-    if (!last || last.index < items.length - 8 || !hasNextPage || isFetchingNextPage) return;
-    void fetchNextPage();
-  }, [active, fetchNextPage, getVirtualItems, hasNextPage, isFetchingNextPage, items.length]);
-
+}: AtlasEntityListProps) => {
+  const state = useAtlasEntityListState({ active, bias, country, entityTypes, funding });
   return (
-    <div className={variant === "page" ? "flex min-h-0 flex-1 flex-col" : undefined}>
-      <div className={variant === "page" ? "border-b border-white/10 p-5 pr-5" : "border-b border-white/10 p-5 pr-14"}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            {variant === "page" ? (
-              <>
-                <h1 className="font-serif text-3xl font-normal text-[#f0ede4]">Entity directory</h1>
-                <p className="mt-1 text-[#77736a]">
-                  {total.toLocaleString()} matching records. Search outlets, organizations, people, and reporters.
-                </p>
-              </>
-            ) : (
-              <p className="text-[#77736a]">
-                {total.toLocaleString()} matching records. Results are server-filtered and rendered virtually.
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[230px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#77736a]" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search the entity index"
-                aria-label="Search the entity index"
-                className="border-white/10 bg-black/20 pl-9"
-              />
-            </div>
-            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3">
-              <ArrowDownAZ className="h-4 w-4 text-[#77736a]" />
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value)}
-                className="h-10 bg-transparent text-sm text-[#c9c3b6] outline-none"
-                aria-label="Sort entity index"
-              >
-                <option value="most_connected">Most connected</option>
-                <option value="most_articles">Most articles</option>
-                <option value="recently_indexed">Recently indexed</option>
-                <option value="lowest_confidence">Lowest confidence</option>
-                <option value="name">Name</option>
-              </select>
-            </label>
-            <FacetSelect
-              label="Country"
-              value={country[0] ?? "all"}
-              values={Object.keys(facets?.country ?? {}).sort()}
-              onChange={(value) => onFiltersChange({ country: value === "all" ? [] : [value] })}
-            />
-            <FacetSelect
-              label="Funding"
-              value={funding[0] ?? "all"}
-              values={Object.keys(facets?.funding ?? {}).sort()}
-              onChange={(value) => onFiltersChange({ funding: value === "all" ? [] : [value] })}
-            />
-            <FacetSelect
-              label="Bias"
-              value={bias[0] ?? "all"}
-              values={Object.keys(facets?.bias ?? {}).sort()}
-              onChange={(value) => onFiltersChange({ bias: value === "all" ? [] : [value] })}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex gap-2 overflow-x-auto">
-          {TYPE_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={styles.pillButton}
-              data-active={type === tab.key}
-              onClick={() => {
-                setType(tab.key);
-                setKind([]);
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {kindOptions.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-2 overflow-x-auto" aria-label="Filter by entity kind">
-            <button
-              type="button"
-              className={styles.pillButton}
-              data-active={kind.length === 0}
-              onClick={() => setKind([])}
-            >
-              All kinds
-            </button>
-            {kindOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={styles.pillButton}
-                data-active={kind.includes(option)}
-                onClick={() =>
-                  setKind((current) =>
-                    current.includes(option) ? current.filter((value) => value !== option) : [...current, option],
-                  )
-                }
-              >
-                {humanizeKind(option)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <div
-        ref={viewportRef}
-        className={variant === "page" ? "relative min-h-0 flex-1 overflow-auto" : styles.indexViewport}
-      >
-        {isLoading ? (
-          <div className={styles.emptyState}>
-            <Loader2 className="h-6 w-6 animate-spin text-[#d7b35f]" aria-label="Loading entity index" />
-          </div>
-        ) : error instanceof Error ? (
-          <div className={styles.emptyState}>
-            <div>
-              <div className={styles.brandTitle}>Index unavailable</div>
-              <p className={styles.contextCopy}>{error.message}</p>
-            </div>
-          </div>
-        ) : items.length === 0 ? (
-          <div className={styles.emptyState}>No entity records match the current index filters.</div>
-        ) : (
-          <>
-            <div className={styles.indexHeaderRow} aria-hidden="true">
-              <span />
-              <span>Name</span>
-              <span>Country</span>
-              <span>Funding</span>
-              <span>Links</span>
-              <span>Confidence</span>
-            </div>
-            <div style={{ height: getTotalSize(), position: "relative" }}>
-              {getVirtualItems().map((row) => {
-                const node = items[row.index];
-                if (!node) return null;
-                const researched =
-                  Boolean(node.current_parent) ||
-                  node.connection_count > 0 ||
-                  node.evidence_coverage !== "not researched" ||
-                  Object.keys(node.analysis_scores).length > 0;
-                return (
-                  <button
-                    key={node.id}
-                    type="button"
-                    className={styles.indexCard}
-                    style={{ height: row.size, transform: `translateY(${row.start}px)` }}
-                    onClick={() => onSelect(node)}
-                  >
-                    <span className={styles.entityMark} data-type={node.entity_type} aria-hidden="true">
-                      {node.entity_type.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-[#f0ede4]">{node.label}</span>
-                      <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.13em] text-[#77736a]">
-                        {node.subtitle || node.entity_type}
-                        {Object.keys(node.analysis_scores).length > 0
-                          ? ` · ${Object.keys(node.analysis_scores).length} analysis scores`
-                          : ""}
-                      </span>
-                      {researched ? (
-                        <span className={`mt-1 block truncate text-[10px] ${styles.indexParent}`}>
-                          {node.current_parent
-                            ? `Owned by ${node.current_parent}`
-                            : node.evidence_coverage}
-                          {node.pending_change ? ` · ${node.pending_change}` : ""}
-                        </span>
-                      ) : (
-                        <span className={`mt-1 block truncate text-[10px] ${styles.indexUnresearched}`}>
-                          Not yet researched
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-xs text-[#c9c3b6]">{node.country_code || "—"}</span>
-                    <span className="text-xs text-[#c9c3b6]">{node.funding_type || "—"}</span>
-                    <span className="text-xs text-[#c9c3b6]">
-                      {node.connection_count > 0 ? `${node.connection_count} links` : "—"}
-                    </span>
-                    <span className={styles.confidence} data-tier={node.confidence_tier ?? "unresolved"}>
-                      {node.confidence_tier || "unresolved"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-      {isFetchingNextPage ? (
-        <div className="flex items-center justify-center gap-2 border-t border-white/10 p-3 text-xs text-[#77736a]">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more records
-        </div>
-      ) : null}
-    </div>
+    <AtlasEntityListView
+      state={state}
+      country={country}
+      funding={funding}
+      bias={bias}
+      onFiltersChange={onFiltersChange}
+      onSelect={onSelect}
+      variant={variant}
+    />
   );
-}
+};
 
-function FacetSelect({
-  label,
-  value,
-  values,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  values: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="rounded-xl border border-white/10 bg-black/20 px-3">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 max-w-36 bg-transparent text-sm text-[#c9c3b6] outline-none"
-        aria-label={`Filter by ${label.toLowerCase()}`}
-      >
-        <option value="all">All {label.toLowerCase()}</option>
-        {values.map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
+export { AtlasEntityList };

@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { performAgenticSearch } from "@/lib/api";
 
 describe("performAgenticSearch", () => {
@@ -8,36 +9,39 @@ describe("performAgenticSearch", () => {
     jest.restoreAllMocks();
   });
 
-  it("uses the supported news research endpoint and normalizes the response", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        query: "fact check this",
-        answer: "Current evidence summary",
-        thinking_steps: [{ type: "thought", content: "checked sources", timestamp: "2026-04-23T12:00:00Z" }],
-        referenced_articles: [{ id: 1, title: "Source article" }],
-      }),
-    }) as typeof fetch;
+  it("uses the supported news research endpoint and normalizes the response", async () => {  expect.hasAssertions();
+
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answer: "Current evidence summary",
+          query: "fact check this",
+          referenced_articles: [{ id: 1, title: "Source article" }],
+          success: true,
+          thinking_steps: [{ content: "checked sources", timestamp: "2026-04-23T12:00:00Z", type: "thought" }],
+        }),
+        { status: 200 },
+      ),
+    );
 
     const result = await performAgenticSearch("fact check this", 10);
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://localhost:8000/api/news/research",
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          max_steps: 10,
           query: "fact check this",
-          include_thinking: false,
         }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       },
     );
-    expect(result).toEqual({
-      success: true,
+    expect(result).toStrictEqual({
       answer: "Current evidence summary",
-      reasoning: [{ type: "thought", content: "checked sources", timestamp: "2026-04-23T12:00:00Z" }],
       citations: [{ id: 1, title: "Source article" }],
+      reasoning: [{ content: "checked sources", timestamp: "2026-04-23T12:00:00Z", type: "thought" }],
+      success: true,
     });
   });
 });

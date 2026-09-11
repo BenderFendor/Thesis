@@ -1,42 +1,51 @@
 "use client";
 
-import React from "react";
+import { useCallback } from "react";
+
+const createPopoverStyle = (leftOffset: number, topOffset: number) =>
+  ({ left: leftOffset, position: "absolute" as const, top: topOffset });
 
 export interface InlineDefinitionPopoverProps {
-  result: {
-    term: string;
-    definition?: string | null;
-    error?: string | null;
-  } | null;
-  open: boolean;
-  setOpen: (open: boolean) => void;
-  anchorPosition: { x: number; y: number } | null;
+  readonly result: Readonly<{
+    readonly term: string;
+    readonly definition?: string | null;
+    readonly error?: string | null;
+  }> | null;
+  readonly open: boolean;
+  readonly setOpen: (open: boolean) => void;
+  readonly anchorPosition: Readonly<Record<"x" | "y", number>> | null;
 }
 
-export function InlineDefinitionPopover({
+export const InlineDefinitionPopover = ({
   result,
   open,
   setOpen,
   anchorPosition,
-}: InlineDefinitionPopoverProps) {
-  if (!open || !result) return null;
+}: Readonly<InlineDefinitionPopoverProps>) => {
+  const closePopover = useCallback(() => {
+    setOpen(false);
+  }, [setOpen]);
 
-  const x = anchorPosition?.x ?? 0;
-  const y = anchorPosition?.y ?? 0;
+  if (!open || !result) {
+    return null;
+  }
+
+  const leftOffset = anchorPosition?.x ?? 0,
+    topOffset = anchorPosition?.y ?? 0;
 
   return (
-    <div
-      style={{ position: "absolute", left: x, top: y }}
-      className="z-50 max-w-xs rounded-md border bg-white p-3 shadow-lg text-sm"
-      onClick={() => setOpen(false)}
+    <button
+      type="button"
+      style={createPopoverStyle(leftOffset, topOffset)}
+      className="z-50 max-w-xs rounded-md border bg-white p-3 text-left text-sm shadow-lg"
+      onClick={closePopover}
     >
       <div className="font-semibold">{result.term}</div>
       <div className="mt-1 text-gray-700">
         {result.definition ?? result.error ?? "No definition available."}
       </div>
-    </div>
+    </button>
   );
-}
+};
 
-export default InlineDefinitionPopover;
-// single component kept
+// Single component kept

@@ -1,78 +1,70 @@
-import React from "react";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import type { Highlight } from "@/lib/api";
 
 import { HighlightToolbar } from "@/components/highlight-toolbar";
 
-jest.mock("lucide-react", () => {
-  const Icon = (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />;
-  return {
-    Highlighter: Icon,
-    X: Icon,
-  };
-});
+type HighlightToolbarProps = ComponentProps<typeof HighlightToolbar>;
+interface TestContainerRef {
+  current: HTMLDivElement | null;
+}
+interface OutsideSelection {
+  readonly articleContainer: HTMLDivElement;
+  readonly selection: Selection;
+}
 
-jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
+const EMPTY_HIGHLIGHTS: readonly Highlight[] = [];
+const containerRef: TestContainerRef = { current: null };
 
-jest.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
-}));
+const getBrowserSelection = (): Selection => {
+  const selection = window.getSelection();
+  if (selection === null) {
+    throw new Error("Expected a browser selection");
+  }
+  return selection;
+};
 
-jest.mock("@/lib/api", () => ({
-  ENABLE_HIGHLIGHTS: true,
-}));
+const createOutsideSelection = (): OutsideSelection => {
+  const articleContainer = document.createElement("div");
+  const outside = document.createElement("div");
+  outside.textContent = "Outside selection";
+  document.body.append(articleContainer, outside);
 
-describe("HighlightToolbar", () => {
+  const range = document.createRange();
+  range.selectNodeContents(outside);
+  const selection = getBrowserSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  return { articleContainer, selection };
+};
+
+describe("highlightToolbar", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
   it("does not auto-create highlights for selections outside the article container", () => {
-    const articleContainer = document.createElement("div");
-    document.body.appendChild(articleContainer);
+    expect.hasAssertions();
 
-    const outside = document.createElement("div");
-    outside.textContent = "Outside selection";
-    document.body.appendChild(outside);
-
-    const outsideText = outside.firstChild as Text;
-    const selection = {
-      rangeCount: 1,
-      isCollapsed: false,
-      anchorNode: outsideText,
-      focusNode: outsideText,
-      toString: () => "Outside selection",
-      getRangeAt: () =>
-        ({
-          startContainer: outsideText,
-          endContainer: outsideText,
-          startOffset: 0,
-          endOffset: 7,
-          commonAncestorContainer: outsideText,
-          getBoundingClientRect: () => new DOMRect(10, 10, 20, 10),
-        }) as unknown as Range,
-    } as unknown as Selection;
+    const { articleContainer, selection } = createOutsideSelection();
+    containerRef.current = articleContainer;
 
     jest.spyOn(window, "getSelection").mockReturnValue(selection);
 
-    const onCreate = jest.fn();
+    const onCreate = jest.fn<HighlightToolbarProps["onCreate"]>();
 
     render(
       <HighlightToolbar
         articleUrl="https://example.com/story"
-        containerRef={{ current: articleContainer }}
+        containerRef={containerRef}
         highlightColor="yellow"
-        autoCreate={true}
-        highlights={[]}
+        autoCreate
+        highlights={EMPTY_HIGHLIGHTS}
         onCreate={onCreate}
-        onUpdate={jest.fn()}
-        onDelete={jest.fn()}
+        onUpdate={jest.fn<HighlightToolbarProps["onUpdate"]>()}
+        onDelete={jest.fn<HighlightToolbarProps["onDelete"]>()}
       />,
     );
 

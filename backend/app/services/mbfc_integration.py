@@ -78,6 +78,45 @@ def _normalize_name(name: str) -> str:
     return cleaned
 
 
+def _row_outlet_name(row: dict[str, str]) -> str:
+    return _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
+
+
+def _attach_factuality_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> None:
+    name = _row_outlet_name(row)
+    factuality = row.get("factuality", row.get("factual_reporting", "")).strip().lower()
+    if not name or not factuality:
+        return
+    entry = lookup.setdefault(name, {})
+    entry["factuality"] = FACTUALITY_TO_STANDARD.get(factuality, factuality)
+    entry["mbfc_name"] = row.get("name", name)
+    entry["provenance"] = "mbfc_dataset_v1"
+
+
+def _attach_bias_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> None:
+    name = _row_outlet_name(row)
+    bias = row.get("bias", row.get("bias_rating", "")).strip().lower()
+    if not name or not bias:
+        return
+    entry = lookup.setdefault(name, {})
+    entry["bias"] = BIAS_TO_STANDARD.get(bias, bias)
+    entry["mbfc_name"] = row.get("name", name)
+    entry["provenance"] = "mbfc_dataset_v1"
+
+
+def _attach_ownership_row(lookup: dict[str, dict[str, str]], row: dict[str, str]) -> None:
+    name = _row_outlet_name(row)
+    ownership = row.get("ownership", "").strip()
+    country = row.get("country", "").strip()
+    if not name or not (ownership or country):
+        return
+    entry = lookup.setdefault(name, {})
+    if ownership:
+        entry["ownership"] = ownership
+    if country:
+        entry["country"] = country
+
+
 def _load_local_csv(filename: str) -> list[dict[str, str]]:
     filepath = Path(_ensure_data_dir()) / filename
     if not filepath.exists():
@@ -157,33 +196,13 @@ def build_mbfc_lookup(
     lookup: dict[str, dict[str, str]] = {}
 
     for row in factuality_rows:
-        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
-        factuality = row.get("factuality", row.get("factual_reporting", "")).strip().lower()
-        if name and factuality:
-            standard_fact = FACTUALITY_TO_STANDARD.get(factuality, factuality)
-            lookup.setdefault(name, {})["factuality"] = standard_fact
-            lookup[name]["mbfc_name"] = row.get("name", name)
-            lookup[name]["provenance"] = "mbfc_dataset_v1"
+        _attach_factuality_row(lookup, row)
 
     for row in bias_rows:
-        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
-        bias = row.get("bias", row.get("bias_rating", "")).strip().lower()
-        if name and bias:
-            standard_bias = BIAS_TO_STANDARD.get(bias, bias)
-            lookup.setdefault(name, {})["bias"] = standard_bias
-            lookup[name]["mbfc_name"] = row.get("name", name)
-            lookup[name]["provenance"] = "mbfc_dataset_v1"
+        _attach_bias_row(lookup, row)
 
     for row in ownership_rows:
-        name = _normalize_name(row.get("name", row.get("outlet", row.get("source", ""))))
-        ownership = row.get("ownership", "").strip()
-        country = row.get("country", "").strip()
-        if name and (ownership or country):
-            entry = lookup.setdefault(name, {})
-            if ownership:
-                entry["ownership"] = ownership
-            if country:
-                entry["country"] = country
+        _attach_ownership_row(lookup, row)
 
     logger.info(
         "Built MBFC lookup: %d outlets (factuality: %d, bias: %d, ownership: %d)",
@@ -193,6 +212,41 @@ def build_mbfc_lookup(
         len(ownership_rows),
     )
     return lookup
+
+
+def _mbfc_enrichment_for_employers(
+    reporter_id: Any,
+    employer_map: dict[int, list[str]],
+    mbfc_lookup: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    """Find the first MBFC entry matching any of the reporter's employers."""
+    employers = (
+        employer_map.get(int(reporter_id), []) if isinstance(reporter_id, (int, str)) else []
+    )
+    for employer in employers:
+        mbfc_entry = mbfc_lookup.get(_normalize_name(employer))
+        if mbfc_entry:
+            return dict(mbfc_entry)
+    return {}
+
+
+def _apply_mbfc_leaning(reporter: dict[str, Any], enrichment: dict[str, Any]) -> dict[str, Any]:
+    """Add MBFC data to a reporter copy, attaching a leaning label when applicable."""
+    enriched_reporter = dict(reporter)
+    enriched_reporter["mbfc_data"] = enrichment
+
+    bias_label = enrichment.get("bias")
+    if not bias_label or reporter.get("political_leaning"):
+        return enriched_reporter
+    if bias_label in ("satire", "conspiracy-pseudoscience"):
+        return enriched_reporter
+
+    enriched_reporter["political_leaning"] = bias_label
+    enriched_reporter.setdefault("leaning_sources", [])
+    if isinstance(enriched_reporter["leaning_sources"], list):
+        enriched_reporter["leaning_sources"].append("mbfc")
+    enriched_reporter["leaning_confidence"] = "medium"
+    return enriched_reporter
 
 
 def attach_mbfc_to_reporters(
@@ -211,38 +265,11 @@ def attach_mbfc_to_reporters(
 
     enriched: list[dict[str, Any]] = []
     for reporter in reporters:
-        reporter_id = reporter.get("id")
-        enrichment: dict[str, Any] = {}
-
-        raw_id = reporter_id
-        employers: list[str] = (
-            employer_map.get(int(raw_id), []) if isinstance(raw_id, (int, str)) else []
-        )
-        for employer in employers:
-            normalized_employer = _normalize_name(employer)
-            mbfc_entry = mbfc_lookup.get(normalized_employer)
-            if mbfc_entry:
-                if not enrichment:
-                    enrichment = dict(mbfc_entry)
-                break
-
+        enrichment = _mbfc_enrichment_for_employers(reporter.get("id"), employer_map, mbfc_lookup)
         if not enrichment:
             enriched.append(reporter)
             continue
-
-        enriched_reporter = dict(reporter)
-        enriched_reporter["mbfc_data"] = enrichment
-
-        if enrichment.get("bias") and not reporter.get("political_leaning"):
-            bias_label = enrichment["bias"]
-            if bias_label not in ("satire", "conspiracy-pseudoscience"):
-                enriched_reporter["political_leaning"] = bias_label
-                enriched_reporter.setdefault("leaning_sources", [])
-                if isinstance(enriched_reporter["leaning_sources"], list):
-                    enriched_reporter["leaning_sources"].append("mbfc")
-                enriched_reporter["leaning_confidence"] = "medium"
-
-        enriched.append(enriched_reporter)
+        enriched.append(_apply_mbfc_leaning(reporter, enrichment))
 
     logger.info("Enriched %d reporters with MBFC data", len(enriched))
     return enriched

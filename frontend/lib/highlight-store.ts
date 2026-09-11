@@ -1,298 +1,426 @@
-import { getFromStorage, saveToStorage } from "@/lib/storage"
-import type { Highlight } from "@/lib/api"
+import { createStorageSchema, getFromStorage, saveToStorage } from "@/lib/storage";
+import type { Highlight } from "@/lib/api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { hasText } from "@/lib/utils";
+import { z } from "zod";
 
-export type HighlightSyncStatus = "synced" | "pending" | "failed"
+type HighlightSyncStatus = "synced" | "pending" | "failed";
 
-export type HighlightOp = "create" | "update" | "delete"
+type HighlightOp = "create" | "update" | "delete";
 
-export interface LocalHighlight extends Highlight {
-  client_id: string
-  server_id?: number
-  sync_status: HighlightSyncStatus
-  pending_op?: HighlightOp
-  last_error?: string
-  local_updated_at: string
-  deleted?: boolean
+interface LocalHighlight extends Highlight {
+  readonly client_id: string;
+  readonly server_id?: number;
+  readonly sync_status: HighlightSyncStatus;
+  readonly pending_op?: HighlightOp;
+  readonly last_error?: string;
+  readonly local_updated_at: string;
+  readonly deleted?: boolean;
 }
 
-export interface HighlightStoreState {
-  version: 1
-  article_url: string
-  highlights: LocalHighlight[]
+type ReadonlyHighlight = DeepReadonly<Highlight>;
+type ReadonlyLocalHighlight = DeepReadonly<LocalHighlight>;
+
+interface HighlightStoreState {
+  version: 1;
+  article_url: string;
+  highlights: LocalHighlight[];
 }
 
-function normalizeHighlightedText(text: string) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase()
-}
+const LocalHighlightSchema = z
+  .object({
+    article_url: z.string(),
+    character_end: z.number(),
+    character_start: z.number(),
+    client_id: z.string(),
+    color: z.enum(["yellow", "blue", "red", "green", "purple"]),
+    created_at: z.string().optional(),
+    deleted: z.boolean().optional(),
+    highlighted_text: z.string(),
+    id: z.number().optional(),
+    last_error: z.string().optional(),
+    local_updated_at: z.string(),
+    note: z.string().optional(),
+    pending_op: z.enum(["create", "update", "delete"]).optional(),
+    server_id: z.number().optional(),
+    sync_status: z.enum(["synced", "pending", "failed"]),
+    updated_at: z.string().optional(),
+    user_id: z.number().optional(),
+  })
+  .passthrough();
 
-export function getHighlightsStorageKey(articleUrl: string) {
-  return `highlights:v1:${articleUrl}`
-}
+const HighlightStoreSchema = z.object({
+  article_url: z.string(),
+  highlights: z.array(LocalHighlightSchema),
+  version: z.literal(1),
+});
 
-export function createHighlightFingerprint(highlight: {
-  character_start: number
-  character_end: number
-  highlighted_text: string
-}) {
-  return `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
-    highlight.highlighted_text
-  )}`
-}
+const HighlightStoreValueSchema = createStorageSchema<HighlightStoreState | null>(
+  HighlightStoreSchema.nullable(),
+);
 
-function getHighlightRecencyValue(highlight: Partial<LocalHighlight>) {
+const normalizeHighlightedText = (text: string) =>
+  text.replaceAll(/\s+/gu, " ").trim().toLowerCase();
+
+const getHighlightsStorageKey = (articleUrl: string) => `highlights:v1:${articleUrl}`;
+
+const createHighlightFingerprint = (
+  highlight: Readonly<{
+    character_start: number;
+    character_end: number;
+    highlighted_text: string;
+  }>,
+) =>
+  `${highlight.character_start}:${highlight.character_end}:${normalizeHighlightedText(
+    highlight.highlighted_text,
+  )}`;
+
+const getHighlightRecencyValue = (highlight: DeepReadonly<Partial<LocalHighlight>>) => {
   const timestamp =
-    highlight.updated_at ??
-    highlight.created_at ??
-    highlight.local_updated_at ??
-    ""
-
-  const parsed = Date.parse(timestamp)
-  return Number.isNaN(parsed) ? 0 : parsed
+      highlight.updated_at ?? highlight.created_at ?? highlight.local_updated_at ?? "";
+  const parsed = Date.parse(timestamp);
+  if (Number.isNaN(parsed)) {
+  return 0;
 }
+return parsed;
+};
 
-export function dedupeLocalHighlights(highlights: LocalHighlight[]): LocalHighlight[] {
-  const byFingerprint = new Map<string, LocalHighlight>()
+const shouldReplaceDuplicate = (
+  existing: Readonly<LocalHighlight>,
+  next: Readonly<LocalHighlight>,
+): boolean => {
+  const existingHasServerId = Boolean(getServerId(existing));
+  const nextHasServerId = Boolean(getServerId(next));
+  if (nextHasServerId && !existingHasServerId) {
+    return true;
+  }
+  return (
+    nextHasServerId === existingHasServerId &&
+    getHighlightRecencyValue(next) >= getHighlightRecencyValue(existing)
+  );
+};
+
+const dedupeLocalHighlights = (highlights: readonly LocalHighlight[]): LocalHighlight[] => {
+  const byFingerprint = new Map<string, LocalHighlight>();
 
   for (const highlight of highlights) {
-    const fingerprint = createHighlightFingerprint(highlight)
-    const existing = byFingerprint.get(fingerprint)
+    const fingerprint = createHighlightFingerprint(highlight);
+    const existing = byFingerprint.get(fingerprint);
 
-    if (!existing) {
-      byFingerprint.set(fingerprint, highlight)
-      continue
+    if (existing === undefined || shouldReplaceDuplicate(existing, highlight)) {
+      byFingerprint.set(fingerprint, highlight);
     }
+  }
 
-    const existingHasServerId = Boolean(getServerId(existing))
-    const nextHasServerId = Boolean(getServerId(highlight))
+  return [...byFingerprint.values()].toSorted(
+    (firstHighlight, secondHighlight) => firstHighlight.character_start - secondHighlight.character_start,
+  );
+};
 
-    if (nextHasServerId && !existingHasServerId) {
-      byFingerprint.set(fingerprint, highlight)
-      continue
+const safeNowIso = () => new Date().toISOString();
+
+const generateClientId = () => {
+  const cryptoRuntime = globalThis.crypto;
+  if (cryptoRuntime?.randomUUID !== undefined) {
+    return cryptoRuntime.randomUUID();
+  }
+
+  return `client_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+};
+
+function getServerId(highlight: Partial<LocalHighlight>) {
+  return highlight.server_id ?? highlight.id;
+}
+
+const loadHighlightStore = (articleUrl: string): HighlightStoreState => {
+  const key = getHighlightsStorageKey(articleUrl),
+    stored = getFromStorage<HighlightStoreState | null>(key, null, HighlightStoreValueSchema);
+
+  if (stored?.version !== 1 || stored.article_url !== articleUrl) {
+    return { article_url: articleUrl, highlights: [], version: 1 };
+  }
+
+  return stored;
+};
+
+const saveHighlightStore = (state: DeepReadonly<HighlightStoreState>) => {
+  const key = getHighlightsStorageKey(state.article_url);
+  saveToStorage(key, state);
+};
+
+interface HighlightIndexes {
+  readonly localByServerId: ReadonlyMap<number, LocalHighlight>;
+  readonly localByFingerprint: ReadonlyMap<string, LocalHighlight>;
+}
+
+type HighlightAccumulator = Readonly<{
+  push: (highlight: LocalHighlight) => number;
+}>;
+
+const indexLocalHighlights = (local: readonly LocalHighlight[]): HighlightIndexes => {
+  const localByFingerprint = new Map<string, LocalHighlight>(),
+    localByServerId = new Map<number, LocalHighlight>();
+  for (const item of local) {
+    const serverId = getServerId(item);
+    if (serverId !== undefined && serverId !== 0) {
+      localByServerId.set(serverId, item);
     }
+    localByFingerprint.set(createHighlightFingerprint(item), item);
+  }
+  return { localByFingerprint, localByServerId };
+};
 
-    if (nextHasServerId === existingHasServerId) {
-      if (getHighlightRecencyValue(highlight) >= getHighlightRecencyValue(existing)) {
-        byFingerprint.set(fingerprint, highlight)
+const appendUniqueHighlight = (
+  merged: HighlightAccumulator,
+  seen: Set<string>,
+  highlight: LocalHighlight,
+): void => {
+  if (seen.has(highlight.client_id)) {
+    return;
+  }
+  seen.add(highlight.client_id);
+  merged.push(highlight);
+};
+
+const mergeServerHighlight = (
+  serverHighlight: ReadonlyHighlight,
+  indexes: HighlightIndexes,
+): LocalHighlight => {
+  const match = findServerHighlightMatch(serverHighlight, indexes),
+    serverId = serverHighlight.id;
+
+  if (!match) {
+    return createSyncedHighlight(serverHighlight, serverId);
+  }
+
+  if (match.deleted === true && match.pending_op === "delete") {
+    return match;
+  }
+
+  return mergeExistingHighlight(serverHighlight, match, serverId);
+};
+
+function findServerHighlightMatch(
+  serverHighlight: ReadonlyHighlight,
+  indexes: HighlightIndexes,
+): LocalHighlight | undefined {
+  const serverId = serverHighlight.id;
+  return (
+    ((() => {
+  if (serverId !== undefined && serverId !== 0) {
+    return indexes.localByServerId.get(serverId);
+  }
+  return void 0;
+})()) ??
+    indexes.localByFingerprint.get(createHighlightFingerprint(serverHighlight))
+  );
+}
+
+function createSyncedHighlight(
+  serverHighlight: ReadonlyHighlight,
+  serverId: number | undefined,
+): LocalHighlight {
+  return {
+    ...serverHighlight,
+    client_id: generateClientId(),
+    deleted: false,
+    last_error: undefined,
+    local_updated_at: safeNowIso(),
+    pending_op: undefined,
+    server_id: serverId,
+    sync_status: "synced",
+  };
+}
+
+function mergeExistingHighlight(
+  serverHighlight: ReadonlyHighlight,
+  match: ReadonlyLocalHighlight,
+  serverId: number | undefined,
+): LocalHighlight {
+  const localIsNewer =
+      Date.parse(match.local_updated_at) >=
+      Date.parse(serverHighlight.updated_at ?? serverHighlight.created_at ?? ""),
+    mergedNote = (() => {
+  if (localIsNewer) {
+    return match.note ?? serverHighlight.note;
+  }
+  return serverHighlight.note ?? match.note;
+})();
+  const mergedOverrides = {
+    character_end: serverHighlight.character_end,
+    character_start: serverHighlight.character_start,
+    color: serverHighlight.color,
+    deleted: match.deleted,
+    highlighted_text: serverHighlight.highlighted_text,
+    last_error: match.last_error,
+    note: mergedNote,
+    pending_op: match.pending_op,
+    server_id: serverId,
+    sync_status: match.sync_status,
+  };
+  return {
+    ...serverHighlight,
+    ...match,
+    ...mergedOverrides,
+  };
+}
+
+const appendUnmatchedLocalHighlights = (
+  local: readonly ReadonlyLocalHighlight[],
+  indexes: HighlightIndexes,
+  merged: HighlightAccumulator,
+  seen: Set<string>,
+): void => {
+  for (const item of local) {
+    if (item.deleted === true || hasText(item.pending_op)) {
+      appendUniqueHighlight(merged, seen, item);
+    } else {
+      const serverId = getServerId(item);
+      if (
+        !(serverId !== undefined && serverId !== 0 && indexes.localByServerId.has(serverId))
+      ) {
+        const fingerprint = createHighlightFingerprint(item);
+        if (indexes.localByFingerprint.get(fingerprint) === item) {
+          appendUniqueHighlight(merged, seen, item);
+        }
       }
     }
   }
+};
 
-  return [...byFingerprint.values()].sort((a, b) => a.character_start - b.character_start)
-}
-
-function safeNowIso() {
-  return new Date().toISOString()
-}
-
-export function generateClientId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID()
-  }
-
-  return `client_${Math.random().toString(16).slice(2)}_${Date.now()}`
-}
-
-function getServerId(highlight: Partial<LocalHighlight>) {
-  return highlight.server_id ?? highlight.id
-}
-
-export function loadHighlightStore(articleUrl: string): HighlightStoreState {
-  const key = getHighlightsStorageKey(articleUrl)
-  const stored = getFromStorage<HighlightStoreState | null>(key, null)
-
-  if (!stored || stored.version !== 1 || stored.article_url !== articleUrl) {
-    return { version: 1, article_url: articleUrl, highlights: [] }
-  }
-
-  return stored
-}
-
-export function saveHighlightStore(state: HighlightStoreState) {
-  const key = getHighlightsStorageKey(state.article_url)
-  saveToStorage(key, state)
-}
-
-export function mergeHighlights({
+const mergeHighlights = ({
   articleUrl,
   local,
   server,
-}: {
-  articleUrl: string
-  local: LocalHighlight[]
-  server: Highlight[]
-}): LocalHighlight[] {
-  const localByServerId = new Map<number, LocalHighlight>()
-  const localByFingerprint = new Map<string, LocalHighlight>()
-
-  for (const item of local) {
-    const serverId = getServerId(item)
-    if (serverId) {
-      localByServerId.set(serverId, item)
-    }
-    localByFingerprint.set(createHighlightFingerprint(item), item)
-  }
-
-  const merged: LocalHighlight[] = []
-  const seen = new Set<string>()
-
-  const upsert = (highlight: LocalHighlight) => {
-    const key = highlight.client_id
-    if (seen.has(key)) return
-    seen.add(key)
-    merged.push(highlight)
-  }
+}: Readonly<{
+  articleUrl: string;
+  local: readonly ReadonlyLocalHighlight[];
+  server: readonly ReadonlyHighlight[];
+}>): LocalHighlight[] => {
+  const indexes = indexLocalHighlights(local),
+    merged: LocalHighlight[] = [],
+    seen = new Set<string>();
 
   for (const serverHighlight of server) {
-    const serverId = serverHighlight.id
-    const serverFingerprint = createHighlightFingerprint(serverHighlight)
-
-    const match =
-      (serverId ? localByServerId.get(serverId) : undefined) ??
-      localByFingerprint.get(serverFingerprint)
-
-    if (!match) {
-      upsert({
-        ...serverHighlight,
-        client_id: generateClientId(),
-        server_id: serverId,
-        sync_status: "synced",
-        pending_op: undefined,
-        deleted: false,
-        last_error: undefined,
-        local_updated_at: safeNowIso(),
-      })
-      continue
-    }
-
-    if (match.deleted && match.pending_op === "delete") {
-      upsert(match)
-      continue
-    }
-
-    const localIsNewer =
-      Date.parse(match.local_updated_at) >=
-      Date.parse(serverHighlight.updated_at ?? serverHighlight.created_at ?? "")
-
-    const mergedNote = localIsNewer
-      ? match.note ?? serverHighlight.note
-      : serverHighlight.note ?? match.note
-
-    upsert({
-      ...serverHighlight,
-      note: mergedNote,
-      ...match,
-      highlighted_text: serverHighlight.highlighted_text,
-      color: serverHighlight.color,
-      character_start: serverHighlight.character_start,
-      character_end: serverHighlight.character_end,
-      server_id: serverId,
-      sync_status: match.sync_status,
-      pending_op: match.pending_op,
-      deleted: match.deleted,
-      last_error: match.last_error,
-    })
+    appendUniqueHighlight(merged, seen, mergeServerHighlight(serverHighlight, indexes));
   }
 
-  for (const item of local) {
-    if (item.deleted) {
-      upsert(item)
-      continue
-    }
-
-    if (item.pending_op) {
-      upsert(item)
-      continue
-    }
-
-    const serverId = getServerId(item)
-    if (serverId && localByServerId.has(serverId)) {
-      continue
-    }
-
-    const fingerprint = createHighlightFingerprint(item)
-    if (localByFingerprint.get(fingerprint) !== item) {
-      continue
-    }
-
-    upsert(item)
-  }
+  appendUnmatchedLocalHighlights(local, indexes, merged, seen);
 
   return dedupeLocalHighlights(
     merged
-    .filter((item) => item.article_url === articleUrl)
-    .sort((a, b) => a.character_start - b.character_start)
-  )
-}
+      .filter((item) => item.article_url === articleUrl)
+      .toSorted(
+        (firstHighlight, secondHighlight) =>
+          firstHighlight.character_start - secondHighlight.character_start,
+      ),
+  );
+};
 
-export function toRemoteHighlights(local: LocalHighlight[]): Highlight[] {
-  return dedupeLocalHighlights(local)
-    .filter((item) => !item.deleted)
-    .map(({ client_id, server_id, sync_status, pending_op, last_error, local_updated_at, deleted, ...rest }) => {
-      void sync_status
-      void pending_op
-      void last_error
-      void local_updated_at
-      void deleted
-      const id = rest.id ?? server_id
-      return id ? { ...rest, id, client_id } : { ...rest, client_id }
-    })
+const toRemoteHighlights = (local: readonly ReadonlyLocalHighlight[]): Highlight[] =>
+  dedupeLocalHighlights(local)
+    .filter((item) => item.deleted !== true)
+    .map(
+      ({
+        client_id,
+        server_id,
+        sync_status,
+        pending_op,
+        last_error,
+        local_updated_at,
+        deleted,
+        ...rest
+      }) => {
+        void sync_status;
+        void pending_op;
+        void last_error;
+        void local_updated_at;
+        void deleted;
+        const id = rest.id ?? server_id;
+        if (id !== undefined && id !== 0) {
+  return Object.assign(rest, {
+    client_id,
+    id
+  });
 }
+return Object.assign(rest, {
+  client_id
+});
+      },
+    );
 
-export function markPending({
+const markPending = ({
   highlight,
   op,
-}: {
-  highlight: LocalHighlight
-  op: HighlightOp
-}): LocalHighlight {
-  return {
-    ...highlight,
-    sync_status: "pending",
-    pending_op: op,
-    local_updated_at: safeNowIso(),
-    last_error: undefined,
-    deleted: op === "delete" ? true : highlight.deleted,
+}: Readonly<{
+  highlight: ReadonlyLocalHighlight;
+  op: HighlightOp;
+}>): LocalHighlight => ({
+  ...highlight,
+  deleted: (() => {
+  if (op === "delete") {
+    return true;
   }
-}
+  return highlight.deleted;
+})(),
+  last_error: undefined,
+  local_updated_at: safeNowIso(),
+  pending_op: op,
+  sync_status: "pending",
+});
 
-export function markSynced({
+const markSynced = ({
   highlight,
   server,
-}: {
-  highlight: LocalHighlight
-  server: Highlight
-}): LocalHighlight {
-  return {
-    ...highlight,
-    ...server,
-    id: server.id,
-    server_id: server.id,
-    sync_status: "synced",
-    pending_op: undefined,
-    last_error: undefined,
-    deleted: false,
-    local_updated_at: safeNowIso(),
-  }
-}
+}: Readonly<{
+  highlight: ReadonlyLocalHighlight;
+  server: ReadonlyHighlight;
+}>): LocalHighlight => ({
+  ...highlight,
+  ...server,
+  deleted: false,
+  id: server.id,
+  last_error: undefined,
+  local_updated_at: safeNowIso(),
+  pending_op: undefined,
+  server_id: server.id,
+  sync_status: "synced",
+});
 
-export function markFailed({
+const markFailed = ({
   highlight,
   error,
-}: {
-  highlight: LocalHighlight
-  error: unknown
-}): LocalHighlight {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "unknown error"
+}: Readonly<{
+  highlight: ReadonlyLocalHighlight;
+  error: unknown;
+}>): LocalHighlight => {
+  let message = "unknown error";
+  if (error instanceof Error) {
+    message = error.message;
+  } else {
+    const parsed = z.string().safeParse(error);
+    if (parsed.success) {
+      message = parsed.data;
+    }
+  }
 
   return {
     ...highlight,
-    sync_status: "failed",
     last_error: message,
     local_updated_at: safeNowIso(),
-  }
-}
+    sync_status: "failed",
+  };
+};
+export {
+  createHighlightFingerprint,
+  dedupeLocalHighlights,
+  generateClientId,
+  loadHighlightStore,
+  saveHighlightStore,
+  mergeHighlights,
+  toRemoteHighlights,
+  markPending,
+  markSynced,
+  markFailed,
+};
+export type { LocalHighlight };

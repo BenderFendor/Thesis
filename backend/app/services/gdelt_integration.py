@@ -35,6 +35,24 @@ GDELT_MASTER_URL = "http://data.gdeltproject.org/gdeltv2/masterfilelist.txt"
 SIMILARITY_THRESHOLD = 0.75  # Cosine similarity threshold for embedding matches
 
 
+def _consider_chroma_match(
+    chroma_id: str | None,
+    distance: float | None,
+    best_article_id: int | None,
+    best_similarity: float,
+) -> tuple[int | None, float]:
+    """Update the best candidate when a chroma row looks like an article match."""
+    if not chroma_id or not chroma_id.startswith("article_"):
+        return best_article_id, best_similarity
+    similarity = 1 - distance if distance is not None else 0.0
+    if similarity <= best_similarity:
+        return best_article_id, best_similarity
+    try:
+        return int(chroma_id.replace("article_", "")), similarity
+    except ValueError:
+        return best_article_id, similarity
+
+
 class GDELTIntegration:
     """Handles fetching and matching GDELT events to articles."""
 
@@ -287,55 +305,48 @@ class GDELTIntegration:
             return None
         return article_id
 
+    async def _best_embedding_match(
+        self, vector_store: VectorStore, text: str
+    ) -> tuple[int | None, float]:
+        """Find the best article match for a query embedding; (id, similarity)."""
+        embedding = vector_store.get_embedding_for_query(text)
+        query_embeddings: list[Sequence[float]] = [embedding]
+        result = vector_store.collection.query(
+            query_embeddings=query_embeddings,
+            n_results=10,
+            include=cast("list[IncludeEnum]", ["distances"]),
+        )
+        ids_payload = result.get("ids") if result else None
+        ids = ids_payload[0] if ids_payload else []
+        distances_payload = result.get("distances") if result else None
+        distances = distances_payload[0] if distances_payload else []
+
+        best_article_id = None
+        best_similarity = 0.0
+        for chroma_id, distance in zip(ids, distances, strict=False):
+            best_article_id, best_similarity = _consider_chroma_match(
+                chroma_id, distance, best_article_id, best_similarity
+            )
+        return best_article_id, best_similarity
+
     async def _match_by_embedding(self, session: AsyncSession, event: dict[str, Any]) -> int | None:
         """Match GDELT event to article by embedding similarity.
 
         Generates an embedding from the event title and compares to
         recent article embeddings.
         """
-        if not self.vector_store:
+        vector_store = self.vector_store
+        if vector_store is None:
             return None
-
-        # Create text for embedding from title
         text = event.get("title", "")
         if not text:
             return None
-
         try:
-            embedding = self.vector_store.get_embedding_for_query(text)
-
-            best_article_id = None
-            best_similarity = 0.0
-
-            query_embeddings: list[Sequence[float]] = [embedding]
-            result = self.vector_store.collection.query(
-                query_embeddings=query_embeddings,
-                n_results=10,
-                include=cast("list[IncludeEnum]", ["distances"]),
-            )
-
-            ids_payload = result.get("ids") if result else None
-            ids = ids_payload[0] if ids_payload else []
-            distances_payload = result.get("distances") if result else None
-            distances = distances_payload[0] if distances_payload else []
-
-            for chroma_id, distance in zip(ids, distances, strict=False):
-                if not chroma_id or not chroma_id.startswith("article_"):
-                    continue
-                similarity = 1 - distance if distance is not None else 0.0
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    try:
-                        best_article_id = int(chroma_id.replace("article_", ""))
-                    except ValueError:
-                        continue
-
+            best_article_id, best_similarity = await self._best_embedding_match(vector_store, text)
             if best_similarity >= SIMILARITY_THRESHOLD:
                 return best_article_id
-
         except Exception as e:
             logger.warning(f"Embedding match failed for GDELT event: {e}")
-
         return None
 
     def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:

@@ -1,76 +1,58 @@
-import type {
-  AllCluster,
-  BreakingCluster,
-  NewsArticle,
-  TrendingArticle,
-  TrendingCluster,
-} from "@/lib/api";
+import type { ClusterArticle, TrendingCluster } from "@/lib/api";
+import { isUsableImage } from "@/lib/article-image";
 
-export function hasRealClusterImage(src?: string | null): boolean {
-  if (!src) return false;
-  const trimmed = src.trim();
-  if (!trimmed || trimmed === "none") return false;
-  const lower = trimmed.toLowerCase();
-  return !lower.includes("/placeholder.svg") && !lower.includes("/placeholder.jpg");
+type ClusterImageArticle = Readonly<
+  Pick<ClusterArticle, "id" | "image_url" | "source" | "title" | "url">
+>;
+type ClusterPreviewArticle = Readonly<Pick<ClusterArticle, "id" | "source">>;
+interface ClusterPreviewStats {
+  articleCount: number;
+  sourceCount: number;
 }
+type ClusterIdRecord = Readonly<Pick<TrendingCluster, "cluster_id">>;
 
-export function pickClusterImageUrl(cluster: {
-  representative_article?: TrendingArticle | null;
-  articles?: TrendingArticle[];
-}): string | null {
+const pickClusterImageUrl = (
+  cluster: Readonly<{
+    representative_article?: ClusterImageArticle | null;
+    articles?: readonly ClusterImageArticle[];
+  }>,
+): string | null => {
   const imageCandidates = [
     cluster.representative_article?.image_url,
     ...(cluster.articles ?? []).map((article) => article.image_url),
   ];
 
-  return imageCandidates.find((src) => hasRealClusterImage(src)) ?? null;
-}
+  return imageCandidates.find((src) => isUsableImage(src)) ?? null;
+};
 
-export function filterTrendingClusters(
-  trending: TrendingCluster[],
-  breaking: BreakingCluster[],
-): TrendingCluster[] {
+const filterTrendingClusters = <Cluster extends ClusterIdRecord>(
+  trending: readonly Cluster[],
+  breaking: readonly ClusterIdRecord[],
+): Cluster[] => {
   const breakingIds = new Set(breaking.map((cluster) => cluster.cluster_id));
   return trending.filter((cluster) => !breakingIds.has(cluster.cluster_id));
-}
+};
 
-export function clusterArticlesToNewsArticles(
-  articles?: TrendingArticle[],
-): NewsArticle[] {
-  if (!articles) return [];
-
-  return articles.map((article) => ({
-    id: article.id,
-    title: article.title,
-    source: article.source,
-    sourceId: article.source.toLowerCase().replace(/\s+/g, "-"),
-    country: "US",
-    credibility: "medium",
-    bias: "center",
-    summary: article.summary || "",
-    image: article.image_url || "",
-    publishedAt: article.published_at || new Date().toISOString(),
-    category: "news",
-    url: article.url,
-    tags: [],
-    originalLanguage: "en",
-    translated: false,
-  }));
-}
-
-export function getClusterPreviewStats(cluster: {
-  article_count: number;
-  source_diversity: number;
-  representative_article?: TrendingArticle | null;
-  articles?: TrendingArticle[];
-}): { articleCount: number; sourceCount: number } {
+const getClusterPreviewStats = (
+  cluster: Readonly<{
+    article_count: number;
+    source_diversity: number;
+    representative_article?: ClusterPreviewArticle | null;
+    articles?: readonly ClusterPreviewArticle[];
+  }>,
+): ClusterPreviewStats => {
   const previewArticles =
-    cluster.articles && cluster.articles.length > 0
-      ? cluster.articles
-      : cluster.representative_article
-        ? [cluster.representative_article]
-        : [];
-
+    (() => {
+  if (cluster.articles && cluster.articles.length > 0) {
+    return cluster.articles;
+  }
+  return (() => {
+    if (cluster.representative_article) {
+      return [cluster.representative_article];
+    }
+    return [];
+  })();
+})();
   const previewSources = new Set(
     previewArticles
       .map((article) => article.source)
@@ -78,9 +60,16 @@ export function getClusterPreviewStats(cluster: {
   );
 
   return {
-    articleCount: previewArticles.length || cluster.article_count,
-    sourceCount: previewSources.size || cluster.source_diversity,
+    articleCount: getPreviewCount(previewArticles.length, cluster.article_count),
+    sourceCount: getPreviewCount(previewSources.size, cluster.source_diversity),
   };
-}
+};
 
-export type TopicLikeCluster = AllCluster | TrendingCluster | BreakingCluster;
+const getPreviewCount = (count: number, fallback: number): number => {
+  if (count > 0) {
+    return count;
+  }
+  return fallback;
+};
+
+export { filterTrendingClusters, getClusterPreviewStats, pickClusterImageUrl };

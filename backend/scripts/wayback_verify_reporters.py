@@ -22,6 +22,7 @@ import asyncio  # noqa: E402
 import json as _json  # noqa: E402
 import re as _re  # noqa: E402
 import sys  # noqa: E402
+from collections.abc import Sequence  # noqa: E402
 from copy import deepcopy  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Any  # noqa: E402
@@ -158,6 +159,49 @@ def _mock_cdx_snapshots(author_page_url: str, limit: int = 3) -> list[dict[str, 
     ]
 
 
+def _cdx_request(cdx_url: str) -> tuple[int, str]:
+    import curl_cffi  # type: ignore[import-untyped]
+
+    resp = curl_cffi.requests.get(
+        cdx_url,
+        impersonate="chrome120",
+        timeout=int(HTTP_TIMEOUT),
+    )
+    return resp.status_code, resp.text
+
+
+async def _cdx_retry_backoff(attempt: int, max_retries: int) -> None:
+    if attempt < max_retries - 1:
+        await asyncio.sleep(2.0)
+
+
+def _parse_cdx_body(body: str, author_page_url: str) -> list[dict[str, str]] | None:
+    """Return CDX snapshot records, or None when no usable snapshots exist."""
+    try:
+        rows = _json.loads(body)
+    except Exception as exc:
+        logger.info("CDX non-JSON for %s: %s", author_page_url[:60], exc)
+        return None
+
+    if not rows or len(rows) < 2:
+        logger.info("CDX no snapshots for %s", author_page_url[:60])
+        return None
+
+    records: list[dict[str, str]] = []
+    for row in rows[1:]:
+        if len(row) >= 4:
+            records.append(
+                {
+                    "timestamp": str(row[0]),
+                    "original_url": str(row[1]),
+                    "status_code": str(row[2]),
+                    "digest": str(row[3]),
+                }
+            )
+    logger.info("CDX found %d snapshots for %s", len(records), author_page_url[:60])
+    return records
+
+
 async def _fetch_cdx_snapshots(
     http_client: httpx.AsyncClient,
     author_page_url: str,
@@ -174,12 +218,6 @@ async def _fetch_cdx_snapshots(
 
     import urllib.parse as _urlparse
 
-    """Query the Wayback CDX API for snapshots of a URL.
-
-    Uses curl_cffi for TLS impersonation to avoid 429 rate limits.
-    Retries with backoff on 429 (rate limit).
-    """
-
     params = {
         "url": author_page_url,
         "output": "json",
@@ -191,26 +229,14 @@ async def _fetch_cdx_snapshots(
     cdx_url = f"{CDX_API}?{query_str}"
 
     max_retries = 3
+    loop = asyncio.get_running_loop()
     for attempt in range(max_retries):
         await _cdx_rate_limiter()
-
-        def _do_cdx():
-            import curl_cffi  # type: ignore[import-untyped]
-
-            resp = curl_cffi.requests.get(
-                cdx_url,
-                impersonate="chrome120",
-                timeout=int(HTTP_TIMEOUT),
-            )
-            return resp.status_code, resp.text
-
         try:
-            loop = asyncio.get_running_loop()
-            status, body = await loop.run_in_executor(None, _do_cdx)
+            status, body = await loop.run_in_executor(None, _cdx_request, cdx_url)
         except Exception as exc:
             logger.info("CDX curl_cffi failed for %s: %s", author_page_url[:60], exc)
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2.0)
+            await _cdx_retry_backoff(attempt, max_retries)
             continue
 
         if status == 429:
@@ -229,29 +255,9 @@ async def _fetch_cdx_snapshots(
             logger.info("CDX HTTP %d for %s", status, author_page_url[:60])
             return []
 
-        try:
-            rows = _json.loads(body)
-        except Exception as exc:
-            logger.info("CDX non-JSON for %s: %s", author_page_url[:60], exc)
-            return []
-
-        if not rows or len(rows) < 2:
-            logger.info("CDX no snapshots for %s", author_page_url[:60])
-            return []
-
-        records: list[dict[str, str]] = []
-        for row in rows[1:]:
-            if len(row) >= 4:
-                records.append(
-                    {
-                        "timestamp": str(row[0]),
-                        "original_url": str(row[1]),
-                        "status_code": str(row[2]),
-                        "digest": str(row[3]),
-                    }
-                )
-        logger.info("CDX found %d snapshots for %s", len(records), author_page_url[:60])
-        return records
+        records = _parse_cdx_body(body, author_page_url)
+        if records is not None:
+            return records
 
     logger.info("CDX exhausted retries for %s", author_page_url[:60])
     return []
@@ -285,45 +291,113 @@ async def _fetch_snapshot_content(
     return None
 
 
-def _extract_visible_names(html: str) -> list[str]:
-    """Extract candidate profile names from HTML <title>, <h1>, and meta author."""
+def _html_text(markup: str) -> str:
     from html import unescape as _unescape
 
-    names: list[str] = []
+    raw = _re.sub(r"(?is)<[^>]+>", " ", markup)
+    raw = _unescape(raw)
+    return _re.sub(r"\s+", " ", raw).strip()
 
-    # <title>
+
+def _looks_like_name(raw: str) -> bool:
+    return bool(raw and len(_re.findall(r"[^\W\d_]+", raw, flags=_re.UNICODE)) >= 2)
+
+
+def _title_name(html: str) -> str | None:
     title_match = _re.search(r"<title\b[^>]*>(.*?)</title>", html, _re.IGNORECASE | _re.DOTALL)
-    if title_match:
-        raw = _re.sub(r"(?is)<[^>]+>", " ", title_match.group(1))
-        raw = _unescape(raw)
-        raw = _re.sub(r"\s+", " ", raw).strip()
-        for sep in (" - ", " | ", " — ", " – "):
-            if sep in raw:
-                raw = raw.split(sep, 1)[0].strip()
-        if raw and len(_re.findall(r"[^\W\d_]+", raw, flags=_re.UNICODE)) >= 2:
-            names.append(raw)
+    if not title_match:
+        return None
+    raw = _html_text(title_match.group(1))
+    for sep in (" - ", " | ", " — ", " – "):
+        if sep in raw:
+            raw = raw.split(sep, 1)[0].strip()
+    return raw if _looks_like_name(raw) else None
 
-    # <h1>
+
+def _h1_names(html: str) -> list[str]:
+    names: list[str] = []
     for match in _re.finditer(r"<h1\b[^>]*>(.*?)</h1>", html, _re.IGNORECASE | _re.DOTALL):
-        raw = _re.sub(r"(?is)<[^>]+>", " ", match.group(1))
-        raw = _unescape(raw)
-        raw = _re.sub(r"\s+", " ", raw).strip()
-        if raw and len(_re.findall(r"[^\W\d_]+", raw, flags=_re.UNICODE)) >= 2:
-            if raw not in names:
-                names.append(raw)
+        raw = _html_text(match.group(1))
+        if _looks_like_name(raw) and raw not in names:
+            names.append(raw)
+    return names
 
-    # <meta name="author">
+
+def _meta_author_name(html: str) -> str | None:
+    from html import unescape as _unescape
+
     meta_match = _re.search(
         r'<meta\s[^>]*name=["\']author["\'][^>]*content=["\']([^"\']+)["\']',
         html,
         _re.IGNORECASE,
     )
-    if meta_match:
-        raw = _unescape(meta_match.group(1).strip())
-        if raw and raw not in names:
-            names.append(raw)
+    if not meta_match:
+        return None
+    raw = _unescape(meta_match.group(1).strip())
+    return raw if raw else None
 
+
+def _extract_visible_names(html: str) -> list[str]:
+    """Extract candidate profile names from HTML <title>, <h1>, and meta author."""
+    names: list[str] = []
+    title = _title_name(html)
+    if title:
+        names.append(title)
+    for raw in _h1_names(html):
+        if raw not in names:
+            names.append(raw)
+    meta_author = _meta_author_name(html)
+    if meta_author and meta_author not in names:
+        names.append(meta_author)
     return names
+
+
+def _mock_snapshot_html(reporter_name: str) -> str:
+    return (
+        f"<html><head><title>{reporter_name} - Author Profile</title>"
+        f'<meta name="author" content="{reporter_name}"></head>'
+        f"<body><h1>{reporter_name}</h1></body></html>"
+    )
+
+
+def _matched_via(profile_name: str, visible_names: list[str]) -> str:
+    if profile_name == visible_names[0]:
+        return "title"
+    return "h1" if profile_name in visible_names[1:-1] else "meta_author"
+
+
+async def _snapshot_match(
+    http_client: httpx.AsyncClient,
+    reporter_name: str,
+    snapshot: dict[str, str],
+    mock: bool,
+) -> dict[str, Any] | None:
+    ts = snapshot["timestamp"]
+    original_url = snapshot["original_url"]
+    digest = snapshot.get("digest", "")
+    if mock:
+        content = _mock_snapshot_html(reporter_name)
+    else:
+        content = await _fetch_snapshot_content(http_client, original_url, ts)
+        if not content:
+            return None
+
+    visible_names = _extract_visible_names(content)
+    if not visible_names:
+        logger.debug("No visible names in snapshot %s", ts)
+        return None
+
+    for profile_name in visible_names:
+        if _person_name_match(reporter_name, profile_name):
+            return {
+                "wayback_url": f"{WAYBACK_BASE}/{ts}/{original_url}",
+                "original_url": original_url,
+                "profile_name": profile_name,
+                "timestamp": ts,
+                "digest": digest,
+                "matched_via": _matched_via(profile_name, visible_names),
+            }
+    return None
 
 
 async def _wayback_verify_author_page(
@@ -343,46 +417,42 @@ async def _wayback_verify_author_page(
         return None
 
     for snapshot in snapshots:
-        ts = snapshot["timestamp"]
-        original_url = snapshot["original_url"]
-        digest = snapshot.get("digest", "")
-
-        if mock:
-            # Generate fake HTML that contains the reporter name in <title>
-            mock_html = (
-                f"<html><head><title>{reporter_name} - Author Profile</title>"
-                f'<meta name="author" content="{reporter_name}"></head>'
-                f"<body><h1>{reporter_name}</h1></body></html>"
-            )
-            content = mock_html
-        else:
-            content = await _fetch_snapshot_content(http_client, original_url, ts)
-            if not content:
-                continue
-
-        visible_names = _extract_visible_names(content)
-        if not visible_names:
-            logger.debug("No visible names in snapshot %s", ts)
-            continue
-
-        for profile_name in visible_names:
-            if _person_name_match(reporter_name, profile_name):
-                wayback_url = f"{WAYBACK_BASE}/{ts}/{original_url}"
-                return {
-                    "wayback_url": wayback_url,
-                    "original_url": original_url,
-                    "profile_name": profile_name,
-                    "timestamp": ts,
-                    "digest": digest,
-                    "matched_via": "title"
-                    if profile_name == visible_names[0]
-                    else ("h1" if profile_name in visible_names[1:-1] else "meta_author"),
-                }
-
+        matched = await _snapshot_match(http_client, reporter_name, snapshot, mock)
+        if matched is not None:
+            return matched
     return None
 
 
 # ── main pipeline ──────────────────────────────────────────────────────
+
+
+def _reporter_info_from_row(row: Any, source_filter: str | None) -> dict[str, Any] | None:
+    source = str(row.source or "")
+    if source_filter and source_filter.lower() not in source.lower():
+        return None
+    return {
+        "id": int(row.id or 0),
+        "name": str(row.name or ""),
+        "source": source,
+        "tier": str(row.confidence_tier or "likely"),
+        "author_page_url": row.author_page_url or "",
+    }
+
+
+def _reporter_rows_to_info(
+    rows: Sequence[Any],
+    source_filter: str | None,
+    limit: int | None,
+) -> list[dict[str, Any]]:
+    reporters_info: list[dict[str, Any]] = []
+    for row in rows:
+        info = _reporter_info_from_row(row, source_filter)
+        if info is None:
+            continue
+        reporters_info.append(info)
+        if limit and len(reporters_info) >= limit:
+            break
+    return reporters_info
 
 
 async def _get_likely_reporters(
@@ -409,25 +479,7 @@ async def _get_likely_reporters(
     )
     rows = raw.all()
 
-    reporters_info: list[dict[str, Any]] = []
-    for row in rows:
-        rid = int(row.id or 0)
-        source = str(row.source or "")
-        if source_filter and source_filter.lower() not in source.lower():
-            continue
-        reporters_info.append(
-            {
-                "id": rid,
-                "name": str(row.name or ""),
-                "source": source,
-                "tier": str(row.confidence_tier or "likely"),
-                "author_page_url": row.author_page_url or "",
-            }
-        )
-        if limit and len(reporters_info) >= limit:
-            break
-
-    return reporters_info
+    return _reporter_rows_to_info(rows, source_filter, limit)
 
 
 async def _get_article_urls_for_reporter(
@@ -451,6 +503,72 @@ async def _get_article_urls_for_reporter(
         if u not in urls and _is_fetchable_article_url(u):
             urls.append(u)
     return urls
+
+
+def _append_author_signals(author: Any, names: list[str], urls: list[str]) -> None:
+    if not isinstance(author, dict):
+        return
+    if author.get("name"):
+        names.append(str(author["name"]))
+    if author.get("url"):
+        urls.append(str(author["url"]))
+
+
+def _collect_dict_author_signals(data: dict[str, Any], names: list[str], urls: list[str]) -> None:
+    types = data.get("@type") or []
+    if isinstance(types, str):
+        types = [types]
+    if any(t in ("Person", "NewsArticle") for t in types):
+        author = data.get("author")
+        if isinstance(author, list):
+            for item in author:
+                _append_author_signals(item, names, urls)
+        elif isinstance(author, dict):
+            _append_author_signals(author, names, urls)
+    for value in data.values():
+        _collect_jsonld_author_signals(value, names, urls)
+
+
+def _collect_jsonld_author_signals(data: Any, names: list[str], urls: list[str]) -> None:
+    if isinstance(data, dict):
+        _collect_dict_author_signals(data, names, urls)
+    elif isinstance(data, list):
+        for item in data:
+            _collect_jsonld_author_signals(item, names, urls)
+
+
+def _jsonld_author_signals(html: str) -> tuple[list[str], list[str]]:
+    author_names: list[str] = []
+    author_urls: list[str] = []
+    for raw_ld in _re.findall(
+        r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+        html,
+        _re.IGNORECASE | _re.DOTALL,
+    ):
+        try:
+            data = _json.loads(raw_ld.strip())
+        except _json.JSONDecodeError:
+            continue
+        _collect_jsonld_author_signals(data, author_names, author_urls)
+    return author_names, author_urls
+
+
+def _author_anchor_urls(html: str, article_url: str) -> list[str]:
+    author_urls: list[str] = []
+    for match in _re.finditer(r"<a\b([^>]*)>", html, _re.IGNORECASE):
+        attrs_raw = match.group(1)
+        href_match = _re.search(r'href=["\']([^"\']+)["\']', attrs_raw, _re.IGNORECASE)
+        if not href_match:
+            continue
+        href = href_match.group(1)
+        if _re.search(
+            r"/(author|authors|bio|bios|by|byline|columnist|columnists|contributor|"
+            r"contributors|people|person|profile|profiles|staff|team)/",
+            href,
+            _re.IGNORECASE,
+        ):
+            author_urls.append(_urljoin(article_url, href))
+    return author_urls
 
 
 def _try_curl_cffi_article_signals(article_url: str) -> dict[str, Any] | None:
@@ -482,60 +600,8 @@ def _try_curl_cffi_article_signals(article_url: str) -> dict[str, Any] | None:
         return None
 
     html = resp.text
-    author_names: list[str] = []
-    author_urls: list[str] = []
-
-    def _extract_author_from_jsonld(data: Any, names: list[str], urls: list[str]) -> None:
-        if isinstance(data, dict):
-            types = data.get("@type") or []
-            if isinstance(types, str):
-                types = [types]
-            if any(t in ("Person", "NewsArticle") for t in types):
-                author = data.get("author")
-                if isinstance(author, list):
-                    for a in author:
-                        if isinstance(a, dict):
-                            if a.get("name"):
-                                names.append(str(a["name"]))
-                            if a.get("url"):
-                                urls.append(str(a["url"]))
-                elif isinstance(author, dict):
-                    if author.get("name"):
-                        names.append(str(author["name"]))
-                    if author.get("url"):
-                        urls.append(str(author["url"]))
-            for _key, value in data.items():
-                _extract_author_from_jsonld(value, names, urls)
-        elif isinstance(data, list):
-            for item in data:
-                _extract_author_from_jsonld(item, names, urls)
-
-    # Extract JSON-LD
-    for raw_ld in _re.findall(
-        r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
-        html,
-        _re.IGNORECASE | _re.DOTALL,
-    ):
-        try:
-            data = _json.loads(raw_ld.strip())
-        except _json.JSONDecodeError:
-            continue
-        _extract_author_from_jsonld(data, author_names, author_urls)
-
-    # Also extract anchor links to author pages (resolve relative URLs)
-    for match in _re.finditer(r"<a\b([^>]*)>", html, _re.IGNORECASE):
-        attrs_raw = match.group(1)
-        href_match = _re.search(r'href=["\']([^"\']+)["\']', attrs_raw, _re.IGNORECASE)
-        if not href_match:
-            continue
-        href = href_match.group(1)
-        if _re.search(
-            r"/(author|authors|bio|bios|by|byline|columnist|columnists|contributor|"
-            r"contributors|people|person|profile|profiles|staff|team)/",
-            href,
-            _re.IGNORECASE,
-        ):
-            author_urls.append(_urljoin(article_url, href))
+    author_names, author_urls = _jsonld_author_signals(html)
+    author_urls.extend(_author_anchor_urls(html, article_url))
 
     if not author_names and not author_urls:
         return None
@@ -546,6 +612,33 @@ def _try_curl_cffi_article_signals(article_url: str) -> dict[str, Any] | None:
         "author_urls": list(dict.fromkeys(author_urls)),
         "access_path": "curl_cffi",
     }
+
+
+def _dedupe_urls(urls: Any) -> list[str]:
+    seen: list[str] = []
+    for u in urls:
+        if isinstance(u, str) and u not in seen:
+            seen.append(u)
+    return seen
+
+
+async def _cffi_author_urls(article_urls: list[str], max_articles: int) -> list[str]:
+    loop = asyncio.get_running_loop()
+    cffi_results = await asyncio.gather(
+        *[
+            loop.run_in_executor(None, _try_curl_cffi_article_signals, url)
+            for url in article_urls[:max_articles]
+        ],
+        return_exceptions=True,
+    )
+    author_urls: list[str] = []
+    for signals in cffi_results:
+        if isinstance(signals, BaseException) or signals is None:
+            continue
+        for url in signals.get("author_urls", []):
+            if isinstance(url, str) and url not in author_urls:
+                author_urls.append(url)
+    return author_urls
 
 
 async def _discover_author_page_urls(
@@ -573,29 +666,13 @@ async def _discover_author_page_urls(
     tasks = [_fetch_one(url) for url in article_urls[:max_articles]]
     all_pages = await asyncio.gather(*tasks, return_exceptions=True)
 
-    author_urls: list[str] = []
-    for page_list in all_pages:
-        if isinstance(page_list, list):
-            for u in page_list:
-                if isinstance(u, str) and u not in author_urls:
-                    author_urls.append(u)
+    author_urls = _dedupe_urls(
+        u for page_list in all_pages if isinstance(page_list, list) for u in page_list
+    )
 
     # Fallback: if no author URLs found, try curl_cffi on article pages directly
     if not author_urls:
-        loop = asyncio.get_running_loop()
-        cffi_results = await asyncio.gather(
-            *[
-                loop.run_in_executor(None, _try_curl_cffi_article_signals, url)
-                for url in article_urls[:max_articles]
-            ],
-            return_exceptions=True,
-        )
-        for signals in cffi_results:
-            if isinstance(signals, BaseException) or signals is None:
-                continue
-            for url in signals.get("author_urls", []):
-                if isinstance(url, str) and url not in author_urls:
-                    author_urls.append(url)
+        author_urls = await _cffi_author_urls(article_urls, max_articles)
 
     return author_urls
 
@@ -653,6 +730,64 @@ async def _promote_via_wayback(
     return new_tier == "verified"
 
 
+async def _blocked_author_urls(author_page_urls: list[str], reporter_name: str) -> list[str]:
+    blocked_urls: list[str] = []
+    loop = asyncio.get_running_loop()
+    for url in author_page_urls[:5]:
+        is_blocked, status_code, _ = await loop.run_in_executor(None, _url_is_live_blocked, url)
+        if is_blocked:
+            blocked_urls.append(url)
+            logger.debug(
+                "Blocked author page %s (code=%s) for reporter %s",
+                url,
+                status_code,
+                reporter_name,
+            )
+        else:
+            logger.debug(
+                "Author page %s is reachable (code=%s) for reporter %s - skip Wayback",
+                url,
+                status_code,
+                reporter_name,
+            )
+    return blocked_urls
+
+
+async def _match_first_wayback(
+    http_client: httpx.AsyncClient,
+    reporter_name: str,
+    blocked_urls: list[str],
+    mock: bool,
+) -> tuple[dict[str, Any] | None, int]:
+    sem = asyncio.Semaphore(CONCURRENT_WAYBACK)
+
+    async def _try_one(url: str) -> dict[str, Any] | None:
+        async with sem:
+            return await _wayback_verify_author_page(http_client, reporter_name, url, mock=mock)
+
+    wb_tasks = [_try_one(url) for url in blocked_urls[:3]]
+    wb_results = await asyncio.gather(*wb_tasks, return_exceptions=True)
+
+    total_snapshots = 0
+    for wb_result in wb_results:
+        if isinstance(wb_result, BaseException) or wb_result is None:
+            continue
+        total_snapshots += 1
+        return wb_result, total_snapshots
+    return None, total_snapshots
+
+
+async def _apply_wayback_promotion(
+    session: AsyncSession, rid: int, wayback_result: dict[str, Any]
+) -> bool:
+    reporter = (
+        await session.execute(select(Reporter).where(Reporter.id == rid))
+    ).scalar_one_or_none()
+    if reporter is None:
+        return False
+    return await _promote_via_wayback(session, reporter, wayback_result)
+
+
 async def _process_reporter(
     session: AsyncSession,
     http_client: httpx.AsyncClient,
@@ -704,72 +839,28 @@ async def _process_reporter(
         return result
 
     # Step 3: For each author page URL, test if live is blocked
-    blocked_urls: list[str] = []
-    loop = asyncio.get_running_loop()
-    for url in author_page_urls[:5]:
-        is_blocked, status_code, _ = await loop.run_in_executor(None, _url_is_live_blocked, url)
-        if is_blocked:
-            blocked_urls.append(url)
-            logger.debug(
-                "Blocked author page %s (code=%s) for reporter %s",
-                url,
-                status_code,
-                name,
-            )
-        else:
-            logger.debug(
-                "Author page %s is reachable (code=%s) for reporter %s - skip Wayback",
-                url,
-                status_code,
-                name,
-            )
-
+    blocked_urls = await _blocked_author_urls(author_page_urls, name)
     result["blocked_urls"] = len(blocked_urls)
     if not blocked_urls:
         result["error"] = "no_blocked_author_pages"
         return result
 
     # Step 4: Try Wayback Machine for each blocked URL
-    sem = asyncio.Semaphore(CONCURRENT_WAYBACK)
-
-    async def _try_one(url: str) -> dict[str, Any] | None:
-        async with sem:
-            return await _wayback_verify_author_page(http_client, name, url, mock=mock)
-
-    wb_tasks = [_try_one(url) for url in blocked_urls[:3]]
-    wb_results = await asyncio.gather(*wb_tasks, return_exceptions=True)
-
-    total_snapshots = 0
-    for wb_result in wb_results:
-        if isinstance(wb_result, BaseException):
-            continue
-        if wb_result is None:
-            continue
-        total_snapshots += 1
-
-        wayback_url = wb_result["wayback_url"]
-        profile_name = wb_result["profile_name"]
-        timestamp = wb_result["timestamp"]
-
-        result["wayback_matched"] = True
-        result["wayback_url"] = wayback_url
-        result["wayback_timestamp"] = timestamp
-        result["matched_name"] = profile_name
-        result["wayback_snapshots_tried"] = total_snapshots
-
-        if apply_changes:
-            reporter = (
-                await session.execute(select(Reporter).where(Reporter.id == rid))
-            ).scalar_one_or_none()
-            if reporter:
-                promoted = await _promote_via_wayback(session, reporter, wb_result)
-                result["promoted"] = promoted
-
+    wayback_result, total_snapshots = await _match_first_wayback(
+        http_client, name, blocked_urls, mock
+    )
+    result["wayback_snapshots_tried"] = total_snapshots
+    if wayback_result is None:
+        result["error"] = "no_wayback_match"
         return result
 
-    result["wayback_snapshots_tried"] = total_snapshots
-    if not result["wayback_matched"]:
-        result["error"] = "no_wayback_match"
+    result["wayback_matched"] = True
+    result["wayback_url"] = wayback_result["wayback_url"]
+    result["wayback_timestamp"] = wayback_result["timestamp"]
+    result["matched_name"] = wayback_result["profile_name"]
+
+    if apply_changes:
+        result["promoted"] = await _apply_wayback_promotion(session, rid, wayback_result)
     return result
 
 
@@ -777,6 +868,54 @@ async def _get_session() -> AsyncSession:
     if AsyncSessionLocal is None:
         raise RuntimeError("Database not available (check DATABASE_URL / SSH tunnel)")
     return AsyncSessionLocal()
+
+
+def _print_report_row(r: dict[str, Any], totals: dict[str, int]) -> None:
+    if r["blocked_urls"]:
+        totals["blocked"] += 1
+    if r["wayback_matched"]:
+        totals["wayback_matched"] += 1
+    if r["promoted"]:
+        totals["promoted"] += 1
+
+    name = r["name"][:29]
+    source = r["source"][:19]
+    blocked = r["blocked_urls"]
+    wb_match = "YES" if r["wayback_matched"] else "no"
+    promoted = "YES" if r["promoted"] else ("dry" if r["wayback_matched"] else "")
+    print(f"{r['reporter_id']:<5} {name:<30} {source:<20} {blocked:<8} {wb_match:<9} {promoted:<6}")
+
+    if r["wayback_matched"]:
+        print(f"      -> {r['wayback_url']}")
+        print(f"         matched: {r['matched_name']}  ts={r['wayback_timestamp']}")
+
+    if r.get("error"):
+        print(f"      -- {r['error']}")
+
+
+def _print_results(results: list[Any], apply: bool, total: int) -> None:
+    print("=" * 80)
+    print(f"{'ID':<5} {'Reporter':<30} {'Source':<20} {'Blocked':<8} {'WB Match':<9} {'Promo':<6}")
+    print("-" * 80)
+
+    totals: dict[str, int] = {"blocked": 0, "wayback_matched": 0, "promoted": 0}
+    for r in results:
+        if isinstance(r, BaseException):
+            print(f"ERROR: {r}")
+            continue
+        _print_report_row(r, totals)
+
+    print("-" * 80)
+    print(f"Total reporters:        {total}")
+    print(f"With blocked pages:     {totals['blocked']}")
+    print(f"Wayback matched:        {totals['wayback_matched']}")
+    if apply:
+        print(f"Promoted to verified:   {totals['promoted']}")
+    else:
+        print(
+            f"Promoted (would-be):    {totals['wayback_matched']} (dry run, use --apply to write)"
+        )
+    print("=" * 80)
 
 
 async def main_async(args: argparse.Namespace) -> int:
@@ -816,54 +955,7 @@ async def main_async(args: argparse.Namespace) -> int:
         return_exceptions=True,
     )
 
-    # ── Print results ───────────────────────────────────────────────
-
-    print("=" * 80)
-    print(f"{'ID':<5} {'Reporter':<30} {'Source':<20} {'Blocked':<8} {'WB Match':<9} {'Promo':<6}")
-    print("-" * 80)
-
-    total_blocked = 0
-    total_wayback_matched = 0
-    total_promoted = 0
-
-    for r in results:
-        if isinstance(r, BaseException):
-            print(f"ERROR: {r}")
-            continue
-
-        rid = r["reporter_id"]
-        name = r["name"][:29]
-        source = r["source"][:19]
-        blocked = r["blocked_urls"]
-        wb_match = "YES" if r["wayback_matched"] else "no"
-        promoted = "YES" if r["promoted"] else ("dry" if r["wayback_matched"] else "")
-
-        if blocked:
-            total_blocked += 1
-        if r["wayback_matched"]:
-            total_wayback_matched += 1
-        if r["promoted"]:
-            total_promoted += 1
-
-        print(f"{rid:<5} {name:<30} {source:<20} {blocked:<8} {wb_match:<9} {promoted:<6}")
-
-        if r["wayback_matched"]:
-            print(f"      -> {r['wayback_url']}")
-            print(f"         matched: {r['matched_name']}  ts={r['wayback_timestamp']}")
-
-        if r.get("error"):
-            print(f"      -- {r['error']}")
-
-    print("-" * 80)
-    print(f"Total reporters:        {total}")
-    print(f"With blocked pages:     {total_blocked}")
-    print(f"Wayback matched:        {total_wayback_matched}")
-    if args.apply:
-        print(f"Promoted to verified:   {total_promoted}")
-    else:
-        print(f"Promoted (would-be):    {total_wayback_matched} (dry run, use --apply to write)")
-    print("=" * 80)
-
+    _print_results(results, args.apply, total)
     return 0
 
 

@@ -72,6 +72,17 @@ class GDELTArticleResult:
         return {key: value for key, value in payload.items() if value not in (None, "")}
 
 
+def _field_text(article: dict[str, Any], key: str, default: str = "") -> str:
+    """Read a stripped string field, using `default` when absent or empty."""
+    return str(article.get(key) or default).strip()
+
+
+def _field_optional(article: dict[str, Any], key: str) -> str | None:
+    """Read a stripped string field, returning None when absent or empty."""
+    value = str(article.get(key) or "").strip()
+    return value or None
+
+
 class GDELTQueryService:
     """GDELT Query Service."""
 
@@ -172,24 +183,19 @@ class GDELTQueryService:
         self,
         article: dict[str, Any],
     ) -> GDELTArticleResult | None:
-        url = str(article.get("url") or "").strip()
+        url = _field_text(article, "url")
         if not url:
             return None
-        title = str(article.get("title") or "Untitled").strip()
-        domain = str(article.get("domain") or "External source").strip()
-        published = str(article.get("seendate") or "").strip()
-        source_country = str(article.get("sourcecountry") or "").strip() or None
-        language = str(article.get("language") or "").strip() or None
-        image = str(article.get("socialimage") or "").strip() or None
+        title = _field_text(article, "title", "Untitled")
         return GDELTArticleResult(
             url=url,
             title=title,
-            source=domain,
+            source=_field_text(article, "domain", "External source"),
             summary=title,
-            published=published,
-            image=image,
-            language=language,
-            source_country=source_country,
+            published=_field_text(article, "seendate"),
+            image=_field_optional(article, "socialimage"),
+            language=_field_optional(article, "language"),
+            source_country=_field_optional(article, "sourcecountry"),
             result_type="doc",
         )
 
@@ -197,25 +203,20 @@ class GDELTQueryService:
         self,
         article: dict[str, Any],
     ) -> GDELTArticleResult | None:
-        url = str(article.get("url") or "").strip()
+        url = _field_text(article, "url")
         if not url:
             return None
-        title = str(article.get("title") or "Untitled").strip()
-        domain = str(article.get("domain") or "External source").strip()
-        sentence = str(article.get("sentence") or "").strip() or None
-        context = str(article.get("context") or "").strip()
-        summary = context or sentence or title
-        published = str(article.get("seendate") or "").strip()
-        language = str(article.get("language") or "").strip() or None
-        image = str(article.get("socialimage") or "").strip() or None
+        title = _field_text(article, "title", "Untitled")
+        sentence = _field_optional(article, "sentence")
+        context = _field_text(article, "context")
         return GDELTArticleResult(
             url=url,
             title=title,
-            source=domain,
-            summary=summary,
-            published=published,
-            image=image,
-            language=language,
+            source=_field_text(article, "domain", "External source"),
+            summary=context or sentence or title,
+            published=_field_text(article, "seendate"),
+            image=_field_optional(article, "socialimage"),
+            language=_field_optional(article, "language"),
             context_snippet=context or None,
             sentence=sentence,
             result_type="context",

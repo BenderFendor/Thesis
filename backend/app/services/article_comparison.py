@@ -37,22 +37,8 @@ class KeywordComparisonResult(TypedDict):
     unique_to_source_2: list[UniqueKeywordFrequency]
 
 
-def extract_entities(text: str) -> dict[str, list[str]]:
-    """Extract named entities from text using simple heuristics.
-
-    Returns:
-        Dict with keys: persons, organizations, locations, dates
-    """
-    entities: dict[str, list[str]] = {
-        "persons": [],
-        "organizations": [],
-        "locations": [],
-        "dates": [],
-    }
-
-    words = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", text)
-
-    common_words = {
+_COMMON_ENTITY_WORDS = frozenset(
+    {
         "The",
         "A",
         "An",
@@ -108,93 +94,128 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         "November",
         "December",
     }
+)
 
-    potential_entities = [word for word in words if word not in common_words and len(word) > 2]
+_ORGANIZATION_INDICATORS = (
+    "corp",
+    "inc",
+    "ltd",
+    "company",
+    "organization",
+    "association",
+    "university",
+    "institute",
+    "foundation",
+    "agency",
+    "department",
+    "administration",
+)
 
-    for entity in set(potential_entities):
-        entity_lower = entity.lower()
-        if any(
-            indicator in entity_lower
-            for indicator in [
-                "corp",
-                "inc",
-                "ltd",
-                "company",
-                "organization",
-                "association",
-                "university",
-                "institute",
-                "foundation",
-                "agency",
-                "department",
-                "administration",
-            ]
-        ):
-            entities["organizations"].append(entity)
-        elif any(
-            indicator in entity_lower
-            for indicator in [
-                "city",
-                "county",
-                "state",
-                "country",
-                "nation",
-                "republic",
-                "kingdom",
-                "province",
-                "region",
-                "district",
-                "avenue",
-                "street",
-                "boulevard",
-            ]
-        ):
-            entities["locations"].append(entity)
-        elif any(
-            indicator in text[max(0, text.find(entity) - 50) : text.find(entity)]
-            for indicator in [
-                "Mr.",
-                "Ms.",
-                "Mrs.",
-                "Dr.",
-                "Prof.",
-                "President",
-                "Senator",
-                "Representative",
-                "Governor",
-                "Mayor",
-                "CEO",
-                "Director",
-                "Minister",
-            ]
-        ):
-            entities["persons"].append(entity)
-        elif " " in entity:
-            entities["organizations"].append(entity)
+_LOCATION_INDICATORS = (
+    "city",
+    "county",
+    "state",
+    "country",
+    "nation",
+    "republic",
+    "kingdom",
+    "province",
+    "region",
+    "district",
+    "avenue",
+    "street",
+    "boulevard",
+)
 
-    date_patterns = [
-        r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*,?\s+\w+\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}?\b",
-        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
-        r"\b\d{4}-\d{2}-\d{2}\b",
-        r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}?\b",
-        r"\btoday\b|\byesterday\b|\bthis morning\b|\bthis afternoon\b|\blast night\b",
-    ]
+_PERSON_INDICATORS = (
+    "Mr.",
+    "Ms.",
+    "Mrs.",
+    "Dr.",
+    "Prof.",
+    "President",
+    "Senator",
+    "Representative",
+    "Governor",
+    "Mayor",
+    "CEO",
+    "Director",
+    "Minister",
+)
 
-    for pattern in date_patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        entities["dates"].extend(matches)
+_DATE_PATTERNS = (
+    r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*,?\s+\w+\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}?\b",
+    r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
+    r"\b\d{4}-\d{2}-\d{2}\b",
+    r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}?\b",
+    r"\btoday\b|\byesterday\b|\bthis morning\b|\bthis afternoon\b|\blast night\b",
+)
 
+
+def _has_indicator(text: str, indicators: tuple[str, ...]) -> bool:
+    return any(indicator in text for indicator in indicators)
+
+
+def _entity_group(entity: str, text: str) -> str | None:
+    """Classify an entity into persons/organizations/locations/dates (or None)."""
+    entity_lower = entity.lower()
+    if _has_indicator(entity_lower, _ORGANIZATION_INDICATORS):
+        return "organizations"
+    if _has_indicator(entity_lower, _LOCATION_INDICATORS):
+        return "locations"
+    position = text.find(entity)
+    if _has_indicator(text[max(0, position - 50) : position], _PERSON_INDICATORS):
+        return "persons"
+    if " " in entity:
+        return "organizations"
+    return None
+
+
+def _extract_date_matches(text: str) -> list[str]:
+    matches: list[str] = []
+    for pattern in _DATE_PATTERNS:
+        matches.extend(re.findall(pattern, text, re.IGNORECASE))
+    return matches
+
+
+def _dedupe_entities(entities: dict[str, list[str]]) -> dict[str, list[str]]:
     for key in entities:
         seen = set()
-        unique = []
+        unique: list[str] = []
         for item in entities[key]:
             item_lower = item.lower()
             if item_lower not in seen:
                 seen.add(item_lower)
                 unique.append(item)
         entities[key] = unique[:20]
-
     return entities
+
+
+def extract_entities(text: str) -> dict[str, list[str]]:
+    """Extract named entities from text using simple heuristics.
+
+    Returns:
+        Dict with keys: persons, organizations, locations, dates
+    """
+    entities: dict[str, list[str]] = {
+        "persons": [],
+        "organizations": [],
+        "locations": [],
+        "dates": [],
+    }
+
+    words = re.findall(r"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b", text)
+    potential_entities = [
+        word for word in words if word not in _COMMON_ENTITY_WORDS and len(word) > 2
+    ]
+
+    for entity in set(potential_entities):
+        group = _entity_group(entity, text)
+        if group:
+            entities[group].append(entity)
+
+    entities["dates"].extend(_extract_date_matches(text))
+    return _dedupe_entities(entities)
 
 
 def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
@@ -335,6 +356,26 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     return rust_text_similarity(text1, text2)
 
 
+def _categorize_entities(
+    entities1: dict[str, list[str]],
+    entities2: dict[str, list[str]],
+    category: str,
+) -> tuple[list[str], list[str], list[str]]:
+    """Compute common/unique entity lists for one category."""
+    set1 = {entity.lower() for entity in entities1.get(category, [])}
+    set2 = {entity.lower() for entity in entities2.get(category, [])}
+
+    common = set1 & set2
+    unique1 = set1 - set2
+    unique2 = set2 - set1
+
+    return (
+        [entity for entity in entities1.get(category, []) if entity.lower() in common],
+        [entity for entity in entities1.get(category, []) if entity.lower() in unique1],
+        [entity for entity in entities2.get(category, []) if entity.lower() in unique2],
+    )
+
+
 def find_common_and_unique(
     entities1: dict[str, list[str]],
     entities2: dict[str, list[str]],
@@ -347,22 +388,12 @@ def find_common_and_unique(
     }
 
     for category in ["persons", "organizations", "locations", "dates"]:
-        set1 = {entity.lower() for entity in entities1.get(category, [])}
-        set2 = {entity.lower() for entity in entities2.get(category, [])}
-
-        common = set1 & set2
-        unique1 = set1 - set2
-        unique2 = set2 - set1
-
-        result["common_entities"][category] = [
-            entity for entity in entities1.get(category, []) if entity.lower() in common
-        ]
-        result["unique_to_source_1"][category] = [
-            entity for entity in entities1.get(category, []) if entity.lower() in unique1
-        ]
-        result["unique_to_source_2"][category] = [
-            entity for entity in entities2.get(category, []) if entity.lower() in unique2
-        ]
+        common_items, unique1_items, unique2_items = _categorize_entities(
+            entities1, entities2, category
+        )
+        result["common_entities"][category] = common_items
+        result["unique_to_source_1"][category] = unique1_items
+        result["unique_to_source_2"][category] = unique2_items
 
     return result
 

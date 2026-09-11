@@ -35,26 +35,15 @@ impl CountryAliasData {
             sorted_aliases.sort_by_key(|a| -(a.len() as i64));
 
             for alias in &sorted_aliases {
-                if !is_textual_alias(alias) {
-                    continue;
-                }
-
-                if requires_exact_token_match(alias) {
-                    let tokens = original_tokens(alias);
-                    if !tokens.is_empty() {
-                        case_sensitive_patterns.push(alias.clone());
-                    }
-                    insert_unique_alias(&mut unique_exact_alias_to_code, tokens, code);
-                } else {
-                    let pattern_id = all_patterns.len() as u32;
-                    all_patterns.push(alias.to_lowercase());
-                    pattern_to_codes
-                        .entry(pattern_id)
-                        .or_default()
-                        .insert(code.clone());
-
-                    insert_unique_alias(&mut unique_alias_to_code, lowered_tokens(alias), code);
-                }
+                add_alias(
+                    alias,
+                    code,
+                    &mut all_patterns,
+                    &mut pattern_to_codes,
+                    &mut unique_alias_to_code,
+                    &mut unique_exact_alias_to_code,
+                    &mut case_sensitive_patterns,
+                );
             }
         }
 
@@ -80,6 +69,35 @@ impl CountryAliasData {
             case_sensitive_patterns,
         }
     }
+}
+
+fn add_alias(
+    alias: &str,
+    code: &str,
+    all_patterns: &mut Vec<String>,
+    pattern_to_codes: &mut HashMap<u32, HashSet<String>>,
+    unique_alias_to_code: &mut HashMap<Vec<String>, String>,
+    unique_exact_alias_to_code: &mut HashMap<Vec<String>, String>,
+    case_sensitive_patterns: &mut Vec<String>,
+) {
+    if !is_textual_alias(alias) {
+        return;
+    }
+    if requires_exact_token_match(alias) {
+        let tokens = original_tokens(alias);
+        if !tokens.is_empty() {
+            case_sensitive_patterns.push(alias.to_string());
+        }
+        insert_unique_alias(unique_exact_alias_to_code, tokens, code);
+        return;
+    }
+    let pattern_id = all_patterns.len() as u32;
+    all_patterns.push(alias.to_lowercase());
+    pattern_to_codes
+        .entry(pattern_id)
+        .or_default()
+        .insert(code.to_string());
+    insert_unique_alias(unique_alias_to_code, lowered_tokens(alias), code);
 }
 
 fn insert_unique_alias(map: &mut HashMap<Vec<String>, String>, tokens: Vec<String>, code: &str) {

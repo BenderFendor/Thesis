@@ -1,38 +1,40 @@
-export interface BranchableChatMessage {
-  id: string;
-  type: "user" | "assistant";
-  toolType?: string;
-  retryOfMessageId?: string;
-  parentMessageId?: string;
+interface BranchableChatMessage {
+  readonly id: string;
+  readonly type: "user" | "assistant";
+  readonly toolType?: string;
+  readonly retryOfMessageId?: string;
+  readonly parentMessageId?: string;
 }
 
-export interface MessageVersionInfo {
-  groupId: string;
-  currentIndex: number;
-  totalVersions: number;
-  versionIds: string[];
+interface MessageVersionInfo {
+  readonly groupId: string;
+  readonly currentIndex: number;
+  readonly totalVersions: number;
+  readonly versionIds: readonly string[];
 }
 
-type BranchGroupMap<T> = Map<string | null, Map<string, T[]>>;
+type BranchGroupMap<MessageType> = Map<string | null, Map<string, MessageType[]>>;
 
-function isVisibleConversationMessage<T extends BranchableChatMessage>(
-  message: T,
-): boolean {
-  return !message.toolType;
+interface BranchGroupResult<MessageType extends BranchableChatMessage> {
+  readonly branchGroups: BranchGroupMap<MessageType>;
+  readonly resolvedParents: Map<string, string | null>;
 }
 
-export function getMessageVersionGroupId(
+const isVisibleConversationMessage = (message: BranchableChatMessage): boolean =>
+  message.toolType === undefined || message.toolType === "";
+
+const getMessageVersionGroupId = (
   message: Pick<BranchableChatMessage, "id" | "retryOfMessageId">,
-): string {
-  return message.retryOfMessageId ?? message.id;
-}
+): string => message.retryOfMessageId ?? message.id;
 
-function getVisibleMessages<T extends BranchableChatMessage>(messages: T[]): T[] {
-  return messages.filter(isVisibleConversationMessage);
-}
+const getVisibleMessages = function getVisibleMessages<MessageType extends BranchableChatMessage>(
+  messages: readonly MessageType[],
+): MessageType[] {
+  return messages.filter((message) => isVisibleConversationMessage(message));
+};
 
-function getResolvedParentMap<T extends BranchableChatMessage>(
-  messages: T[],
+const getResolvedParentMap = function getResolvedParentMap(
+  messages: readonly BranchableChatMessage[],
 ): Map<string, string | null> {
   const resolvedParents = new Map<string, string | null>();
   let previousVisibleMessageId: string | null = null;
@@ -44,21 +46,18 @@ function getResolvedParentMap<T extends BranchableChatMessage>(
   });
 
   return resolvedParents;
-}
+};
 
-function getBranchGroupMap<T extends BranchableChatMessage>(
-  messages: T[],
-): {
-  branchGroups: BranchGroupMap<T>;
-  resolvedParents: Map<string, string | null>;
-} {
+const getBranchGroupMap = function getBranchGroupMap<MessageType extends BranchableChatMessage>(
+  messages: readonly MessageType[],
+): BranchGroupResult<MessageType> {
   const resolvedParents = getResolvedParentMap(messages);
-  const branchGroups: BranchGroupMap<T> = new Map();
+  const branchGroups: BranchGroupMap<MessageType> = new Map();
 
   getVisibleMessages(messages).forEach((message) => {
     const parentId = resolvedParents.get(message.id) ?? null;
     const groupId = getMessageVersionGroupId(message);
-    const parentGroups = branchGroups.get(parentId) ?? new Map<string, T[]>();
+    const parentGroups = branchGroups.get(parentId) ?? new Map<string, MessageType[]>();
     const siblings = parentGroups.get(groupId) ?? [];
 
     siblings.push(message);
@@ -67,57 +66,73 @@ function getBranchGroupMap<T extends BranchableChatMessage>(
   });
 
   return { branchGroups, resolvedParents };
-}
+};
 
-function resolveActiveVersion<T extends BranchableChatMessage>(
-  versions: T[],
+const resolveActiveVersion = function resolveActiveVersion<MessageType extends BranchableChatMessage>(
+  versions: readonly MessageType[],
   activeVersionId?: string,
-): T {
-  return (
-    versions.find((message) => message.id === activeVersionId) ??
-    versions[versions.length - 1]!
-  );
-}
+): MessageType {
+  const activeVersion = versions.find((message) => message.id === activeVersionId);
+  if (activeVersion !== undefined) {
+    return activeVersion;
+  }
+  const latestVersion = versions.at(-1);
+  if (latestVersion === undefined) {
+    throw new Error("Cannot resolve a version from an empty branch");
+  }
+  return latestVersion;
+};
 
-export function getVisibleConversationMessages<T extends BranchableChatMessage>(
-  messages: T[],
-  activeVersionByGroup: Record<string, string>,
-): T[] {
-  const { branchGroups } = getBranchGroupMap(messages);
-  const path: T[] = [];
+const getNextBranchMessage = function getNextBranchMessage<
+  MessageType extends BranchableChatMessage,
+>(
+  branchGroups: BranchGroupMap<MessageType>,
+  parentId: string | null,
+  activeVersionByGroup: Readonly<Record<string, string>>,
+): MessageType | undefined {
+  const childGroups = branchGroups.get(parentId);
+  if (!childGroups || childGroups.size === 0) {
+    return void 0;
+  }
+  const nextGroup = [...childGroups.entries()][0];
+  if (nextGroup === undefined) {
+    return void 0;
+  }
+  const [groupId, versions] = nextGroup;
+  return resolveActiveVersion(versions, activeVersionByGroup[groupId]);
+};
+
+const getVisibleConversationMessages = function getVisibleConversationMessages<
+  MessageType extends BranchableChatMessage,
+>(messages: readonly MessageType[], activeVersionByGroup: Readonly<Record<string, string>>): MessageType[] {
+  const { branchGroups } = getBranchGroupMap(messages),
+    path: MessageType[] = [];
   let parentId: string | null = null;
 
   while (true) {
-    const childGroups = branchGroups.get(parentId);
-    if (!childGroups || childGroups.size === 0) {
+    const nextMessage: MessageType | undefined = getNextBranchMessage<MessageType>(
+      branchGroups,
+      parentId,
+      activeVersionByGroup,
+    );
+    if (nextMessage === undefined) {
       break;
     }
 
-    const [groupId, versions] = childGroups.entries().next().value as [
-      string,
-      T[],
-    ];
-    const activeMessage = resolveActiveVersion(
-      versions,
-      activeVersionByGroup[groupId],
-    );
-
-    path.push(activeMessage);
-    parentId = activeMessage.id;
+    path.push(nextMessage);
+    parentId = nextMessage.id;
   }
 
   return path;
-}
+};
 
-export function getMessageVersionInfo<T extends BranchableChatMessage>(
-  messages: T[],
+const getMessageVersionInfo = function getMessageVersionInfo(
+  messages: readonly BranchableChatMessage[],
   messageId: string,
-  activeVersionByGroup: Record<string, string>,
+  activeVersionByGroup: Readonly<Record<string, string>>,
 ): MessageVersionInfo | null {
-  const { branchGroups, resolvedParents } = getBranchGroupMap(messages);
-  const targetMessage = getVisibleMessages(messages).find(
-    (message) => message.id === messageId,
-  );
+  const { branchGroups, resolvedParents } = getBranchGroupMap(messages),
+    targetMessage = getVisibleMessages(messages).find((message) => message.id === messageId);
 
   if (!targetMessage) {
     return null;
@@ -131,18 +146,14 @@ export function getMessageVersionInfo<T extends BranchableChatMessage>(
     return null;
   }
 
-  const activeVersion = resolveActiveVersion(
-    versions,
-    activeVersionByGroup[groupId],
-  );
-  const currentIndex = versions.findIndex(
-    (message) => message.id === activeVersion.id,
-  );
+  const activeVersion = resolveActiveVersion(versions, activeVersionByGroup[groupId]),
+    currentIndex = versions.findIndex((message) => message.id === activeVersion.id);
 
   return {
-    groupId,
     currentIndex,
+    groupId,
     totalVersions: versions.length,
     versionIds: versions.map((message) => message.id),
   };
-}
+};
+export { getMessageVersionGroupId, getVisibleConversationMessages, getMessageVersionInfo };

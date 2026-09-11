@@ -81,6 +81,74 @@ async def _match_reporter_id(db: AsyncSession, candidate_name: str) -> str | Non
     return str(rows[0])
 
 
+async def _prepare_external_ids(
+    db: AsyncSession,
+    record_kind: str,
+    entity_kind: str | None,
+    external_ids: dict[str, str],
+    candidate_name: str,
+) -> dict[str, str]:
+    clean_ids = {
+        scheme: value.strip() for scheme, value in external_ids.items() if value and value.strip()
+    }
+    is_person = record_kind == "person" or entity_kind == "person"
+    if is_person and "scoop_reporter_id" not in clean_ids:
+        reporter_id = await _match_reporter_id(db, candidate_name)
+        if reporter_id is not None:
+            clean_ids["scoop_reporter_id"] = reporter_id
+    return clean_ids
+
+
+async def _load_or_create_entity(
+    db: AsyncSession,
+    record_kind: str,
+    entity_kind: str | None,
+    clean_ids: dict[str, str],
+    candidate_name: str,
+) -> EvidenceEntity:
+    entity = await _find_by_external_ids(db, clean_ids)
+    if entity is None:
+        entity_id = f"ent_{stable_hash(record_kind, clean_ids, candidate_name)[:24]}"
+        entity = EvidenceEntity(
+            id=entity_id,
+            record_kind=record_kind,
+            entity_kind=entity_kind or record_kind,
+            canonical_name=candidate_name,
+            status="accepted",
+        )
+        db.add(entity)
+        await db.flush()
+    elif entity_kind and entity.entity_kind == entity.record_kind:
+        entity.entity_kind = entity_kind
+    return entity
+
+
+async def _attach_external_ids(
+    db: AsyncSession,
+    entity: EvidenceEntity,
+    clean_ids: dict[str, str],
+) -> None:
+    existing_rows = (
+        (await db.execute(select(EntityExternalId).where(EntityExternalId.entity_id == entity.id)))
+        .scalars()
+        .all()
+    )
+    existing_pairs = {(row.scheme, row.value) for row in existing_rows}
+    for scheme, value in clean_ids.items():
+        if (scheme, value) in existing_pairs:
+            continue
+        collision = (
+            await db.execute(
+                select(EntityExternalId).where(
+                    EntityExternalId.scheme == scheme, EntityExternalId.value == value
+                )
+            )
+        ).scalar_one_or_none()
+        if collision is None:
+            db.add(EntityExternalId(entity_id=entity.id, scheme=scheme, value=value))
+    await db.flush()
+
+
 async def resolve_or_create(
     db: AsyncSession,
     record_kind: str,
@@ -96,60 +164,9 @@ async def resolve_or_create(
     anything is a new `EvidenceEntity` created. Entities are never merged
     on `candidate_name` alone.
     """
-    clean_ids = {
-        scheme: value.strip() for scheme, value in external_ids.items() if value and value.strip()
-    }
-
-    is_person = record_kind == "person" or entity_kind == "person"
-    if is_person and "scoop_reporter_id" not in clean_ids:
-        # Reporter is a subtype of person: when this person's name unambiguously
-        # matches an existing `Reporter` row, attach the `scoop_reporter_id`
-        # external id so the Atlas projection unifies this entity's evidence
-        # onto that reporter's node instead of minting a duplicate person node.
-        # Skipped when the caller already supplied the id directly (the bulk
-        # byline ingestor knows its reporter id exactly and shouldn't pay for
-        # a name-match query on every one of its ~11k calls).
-        reporter_id = await _match_reporter_id(db, candidate_name)
-        if reporter_id is not None:
-            clean_ids["scoop_reporter_id"] = reporter_id
-
-    entity = await _find_by_external_ids(db, clean_ids)
-    if entity is None:
-        entity_id = f"ent_{stable_hash(record_kind, clean_ids, candidate_name)[:24]}"
-        entity = EvidenceEntity(
-            id=entity_id,
-            record_kind=record_kind,
-            entity_kind=entity_kind or record_kind,
-            canonical_name=candidate_name,
-            status="accepted",
-        )
-        db.add(entity)
-        await db.flush()
-    elif entity_kind and entity.entity_kind == entity.record_kind:
-        entity.entity_kind = entity_kind
-
-    existing_rows = (
-        (await db.execute(select(EntityExternalId).where(EntityExternalId.entity_id == entity.id)))
-        .scalars()
-        .all()
+    clean_ids = await _prepare_external_ids(
+        db, record_kind, entity_kind, external_ids, candidate_name
     )
-    existing_pairs = {(row.scheme, row.value) for row in existing_rows}
-
-    for scheme, value in clean_ids.items():
-        if (scheme, value) in existing_pairs:
-            continue
-        # Guard against a value already claimed by a *different* entity --
-        # the (scheme, value) unique constraint would otherwise raise.
-        collision = (
-            await db.execute(
-                select(EntityExternalId).where(
-                    EntityExternalId.scheme == scheme, EntityExternalId.value == value
-                )
-            )
-        ).scalar_one_or_none()
-        if collision is not None:
-            continue
-        db.add(EntityExternalId(entity_id=entity.id, scheme=scheme, value=value))
-
-    await db.flush()
+    entity = await _load_or_create_entity(db, record_kind, entity_kind, clean_ids, candidate_name)
+    await _attach_external_ids(db, entity, clean_ids)
     return entity

@@ -5,14 +5,21 @@
     "openapi:types": "npm --prefix frontend run openapi:types",
     "openapi:refresh": "npm run openapi:export && npm run openapi:types",
     "cli": "./scripts/scoop",
-    "cli:test": "node --test scripts/tests/scoop.test.ts",
+    "cli:test": "node --test scripts/tests/*.test.ts scripts/tests/*.test.mjs",
     "cli:typecheck": "frontend/node_modules/.bin/tsc -p scripts/tsconfig.json",
     "cli:schema:check": "./scripts/scoop schema check",
-    "deps:cycles": "bash ./scripts/check-cycles"
+    "deps:cycles": "bash ./scripts/check-cycles",
+    "quality:duplicates": "jscpd --config .jscpd.json -p '**/*.{ts,tsx,js,mjs,py,rs}' frontend backend scripts",
+    "quality:controller:test": "node --test scripts/tests/quality-hardening/*.test.mjs",
+    "quality:controller:validate": "node scripts/quality-hardening.mjs validate",
+    "quality:maintainability": "node scripts/check-maintainability.mjs",
+    "quality:all": "node scripts/quality-hardening.mjs verify --scope repo"
   },
   "devDependencies": {
     "@types/d3-geo": "^3.1.0",
-    "@types/three": "^0.180.0"
+    "@types/three": "^0.180.0",
+    "code-multivitals": "1.6.2",
+    "jscpd": "5.0.16"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",

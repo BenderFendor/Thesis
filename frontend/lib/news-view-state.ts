@@ -1,24 +1,32 @@
-import type { NewsArticle, CacheStatus } from "@/lib/api"
+import type { CacheStatus, NewsArticle } from "@/lib/api"
 
-export type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
+type UnifiedNewsView = "globe" | "grid" | "scroll" | "blindspot" | "live-news"
 
-export function getSharedViewArticles(
+function getSharedViewArticles(
   _view: UnifiedNewsView,
-  articles: NewsArticle[],
-): NewsArticle[] {
+  articles:readonly  NewsArticle[],
+): NewsArticle[]
+function getSharedViewArticles(
+  _view: UnifiedNewsView,
+  articles:readonly  NewsArticle[],
+): readonly NewsArticle[]
+function getSharedViewArticles(
+  _view: UnifiedNewsView,
+  articles: readonly NewsArticle[],
+): readonly NewsArticle[] {
   return articles
 }
 
-export function getSharedViewLoading(isLoading: boolean): boolean {
-  return isLoading
-}
+const getSharedViewLoading = (isLoading: boolean): boolean => 
+  isLoading
 
-export function getSharedArticleCount(
+
+const getSharedArticleCount = (
   cacheStatus: CacheStatus | null | undefined,
   totalCount: number,
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
   isLoading: boolean,
-): number {
+): number => {
   if (totalCount > 0 || (!isLoading && totalCount === 0)) {
     return totalCount
   }
@@ -30,11 +38,11 @@ export function getSharedArticleCount(
   return cacheStatus?.total_articles ?? 0
 }
 
-export function getSharedSourceCount(
+const getSharedSourceCount = (
   cacheStatus: CacheStatus | null | undefined,
-  articles: NewsArticle[],
+  articles:readonly  NewsArticle[],
   isLoading: boolean,
-): number {
+): number => {
   const sourceCount = new Set(
     articles
       .map((article) => article.sourceId || article.source)
@@ -47,3 +55,5 @@ export function getSharedSourceCount(
 
   return cacheStatus?.sources_working ?? 0
 }
+export { getSharedViewArticles, getSharedViewLoading, getSharedArticleCount, getSharedSourceCount };
+export type { UnifiedNewsView };

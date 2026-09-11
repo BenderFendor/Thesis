@@ -1,63 +1,98 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { NoveltyScoreResponse } from "@/lib/api";
 import { fetchNoveltyScore } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 interface NoveltyBadgeProps {
-  articleId: number;
-  readingHistory: number[];
-  className?: string;
+  readonly articleId: number;
+  readonly className?: string;
+  readonly readingHistory: readonly number[];
 }
 
-export function NoveltyBadge({
+interface NoveltyPresentation {
+  readonly color: string;
+  readonly label: string;
+}
+
+interface NoveltyScoreBadgeProps {
+  readonly className: string;
+  readonly novelty: Readonly<NoveltyScoreResponse>;
+}
+
+const NOVELTY_HIGH_THRESHOLD = 0.7,
+ NOVELTY_RELATED_THRESHOLD = 0.4,
+ NO_HISTORY_COUNT = 0,
+ NoveltyBadge = ({
   articleId,
   readingHistory,
   className = "",
-}: NoveltyBadgeProps) {
+}: Readonly<NoveltyBadgeProps>) => {
   const { data: novelty, isLoading: loading, error } = useQuery<NoveltyScoreResponse>({
-    queryKey: ["novelty-score", articleId, readingHistory],
+    enabled: readingHistory.length > NO_HISTORY_COUNT,
     queryFn: () => fetchNoveltyScore(articleId, readingHistory),
-    enabled: readingHistory.length > 0,
+    queryKey: ["novelty-score", articleId, readingHistory],
     retry: 1,
   });
 
-  if (readingHistory.length === 0) {
-    return null;
+  if (readingHistory.length === NO_HISTORY_COUNT) {
+    return false;
   }
 
   if (loading) {
     return (
-      <Badge variant="outline" className={`${className}`}>
+      <Badge variant="outline" className={className}>
         <Loader2 className="w-3 h-3 animate-spin mr-1" />
         <span className="text-[10px]">Checking...</span>
       </Badge>
     );
   }
 
-  if (error || !novelty) {
-    return null;
+  if (error || novelty === undefined) {
+    return false;
   }
 
-  const score = novelty.novelty_score;
-  const label = score >= 0.7 ? "New topic" : score >= 0.4 ? "Related" : "Similar";
-  const color =
-    score >= 0.7
-      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
-      : score >= 0.4
-      ? "bg-amber-500/15 text-amber-400 border-amber-500/40"
-      : "bg-slate-500/15 text-slate-400 border-slate-500/40";
+  return <NoveltyScoreBadge className={className} novelty={novelty} />;
+},
+
+ NoveltyScoreBadge = ({ className, novelty }: Readonly<NoveltyScoreBadgeProps>) => {
+  const { color, label } = getNoveltyPresentation(novelty.novelty_score),
+   percentage = Math.round(novelty.novelty_score * PERCENTAGE_SCALE);
 
   return (
     <Badge
       variant="outline"
       className={`${color} ${className}`}
-      title={`${Math.round(score * 100)}% novel compared to ${novelty.history_size} articles you've read`}
+      title={`${percentage}% novel compared to ${novelty.history_size} articles you've read`}
     >
       <Sparkles className="w-3 h-3 mr-1" />
       <span className="text-[10px]">{label}</span>
     </Badge>
   );
-}
+},
+
+ PERCENTAGE_SCALE = 100,
+ getNoveltyPresentation = (score: number): NoveltyPresentation => {
+  if (score >= NOVELTY_HIGH_THRESHOLD) {
+    return {
+      color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
+      label: "New topic",
+    };
+  }
+
+  if (score >= NOVELTY_RELATED_THRESHOLD) {
+    return {
+      color: "bg-amber-500/15 text-amber-400 border-amber-500/40",
+      label: "Related",
+    };
+  }
+
+  return {
+    color: "bg-slate-500/15 text-slate-400 border-slate-500/40",
+    label: "Similar",
+  };
+};
+
+export { NoveltyBadge };

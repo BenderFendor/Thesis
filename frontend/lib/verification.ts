@@ -1,197 +1,181 @@
 /**
  * Verification API client
- * 
+ *
  * Handles communication with the verification agent backend.
  */
 
-import { API_BASE_URL } from "./api";
-import { logger } from "./logger";
 import type {
   ConfidenceLevel,
   VerificationRequest,
   VerificationResult,
-  VerificationStatus,
-  VerificationSummary,
-  VerificationStreamEvent,
 } from "@/lib/types/verification";
-export type {
-  ConfidenceLevel,
-  SourceInfo,
-  VerifiedClaim,
-  VerificationRequest,
-  VerificationResult,
-  VerificationStatus,
-  VerificationSummary,
-  VerificationStreamEvent,
-} from "@/lib/types/verification";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import { api } from "./api";
+import { z } from "zod";
 
 // --- API Functions ---
 
-/**
- * Check if verification is enabled and get configuration.
- */
-export async function fetchVerificationStatus(): Promise<VerificationStatus> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/status`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch verification status: ${response.status}`);
-  }
-  return response.json();
-}
+const VerificationSourceSchema = z
+  .object({
+    credibility_score: z.number(),
+    domain: z.string(),
+    excerpt: z.string().nullable().optional(),
+    id: z.string(),
+    published_at: z.string().nullable().optional(),
+    source_type: z.enum([
+      "wire",
+      "newspaper",
+      "magazine",
+      "broadcast",
+      "nonprofit",
+      "fact_checker",
+      "government",
+      "academic",
+      "blog",
+      "social",
+      "unknown",
+    ]),
+    supports_claim: z.boolean(),
+    title: z.string().nullable().optional(),
+    url: z.string(),
+  })
+  .passthrough();
+
+const VerifiedClaimSchema = z
+  .object({
+    claim_text: z.string(),
+    confidence: z.number(),
+    confidence_level: z.enum(["high", "medium", "low", "very_low"]),
+    conflicting_sources: z.array(z.string()).default([]),
+    footnotes: z.array(z.number()).default([]),
+    id: z.string(),
+    needs_recheck: z.boolean(),
+    recheck_reason: z.string().nullable().optional(),
+    supporting_sources: z.array(z.string()).default([]),
+  })
+  .passthrough();
+
+const VerificationResultSchema = z
+  .object({
+    duration_ms: z.number(),
+    error: z.string().nullable().optional(),
+    generated_at: z.string().optional(),
+    markdown_report: z.string(),
+    overall_confidence: z.number(),
+    overall_confidence_level: z.enum(["high", "medium", "low", "very_low"]),
+    query: z.string(),
+    sources: z.record(z.string(), VerificationSourceSchema).default({}),
+    verified_claims: z.array(VerifiedClaimSchema).default([]),
+  })
+  .passthrough();
 
 /**
  * Verify claims from research output.
+ * @param {DeepReadonly<VerificationRequest>} request Research output to verify.
+ * @param {AbortSignal} [signal] Optional cancellation signal.
+ * @returns {Promise<VerificationResult>} The verification result.
  */
-export async function verifyResearch(
-  request: VerificationRequest,
-  signal?: AbortSignal
-): Promise<VerificationResult> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+const verifyResearch = async (
+  request: DeepReadonly<VerificationRequest>,
+  signal?: AbortSignal,
+): Promise<VerificationResult> =>
+  api("/api/verification/verify", VerificationResultSchema, {
     body: JSON.stringify(request),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
     signal,
   });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Verification failed: ${error}`);
-  }
-  
-  return response.json();
-}
-
-/**
- * Verify claims and get summary JSON response.
- */
-export async function verifyResearchJson(
-  request: VerificationRequest,
-  signal?: AbortSignal
-): Promise<VerificationSummary> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify/json`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal,
-  });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Verification failed: ${error}`);
-  }
-  
-  return response.json();
-}
-
-/**
- * Stream verification progress via SSE.
- */
-export async function* streamVerification(
-  request: VerificationRequest,
-  signal?: AbortSignal
-): AsyncGenerator<VerificationStreamEvent> {
-  const response = await fetch(`${API_BASE_URL}/api/verification/verify/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal,
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Verification stream failed: ${response.status}`);
-  }
-  
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("No response body");
-  }
-  
-  const decoder = new TextDecoder();
-  let buffer = "";
-  
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const event = JSON.parse(line.slice(6)) as VerificationStreamEvent;
-            yield event;
-          } catch (e) {
-            logger.warn("Failed to parse SSE event", { line, error: e });
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
 
 // --- Helpers ---
 
 /**
- * Get display color class for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display color class.
  */
-export function getConfidenceColor(level: ConfidenceLevel): string {
+const getConfidenceColor = (level: ConfidenceLevel): string => {
   switch (level) {
-    case "high":
+    case "high": {
       return "text-green-600 dark:text-green-400";
-    case "medium":
+    }
+    case "medium": {
       return "text-yellow-600 dark:text-yellow-400";
-    case "low":
+    }
+    case "low": {
       return "text-orange-600 dark:text-orange-400";
-    case "very_low":
+    }
+    case "very_low": {
       return "text-red-600 dark:text-red-400";
-    default:
+    }
+    default: {
       return "text-gray-600 dark:text-gray-400";
+    }
   }
-}
+};
 
 /**
- * Get background color class for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display background class.
  */
-export function getConfidenceBgColor(level: ConfidenceLevel): string {
+const getConfidenceBgColor = (level: ConfidenceLevel): string => {
   switch (level) {
-    case "high":
+    case "high": {
       return "bg-green-500/15 border-green-500/40";
-    case "medium":
+    }
+    case "medium": {
       return "bg-yellow-500/15 border-yellow-500/40";
-    case "low":
+    }
+    case "low": {
       return "bg-orange-500/15 border-orange-500/40";
-    case "very_low":
+    }
+    case "very_low": {
       return "bg-red-500/15 border-red-500/40";
-    default:
+    }
+    default: {
       return "bg-gray-500/15 border-gray-500/40";
+    }
   }
-}
+};
 
 /**
- * Get label for confidence level.
+ * @param {ConfidenceLevel} level Confidence level.
+ * @returns {string} Display label.
  */
-export function getConfidenceLabel(level: ConfidenceLevel): string {
+const getConfidenceLabel = (level: ConfidenceLevel): string => {
   switch (level) {
-    case "high":
+    case "high": {
       return "High";
-    case "medium":
+    }
+    case "medium": {
       return "Medium";
-    case "low":
+    }
+    case "low": {
       return "Low";
-    case "very_low":
+    }
+    case "very_low": {
       return "Very Low";
-    default:
+    }
+    default: {
       return "Unknown";
+    }
   }
-}
+};
 
 /**
- * Format confidence as percentage string.
+ * @param {number} confidence Confidence from zero to one.
+ * @returns {string} Percentage text.
  */
-export function formatConfidence(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
+const formatConfidence = (confidence: number): string => `${Math.round(confidence * 100)}%`;
+
+export {
+  verifyResearch,
+  getConfidenceColor,
+  getConfidenceBgColor,
+  getConfidenceLabel,
+  formatConfidence,
+};
+export type {
+  ConfidenceLevel,
+  SourceInfo,
+  VerifiedClaim,
+  VerificationResult,
+} from "@/lib/types/verification";

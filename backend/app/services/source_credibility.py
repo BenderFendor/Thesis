@@ -20,20 +20,22 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import (
-    SourceCredibility as SourceCredibilityModel,
-    SourceMetadata,
-    Organization,
     GDELTEvent,
+    Organization,
     SourceAnalysisScore,
+    SourceMetadata,
+)
+from app.database import (
+    SourceCredibility as SourceCredibilityModel,
 )
 from app.models.verification import SourceInfo, SourceType
 
@@ -126,27 +128,91 @@ async def _analysis_score_signal(
     return float(score_row.score) * 20.0, 1, provenance
 
 
+def _funding_signals(org: Organization) -> list[tuple[float, float, str]]:
+    signals: list[tuple[float, float, str]] = []
+    _append_funding_type_signal(signals, org.funding_type)
+    _append_parent_org_signal(signals, org.parent_orgs)
+    _append_optional_funding_signal(signals, org.ein, 60.0, 0.20, "irs_990_data")
+    _append_optional_funding_signal(
+        signals,
+        org.funding_sources,
+        50.0,
+        0.20,
+        "organization_funding",
+    )
+    _append_optional_funding_signal(signals, org.annual_revenue, 40.0, 0.15, "organization_revenue")
+    return signals
+
+
+def _append_funding_type_signal(
+    signals: list[tuple[float, float, str]],
+    funding_type: str | None,
+) -> None:
+    if funding_type:
+        score = 75.0 if funding_type in ("public", "independent", "non-profit") else 40.0
+        signals.append((score, 0.25, "wikidata_organization"))
+
+
+def _append_parent_org_signal(
+    signals: list[tuple[float, float, str]],
+    parent_orgs: Any,
+) -> None:
+    if isinstance(parent_orgs, list) and parent_orgs:
+        signals.append((min(len(parent_orgs), 5) * 20.0, 0.20, "wikidata_ownership_chain"))
+
+
+def _append_optional_funding_signal(
+    signals: list[tuple[float, float, str]],
+    value: Any,
+    score: float,
+    confidence: float,
+    source: str,
+) -> None:
+    if value:
+        signals.append((score, confidence, source))
+
+
 async def _metadata_policy_signals(
     db: AsyncSession, source_name: str, wanted_ids: set[str]
 ) -> list[dict[str, Any]] | None:
     """Return matching policy-transparency signals from source metadata."""
+    meta = await _source_metadata(db, source_name)
+    if meta is None:
+        return None
+    return _matching_policy_signals(meta.research_sources, wanted_ids)
+
+
+async def _source_metadata(db: AsyncSession, source_name: str) -> SourceMetadata | None:
     meta_result = await db.execute(
         select(SourceMetadata).where(
             func.lower(SourceMetadata.source_name) == func.lower(source_name)
         )
     )
-    meta = meta_result.scalars().first()
-    if not (meta and isinstance(meta.research_sources, dict)):
+    return meta_result.scalars().first()
+
+
+def _matching_policy_signals(
+    research_sources: Any,
+    wanted_ids: set[str],
+) -> list[dict[str, Any]] | None:
+    if not isinstance(research_sources, dict):
         return None
-    policy_items = meta.research_sources.get("policy_transparency") or {}
-    raw_signals = policy_items.get("signals") if isinstance(policy_items, dict) else []
-    signals = raw_signals if isinstance(raw_signals, list) else []
-    matched = [
-        s
-        for s in signals
-        if isinstance(s, dict) and str(s.get("id") or s.get("signal") or "").lower() in wanted_ids
-    ]
+    signals = _policy_signal_rows(research_sources)
+    matched = [signal for signal in signals if _is_wanted_policy_signal(signal, wanted_ids)]
     return matched or None
+
+
+def _policy_signal_rows(research_sources: dict[str, Any]) -> list[dict[str, Any]]:
+    policy_items = research_sources.get("policy_transparency") or {}
+    if not isinstance(policy_items, dict):
+        return []
+    raw_signals = policy_items.get("signals") or []
+    return [signal for signal in raw_signals if isinstance(signal, dict)]
+
+
+def _is_wanted_policy_signal(signal: dict[str, Any], wanted_ids: set[str]) -> bool:
+    signal_id = str(signal.get("id") or signal.get("signal") or "").lower()
+    return signal_id in wanted_ids
 
 
 def _policy_provenance(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -273,62 +339,18 @@ class CredibilitySignalStore:
     async def _compute_funding_transparency(
         self, db: AsyncSession, source_name: str
     ) -> dict[str, Any]:
-        signals_available = 0
-        signals_missing = 5
-        provenance: list[dict[str, Any]] = []
-        score = 0.0
-        weight_total = 0.0
-
         org_result = await db.execute(
             select(Organization).where(func.lower(Organization.name) == func.lower(source_name))
         )
         org = org_result.scalars().first()
-
-        if org:
-            if org.funding_type:
-                weight = 0.25
-                sub = 75.0 if org.funding_type in ("public", "independent", "non-profit") else 40.0
-                score += sub * weight
-                weight_total += weight
-                signals_available += 1
-                provenance.append(_make_provenance_entry("wikidata_organization", ""))
-
-            if org.parent_orgs and isinstance(org.parent_orgs, list) and len(org.parent_orgs) > 0:
-                weight = 0.20
-                depth = min(len(org.parent_orgs), 5)
-                score += (depth * 20.0) * weight
-                weight_total += weight
-                signals_available += 1
-                provenance.append(_make_provenance_entry("wikidata_ownership_chain", ""))
-
-            if org.ein:
-                weight = 0.20
-                score += 60.0 * weight
-                weight_total += weight
-                signals_available += 1
-                provenance.append(_make_provenance_entry("irs_990_data", ""))
-
-            if (
-                org.funding_sources
-                and isinstance(org.funding_sources, list)
-                and len(org.funding_sources) > 0
-            ):
-                weight = 0.20
-                score += 50.0 * weight
-                weight_total += weight
-                signals_available += 1
-                provenance.append(_make_provenance_entry("organization_funding", ""))
-
-            if org.annual_revenue:
-                weight = 0.15
-                score += 40.0 * weight
-                weight_total += weight
-                signals_available += 1
-                provenance.append(_make_provenance_entry("organization_revenue", ""))
-
-        if weight_total == 0:
+        signals = _funding_signals(org) if org else []
+        if not signals:
             return _make_empty_dimension("funding_transparency")
 
+        signals_available = len(signals)
+        score = sum(raw_score * weight for raw_score, weight, _source in signals)
+        weight_total = sum(weight for _raw_score, weight, _source in signals)
+        provenance = [_make_provenance_entry(source) for _, _, source in signals]
         normalized_score = min(100.0, round(score / weight_total, 1))
         signals_missing = 5 - signals_available
 
@@ -622,46 +644,75 @@ class CredibilitySignalStore:
     ) -> None:
         dims = profile.get("dimensions", {})
         for axis_name in CREDIBILITY_DIMENSIONS:
-            dim_data = dims.get(axis_name, {})
-            score_val = dim_data.get("score")
-
-            result = await db.execute(
-                select(SourceAnalysisScore).where(
-                    SourceAnalysisScore.source_name == source_name,
-                    SourceAnalysisScore.axis_name == axis_name,
-                )
-            )
-            existing = result.scalars().first()
-
-            if existing and score_val is not None:
-                existing.score = int(round(score_val / 20.0))
-                existing.confidence = "high" if dim_data.get("confidence", 0) >= 0.7 else "medium"
-                existing.prose_explanation = dim_data.get("explanation", "")
-                existing.citations = dim_data.get("provenance", [])
-                existing.empirical_basis = (
-                    "gdelt_and_wikidata"
-                    if "gdelt" in str(dim_data.get("provenance", [])).lower()
-                    else "structured_data"
-                )
-                existing.last_scored_at = datetime.now(UTC)
-                existing.scored_by = "credibility_engine"
-            elif existing is None and score_val is not None:
-                new_score = SourceAnalysisScore(
-                    source_name=source_name,
-                    axis_name=axis_name,
-                    score=int(round(score_val / 20.0)),
-                    confidence="high" if dim_data.get("confidence", 0) >= 0.7 else "medium",
-                    prose_explanation=dim_data.get("explanation", ""),
-                    citations=dim_data.get("provenance", []),
-                    empirical_basis="gdelt_and_wikidata"
-                    if "gdelt" in str(dim_data.get("provenance", [])).lower()
-                    else "structured_data",
-                    scored_by="credibility_engine",
-                    last_scored_at=datetime.now(UTC),
-                )
-                db.add(new_score)
+            await self._store_score_axis(db, source_name, axis_name, dims.get(axis_name, {}))
 
         await db.flush()
+
+    async def _store_score_axis(
+        self,
+        db: AsyncSession,
+        source_name: str,
+        axis_name: str,
+        dim_data: dict[str, Any],
+    ) -> None:
+        score_val = dim_data.get("score")
+        if score_val is None:
+            return
+        result = await db.execute(
+            select(SourceAnalysisScore).where(
+                SourceAnalysisScore.source_name == source_name,
+                SourceAnalysisScore.axis_name == axis_name,
+            )
+        )
+        existing = result.scalars().first()
+        if existing is not None:
+            self._update_score(existing, score_val, dim_data)
+            return
+        db.add(self._new_score(source_name, axis_name, score_val, dim_data))
+
+    @staticmethod
+    def _score_metadata(dim_data: dict[str, Any]) -> tuple[str, str, list[Any], str]:
+        provenance = dim_data.get("provenance", [])
+        basis = "gdelt_and_wikidata" if "gdelt" in str(provenance).lower() else "structured_data"
+        confidence = "high" if dim_data.get("confidence", 0) >= 0.7 else "medium"
+        return confidence, dim_data.get("explanation", ""), provenance, basis
+
+    @classmethod
+    def _update_score(
+        cls,
+        score: SourceAnalysisScore,
+        score_val: float,
+        dim_data: dict[str, Any],
+    ) -> None:
+        confidence, explanation, provenance, basis = cls._score_metadata(dim_data)
+        score.score = round(score_val / 20.0)
+        score.confidence = confidence
+        score.prose_explanation = explanation
+        score.citations = provenance
+        score.empirical_basis = basis
+        score.last_scored_at = datetime.now(UTC)
+        score.scored_by = "credibility_engine"
+
+    @classmethod
+    def _new_score(
+        cls,
+        source_name: str,
+        axis_name: str,
+        score_val: float,
+        dim_data: dict[str, Any],
+    ) -> SourceAnalysisScore:
+        confidence, explanation, provenance, basis = cls._score_metadata(dim_data)
+        return SourceAnalysisScore(
+            source_name=source_name,
+            axis_name=axis_name,
+            score=round(score_val / 20.0),
+            confidence=confidence,
+            prose_explanation=explanation,
+            citations=provenance,
+            empirical_basis=basis,
+            scored_by="credibility_engine",
+            last_scored_at=datetime.now(UTC),
+        )
 
     @staticmethod
     def _extract_domain(url_or_domain: str) -> str:
@@ -671,8 +722,7 @@ class CredibilitySignalStore:
         else:
             domain = url_or_domain.lower()
         domain = domain.split(":")[0]
-        if domain.startswith("www."):
-            domain = domain[4:]
+        domain = domain.removeprefix("www.")
         return domain
 
 
@@ -697,8 +747,8 @@ async def run_credibility_scoring_scheduler(interval_seconds: int = 86400) -> No
 
     Designed to be launched as an asyncio.Task from main.py.
     """
-    from app.database import AsyncSessionLocal
     from app.core.config import settings as app_settings
+    from app.database import AsyncSessionLocal
 
     logger.info("Starting credibility scoring scheduler (interval: %ds)", interval_seconds)
 
@@ -783,8 +833,7 @@ class CredibilityScorer:
         else:
             domain = url_or_domain.lower()
         domain = domain.split(":")[0]
-        if domain.startswith("www."):
-            domain = domain[4:]
+        domain = domain.removeprefix("www.")
         return domain
 
     def get_credibility(self, url_or_domain: str) -> tuple[float, SourceType]:
@@ -884,41 +933,30 @@ class CredibilityScorer:
 
         return 0.4 * type_diversity + 0.3 * domain_diversity + 0.3 * type_quality
 
+    @staticmethod
+    def _source_recency_score(source: SourceInfo, now: datetime) -> float:
+        if not source.published_at:
+            return 0.5
+        try:
+            pub_date = (
+                datetime.fromisoformat(source.published_at.replace("Z", "+00:00"))
+                if isinstance(source.published_at, str)
+                else source.published_at
+            )
+            if pub_date.tzinfo is None:
+                pub_date = pub_date.replace(tzinfo=UTC)
+            days_old = (now - pub_date).days
+        except (ValueError, TypeError):
+            return 0.5
+
+        for age_limit, score in ((1, 1.0), (7, 0.9), (30, 0.8), (90, 0.6), (365, 0.4)):
+            if days_old < age_limit:
+                return score
+        return 0.2
+
     def _calculate_recency(self, sources: list[SourceInfo]) -> float:
         now = datetime.now(UTC)
-        scores = []
-
-        for source in sources:
-            if not source.published_at:
-                scores.append(0.5)
-                continue
-
-            try:
-                if isinstance(source.published_at, str):
-                    pub_date = datetime.fromisoformat(source.published_at.replace("Z", "+00:00"))
-                else:
-                    pub_date = source.published_at
-
-                if pub_date.tzinfo is None:
-                    pub_date = pub_date.replace(tzinfo=UTC)
-
-                days_old = (now - pub_date).days
-
-                if days_old < 1:
-                    scores.append(1.0)
-                elif days_old < 7:
-                    scores.append(0.9)
-                elif days_old < 30:
-                    scores.append(0.8)
-                elif days_old < 90:
-                    scores.append(0.6)
-                elif days_old < 365:
-                    scores.append(0.4)
-                else:
-                    scores.append(0.2)
-            except (ValueError, TypeError):
-                scores.append(0.5)
-
+        scores = [self._source_recency_score(source, now) for source in sources]
         return sum(scores) / len(scores) if scores else 0.5
 
     def _calculate_agreement(

@@ -1,11 +1,24 @@
 "use client";
+import { hasText } from "@/lib/utils";
 
-import { useParams } from "next/navigation";
 import { PersonWikiView } from "./person-wiki-view";
+import { useParams } from "next/navigation";
 
-export default function PersonProfilePage() {
+const PersonProfilePage = () => {
   const params = useParams();
-  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const entityId = rawId ? `person:${decodeURIComponent(rawId)}` : "";
+  const rawId = (() => {
+  if (Array.isArray(params.id)) {
+    return params.id[0];
+  }
+  return params.id;
+})();
+  const entityId = (() => {
+  if (hasText(rawId)) {
+    return `person:${decodeURIComponent(rawId)}`;
+  }
+  return "";
+})();
   return <PersonWikiView entityId={entityId} />;
-}
+};
+
+export default PersonProfilePage;

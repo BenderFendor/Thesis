@@ -334,24 +334,481 @@ async def _search_internal_news_from_db(
         return await search_articles_by_keyword(session, query=query, limit=top_k)
 
 
+def _first_nonempty(*values: Any, default: Any = "") -> Any:
+    return next((value for value in values if value), default)
+
+
+def _article_identity(article: dict[str, Any]) -> tuple[str | None, str]:
+    article_id = _first_nonempty(article.get("id"), article.get("article_id"), default=None)
+    url = _normalize_url(_first_nonempty(article.get("url"), article.get("link")))
+    return (str(article_id) if article_id is not None else None, url)
+
+
+def _same_article_reference(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_id, left_url = _article_identity(left)
+    right_id, right_url = _article_identity(right)
+    return (left_id is not None and left_id == right_id) or bool(left_url and left_url == right_url)
+
+
+def _search_result_key(item: Any) -> str | None:
+    if not isinstance(item, dict):
+        return None
+    url = _normalize_url(str(_first_nonempty(item.get("url"), item.get("link"))))
+    title = str(_first_nonempty(item.get("title"), item.get("headline"))).strip().lower()
+    provider = str(item.get("provider") or "").strip().lower()
+    return url or (f"{provider}:{title}" if provider or title else None)
+
+
+def _gdelt_fallback_args(args: dict[str, Any]) -> dict[str, Any] | None:
+    query = _normalize_query(str(_first_nonempty(args.get("query"), args.get("keywords"))))
+    if not query:
+        return None
+    result: dict[str, Any] = {
+        "query": query,
+        "max_results": _coerce_positive_int(args.get("max_results"), 10),
+    }
+    timespan = str(args.get("timespan") or "").strip()
+    if timespan:
+        result["timespan"] = timespan
+    return result
+
+
+def _news_fallback_args(args: dict[str, Any]) -> dict[str, Any] | None:
+    keywords = _normalize_query(str(_first_nonempty(args.get("keywords"), args.get("query"))))
+    if not keywords:
+        return None
+    return {
+        "keywords": keywords,
+        "max_results": _coerce_positive_int(args.get("max_results"), 10),
+        "region": str(args.get("region") or "wt-wt").strip() or "wt-wt",
+    }
+
+
+_FALLBACK_ARG_BUILDERS = {
+    "gdelt_doc_search": _gdelt_fallback_args,
+    "news_search": _news_fallback_args,
+}
+
+
+def _next_fallback_call(
+    call: dict[str, Any],
+    current_tool_name: str,
+    tool_history: set[str],
+    tool_calls_used: int,
+) -> tuple[dict[str, Any] | None, int]:
+    for attempt, fallback_name in enumerate(
+        AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()), start=1
+    ):
+        candidate = _build_fallback_tool_call(call, fallback_name, attempt=attempt)
+        if candidate is None:
+            continue
+        key = _tool_call_key(candidate)
+        if key in tool_history:
+            continue
+        if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+            return None, tool_calls_used
+        tool_history.add(key)
+        return candidate, tool_calls_used + 1
+    return None, tool_calls_used
+
+
+def _internal_db_matches(query: str, top_k: int) -> list[dict[str, Any]]:
+    try:
+        return _run_async_blocking(_search_internal_news_from_db(query, top_k))
+    except Exception as exc:
+        logger.warning("Internal DB search failed: %s", exc)
+        return []
+
+
+def _internal_cache_matches(query_terms: list[str], top_k: int) -> list[dict[str, Any]]:
+    scored = [
+        (sum(term in _article_search_text(article) for term in query_terms), article)
+        for article in _news_articles_cache
+    ]
+    ranked = sorted(
+        (entry for entry in scored if entry[0]), key=lambda entry: entry[0], reverse=True
+    )
+    return [article for _score, article in ranked[:top_k]]
+
+
+def _article_search_text(article: dict[str, Any]) -> str:
+    return " ".join(
+        str(article.get(field) or "") for field in ("title", "summary", "description", "content")
+    ).lower()
+
+
+def _internal_result_payload(article: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": article.get("title"),
+        "source": article.get("source"),
+        "url": _first_nonempty(article.get("url"), article.get("link")),
+        "published": article.get("published"),
+        "summary": _first_nonempty(article.get("summary"), article.get("description")),
+        "provider": "internal",
+        "result_type": "internal",
+    }
+
+
+def _article_fetch_output(url: str, result: dict[str, Any]) -> str:
+    if "error" in result:
+        return f"Error fetching {url}: {result['error']}"
+    text = str(result.get("text", ""))
+    preview = text[:8000]
+    fallback = _build_external_reference(
+        url=url,
+        title=str(result.get("title") or "Untitled"),
+        source=str(
+            _first_nonempty(
+                result.get("source"), result.get("publisher"), default="External source"
+            )
+        ),
+        summary=preview[:1200],
+        published=str(result.get("publish_date") or ""),
+        image=str(result.get("top_image") or "") or None,
+    )
+    _track_reference_by_url(url, fallback)
+    return f"Title: {result.get('title', 'Untitled')}\nContent: {preview}"
+
+
+def _normalize_rag_documents(documents: Any) -> list[dict[str, Any]] | None:
+    if not isinstance(documents, str):
+        return documents
+    try:
+        parsed = json.loads(documents)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, list) else None
+
+
+def _index_rag_document(store: Any, document: dict[str, Any], index: int) -> int:
+    content = _first_nonempty(document.get("content"), document.get("text"))
+    if not content:
+        return 0
+    metadata = document.get("metadata", {})
+    title = _first_nonempty(
+        metadata.get("title"), document.get("title"), default="External Article"
+    )
+    unique_key = _first_nonempty(
+        metadata.get("url"), default=f"rag_{int(datetime.now(UTC).timestamp())}_{index}"
+    )
+    success = store.add_article(
+        article_id=str(unique_key),
+        title=title,
+        summary=content[:500],
+        content=content,
+        metadata=metadata,
+    )
+    return int(bool(success))
+
+
+def _external_search_block_reason(
+    tool_name: str,
+    *,
+    internal_search_done: bool,
+    internal_search_succeeded: bool,
+    internal_fetch_calls_done: int,
+    required_internal_fetches: int,
+) -> str | None:
+    if tool_name not in EXTERNAL_SEARCH_TOOLS:
+        return None
+    if not internal_search_done:
+        return "Use search_internal_news first. Check the internal archive before using external search."
+    if internal_search_succeeded and internal_fetch_calls_done < required_internal_fetches:
+        return "Internal search found relevant archive coverage. Read the internal article URLs with fetch_article_content before using external search."
+    return None
+
+
+def _tool_block_reason(
+    call: dict[str, Any],
+    *,
+    key: str,
+    tool_history: set[str],
+    search_query_keys: set[str],
+    tool_calls_used: int,
+    internal_search_done: bool,
+    internal_search_succeeded: bool,
+    internal_fetch_calls_done: int,
+    required_internal_fetches: int,
+) -> str | None:
+    tool_name = str(call.get("name", "unknown_tool"))
+    if key in tool_history:
+        logger.debug("dedup_tool_node: duplicate call key=%s", key)
+        return "Already called with the same arguments; use prior results already in context."
+    query = _extract_search_query(call) if tool_name in SEARCH_TOOLS_WITH_QUERY else None
+    if query and _search_queries_similar(query, search_query_keys):
+        logger.info("dedup_tool_node: similar query blocked tool=%s query=%s", tool_name, query)
+        return f"A very similar search query was already run. Reuse prior search results in context instead of repeating {query}."
+    if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
+        logger.warning(
+            "dedup_tool_node: session cap hit (%d), blocking call to %s",
+            MAX_TOOL_CALLS_PER_SESSION,
+            tool_name,
+        )
+        return f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). Synthesize a final answer from the context already gathered."
+    return _external_search_block_reason(
+        tool_name,
+        internal_search_done=internal_search_done,
+        internal_search_succeeded=internal_search_succeeded,
+        internal_fetch_calls_done=internal_fetch_calls_done,
+        required_internal_fetches=required_internal_fetches,
+    )
+
+
+def _tool_dedup_context(state: AgentState) -> dict[str, Any]:
+    last_msg = state["messages"][-1]
+    tool_history = set(state.get("tool_history", set()))
+    internal_succeeded, current_hits = _collect_internal_search_state(state.get("messages", []))
+    return {
+        "tool_calls": getattr(last_msg, "tool_calls", None) or [],
+        "tool_history": tool_history,
+        "tool_calls_used": int(state.get("tool_calls_used", 0)),
+        "internal_search_done": any(
+            key.startswith("search_internal_news:") for key in tool_history
+        ),
+        "internal_search_succeeded": internal_succeeded,
+        "internal_fetch_calls_done": _count_internal_fetches_done(tool_history),
+        "search_query_keys": {
+            key.removeprefix("search_query:")
+            for key in tool_history
+            if key.startswith("search_query:")
+        },
+        "required_internal_fetches": _required_internal_fetches_for_state(
+            internal_search_succeeded=internal_succeeded, current_message_internal_hits=current_hits
+        ),
+    }
+
+
+def _accept_tool_call(call: dict[str, Any], context: dict[str, Any]) -> ToolMessage | None:
+    key = _tool_call_key(call)
+    block = _dedup_block_message(
+        call,
+        key=key,
+        tool_history=context["tool_history"],
+        search_query_keys=context["search_query_keys"],
+        tool_calls_used=context["tool_calls_used"],
+        internal_search_done=context["internal_search_done"],
+        internal_search_succeeded=context["internal_search_succeeded"],
+        internal_fetch_calls_done=context["internal_fetch_calls_done"],
+        required_internal_fetches=context["required_internal_fetches"],
+    )
+    if block is not None:
+        return block
+    context["tool_history"].add(key)
+    context["tool_calls_used"] += 1
+    if _is_internal_fetch_call(call):
+        context["internal_fetch_calls_done"] += 1
+    query = _extract_search_query(call)
+    if query:
+        context["tool_history"].add(f"search_query:{query}")
+        context["search_query_keys"].add(query)
+    return None
+
+
+def _execute_unique_tool_calls(
+    state: AgentState, calls: list[dict[str, Any]], tool_history: set[str], tool_calls_used: int
+) -> tuple[list[ToolMessage], int]:
+    results: list[ToolMessage] = []
+    for call in calls:
+        if _is_stopped():
+            break
+        messages, tool_calls_used = _execute_tool_call_with_fallbacks(
+            state, call, tool_history, tool_calls_used
+        )
+        results.extend(messages)
+    return results, tool_calls_used
+
+
+def _base_model_result(state: AgentState) -> tuple[set[str], int]:
+    return set(state.get("tool_history", set())), int(state.get("tool_calls_used", 0))
+
+
+def _cancelled_model_result(state: AgentState) -> dict[str, Any]:
+    history, used = _base_model_result(state)
+    return {
+        "messages": [AIMessage(content="Research cancelled.")],
+        "iteration": state.get("iteration", 0),
+        "mode": "final",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
+
+
+def _final_model_messages(state: AgentState) -> list[Any]:
+    messages = list(state["messages"])
+    last_user = next(
+        (
+            str(message.content)
+            for message in reversed(messages)
+            if isinstance(message, HumanMessage)
+        ),
+        "",
+    )
+    snippets = [
+        _extract_text_from_message(message).strip()
+        if isinstance(message, AIMessage)
+        else str(message.content)
+        for message in messages
+        if isinstance(message, (AIMessage, HumanMessage))
+    ]
+    context_blob = "\n\n".join(snippet for snippet in snippets[-6:] if snippet)
+    return [
+        SystemMessage(content=_finalizer_system_prompt()),
+        HumanMessage(
+            content=(
+                "Return the final response with a section titled 'Answer'. Use the context provided.\n\n"
+                f"Question: {last_user}\n\nContext:\n{context_blob}"
+            )
+        ),
+    ]
+
+
+def _call_final_model(state: AgentState) -> dict[str, Any]:
+    history, used = _base_model_result(state)
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_llm().invoke(payload),
+        _final_model_messages(state),
+        "final mode invoke",
+    )
+    return {
+        "messages": [response],
+        "iteration": state.get("iteration", 0),
+        "mode": "final",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
+
+
+def _call_tool_router(state: AgentState) -> dict[str, Any]:
+    history, used = _base_model_result(state)
+    messages = _replace_system_message(state["messages"], _tool_router_system_prompt())
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_tool_router().invoke(payload), messages, "tool router invoke"
+    )
+    has_calls = isinstance(response, AIMessage) and bool(getattr(response, "tool_calls", None))
+    return {
+        "messages": [response],
+        "iteration": state.get("iteration", 0) + 1,
+        "mode": "research" if has_calls else "final_pending",
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
+
+
+def _call_research_model(state: AgentState) -> dict[str, Any]:
+    history, used = _base_model_result(state)
+    response = _invoke_with_llamacpp_recovery(
+        lambda payload: _get_model().invoke(payload), state["messages"], "research invoke"
+    )
+    iteration = state.get("iteration", 0) + 1
+    mode = _next_research_mode(response, iteration)
+    return {
+        "messages": [response],
+        "iteration": iteration,
+        "mode": mode,
+        "tool_history": history,
+        "tool_calls_used": used,
+    }
+
+
+def _next_research_mode(response: Any, iteration: int) -> str:
+    if iteration >= MAX_ITERATIONS:
+        return "final_pending"
+    if not isinstance(response, AIMessage):
+        return "research"
+    content = _extract_text_from_message(response)
+    return (
+        "tool_router"
+        if _needs_final_answer(content) and not getattr(response, "tool_calls", None)
+        else "research"
+    )
+
+
+def _context_snippet_line(article: dict[str, Any]) -> str:
+    title = _first_nonempty(article.get("title"), default="Untitled")
+    source = _first_nonempty(article.get("source"), default="Unknown")
+    url = _first_nonempty(article.get("url"), article.get("link"))
+    summary = _first_nonempty(
+        article.get("context_snippet"),
+        article.get("sentence"),
+        article.get("summary"),
+        article.get("description"),
+    )
+    published = article.get("published") or ""
+    provider = article.get("provider") or ""
+    provider_suffix = f" [{provider}]" if provider else ""
+    return f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}"
+
+
+def _run_research_graph(
+    query: str, chat_history: list[dict[str, str]] | None
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    initial_state: AgentState = {
+        "messages": _build_initial_messages(query, chat_history),
+        "iteration": 0,
+        "mode": "research",
+        "tool_history": set(),
+        "tool_calls_used": 0,
+    }
+    thinking_steps: list[dict[str, Any]] = []
+    tool_snippets: list[str] = []
+    logged_tool_calls: set[str] = set()
+    final_answer = ""
+    for update in _get_graph().stream(initial_state, stream_mode="updates"):
+        content, steps = _research_update(update, logged_tool_calls, tool_snippets)
+        if content is not None:
+            final_answer = content
+        thinking_steps.extend(steps)
+    return final_answer, thinking_steps, tool_snippets
+
+
+def _research_update(
+    update: dict[str, Any], logged: set[str], tool_snippets: list[str]
+) -> tuple[str | None, list[dict[str, Any]]]:
+    if "agent" in update:
+        content, steps = _agent_update_steps(update, logged)
+        return content, steps
+    if "tools" in update:
+        return None, _tool_update_events(update, tool_snippets)
+    return None, []
+
+
+def _resolve_referenced_articles(final_answer: str) -> list[dict[str, Any]]:
+    referenced = list(_referenced_articles_tracker)
+    return referenced or (_match_articles_in_text(final_answer) if final_answer else [])
+
+
+def _ensure_supported_final_answer(
+    query: str, answer: str, referenced: list[dict[str, Any]], tool_snippets: list[str]
+) -> str:
+    should_finalize = _needs_final_answer(answer) or bool(
+        referenced and _answer_denies_available_context(answer)
+    )
+    if not should_finalize:
+        return answer
+    synthesized = _finalize_answer(query, referenced, tool_snippets)
+    return synthesized or answer
+
+
+def _structured_articles_block(
+    query: str, referenced: list[dict[str, Any]], providers: list[str]
+) -> str:
+    if not referenced:
+        return ""
+    payload = {
+        "articles": referenced,
+        "total": len(referenced),
+        "query": query,
+        "source_providers": providers,
+    }
+    return f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
+
+
 def _track_reference(article: dict[str, Any]) -> None:
     if not article:
         return
-    article_id = article.get("id") or article.get("article_id")
-    url_key = _normalize_url(article.get("url") or article.get("link"))
-    already_seen = False
-    if article_id is not None:
-        already_seen = any(
-            str(article_id) == str(existing.get("id") or existing.get("article_id"))
-            for existing in _referenced_articles_tracker
-        )
-    if not already_seen and url_key:
-        already_seen = any(
-            _normalize_url(existing.get("url") or existing.get("link")) == url_key
-            for existing in _referenced_articles_tracker
-        )
-    if not already_seen:
-        _referenced_articles_tracker.append(article)
+    if any(_same_article_reference(article, existing) for existing in _referenced_articles_tracker):
+        return
+    _referenced_articles_tracker.append(article)
 
 
 def _track_reference_by_url(url: str, fallback: dict[str, Any] | None = None) -> None:
@@ -510,18 +967,12 @@ def _dedupe_search_results(
 ) -> list[dict[str, Any]]:
     deduped: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for group in result_groups:
-        for item in group:
-            if not isinstance(item, dict):
-                continue
-            url = _normalize_url(str(item.get("url") or item.get("link") or ""))
-            title = str(item.get("title") or item.get("headline") or "").strip().lower()
-            provider = str(item.get("provider") or "").strip().lower()
-            key = url or f"{provider}:{title}"
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            deduped.append(item)
+    for item in (item for group in result_groups for item in group):
+        key = _search_result_key(item)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
     return deduped
 
 
@@ -655,30 +1106,12 @@ def _build_fallback_tool_call(
     args = call.get("args", {})
     if not isinstance(args, dict):
         return None
-
-    if fallback_tool_name == "gdelt_doc_search":
-        query = _normalize_query(str(args.get("query") or args.get("keywords") or ""))
-        if not query:
-            return None
-        fallback_args: dict[str, Any] = {
-            "query": query,
-            "max_results": _coerce_positive_int(args.get("max_results"), 10),
-        }
-        timespan = str(args.get("timespan") or "").strip()
-        if timespan:
-            fallback_args["timespan"] = timespan
-    elif fallback_tool_name == "news_search":
-        keywords = _normalize_query(str(args.get("keywords") or args.get("query") or ""))
-        if not keywords:
-            return None
-        fallback_args = {
-            "keywords": keywords,
-            "max_results": _coerce_positive_int(args.get("max_results"), 10),
-            "region": str(args.get("region") or "wt-wt").strip() or "wt-wt",
-        }
-    else:
+    builder = _FALLBACK_ARG_BUILDERS.get(fallback_tool_name)
+    if builder is None:
         return None
-
+    fallback_args = builder(args)
+    if fallback_args is None:
+        return None
     base_id = str(call.get("id", "tool-fallback"))
     return {
         "id": f"{base_id}__fallback__{attempt}__{fallback_tool_name}",
@@ -706,47 +1139,19 @@ def _execute_tool_call_with_fallbacks(
     tool_calls_used: int,
 ) -> tuple[list[ToolMessage], int]:
     current_call = call
-
     while True:
         tool_messages = _invoke_tool_calls(state, [current_call])
         if not tool_messages:
             return [], tool_calls_used
-
-        current_tool_name = str(current_call.get("name", "unknown_tool"))
-        current_message = tool_messages[0]
-        if not _should_auto_fallback_tool_result(current_tool_name, current_message.content):
+        current_name = str(current_call.get("name", "unknown_tool"))
+        if not _should_auto_fallback_tool_result(current_name, tool_messages[0].content):
             return tool_messages, tool_calls_used
-
-        fallback_call: dict[str, Any] | None = None
-        for attempt, fallback_tool_name in enumerate(
-            AUTO_FALLBACK_TOOL_ORDER.get(current_tool_name, ()),
-            start=1,
-        ):
-            candidate = _build_fallback_tool_call(
-                current_call,
-                fallback_tool_name,
-                attempt=attempt,
-            )
-            if candidate is None:
-                continue
-            candidate_key = _tool_call_key(candidate)
-            if candidate_key in tool_history:
-                continue
-            if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
-                return tool_messages, tool_calls_used
-            tool_history.add(candidate_key)
-            tool_calls_used += 1
-            fallback_call = candidate
-            logger.info(
-                "Auto-fallback research tool %s -> %s",
-                current_tool_name,
-                fallback_tool_name,
-            )
-            break
-
+        fallback_call, tool_calls_used = _next_fallback_call(
+            current_call, current_name, tool_history, tool_calls_used
+        )
         if fallback_call is None:
             return tool_messages, tool_calls_used
-
+        logger.info("Auto-fallback research tool %s -> %s", current_name, fallback_call["name"])
         current_call = fallback_call
 
 
@@ -757,72 +1162,15 @@ def search_internal_news(query: str, top_k: int = 5) -> str:
     query_terms = _extract_query_terms(query)
     if not query_terms:
         return "Query too vague for internal search."
-
-    try:
-        db_matches = _run_async_blocking(_search_internal_news_from_db(query, top_k))
-    except Exception as exc:
-        logger.warning("Internal DB search failed: %s", exc)
-        db_matches = []
-
-    if db_matches:
-        _record_research_source_provider("internal")
-        for match in db_matches:
-            _register_article_lookup(match)
-            _track_reference(match)
-
-        payload = [
-            {
-                "title": article.get("title"),
-                "source": article.get("source"),
-                "url": article.get("url") or article.get("link"),
-                "published": article.get("published"),
-                "summary": article.get("summary") or article.get("description"),
-                "provider": "internal",
-                "result_type": "internal",
-            }
-            for article in db_matches[:top_k]
-        ]
-        return json.dumps(payload, indent=2)
-
-    if not _news_articles_cache:
+    db_matches = _internal_db_matches(query, top_k)
+    matches = db_matches or _internal_cache_matches(query_terms, top_k)
+    if not matches:
         return "No relevant articles found in internal archive."
-
-    scored: list[tuple[int, dict[str, Any]]] = []
-    for article in _news_articles_cache:
-        haystack = " ".join(
-            [
-                article.get("title", ""),
-                article.get("summary", ""),
-                article.get("description", ""),
-                article.get("content", ""),
-            ]
-        ).lower()
-        score = sum(term in haystack for term in query_terms)
-        if score:
-            scored.append((score, article))
-
-    if not scored:
-        return "No relevant articles found in internal archive."
-
-    scored.sort(key=lambda item: item[0], reverse=True)
-    matches = [item[1] for item in scored[:top_k]]
     _record_research_source_provider("internal")
     for match in matches:
+        _register_article_lookup(match)
         _track_reference(match)
-
-    payload = [
-        {
-            "title": article.get("title"),
-            "source": article.get("source"),
-            "url": article.get("url") or article.get("link"),
-            "published": article.get("published"),
-            "summary": article.get("summary") or article.get("description"),
-            "provider": "internal",
-            "result_type": "internal",
-        }
-        for article in matches
-    ]
-    return json.dumps(payload, indent=2)
+    return json.dumps([_internal_result_payload(article) for article in matches], indent=2)
 
 
 @tool
@@ -945,27 +1293,12 @@ def news_search(keywords: str, max_results: int = 10, region: str = "wt-wt") -> 
 def fetch_article_content(url: str) -> str:
     """Fetch and clean article content from the provided URL."""
     normalized = _normalize_url(url)
-    if normalized and normalized in _fetched_urls_cache:
+    cached = _fetched_urls_cache.get(normalized) if normalized else None
+    if cached is not None:
         logger.debug("fetch_article_content cache hit: %s", normalized)
-        return _fetched_urls_cache[normalized]
+        return cached
     result = extract_article_content(url)
-    if "error" in result:
-        out = f"Error fetching {url}: {result['error']}"
-        if normalized:
-            _fetched_urls_cache[normalized] = out
-        return out
-    text = result.get("text", "")
-    preview = text[:8000]
-    fallback = _build_external_reference(
-        url=url,
-        title=str(result.get("title") or "Untitled"),
-        source=str(result.get("source") or result.get("publisher") or "External source"),
-        summary=preview[:1200],
-        published=str(result.get("publish_date") or ""),
-        image=str(result.get("top_image") or "") or None,
-    )
-    _track_reference_by_url(url, fallback)
-    out = f"Title: {result.get('title', 'Untitled')}\nContent: {preview}"
+    out = _article_fetch_output(url, result)
     if normalized:
         _fetched_urls_cache[normalized] = out
     logger.debug("fetch_article_content fetched: %s", normalized)
@@ -975,34 +1308,15 @@ def fetch_article_content(url: str) -> str:
 @tool
 def rag_index_documents(documents: list[dict[str, Any]]) -> str:
     """Persist fresh documents into the vector store for future internal search."""
-    if isinstance(documents, str):
-        try:
-            documents = json.loads(documents)
-        except json.JSONDecodeError:
-            return "Invalid documents payload."
-
+    normalized = _normalize_rag_documents(documents)
+    if normalized is None:
+        return "Invalid documents payload."
     store = get_vector_store()
     if not store:
         return "Vector store is disabled or unavailable."
-
-    added = 0
-    for document in documents:
-        content = document.get("content") or document.get("text")
-        if not content:
-            continue
-        metadata = document.get("metadata", {})
-        title = metadata.get("title") or document.get("title") or "External Article"
-        summary = content[:500]
-        unique_key = metadata.get("url") or f"rag_{int(datetime.now(UTC).timestamp())}_{added}"
-        success = store.add_article(
-            article_id=str(unique_key),
-            title=title,
-            summary=summary,
-            content=content,
-            metadata=metadata,
-        )
-        if success:
-            added += 1
+    added = sum(
+        _index_rag_document(store, document, index) for index, document in enumerate(normalized)
+    )
     return f"Successfully indexed {added} documents." if added else "No documents were indexed."
 
 
@@ -1290,144 +1604,39 @@ def _dedup_block_message(
 ) -> ToolMessage | None:
     tool_call_id = str(call.get("id", "missing-tool-call-id"))
     tool_name = str(call.get("name", "unknown_tool"))
-
-    if key in tool_history:
-        logger.debug("dedup_tool_node: duplicate call key=%s", key)
-        return ToolMessage(
-            content="Already called with the same arguments; use prior results already in context.",
-            tool_call_id=tool_call_id,
-            name=tool_name,
-        )
-
-    if tool_name in SEARCH_TOOLS_WITH_QUERY:
-        raw_query = _extract_search_query(call)
-        if raw_query and _search_queries_similar(raw_query, search_query_keys):
-            logger.info(
-                "dedup_tool_node: similar query blocked tool=%s query=%s",
-                tool_name,
-                raw_query,
-            )
-            return ToolMessage(
-                content=(
-                    "A very similar search query was already run. "
-                    f"Reuse prior search results in context instead of repeating {raw_query}."
-                ),
-                tool_call_id=tool_call_id,
-                name=tool_name,
-            )
-
-    if tool_calls_used >= MAX_TOOL_CALLS_PER_SESSION:
-        logger.warning(
-            "dedup_tool_node: session cap hit (%d), blocking call to %s",
-            MAX_TOOL_CALLS_PER_SESSION,
-            tool_name,
-        )
-        return ToolMessage(
-            content=(
-                f"Tool call limit reached ({MAX_TOOL_CALLS_PER_SESSION} unique calls per session). "
-                "Synthesize a final answer from the context already gathered."
-            ),
-            tool_call_id=tool_call_id,
-            name=tool_name,
-        )
-
-    if tool_name in EXTERNAL_SEARCH_TOOLS and not internal_search_done:
-        return ToolMessage(
-            content="Use search_internal_news first. Check the internal archive before using external search.",
-            tool_call_id=tool_call_id,
-            name=tool_name,
-        )
-
-    if (
-        tool_name in EXTERNAL_SEARCH_TOOLS
-        and internal_search_succeeded
-        and internal_fetch_calls_done < required_internal_fetches
-    ):
-        return ToolMessage(
-            content=(
-                "Internal search found relevant archive coverage. Read the internal "
-                "article URLs with fetch_article_content before using external search."
-            ),
-            tool_call_id=tool_call_id,
-            name=tool_name,
-        )
-
-    return None
+    content = _tool_block_reason(
+        call,
+        key=key,
+        tool_history=tool_history,
+        search_query_keys=search_query_keys,
+        tool_calls_used=tool_calls_used,
+        internal_search_done=internal_search_done,
+        internal_search_succeeded=internal_search_succeeded,
+        internal_fetch_calls_done=internal_fetch_calls_done,
+        required_internal_fetches=required_internal_fetches,
+    )
+    if content is None:
+        return None
+    return ToolMessage(content=content, tool_call_id=tool_call_id, name=tool_name)
 
 
 def _dedup_tool_node(state: AgentState) -> dict[str, Any]:
-    """Intercept the last AIMessage and deduplicate tool calls before execution.
-
-    Keeps the first occurrence of each (tool_name, args) pair across the
-    entire session. Duplicate calls get a synthetic ToolMessage instead of
-    being executed, which stops the LLM's batch-duplicate doom loop.
-
-    Also enforces MAX_TOOL_CALLS_PER_SESSION: once that many unique calls
-    have been made, all further calls are short-circuited regardless of args.
-    """
-    last_msg = state["messages"][-1]
-    tool_calls = getattr(last_msg, "tool_calls", None) or []
-    tool_history = set(state.get("tool_history", set()))
-    tool_calls_used = int(state.get("tool_calls_used", 0))
-    internal_search_done = any(key.startswith("search_internal_news:") for key in tool_history)
-    internal_search_succeeded, current_message_internal_hits = _collect_internal_search_state(
-        state.get("messages", [])
-    )
-    internal_fetch_calls_done = _count_internal_fetches_done(tool_history)
-    search_query_keys = {
-        key.removeprefix("search_query:") for key in tool_history if key.startswith("search_query:")
-    }
-    required_internal_fetches = _required_internal_fetches_for_state(
-        internal_search_succeeded=internal_search_succeeded,
-        current_message_internal_hits=current_message_internal_hits,
-    )
-
-    results: list[ToolMessage] = []
+    """Deduplicate and policy-check tool calls before execution."""
+    context = _tool_dedup_context(state)
+    blocked: list[ToolMessage] = []
     unique_calls: list[dict[str, Any]] = []
-
-    for call in tool_calls:
-        key = _tool_call_key(call)
-        block = _dedup_block_message(
-            call,
-            key=key,
-            tool_history=tool_history,
-            search_query_keys=search_query_keys,
-            tool_calls_used=tool_calls_used,
-            internal_search_done=internal_search_done,
-            internal_search_succeeded=internal_search_succeeded,
-            internal_fetch_calls_done=internal_fetch_calls_done,
-            required_internal_fetches=required_internal_fetches,
-        )
-        if block is not None:
-            results.append(block)
-            continue
-        tool_history.add(key)
-        tool_calls_used += 1
-        unique_calls.append(call)
-        if _is_internal_fetch_call(call):
-            internal_fetch_calls_done += 1
-        if query_text := _extract_search_query(call):
-            query_key = f"search_query:{query_text}"
-            tool_history.add(query_key)
-            search_query_keys.add(query_text)
-
-    if unique_calls:
-        executed_results: list[ToolMessage] = []
-        for call in unique_calls:
-            if _is_stopped():
-                break
-            tool_messages, tool_calls_used = _execute_tool_call_with_fallbacks(
-                state,
-                call,
-                tool_history,
-                tool_calls_used,
-            )
-            executed_results.extend(tool_messages)
-        results = executed_results + results
-
+    for call in context["tool_calls"]:
+        block = _accept_tool_call(call, context)
+        if block is None:
+            unique_calls.append(call)
+        else:
+            blocked.append(block)
+    executed, tool_calls_used = _execute_unique_tool_calls(
+        state, unique_calls, context["tool_history"], context["tool_calls_used"]
+    )
     return {
-        "messages": results,
-        "tool_history": tool_history,
+        "messages": executed + blocked,
+        "tool_history": context["tool_history"],
         "tool_calls_used": tool_calls_used,
     }
 
@@ -1460,100 +1669,15 @@ class AgentState(TypedDict):
 
 
 def call_model(state: AgentState) -> dict[str, Any]:
-    """Call Model."""
-    mode = state.get("mode", "research")
-    tool_history = set(state.get("tool_history", set()))
-    tool_calls_used = int(state.get("tool_calls_used", 0))
+    """Invoke the model appropriate for the current agent mode."""
     if _is_stopped():
-        return {
-            "messages": [AIMessage(content="Research cancelled.")],
-            "iteration": state.get("iteration", 0),
-            "mode": "final",
-            "tool_history": tool_history,
-            "tool_calls_used": tool_calls_used,
-        }
+        return _cancelled_model_result(state)
+    mode = state.get("mode", "research")
     if mode in {"final", "final_pending"}:
-        messages = list(state["messages"])
-        last_user = ""
-        for message in reversed(messages):
-            if isinstance(message, HumanMessage):
-                last_user = str(message.content)
-                break
-
-        snippets = []
-        for message in messages:
-            if isinstance(message, AIMessage):
-                content = _extract_text_from_message(message).strip()
-                if content:
-                    snippets.append(content)
-            elif isinstance(message, HumanMessage):
-                snippets.append(str(message.content))
-        context_blob = "\n\n".join(snippets[-6:])
-
-        messages = [
-            SystemMessage(content=_finalizer_system_prompt()),
-            HumanMessage(
-                content=(
-                    "Return the final response with a section titled 'Answer'. "
-                    "Use the context provided.\n\n"
-                    f"Question: {last_user}\n\nContext:\n{context_blob}"
-                )
-            ),
-        ]
-        response = _invoke_with_llamacpp_recovery(
-            lambda payload: _get_llm().invoke(payload),
-            messages,
-            "final mode invoke",
-        )
-        return {
-            "messages": [response],
-            "iteration": state.get("iteration", 0),
-            "mode": "final",
-            "tool_history": tool_history,
-            "tool_calls_used": tool_calls_used,
-        }
-
+        return _call_final_model(state)
     if mode == "tool_router":
-        messages = _replace_system_message(
-            state["messages"],
-            _tool_router_system_prompt(),
-        )
-        response = _invoke_with_llamacpp_recovery(
-            lambda payload: _get_tool_router().invoke(payload),
-            messages,
-            "tool router invoke",
-        )
-        next_mode = "research"
-        if isinstance(response, AIMessage) and not getattr(response, "tool_calls", None):
-            next_mode = "final_pending"
-        return {
-            "messages": [response],
-            "iteration": state.get("iteration", 0) + 1,
-            "mode": next_mode,
-            "tool_history": tool_history,
-            "tool_calls_used": tool_calls_used,
-        }
-
-    response = _invoke_with_llamacpp_recovery(
-        lambda payload: _get_model().invoke(payload),
-        state["messages"],
-        "research invoke",
-    )
-    iteration = state.get("iteration", 0) + 1
-    next_mode = "research"
-    if isinstance(response, AIMessage):
-        content = _extract_text_from_message(response)
-        if iteration >= MAX_ITERATIONS:
-            next_mode = "final_pending"
-        elif _needs_final_answer(content) and not getattr(response, "tool_calls", None):
-            next_mode = "tool_router"
-    return {
-        "messages": [response],
-        "iteration": iteration,
-        "mode": next_mode,
-        "tool_history": tool_history,
-        "tool_calls_used": tool_calls_used,
-    }
+        return _call_tool_router(state)
+    return _call_research_model(state)
 
 
 def _extract_text_from_message(message: BaseMessage) -> str:
@@ -1650,23 +1774,7 @@ def _answer_denies_available_context(answer_text: str) -> bool:
 
 
 def _build_context_snippet(referenced_articles: list[dict[str, Any]]) -> str:
-    lines: list[str] = []
-    for article in referenced_articles[:8]:
-        title = article.get("title") or "Untitled"
-        source = article.get("source") or "Unknown"
-        url = article.get("url") or article.get("link") or ""
-        summary = (
-            article.get("context_snippet")
-            or article.get("sentence")
-            or article.get("summary")
-            or article.get("description")
-            or ""
-        )
-        published = article.get("published") or ""
-        provider = article.get("provider") or ""
-        provider_suffix = f" [{provider}]" if provider else ""
-        lines.append(f"- {title} ({source}){provider_suffix} {published}\n  {url}\n  {summary}")
-    return "\n".join(lines)
+    return "\n".join(_context_snippet_line(article) for article in referenced_articles[:8])
 
 
 def _build_tool_evidence_snippet(tool_snippets: list[str]) -> str:
@@ -1781,55 +1889,17 @@ def research_news(
     verbose: bool = True,
     chat_history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """Research News."""
+    """Research news and return the synthesized answer plus evidence metadata."""
     _stop_events.event = None
     set_news_articles(articles)
-    initial_state: AgentState = {
-        "messages": _build_initial_messages(query, chat_history),
-        "iteration": 0,
-        "mode": "research",
-        "tool_history": set(),
-        "tool_calls_used": 0,
-    }
-
-    thinking_steps: list[dict[str, Any]] = []
-    final_answer = ""
-    tool_snippets: list[str] = []
-    logged_tool_calls: set[str] = set()
-
-    for update in _get_graph().stream(initial_state, stream_mode="updates"):
-        if "agent" in update:
-            content_text, steps = _agent_update_steps(update, logged_tool_calls)
-            final_answer = content_text
-            thinking_steps.extend(steps)
-        if "tools" in update:
-            thinking_steps.extend(_tool_update_events(update, tool_snippets))
-
-    referenced_articles = list(_referenced_articles_tracker)
-    if not referenced_articles and final_answer:
-        referenced_articles = _match_articles_in_text(final_answer)
-
-    if _needs_final_answer(final_answer) or (
-        referenced_articles and _answer_denies_available_context(final_answer)
-    ):
-        synthesized = _finalize_answer(query, referenced_articles, tool_snippets)
-        if synthesized:
-            final_answer = synthesized
-
+    final_answer, thinking_steps, tool_snippets = _run_research_graph(query, chat_history)
+    referenced_articles = _resolve_referenced_articles(final_answer)
+    final_answer = _ensure_supported_final_answer(
+        query, final_answer, referenced_articles, tool_snippets
+    )
     final_answer = _sanitize_final_answer(final_answer)
-
     source_providers = sorted(_research_source_providers)
-
-    structured_block = ""
-    if referenced_articles:
-        payload = {
-            "articles": referenced_articles,
-            "total": len(referenced_articles),
-            "query": query,
-            "source_providers": source_providers,
-        }
-        structured_block = f"\n```json:articles\n{json.dumps(payload, indent=2)}\n```\n"
-
+    structured_block = _structured_articles_block(query, referenced_articles, source_providers)
     result: dict[str, Any] = {
         "success": bool(final_answer),
         "query": query,
@@ -1842,7 +1912,6 @@ def research_news(
     }
     if structured_block and structured_block not in final_answer:
         result["answer"] += structured_block
-
     return result
 
 

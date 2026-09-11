@@ -1,14 +1,4 @@
-"""Verification agent for cross-referencing research claims.
-
-Extracts claims from research output, searches for supporting/conflicting sources,
-calculates confidence scores, and generates verification reports.
-
-Design:
-- Runs in parallel with main research agent (fire and forget)
-- Uses sandbox for isolated workspace
-- Respects timeout limits (15s default)
-- Caches verified claims to avoid redundant checks
-"""
+"""Verification agent for cross-referencing research claims."""
 
 from __future__ import annotations
 
@@ -16,7 +6,7 @@ import asyncio
 import hashlib
 import re
 import time
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from types import TracebackType
 from typing import Any, cast
 
@@ -47,7 +37,6 @@ logger = get_logger("verification_agent")
 
 
 def _confidence_to_level(confidence: float) -> ConfidenceLevel:
-    """Convert numeric confidence to level."""
     if confidence >= 0.8:
         return ConfidenceLevel.HIGH
     if confidence >= 0.5:
@@ -58,25 +47,33 @@ def _confidence_to_level(confidence: float) -> ConfidenceLevel:
 
 
 def _hash_claim(claim_text: str) -> str:
-    """Generate consistent hash for claim text."""
     normalized = " ".join(claim_text.lower().split())
     return hashlib.sha256(normalized.encode()).hexdigest()[:32]
 
 
-class VerificationAgent:
-    """Cross-references research claims against multiple sources.
+def _source_ids_by_support(sources: list[SourceInfo], supports: bool) -> list[str]:
+    return [source.id for source in sources if source.supports_claim is supports]
 
-    Usage:
-        async with VerificationAgent(db) as agent:
-            result = await agent.verify(request)
-    """
+
+def _cached_source_ids(source_dicts: list[dict[str, Any]], supports: bool) -> list[str]:
+    return [
+        item["id"] for item in source_dicts if bool(item.get("supports_claim", True)) is supports
+    ]
+
+
+def _valid_keyword_articles(articles: list[Any]) -> list[Any]:
+    return [article for article in articles if article.id is not None and article.url]
+
+
+class VerificationAgent:
+    """Cross-reference research claims against internal and external sources."""
 
     def __init__(
         self,
         db: AsyncSession | None = None,
         session_id: str | None = None,
     ) -> None:
-        """Initialize."""
+        """Initialize a verification agent for an optional database session."""
         self.db = db
         self.session_id = session_id
         self.sandbox: VerificationSandbox | None = None
@@ -86,7 +83,7 @@ class VerificationAgent:
         self._footnote_counter = 0
 
     async def __aenter__(self) -> VerificationAgent:
-        """Context manager enter."""
+        """Create the verification sandbox and initialize source scoring."""
         self.sandbox = VerificationSandbox(self.session_id)
         if self.db:
             self.scorer = await get_scorer_with_db(self.db)
@@ -102,12 +99,11 @@ class VerificationAgent:
         exc_val: BaseException | None,
         _exc_tb: TracebackType | None,
     ) -> None:
-        """Context manager exit."""
+        """Clean up the verification sandbox when the context exits."""
         if self.sandbox:
             self.sandbox.cleanup()
 
     def _time_remaining_ms(self) -> int:
-        """Get remaining time before timeout in milliseconds."""
         if not self._start_time:
             return settings.verification_max_duration_seconds * 1000
         elapsed = (time.time() - self._start_time) * 1000
@@ -115,212 +111,166 @@ class VerificationAgent:
         return max(0, int(remaining))
 
     def _should_abort(self) -> bool:
-        """Check if we should abort due to timeout."""
         return self._time_remaining_ms() < 500
 
-    async def verify(
-        self,
-        request: VerificationRequest,
-    ) -> VerificationResult:
-        """Verify claims from research output.
+    def _empty_result(self, request: VerificationRequest, message: str) -> VerificationResult:
+        assert self._start_time is not None
+        return VerificationResult(
+            query=request.query,
+            overall_confidence=0.0,
+            overall_confidence_level=ConfidenceLevel.VERY_LOW,
+            verified_claims=[],
+            sources={},
+            markdown_report=message,
+            duration_ms=int((time.time() - self._start_time) * 1000),
+        )
 
-        Steps:
-        1. Extract claims from main_answer
-        2. Check cache for previously verified claims
-        3. Search for supporting/conflicting sources
-        4. Calculate confidence scores
-        5. Generate verification result
-        """
+    async def _verify_claims(self, claims: list[str]) -> list[VerifiedClaim]:
+        verified_claims: list[VerifiedClaim] = []
+        for claim_text in claims[: settings.verification_max_claims]:
+            if self._should_abort():
+                logger.info("Verification timeout, stopping early")
+                break
+            verified = await self._verify_single_claim(claim_text)
+            if verified is not None:
+                verified_claims.append(verified)
+        return verified_claims
+
+    async def verify(self, request: VerificationRequest) -> VerificationResult:
+        """Extract, verify, score, and format the claims in a research answer."""
         self._start_time = time.time()
         self._sources = {}
         self._footnote_counter = 0
-
         try:
-            claims_text = self._extract_claims(request.main_answer or "")
-
-            if not claims_text:
-                return VerificationResult(
-                    query=request.query,
-                    overall_confidence=0.0,
-                    overall_confidence_level=ConfidenceLevel.VERY_LOW,
-                    verified_claims=[],
-                    sources={},
-                    markdown_report="No verifiable claims found in the response.",
-                    duration_ms=int((time.time() - self._start_time) * 1000),
-                )
-
-            claims_text = claims_text[: settings.verification_max_claims]
-
-            verified_claims: list[VerifiedClaim] = []
-            for claim_text in claims_text:
-                if self._should_abort():
-                    logger.info("Verification timeout, stopping early")
-                    break
-
-                verified = await self._verify_single_claim(claim_text)
-                if verified:
-                    verified_claims.append(verified)
-
-            overall_confidence = self._calculate_overall_confidence(verified_claims)
-
+            claims = self._extract_claims(request.main_answer or "")
+            if not claims:
+                return self._empty_result(request, "No verifiable claims found in the response.")
+            verified_claims = await self._verify_claims(claims)
+            confidence = self._calculate_overall_confidence(verified_claims)
             from app.services.verification_output import format_markdown_report
 
-            markdown = format_markdown_report(
-                verified_claims,
-                self._sources,
-                overall_confidence,
-            )
-
-            duration_ms = int((time.time() - self._start_time) * 1000)
-
             return VerificationResult(
                 query=request.query,
-                overall_confidence=overall_confidence,
-                overall_confidence_level=_confidence_to_level(overall_confidence),
+                overall_confidence=confidence,
+                overall_confidence_level=_confidence_to_level(confidence),
                 verified_claims=verified_claims,
                 sources=self._sources,
-                markdown_report=markdown,
-                duration_ms=duration_ms,
+                markdown_report=format_markdown_report(
+                    verified_claims,
+                    self._sources,
+                    confidence,
+                ),
+                duration_ms=int((time.time() - self._start_time) * 1000),
             )
-
         except Exception as exc:
             logger.error("Verification failed: %s", exc, exc_info=True)
-            duration_ms = int((time.time() - self._start_time) * 1000)
-            return VerificationResult(
-                query=request.query,
-                overall_confidence=0.0,
-                overall_confidence_level=ConfidenceLevel.VERY_LOW,
-                verified_claims=[],
-                sources={},
-                markdown_report="",
-                duration_ms=duration_ms,
-                error=str(exc),
-            )
+            result = self._empty_result(request, "")
+            result.error = str(exc)
+            return result
 
     def _extract_claims(self, text: str) -> list[str]:
-        """Extract verifiable factual claims from text.
-
-        Looks for:
-        - Statements with numbers/statistics
-        - Quotes attributed to people
-        - Date-specific events
-        - Comparative statements
-        """
         if not text:
             return []
+        sentences = (sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text))
+        return [sentence for sentence in sentences if self._is_claim_candidate(sentence)]
 
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        claims = []
-
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if len(sentence) < 20 or len(sentence) > 500:
-                continue
-
-            if self._is_verifiable_claim(sentence):
-                claims.append(sentence)
-
-        return claims
+    def _is_claim_candidate(self, sentence: str) -> bool:
+        return 20 <= len(sentence) <= 500 and self._is_verifiable_claim(sentence)
 
     def _is_verifiable_claim(self, sentence: str) -> bool:
-        """Determine if a sentence contains a verifiable claim."""
-        has_number = bool(re.search(r"\d+", sentence))
-        has_quote = '"' in sentence or "'" in sentence
-        has_date = bool(
-            re.search(
-                r"\b(january|february|march|april|may|june|july|august|"
-                r"september|october|november|december|\d{4})\b",
-                sentence.lower(),
-            )
-        )
-        has_attribution = bool(
-            re.search(
-                r"\b(said|stated|reported|announced|according to|"
-                r"claims|confirmed|denied)\b",
-                sentence.lower(),
-            )
-        )
-        has_comparison = bool(
-            re.search(
-                r"\b(more than|less than|greater|fewer|increased|decreased|"
-                r"rose|fell|dropped|surged)\b",
-                sentence.lower(),
-            )
-        )
-
-        meta_patterns = [
+        lowered = sentence.lower()
+        meta_patterns = (
             r"^(note|remember|keep in mind|it'?s important)",
             r"^(in summary|to summarize|in conclusion)",
             r"^(for more information|see also|related)",
-        ]
-        is_meta = any(re.search(p, sentence.lower()) for p in meta_patterns)
-
-        if is_meta:
+        )
+        if any(re.search(pattern, lowered) for pattern in meta_patterns):
             return False
+        signal_patterns = (
+            r"\d+",
+            r"[\"']",
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december|\d{4})\b",
+            r"\b(said|stated|reported|announced|according to|claims|confirmed|denied)\b",
+            r"\b(more than|less than|greater|fewer|increased|decreased|rose|fell|dropped|surged)\b",
+        )
+        return any(re.search(pattern, lowered) for pattern in signal_patterns)
 
-        return has_number or has_quote or has_date or has_attribution or has_comparison
+    def _claim_without_sources(self, claim_hash: str, claim_text: str) -> VerifiedClaim:
+        return VerifiedClaim(
+            id=claim_hash,
+            claim_text=claim_text,
+            confidence=0.2,
+            confidence_level=ConfidenceLevel.LOW,
+            supporting_sources=[],
+            conflicting_sources=[],
+            footnotes=[],
+            needs_recheck=True,
+            recheck_reason="No sources found",
+        )
 
-    async def _verify_single_claim(
-        self,
-        claim_text: str,
-    ) -> VerifiedClaim | None:
-        """Verify a single claim by searching for sources."""
+    def _register_sources(self, sources: list[SourceInfo]) -> list[int]:
+        footnotes: list[int] = []
+        for source in sources:
+            self._footnote_counter += 1
+            footnotes.append(self._footnote_counter)
+            self._sources[source.id] = source
+        return footnotes
+
+    def _claim_with_sources(
+        self, claim_hash: str, claim_text: str, sources: list[SourceInfo]
+    ) -> VerifiedClaim:
+        confidence = self.scorer.calculate_claim_confidence(sources) if self.scorer else 0.5
+        needs_recheck = confidence < settings.verification_recheck_threshold
+        return VerifiedClaim(
+            id=claim_hash,
+            claim_text=claim_text,
+            confidence=confidence,
+            confidence_level=_confidence_to_level(confidence),
+            supporting_sources=_source_ids_by_support(sources, True),
+            conflicting_sources=_source_ids_by_support(sources, False),
+            footnotes=self._register_sources(sources),
+            needs_recheck=needs_recheck,
+            recheck_reason="Low confidence" if needs_recheck else None,
+        )
+
+    async def _verify_single_claim(self, claim_text: str) -> VerifiedClaim:
         claim_hash = _hash_claim(claim_text)
-
         cached = await self._check_cache(claim_hash)
-        if cached:
+        if cached is not None:
             logger.debug("Cache hit for claim: %s", claim_text[:50])
             return cached
-
         sources = await self._search_sources(claim_text)
-
-        if not sources:
-            verified = VerifiedClaim(
-                id=claim_hash,
-                claim_text=claim_text,
-                confidence=0.2,
-                confidence_level=ConfidenceLevel.LOW,
-                supporting_sources=[],
-                conflicting_sources=[],
-                footnotes=[],
-                needs_recheck=True,
-                recheck_reason="No sources found",
-            )
-        else:
-            supporting = [s.id for s in sources if s.supports_claim]
-            conflicting = [s.id for s in sources if not s.supports_claim]
-
-            confidence = self.scorer.calculate_claim_confidence(sources) if self.scorer else 0.5
-
-            footnotes = []
-            for source in sources:
-                self._footnote_counter += 1
-                footnotes.append(self._footnote_counter)
-                self._sources[source.id] = source
-
-            needs_recheck = confidence < settings.verification_recheck_threshold
-
-            verified = VerifiedClaim(
-                id=claim_hash,
-                claim_text=claim_text,
-                confidence=confidence,
-                confidence_level=_confidence_to_level(confidence),
-                supporting_sources=supporting,
-                conflicting_sources=conflicting,
-                footnotes=footnotes,
-                needs_recheck=needs_recheck,
-                recheck_reason="Low confidence" if needs_recheck else None,
-            )
-
+        verified = (
+            self._claim_with_sources(claim_hash, claim_text, sources)
+            if sources
+            else self._claim_without_sources(claim_hash, claim_text)
+        )
         await self._cache_claim(verified)
-
         return verified
 
+    def _restore_cached_sources(self, source_dicts: list[dict[str, Any]]) -> None:
+        for source_dict in source_dicts:
+            source = SourceInfo(**source_dict)
+            self._sources[source.id] = source
+            self._footnote_counter += 1
+
+    def _claim_from_cache(self, claim_hash: str, cached: VerificationCache) -> VerifiedClaim:
+        source_dicts = [item for item in (cached.sources_json or []) if isinstance(item, dict)]
+        self._restore_cached_sources(source_dicts)
+        return VerifiedClaim(
+            id=claim_hash,
+            claim_text=cast(str, cached.claim_text),
+            confidence=cast(float, cached.confidence),
+            confidence_level=ConfidenceLevel(cached.confidence_level or "medium"),
+            supporting_sources=_cached_source_ids(source_dicts, True),
+            conflicting_sources=_cached_source_ids(source_dicts, False),
+            footnotes=list(range(1, len(source_dicts) + 1)),
+            needs_recheck=False,
+        )
+
     async def _check_cache(self, claim_hash: str) -> VerifiedClaim | None:
-        """Check if claim is in cache and still valid."""
         if not self.db:
             return None
-
         try:
             result = await self.db.execute(
                 select(VerificationCache).where(
@@ -329,213 +279,257 @@ class VerificationAgent:
                 )
             )
             cached = result.scalar_one_or_none()
-
-            if not cached:
-                return None
-
-            sources_data = cached.sources_json or []
-            for source_dict in sources_data:
-                source = SourceInfo(**source_dict)
-                self._sources[source.id] = source
-                self._footnote_counter += 1
-
-            return VerifiedClaim(
-                id=claim_hash,
-                claim_text=cast(str, cached.claim_text),
-                confidence=cast(float, cached.confidence),
-                confidence_level=ConfidenceLevel(cached.confidence_level or "medium"),
-                supporting_sources=[s["id"] for s in sources_data if s.get("supports_claim", True)],
-                conflicting_sources=[
-                    s["id"] for s in sources_data if not s.get("supports_claim", True)
-                ],
-                footnotes=list(range(1, len(sources_data) + 1)),
-                needs_recheck=False,
-            )
+            return self._claim_from_cache(claim_hash, cached) if cached else None
         except Exception as exc:
             logger.warning("Cache check failed: %s", exc)
             return None
 
     async def _cache_claim(self, claim: VerifiedClaim) -> None:
-        """Cache verified claim for future lookups."""
         if not self.db:
             return
-
         try:
+            source_ids = claim.supporting_sources + claim.conflicting_sources
             sources_json = [
-                self._sources[sid].model_dump()
-                for sid in claim.supporting_sources + claim.conflicting_sources
-                if sid in self._sources
+                self._sources[source_id].model_dump()
+                for source_id in source_ids
+                if source_id in self._sources
             ]
-
-            expires_at = datetime.now(UTC) + timedelta(hours=settings.verification_cache_ttl_hours)
-
             cache_entry = VerificationCache(
                 claim_hash=claim.id,
                 claim_text=claim.claim_text,
                 confidence=cast(Any, claim.confidence),
                 confidence_level=claim.confidence_level.value,
                 sources_json=sources_json,
-                expires_at=expires_at,
+                expires_at=datetime.now(UTC)
+                + timedelta(hours=settings.verification_cache_ttl_hours),
             )
-
             await self.db.merge(cache_entry)
             await self.db.commit()
         except Exception as exc:
             logger.warning("Cache write failed: %s", exc)
 
-    async def _search_sources(
-        self,
-        claim_text: str,
-    ) -> list[SourceInfo]:
-        """Search for sources that support or contradict the claim.
+    @staticmethod
+    def _append_unique(
+        destination: list[SourceInfo],
+        candidates: list[SourceInfo],
+        seen_urls: set[str],
+        limit: int,
+    ) -> None:
+        for source in candidates:
+            if len(destination) >= limit:
+                return
+            if source.url in seen_urls:
+                continue
+            seen_urls.add(source.url)
+            destination.append(source)
 
-        Strategy:
-        1. Search internal sources first (ChromaDB + PostgreSQL)
-        2. Supplement with DuckDuckGo for external verification
-        """
-        sources: list[SourceInfo] = []
+    async def _search_sources(self, claim_text: str) -> list[SourceInfo]:
         max_sources = settings.verification_max_sources_per_claim
+        sources: list[SourceInfo] = []
         seen_urls: set[str] = set()
-
-        internal_sources = await self._search_internal_sources(claim_text)
-        for source in internal_sources:
-            if len(sources) >= max_sources:
-                break
-            if source.url not in seen_urls:
-                seen_urls.add(source.url)
-                sources.append(source)
-
+        self._append_unique(
+            sources,
+            await self._search_internal_sources(claim_text),
+            seen_urls,
+            max_sources,
+        )
         if len(sources) < max_sources:
-            remaining = max_sources - len(sources)
-            external_sources = await self._search_external_sources(claim_text, remaining)
-            for source in external_sources:
-                if len(sources) >= max_sources:
-                    break
-                if source.url not in seen_urls:
-                    seen_urls.add(source.url)
-                    sources.append(source)
-
+            self._append_unique(
+                sources,
+                await self._search_external_sources(claim_text, max_sources - len(sources)),
+                seen_urls,
+                max_sources,
+            )
         return sources
 
-    async def _search_internal_sources(
-        self,
-        claim_text: str,
-    ) -> list[SourceInfo]:
-        """Search ChromaDB and PostgreSQL for relevant articles.
+    async def _load_keyword_articles(self, claim_text: str) -> list[Any]:
+        if not self.db:
+            return []
+        try:
+            return await search_article_records_by_keyword(self.db, query=claim_text, limit=5)
+        except Exception as exc:
+            logger.warning("Internal keyword search failed: %s", exc)
+            return []
 
-        Returns SourceInfo objects for matching internal articles.
-        """
+    async def _keyword_sources(self, claim_text: str) -> tuple[list[SourceInfo], set[int]]:
+        articles = await self._load_keyword_articles(claim_text)
+        valid = _valid_keyword_articles(articles)
+        return (
+            [self._article_to_source_info(article, similarity_score=0.7) for article in valid],
+            {int(article.id) for article in valid},
+        )
+
+    async def _vector_results(self, claim_text: str) -> list[dict[str, Any]]:
         from app.vector_store import get_vector_store
 
-        sources: list[SourceInfo] = []
-        seen_article_ids: set[int] = set()
-
-        if self.db:
-            try:
-                keyword_articles = await search_article_records_by_keyword(
-                    self.db,
-                    query=claim_text,
-                    limit=5,
-                )
-                for article in keyword_articles:
-                    if article.id is None or not article.url:
-                        continue
-                    seen_article_ids.add(article.id)
-                    sources.append(self._article_to_source_info(article, similarity_score=0.7))
-            except Exception as exc:
-                logger.warning("Internal keyword search failed: %s", exc)
-
         vector_store = get_vector_store()
-        if vector_store:
-            try:
-                vector_results = await asyncio.to_thread(
-                    vector_store.search_similar,
-                    claim_text,
-                    limit=5,
-                )
+        if vector_store is None:
+            return []
+        try:
+            results = await asyncio.to_thread(vector_store.search_similar, claim_text, limit=5)
+            return [result for result in results if isinstance(result, dict)]
+        except Exception as exc:
+            logger.warning("Internal vector search failed: %s", exc)
+            return []
 
-                article_ids = [r.get("article_id") for r in vector_results if r.get("article_id")]
+    @staticmethod
+    def _vector_article_ids(vector_results: list[dict[str, Any]]) -> list[int]:
+        return [
+            article_id
+            for result in vector_results
+            if isinstance((article_id := result.get("article_id")), int)
+        ]
 
-                if article_ids and self.db:
-                    fetched_articles = await fetch_article_records_by_ids(
-                        self.db,
-                        [article_id for article_id in article_ids if isinstance(article_id, int)],
-                    )
-                    article_map: dict[int, Any] = {}
-                    for fetched_article in fetched_articles:
-                        fetched_article_id = getattr(fetched_article, "id", None)
-                        if not isinstance(fetched_article_id, int):
-                            continue
-                        article_map[fetched_article_id] = fetched_article
+    @staticmethod
+    def _vector_article_map(articles: list[Any]) -> dict[int, Any]:
+        return {
+            article_id: article
+            for article in articles
+            if isinstance((article_id := getattr(article, "id", None)), int)
+        }
 
-                    for vr in vector_results:
-                        article_id = vr.get("article_id")
-                        if not isinstance(article_id, int):
-                            continue
-                        maybe_article = article_map.get(article_id)
-                        if maybe_article is None:
-                            continue
-                        article = maybe_article
-                        article_url = getattr(article, "url", None)
-                        if not article_url:
-                            continue
-                        article_record_id = article_id
-                        if article_record_id in seen_article_ids:
-                            continue
+    async def _load_vector_articles(self, article_ids: list[int]) -> list[Any]:
+        if not self.db:
+            return []
+        if not article_ids:
+            return []
+        return await fetch_article_records_by_ids(self.db, article_ids)
 
-                        source = self._article_to_source_info(
-                            article,
-                            similarity_score=vr.get("similarity_score", 0.5),
-                        )
-                        sources.append(source)
-                        seen_article_ids.add(article_record_id)
+    async def _fetch_vector_articles(self, vector_results: list[dict[str, Any]]) -> dict[int, Any]:
+        article_ids = self._vector_article_ids(vector_results)
+        articles = await self._load_vector_articles(article_ids)
+        return self._vector_article_map(articles)
 
-                        article_title = getattr(article, "title", None)
+    def _vector_source(
+        self,
+        result: dict[str, Any],
+        article_map: dict[int, Any],
+        seen_ids: set[int],
+    ) -> tuple[int, SourceInfo] | None:
+        article_id = result.get("article_id")
+        if not isinstance(article_id, int):
+            return None
+        if article_id in seen_ids:
+            return None
+        article = article_map.get(article_id)
+        if article is None:
+            return None
+        if not getattr(article, "url", None):
+            return None
+        return article_id, self._article_to_source_info(
+            article,
+            similarity_score=float(result.get("similarity_score", 0.5)),
+        )
 
-                        logger.debug(
-                            "Internal source found: %s (similarity=%.2f)",
-                            article_title[:50]
-                            if isinstance(article_title, str) and article_title
-                            else "Untitled",
-                            vr.get("similarity_score", 0),
-                        )
-
-            except Exception as exc:
-                logger.warning("Internal vector search failed: %s", exc)
-
+    def _vector_sources(
+        self,
+        vector_results: list[dict[str, Any]],
+        article_map: dict[int, Any],
+        seen_ids: set[int],
+    ) -> list[SourceInfo]:
+        sources: list[SourceInfo] = []
+        for result in vector_results:
+            vector_source = self._vector_source(result, article_map, seen_ids)
+            if vector_source is None:
+                continue
+            article_id, source = vector_source
+            sources.append(source)
+            seen_ids.add(article_id)
         return sources
+
+    async def _search_internal_sources(self, claim_text: str) -> list[SourceInfo]:
+        """Combine database keyword matches and vector similarity matches."""
+        keyword_sources, seen_ids = await self._keyword_sources(claim_text)
+        vector_results = await self._vector_results(claim_text)
+        article_map = await self._fetch_vector_articles(vector_results)
+        return keyword_sources + self._vector_sources(vector_results, article_map, seen_ids)
 
     def _article_to_source_info(
         self,
         article: Any,
         similarity_score: float = 0.5,
     ) -> SourceInfo:
-        """Convert a database Article to SourceInfo."""
-        from urllib.parse import urlparse
-
-        url = article.url or ""
-        domain = urlparse(url).netloc if url else "internal"
-
-        credibility, source_type = (
-            self.scorer.get_credibility(domain) if self.scorer else (0.7, SourceType.UNKNOWN)
-        )
-
-        credibility = max(credibility, 0.6 + (similarity_score * 0.2))
-
-        published_at = None
-        if article.published_at:
-            published_at = article.published_at.isoformat()
-
+        url = self._article_url(article)
+        domain = self._article_domain(url)
+        credibility, source_type = self._article_credibility(domain, similarity_score)
         return SourceInfo(
             id=f"internal_{article.id}",
             url=url,
             title=article.title,
             domain=domain,
-            credibility_score=min(credibility, 1.0),
+            credibility_score=credibility,
             source_type=source_type,
-            published_at=published_at,
+            published_at=self._article_published_at(article),
             supports_claim=True,
-            excerpt=(article.summary or "")[:200],
+            excerpt=self._article_excerpt(article),
+        )
+
+    @staticmethod
+    def _article_url(article: Any) -> str:
+        return article.url or ""
+
+    @staticmethod
+    def _article_domain(url: str) -> str:
+        from urllib.parse import urlparse
+
+        return urlparse(url).netloc if url else "internal"
+
+    def _article_credibility(
+        self, domain: str, similarity_score: float
+    ) -> tuple[float, SourceType]:
+        if self.scorer is None:
+            credibility, source_type = 0.7, SourceType.UNKNOWN
+        else:
+            credibility, source_type = self.scorer.get_credibility(domain)
+        credibility = max(credibility, 0.6 + (similarity_score * 0.2))
+        return min(credibility, 1.0), source_type
+
+    @staticmethod
+    def _article_published_at(article: Any) -> str | None:
+        return article.published_at.isoformat() if article.published_at else None
+
+    @staticmethod
+    def _article_excerpt(article: Any) -> str:
+        return (article.summary or "")[:200]
+
+    @staticmethod
+    def _external_url(result: dict[str, Any]) -> str | None:
+        url = result.get("href") or result.get("link")
+        if not isinstance(url, str):
+            return None
+        if not url:
+            return None
+        return url
+
+    def _external_source(self, result: dict[str, Any]) -> SourceInfo | None:
+        url = self._external_url(result)
+        if url is None:
+            return None
+        if self.sandbox is not None and not self.sandbox.is_domain_allowed(url):
+            return None
+        return self._scored_or_fallback_source(url, result)
+
+    def _scored_or_fallback_source(self, url: str, result: dict[str, Any]) -> SourceInfo:
+        if self.scorer is not None:
+            return self.scorer.get_source_info(
+                url=url,
+                title=result.get("title"),
+                published_at=result.get("published"),
+                supports_claim=True,
+                excerpt=str(result.get("body", ""))[:200],
+            )
+        return self._fallback_external_source(url, result)
+
+    @staticmethod
+    def _fallback_external_source(url: str, result: dict[str, Any]) -> SourceInfo:
+        return SourceInfo(
+            id=hashlib.sha256(url.encode()).hexdigest()[:12],
+            url=url,
+            title=result.get("title"),
+            domain=url.split("/")[2] if "/" in url else url,
+            credibility_score=0.5,
+            supports_claim=True,
+            excerpt=str(result.get("body", ""))[:200],
         )
 
     async def _search_external_sources(
@@ -543,88 +537,51 @@ class VerificationAgent:
         claim_text: str,
         max_results: int = 5,
     ) -> list[SourceInfo]:
-        """Search DuckDuckGo for external sources.
-
-        Filters to allowed domains only.
-        """
-        sources: list[SourceInfo] = []
         query = self._build_search_query(claim_text)
-
         try:
             results = await asyncio.to_thread(self._ddg_search, query, max_results * 2)
-
-            for result in results:
-                if len(sources) >= max_results:
-                    break
-
-                url = result.get("href") or result.get("link")
-                if not url:
-                    continue
-
-                if self.sandbox and not self.sandbox.is_domain_allowed(url):
-                    continue
-
-                source = (
-                    self.scorer.get_source_info(
-                        url=url,
-                        title=result.get("title"),
-                        published_at=result.get("published"),
-                        supports_claim=True,
-                        excerpt=result.get("body", "")[:200],
-                    )
-                    if self.scorer
-                    else SourceInfo(
-                        id=hashlib.sha256(url.encode()).hexdigest()[:12],
-                        url=url,
-                        title=result.get("title"),
-                        domain=url.split("/")[2] if "/" in url else url,
-                        credibility_score=0.5,
-                        supports_claim=True,
-                        excerpt=result.get("body", "")[:200],
-                    )
-                )
-
-                sources.append(source)
-
         except Exception as exc:
             logger.warning("External source search failed: %s", exc)
-
-        return sources
+            return []
+        sources = [source for result in results if (source := self._external_source(result))]
+        return sources[:max_results]
 
     def _build_search_query(self, claim_text: str) -> str:
-        """Build search query from claim text."""
-        tokens = claim_text.split()
-        if len(tokens) > 12:
-            tokens = tokens[:12]
-        return " ".join(tokens)
+        return " ".join(claim_text.split()[:12])
 
     def _ddg_search(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
-        """Perform DuckDuckGo search (blocking, run in thread)."""
         try:
-            ddgs = cast(Any, DDGS())
-            results = list(ddgs.text(query, max_results=max_results))
-            return results
+            return list(cast(Any, DDGS()).text(query, max_results=max_results))
         except Exception as exc:
             logger.warning("DDG search failed: %s", exc)
             return []
 
-    def _calculate_overall_confidence(
-        self,
-        claims: list[VerifiedClaim],
+    @staticmethod
+    def _claim_source_counts(claims: list[VerifiedClaim]) -> list[int]:
+        return [len(claim.supporting_sources + claim.conflicting_sources) for claim in claims]
+
+    @staticmethod
+    def _mean_claim_confidence(claims: list[VerifiedClaim]) -> float:
+        return sum(claim.confidence for claim in claims) / len(claims)
+
+    @staticmethod
+    def _weighted_claim_confidence(
+        claims: list[VerifiedClaim], source_counts: list[int], total_sources: int
     ) -> float:
-        """Calculate overall confidence across all claims."""
+        weighted_sum = sum(
+            claim.confidence * source_count
+            for claim, source_count in zip(claims, source_counts, strict=True)
+        )
+        return weighted_sum / total_sources
+
+    def _calculate_overall_confidence(self, claims: list[VerifiedClaim]) -> float:
         if not claims:
             return 0.0
-
-        weighted_sum = sum(
-            c.confidence * len(c.supporting_sources + c.conflicting_sources) for c in claims
-        )
-        total_sources = sum(len(c.supporting_sources + c.conflicting_sources) for c in claims)
-
+        source_counts = self._claim_source_counts(claims)
+        total_sources = sum(source_counts)
         if total_sources == 0:
-            return sum(c.confidence for c in claims) / len(claims)
-
-        return weighted_sum / total_sources
+            return self._mean_claim_confidence(claims)
+        return self._weighted_claim_confidence(claims, source_counts, total_sources)
 
 
 async def cleanup_expired_cache(db: AsyncSession) -> int:
@@ -648,10 +605,6 @@ async def verify_research(
     db: AsyncSession | None = None,
     session_id: str | None = None,
 ) -> VerificationResult:
-    """Convenience function to verify research claims.
-
-    Usage:
-        result = await verify_research(request, db)
-    """
+    """Convenience entry point for research verification."""
     async with VerificationAgent(db, session_id) as agent:
         return await agent.verify(request)

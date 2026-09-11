@@ -1,152 +1,182 @@
-import fc from "fast-check"
-import type { NewsArticle } from "@/lib/api"
 import {
   buildCountryListFromArticles,
   buildCountryMetricsFromArticles,
   buildLocalLensFromArticles,
-} from "@/lib/globe-live-data"
+} from "@/lib/globe-live-data";
+import { describe, expect, it } from "@jest/globals";
+import type { NewsArticle } from "@/lib/api";
+import type { DeepReadonly } from "@/lib/deep-readonly";
+import fc from "fast-check";
 
-function makeArticle(overrides: Partial<NewsArticle> = {}): NewsArticle {
+const DEFAULT_ARTICLE: NewsArticle = {
+  bias: "center",
+  category: "general",
+  country: "US",
+  credibility: "high",
+  id: 1,
+  image: "/placeholder.svg",
+  originalLanguage: "en",
+  publishedAt: "2026-04-09T00:00:00.000Z",
+  source: "Source",
+  sourceId: "source",
+  summary: "Summary",
+  tags: [],
+  title: "Article",
+  translated: false,
+  url: "https://example.com/1",
+};
+
+type ArticleOverrides = DeepReadonly<Partial<Omit<NewsArticle, "_queueData">>>;
+
+const makeArticle = (overrides: ArticleOverrides = {}): NewsArticle => {
+  const { _parsedTimestamp: parsedTimestampOverride } = overrides;
+  const publishedAt = overrides.publishedAt ?? DEFAULT_ARTICLE.publishedAt;
+  const article = { ...DEFAULT_ARTICLE, ...overrides, publishedAt };
   return {
-    id: overrides.id ?? 1,
-    title: overrides.title ?? "Article",
-    source: overrides.source ?? "Source",
-    sourceId: overrides.sourceId ?? "source",
-    country: overrides.country ?? "US",
-    credibility: overrides.credibility ?? "high",
-    bias: overrides.bias ?? "center",
-    summary: overrides.summary ?? "Summary",
-    image: overrides.image ?? "/placeholder.svg",
-    publishedAt: overrides.publishedAt ?? "2026-04-09T00:00:00.000Z",
-    _parsedTimestamp: overrides._parsedTimestamp ?? Date.parse(overrides.publishedAt ?? "2026-04-09T00:00:00.000Z"),
-    category: overrides.category ?? "general",
-    url: overrides.url ?? `https://example.com/${overrides.id ?? 1}`,
-    tags: overrides.tags ?? [],
-    originalLanguage: overrides.originalLanguage ?? "en",
-    translated: overrides.translated ?? false,
-    source_country: overrides.source_country,
-    mentioned_countries: overrides.mentioned_countries,
-  }
-}
+    ...article,
+    _parsedTimestamp: parsedTimestampOverride ?? Date.parse(publishedAt),
+    url: overrides.url ?? `https://example.com/${article.id}`,
+  };
+};
 
-describe("globe live data", () => {
+const createGlobeArticles = (): NewsArticle[] => [
+  makeArticle({
+    _parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
+    country: "JP",
+    id: 1,
+    mentioned_countries: ["JP"],
+    publishedAt: "2026-04-09T02:00:00.000Z",
+    source: "Tokyo Times",
+    sourceId: "tokyo-times",
+    source_country: "JP",
+  }),
+  makeArticle({
+    _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+    country: "US",
+    id: 2,
+    mentioned_countries: ["JP"],
+    publishedAt: "2026-04-09T03:00:00.000Z",
+    source: "World Wire",
+    sourceId: "world-wire",
+    source_country: "US",
+  }),
+  makeArticle({
+    _parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
+    country: "JP",
+    id: 3,
+    mentioned_countries: [],
+    publishedAt: "2026-04-09T04:00:00.000Z",
+    source: "Kyoto Daily",
+    sourceId: "kyoto-daily",
+    source_country: "JP",
+  }),
+];
+
+describe("globe live data metrics", () => {
   it("preserves article totals in derived country metrics", () => {
+    expect.hasAssertions();
+
     const articleArbitrary = fc.record({
-      id: fc.integer({ min: 1, max: 10_000 }),
-      sourceId: fc.stringMatching(/^[a-z]{1,8}$/),
-      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/),
       country: fc.constantFrom("US", "GB", "DE", "International"),
-      source_country: fc.option(fc.constantFrom("US", "GB", "DE"), { nil: undefined }),
+      id: fc.integer({ max: 10_000, min: 1 }),
       mentioned_countries: fc.array(fc.constantFrom("US", "GB", "DE"), { maxLength: 4 }),
-    })
+      source: fc.stringMatching(/^[A-Z][a-z]{1,8}$/u),
+      sourceId: fc.stringMatching(/^[a-z]{1,8}$/u),
+      source_country: fc.option(fc.constantFrom("US", "GB", "DE"), { nil: undefined }),
+    });
 
-    fc.assert(
-      fc.property(fc.array(articleArbitrary, { maxLength: 25 }), (rawArticles) => {
-        const articles = rawArticles.map((article, index) =>
-          makeArticle({
-            ...article,
-            id: article.id + index,
-            publishedAt: `2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`,
-            _parsedTimestamp: Date.parse(`2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`),
-            url: `https://example.com/${article.id}-${index}`,
-          }),
-        )
+    expect(() => {
+      fc.assert(
+        fc.property(fc.array(articleArbitrary, { maxLength: 25 }), (rawArticles) => {
+          const articles = rawArticles.map((article, index) =>
+              makeArticle({
+                ...article,
+                _parsedTimestamp: Date.parse(
+                  `2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`,
+                ),
+                id: article.id + index,
+                publishedAt: `2026-04-09T00:00:${String(index).padStart(2, "0")}.000Z`,
+                url: `https://example.com/${article.id}-${index}`,
+              }),
+            ),
+            metrics = buildCountryMetricsFromArticles(articles);
+          expect(metrics.total_articles).toBe(articles.length);
+          expect(metrics.articles_with_country + metrics.articles_without_country).toBe(
+            articles.length,
+          );
+        }),
+      );
+    }).not.toThrow();
+  });
+});
 
-        const metrics = buildCountryMetricsFromArticles(articles)
-        expect(metrics.total_articles).toBe(articles.length)
-        expect(metrics.articles_with_country + metrics.articles_without_country).toBe(
-          articles.length,
-        )
-      }),
-    )
-  })
-
+describe("globe live data metadata", () => {
   it("builds country metadata and local lens views from the shared live dataset", () => {
-    const articles = [
-      makeArticle({
-        id: 1,
-        source: "Tokyo Times",
-        sourceId: "tokyo-times",
-        country: "JP",
-        source_country: "JP",
-        mentioned_countries: ["JP"],
-        publishedAt: "2026-04-09T02:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T02:00:00.000Z"),
-      }),
-      makeArticle({
-        id: 2,
-        source: "World Wire",
-        sourceId: "world-wire",
-        country: "US",
-        source_country: "US",
-        mentioned_countries: ["JP"],
-        publishedAt: "2026-04-09T03:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
-      }),
-      makeArticle({
-        id: 3,
-        source: "Kyoto Daily",
-        sourceId: "kyoto-daily",
-        country: "JP",
-        source_country: "JP",
-        mentioned_countries: [],
-        publishedAt: "2026-04-09T04:00:00.000Z",
-        _parsedTimestamp: Date.parse("2026-04-09T04:00:00.000Z"),
-      }),
-    ]
+    expect.hasAssertions();
 
-    const countryList = buildCountryListFromArticles(articles)
+    const articles = createGlobeArticles();
+    const countryList = buildCountryListFromArticles(articles);
     expect(countryList.countries[0]).toMatchObject({
-      code: "JP",
       article_count: 2,
-    })
+      code: "JP",
+    });
 
     const internalLens = buildLocalLensFromArticles({
       articles,
       code: "JP",
       countryName: "Japan",
-      view: "internal",
       limit: 10,
-    })
-    expect(internalLens.total).toBe(1)
-    expect(internalLens.matching_strategy).toBe("country_mentions")
-    expect(internalLens.articles[0]?.source).toBe("Tokyo Times")
-
+      view: "internal",
+    });
     const externalLens = buildLocalLensFromArticles({
       articles,
       code: "JP",
       countryName: "Japan",
-      view: "external",
       limit: 10,
-    })
-    expect(externalLens.total).toBe(1)
-    expect(externalLens.articles[0]?.source).toBe("World Wire")
-  })
+      view: "external",
+    });
+    expect({
+      externalArticleSource: externalLens.articles[0]?.source,
+      externalTotal: externalLens.total,
+      internalArticleSource: internalLens.articles[0]?.source,
+      internalMatchingStrategy: internalLens.matching_strategy,
+      internalTotal: internalLens.total,
+    }).toStrictEqual({
+      externalArticleSource: "World Wire",
+      externalTotal: 1,
+      internalArticleSource: "Tokyo Times",
+      internalMatchingStrategy: "country_mentions",
+      internalTotal: 1,
+    });
+  });
+});
 
+describe("globe live data deduplication", () => {
   it("dedupes duplicate articles in local lens results", () => {
+    expect.hasAssertions();
+
     const duplicate = makeArticle({
-      id: 42,
-      source: "World Wire",
-      sourceId: "world-wire",
-      country: "US",
-      source_country: "US",
-      mentioned_countries: ["JP"],
-      publishedAt: "2026-04-09T03:00:00.000Z",
-      _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
-      url: "https://example.com/world-wire-jp",
-    })
+        _parsedTimestamp: Date.parse("2026-04-09T03:00:00.000Z"),
+        country: "US",
+        id: 42,
+        mentioned_countries: ["JP"],
+        publishedAt: "2026-04-09T03:00:00.000Z",
+        source: "World Wire",
+        sourceId: "world-wire",
+        source_country: "US",
+        url: "https://example.com/world-wire-jp",
+      }),
+      externalLens = buildLocalLensFromArticles({
+        articles: [duplicate, duplicate],
+        code: "JP",
+        countryName: "Japan",
+        limit: 10,
+        view: "external",
+      });
 
-    const externalLens = buildLocalLensFromArticles({
-      articles: [duplicate, duplicate],
-      code: "JP",
-      countryName: "Japan",
-      view: "external",
-      limit: 10,
-    })
-
-    expect(externalLens.total).toBe(1)
-    expect(externalLens.returned).toBe(1)
-    expect(externalLens.articles).toHaveLength(1)
-    expect(externalLens.articles[0]?.id).toBe(42)
-  })
-})
+    expect(externalLens.total).toBe(1);
+    expect(externalLens.returned).toBe(1);
+    expect(externalLens.articles).toHaveLength(1);
+    expect(externalLens.articles[0]?.id).toBe(42);
+  });
+});

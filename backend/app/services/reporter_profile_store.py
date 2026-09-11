@@ -32,6 +32,12 @@ _IDEO_LEFT = {
 _IDEO_RIGHT = {"conservatism", "libertarianism", "nationalism", "populism", "right", "reactionary"}
 
 
+def _keyword_hits(records: set[str], keywords: set[str]) -> tuple[bool, bool]:
+    """Return (has_left, has_right) keyword hits across one record set."""
+    has_left = any(any(kw in record for kw in keywords) for record in records)
+    return has_left, False
+
+
 def _derive_political_leaning_from_profile(
     profile: dict[str, Any],
 ) -> tuple[str | None, str | None, list[str]]:
@@ -40,32 +46,37 @@ def _derive_political_leaning_from_profile(
     sources: list[str] = []
 
     party_lower = {p.lower() for p in party if p}
-    has_left = any(any(kw in p for kw in _PARTY_LEFT) for p in party_lower)
-    has_right = any(any(kw in p for kw in _PARTY_RIGHT) for p in party_lower)
-    if has_left and has_right:
+    party_leaning = _leaning_from_keywords(party_lower, _PARTY_LEFT, _PARTY_RIGHT)
+    if party_leaning is not None:
         sources.append("wikidata_party")
-        return "center", "medium", sources
-    if has_left:
-        sources.append("wikidata_party")
-        return "left", "medium", sources
-    if has_right:
-        sources.append("wikidata_party")
-        return "right", "medium", sources
+        leaning, confidence = party_leaning
+        return leaning, confidence, sources
 
     ideology_lower = {i.lower() for i in ideology if i}
-    has_left = any(any(kw in i for kw in _IDEO_LEFT) for i in ideology_lower)
-    has_right = any(any(kw in i for kw in _IDEO_RIGHT) for i in ideology_lower)
-    if has_left and has_right:
+    ideology_leaning = _leaning_from_keywords(ideology_lower, _IDEO_LEFT, _IDEO_RIGHT)
+    if ideology_leaning is not None:
         sources.append("wikidata_ideology")
-        return "center", "low", sources
-    if has_left:
-        sources.append("wikidata_ideology")
-        return "left", "low", sources
-    if has_right:
-        sources.append("wikidata_ideology")
-        return "right", "low", sources
+        leaning, confidence = ideology_leaning
+        return leaning, confidence, sources
 
     return None, None, []
+
+
+def _leaning_from_keywords(
+    records: set[str],
+    left_keywords: set[str],
+    right_keywords: set[str],
+) -> tuple[str, str] | None:
+    """Resolve a leaning/confidence pair from keyword hits on one record set."""
+    has_left = any(any(kw in record for kw in left_keywords) for record in records)
+    has_right = any(any(kw in record for kw in right_keywords) for record in records)
+    if has_left and has_right:
+        return "center", "medium"
+    if has_left:
+        return "left", "medium"
+    if has_right:
+        return "right", "medium"
+    return None
 
 
 REPORTER_PROFILE_FIELDS = (
@@ -126,6 +137,45 @@ def _profile_strings(profile: dict[str, Any], key: str) -> list[str]:
     return []
 
 
+def _apply_institutional_affiliations(reporter: Reporter, profile: dict[str, Any]) -> None:
+    """Set institutional affiliations from explicit or wikidata-derived values."""
+    existing_institutional = profile.get("institutional_affiliations")
+    if (
+        existing_institutional
+        and isinstance(existing_institutional, list)
+        and existing_institutional
+    ):
+        reporter.institutional_affiliations = existing_institutional
+        return
+    affiliations = _profile_strings(profile, "affiliations")
+    if affiliations:
+        reporter.institutional_affiliations = [
+            {"organization": value, "source": "wikidata"} for value in affiliations
+        ]
+
+
+def _apply_political_leaning(
+    reporter: Reporter,
+    leaning: str | None,
+    confidence: str | None,
+    sources: list[str],
+) -> None:
+    """Fill in a derived political leaning when the reporter has none yet."""
+    if not leaning:
+        return
+    if reporter.political_leaning:
+        return
+    reporter.political_leaning = leaning
+    reporter.leaning_confidence = confidence
+    if sources:
+        existing_sources = reporter.leaning_sources or []
+        if isinstance(existing_sources, list):
+            for source in sources:
+                if source not in existing_sources:
+                    existing_sources.append(source)
+            reporter.leaning_sources = existing_sources
+
+
 async def upsert_reporter_profile(
     session: AsyncSession,
     profile: dict[str, Any],
@@ -151,31 +201,10 @@ async def upsert_reporter_profile(
     )
     reporter.topics = topics
 
-    existing_institutional = profile.get("institutional_affiliations")
-    if (
-        existing_institutional
-        and isinstance(existing_institutional, list)
-        and existing_institutional
-    ):
-        reporter.institutional_affiliations = existing_institutional
-    else:
-        affiliations = _profile_strings(profile, "affiliations")
-        if affiliations:
-            reporter.institutional_affiliations = [
-                {"organization": value, "source": "wikidata"} for value in affiliations
-            ]
+    _apply_institutional_affiliations(reporter, profile)
 
     leaning, confidence, sources = _derive_political_leaning_from_profile(profile)
-    if leaning and not reporter.political_leaning:
-        reporter.political_leaning = leaning
-        reporter.leaning_confidence = confidence
-        if sources:
-            existing_sources = reporter.leaning_sources or []
-            if isinstance(existing_sources, list):
-                for s in sources:
-                    if s not in existing_sources:
-                        existing_sources.append(s)
-                reporter.leaning_sources = existing_sources
+    _apply_political_leaning(reporter, leaning, confidence, sources)
 
     reporter.last_researched_at = get_utc_now()
     session.add(reporter)

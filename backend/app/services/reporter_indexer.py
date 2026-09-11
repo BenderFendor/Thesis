@@ -103,6 +103,26 @@ def _enrich_profile_mbfc(profile: dict[str, Any]) -> None:
         profile["leaning_sources"] = sources
 
 
+def _merge_littlesis_affiliations(
+    profile: dict[str, Any], affiliations: list[dict[str, Any]]
+) -> None:
+    """Merge LittleSis affiliations into the profile without duplicating URLs."""
+    existing = profile.get("institutional_affiliations") or []
+    if isinstance(existing, list):
+        existing_source_urls = {
+            a.get("littlesis_url")
+            for a in existing
+            if isinstance(a, dict) and a.get("littlesis_url")
+        }
+        for aff in affiliations:
+            ls_url = aff.get("littlesis_url")
+            if ls_url and ls_url not in existing_source_urls:
+                existing.append(aff)
+        profile["institutional_affiliations"] = existing
+    else:
+        profile["institutional_affiliations"] = affiliations
+
+
 def _enrich_profile_littlesis(profile: dict[str, Any]) -> None:
     """Cross-reference a reporter against LittleSis and attach affiliations.
 
@@ -130,20 +150,7 @@ def _enrich_profile_littlesis(profile: dict[str, Any]) -> None:
 
     affiliations = ls_result.get("institutional_affiliations") or []
     if affiliations:
-        existing = profile.get("institutional_affiliations") or []
-        if isinstance(existing, list):
-            existing_source_urls = {
-                a.get("littlesis_url")
-                for a in existing
-                if isinstance(a, dict) and a.get("littlesis_url")
-            }
-            for aff in affiliations:
-                ls_url = aff.get("littlesis_url")
-                if ls_url and ls_url not in existing_source_urls:
-                    existing.append(aff)
-            profile["institutional_affiliations"] = existing
-        else:
-            profile["institutional_affiliations"] = affiliations
+        _merge_littlesis_affiliations(profile, affiliations)
 
 
 def _derive_political_leaning(profile: dict[str, Any]) -> tuple[str | None, str | None, list[str]]:
@@ -182,6 +189,33 @@ async def _run_enrichment_connectors(
     return all_claims
 
 
+def _author_url_for_row(
+    raw_authors: object, raw_author_urls: object, author_name: str
+) -> Any | None:
+    """Pick the URL matching the given author from parallel author/URL lists."""
+    if not isinstance(raw_authors, list) or not isinstance(raw_author_urls, list):
+        return None
+    for index, raw_author in enumerate(raw_authors):
+        if raw_author == author_name and index < len(raw_author_urls):
+            return raw_author_urls[index]
+    return None
+
+
+async def _article_author_link_exists(
+    session: AsyncSession, article_id: Any, reporter_id: int
+) -> bool:
+    """Return True when an ArticleAuthor link already exists for the pair."""
+    from sqlalchemy import select
+
+    existing = await session.execute(
+        select(ArticleAuthor).where(
+            ArticleAuthor.article_id == article_id,
+            ArticleAuthor.reporter_id == reporter_id,
+        )
+    )
+    return existing.scalar_one_or_none() is not None
+
+
 async def _create_article_author_links(
     session: AsyncSession,
     reporter: Reporter,
@@ -190,6 +224,10 @@ async def _create_article_author_links(
     confidence: float = 0.8,
 ) -> None:
     """Create ArticleAuthor junction records linking reporter to their articles."""
+    reporter_id = reporter.id
+    if reporter_id is None:
+        # Unflushed reporter row; there is no id to link against.
+        return
     from sqlalchemy import select
 
     stmt = select(Article.id, Article.authors, Article.author_urls).where(
@@ -201,19 +239,8 @@ async def _create_article_author_links(
     article_rows = (await session.execute(stmt)).all()
     created = 0
     for article_id, raw_authors, raw_author_urls in article_rows:
-        author_url_raw = None
-        if isinstance(raw_authors, list) and isinstance(raw_author_urls, list):
-            for index, raw_author in enumerate(raw_authors):
-                if raw_author == author_name and index < len(raw_author_urls):
-                    author_url_raw = raw_author_urls[index]
-                    break
-        existing = await session.execute(
-            select(ArticleAuthor).where(
-                ArticleAuthor.article_id == article_id,
-                ArticleAuthor.reporter_id == reporter.id,
-            )
-        )
-        if existing.scalar_one_or_none():
+        author_url_raw = _author_url_for_row(raw_authors, raw_author_urls, author_name)
+        if await _article_author_link_exists(session, article_id, reporter_id):
             continue
         session.add(
             ArticleAuthor(
@@ -229,6 +256,101 @@ async def _create_article_author_links(
     if created:
         await session.commit()
         logger.debug("Created %d ArticleAuthor links for %s", created, author_name)
+
+
+async def _store_wayback_evidence(
+    session: AsyncSession,
+    reporter_id: int,
+    wayback_url: str | None,
+    http_client: httpx.AsyncClient,
+) -> None:
+    """Store Wayback snapshot claims when an author page URL is known."""
+    if not wayback_url:
+        return
+    try:
+        snapshots = await fetch_wayback_snapshots(http_client, wayback_url)
+        if snapshots:
+            wb_claims = wayback_claims_from_snapshots(snapshots, wayback_url)
+            if wb_claims:
+                await bulk_store_claims(session, reporter_id, wb_claims)
+    except Exception:
+        pass
+
+
+async def _store_openalex_evidence(
+    session: AsyncSession,
+    reporter_id: int,
+    author_name: str,
+    source_name: str | None,
+    http_client: httpx.AsyncClient,
+) -> None:
+    """Store OpenAlex author claims and identity edges."""
+    try:
+        oa_authors = await search_openalex_author(http_client, author_name, source_name or None)
+    except Exception:
+        return
+    for oa_author in oa_authors:
+        oa_claims = openalex_claims_from_author(oa_author, author_name)
+        if oa_claims:
+            await bulk_store_claims(session, reporter_id, oa_claims)
+        oa_id = oa_author.get("id", "")
+        if oa_id:
+            await store_identity_edge(
+                session,
+                reporter_id,
+                oa_id,
+                "openalex",
+                source_url=oa_id,
+                confidence=0.7,
+            )
+
+
+async def _store_identity_edges(
+    session: AsyncSession, reporter_id: int, profile: dict[str, Any]
+) -> None:
+    """Store Wikidata and Wikipedia same-as identity edges for the reporter."""
+    wikidata_qid = profile.get("wikidata_qid")
+    if wikidata_qid:
+        await store_identity_edge(
+            session,
+            reporter_id,
+            f"https://www.wikidata.org/wiki/{wikidata_qid}",
+            "wikidata",
+            source_url=f"https://www.wikidata.org/wiki/{wikidata_qid}",
+            confidence=0.9,
+        )
+
+    wikipedia_url = profile.get("wikipedia_url")
+    if wikipedia_url:
+        await store_identity_edge(
+            session,
+            reporter_id,
+            wikipedia_url,
+            "sameAs",
+            source_url=wikipedia_url,
+            confidence=0.85,
+        )
+
+
+def _merge_leaning_sources(reporter: Reporter, leaning_sources: list[str] | None) -> None:
+    """Merge derived leaning sources into the reporter's existing list."""
+    if not leaning_sources:
+        return
+    existing_sources = reporter.leaning_sources or []
+    if isinstance(existing_sources, list):
+        for s in leaning_sources:
+            if s not in existing_sources:
+                existing_sources.append(s)
+        reporter.leaning_sources = existing_sources
+
+
+def _apply_political_leaning(profile: dict[str, Any], reporter: Reporter) -> None:
+    """Apply derived political leaning to the reporter when none is set yet."""
+    political_leaning, leaning_confidence, leaning_sources = _derive_political_leaning(profile)
+    if political_leaning and not reporter.political_leaning:
+        reporter.political_leaning = political_leaning
+        reporter.leaning_confidence = leaning_confidence
+        _merge_leaning_sources(reporter, leaning_sources)
 
 
 async def _index_reporter_articles(
@@ -252,69 +374,10 @@ async def _index_reporter_articles(
     if enrichment_claims:
         await bulk_store_claims(session, reporter_id, enrichment_claims)
 
-    wayback_url = profile.get("author_page_url")
-    if wayback_url:
-        try:
-            snapshots = await fetch_wayback_snapshots(http_client, wayback_url)
-            if snapshots:
-                wb_claims = wayback_claims_from_snapshots(snapshots, wayback_url)
-                if wb_claims:
-                    await bulk_store_claims(session, reporter_id, wb_claims)
-        except Exception:
-            pass
-
-    try:
-        oa_authors = await search_openalex_author(http_client, author_name, source_name or None)
-        for oa_author in oa_authors:
-            oa_claims = openalex_claims_from_author(oa_author, author_name)
-            if oa_claims:
-                await bulk_store_claims(session, reporter_id, oa_claims)
-            oa_id = oa_author.get("id", "")
-            if oa_id:
-                await store_identity_edge(
-                    session,
-                    reporter_id,
-                    oa_id,
-                    "openalex",
-                    source_url=oa_id,
-                    confidence=0.7,
-                )
-    except Exception:
-        pass
-
-    wikidata_qid = profile.get("wikidata_qid")
-    if wikidata_qid:
-        await store_identity_edge(
-            session,
-            reporter_id,
-            f"https://www.wikidata.org/wiki/{wikidata_qid}",
-            "wikidata",
-            source_url=f"https://www.wikidata.org/wiki/{wikidata_qid}",
-            confidence=0.9,
-        )
-
-    wikipedia_url = profile.get("wikipedia_url")
-    if wikipedia_url:
-        await store_identity_edge(
-            session,
-            reporter_id,
-            wikipedia_url,
-            "sameAs",
-            source_url=wikipedia_url,
-            confidence=0.85,
-        )
-
-    political_leaning, leaning_confidence, leaning_sources = _derive_political_leaning(profile)
-    if political_leaning and not reporter.political_leaning:
-        reporter.political_leaning = political_leaning
-        reporter.leaning_confidence = leaning_confidence
-        if leaning_sources:
-            existing_sources = reporter.leaning_sources or []
-            if isinstance(existing_sources, list):
-                for s in leaning_sources:
-                    if s not in existing_sources:
-                        existing_sources.append(s)
-                reporter.leaning_sources = existing_sources
+    await _store_wayback_evidence(session, reporter_id, profile.get("author_page_url"), http_client)
+    await _store_openalex_evidence(session, reporter_id, author_name, source_name, http_client)
+    await _store_identity_edges(session, reporter_id, profile)
+    _apply_political_leaning(profile, reporter)
 
     await _create_article_author_links(session, reporter, author_name, source_name)
 
@@ -507,6 +570,29 @@ async def _query_byline_articles(
     return list((await session.execute(stmt)).tuples().all())
 
 
+def _byline_evidence_items(
+    title: Any,
+    url: Any,
+    published_at: Any,
+    category: Any,
+    source_name: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build the activity and dossier item dicts for one byline row."""
+    activity_article = {
+        "title": title,
+        "url": url,
+        "source": source_name,
+        "published_at": published_at.isoformat() if published_at else None,
+        "category": category,
+    }
+    article_item = {
+        "label": "Article",
+        "value": str(title or url or "Untitled article"),
+        "sources": [url] if isinstance(url, str) and url else [],
+    }
+    return activity_article, article_item
+
+
 def _collect_article_evidence(
     rows: list[tuple[Any, Any, Any, Any]],
     source_name: str | None,
@@ -524,34 +610,81 @@ def _collect_article_evidence(
     latest = None
     categories: list[str] = []
     for title, url, published_at, category in rows:
+        activity_article, article_item = _byline_evidence_items(
+            title, url, published_at, category, source_name
+        )
+        activity_articles.append(activity_article)
+        article_items.append(article_item)
         if published_at and (latest is None or published_at > latest):
             latest = published_at
         if isinstance(category, str) and category:
             categories.append(category)
         if isinstance(url, str) and url:
             article_urls.append(url)
-        activity_articles.append(
-            {
-                "title": title,
-                "url": url,
-                "source": source_name,
-                "published_at": published_at.isoformat() if published_at else None,
-                "category": category,
-            }
-        )
-        article_items.append(
-            {
-                "label": "Article",
-                "value": str(title or url or "Untitled article"),
-                "sources": [url] if isinstance(url, str) and url else [],
-            }
-        )
     return article_items, activity_articles, article_urls, categories, latest
 
 
 def _source_site_for(source_name: str | None) -> str | None:
     source_config = get_rss_sources().get(source_name or "", {}) if source_name else {}
     return source_config.get("site_url") or source_config.get("url")
+
+
+def _build_enrichment_tasks(
+    ws_client: httpx.AsyncClient,
+    reporter_name: str,
+    source_name: str | None,
+    wayback_target_url: str | None,
+) -> list[Any]:
+    """Build the concurrent connector tasks, appending wayback when a target exists."""
+    tasks: list[Any] = [
+        search_reporter_web(reporter_name, source_name, http_client=ws_client),
+        find_social_profiles(reporter_name, source_name, http_client=ws_client),
+        fetch_journalist_bio(reporter_name, http_client=ws_client),
+        search_openalex_author(ws_client, reporter_name, source_name or None),
+    ]
+    if wayback_target_url:
+        tasks.append(fetch_wayback_snapshots(ws_client, wayback_target_url))
+    return tasks
+
+
+def _gather_slot(gather_results: list[Any], index: int) -> Any:
+    """Return the given gather result slot, or None when it was never gathered."""
+    return gather_results[index] if len(gather_results) > index else None
+
+
+def _unpack_enrichment_results(
+    gather_results: list[Any],
+) -> tuple[
+    list[dict[str, str]],
+    dict[str, Any],
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Unpack gather results into typed connector outputs, tolerating per-task errors."""
+    web_search_results: list[dict[str, str]] = []
+    social_profiles: dict[str, Any] = {"found": False}
+    wiki_bio: dict[str, Any] = {"found": False}
+    openalex_results: list[dict[str, Any]] = []
+    wayback_results: list[dict[str, Any]] = []
+
+    ws_result = _gather_slot(gather_results, 0)
+    social_result = _gather_slot(gather_results, 1)
+    wiki_result = _gather_slot(gather_results, 2)
+    oa_result = _gather_slot(gather_results, 3)
+    wb_result = _gather_slot(gather_results, 4)
+
+    if isinstance(ws_result, dict) and ws_result.get("found"):
+        web_search_results = ws_result.get("results", [])
+    if isinstance(social_result, dict):
+        social_profiles = social_result
+    if isinstance(wiki_result, dict):
+        wiki_bio = wiki_result
+    if isinstance(oa_result, list):
+        openalex_results = oa_result
+    if isinstance(wb_result, list):
+        wayback_results = wb_result
+    return web_search_results, social_profiles, wiki_bio, openalex_results, wayback_results
 
 
 async def _gather_byline_enrichment(
@@ -573,32 +706,17 @@ async def _gather_byline_enrichment(
     wayback_results: list[dict[str, Any]] = []
     ws_client = httpx.AsyncClient(timeout=15.0)
     try:
-        ws_task = search_reporter_web(reporter_name, source_name, http_client=ws_client)
-        social_task = find_social_profiles(reporter_name, source_name, http_client=ws_client)
-        wiki_task = fetch_journalist_bio(reporter_name, http_client=ws_client)
-        oa_task = search_openalex_author(ws_client, reporter_name, source_name or None)
-        gather_tasks = [ws_task, social_task, wiki_task, oa_task]
-        if wayback_target_url:
-            gather_tasks.append(fetch_wayback_snapshots(ws_client, wayback_target_url))
-
+        gather_tasks = _build_enrichment_tasks(
+            ws_client, reporter_name, source_name, wayback_target_url
+        )
         gather_results = await asyncio.gather(*gather_tasks, return_exceptions=True)
-
-        ws_result = gather_results[0] if len(gather_results) > 0 else None
-        social_result = gather_results[1] if len(gather_results) > 1 else None
-        wiki_result = gather_results[2] if len(gather_results) > 2 else None
-        oa_result = gather_results[3] if len(gather_results) > 3 else None
-        wb_result = gather_results[4] if len(gather_results) > 4 else None
-
-        if isinstance(ws_result, dict) and ws_result.get("found"):
-            web_search_results = ws_result.get("results", [])
-        if isinstance(social_result, dict):
-            social_profiles = social_result
-        if isinstance(wiki_result, dict):
-            wiki_bio = wiki_result
-        if isinstance(oa_result, list):
-            openalex_results = oa_result
-        if isinstance(wb_result, list):
-            wayback_results = wb_result
+        (
+            web_search_results,
+            social_profiles,
+            wiki_bio,
+            openalex_results,
+            wayback_results,
+        ) = _unpack_enrichment_results(gather_results)
     except Exception:
         web_search_results = []
     finally:
@@ -793,6 +911,78 @@ def _build_local_dossier_sections(
     return dossier_sections
 
 
+def _activity_summary_urls(summary: dict[str, Any], key: str) -> list[str]:
+    """Collect URL strings from a named activity-summary items list."""
+    urls: list[str] = []
+    for item in summary.get(key, []):
+        if isinstance(item, dict) and isinstance(item.get("url"), str):
+            urls.append(item["url"])
+    return urls
+
+
+def _local_profile_source_items(
+    source_name: str | None, source_site: str | None
+) -> list[dict[str, Any]]:
+    """Build the observed-outlet dossier item for a local byline profile."""
+    if not source_name:
+        return []
+    return [
+        {
+            "label": "Observed outlet",
+            "value": source_name,
+            "sources": [source_site] if isinstance(source_site, str) else [],
+        }
+    ]
+
+
+def _local_profile_overview(
+    author_name: str, source_name: str | None, wiki_bio: dict[str, Any]
+) -> str:
+    """Build the overview text, preferring a Wikipedia extract when present."""
+    extract = wiki_bio.get("extract")
+    if extract:
+        return str(extract)
+    fallback = f"{author_name} appears as an RSS/local-corpus byline"
+    return fallback + (f" for {source_name}." if source_name else ".")
+
+
+def _local_profile_career_history(source_name: str | None) -> list[dict[str, Any]]:
+    """Build the byline-outlet career entry when a source is known."""
+    if not source_name:
+        return []
+    return [
+        {
+            "organization": source_name,
+            "role": "byline outlet",
+            "source": "rss_catalog",
+        }
+    ]
+
+
+def _local_profile_citations(
+    article_urls: list[str], author_pages: list[str], external_profiles: list[str]
+) -> list[dict[str, str]]:
+    """Build citation entries from local articles, author pages, and external profiles."""
+    return (
+        [{"label": "Local article evidence", "url": url} for url in article_urls[:5]]
+        + [{"label": "Official author page", "url": url} for url in author_pages[:5]]
+        + [{"label": "Structured external profile", "url": url} for url in external_profiles[:5]]
+    )
+
+
+def _local_profile_search_links(author_name: str, source_name: str | None) -> dict[str, str]:
+    """Build search links for the author and their outlet."""
+    quoted_name = urllib.parse.quote(author_name)
+    return {
+        "wikipedia": f"https://en.wikipedia.org/w/index.php?search={quoted_name}",
+        "wikidata": f"https://www.wikidata.org/w/index.php?search={quoted_name}",
+        "web_search": (
+            f"https://lite.duckduckgo.com/lite/?q="
+            f"{urllib.parse.quote(author_name + ' ' + (source_name or ''))}"
+        ),
+    }
+
+
 async def _build_local_byline_profile(
     session: AsyncSession,
     author_name: str,
@@ -808,16 +998,8 @@ async def _build_local_byline_profile(
 
     source_site = _source_site_for(source_name)
     activity_summary = await build_reporter_activity_summary(author_name.strip(), activity_articles)
-    author_pages = [
-        item["url"]
-        for item in activity_summary.get("author_pages", [])
-        if isinstance(item, dict) and isinstance(item.get("url"), str)
-    ]
-    external_profiles = [
-        item["url"]
-        for item in activity_summary.get("external_profiles", [])
-        if isinstance(item, dict) and isinstance(item.get("url"), str)
-    ]
+    author_pages = _activity_summary_urls(activity_summary, "author_pages")
+    external_profiles = _activity_summary_urls(activity_summary, "external_profiles")
     wayback_target_url = author_pages[0] if author_pages else None
 
     (
@@ -832,16 +1014,7 @@ async def _build_local_byline_profile(
         session, author_name, author_pages
     )
 
-    source_items = []
-    if source_name:
-        source_items.append(
-            {
-                "label": "Observed outlet",
-                "value": source_name,
-                "sources": [source_site] if isinstance(source_site, str) else [],
-            }
-        )
-
+    source_items = _local_profile_source_items(source_name, source_site)
     social_items = _build_social_items(social_profiles)
     openalex_items = _build_openalex_items(openalex_results)
     wayback_items = _build_wayback_items(wayback_results)
@@ -863,23 +1036,9 @@ async def _build_local_byline_profile(
         "canonical_name": author_name.strip(),
         "resolver_key": resolver_key,
         "match_status": "local_byline",
-        "overview": (
-            wiki_bio.get("extract")
-            or f"{author_name.strip()} appears as an RSS/local-corpus byline"
-            + (f" for {source_name}." if source_name else ".")
-        ),
+        "overview": _local_profile_overview(author_name.strip(), source_name, wiki_bio),
         "bio": None,
-        "career_history": (
-            [
-                {
-                    "organization": source_name,
-                    "role": "byline outlet",
-                    "source": "rss_catalog",
-                }
-            ]
-            if source_name
-            else []
-        ),
+        "career_history": _local_profile_career_history(source_name),
         "topics": sorted(set(categories)),
         "education": [],
         "dossier_sections": dossier_sections,
@@ -889,14 +1048,8 @@ async def _build_local_byline_profile(
         "wikidata_qid": None,
         "canonical_author_url": canonical_author_url,
         "author_page_url": author_page_url,
-        "citations": [{"label": "Local article evidence", "url": url} for url in article_urls[:5]]
-        + [{"label": "Official author page", "url": url} for url in author_pages[:5]]
-        + [{"label": "Structured external profile", "url": url} for url in external_profiles[:5]],
-        "search_links": {
-            "wikipedia": f"https://en.wikipedia.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
-            "wikidata": f"https://www.wikidata.org/w/index.php?search={urllib.parse.quote(author_name.strip())}",
-            "web_search": f"https://lite.duckduckgo.com/lite/?q={urllib.parse.quote(author_name.strip() + ' ' + (source_name or ''))}",
-        },
+        "citations": _local_profile_citations(article_urls, author_pages, external_profiles),
+        "search_links": _local_profile_search_links(author_name.strip(), source_name),
         "match_explanation": "Stored as a local byline profile because public entity matching was absent or ambiguous.",
         "research_sources": [
             "rss_byline",
@@ -912,6 +1065,104 @@ async def _build_local_byline_profile(
         "article_count": len(rows),
         "last_article_at": latest,
     }
+
+
+async def _process_byline_author(
+    session: AsyncSession,
+    client: httpx.AsyncClient,
+    author_name: str,
+    source_name: str | None,
+    entity_name: str,
+    i: int,
+    total: int,
+    error_context: str | None = None,
+) -> str:
+    """Run one pending author through the byline resolution pipeline.
+
+    Returns "resolved", "skipped", or "failed".
+    """
+    try:
+        await _upsert_index_status(session, "reporter", entity_name, "indexing")
+
+        # Audit rec 2: a composite multi-author byline ("A and B")
+        # must not become one junk `Reporter` row -- split it into
+        # individuals before falling into the normal single-name
+        # resolution flow below.
+        if await _handle_composite_byline(session, author_name, source_name, entity_name):
+            return "resolved"
+
+        profile = await build_reporter_dossier(
+            name=author_name,
+            organization=source_name,
+            http_client=client,
+        )
+
+        if profile.get("match_status") == "matched":
+            _enrich_profile_mbfc(profile)
+            _enrich_profile_littlesis(profile)
+            await upsert_reporter_profile(session, profile)
+            reporter = await session.execute(
+                select(Reporter).where(Reporter.resolver_key == profile.get("resolver_key"))
+            )
+            reporter_obj = reporter.scalar_one_or_none()
+            if reporter_obj:
+                await _index_reporter_articles(
+                    session,
+                    reporter_obj,
+                    profile,
+                    author_name,
+                    source_name,
+                    client,
+                )
+            await _upsert_index_status(session, "reporter", entity_name, "complete")
+            logger.debug(
+                "[%d/%d] Resolved: %s -> %s",
+                i,
+                total,
+                author_name,
+                profile.get("canonical_name"),
+            )
+            return "resolved"
+
+        local_profile = await _build_local_byline_profile(session, author_name, source_name)
+        await upsert_reporter_profile(session, local_profile)
+        reporter = await session.execute(
+            select(Reporter).where(Reporter.resolver_key == local_profile.get("resolver_key"))
+        )
+        reporter_obj = reporter.scalar_one_or_none()
+        if reporter_obj:
+            await _index_reporter_articles(
+                session,
+                reporter_obj,
+                local_profile,
+                author_name,
+                source_name,
+                client,
+            )
+        await _upsert_index_status(session, "reporter", entity_name, "complete")
+        logger.debug(
+            "[%d/%d] Unresolvable: %s (status=%s)",
+            i,
+            total,
+            author_name,
+            profile.get("match_status"),
+        )
+        return "skipped"
+
+    except Exception as exc:
+        await session.rollback()
+        if error_context:
+            logger.error("Failed to index reporter %s for %s: %s", author_name, error_context, exc)
+        else:
+            logger.error("Failed to index reporter %s: %s", author_name, exc)
+        await _upsert_index_status(
+            session,
+            "reporter",
+            entity_name,
+            "failed",
+            error_message=str(exc),
+        )
+        return "failed"
 
 
 async def index_unresolved_reporters(
@@ -939,90 +1190,14 @@ async def index_unresolved_reporters(
         for i, (author_name, source_name) in enumerate(unresolved, 1):
             resolver_key = build_resolver_key(author_name, source_name)
             entity_name = resolver_key or _normalize_for_resolver(author_name)
-
-            try:
-                await _upsert_index_status(session, "reporter", entity_name, "indexing")
-
-                # Audit rec 2: a composite multi-author byline ("A and B")
-                # must not become one junk `Reporter` row -- split it into
-                # individuals before falling into the normal single-name
-                # resolution flow below.
-                if await _handle_composite_byline(session, author_name, source_name, entity_name):
-                    resolved += 1
-                    continue
-
-                profile = await build_reporter_dossier(
-                    name=author_name,
-                    organization=source_name,
-                    http_client=client,
-                )
-
-                if profile.get("match_status") == "matched":
-                    _enrich_profile_mbfc(profile)
-                    _enrich_profile_littlesis(profile)
-                    await upsert_reporter_profile(session, profile)
-                    reporter = await session.execute(
-                        select(Reporter).where(Reporter.resolver_key == profile.get("resolver_key"))
-                    )
-                    reporter_obj = reporter.scalar_one_or_none()
-                    if reporter_obj:
-                        await _index_reporter_articles(
-                            session,
-                            reporter_obj,
-                            profile,
-                            author_name,
-                            source_name,
-                            client,
-                        )
-                    await _upsert_index_status(session, "reporter", entity_name, "complete")
-                    resolved += 1
-                    logger.debug(
-                        "[%d/%d] Resolved: %s -> %s",
-                        i,
-                        total,
-                        author_name,
-                        profile.get("canonical_name"),
-                    )
-                else:
-                    local_profile = await _build_local_byline_profile(
-                        session, author_name, source_name
-                    )
-                    await upsert_reporter_profile(session, local_profile)
-                    reporter = await session.execute(
-                        select(Reporter).where(
-                            Reporter.resolver_key == local_profile.get("resolver_key")
-                        )
-                    )
-                    reporter_obj = reporter.scalar_one_or_none()
-                    if reporter_obj:
-                        await _index_reporter_articles(
-                            session,
-                            reporter_obj,
-                            local_profile,
-                            author_name,
-                            source_name,
-                            client,
-                        )
-                    await _upsert_index_status(session, "reporter", entity_name, "complete")
-                    skipped += 1
-                    logger.debug(
-                        "[%d/%d] Unresolvable: %s (status=%s)",
-                        i,
-                        total,
-                        author_name,
-                        profile.get("match_status"),
-                    )
-
-            except Exception as exc:
-                await session.rollback()
-                logger.error("Failed to index reporter %s: %s", author_name, exc)
-                await _upsert_index_status(
-                    session,
-                    "reporter",
-                    entity_name,
-                    "failed",
-                    error_message=str(exc),
-                )
+            status = await _process_byline_author(
+                session, client, author_name, source_name, entity_name, i, total
+            )
+            if status == "resolved":
+                resolved += 1
+            elif status == "skipped":
+                skipped += 1
+            else:
                 failed += 1
 
             if i < total:
@@ -1072,88 +1247,21 @@ async def index_source_reporters(
         for i, (author_name, _src_name) in enumerate(unresolved, 1):
             resolver_key = build_resolver_key(author_name, source_name)
             entity_name = resolver_key or _normalize_for_resolver(author_name)
-
-            try:
-                await _upsert_index_status(session, "reporter", entity_name, "indexing")
-
-                if await _handle_composite_byline(session, author_name, source_name, entity_name):
-                    resolved += 1
-                    continue
-
-                profile = await build_reporter_dossier(
-                    name=author_name,
-                    organization=source_name,
-                    http_client=client,
-                )
-
-                if profile.get("match_status") == "matched":
-                    _enrich_profile_mbfc(profile)
-                    _enrich_profile_littlesis(profile)
-                    await upsert_reporter_profile(session, profile)
-                    reporter = await session.execute(
-                        select(Reporter).where(Reporter.resolver_key == profile.get("resolver_key"))
-                    )
-                    reporter_obj = reporter.scalar_one_or_none()
-                    if reporter_obj:
-                        await _index_reporter_articles(
-                            session,
-                            reporter_obj,
-                            profile,
-                            author_name,
-                            source_name,
-                            client,
-                        )
-                    await _upsert_index_status(session, "reporter", entity_name, "complete")
-                    resolved += 1
-                    logger.debug(
-                        "[%d/%d] Resolved: %s -> %s",
-                        i,
-                        total,
-                        author_name,
-                        profile.get("canonical_name"),
-                    )
-                else:
-                    local_profile = await _build_local_byline_profile(
-                        session, author_name, source_name
-                    )
-                    await upsert_reporter_profile(session, local_profile)
-                    reporter = await session.execute(
-                        select(Reporter).where(
-                            Reporter.resolver_key == local_profile.get("resolver_key")
-                        )
-                    )
-                    reporter_obj = reporter.scalar_one_or_none()
-                    if reporter_obj:
-                        await _index_reporter_articles(
-                            session,
-                            reporter_obj,
-                            local_profile,
-                            author_name,
-                            source_name,
-                            client,
-                        )
-                    await _upsert_index_status(session, "reporter", entity_name, "complete")
-                    skipped += 1
-                    logger.debug(
-                        "[%d/%d] Unresolvable: %s (status=%s)",
-                        i,
-                        total,
-                        author_name,
-                        profile.get("match_status"),
-                    )
-
-            except Exception as exc:
-                await session.rollback()
-                logger.error(
-                    "Failed to index reporter %s for %s: %s", author_name, source_name, exc
-                )
-                await _upsert_index_status(
-                    session,
-                    "reporter",
-                    entity_name,
-                    "failed",
-                    error_message=str(exc),
-                )
+            status = await _process_byline_author(
+                session,
+                client,
+                author_name,
+                source_name,
+                entity_name,
+                i,
+                total,
+                error_context=source_name,
+            )
+            if status == "resolved":
+                resolved += 1
+            elif status == "skipped":
+                skipped += 1
+            else:
                 failed += 1
 
             if i < total:
@@ -1280,6 +1388,29 @@ async def _seed_reporter_from_wikidata_pair(
         return "failed"
 
 
+def _unique_source_entries(sources: dict[str, Any]) -> dict[str, Any]:
+    """Collapse feed variants ("Name - Section") to one entry per outlet."""
+    unique_sources: dict[str, Any] = {}
+    for name, config in sources.items():
+        base_name = name.split(" - ")[0].strip()
+        if base_name not in unique_sources:
+            unique_sources[base_name] = config
+    return unique_sources
+
+
+def _count_seed_status(status: str, i: int, total: int, resolved: int) -> int:
+    """Tally one SPARQL pair result and return the updated resolved count."""
+    new_resolved = resolved + 1
+    if status == "seeded" and new_resolved % 20 == 0:
+        logger.info(
+            "[%d/%d] SPARQL seeded: %d resolved",
+            i,
+            total,
+            new_resolved,
+        )
+    return new_resolved
+
+
 async def seed_reporters_from_wikidata(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
@@ -1289,13 +1420,7 @@ async def seed_reporters_from_wikidata(
     in the RSS catalog, then resolves full dossiers for each.
     """
     sources = get_rss_sources()
-    unique_sources: dict[str, Any] = {}
-    for name, config in sources.items():
-        base_name = name.split(" - ")[0].strip()
-        if base_name not in unique_sources:
-            unique_sources[base_name] = config
-
-    employer_names = sorted({name for name in unique_sources if len(name) > 2})
+    employer_names = sorted(name for name in _unique_source_entries(sources) if len(name) > 2)
 
     owned_client = http_client is None
     client = http_client or httpx.AsyncClient(timeout=30.0)
@@ -1315,22 +1440,11 @@ async def seed_reporters_from_wikidata(
         try:
             for i, (name, employer) in enumerate(all_journalist_names, 1):
                 status = await _seed_reporter_from_wikidata_pair(session, client, name, employer)
-                if status == "skipped":
-                    resolved += 1
-                    continue
-                if status == "seeded":
-                    resolved += 1
-                    if resolved % 20 == 0:
-                        logger.info(
-                            "[%d/%d] SPARQL seeded: %d resolved",
-                            i,
-                            total,
-                            resolved,
-                        )
-                else:
+                if status == "failed":
                     failed += 1
-
-                if i < total:
+                else:
+                    resolved = _count_seed_status(status, i, total, resolved)
+                if i < total and status != "skipped":
                     await asyncio.sleep(INDEX_DELAY_SECONDS)
 
         finally:

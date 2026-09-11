@@ -1,28 +1,44 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Tag, Loader2 } from "lucide-react";
+import { Loader2, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { ArticleTopic } from "@/lib/api";
 import { fetchArticleTopics } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 interface SemanticTagsProps {
-  articleId: number;
-  className?: string;
-  maxTags?: number;
+  readonly articleId: number;
+  readonly className?: string;
+  readonly maxTags?: number;
 }
 
-export function SemanticTags({
+interface SemanticTag {
+  readonly cluster_id: number;
+  readonly keywords?: readonly string[];
+  readonly label: string;
+  readonly similarity: number | null;
+}
+
+interface SemanticTagsListProps {
+  readonly className: string;
+  readonly topics: readonly SemanticTag[];
+}
+
+const DEFAULT_MAX_TAGS = 3,
+ EMPTY_TAG_COUNT = 0,
+ EMPTY_TOPICS: readonly SemanticTag[] = [],
+ FIRST_TAG_INDEX = 0,
+
+ SemanticTags = ({
   articleId,
   className = "",
-  maxTags = 3,
-}: SemanticTagsProps) {
+  maxTags = DEFAULT_MAX_TAGS,
+}: Readonly<SemanticTagsProps>) => {
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ["article-topics", articleId],
     queryFn: () => fetchArticleTopics(articleId),
+    queryKey: buildSemanticTagsQueryKey(articleId),
     retry: 1,
-  });
-  const topics: ArticleTopic[] = data?.topics.slice(0, maxTags) ?? [];
+  }),
+   topics: readonly SemanticTag[] = data?.topics.slice(FIRST_TAG_INDEX, maxTags) ?? EMPTY_TOPICS;
 
   if (loading) {
     return (
@@ -32,22 +48,31 @@ export function SemanticTags({
     );
   }
 
-  if (error || topics.length === 0) {
-    return null;
+  if (error || topics.length === EMPTY_TAG_COUNT) {
+    return false;
   }
 
-  return (
-    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      <Tag className="w-3 h-3 text-muted-foreground" />
-      {topics.map((topic) => (
-        <Badge
-          key={topic.cluster_id}
-          variant="outline"
-          className="text-[10px] px-1.5 py-0 bg-primary/5 border-primary/20 text-primary/80"
-        >
-          {topic.label}
-        </Badge>
-      ))}
-    </div>
-  );
-}
+  return <SemanticTagsList className={className} topics={topics} />;
+},
+
+ SemanticTagsList = ({ className, topics }: Readonly<SemanticTagsListProps>) => (
+  <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+    <Tag className="w-3 h-3 text-muted-foreground" />
+    {topics.map((topic) => (
+      <Badge
+        key={topic.cluster_id}
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 bg-primary/5 border-primary/20 text-primary/80"
+      >
+        {topic.label}
+      </Badge>
+    ))}
+  </div>
+),
+
+ buildSemanticTagsQueryKey = (articleId: number): readonly [string, number] => [
+  "article-topics",
+  articleId,
+];
+
+export { SemanticTags };

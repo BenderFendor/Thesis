@@ -1,63 +1,45 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+type ClassValue = string | number | bigint | boolean | null | undefined | readonly ClassValue[];
+
+interface DebugLogger {
+  debug: (...args: readonly unknown[]) => void;
+  error: (...args: readonly unknown[]) => void;
+  warn: (...args: readonly unknown[]) => void;
 }
 
-// Logger utility for debug mode control
-let DEBUG_MODE = false
-
-export function setDebugMode(enabled: boolean) {
-  DEBUG_MODE = enabled
-  if (typeof window !== "undefined") {
-    localStorage.setItem("thesis_debug_mode", String(enabled))
-  }
-}
-
-export function getDebugMode(): boolean {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("thesis_debug_mode")
-    if (stored !== null) {
-      return stored === "true"
+const DEBUG_MODE_STORAGE_KEY = "thesis_debug_mode",
+  cn = (...inputs: readonly ClassValue[]): string => twMerge(clsx(inputs)),
+  getDebugMode = (): boolean => {
+    if ("window" in globalThis) {
+      const stored = globalThis.localStorage.getItem(DEBUG_MODE_STORAGE_KEY);
+      if (stored !== null) {
+        return stored === "true";
+      }
     }
-  }
-  return DEBUG_MODE
-}
-
-export function getLogger(name: string) {
-  return {
-    debug: (...args: unknown[]) => {
+    return false;
+  },
+  getLogger = (name: string): DebugLogger => ({
+    debug: (...args: readonly unknown[]) => {
       if (getDebugMode()) {
-        console.log(`[${name}]`, ...args)
+        globalThis.console.log(`[${name}]`, ...args);
       }
     },
-    error: (...args: unknown[]) => {
-      console.error(`[${name}]`, ...args)
+    error: (...args: readonly unknown[]) => {
+      globalThis.console.error(`[${name}]`, ...args);
     },
-    warn: (...args: unknown[]) => {
-      console.warn(`[${name}]`, ...args)
+    warn: (...args: readonly unknown[]) => {
+      globalThis.console.warn(`[${name}]`, ...args);
     },
-  }
-}
+  }),
+  hasText = (value: string | null | undefined): value is string =>
+    value !== null && value !== undefined && value !== "",
+  serializeSources = (sources?: readonly string[]): string | undefined => {
+    if (sources !== undefined && sources.length > 0) {
+      return sources.toSorted().join(",");
+    }
+    return void 0;
+  };
 
-// Debounce function for search input
-export function debounce<TArgs extends unknown[], TResult>(
-  func: (...args: TArgs) => TResult,
-  wait: number
-): (...args: TArgs) => void {
-  let timeout: NodeJS.Timeout | null = null
-
-  return (...args: TArgs) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }
-}
-
-// Deterministic query-param serialization for multi-source filters
-export function serializeSources(sources?: string[]): string | null {
-  if (!sources?.length) {
-    return null
-  }
-  return [...sources].sort().join(",")
-}
+export { cn, getLogger, hasText, serializeSources };

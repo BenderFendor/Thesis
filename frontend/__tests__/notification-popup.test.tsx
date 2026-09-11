@@ -1,29 +1,33 @@
+import { describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { Notification } from '@/components/notification-popup';
+
+import { NotificationsPopup } from '@/components/notification-popup';
 import userEvent from "@testing-library/user-event"
 
-import { NotificationsPopup, type Notification } from "@/components/notification-popup"
-
 const notification: Notification = {
-  id: "feed-error",
-  title: "Feed unavailable",
-  description: "The live index could not be loaded.",
-  type: "error",
   action: {
     label: "Retry",
     type: "retry",
   },
-}
+  description: "The live index could not be loaded.",
+  id: "feed-error",
+  title: "Feed unavailable",
+  type: "error",
+},
+ NOTIFICATIONS = [notification] as const,
+ EMPTY_NOTIFICATIONS: readonly Notification[] = [];
 
-describe("NotificationsPopup", () => {
-  it("renders an accessible dialog and exposes notification actions", async () => {
-    const user = userEvent.setup()
-    const onAction = jest.fn()
-    const onClear = jest.fn()
-    const onClose = jest.fn()
+describe("notificationsPopup", () => {
+  it("renders an accessible dialog and exposes notification actions", async () => {expect.hasAssertions();
+    const onAction = jest.fn(),
+     onClear = jest.fn(),
+     onClose = jest.fn(),
+     user = userEvent.setup()
 
     render(
       <NotificationsPopup
-        notifications={[notification]}
+        notifications={NOTIFICATIONS}
         onAction={onAction}
         onClear={onClear}
         onClearAll={jest.fn()}
@@ -43,12 +47,12 @@ describe("NotificationsPopup", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("closes on Escape and renders the empty state", () => {
+  it("closes on Escape and renders the empty state", () => {expect.hasAssertions();
     const onClose = jest.fn()
 
     render(
       <NotificationsPopup
-        notifications={[]}
+        notifications={EMPTY_NOTIFICATIONS}
         onClear={jest.fn()}
         onClearAll={jest.fn()}
         onClose={onClose}

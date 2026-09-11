@@ -222,7 +222,7 @@
           "news"
         ],
         "summary": "Get News Paginated",
-        "description": "Paginated article endpoint with cursor-based navigation.\n\nCursor pagination is more efficient than offset for large datasets:\n- Consistent performance regardless of page number\n- No \"skipping\" issues when new data is inserted\n- Better index utilization\n\nSupports filtering by:\n- category: Single category filter\n- source: Single source filter (legacy)\n- sources: Comma-separated list for multi-source filtering\n- search: Text search in title and summary\n\nReturns:\n    PaginatedResponse with articles, cursors, and metadata",
+        "description": "Return a cursor-paginated article page with optional source/search filters.",
         "operationId": "get_news_paginated_news_page_get",
         "parameters": [
           {
@@ -360,7 +360,7 @@
           "news"
         ],
         "summary": "Get Cached News Paginated",
-        "description": "Paginated endpoint using in-memory cache (faster for frequently accessed data).\n\nUses offset pagination since cache is in-memory array.\n\nBest for:\n- Initial page loads\n- Common category filters\n- Real-time updates",
+        "description": "Return a filtered page from the in-memory news cache.",
         "operationId": "get_cached_news_paginated_news_page_cached_get",
         "parameters": [
           {
@@ -483,7 +483,7 @@
           "news"
         ],
         "summary": "Get Cached Browse Index",
-        "description": "Return lightweight article cards for the current in-memory RSS cache.",
+        "description": "Return a filtered lightweight index from the in-memory cache.",
         "operationId": "get_cached_browse_index_news_index_cached_get",
         "parameters": [
           {
@@ -583,7 +583,7 @@
           "news"
         ],
         "summary": "Get Browse Index",
-        "description": "Return lightweight article cards for the full browse corpus.",
+        "description": "Return lightweight article cards from the persisted browse corpus.",
         "operationId": "get_browse_index_news_index_get",
         "parameters": [
           {
@@ -683,7 +683,7 @@
           "news"
         ],
         "summary": "Get Recent News",
-        "description": "Lightweight recent articles endpoint for historical paging.\n\nUses keyset pagination and avoids total counts for faster queries.",
+        "description": "Return a cursor-paginated page of recent articles.",
         "operationId": "get_recent_news_news_recent_get",
         "parameters": [
           {
@@ -777,7 +777,7 @@
           "news"
         ],
         "summary": "Post Ranked Articles",
-        "description": "Rank articles using the Rust backend ranking engine.\n\nAccepts article metadata, liked/bookmarked article IDs, and favorite\nsource IDs. Returns articles sorted by personalized ranking including\nscore breakdowns.",
+        "description": "Rank submitted articles with the Rust engine and return the sorted page.",
         "operationId": "post_ranked_articles_news_ranked_post",
         "requestBody": {
           "content": {
@@ -819,7 +819,7 @@
           "news"
         ],
         "summary": "Get News By Source",
-        "description": "Get News By Source.",
+        "description": "Return cached articles for one configured source.",
         "operationId": "get_news_by_source_news_source__source_name__get",
         "parameters": [
           {
@@ -866,7 +866,7 @@
           "news"
         ],
         "summary": "Get News By Category",
-        "description": "Get News By Category.",
+        "description": "Return cached articles for one category.",
         "operationId": "get_news_by_category_news_category__category_name__get",
         "parameters": [
           {
@@ -909,7 +909,7 @@
           "news"
         ],
         "summary": "Get Sources",
-        "description": "Get Sources.",
+        "description": "Return configured sources with persisted credibility metadata.",
         "operationId": "get_sources_news_sources_get",
         "responses": {
           "200": {
@@ -935,7 +935,7 @@
           "news"
         ],
         "summary": "Get Categories",
-        "description": "Get Categories.",
+        "description": "Return the distinct categories in the configured source catalog.",
         "operationId": "get_categories_news_categories_get",
         "responses": {
           "200": {
@@ -964,7 +964,7 @@
           "news"
         ],
         "summary": "Get Source Stats",
-        "description": "Return stats for all configured sources.",
+        "description": "Return cache statistics for configured sources.",
         "operationId": "get_source_stats_news_sources_stats_get",
         "responses": {
           "200": {
@@ -972,9 +972,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Source Stats News Sources Stats Get"
+                  "$ref": "#/components/schemas/SourceStatsList"
                 }
               }
             }
@@ -996,9 +994,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Countries Geo Data Route News Countries Geo Get"
+                  "$ref": "#/components/schemas/CountryGeoData"
                 }
               }
             }
@@ -1012,7 +1008,7 @@
           "news-by-country"
         ],
         "summary": "Get Article Counts By Country",
-        "description": "Get Article Counts By Country.",
+        "description": "Return recent country-mention and source-origin article counts.",
         "operationId": "get_article_counts_by_country_news_by_country_get",
         "parameters": [
           {
@@ -1235,9 +1231,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Cache Status Cache Status Get"
+                  "$ref": "#/components/schemas/CacheStatus"
                 }
               }
             }
@@ -1251,7 +1245,7 @@
           "news-stream"
         ],
         "summary": "Stream News",
-        "description": "Stream News.",
+        "description": "Stream cached news immediately, then source-by-source fresh updates.",
         "operationId": "stream_news_news_stream_get",
         "parameters": [
           {
@@ -1410,9 +1404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Startup Metrics Debug Startup Get"
+                  "$ref": "#/components/schemas/StartupMetricsResponse"
                 }
               }
             }
@@ -1594,9 +1586,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response List Database Articles Debug Database Articles Get"
+                  "$ref": "#/components/schemas/DatabaseDebugResponse"
                 }
               }
             }
@@ -1671,9 +1661,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response List Cached Articles Debug Cache Articles Get"
+                  "$ref": "#/components/schemas/CacheDebugResponse"
                 }
               }
             }
@@ -1697,7 +1685,7 @@
           "debug"
         ],
         "summary": "Get Cache Db Delta",
-        "description": "Get Cache Db Delta.",
+        "description": "Compare a cache sample with persisted article URLs.",
         "operationId": "get_cache_db_delta_debug_cache_delta_get",
         "parameters": [
           {
@@ -1786,7 +1774,7 @@
           "debug"
         ],
         "summary": "Get Storage Drift",
-        "description": "Get Storage Drift.",
+        "description": "Compare database embedding mappings with the vector store.",
         "operationId": "get_storage_drift_debug_storage_drift_get",
         "parameters": [
           {
@@ -2385,7 +2373,7 @@
           "debug"
         ],
         "summary": "Read Debug Log File",
-        "description": "Read events from a specific debug log file.\n\nSupports pagination and filtering by event type.",
+        "description": "Read paginated events from one debug JSONL file.",
         "operationId": "read_debug_log_file_debug_logs_file__filename__get",
         "parameters": [
           {
@@ -2781,9 +2769,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response List Bookmarks Api Bookmarks Get"
+                  "$ref": "#/components/schemas/BookmarkListResponse"
                 }
               }
             }
@@ -2978,9 +2964,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response List Liked Articles Api Liked Get"
+                  "$ref": "#/components/schemas/LikedListResponse"
                 }
               }
             }
@@ -3986,7 +3970,7 @@
           "entity-research"
         ],
         "summary": "Get Reporter",
-        "description": "Get a reporter by ID.",
+        "description": "Get a reporter by ID.\n\nA soft-retired (merged, see audit rec 3) id serves its winner's profile\ninstead of 404ing, so old bookmarks/links keep working. Follows at most\na few hops in case of a chained merge, then falls back to whatever row\nit last reached rather than looping forever on bad data.",
         "operationId": "get_reporter_research_entity_reporter__reporter_id__get",
         "parameters": [
           {
@@ -5608,9 +5592,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Trending Stats Trending Stats Get"
+                  "$ref": "#/components/schemas/TrendingStats"
                 }
               }
             }
@@ -11581,6 +11563,64 @@
         "title": "BookmarkCreateRequest",
         "description": "Bookmark Create Request."
       },
+      "BookmarkEntry": {
+        "properties": {
+          "article": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Article"
+          },
+          "articleId": {
+            "type": "integer",
+            "title": "Articleid"
+          },
+          "bookmarkId": {
+            "type": "integer",
+            "title": "Bookmarkid"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article",
+          "articleId",
+          "bookmarkId"
+        ],
+        "title": "BookmarkEntry",
+        "description": "BookmarkEntry API response model."
+      },
+      "BookmarkListResponse": {
+        "properties": {
+          "bookmarks": {
+            "items": {
+              "$ref": "#/components/schemas/BookmarkEntry"
+            },
+            "type": "array",
+            "title": "Bookmarks"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bookmarks",
+          "total"
+        ],
+        "title": "BookmarkListResponse",
+        "description": "BookmarkListResponse API response model."
+      },
       "BreakingCluster": {
         "properties": {
           "cluster_id": {
@@ -11710,7 +11750,184 @@
           "total"
         ],
         "title": "BrowseIndexResponse",
-        "description": "Lightweight full-corpus response for browse views."
+        "description": "Lightweight browse-index response."
+      },
+      "CacheDebugArticle": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "link": {
+            "type": "string",
+            "title": "Link"
+          },
+          "published": {
+            "type": "string",
+            "title": "Published"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "description",
+          "link",
+          "published",
+          "source",
+          "title"
+        ],
+        "title": "CacheDebugArticle",
+        "description": "CacheDebugArticle API response model."
+      },
+      "CacheDebugResponse": {
+        "properties": {
+          "articles": {
+            "items": {
+              "$ref": "#/components/schemas/CacheDebugArticle"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "returned": {
+            "type": "integer",
+            "title": "Returned"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "articles",
+          "limit",
+          "offset",
+          "returned",
+          "total"
+        ],
+        "title": "CacheDebugResponse",
+        "description": "CacheDebugResponse API response model."
+      },
+      "CacheStatus": {
+        "properties": {
+          "cache_age_seconds": {
+            "type": "number",
+            "title": "Cache Age Seconds"
+          },
+          "category_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Category Breakdown"
+          },
+          "last_updated": {
+            "type": "string",
+            "title": "Last Updated"
+          },
+          "sources_with_errors": {
+            "type": "integer",
+            "title": "Sources With Errors"
+          },
+          "sources_with_warnings": {
+            "type": "integer",
+            "title": "Sources With Warnings"
+          },
+          "sources_working": {
+            "type": "integer",
+            "title": "Sources Working"
+          },
+          "total_articles": {
+            "type": "integer",
+            "title": "Total Articles"
+          },
+          "total_sources": {
+            "type": "integer",
+            "title": "Total Sources"
+          },
+          "update_in_progress": {
+            "type": "boolean",
+            "title": "Update In Progress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cache_age_seconds",
+          "category_breakdown",
+          "last_updated",
+          "sources_with_errors",
+          "sources_with_warnings",
+          "sources_working",
+          "total_articles",
+          "total_sources",
+          "update_in_progress"
+        ],
+        "title": "CacheStatus",
+        "description": "CacheStatus API response model."
       },
       "ClusterArticle": {
         "properties": {
@@ -12099,6 +12316,29 @@
         "title": "ContradictionPanelResponse",
         "description": "Contradiction Panel Response."
       },
+      "CountryGeoData": {
+        "properties": {
+          "countries": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Countries"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "countries",
+          "total"
+        ],
+        "title": "CountryGeoData",
+        "description": "CountryGeoData API response model."
+      },
       "CoverageReportResponse": {
         "properties": {
           "report_period_days": {
@@ -12229,6 +12469,203 @@
         ],
         "title": "CreateShelfRequest",
         "description": "Create Shelf Request."
+      },
+      "DatabaseDebugArticle": {
+        "properties": {
+          "chroma_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chroma Id"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "embedding_generated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Generated"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "title",
+          "url"
+        ],
+        "title": "DatabaseDebugArticle",
+        "description": "DatabaseDebugArticle API response model."
+      },
+      "DatabaseDebugResponse": {
+        "properties": {
+          "articles": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseDebugArticle"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "missing_embeddings_only": {
+            "type": "boolean",
+            "title": "Missing Embeddings Only"
+          },
+          "newest_published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Published"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "oldest_published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Published"
+          },
+          "published_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published After"
+          },
+          "published_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Before"
+          },
+          "returned": {
+            "type": "integer",
+            "title": "Returned"
+          },
+          "sort_direction": {
+            "type": "string",
+            "title": "Sort Direction"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "articles",
+          "limit",
+          "missing_embeddings_only",
+          "offset",
+          "returned",
+          "sort_direction",
+          "total"
+        ],
+        "title": "DatabaseDebugResponse",
+        "description": "DatabaseDebugResponse API response model."
       },
       "EvidenceClaimRecord": {
         "properties": {
@@ -13569,6 +14006,64 @@
         "title": "LanguageDiagnosticsResponse",
         "description": "Language Diagnostics Response."
       },
+      "LikedEntry": {
+        "properties": {
+          "article": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Article"
+          },
+          "articleId": {
+            "type": "integer",
+            "title": "Articleid"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "likedId": {
+            "type": "integer",
+            "title": "Likedid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article",
+          "articleId",
+          "likedId"
+        ],
+        "title": "LikedEntry",
+        "description": "LikedEntry API response model."
+      },
+      "LikedListResponse": {
+        "properties": {
+          "liked": {
+            "items": {
+              "$ref": "#/components/schemas/LikedEntry"
+            },
+            "type": "array",
+            "title": "Liked"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "liked",
+          "total"
+        ],
+        "title": "LikedListResponse",
+        "description": "LikedListResponse API response model."
+      },
       "LineageArticleEdge": {
         "properties": {
           "id": {
@@ -14773,7 +15268,7 @@
           "limit"
         ],
         "title": "PaginatedResponse",
-        "description": "Response model for paginated article lists."
+        "description": "Article page and its pagination metadata."
       },
       "PaywallConcentrationResponse": {
         "properties": {
@@ -15028,24 +15523,21 @@
               "type": "integer"
             },
             "type": "array",
-            "title": "Liked Article Ids",
-            "default": []
+            "title": "Liked Article Ids"
           },
           "bookmarked_article_ids": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Bookmarked Article Ids",
-            "default": []
+            "title": "Bookmarked Article Ids"
           },
           "favorite_source_ids": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Favorite Source Ids",
-            "default": []
+            "title": "Favorite Source Ids"
           }
         },
         "type": "object",
@@ -15053,7 +15545,7 @@
           "articles"
         ],
         "title": "RankRequest",
-        "description": "Request model for the ranked feed endpoint."
+        "description": "Article ranking inputs from the frontend."
       },
       "RankResponse": {
         "properties": {
@@ -15076,7 +15568,7 @@
           "total"
         ],
         "title": "RankResponse",
-        "description": "Response model for the ranked feed endpoint."
+        "description": "Ranked article response."
       },
       "ReadingQueueItem": {
         "properties": {
@@ -15372,7 +15864,7 @@
           "limit"
         ],
         "title": "RecentPageResponse",
-        "description": "Lightweight response for recent articles without total counts."
+        "description": "Recent article page and its next cursor."
       },
       "RelationshipQueryResponse": {
         "properties": {
@@ -16017,6 +16509,17 @@
               }
             ],
             "title": "Id"
+          },
+          "redirected_from_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirected From Id"
           },
           "name": {
             "type": "string",
@@ -16939,6 +17442,105 @@
         "title": "SourceResearchValue",
         "description": "Source Research Value."
       },
+      "SourceStats": {
+        "properties": {
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          },
+          "bias_rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bias Rating"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "funding_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Type"
+          },
+          "last_checked": {
+            "type": "string",
+            "title": "Last Checked"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_count",
+          "category",
+          "country",
+          "last_checked",
+          "name",
+          "status",
+          "url"
+        ],
+        "title": "SourceStats",
+        "description": "SourceStats API response model."
+      },
+      "SourceStatsList": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceStats"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "total_sources": {
+            "type": "integer",
+            "title": "Total Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sources",
+          "total_sources"
+        ],
+        "title": "SourceStatsList",
+        "description": "SourceStatsList API response model."
+      },
       "SourceType": {
         "type": "string",
         "enum": [
@@ -17317,6 +17919,132 @@
         "title": "SourceWikiResponse",
         "description": "Full wiki page data for a single source."
       },
+      "StartupEventMetric": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "StartupEventMetric",
+        "description": "StartupEventMetric API response model."
+      },
+      "StartupMetricsResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/StartupEventMetric"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "notes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Notes"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events",
+          "notes"
+        ],
+        "title": "StartupMetricsResponse",
+        "description": "StartupMetricsResponse API response model."
+      },
       "StoryLineageResponse": {
         "properties": {
           "status": {
@@ -17584,6 +18312,45 @@
         ],
         "title": "TrendingResponse",
         "description": "Trending Response."
+      },
+      "TrendingStats": {
+        "properties": {
+          "active_clusters": {
+            "type": "integer",
+            "title": "Active Clusters"
+          },
+          "baseline_days": {
+            "type": "integer",
+            "title": "Baseline Days"
+          },
+          "breaking_window_hours": {
+            "type": "integer",
+            "title": "Breaking Window Hours"
+          },
+          "recent_spikes": {
+            "type": "integer",
+            "title": "Recent Spikes"
+          },
+          "similarity_threshold": {
+            "type": "number",
+            "title": "Similarity Threshold"
+          },
+          "total_article_assignments": {
+            "type": "integer",
+            "title": "Total Article Assignments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_clusters",
+          "baseline_days",
+          "breaking_window_hours",
+          "recent_spikes",
+          "similarity_threshold",
+          "total_article_assignments"
+        ],
+        "title": "TrendingStats",
+        "description": "TrendingStats API response model."
       },
       "UpdateHighlightRequest": {
         "properties": {

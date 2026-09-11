@@ -1,0 +1,288 @@
+ streamNews = (options: StreamOptions = {}): {
+  promise: Promise<StreamResult>;
+  url: string;
+ } => {
+  const sseUrl = buildStreamUrl(options);
+  console.debug(
+   `Starting news stream with useCache=${options.useCache ?? true} and category=${options.category}`,
+  );
+  {
+   const { promise, resolve, reject } = Promise.withResolvers<StreamResult>();
+   startStreamConnection(sseUrl, options, createStreamRuntime(options, resolve, reject));
+   return { promise, url: sseUrl };
+  }
+ },
+
+
+ buildStreamUrl = (options: Readonly<StreamOptions>): string => {
+  const params = new URLSearchParams({
+   use_cache: String(options.useCache ?? true),
+  });
+  if (options.category) {
+   params.set("category", options.category);
+  }
+  return `${API_BASE_URL}/news/stream?${params.toString()}`;
+ },
+
+
+ startStreamConnection = (
+  sseUrl: string,
+  options: Readonly<StreamOptions>,
+  rt: Readonly<StreamRuntime>,
+ ): void => {
+  void (async () => {
+   console.debug(`Connecting to unified stream endpoint: ${sseUrl}`);
+   try {
+    await connectAndPumpStream(sseUrl, options.signal, rt);
+   } catch (error) {
+    const normalizedError = (() => {
+     if (error instanceof Error) {
+      return error;
+     }
+     return new Error(String(error));
+    })();
+    console.error("Stream fetch error:", error);
+    settleStreamConnectionError(normalizedError, rt);
+   }
+  })();
+ },
+
+
+ connectAndPumpStream = async (
+  sseUrl: string,
+  signal: Readonly<AbortSignal> | undefined,
+  rt: Readonly<StreamRuntime>,
+ ): Promise<void> => {
+  const abortController = new AbortController();
+  Object.assign(rt, { abort: () => { abortController.abort(); } });
+  if (signal !== undefined) {
+   if (signal.aborted) {
+    rt.abort();
+    streamResolve(rt, ["Aborted before connection"]);
+    return;
+   }
+   signal.addEventListener("abort", rt.abort, { once: true });
+  }
+  {
+   const response = await fetch(sseUrl, {
+    headers: { Accept: "text/event-stream" },
+    method: "GET",
+    signal: abortController.signal,
+   });
+   if (!response.ok) {
+    throw new Error(
+     `Stream request failed with status ${response.status}: ${response.statusText}`,
+    );
+   }
+   if (!response.body) {
+    throw new Error("No response body received from stream");
+   }
+   console.debug("Stream connection opened, reading body...");
+   installStreamTimers(rt);
+   await pumpStreamEvents(rt, response.body.getReader());
+  }
+ },
+
+
+ createStreamRuntime = (
+  options: Readonly<StreamOptions>,
+  resolve: StreamResolveHandler,
+  reject: StreamRejectHandler,
+ ): StreamRuntime => {
+  const articles: NewsArticle[] = [],
+   sources = new Set<string>(),
+   errors: string[] = [];
+  return {
+   abort: () => { },
+   addArticles: (...newArticles) => { articles.push(...newArticles); },
+   addError: (error) => { errors.push(error); },
+   addSource: (source) => { sources.add(source); },
+   articles,
+   clearTimers: () => { },
+   errors,
+   hasReceivedData: false,
+   lastMessageTime: Date.now(),
+   onError: options.onError,
+   onProgress: options.onProgress,
+   onSourceComplete: options.onSourceComplete,
+   reject,
+   resolve,
+   settled: false,
+   sources,
+   streamId: undefined,
+  };
+ },
+
+
+ parseStreamEvent = (eventData: string): StreamEvent => {
+  try {
+   return StreamEventSchema.parse(JSON.parse(eventData));
+  } catch {
+   console.warn("[streamNews] First JSON.parse failed, attempting to re-parse");
+   return StreamEventSchema.parse(JSON.parse(JSON.parse(`"${eventData}"`)));
+  }
+ },
+
+
+ dispatchStreamEvent = (
+  data: Readonly<StreamEvent>,
+  rt: Readonly<StreamRuntime>,
+ ): void => {
+  if (data.stream_id !== undefined && rt.streamId === undefined) {
+   Object.assign(rt, { streamId: data.stream_id });
+  }
+  console.debug(`Stream event [${data.status}]:`, {
+   articlesCount: data.articles?.length,
+   message: data.message,
+   progress: data.progress,
+   source: data.source,
+   streamId: data.stream_id,
+  });
+  streamEventHandlers[data.status](data, rt);
+ },
+
+
+ settleStreamConnectionError = (
+  error: Error,
+  rt: Readonly<StreamRuntime>,
+ ): void => {
+  if (rt.settled) {
+   return;
+  }
+  Object.assign(rt, { settled: true });
+  rt.clearTimers();
+  if (error.name === "AbortError") {
+   rt.resolve({
+    articles: removeDuplicateArticles(rt.articles),
+    errors: [...rt.errors, "Aborted"],
+    sources: [...rt.sources],
+    streamId: rt.streamId,
+   });
+   return;
+  }
+  rt.reject(error);
+ },
+
+
+ reportStreamParseError = (
+  parseError: unknown,
+  eventData: string,
+  rt: Readonly<StreamRuntime>,
+ ): void => {
+  console.error(
+   "Error parsing stream event:",
+   parseError,
+   "Raw data:",
+   eventData,
+  );
+  const message = parseError instanceof Error ? parseError.message : String(parseError);
+  rt.onError?.(`Parse error: ${message}`);
+ },
+
+
+ removeDuplicateArticles = (articles: readonly NewsArticle[]): NewsArticle[] => {
+  const seen = new Set<string>(),
+   seenIds = new Set<number>();
+  return articles.filter((article) => {
+   // Check for duplicate IDs first (most reliable)
+   if (seenIds.has(article.id)) {
+    return false;
+   }
+   seenIds.add(article.id);
+
+   // Also check for duplicate title-source combinations
+   const key = `${article.title}-${article.source}`;
+   if (seen.has(key)) {
+    return false;
+   }
+   seen.add(key);
+   return true;
+  });
+ },
+
+
+ streamResolve = (
+  rt: Readonly<StreamRuntime>,
+  extraErrors?: readonly string[],
+ ): void => {
+  if (rt.settled) { return; }
+  Object.assign(rt, { settled: true });
+  rt.clearTimers();
+  rt.resolve({
+   articles: removeDuplicateArticles(rt.articles),
+   errors: extraErrors ? [...rt.errors, ...extraErrors] : rt.errors,
+   sources: [...rt.sources],
+   streamId: rt.streamId,
+  });
+ },
+
+
+ streamReject = (rt: Readonly<StreamRuntime>, error: Error): void => {
+  if (rt.settled) { return; }
+  Object.assign(rt, { settled: true });
+  rt.clearTimers();
+  rt.reject(error);
+ },
+
+
+ pumpStreamEvents = async (
+  rt: Readonly<StreamRuntime>,
+  reader: Readonly<ReadableStreamDefaultReader<Uint8Array>>,
+ ): Promise<void> => {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+   try {
+    const { done, value } = await reader.read();
+    if (done) {
+     resolveCompletedStream(rt);
+     return;
+    }
+
+    Object.assign(rt, { lastMessageTime: Date.now() });
+    buffer = processStreamChunk(buffer, value, decoder, rt);
+   } catch (readError) {
+    const normalizedError = (() => {
+     if (readError instanceof Error) {
+      return readError;
+     }
+     return new Error(String(readError));
+    })();
+    handleStreamReadError(normalizedError, rt);
+    return;
+   }
+  }
+ },
+
+
+ installStreamTimers = (rt: Readonly<StreamRuntime>): void => {
+  let stallInterval: ReturnType<typeof setInterval> | undefined = undefined,
+   timeoutInterval: ReturnType<typeof setInterval> | undefined = undefined;
+  Object.assign(rt, {
+   clearTimers: () => {
+    clearInterval(timeoutInterval);
+    clearInterval(stallInterval);
+   }
+  });
+  timeoutInterval = setInterval(() => {
+   const timeSinceLastMessage = Date.now() - rt.lastMessageTime;
+   if (timeSinceLastMessage > STREAM_MESSAGE_TIMEOUT_MS) {
+    console.error("Stream timeout - no data received in 2 minutes");
+    rt.abort();
+   }
+  }, STREAM_TIMEOUT_CHECK_INTERVAL_MS);
+  stallInterval = setInterval(() => {
+   const isStalled =
+    rt.hasReceivedData &&
+    !rt.settled &&
+    Date.now() - rt.lastMessageTime > STREAM_CACHE_LOAD_TIMEOUT_MS;
+   if (isStalled) {
+    console.warn(
+     `Stream ${rt.streamId} stalled after cache load - auto-completing`,
+    );
+    streamResolve(rt, [
+     "Stream auto-completed due to inactivity after cache load",
+    ]);
+   }
+  }, STREAM_STALL_CHECK_INTERVAL_MS);
+ },

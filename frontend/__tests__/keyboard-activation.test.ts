@@ -1,50 +1,48 @@
-import { activateCardFromKeyDown, shouldActivateCardFromKeyDown } from "@/lib/keyboard-activation"
+import { activateCardFromKeyDown, shouldActivateCardFromKeyDown } from "@/lib/keyboard-activation";
+import { describe, expect, it, jest } from "@jest/globals";
 
 describe("keyboard activation helpers", () => {
-  const currentTarget = { id: "card" }
-  const descendantTarget = { id: "button" }
+  const currentTarget = new EventTarget(),
+    descendantTarget = new EventTarget();
 
   it("only activates for Enter and Space on the card itself", () => {
-    expect(
-      shouldActivateCardFromKeyDown({
-        key: "Enter",
-        currentTarget,
-        target: currentTarget,
-      } as never),
-    ).toBe(true)
+    expect.hasAssertions();
+    const enterEvent: Parameters<typeof shouldActivateCardFromKeyDown>[0] = {
+      currentTarget,
+      key: "Enter",
+      target: currentTarget,
+    };
+    expect(shouldActivateCardFromKeyDown(enterEvent)).toBe(true);
 
-    expect(
-      shouldActivateCardFromKeyDown({
-        key: " ",
-        currentTarget,
-        target: currentTarget,
-      } as never),
-    ).toBe(true)
+    const spaceEvent: Parameters<typeof shouldActivateCardFromKeyDown>[0] = {
+      currentTarget,
+      key: " ",
+      target: currentTarget,
+    };
+    expect(shouldActivateCardFromKeyDown(spaceEvent)).toBe(true);
 
-    expect(
-      shouldActivateCardFromKeyDown({
-        key: "Enter",
-        currentTarget,
-        target: descendantTarget,
-      } as never),
-    ).toBe(false)
-  })
+    const descendantEvent: Parameters<typeof shouldActivateCardFromKeyDown>[0] = {
+      currentTarget,
+      key: "Enter",
+      target: descendantTarget,
+    };
+    expect(shouldActivateCardFromKeyDown(descendantEvent)).toBe(false);
+  });
 
   it("does not activate nested controls", () => {
-    const preventDefault = jest.fn()
-    const onActivate = jest.fn()
+    expect.hasAssertions();
+    const onActivate = jest.fn<() => void>(),
+      preventDefault = jest.fn<() => void>();
 
-    activateCardFromKeyDown(
-      {
-        key: "Enter",
+    const descendantEvent: Parameters<typeof activateCardFromKeyDown>[0] = {
         currentTarget,
-        target: descendantTarget,
+        key: "Enter",
         preventDefault,
-      } as never,
-      onActivate,
-    )
+        target: descendantTarget,
+      };
+    activateCardFromKeyDown(descendantEvent, onActivate);
 
-    expect(preventDefault).not.toHaveBeenCalled()
-    expect(onActivate).not.toHaveBeenCalled()
-  })
-})
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+});

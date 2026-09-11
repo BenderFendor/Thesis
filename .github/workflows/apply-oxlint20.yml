@@ -1,0 +1,213 @@
+name: Apply remaining Oxlint hard-error fixes
+
+on:
+  push:
+    branches:
+      - quality/crap-mi-oxlint-hardening
+    paths:
+      - ".github/workflows/apply-oxlint20.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Apply exact no-known-value-widening fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, found {count}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace(
+              "frontend/lib/api/streaming.ts",
+              "export const streamNews = (options: StreamOptions = {}): {\n  promise: Promise<StreamResult>;\n  url: string;\n} => {",
+              "export const streamNews = (options: StreamOptions = {}) => {",
+          )
+          replace(
+              "frontend/components/interactive-globe.tsx",
+              "remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]): Record<string, number> => {",
+              "remapCountryCounts = (counts: Readonly<Record<string, number>>, visibleCountries: readonly Readonly<CountryFeature>[]) => {",
+          )
+          replace(
+              "frontend/components/interactive-globe.tsx",
+              "}>): Readonly<{\n  handlePolygonClick: (polygon: GlobePolygonInput) => void;\n  handlePolygonHover: (polygon: GlobePolygonInput | null) => void;\n  polygonAltitude: (polygon: GlobePolygonInput) => number;\n  polygonCapColor: (polygon: GlobePolygonInput) => string;\n  polygonLabel: (polygon: GlobePolygonInput) => string;\n  polygonSideColor: (polygon: GlobePolygonInput) => string;\n  polygonStrokeColor: (polygon: GlobePolygonInput) => string;\n}> => {",
+              "}>) => {",
+          )
+          replace(
+              "frontend/app/saved/saved-workspace-model.ts",
+              "const groupArticleSummaries = (\n  summaries: readonly QueueArticleSummary[],\n): Record<string, QueueArticleSummary[]> => {",
+              "const groupArticleSummaries = (\n  summaries: readonly QueueArticleSummary[],\n) => {",
+          )
+          replace(
+              "frontend/components/globe-view.tsx",
+              "buildVerificationStats = (articles: ArticleList): { readonly highPct: number } => {",
+              "buildVerificationStats = (articles: ArticleList) => {",
+          )
+          replace(
+              "frontend/components/reporter-profile.tsx",
+              "statusBadgeClass: Readonly<Record<string, string>> = {\n  ambiguous: \"border-amber-500/30 bg-amber-500/10 text-amber-300\",\n  matched: \"border-emerald-500/30 bg-emerald-500/10 text-emerald-300\",\n  none: \"border-white/10 bg-muted/20 text-muted-foreground\",\n}",
+              "statusBadgeClass = {\n  ambiguous: \"border-amber-500/30 bg-amber-500/10 text-amber-300\",\n  matched: \"border-emerald-500/30 bg-emerald-500/10 text-emerald-300\",\n  none: \"border-white/10 bg-muted/20 text-muted-foreground\",\n} satisfies Readonly<Record<string, string>>",
+          )
+          replace(
+              "frontend/lib/cluster-display.ts",
+              "}>): { articleCount: number; sourceCount: number } => {",
+              "}>) => {",
+          )
+          replace(
+              "frontend/components/reading-queue-sidebar.tsx",
+              "groupDigestArticles = (\n  articles: readonly DigestArticleSummary[],\n ): Readonly<Record<string, readonly DigestArticleSummary[]>> => {",
+              "groupDigestArticles = (\n  articles: readonly DigestArticleSummary[],\n ) => {",
+          )
+          replace(
+              "frontend/app/search/page.tsx",
+              "removeChatMessages = (\n  chatMessagesMap: Readonly<Record<string, readonly Message[]>>,\n  id: string,\n ): Record<string, Message[]> => {",
+              "removeChatMessages = (\n  chatMessagesMap: Readonly<Record<string, readonly Message[]>>,\n  id: string,\n ) => {",
+          )
+          replace(
+              "frontend/app/search/page.tsx",
+              "removeSelectedChatMessages = (\n  chatMessagesMap: Readonly<Record<string, readonly Message[]>>,\n  ids: readonly string[],\n ): Record<string, Message[]> => {",
+              "removeSelectedChatMessages = (\n  chatMessagesMap: Readonly<Record<string, readonly Message[]>>,\n  ids: readonly string[],\n ) => {",
+          )
+          replace(
+              "frontend/app/search/page.tsx",
+              "reviveStoredChatMessages = (\n  messages: StoredChatState[\"messages\"] | undefined,\n ): Record<string, Message[]> => {",
+              "reviveStoredChatMessages = (\n  messages: StoredChatState[\"messages\"] | undefined,\n ) => {",
+          )
+          replace(
+              "frontend/lib/appearance-settings.ts",
+              "COLOR_PROPERTY_BY_TOKEN: Record<keyof AppearanceColorTokens, string | string[]> = {",
+              "COLOR_PROPERTY_BY_TOKEN = {",
+          )
+          replace(
+              "frontend/lib/appearance-settings.ts",
+              "  surface: \"--card\",\n},\n\n  HEX_COLOR_PATTERN",
+              "  surface: \"--card\",\n} satisfies Record<keyof AppearanceColorTokens, string | string[]>,\n\n  HEX_COLOR_PATTERN",
+          )
+          replace(
+              "frontend/lib/appearance-settings.ts",
+              "NEUTRAL_NUMBER_BY_PROPERTY: Record<string, number> = {",
+              "NEUTRAL_NUMBER_BY_PROPERTY = {",
+          )
+          replace(
+              "frontend/lib/appearance-settings.ts",
+              "  \"--appearance-motion-speed\": 1,\n  };",
+              "  \"--appearance-motion-speed\": 1,\n  } satisfies Record<string, number>;",
+          )
+          replace(
+              "frontend/hooks/use-scroll-personalization.ts",
+              "buildTopicMap = (\n  articleIds: readonly number[],\n): Record<number, readonly ArticleTopic[]> => {",
+              "buildTopicMap = (\n  articleIds: readonly number[],\n) => {",
+          )
+          replace(
+              "frontend/components/credibility-badge.tsx",
+              "const ICON_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {",
+              "const ICON_SIZE_CLASSES = {",
+          )
+          replace(
+              "frontend/components/credibility-badge.tsx",
+              "  sm: \"h-3 w-3\",\n},\n\n SKELETON_IDS",
+              "  sm: \"h-3 w-3\",\n} satisfies Readonly<Record<BadgeSize, string>>,\n\n SKELETON_IDS",
+          )
+          replace(
+              "frontend/components/credibility-badge.tsx",
+              "TEXT_SIZE_CLASSES: Readonly<Record<BadgeSize, string>> = {",
+              "TEXT_SIZE_CLASSES = {",
+          )
+          replace(
+              "frontend/components/credibility-badge.tsx",
+              "  sm: \"text-[10px]\",\n};",
+              "  sm: \"text-[10px]\",\n} satisfies Readonly<Record<BadgeSize, string>>;",
+          )
+          replace(
+              "frontend/__tests__/feed-ranking.test.ts",
+              "topicsByArticleId: Record<number, ArticleTopic[]> = {\n      10:",
+              "topicsByArticleId = {\n      10:",
+          )
+          replace(
+              "frontend/__tests__/feed-ranking.test.ts",
+              "topicsByArticleId: Record<number, ArticleTopic[]> = {\n          [articleId]:",
+              "topicsByArticleId = {\n          [articleId]:",
+          )
+          replace(
+              "frontend/components/story-lineage-panel.tsx",
+              "interface StoryLineagePanelProps {\n  clusterId: number;\n}\n\nconst relationLabels: Record<string, string> = {",
+              "interface StoryLineagePanelProps {\n  clusterId: number;\n}\n\ninterface RelationLabels {\n  readonly [relation: string]: string;\n}\n\nconst relationLabels: RelationLabels = {",
+          )
+          PY
+          git diff --check
+          git diff --stat
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+
+      - name: Require zero hard Oxlint errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          export OXLINT_TSGOLINT_PATH="$PWD/frontend/node_modules/.bin/tsgolint"
+          set +e
+          frontend/node_modules/.bin/oxlint -c .oxlintrc.json --format json frontend scripts > /tmp/oxlint-after.json
+          set -e
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const parsed = JSON.parse(fs.readFileSync('/tmp/oxlint-after.json', 'utf8'));
+          const diagnostics = Array.isArray(parsed?.diagnostics) ? parsed.diagnostics : [];
+          const errors = diagnostics.filter((d) => !String(d?.severity ?? 'error').toLowerCase().startsWith('warn'));
+          const warnings = diagnostics.filter((d) => String(d?.severity ?? 'error').toLowerCase().startsWith('warn'));
+          const byRule = new Map();
+          for (const d of errors) {
+            const rule = String(d?.code ?? d?.rule ?? d?.ruleId ?? 'unknown');
+            byRule.set(rule, (byRule.get(rule) ?? 0) + 1);
+          }
+          console.log(JSON.stringify({errors: errors.length, warnings: warnings.length, errorsByRule: [...byRule.entries()]}, null, 2));
+          if (errors.length !== 0) {
+            for (const d of errors.slice(0, 40)) {
+              console.error(`${d.filename ?? '<unknown>'}: ${d.code ?? 'unknown'}: ${d.message ?? ''}`);
+            }
+            process.exit(1);
+          }
+          NODE
+
+      - name: Commit source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            frontend/lib/api/streaming.ts \
+            frontend/components/interactive-globe.tsx \
+            frontend/app/saved/saved-workspace-model.ts \
+            frontend/components/globe-view.tsx \
+            frontend/components/reporter-profile.tsx \
+            frontend/lib/cluster-display.ts \
+            frontend/components/reading-queue-sidebar.tsx \
+            frontend/app/search/page.tsx \
+            frontend/lib/appearance-settings.ts \
+            frontend/hooks/use-scroll-personalization.ts \
+            frontend/components/credibility-badge.tsx \
+            frontend/__tests__/feed-ranking.test.ts \
+            frontend/components/story-lineage-panel.tsx
+          git commit -m "quality: clear remaining Oxlint hard errors"
+          git push origin HEAD:quality/crap-mi-oxlint-hardening

@@ -111,18 +111,21 @@ async def cross_ref(limit: int) -> int:
         affiliations = extract_affiliations_from_relationships(
             matches, relationships, entities_by_id
         )
-        print(f"Extracted {len(affiliations)} affiliations.")
-
-        for aff in affiliations[:20]:
-            print(
-                f"  Reporter #{aff['reporter_id']} -> {aff['category']} -> "
-                f"{aff['organization']} ({aff.get('start_date', '?')} - "
-                f"{aff.get('end_date', '?')})"
-            )
-        if len(affiliations) > 20:
-            print(f"  ... and {len(affiliations) - 20} more")
+        _print_affiliation_preview(affiliations)
 
     return 0
+
+
+def _print_affiliation_preview(affiliations: list[dict[str, object]]) -> None:
+    print(f"Extracted {len(affiliations)} affiliations.")
+    for affiliation in affiliations[:20]:
+        print(
+            f"  Reporter #{affiliation['reporter_id']} -> {affiliation['category']} -> "
+            f"{affiliation['organization']} ({affiliation.get('start_date', '?')} - "
+            f"{affiliation.get('end_date', '?')})"
+        )
+    if len(affiliations) > 20:
+        print(f"  ... and {len(affiliations) - 20} more")
 
 
 async def main_async(args: argparse.Namespace) -> int:

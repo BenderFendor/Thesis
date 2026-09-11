@@ -192,6 +192,58 @@ def _classify(window: str) -> str:
     return "outlet-specific literal"
 
 
+def _scan_text_for_terms(
+    path: Path,
+    normalized: str,
+    line_numbers: list[int],
+    raw_lines: list[str],
+    seen_spans: set[tuple[int, int]],
+) -> list[Violation]:
+    """Scan normalized text for every benchmark term, suppressing markers."""
+    violations: list[Violation] = []
+    for term, pattern in _TERM_PATTERNS.items():
+        for match in pattern.finditer(normalized):
+            span_key = _span_key(match, line_numbers)
+            violation = _violation_for_match(path, term, match, line_numbers, raw_lines)
+            if violation is None or span_key in seen_spans:
+                continue
+            seen_spans.add(span_key)
+            violations.append(violation)
+    return violations
+
+
+def _span_key(match: re.Match[str], line_numbers: list[int]) -> tuple[int, int]:
+    """Map a match span to the (start, end) source line pair."""
+    span_start_line = line_numbers[match.start()]
+    span_end_line = line_numbers[min(match.end() - 1, len(line_numbers) - 1)]
+    return (span_start_line, span_end_line)
+
+
+def _violation_for_match(
+    path: Path,
+    term: str,
+    match: re.Match[str],
+    line_numbers: list[int],
+    raw_lines: list[str],
+) -> Violation | None:
+    """Build one Violation for a matched span, or None when suppressed/deduped."""
+    span_start_line = line_numbers[match.start()]
+    span_end_line = line_numbers[min(match.end() - 1, len(line_numbers) - 1)]
+    raw_line = raw_lines[span_start_line - 1] if span_start_line - 1 < len(raw_lines) else ""
+    if SUPPRESSION_MARKER in raw_line:
+        return None
+    window_text = "\n".join(
+        raw_lines[max(0, span_start_line - 3) : min(len(raw_lines), span_end_line + 2)]
+    )
+    return Violation(
+        path=path,
+        line_number=span_start_line,
+        line=raw_line.strip(),
+        reason=_classify(window_text),
+        matched_term=term,
+    )
+
+
 def scan_file(path: Path) -> list[Violation]:
     if (
         any(part in EXCLUDED_PARTS for part in path.parts)
@@ -206,35 +258,7 @@ def scan_file(path: Path) -> list[Violation]:
     normalized, line_numbers = _normalize(text)
     if not normalized:
         return []
-    raw_lines = text.splitlines()
-
-    violations: list[Violation] = []
-    seen_spans: set[tuple[int, int]] = set()
-    for term, pattern in _TERM_PATTERNS.items():
-        for match in pattern.finditer(normalized):
-            span_start_line = line_numbers[match.start()]
-            span_end_line = line_numbers[min(match.end() - 1, len(line_numbers) - 1)]
-            key = (span_start_line, span_end_line)
-            if key in seen_spans:
-                continue
-            raw_line = (
-                raw_lines[span_start_line - 1] if span_start_line - 1 < len(raw_lines) else ""
-            )
-            if SUPPRESSION_MARKER in raw_line:
-                continue
-            window_text = "\n".join(
-                raw_lines[max(0, span_start_line - 3) : min(len(raw_lines), span_end_line + 2)]
-            )
-            seen_spans.add(key)
-            violations.append(
-                Violation(
-                    path=path,
-                    line_number=span_start_line,
-                    line=raw_line.strip(),
-                    reason=_classify(window_text),
-                    matched_term=term,
-                )
-            )
+    violations = _scan_text_for_terms(path, normalized, line_numbers, text.splitlines(), set())
     return sorted(violations, key=lambda item: item.line_number)
 
 

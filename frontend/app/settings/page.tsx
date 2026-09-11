@@ -1,48 +1,43 @@
 "use client"
 
-import { useCallback, useId, useRef, useSyncExternalStore } from "react"
-import Link from "next/link"
+import { APPEARANCE_RANGES, getServerAppearanceSettings, loadAppearanceSettings, normalizeAppearanceSettings, resetAppearanceSettings, saveAppearanceSettings, subscribeToAppearanceSettings } from '@/lib/appearance-settings';
+import type { AppearanceColorTokens, AppearanceLayoutTokens, AppearanceMotionTokens, AppearanceSettings, AppearanceShadowTokens, AppearanceTypographyTokens } from '@/lib/appearance-settings';
 import { ArrowLeft, Download, RotateCcw, Upload } from "lucide-react"
-import { toast } from "sonner"
+import { useCallback, useId, useMemo, useRef, useSyncExternalStore } from "react"
 
-import { GlobalNavigation } from "@/components/global-navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { GlobalNavigation } from "@/components/global-navigation"
 import { Input } from "@/components/ui/input"
-import {
-  APPEARANCE_RANGES,
-  getServerAppearanceSettings,
-  loadAppearanceSettings,
-  normalizeAppearanceSettings,
-  resetAppearanceSettings,
-  saveAppearanceSettings,
-  subscribeToAppearanceSettings,
-  type AppearanceColorTokens,
-  type AppearanceLayoutTokens,
-  type AppearanceMotionTokens,
-  type AppearanceSettings,
-  type AppearanceShadowTokens,
-  type AppearanceTypographyTokens,
-} from "@/lib/appearance-settings"
+import Link from "next/link"
+import { toast } from "sonner"
 
-const COLOR_FIELDS: Array<{ token: keyof AppearanceColorTokens; label: string }> = [
-  { token: "background", label: "Background" },
-  { token: "surface", label: "Surface" },
-  { token: "foreground", label: "Text" },
-  { token: "secondaryText", label: "Secondary text" },
-  { token: "accent", label: "Accent" },
-  { token: "border", label: "Border" },
-]
+const COLOR_FIELDS: { token: keyof AppearanceColorTokens; label: string }[] = [
+  { label: "Background", token: "background" },
+  { label: "Surface", token: "surface" },
+  { label: "Text", token: "foreground" },
+  { label: "Secondary text", token: "secondaryText" },
+  { label: "Accent", token: "accent" },
+  { label: "Border", token: "border" },
+],
 
-const DENSITY_OPTIONS = [
+ DENSITY_OPTIONS = [
   { label: "Compact", scale: 0.9 },
   { label: "Default", scale: 1 },
   { label: "Roomy", scale: 1.1 },
-] as const
+] as const,
+ DENSITY_CONTROL_OPTIONS = DENSITY_OPTIONS.map((option) => ({
+  label: option.label,
+  value: option.label,
+ })),
+ MOTION_CONTROL_OPTIONS = [
+  { label: "Full", value: "on" },
+  { label: "Off", value: "off" },
+ ]
 
-function percent(value: number): string {
-  return `${Math.round(value * 100)}%`
-}
+const percent = (value: number): string => 
+  `${Math.round(value * 100)}%`
+
 
 interface SettingsSectionProps {
   title: string
@@ -50,8 +45,8 @@ interface SettingsSectionProps {
   children: React.ReactNode
 }
 
-function SettingsSection({ title, description, children }: SettingsSectionProps) {
-  return (
+const SettingsSection = ({ title, description, children }: SettingsSectionProps) => 
+  (
     <section className="rounded-md border border-border/70 bg-card/60 p-5 shadow-sm">
       <div className="mb-4">
         <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{title}</h2>
@@ -62,7 +57,7 @@ function SettingsSection({ title, description, children }: SettingsSectionProps)
       <div className="space-y-5">{children}</div>
     </section>
   )
-}
+
 
 interface SliderControlProps {
   label: string
@@ -75,8 +70,11 @@ interface SliderControlProps {
   onChange: (value: number) => void
 }
 
-function SliderControl({ label, value, min, max, step, display, disabled, onChange }: SliderControlProps) {
-  const id = useId()
+const SliderControl = ({ label, value, min, max, step, display, disabled, onChange }: SliderControlProps) => {
+  const id = useId(),
+   handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(Number(event.target.value))
+   }, [onChange])
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
@@ -95,7 +93,7 @@ function SliderControl({ label, value, min, max, step, display, disabled, onChan
         step={step}
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onChange={handleChange}
         className="w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>
@@ -109,8 +107,11 @@ interface ColorControlProps {
   onChange: (token: keyof AppearanceColorTokens, value: string) => void
 }
 
-function ColorControl({ label, token, value, onChange }: ColorControlProps) {
-  const id = useId()
+const ColorControl = ({ label, token, value, onChange }: ColorControlProps) => {
+  const id = useId(),
+   handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(token, event.target.value)
+   }, [onChange, token])
   return (
     <div className="flex items-center justify-between gap-3">
       <label htmlFor={id} className="text-sm text-foreground">
@@ -122,7 +123,7 @@ function ColorControl({ label, token, value, onChange }: ColorControlProps) {
           id={id}
           type="color"
           value={value}
-          onChange={(event) => onChange(token, event.target.value)}
+          onChange={handleChange}
           className="h-9 w-14 cursor-pointer rounded-sm border border-border bg-transparent p-1"
           aria-label={`${label} color`}
         />
@@ -133,95 +134,99 @@ function ColorControl({ label, token, value, onChange }: ColorControlProps) {
 
 interface SegmentedControlProps {
   label: string
-  options: Array<{ label: string; value: string }>
+  options: { label: string; value: string }[]
   value: string
   onChange: (value: string) => void
 }
 
-function SegmentedControl({ label, options, value, onChange }: SegmentedControlProps) {
+const SegmentedOptionButton = ({
+  onChange,
+  option,
+  selected,
+}: Readonly<{
+  onChange: (value: string) => void
+  option: Readonly<{ label: string; value: string }>
+  selected: boolean
+}>) => {
+  const handleClick = useCallback(() => {
+    onChange(option.value)
+  }, [onChange, option.value])
+
   return (
-    <div className="space-y-2">
-      <span className="text-sm text-foreground">{label}</span>
-      <div className="flex gap-2" role="group" aria-label={label}>
-        {options.map((option) => (
-          <Button
-            key={`${label}-${option.value}`}
-            type="button"
-            size="sm"
-            variant={option.value === value ? "default" : "outline"}
-            aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
-    </div>
+    <Button
+      type="button"
+      size="sm"
+      variant={selected ? "default" : "outline"}
+      aria-pressed={selected}
+      onClick={handleClick}
+    >
+      {option.label}
+    </Button>
   )
 }
 
-export default function AppearanceSettingsPage() {
-  const settings = useSyncExternalStore(
-    subscribeToAppearanceSettings,
-    loadAppearanceSettings,
-    getServerAppearanceSettings,
+const SegmentedControl = ({ label, options, value, onChange }: SegmentedControlProps) => 
+  (
+    <div className="space-y-2">
+      <fieldset className="flex gap-2">
+        <legend className="mb-2 text-sm text-foreground">{label}</legend>
+        {options.map((option) => (
+          <SegmentedOptionButton
+            key={`${label}-${option.value}`}
+            onChange={onChange}
+            option={option}
+            selected={option.value === value}
+          />
+        ))}
+      </fieldset>
+    </div>
   )
-  const importInputRef = useRef<HTMLInputElement>(null)
 
-  const save = useCallback(
-    (next: AppearanceSettings) => {
-      saveAppearanceSettings(normalizeAppearanceSettings(next))
-    },
-    [],
-  )
 
+const useAppearanceSettingsActions = (
+  settings: AppearanceSettings,
+  save: (next: AppearanceSettings) => void,
+) => {
   const updateColorField = useCallback(
     (token: keyof AppearanceColorTokens, value: string) => {
       save({ ...settings, colors: { ...settings.colors, [token]: value } })
     },
     [save, settings],
-  )
-
-  const updateTypography = useCallback(
-    (patch: Partial<AppearanceTypographyTokens>) =>
-      save({ ...settings, typography: { ...settings.typography, ...patch } }),
+  ),
+   updateLayout = useCallback(
+    (patch: Partial<AppearanceLayoutTokens>) =>{
+      save({ ...settings, layout: { ...settings.layout, ...patch } }); },
+    [save, settings],
+  ),
+   updateMotion = useCallback(
+    (patch: Partial<AppearanceMotionTokens>) =>{
+      save({ ...settings, motion: { ...settings.motion, ...patch } }); },
+    [save, settings],
+  ),
+   updateShadows = useCallback(
+    (patch: Partial<AppearanceShadowTokens>) =>{
+      save({ ...settings, shadows: { ...settings.shadows, ...patch } }); },
+    [save, settings],
+  ),
+   updateTypography = useCallback(
+    (patch: Partial<AppearanceTypographyTokens>) =>{
+      save({ ...settings, typography: { ...settings.typography, ...patch } }); },
     [save, settings],
   )
+  return { updateColorField, updateLayout, updateMotion, updateShadows, updateTypography }
+}
 
-  const updateLayout = useCallback(
-    (patch: Partial<AppearanceLayoutTokens>) =>
-      save({ ...settings, layout: { ...settings.layout, ...patch } }),
-    [save, settings],
-  )
-
-  const updateShadows = useCallback(
-    (patch: Partial<AppearanceShadowTokens>) =>
-      save({ ...settings, shadows: { ...settings.shadows, ...patch } }),
-    [save, settings],
-  )
-
-  const updateMotion = useCallback(
-    (patch: Partial<AppearanceMotionTokens>) =>
-      save({ ...settings, motion: { ...settings.motion, ...patch } }),
-    [save, settings],
-  )
-
-  const handleReset = useCallback(() => {
-    resetAppearanceSettings()
-    toast.success("Appearance restored to defaults")
-  }, [])
-
+const useAppearanceFileActions = (settings: AppearanceSettings) => {
   const handleExport = useCallback(() => {
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement("a")
+    const anchor = document.createElement("a"),
+     blob = new Blob([JSON.stringify(settings, undefined, 2)], { type: "application/json" }),
+     url = URL.createObjectURL(blob)
     anchor.href = url
     anchor.download = "scoop-appearance-settings.json"
     anchor.click()
     URL.revokeObjectURL(url)
-  }, [settings])
-
-  const handleImportFile = useCallback(
+  }, [settings]),
+   handleImportFile = useCallback(
     async (file: File) => {
       try {
         const parsed = normalizeAppearanceSettings(JSON.parse(await file.text()))
@@ -236,8 +241,90 @@ export default function AppearanceSettingsPage() {
     },
     [],
   )
+  return { handleExport, handleImportFile }
+}
 
-  const densityValue =
+const ColorSwatch = ({
+  color,
+  label,
+}: Readonly<{ color: string; label: string }>) => {
+  const style = useMemo(() => ({ backgroundColor: color }), [color])
+  return (
+    <div className="space-y-1">
+      <div className="h-6 w-full rounded-sm border border-border" style={style} />
+      <span className="block truncate font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  )
+}
+
+export default function AppearanceSettingsPage() {
+  const settings = useSyncExternalStore(
+    subscribeToAppearanceSettings,
+    loadAppearanceSettings,
+    getServerAppearanceSettings,
+  ),
+   importInputRef = useRef<HTMLInputElement>(null),
+
+   save = useCallback(
+    (next: AppearanceSettings) => {
+      saveAppearanceSettings(normalizeAppearanceSettings(next))
+    },
+    [],
+  ),
+
+   { updateColorField, updateMotion, updateLayout, updateShadows, updateTypography } = useAppearanceSettingsActions(settings, save),
+
+   handleReset = useCallback(() => {
+    resetAppearanceSettings()
+    toast.success("Appearance restored to defaults")
+  }, []),
+
+   { handleExport, handleImportFile } = useAppearanceFileActions(settings),
+
+   handleTextScale = useCallback((textScale: number) => {
+    updateTypography({ textScale })
+   }, [updateTypography]),
+   handleBodyWeight = useCallback((bodyWeight: number) => {
+    updateTypography({ bodyWeight })
+   }, [updateTypography]),
+   handleHeadingWeight = useCallback((headingWeight: number) => {
+    updateTypography({ headingWeight })
+   }, [updateTypography]),
+   handleDensityChange = useCallback((selected: string) => {
+    const option = DENSITY_OPTIONS.find((candidate) => candidate.label === selected)
+    if (option !== undefined) {
+      updateLayout({ spaceScale: option.scale })
+    }
+   }, [updateLayout]),
+   handleSpaceScale = useCallback((spaceScale: number) => {
+    updateLayout({ spaceScale })
+   }, [updateLayout]),
+   handleCornerRadius = useCallback((cornerRadius: number) => {
+    updateLayout({ cornerRadius })
+   }, [updateLayout]),
+   handleShadowStrength = useCallback((strength: number) => {
+    updateShadows({ strength })
+   }, [updateShadows]),
+   handleMotionToggle = useCallback((selected: string) => {
+    updateMotion({ enabled: selected === "on" })
+   }, [updateMotion]),
+   handleMotionSpeed = useCallback((speed: number) => {
+    updateMotion({ speed })
+   }, [updateMotion]),
+   handleImportClick = useCallback(() => {
+    importInputRef.current?.click()
+   }, []),
+   handleImportChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (file !== undefined) {
+      void handleImportFile(file)
+    }
+   }, [handleImportFile]),
+
+   densityValue =
     DENSITY_OPTIONS.find((option) => option.scale === settings.layout.spaceScale)?.label ?? "Custom"
 
   return (
@@ -293,7 +380,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.textScale.max}
                   step={APPEARANCE_RANGES.textScale.step}
                   display={percent(settings.typography.textScale)}
-                  onChange={(textScale) => updateTypography({ textScale })}
+                  onChange={handleTextScale}
                 />
                 <SliderControl
                   label="Body weight"
@@ -302,7 +389,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.bodyWeight.max}
                   step={APPEARANCE_RANGES.bodyWeight.step}
                   display={String(settings.typography.bodyWeight)}
-                  onChange={(bodyWeight) => updateTypography({ bodyWeight })}
+                  onChange={handleBodyWeight}
                 />
                 <SliderControl
                   label="Heading weight"
@@ -311,7 +398,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.headingWeight.max}
                   step={APPEARANCE_RANGES.headingWeight.step}
                   display={String(settings.typography.headingWeight)}
-                  onChange={(headingWeight) => updateTypography({ headingWeight })}
+                  onChange={handleHeadingWeight}
                 />
               </SettingsSection>
 
@@ -322,16 +409,8 @@ export default function AppearanceSettingsPage() {
                 <SegmentedControl
                   label="Density"
                   value={densityValue}
-                  options={DENSITY_OPTIONS.map((option) => ({
-                    label: option.label,
-                    value: option.label,
-                  }))}
-                  onChange={(selected) => {
-                    const option = DENSITY_OPTIONS.find((candidate) => candidate.label === selected)
-                    if (option) {
-                      updateLayout({ spaceScale: option.scale })
-                    }
-                  }}
+                  options={DENSITY_CONTROL_OPTIONS}
+                  onChange={handleDensityChange}
                 />
                 <SliderControl
                   label="Spacing scale"
@@ -340,7 +419,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.spaceScale.max}
                   step={APPEARANCE_RANGES.spaceScale.step}
                   display={percent(settings.layout.spaceScale)}
-                  onChange={(spaceScale) => updateLayout({ spaceScale })}
+                  onChange={handleSpaceScale}
                 />
                 <SliderControl
                   label="Corner radius"
@@ -349,7 +428,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.cornerRadius.max}
                   step={APPEARANCE_RANGES.cornerRadius.step}
                   display={`${Math.round(settings.layout.cornerRadius)}px`}
-                  onChange={(cornerRadius) => updateLayout({ cornerRadius })}
+                  onChange={handleCornerRadius}
                 />
               </SettingsSection>
 
@@ -364,7 +443,7 @@ export default function AppearanceSettingsPage() {
                   max={APPEARANCE_RANGES.shadowStrength.max}
                   step={APPEARANCE_RANGES.shadowStrength.step}
                   display={percent(settings.shadows.strength)}
-                  onChange={(strength) => updateShadows({ strength })}
+                  onChange={handleShadowStrength}
                 />
               </SettingsSection>
 
@@ -372,11 +451,8 @@ export default function AppearanceSettingsPage() {
                 <SegmentedControl
                   label="Animations"
                   value={settings.motion.enabled ? "on" : "off"}
-                  options={[
-                    { label: "Full", value: "on" },
-                    { label: "Off", value: "off" },
-                  ]}
-                  onChange={(selected) => updateMotion({ enabled: selected === "on" })}
+                  options={MOTION_CONTROL_OPTIONS}
+                  onChange={handleMotionToggle}
                 />
                 <SliderControl
                   label="Motion speed"
@@ -386,7 +462,7 @@ export default function AppearanceSettingsPage() {
                   step={APPEARANCE_RANGES.motionSpeed.step}
                   display={percent(settings.motion.speed)}
                   disabled={!settings.motion.enabled}
-                  onChange={(speed) => updateMotion({ speed })}
+                  onChange={handleMotionSpeed}
                 />
               </SettingsSection>
 
@@ -399,7 +475,7 @@ export default function AppearanceSettingsPage() {
                   <Download className="h-4 w-4" />
                   Export JSON
                 </Button>
-                <Button type="button" variant="outline" onClick={() => importInputRef.current?.click()}>
+                <Button type="button" variant="outline" onClick={handleImportClick}>
                   <Upload className="h-4 w-4" />
                   Import JSON
                 </Button>
@@ -408,13 +484,7 @@ export default function AppearanceSettingsPage() {
                   type="file"
                   accept="application/json,.json"
                   className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    event.target.value = ""
-                    if (file) {
-                      void handleImportFile(file)
-                    }
-                  }}
+                  onChange={handleImportChange}
                 />
                 <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-widest">
                   Stored locally
@@ -451,15 +521,11 @@ export default function AppearanceSettingsPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-2 border-t border-border p-4">
                     {COLOR_FIELDS.map((field) => (
-                      <div key={`swatch-${field.token}`} className="space-y-1">
-                        <div
-                          className="h-6 w-full rounded-sm border border-border"
-                          style={{ backgroundColor: settings.colors[field.token] }}
-                        />
-                        <span className="block truncate font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
-                          {field.label}
-                        </span>
-                      </div>
+                      <ColorSwatch
+                        key={`swatch-${field.token}`}
+                        color={settings.colors[field.token]}
+                        label={field.label}
+                      />
                     ))}
                   </div>
                 </div>
