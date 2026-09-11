@@ -22,6 +22,7 @@ const STREAM_CACHE_LOAD_TIMEOUT_MS = 15_000;
 const STREAM_MESSAGE_TIMEOUT_MS = 120_000;
 const STREAM_STALL_CHECK_INTERVAL_MS = 3000;
 const STREAM_TIMEOUT_CHECK_INTERVAL_MS = 5000;
+const STREAM_BATCH_SIZE = 500;
 
 interface StreamConnection {
   readonly promise: Promise<StreamResult>;
@@ -74,43 +75,56 @@ const startStreamConnection = (
   })();
 };
 
+const configureStreamAbort = (
+  signal: Readonly<AbortSignal> | undefined,
+  rt: Readonly<StreamRuntime>,
+  abortController: AbortController,
+): boolean => {
+  Object.assign(rt, {
+    abort: () => {
+      abortController.abort();
+    },
+  });
+  if (signal === undefined) {
+    return false;
+  }
+  if (signal.aborted) {
+    rt.abort();
+    streamResolve(rt, ["Aborted before connection"]);
+    return true;
+  }
+  signal.addEventListener("abort", rt.abort, { once: true });
+  return false;
+};
+
+const getStreamReader = (response: Response): StreamReader => {
+  if (!response.ok) {
+    throw new Error(`Stream request failed with status ${response.status}: ${response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error("No response body received from stream");
+  }
+  return response.body.getReader();
+};
+
 const connectAndPumpStream = async (
   sseUrl: string,
   signal: Readonly<AbortSignal> | undefined,
   rt: Readonly<StreamRuntime>,
 ): Promise<void> => {
   const abortController = new AbortController();
-  Object.assign(rt, {
-    abort: () => {
-      abortController.abort();
-    },
+  if (configureStreamAbort(signal, rt, abortController)) {
+    return;
+  }
+  const response = await fetch(sseUrl, {
+    headers: { Accept: "text/event-stream" },
+    method: "GET",
+    signal: abortController.signal,
   });
-  if (signal !== undefined) {
-    if (signal.aborted) {
-      rt.abort();
-      streamResolve(rt, ["Aborted before connection"]);
-      return;
-    }
-    signal.addEventListener("abort", rt.abort, { once: true });
-  }
-  {
-    const response = await fetch(sseUrl, {
-      headers: { Accept: "text/event-stream" },
-      method: "GET",
-      signal: abortController.signal,
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Stream request failed with status ${response.status}: ${response.statusText}`,
-      );
-    }
-    if (!response.body) {
-      throw new Error("No response body received from stream");
-    }
-    console.debug("Stream connection opened, reading body...");
-    installStreamTimers(rt);
-    await pumpStreamEvents(rt, response.body.getReader());
-  }
+  const reader = getStreamReader(response);
+  console.debug("Stream connection opened, reading body...");
+  installStreamTimers(rt);
+  await pumpStreamEvents(rt, reader);
 };
 
 const createStreamRuntime = (
@@ -155,7 +169,8 @@ const parseStreamEvent = (eventData: string): ParsedStreamEvent => {
     return StreamEventSchema.parse(JSON.parse(eventData));
   } catch {
     console.warn("[streamNews] First JSON.parse failed, attempting to re-parse");
-    return StreamEventSchema.parse(JSON.parse(JSON.parse(`"${eventData}"`)));
+    const decodedEventData = String(JSON.parse(`"${eventData}"`));
+    return StreamEventSchema.parse(JSON.parse(decodedEventData));
   }
 };
 
@@ -229,12 +244,7 @@ const streamResolve = (rt: Readonly<StreamRuntime>, extraErrors?: readonly strin
   rt.clearTimers();
   rt.resolve({
     articles: removeDuplicateArticles(rt.articles),
-    errors: (() => {
-  if (extraErrors) {
-    return [...rt.errors, ...extraErrors];
-  }
-  return rt.errors;
-})(),
+    errors: [...rt.errors, ...(extraErrors ?? [])],
     sources: [...rt.sources],
     streamId: rt.streamId,
   });
@@ -249,34 +259,33 @@ const streamReject = (rt: Readonly<StreamRuntime>, error: Readonly<Error>): void
   rt.reject(error);
 };
 
-const pumpStreamEvents = async (
+const readStreamEvents = async (
   rt: Readonly<StreamRuntime>,
   reader: StreamReader,
+  decoder: Readonly<TextDecoder>,
+  buffer: string,
 ): Promise<void> => {
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    try {
-      const { done, value } = await reader.read();
-      if (done) {
-        resolveCompletedStream(rt);
-        return;
-      }
-
-      Object.assign(rt, { lastMessageTime: Date.now() });
-      buffer = processStreamChunk(buffer, value, decoder, rt);
-    } catch (readError) {
-      const normalizedError = (() => {
-        if (readError instanceof Error) {
-          return readError;
-        }
-        return new Error(String(readError));
-      })();
-      handleStreamReadError(normalizedError, rt);
+  try {
+    const { done, value } = await reader.read();
+    if (done) {
+      resolveCompletedStream(rt);
       return;
     }
+    Object.assign(rt, { lastMessageTime: Date.now() });
+    await readStreamEvents(rt, reader, decoder, processStreamChunk(buffer, value, decoder, rt));
+  } catch (readError) {
+    const normalizedError = (() => {
+      if (readError instanceof Error) {
+        return readError;
+      }
+      return new Error(String(readError));
+    })();
+    handleStreamReadError(normalizedError, rt);
   }
 };
+
+const pumpStreamEvents = (rt: Readonly<StreamRuntime>, reader: StreamReader): Promise<void> =>
+  readStreamEvents(rt, reader, new TextDecoder(), "");
 
 const installStreamTimers = (rt: Readonly<StreamRuntime>): void => {
   let stallInterval: ReturnType<typeof setInterval> | undefined = undefined,
@@ -429,31 +438,33 @@ const streamEventHandlers = {
   starting: handleStartingEvent,
 };
 
+const recordStreamBatch = (batch: readonly ReadonlyNewsArticle[], rt: Readonly<StreamRuntime>): void => {
+  rt.addArticles(...batch); batch.forEach((article) => { rt.addSource(article.source); });
+};
+
 const queueStreamBatches = (
   articlesToQueue: readonly ReadonlyNewsArticle[],
   rt: Readonly<StreamRuntime>,
   batchLabel: string,
   finalProgress: () => StreamProgress,
 ): void => {
-  void (async () => {
-    const BATCH_SIZE = 500;
-    for (let offset = 0; offset < articlesToQueue.length; offset += BATCH_SIZE) {
-      const batch = articlesToQueue.slice(offset, offset + BATCH_SIZE);
-      rt.addArticles(...batch);
-      batch.forEach((article) => {
-        rt.addSource(article.source);
-      });
-      if (rt.onSourceComplete) {
-        rt.onSourceComplete(`${batchLabel}-${Math.floor(offset / BATCH_SIZE)}`, batch);
-      }
-      if (offset + BATCH_SIZE < articlesToQueue.length) {
-        await new Promise((resolve) => {
-          setTimeout(resolve, 0);
-        });
-      }
+  const queueBatch = (offset: number): void => {
+    if (offset >= articlesToQueue.length) {
+      rt.onProgress?.(finalProgress());
+      return;
+    }
+    const batch = articlesToQueue.slice(offset, offset + STREAM_BATCH_SIZE);
+    recordStreamBatch(batch, rt);
+    rt.onSourceComplete?.(`${batchLabel}-${Math.floor(offset / STREAM_BATCH_SIZE)}`, batch);
+    if (offset + STREAM_BATCH_SIZE < articlesToQueue.length) {
+      setTimeout(() => {
+        queueBatch(offset + STREAM_BATCH_SIZE);
+      }, 0);
+      return;
     }
     rt.onProgress?.(finalProgress());
-  })();
+  };
+  queueBatch(0);
 };
 
 const processStreamChunk = (
