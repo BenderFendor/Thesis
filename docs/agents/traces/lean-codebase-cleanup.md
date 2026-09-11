@@ -49,7 +49,8 @@ Goal: continue the pulled checkout from `596ecc9`, preserve the retained WIP, sk
 the user-excluded scripts lint queue, and make each frontend cleanup slice reviewable and
 reversible through a checkpoint commit.
 
-Status: active and substantially incomplete. The latest HEAD is `1a26888`. The fresh
+Status: active and substantially incomplete. The latest code checkpoint is `1a26888`;
+this trace update is committed in `f3b35a7`. The fresh
 direct census reports 156 frontend warnings and 0 errors across 44 files with findings.
 The combined frontend/scripts census reports 1,549 findings: 10 errors and 1,539
 warnings. Scripts account for all 10 errors and 1,383 warnings and remain outside the

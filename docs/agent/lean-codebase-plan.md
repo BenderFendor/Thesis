@@ -65,8 +65,8 @@ This is a repository-wide work queue. A completed phase does not mean the whole 
 
 ## 2026-09-11 — Current pulled-checkout checkpoint
 
-The active branch remains `quality/crap-mi-oxlint-hardening`, with the latest checkpoint
-commit `1a26888`. After the remote fast-forward to `596ecc9`, the retained WIP was preserved
+The active branch remains `quality/crap-mi-oxlint-hardening`, with the latest code checkpoint
+commit `1a26888` and this evidence record committed in `f3b35a7`. After the remote fast-forward to `596ecc9`, the retained WIP was preserved
 and the user-authorized frontend cleanup continued in bounded commits. The latest slices
 covered research side-panel rendering, index-test wrappers, globe live-data tests,
 navigation state, blindspot interaction selection, and Jest configuration typing.
