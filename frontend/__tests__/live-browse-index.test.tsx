@@ -61,6 +61,72 @@ const createWrapper = () => {
   fetchMock = jest.fn<FetchBoundary>(),
   originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
 
+type LiveBrowseTestCase = readonly [string, () => Promise<void> | void];
+
+const liveBrowseTestCases: readonly LiveBrowseTestCase[] = [
+  [
+    "fetches the live browse index with stable multi-source serialization",
+    async () => {
+      const response: BrowseResponse = {
+        articles: [
+          {
+            bias: "center",
+            category: "general",
+            country: "US",
+            credibility: "high",
+            id: 1,
+            image_url: "/placeholder.svg",
+            original_language: "en",
+            published_at: "2026-08-31T00:00:00.000Z",
+            source: "Test News",
+            source_id: "test-news",
+            summary: "Summary",
+            title: "Live Article",
+            translated: false,
+            url: "https://example.com/live",
+          },
+        ],
+        total: 1,
+      };
+      fetchMock.mockResolvedValue({
+        json: () => Promise.resolve(response),
+        ok: true,
+        status: 200,
+      });
+
+      const { result } = renderHook(
+        () =>
+          useNewsIndex({
+            mode: "live",
+            sources: ["zeta-news", "alpha-news"],
+          }),
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(requestUrl.pathname).toBe("/news/index/cached");
+      expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news");
+      expect(result.current.totalCount).toBe(1);
+      expect(result.current.articles).toHaveLength(1);
+    },
+  ],
+  [
+    "does not fetch when disabled",
+    () => {
+      const { result } = renderHook(() => useNewsIndex({ enabled: false, mode: "live" }), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  ],
+];
+
 describe("useNewsIndex (live mode)", () => {
   beforeEach(() => {
     fetchMock.mockReset();
@@ -79,64 +145,8 @@ describe("useNewsIndex (live mode)", () => {
     }
   });
 
-  it("fetches the live browse index with stable multi-source serialization", async () => {
+  it.each(liveBrowseTestCases)("%s", async (_name, run): Promise<void> => {
+    await run();
     expect.hasAssertions();
-
-    const response: BrowseResponse = {
-      articles: [
-        {
-          bias: "center",
-          category: "general",
-          country: "US",
-          credibility: "high",
-          id: 1,
-          image_url: "/placeholder.svg",
-          original_language: "en",
-          published_at: "2026-08-31T00:00:00.000Z",
-          source: "Test News",
-          source_id: "test-news",
-          summary: "Summary",
-          title: "Live Article",
-          translated: false,
-          url: "https://example.com/live",
-        },
-      ],
-      total: 1,
-    };
-    fetchMock.mockResolvedValue({
-      json: () => Promise.resolve(response),
-      ok: true,
-      status: 200,
-    });
-
-    const { result } = renderHook(
-      () =>
-        useNewsIndex({
-          mode: "live",
-          sources: ["zeta-news", "alpha-news"],
-        }),
-      { wrapper: createWrapper() },
-    );
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
-    expect(requestUrl.pathname).toBe("/news/index/cached");
-    expect(requestUrl.searchParams.get("sources")).toBe("alpha-news,zeta-news");
-    expect(result.current.totalCount).toBe(1);
-    expect(result.current.articles).toHaveLength(1);
-  });
-
-  it("does not fetch when disabled", () => {
-    expect.hasAssertions();
-
-    const { result } = renderHook(() => useNewsIndex({ enabled: false, mode: "live" }), {
-      wrapper: createWrapper(),
-    });
-
-    expect(result.current.isLoading).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
