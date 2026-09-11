@@ -1,96 +1,69 @@
-// 1000-line source file guard: CI + local in one rule.
-//   - new/rebuilt files over 1000 lines fail
-//   - files listed in scripts/file-lines-debt.json may not GROW past their
-//     recorded size; shrinking below 1000 removes the exemption forever
-//
-// Usage: node scripts/check-file-lines.mjs
-
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { access, readdir, readFile } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "..");
-const MAX_LINES = 1000;
-const WARN_LINES = 750;
+const root = resolve(import.meta.dirname, ".."),
+  debtFile = resolve(root, "scripts/file-lines-debt.json"),
+  maximumLines = 1_000,
+  warningLines = 750,
+  sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".py", ".rs"]),
+  ignoredDirectories = new Set(["node_modules", ".next", ".git", "coverage", "dist", "build", "__pycache__"]),
+  ignoredPrefixes = new Set([".agent", ".agents", ".claude", ".codex", ".continue", ".cursor", ".gemini", ".opencode", ".pi", ".roo", ".windsurf"]);
 
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".py", ".rs"]);
-const IGNORED_DIRS = new Set([
-  "node_modules",
-  ".next",
-  ".git",
-  "coverage",
-  "dist",
-  "build",
-  "__pycache__",
-]);
-const IGNORED_PREFIXES = new Set([
-  ".agent",
-  ".agents",
-  ".claude",
-  ".codex",
-  ".continue",
-  ".cursor",
-  ".gemini",
-  ".opencode",
-  ".pi",
-  ".roo",
-  ".windsurf",
-]);
+const shouldSkipDirectory = (name) =>
+  name.startsWith(".") || ignoredDirectories.has(name) || ignoredPrefixes.has(name);
 
-const DEBT_FILE = resolve(ROOT, "scripts", "file-lines-debt.json");
-const loadDebt = () => (existsSync(DEBT_FILE) ? JSON.parse(readFileSync(DEBT_FILE, "utf8")) : {});
+const collectFiles = async (directory) => {
+  const entries = await readdir(directory, { withFileTypes: true }),
+    groups = await Promise.all(entries.map(async (entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return shouldSkipDirectory(entry.name) ? [] : collectFiles(path);
+      }
+      return sourceExtensions.has(extname(entry.name)) && !path.includes("lib/generated") ? [path] : [];
+    }));
+  return groups.flat();
+};
 
-const countLines = (content) =>
-  content.length === 0 ? 0 : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+const countLines = (content) => {
+  if (content.length === 0) { return 0; }
+  return content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+};
 
-function shouldSkipDir(name) {
-  return name.startsWith(".") || IGNORED_DIRS.has(name) || IGNORED_PREFIXES.has(name);
-}
+const loadDebt = async () => {
+  try {
+    await access(debtFile);
+    return JSON.parse(await readFile(debtFile, "utf8"));
+  } catch {
+    return {};
+  }
+};
 
-function collect(dir) {
-  const found = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!shouldSkipDir(entry.name)) {found.push(...collect(full));}
-      continue;
-    }
-    if (SOURCE_EXTENSIONS.has(extname(entry.name)) && !full.includes("lib/generated")) {
-      found.push(full);
+const main = async () => {
+  const [debt, files] = await Promise.all([loadDebt(), collectFiles(root)]),
+    failed = [],
+    warned = [];
+  for (const file of files) {
+    const path = relative(root, file),
+      lines = countLines(await readFile(file, "utf8")),
+      debtCap = debt[path];
+    if (debtCap !== undefined) {
+      if (lines > debtCap) { failed.push(`${lines}\t${path} (over debt cap ${debtCap}; shrink, do not grow)`); }
+    } else if (lines > maximumLines) {
+      failed.push(`${lines}\t${path} (max ${maximumLines})`);
+    } else if (lines >= warningLines) {
+      warned.push(`${lines}\t${path} (approaching ${maximumLines})`);
     }
   }
-  return found;
-}
-
-const debt = loadDebt();
-const failed = [];
-const warned = [];
-
-for (const file of collect(ROOT)) {
-  const rel = relative(ROOT, file);
-  const lines = countLines(readFileSync(file, "utf8"));
-  const debtCap = debt[rel];
-
-  if (debtCap !== undefined) {
-    if (lines > debtCap) {
-      failed.push(`${lines}\t${rel} (over debt cap ${debtCap}; shrink, do not grow)`);
-    }
-    continue;
+  if (warned.length > 0) {
+    console.error("Files nearing the line limit:");
+    for (const warning of warned) { console.error(`  ${warning}`); }
   }
-
-  if (lines > MAX_LINES) {
-    failed.push(`${lines}\t${rel} (max ${MAX_LINES})`);
-  } else if (lines >= WARN_LINES) {
-    warned.push(`${lines}\t${rel} (approaching ${MAX_LINES})`);
+  if (failed.length > 0) {
+    console.error("Files over the line limit:");
+    for (const failure of failed) { console.error(`  ${failure}`); }
   }
-}
+  console.log(`check-file-lines: checked ${files.length}, ${warned.length} near limit, ${failed.length} over.`);
+  return failed.length === 0 ? 0 : 1;
+};
 
-if (warned.length > 0) {
-  console.error("Files nearing the line limit:");
-  for (const w of warned) {console.error(`  ${w}`);}
-}
-if (failed.length > 0) {
-  console.error("Files over the line limit:");
-  for (const f of failed) {console.error(`  ${f}`);}
-  process.exit(1);
-}
-console.log(`check-file-lines: checked, ${warned.length} near limit, ${failed.length} over.`);
+process.exitCode = await main();

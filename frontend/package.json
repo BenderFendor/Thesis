@@ -5,7 +5,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "lint": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json frontend scripts",
+    "lint": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json frontend && frontend/node_modules/.bin/oxlint -c scripts/oxlint.config.json scripts",
     "start": "next start",
     "test": "jest",
     "test:oxlint-rules": "vitest run --config vitest.config.mts",
@@ -13,7 +13,7 @@
     "test:property": "jest --testPathPatterns=property",
     "openapi:types": "openapi-typescript ../backend/openapi.json -o lib/generated/openapi.ts",
     "openapi:refresh": "curl -sS http://localhost:8000/openapi.json -o ../backend/openapi.json && npm run openapi:types",
-    "lint:fix": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend scripts",
+    "lint:fix": "cd .. && PATH=\"$PWD/frontend/node_modules/.bin:$PATH\" frontend/node_modules/.bin/oxlint -c .oxlintrc.json --fix frontend && frontend/node_modules/.bin/oxlint -c scripts/oxlint.config.json --fix scripts",
     "lint:lines": "node ../scripts/check-file-lines.mjs",
     "deadcode": "knip --config knip.json",
     "crap": "node ../scripts/check-crap.mjs"

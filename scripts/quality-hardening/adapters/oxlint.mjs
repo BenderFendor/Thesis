@@ -1,46 +1,24 @@
 // @ts-check
 
-import { delimiter, resolve } from "node:path";
 import { execFile } from "node:child_process";
 
-/** @typedef {Readonly<{code?: string, level?: string, line?: number, message: string, path: string, rule: string}>} OxlintFinding */
-/** @typedef {Readonly<{command: readonly string[], output_limit_bytes: number, version: string}>} OxlintAnalyzer */
-/** @typedef {Readonly<{analyzer: string, findings: readonly OxlintFinding[], by_rule: Readonly<Record<string, Readonly<{errors: number, warnings: number}>>>, errors: number, warnings: number}>} OxlintReport */
+const acceptedExitCodes = new Set([0, 1]);
 
-const FINDINGS_EXIT = 1,
-  SUCCESS_EXIT = 0;
-
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-const isObject = (value) => 
-  value !== null && Object(value) === value && !Array.isArray(value)
-
-
-/** @param {unknown} value @returns {value is string} */
+const isRecord = (value) => value !== null && Object(value) === value && !Array.isArray(value);
 const isString = (value) => Object.prototype.toString.call(value) === "[object String]";
+const stringValue = (value, fallback) => isString(value) && value.length > 0 ? value : fallback;
+const severityFor = (value) => stringValue(value, "error").toLowerCase().startsWith("warn") ? "warning" : "error";
 
-/** @param {unknown} value @param {string} fallback */
-const stringValue = (value, fallback) => 
-  isString(value) && value.length > 0 ? value : fallback
-
-
-/** @param {unknown} value @returns {"warning"|"error"} */
-const severityFor = (value) => {
-  const severity = stringValue(value, "error").toLowerCase();
-  return severity.startsWith("warn") ? "warning" : "error";
-}
-
-/** @param {unknown} value @param {string} repositoryRoot */
 const parseFinding = (value, repositoryRoot) => {
-  if (!isObject(value)) {
-    return undefined;
-  }
+  if (!isRecord(value)) { return undefined; }
   const labels = Array.isArray(value.labels) ? value.labels : [],
-   firstLabel = isObject(labels[0]) ? labels[0] : {},
-   span = isObject(firstLabel.span) ? firstLabel.span : {},
-   path = stringValue(firstLabel.file, stringValue(value.filename, stringValue(value.path, "<unknown>"))),
-   normalizedPath = path.startsWith(`${repositoryRoot}/`) ? path.slice(repositoryRoot.length + 1) : path,
-   rule = stringValue(value.code, stringValue(value.rule, stringValue(value.ruleId, "unknown"))).replace(/^(?<namespace>[^()]+)\((?<rule>[^()]+)\)$/u, "$<namespace>/$<rule>"),
-   severity = severityFor(value.severity);
+    firstLabel = isRecord(labels[0]) ? labels[0] : {},
+    span = isRecord(firstLabel.span) ? firstLabel.span : {},
+    path = stringValue(firstLabel.file, stringValue(value.filename, stringValue(value.path, "<unknown>"))),
+    normalizedPath = path.startsWith(`${repositoryRoot}/`) ? path.slice(repositoryRoot.length + 1) : path,
+    rule = stringValue(value.code, stringValue(value.rule, stringValue(value.ruleId, "unknown")))
+      .replace(/^(?<namespace>[^()]+)\((?<rule>[^()]+)\)$/u, "$<namespace>/$<rule>"),
+    severity = severityFor(value.severity);
   return {
     code: isString(value.code) ? value.code : undefined,
     level: severity === "warning" ? "w" : "e",
@@ -49,22 +27,15 @@ const parseFinding = (value, repositoryRoot) => {
     path: normalizedPath,
     rule,
   };
-}
+};
 
-/** @param {string} text @param {string} repositoryRoot */
 const parseReport = (text, repositoryRoot) => {
-  const diagnostics = [],
-   parsed = JSON.parse(text);
-  if (Array.isArray(parsed)) {
-    for (const entry of parsed) {
-      if (isObject(entry) && Array.isArray(entry.warnings)) {diagnostics.push(...entry.warnings);}
-    }
-  } else if (isObject(parsed) && Array.isArray(parsed.diagnostics)) {
-    diagnostics.push(...parsed.diagnostics);
-  }
-  const findings = diagnostics.map((value) => parseFinding(value, repositoryRoot)).filter((value) => value !== undefined),
-  /** @type {Record<string, {errors: number, warnings: number}>} */
-   byRule = {};
+  const parsed = JSON.parse(text),
+    diagnostics = Array.isArray(parsed)
+      ? parsed.flatMap((entry) => isRecord(entry) && Array.isArray(entry.warnings) ? entry.warnings : [])
+      : isRecord(parsed) && Array.isArray(parsed.diagnostics) ? parsed.diagnostics : [],
+    findings = diagnostics.map((value) => parseFinding(value, repositoryRoot)).filter(Boolean),
+    byRule = {};
   for (const finding of findings) {
     const counts = byRule[finding.rule] ?? { errors: 0, warnings: 0 };
     counts[finding.level === "w" ? "warnings" : "errors"] += 1;
@@ -77,36 +48,22 @@ const parseReport = (text, repositoryRoot) => {
     findings,
     warnings: findings.filter((finding) => finding.level === "w").length,
   };
-}
+};
 
-/** @param {string} executable @param {readonly string[]} argumentsList @param {string} cwd @param {number} maxBuffer @returns {Promise<Readonly<{code: number, stderr: string, stdout: string}>>} */
-const runProcess = (executable, argumentsList, cwd, maxBuffer) => 
-  new Promise((resolvePromise, reject) => {
-    const localBin = resolve(cwd, "frontend", "node_modules", ".bin"),
-      nodePath = [localBin, process.env.PATH ?? ""].filter(Boolean).join(delimiter),
-      processEnvironment = { ...process.env, PATH: nodePath };
-    execFile(executable, [...argumentsList], { cwd, encoding: "utf8", env: processEnvironment, maxBuffer }, (error, stdout, stderr) => {
-      if (error && !Number.isInteger(error.code)) {
-        reject(error);
-        return;
-      }
-      resolvePromise({
-        code: error ? Number(error.code) : SUCCESS_EXIT,
-        stderr: stderr,
-        stdout: stdout,
-      });
-    });
-  })
+const runProcess = (argumentsList, cwd, maxBuffer) => new Promise((resolveRun, rejectRun) => {
+  execFile(process.execPath, argumentsList, { cwd, encoding: "utf8", env: process.env, maxBuffer }, (error, stdout, stderr) => {
+    const code = error ? Number(error.code) : 0;
+    if (!acceptedExitCodes.has(code)) {
+      rejectRun(new Error(`Oxlint runner failed with exit ${code}: ${stderr.slice(0, 400)}`));
+      return;
+    }
+    resolveRun({ code, stderr, stdout });
+  });
+});
 
-
-/** @param {string} repositoryRoot @param {Readonly<OxlintAnalyzer>} analyzer @param {readonly string[]} [paths] @returns {Promise<OxlintReport>} */
 const runOxlint = async (repositoryRoot, analyzer, paths = []) => {
-  const [executable, ...baseArguments] = analyzer.command,
-   result = await runProcess(executable, [...baseArguments, ...paths], repositoryRoot, analyzer.output_limit_bytes);
-  if (result.code !== SUCCESS_EXIT && result.code !== FINDINGS_EXIT) {
-    throw new Error(`oxlint failed with exit ${result.code}: ${result.stderr.slice(0, 400)}`);
-  }
+  const result = await runProcess(["scripts/run-oxlint.mjs", "--json", ...paths], repositoryRoot, analyzer.output_limit_bytes);
   return parseReport(result.stdout, repositoryRoot);
-}
+};
 
 export { parseReport, runOxlint };

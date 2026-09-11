@@ -5,49 +5,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const CONFIG_NAME = "quality-hardening.config.json",
- OXLINT_NAME = ".oxlintrc.json",
- REQUIRED_SCHEMA_VERSION = 1,
- RULES_NAME = "quality-hardening.rules.json",
- /** @type {Readonly<{validate: (config: QualityConfig) => void}>} */
- verification = {
-   validate: (config) => {
-     const { checks, defaults } = config.verification,
-       validators = {
-         checks: () => {
-           if (Object.keys(checks).at(0) === undefined) {
-             throw new Error("verification.checks must contain at least one check");
-           }
-           for (const [id, value] of Object.entries(checks)) {
-             const check = asObject(value);
-             stringArray(check.command, `verification.checks.${id}.command`);
-             const [label] = stringArray([check.label], `verification.checks.${id}.label`);
-             if (label === "") {
-               throw new TypeError(`verification.checks.${id}.label must be a non-empty string`);
-             }
-           }
-         },
-         defaults: () => {
-           for (const name of ["output_limit_bytes", "timeout_ms"]) {
-             const value = defaults[name];
-             if (!Number.isInteger(value) || value <= 0) {
-               throw new TypeError(`verification default ${name} must be a positive integer`);
-             }
-           }
-         },
-         profiles: () => {
-           for (const [profile, value] of Object.entries(config.profiles)) {
-             const checkIds = stringArray(value, `profiles.${profile}`);
-             for (const id of checkIds) {
-               if (!(id in checks)) {
-                 throw new Error(`profile ${profile} references unknown verification check: ${id}`);
-               }
-             }
-           }
-         },
-       };
-     validators.checks(); validators.defaults(); validators.profiles();
-   },
- };
+  OXLINT_NAME = ".oxlintrc.json",
+  SCRIPT_OXLINT_NAME = "scripts/oxlint.config.json",
+  REQUIRED_SCHEMA_VERSION = 1,
+  RULES_NAME = "quality-hardening.rules.json";
 
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} CcccConfig */
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} OxlintConfig */
@@ -61,146 +22,126 @@ const CONFIG_NAME = "quality-hardening.config.json",
 /** @typedef {Readonly<{cluster_key?: string, deterministic_fix?: boolean, quality_factor?: string, repair_class?: string, required_profiles?: readonly string[], temporary_structural_tradeoff?: boolean}>} TaxonomyRuleDefinition */
 /** @typedef {Readonly<{cluster_key: string, deterministic_fix?: boolean, id: string, quality_factor: string, repair_class: string, required_profiles?: readonly string[], temporary_structural_tradeoff?: boolean}>} ResolvedTaxonomyRule */
 /** @typedef {Readonly<{family_defaults: Readonly<Record<string, TaxonomyRuleDefinition>>, overrides: Readonly<Record<string, TaxonomyRuleDefinition>>, rule_ids: readonly string[], schema_version: number, taxonomy_version: string}>} TaxonomyConfig */
-/** @typedef {string | number | readonly [string | number, ...readonly (string | number | boolean)[]]} OxlintRuleSetting */
-/** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>}>} OxlintOverride */
-/** @typedef {Readonly<{rules?: Readonly<Record<string, OxlintRuleSetting>>, overrides?: readonly OxlintOverride[]}>} OxlintPolicy */
-/** @typedef {Record<string, unknown>} JsonObject */
+/** @typedef {Readonly<{rules?: Readonly<Record<string, unknown>>}>} OxlintOverride */
+/** @typedef {Readonly<{rules?: Readonly<Record<string, unknown>>, overrides?: readonly OxlintOverride[]}>} OxlintPolicy */
 
-/** @param {unknown} value @returns {JsonObject} */
-function asObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? /** @type {JsonObject} */ (value)
-    : {};
-}
+const hashText = (value) => createHash("sha256").update(value).digest("hex");
 
-/**
- * JSON.parse is the single untyped I/O boundary for policy files. The loaded
- * value is immediately consumed through the named policy/taxonomy contracts
- * and validated before the controller uses it.
- * @param {string} path
- */
 const readJson = async (path) => {
   const value = JSON.parse(await readFile(path, "utf8"));
   if (value === null || Array.isArray(value) || Object.prototype.toString.call(value) !== "[object Object]") {
     throw new Error(`${path} must contain a JSON object`);
   }
   return value;
-}
+};
 
-/** @param {string} value */
-const hashText = (value) => 
-  createHash("sha256").update(value).digest("hex")
+const normalizeRuleId = (id) => id.includes("/") ? id : `eslint/${id}`;
 
-
-/** @param {OxlintRuleSetting} value */
-const isEnabledRule = (value) => {
-  const severity = Array.isArray(value) ? value[0] : value;
+const isEnabledRule = (setting) => {
+  const severity = Array.isArray(setting) ? setting[0] : setting;
   return severity !== "off" && severity !== 0;
-}
+};
 
-/** @param {OxlintPolicy} oxlint */
 const configuredRuleIds = (oxlint) => {
-  /** @type {Set<string>} */
-  const ids = new Set(),
-  /** @type {(rules: Readonly<Record<string, OxlintRuleSetting>> | undefined) => void} */
-   addRules = (rules) => {
-    for (const [id, value] of Object.entries(rules ?? {})) {
-      if (isEnabledRule(value)) {
-        ids.add(normalizeRuleId(id));
-      }
+  const identifiers = new Set();
+  const addRules = (rules) => {
+    for (const [id, setting] of Object.entries(rules ?? {})) {
+      if (isEnabledRule(setting)) { identifiers.add(normalizeRuleId(id)); }
     }
   };
   addRules(oxlint.rules);
-  for (const override of oxlint.overrides ?? []) {
-    addRules(override.rules);
-  }
-  return ids;
-}
+  for (const override of oxlint.overrides ?? []) { addRules(override.rules); }
+  return identifiers;
+};
 
-/** @param {string} id */
-function normalizeRuleId(id) {
-  return id.includes("/") ? id : `eslint/${id}`;
-}
+const familyForRule = (id, taxonomy) => Object.keys(taxonomy.family_defaults)
+  .toSorted((left, right) => right.length - left.length)
+  .find((prefix) => id.startsWith(prefix));
 
-/** @param {string} id @param {TaxonomyConfig} taxonomy */
-const familyForRule = (id, taxonomy) => {
-  const families = Object.keys(taxonomy.family_defaults).toSorted(
-    (left, right) => right.length - left.length,
-  );
-  return families.find((prefix) => id.startsWith(prefix));
-}
-
-/** @param {string} id @param {TaxonomyConfig} taxonomy @returns {ResolvedTaxonomyRule|undefined} */
 const resolvedTaxonomyRule = (id, taxonomy) => {
   const family = familyForRule(id, taxonomy);
   if (family === undefined) { return undefined; }
-  const rule = {
+  const definition = {
     ...taxonomy.family_defaults[family],
     ...taxonomy.overrides?.[id],
   };
-  if (!rule.cluster_key || !rule.quality_factor || !rule.repair_class) {
+  if (!definition.cluster_key || !definition.quality_factor || !definition.repair_class) {
     throw new Error(`taxonomy rule is incomplete: ${id}`);
   }
-  return { id, ...rule, cluster_key: rule.cluster_key, quality_factor: rule.quality_factor, repair_class: rule.repair_class };
-}
+  return {
+    ...definition,
+    cluster_key: definition.cluster_key,
+    id,
+    quality_factor: definition.quality_factor,
+    repair_class: definition.repair_class,
+  };
+};
 
-/** @param {readonly string[]} value @param {string} name */
-const assertArray = (value, name) => {
+const nonEmptyArray = (value, name) => {
   if (value.length === 0) { throw new Error(`${name} must be a non-empty array`); }
-}
-
-/** @param {readonly string[]} value @param {string} name @returns {readonly string[]} */
-function stringArray(value, name) {
-  assertArray(value, name);
-  if (value.some((item) => item.length === 0)) { throw new Error(`${name} must contain non-empty strings`); }
   return value;
-}
+};
 
-/** @param {ThresholdConfig} thresholds */
-const validateThresholds = (thresholds) => {
-  const { cccc, crap, mi } = thresholds,
-   required = [
-    ["mi.cluster_floor", mi.cluster_floor],
-    ["mi.final_floor", mi.final_floor],
-    ["crap.cluster_ceiling", crap.cluster_ceiling],
-    ["cccc.cyclomatic_ceiling", cccc.cyclomatic_ceiling],
-    ["cccc.cognitive_ceiling", cccc.cognitive_ceiling],
-  ];
-  for (const [name, value] of required) {
-    if (!Number.isFinite(value)) {
-      throw new TypeError(`threshold ${String(name)} must be a finite number`);
-    }
+const nonEmptyStrings = (value, name) => {
+  nonEmptyArray(value, name);
+  if (value.some((item) => item.length === 0)) {
+    throw new Error(`${name} must contain non-empty strings`);
   }
-  const clusterFloor = mi.cluster_floor,
-    finalFloor = mi.final_floor;
-  if (finalFloor < clusterFloor) {
+  return value;
+};
+
+const validateThresholds = (thresholds) => {
+  const required = new Map([
+    ["mi.cluster_floor", thresholds.mi.cluster_floor],
+    ["mi.final_floor", thresholds.mi.final_floor],
+    ["crap.cluster_ceiling", thresholds.crap.cluster_ceiling],
+    ["cccc.cyclomatic_ceiling", thresholds.cccc.cyclomatic_ceiling],
+    ["cccc.cognitive_ceiling", thresholds.cccc.cognitive_ceiling],
+  ]);
+  for (const [name, value] of required) {
+    if (!Number.isFinite(value)) { throw new TypeError(`threshold ${name} must be a finite number`); }
+  }
+  if (thresholds.mi.final_floor < thresholds.mi.cluster_floor) {
     throw new Error("threshold mi.final_floor must be >= mi.cluster_floor");
   }
-}
+};
 
-/** @param {TaxonomyConfig} taxonomy @param {OxlintPolicy} oxlint */
+const validateVerification = (config) => {
+  const { checks, defaults } = config.verification;
+  nonEmptyArray(Object.keys(checks), "verification.checks");
+  for (const [id, check] of Object.entries(checks)) {
+    nonEmptyStrings(check.command, `verification.checks.${id}.command`);
+    nonEmptyStrings([check.label], `verification.checks.${id}.label`);
+  }
+  for (const name of ["output_limit_bytes", "timeout_ms"]) {
+    const value = defaults[name];
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new TypeError(`verification default ${name} must be a positive integer`);
+    }
+  }
+  for (const [profile, checkIds] of Object.entries(config.profiles)) {
+    nonEmptyStrings(checkIds, `profiles.${profile}`);
+    for (const id of checkIds) {
+      if (!(id in checks)) { throw new Error(`profile ${profile} references unknown verification check: ${id}`); }
+    }
+  }
+};
+
 const validateTaxonomy = (taxonomy, oxlint) => {
   if (taxonomy.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening taxonomy schema version is unsupported");
   }
-  const ruleIds = stringArray(taxonomy.rule_ids, "taxonomy.rule_ids"),
-   uniqueRuleIds = new Set(ruleIds);
-  if (uniqueRuleIds.size !== ruleIds.length) {
-    throw new Error("taxonomy.rule_ids contains duplicates");
-  }
+  const ruleIds = nonEmptyStrings(taxonomy.rule_ids, "taxonomy.rule_ids"),
+    knownRules = new Set(ruleIds);
+  if (knownRules.size !== ruleIds.length) { throw new Error("taxonomy.rule_ids contains duplicates"); }
   for (const id of ruleIds) {
-    if (resolvedTaxonomyRule(id, taxonomy) === undefined) {
-      throw new Error(`taxonomy rule has no family: ${id}`);
-    }
+    if (resolvedTaxonomyRule(id, taxonomy) === undefined) { throw new Error(`taxonomy rule has no family: ${id}`); }
   }
   for (const id of configuredRuleIds(oxlint)) {
-    if (!uniqueRuleIds.has(id)) {
-      throw new Error(`enabled Oxlint rule is missing from taxonomy: ${id}`);
-    }
+    if (!knownRules.has(id)) { throw new Error(`enabled Oxlint rule is missing from taxonomy: ${id}`); }
   }
-}
+};
 
-/** @param {QualityConfig} config @param {TaxonomyConfig} taxonomy @param {OxlintPolicy} oxlint */
 const validateConfig = (config, taxonomy, oxlint) => {
   if (config.schema_version !== REQUIRED_SCHEMA_VERSION) {
     throw new Error("quality-hardening config schema version is unsupported");
@@ -208,15 +149,14 @@ const validateConfig = (config, taxonomy, oxlint) => {
   if (config.policy_version !== taxonomy.taxonomy_version) {
     throw new Error("config and taxonomy versions must match");
   }
-  assertArray(config.source_scope?.roots, "source_scope.roots");
-  assertArray(config.source_scope?.extensions, "source_scope.extensions");
-  assertArray(config.profiles.repo, "profiles.repo");
+  nonEmptyStrings(config.source_scope.roots, "source_scope.roots");
+  nonEmptyStrings(config.source_scope.extensions, "source_scope.extensions");
+  nonEmptyStrings(config.profiles.repo, "profiles.repo");
   validateThresholds(config.thresholds);
+  validateVerification(config);
   validateTaxonomy(taxonomy, oxlint);
-  verification.validate(config);
-}
+};
 
-/** @param {string} [repositoryRoot] @returns {Promise<Readonly<{config: QualityConfig, configHash: string, nativeConfigHashes: Record<string, string>, oxlint: OxlintPolicy, repositoryRoot: string, taxonomy: TaxonomyConfig, taxonomyHash: string}>>} */
 const loadPolicy = async (repositoryRoot = process.cwd()) => {
   const root = resolve(repositoryRoot);
   /** @type {QualityConfig} */
@@ -225,16 +165,14 @@ const loadPolicy = async (repositoryRoot = process.cwd()) => {
   const taxonomy = await readJson(resolve(root, RULES_NAME));
   /** @type {OxlintPolicy} */
   const oxlint = await readJson(resolve(root, OXLINT_NAME));
+  /** @type {OxlintPolicy} */
+  const scriptOxlint = await readJson(resolve(root, SCRIPT_OXLINT_NAME));
   validateConfig(config, taxonomy, oxlint);
-  const nativeConfigPaths = new Set([
-    OXLINT_NAME,
-    config.analyzers.cccc.native_config,
-  ]),
-  /** @type {Record<string, string>} */
-   nativeConfigHashes = {};
+  validateTaxonomy(taxonomy, scriptOxlint);
+  const nativeConfigPaths = new Set([OXLINT_NAME, SCRIPT_OXLINT_NAME, config.analyzers.cccc.native_config]),
+    nativeConfigHashes = {};
   for (const path of nativeConfigPaths) {
-    const text = await readFile(resolve(root, path), "utf8");
-    nativeConfigHashes[path] = hashText(text);
+    nativeConfigHashes[path] = hashText(await readFile(resolve(root, path), "utf8"));
   }
   return {
     config,
@@ -245,7 +183,7 @@ const loadPolicy = async (repositoryRoot = process.cwd()) => {
     taxonomy,
     taxonomyHash: hashText(JSON.stringify(taxonomy)),
   };
-}
+};
 
 export {
   configuredRuleIds,

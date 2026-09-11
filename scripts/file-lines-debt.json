@@ -27,7 +27,5 @@
   "frontend/components/reading-queue-sidebar.tsx": 2914,
   "frontend/features/intelligence-atlas/atlas-graph.tsx": 1228,
   "frontend/lib/api/types.ts": 1376,
-  "scripts/codemod-lint-mechanical.mjs": 1024,
-  "scripts/transformations/no-inline-comments.mjs": 1044,
   "frontend/lib/api/endpoints.ts": 1057
 }

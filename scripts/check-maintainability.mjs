@@ -1,83 +1,74 @@
-// Maintainability index gate for the Thesis repo.
-// Uses code-multivitals to measure per-function MI (0-100); fails when
-// Functions fall below the configured MI thresholds.
-//
-// Usage: node scripts/check-maintainability.mjs [--json] [--strict] [<file|dir> ...]
-//   Defaults to analysing frontend/** (ts, tsx). Directories are globbed.
-// Thresholds (env overrides):
-//   THESIS_MI_CAP=50  functions below this MI fail the gate
-//   THESIS_MI_ERROR=60 functions in [cap, error) are reported as warns
-// Cccc.toml remains the complexity policy; this is the MI/health gate.
+import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { readdirSync, statSync } from "node:fs";
 import { analyse } from "code-multivitals";
 import { collectOwnedFrontendFiles } from "./quality-source-files.mjs";
 
-const EXCLUDED = new Set(["node_modules", ".next", "coverage", "generated", "target", ".venv", "__pycache__"]),
- args = process.argv.slice(2),
- json = args.includes("--json"),
- miCap = Number(process.env.THESIS_MI_CAP ?? 50),
+const excludedDirectories = new Set(["node_modules", ".next", "coverage", "generated", "target", ".venv", "__pycache__"]),
+  argumentsList = process.argv.slice(2),
+  json = argumentsList.includes("--json"),
+  strict = argumentsList.includes("--strict"),
+  minimum = Number(process.env.THESIS_MI_CAP ?? 50),
+  warningMinimum = Number(process.env.THESIS_MI_ERROR ?? 60),
+  paths = argumentsList.filter((argument) => !argument.startsWith("--"));
 
- miError = Number(process.env.THESIS_MI_ERROR ?? 60),
- patterns = args.filter((a) => !a.startsWith("--")),
+const collectFiles = async (directory) => {
+  const entries = await readdir(directory, { withFileTypes: true }),
+    groups = await Promise.all(entries.map(async (entry) => {
+      if (entry.isDirectory() && excludedDirectories.has(entry.name)) { return []; }
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) { return collectFiles(path); }
+      return /\.(?:ts|tsx|js|jsx)$/u.test(entry.name) ? [path] : [];
+    }));
+  return groups.flat();
+};
 
- strict = args.includes("--strict");
+const expandPath = async (path) => {
+  const absolute = resolve(path),
+    information = await stat(absolute);
+  return information.isFile() ? [absolute] : collectFiles(absolute);
+};
 
-const collectFiles = (dir, out) => {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (EXCLUDED.has(entry.name)) {continue;}
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {collectFiles(full, out);}
-    else if (/\.(ts|tsx|js|jsx)$/.test(entry.name)) {out.push(full);}
+const metricRows = (files) => {
+  const rows = [];
+  for (const file of analyse(files, {}).files) {
+    for (const item of file.functions ?? []) {
+      const score = item.mi ?? item.maintainabilityIndex;
+      if (score === undefined || score === null) { continue; }
+      const metrics = Object.fromEntries((item.metrics ?? []).map((metric) => [metric.name, metric.value]));
+      rows.push({
+        cc: metrics.cyclomaticComplexity ?? 0,
+        file: file.filePath,
+        line: item.startLine,
+        mi: Number.isFinite(score) ? Number(score) : score.score,
+        name: item.name,
+      });
+    }
   }
-}
+  return rows.toSorted((left, right) => left.mi - right.mi);
+};
 
-const expand = (pattern) => {
-  const p = resolve(pattern);
-  if (statSync(p).isFile()) {return [p];}
-  const files = [];
-  collectFiles(p, files);
-  return files;
-}
-
-let files = patterns.length === 0
-  ? collectOwnedFrontendFiles(process.cwd())
-  : patterns.flatMap(expand);
-files = [...new Set(files)];
-
-if (files.length === 0) {
-  console.error("Maintainability check found no source files.");
-  process.exit(1);
-}
-
-const result = analyse(files, {}),
- rows = [];
-for (const file of result.files) {
-  for (const fn of file.functions ?? []) {
-    const metrics = Object.fromEntries((fn.metrics ?? []).map((m) => [m.name, m.value])),
-     miScore = fn.mi ?? fn.maintainabilityIndex;
-    if (miScore === undefined || miScore === null) {continue;}
-    rows.push({
-      cc: metrics.cyclomaticComplexity ?? 0,
-      file: file.filePath,
-      line: fn.startLine,
-      mi: Number.isFinite(miScore) ? Number(miScore) : miScore.score,
-      name: fn.name,
-    });
+const main = async () => {
+  const files = paths.length === 0
+    ? collectOwnedFrontendFiles(process.cwd())
+    : [...new Set((await Promise.all(paths.map(expandPath))).flat())];
+  if (files.length === 0) { throw new Error("Maintainability check found no source files."); }
+  const rows = metricRows(files),
+    failures = rows.filter((row) => row.mi < minimum),
+    warnings = rows.filter((row) => row.mi >= minimum && row.mi < warningMinimum);
+  if (json) {
+    console.log(JSON.stringify({ capAt: minimum, errorAt: warningMinimum, fails: failures, total: rows.length, warns: warnings }));
   }
+  console.log(`Maintainability check: ${rows.length} functions, ${failures.length} fails (MI < ${minimum}), ${warnings.length} warns (MI < ${warningMinimum})`);
+  for (const row of failures.slice(0, 40)) {
+    console.log(`  FAIL ${row.file}:${row.line} ${row.name} MI=${row.mi} CC=${row.cc}`);
+  }
+  if (failures.length > 40) { console.log(`  ... ${failures.length - 40} more fails`); }
+  return strict && failures.length > 0 ? 1 : 0;
+};
+
+try {
+  process.exitCode = await main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
 }
-rows.sort((a, b) => a.mi - b.mi);
-
-const fails = rows.filter((r) => r.mi < miCap),
- warns = rows.filter((r) => r.mi >= miCap && r.mi < miError);
-
-if (json) {
-  console.log(JSON.stringify({ capAt: miCap, errorAt: miError, fails, total: rows.length, warns }));
-}
-
-console.log(`Maintainability check: ${rows.length} functions, ${fails.length} fails (MI < ${miCap}), ${warns.length} warns (MI < ${miError})`);
-for (const r of fails.slice(0, 40)) {console.log(`  FAIL ${r.file}:${r.line} ${r.name} MI=${r.mi} CC=${r.cc}`);}
-if (fails.length > 40) {console.log(`  ... ${fails.length - 40} more fails`);}
-
-if (strict) {process.exit(fails.length > 0 ? 1 : 0);}
-process.exit(0);
