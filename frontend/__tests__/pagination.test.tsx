@@ -1,5 +1,3 @@
-import { isStringValue } from "@/lib/type-guards";
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
@@ -11,175 +9,163 @@ import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { usePaginatedNews } from "@/hooks/usePaginatedNews";
+import { usePaginatedNews } from "@/hooks/use-paginated-news";
 
 interface TestArticle {
-  readonly bias: "left" | "center" | "right"
-  readonly category: string
-  readonly country: string
-  readonly credibility: "high" | "medium" | "low"
-  readonly id: number
-  readonly image: string
-  readonly originalLanguage: string
-  readonly publishedAt: string
-  readonly source: string
-  readonly sourceId: string
-  readonly summary: string
-  readonly tags: readonly string[]
-  readonly title: string
-  readonly translated: boolean
-  readonly url: string
+  readonly bias: "left" | "center" | "right";
+  readonly category: string;
+  readonly country: string;
+  readonly credibility: "high" | "medium" | "low";
+  readonly id: number;
+  readonly image: string;
+  readonly originalLanguage: string;
+  readonly publishedAt: string;
+  readonly source: string;
+  readonly sourceId: string;
+  readonly summary: string;
+  readonly tags: readonly string[];
+  readonly title: string;
+  readonly translated: boolean;
+  readonly url: string;
 }
 
 interface BackendArticleFixture {
-  readonly bias: TestArticle["bias"]
-  readonly category: string
-  readonly country: string
-  readonly credibility: TestArticle["credibility"]
-  readonly description: string
-  readonly id: number
-  readonly image: string
-  readonly original_language: string
-  readonly published_at: string
-  readonly source: string
-  readonly source_id: string
-  readonly title: string
-  readonly translated: boolean
-  readonly url: string
+  readonly bias: TestArticle["bias"];
+  readonly category: string;
+  readonly country: string;
+  readonly credibility: TestArticle["credibility"];
+  readonly description: string;
+  readonly id: number;
+  readonly image: string;
+  readonly original_language: string;
+  readonly published_at: string;
+  readonly source: string;
+  readonly source_id: string;
+  readonly title: string;
+  readonly translated: boolean;
+  readonly url: string;
 }
 
 interface PageResponseOptions {
-  readonly hasMore: boolean
-  readonly limit: number
-  readonly nextCursor: string | null
-  readonly total: number
+  readonly hasMore: boolean;
+  readonly limit: number;
+  readonly nextCursor: string | null;
+  readonly total: number;
 }
 
 interface PagePayload {
-  readonly articles: BackendArticleFixture[]
-  readonly has_more: boolean
-  readonly limit: number
-  readonly next_cursor: string | null
-  readonly prev_cursor: null
-  readonly total: number
+  readonly articles: readonly BackendArticleFixture[];
+  readonly has_more: boolean;
+  readonly limit: number;
+  readonly next_cursor: string | null;
+  readonly prev_cursor: null;
+  readonly total: number;
 }
 
 interface FetchResponseFixture {
-  readonly json: () => Promise<PagePayload>
-  readonly ok: boolean
-  readonly status: number
+  readonly json: () => Promise<PagePayload>;
+  readonly ok: boolean;
+  readonly status: number;
 }
 
 type FetchBoundary = (
-  input: RequestInfo | URL,
+  input: string,
   init?: RequestInit,
-) => Promise<FetchResponseFixture>
+) => Promise<FetchResponseFixture>;
 
 const createBackendArticle = (article: Readonly<TestArticle>): BackendArticleFixture => ({
-  bias: article.bias,
-  category: article.category,
-  country: article.country,
-  credibility: article.credibility,
-  description: article.summary,
-  id: article.id,
-  image: article.image,
-  original_language: article.originalLanguage,
-  published_at: article.publishedAt,
-  source: article.source,
-  source_id: article.sourceId,
-  title: article.title,
-  translated: article.translated,
-  url: article.url,
-}),
- createPagePayload = (
-  articles: readonly TestArticle[],
-  options: Readonly<PageResponseOptions>,
-): PagePayload => ({
-  articles: articles.map(createBackendArticle),
-  has_more: options.hasMore,
-  limit: options.limit,
-  next_cursor: options.nextCursor,
-  prev_cursor: null,
-  total: options.total,
-}),
-
- createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        gcTime: 0,
-        retry: false,
-      },
-    },
+    bias: article.bias,
+    category: article.category,
+    country: article.country,
+    credibility: article.credibility,
+    description: article.summary,
+    id: article.id,
+    image: article.image,
+    original_language: article.originalLanguage,
+    published_at: article.publishedAt,
+    source: article.source,
+    source_id: article.sourceId,
+    title: article.title,
+    translated: article.translated,
+    url: article.url,
   }),
-   QueryClientWrapper = ({ children }:Readonly< { children: ReactNode }>) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  QueryClientWrapper.displayName = "QueryClientWrapper";
-  return QueryClientWrapper;
-},
-
- fetchMock = jest.fn<FetchBoundary>(),
-
- getRequestedUrl = (input: RequestInfo | URL | undefined): URL => {
-  if (input === undefined) {
-    throw new Error("Expected a paginated fetch request");
-  }
-  if (input instanceof URL) {
-    return input;
-  }
-  if (isStringValue(input)) {
+  createPagePayload = (
+    articles: readonly TestArticle[],
+    options: Readonly<PageResponseOptions>,
+  ): PagePayload => ({
+    articles: articles.map((article) => createBackendArticle(article)),
+    has_more: options.hasMore,
+    limit: options.limit,
+    next_cursor: options.nextCursor,
+    prev_cursor: null,
+    total: options.total,
+  }),
+  createWrapper = () => {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            gcTime: 0,
+            retry: false,
+          },
+        },
+      });
+    const QueryClientWrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+    QueryClientWrapper.displayName = "QueryClientWrapper";
+    return QueryClientWrapper;
+  },
+  fetchMock = jest.fn<FetchBoundary>(),
+  getRequestedUrl = (input: string | undefined): URL => {
+    if (input === undefined) {
+      throw new Error("Expected a paginated fetch request");
+    }
     return new URL(input);
-  }
-  return new URL(input.url);
-},
-
- mockArticles: TestArticle[] = [
-  {
-    bias: "center",
-    category: "technology",
-    country: "United States",
-    credibility: "high",
-    id: 1,
-    image: "/placeholder.svg",
-    originalLanguage: "en",
-    publishedAt: new Date().toISOString(),
-    source: "Test Source",
-    sourceId: "test-source",
-    summary: "Test summary",
-    tags: ["test"],
-    title: "Test Article 1",
-    translated: false,
-    url: "https://example.com/1",
   },
-  {
-    bias: "center",
-    category: "technology",
-    country: "United States",
-    credibility: "high",
-    id: 2,
-    image: "/placeholder.svg",
-    originalLanguage: "en",
-    publishedAt: new Date().toISOString(),
-    source: "Test Source",
-    sourceId: "test-source",
-    summary: "Test summary 2",
-    tags: ["test"],
-    title: "Test Article 2",
-    translated: false,
-    url: "https://example.com/2",
-  },
-],
-
- originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
-
- respondWithPage = (payload: Readonly<PagePayload>): void => {
-  fetchMock.mockResolvedValueOnce({
-    json: async () => payload,
-    ok: true,
-    status: 200,
-  });
-};
+  mockArticles: TestArticle[] = [
+    {
+      bias: "center",
+      category: "technology",
+      country: "United States",
+      credibility: "high",
+      id: 1,
+      image: "/placeholder.svg",
+      originalLanguage: "en",
+      publishedAt: new Date().toISOString(),
+      source: "Test Source",
+      sourceId: "test-source",
+      summary: "Test summary",
+      tags: ["test"],
+      title: "Test Article 1",
+      translated: false,
+      url: "https://example.com/1",
+    },
+    {
+      bias: "center",
+      category: "technology",
+      country: "United States",
+      credibility: "high",
+      id: 2,
+      image: "/placeholder.svg",
+      originalLanguage: "en",
+      publishedAt: new Date().toISOString(),
+      source: "Test Source",
+      sourceId: "test-source",
+      summary: "Test summary 2",
+      tags: ["test"],
+      title: "Test Article 2",
+      translated: false,
+      url: "https://example.com/2",
+    },
+  ],
+  originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch"),
+  respondWithPage = (payload: Readonly<PagePayload>): void => {
+    fetchMock.mockResolvedValueOnce({
+      json: () => Promise.resolve(payload),
+      ok: true,
+      status: 200,
+    });
+  };
 
 describe("usePaginatedNews", () => {
   beforeEach(() => {
@@ -199,7 +185,8 @@ describe("usePaginatedNews", () => {
     }
   });
 
-  it("should fetch initial page of articles", async () => {  expect.hasAssertions();
+  it("should fetch initial page of articles", async () => {
+    expect.hasAssertions();
 
     respondWithPage(
       createPagePayload(mockArticles, {
@@ -210,10 +197,9 @@ describe("usePaginatedNews", () => {
       }),
     );
 
-    const { result } = renderHook(
-      () => usePaginatedNews({ limit: 50, useCached: true }),
-      { wrapper: createWrapper() }
-    );
+    const { result } = renderHook(() => usePaginatedNews({ limit: 50, useCached: true }), {
+      wrapper: createWrapper(),
+    });
 
     // Initially loading
     expect(result.current.isLoading).toBe(true);
@@ -227,7 +213,8 @@ describe("usePaginatedNews", () => {
     expect(result.current.hasNextPage).toBe(true);
   });
 
-  it("should handle empty results", async () => {  expect.hasAssertions();
+  it("should handle empty results", async () => {
+    expect.hasAssertions();
 
     respondWithPage(
       createPagePayload([], {
@@ -238,10 +225,9 @@ describe("usePaginatedNews", () => {
       }),
     );
 
-    const { result } = renderHook(
-      () => usePaginatedNews({ limit: 50, useCached: true }),
-      { wrapper: createWrapper() }
-    );
+    const { result } = renderHook(() => usePaginatedNews({ limit: 50, useCached: true }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -252,15 +238,19 @@ describe("usePaginatedNews", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
-  it("should apply category filter", async () => {  expect.hasAssertions();
+  it("should apply category filter", async () => {
+    expect.hasAssertions();
 
     respondWithPage(
-      createPagePayload(mockArticles.filter((article) => article.category === "technology"), {
-        hasMore: false,
-        limit: 50,
-        nextCursor: null,
-        total: 2,
-      }),
+      createPagePayload(
+        mockArticles.filter((article) => article.category === "technology"),
+        {
+          hasMore: false,
+          limit: 50,
+          nextCursor: null,
+          total: 2,
+        },
+      ),
     );
 
     const { result } = renderHook(
@@ -270,7 +260,7 @@ describe("usePaginatedNews", () => {
           limit: 50,
           useCached: true,
         }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper() },
     );
 
     await waitFor(() => {
@@ -282,7 +272,8 @@ describe("usePaginatedNews", () => {
     expect(requestUrl.searchParams.get("category")).toBe("technology");
   });
 
-  it("should forward multi-source filters without mutating the input array", async () => {  expect.hasAssertions();
+  it("should forward multi-source filters without mutating the input array", async () => {
+    expect.hasAssertions();
 
     respondWithPage(
       createPagePayload(mockArticles, {
@@ -294,16 +285,15 @@ describe("usePaginatedNews", () => {
     );
 
     const sources = ["zeta-news", "alpha-news"],
-
-     { result } = renderHook(
-      () =>
-        usePaginatedNews({
-          limit: 50,
-          sources,
-          useCached: true,
-        }),
-      { wrapper: createWrapper() }
-    );
+      { result } = renderHook(
+        () =>
+          usePaginatedNews({
+            limit: 50,
+            sources,
+            useCached: true,
+          }),
+        { wrapper: createWrapper() },
+      );
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -314,7 +304,8 @@ describe("usePaginatedNews", () => {
     expect(sources).toStrictEqual(["zeta-news", "alpha-news"]);
   });
 
-  it("should not fetch when disabled", async () => {  expect.hasAssertions();
+  it("should not fetch when disabled", () => {
+    expect.hasAssertions();
 
     const { result } = renderHook(
       () =>
@@ -323,7 +314,7 @@ describe("usePaginatedNews", () => {
           limit: 50,
           useCached: true,
         }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper() },
     );
 
     // Should not be loading when disabled
@@ -331,14 +322,14 @@ describe("usePaginatedNews", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("should handle API errors gracefully", async () => {  expect.hasAssertions();
+  it("should handle API errors gracefully", async () => {
+    expect.hasAssertions();
 
     fetchMock.mockRejectedValueOnce(new Error("Network error"));
 
-    const { result } = renderHook(
-      () => usePaginatedNews({ limit: 50, useCached: true }),
-      { wrapper: createWrapper() }
-    );
+    const { result } = renderHook(() => usePaginatedNews({ limit: 50, useCached: true }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -348,7 +339,8 @@ describe("usePaginatedNews", () => {
     expect(result.current.articles).toHaveLength(0);
   });
 
-  it("should deduplicate articles with the same ID", async () => {  expect.hasAssertions();
+  it("should deduplicate articles with the same ID", async () => {
+    expect.hasAssertions();
 
     // Create duplicate articles with the same ID
     const duplicateArticles: TestArticle[] = [
@@ -415,10 +407,9 @@ describe("usePaginatedNews", () => {
       }),
     );
 
-    const { result } = renderHook(
-      () => usePaginatedNews({ limit: 50, useCached: true }),
-      { wrapper: createWrapper() }
-    );
+    const { result } = renderHook(() => usePaginatedNews({ limit: 50, useCached: true }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -428,15 +419,13 @@ describe("usePaginatedNews", () => {
     expect(result.current.articles).toHaveLength(2);
     // The first occurrence should be kept
     const [firstArticle, secondArticle] = result.current.articles;
-    if (firstArticle === undefined || secondArticle === undefined) {
-      throw new Error("expected two paginated articles");
-    }
-    expect(firstArticle.id).toBe(1);
-    expect(firstArticle.title).toBe("Test Article 1");
-    expect(secondArticle.id).toBe(2);
+    expect(firstArticle?.id).toBe(1);
+    expect(firstArticle?.title).toBe("Test Article 1");
+    expect(secondArticle?.id).toBe(2);
   });
 
-  it("should request 500 articles for scroll-sized cached fetches", async () => {  expect.hasAssertions();
+  it("should request 500 articles for scroll-sized cached fetches", async () => {
+    expect.hasAssertions();
 
     respondWithPage(
       createPagePayload(mockArticles, {
@@ -447,10 +436,9 @@ describe("usePaginatedNews", () => {
       }),
     );
 
-    const { result } = renderHook(
-      () => usePaginatedNews({ limit: 500, useCached: true }),
-      { wrapper: createWrapper() }
-    );
+    const { result } = renderHook(() => usePaginatedNews({ limit: 500, useCached: true }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
