@@ -6,7 +6,7 @@ type DeepReadonlyAtomic = Element | ReactElement | RefObject<unknown>;
 export type DeepReadonly<Value> =
   Value extends string | number | boolean | bigint | symbol | null | undefined
     ? Value
-    : Value extends (...arguments_: never[]) => infer _Return
+    : Value extends (...arguments_: readonly never[]) => infer _Return
     ? Value
     : Value extends DeepReadonlyAtomic
       ? Value
