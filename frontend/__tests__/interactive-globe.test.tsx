@@ -1,40 +1,41 @@
-import type { GlobeProps } from "react-globe.gl";
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { InteractiveGlobe } from '@/components/interactive-globe';
-import type { InteractiveGlobeComponent, InteractiveGlobeHandle } from '@/components/interactive-globe';
-import type { MutableRefObject } from "react";
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { InteractiveGlobe } from "@/components/interactive-globe";
+import type {
+  GlobeInstance,
+  InteractiveGlobeComponent,
+} from "@/components/interactive-globe";
 import { Scene } from "three";
 
 import { renderWithQueryClient } from "@/test-utils/render-with-query-client";
 import { useEffect } from "react";
 import { waitFor } from "@testing-library/react";
 
-const testControls = {
+interface CountryFixtureResponse {
+  readonly json: () => Promise<Readonly<{ features: readonly never[] }>>;
+  readonly ok: boolean;
+  readonly status: number;
+}
+
+type CountryFixtureFetch = (input: string) => Promise<CountryFixtureResponse>;
+
+const testControls: ReturnType<GlobeInstance["controls"]> = {
     autoRotate: false,
     autoRotateSpeed: 0,
     enablePan: true,
     enableZoom: true,
-  },
-  pointOfView = jest.fn(),
-  renderer = {
+  };
+const pointOfView = jest.fn<GlobeInstance["pointOfView"]>();
+const renderer: ReturnType<GlobeInstance["renderer"]> = {
     capabilities: {
       getMaxAnisotropy: () => 1,
       maxTextureSize: 4096,
     },
     outputColorSpace: "",
-    setPixelRatio: jest.fn(),
+    setPixelRatio: jest.fn<(ratio: number) => void>(),
     toneMapping: 0,
     toneMappingExposure: 1,
-  },
-  EMPTY_ARTICLES = [] as const,
-  EMPTY_COUNTRY_METRICS = {
-    articles_with_country: 0,
-    articles_without_country: 0,
-    country_count: 0,
-    counts: {},
-    total_articles: 0,
-  } as const,
-  globeInstance: InteractiveGlobeHandle = {
+  };
+const globeRefInstance: GlobeInstance = {
     controls: () => testControls,
     getGlobeRadius: () => 100,
     pointOfView,
@@ -42,18 +43,26 @@ const testControls = {
     scene: () => new Scene(),
   };
 
-interface GlobeSurfaceProps extends GlobeProps {
-  ref?: MutableRefObject<InteractiveGlobeHandle | undefined>;
-}
+const EMPTY_ARTICLES: readonly [] = [];
+const EMPTY_COUNTRY_METRICS = {
+  articles_with_country: 0,
+  articles_without_country: 0,
+  country_count: 0,
+  counts: {},
+  total_articles: 0,
+};
 
-const GlobeSurface: InteractiveGlobeComponent = ({ ref }: GlobeSurfaceProps) => {
+const GlobeSurface: InteractiveGlobeComponent = (props) => {
+  const { ref } = props;
   useEffect(() => {
     const timer = globalThis.setTimeout(() => {
       if (ref !== undefined) {
-        ref.current = globeInstance;
+        ref.current = globeRefInstance;
       }
     }, 0);
-    return () =>{  globalThis.clearTimeout(timer); };
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
   }, [ref]);
 
   return <div data-testid="globe-surface" />;
@@ -62,44 +71,49 @@ const GlobeSurface: InteractiveGlobeComponent = ({ ref }: GlobeSurfaceProps) => 
 GlobeSurface.displayName = "GlobeSurface";
 
 const globeComponent: InteractiveGlobeComponent = GlobeSurface;
+const fetchMock = jest.fn<CountryFixtureFetch>();
+
+const setupGlobeTest = (): void => {
+  testControls.autoRotate = false;
+  testControls.autoRotateSpeed = 0;
+  testControls.enableZoom = true;
+  testControls.enablePan = true;
+  pointOfView.mockReset();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue({
+    json: () => Promise.resolve({ features: [] }),
+    ok: true,
+    status: 200,
+  });
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: fetchMock,
+    writable: true,
+  });
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+};
+
+const restoreGlobeTest = (): void => {
+  jest.restoreAllMocks();
+};
 
 describe("interactiveGlobe", () => {
-  const fetchMock = jest.fn<typeof fetch>();
+  beforeEach(setupGlobeTest);
+  afterEach(restoreGlobeTest);
 
-  beforeEach(() => {
-    testControls.autoRotate = false;
-    testControls.autoRotateSpeed = 0;
-    testControls.enableZoom = true;
-    testControls.enablePan = true;
-    pointOfView.mockReset();
-    fetchMock.mockReset();
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ features: [] }), { status: 200 }),
-    );
-    Object.defineProperty(globalThis, "fetch", {
-      configurable: true,
-      value: fetchMock,
-      writable: true,
-    });
-    globalThis.ResizeObserver = class ResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  it("initializes globe controls after the delayed client surface mounts", async () => {  expect.hasAssertions();
+  it("initializes globe controls after the delayed client surface mounts", async () => {
+    expect.hasAssertions();
 
     renderWithQueryClient(
       <InteractiveGlobe
         articles={EMPTY_ARTICLES}
         countryMetrics={EMPTY_COUNTRY_METRICS}
         globeComponent={globeComponent}
-        onCountrySelect={jest.fn()}
+        onCountrySelect={jest.fn<(countryCode: string | null, countryName?: string | null) => void>()}
         selectedCountry={null}
         lightingMode="all-lit"
       />,
@@ -111,9 +125,12 @@ describe("interactiveGlobe", () => {
       expect(testControls.autoRotate).toBe(true);
     });
 
-    expect(testControls.autoRotateSpeed).toBe(0.5);
-    expect(testControls.enableZoom).toBe(false);
-    expect(testControls.enablePan).toBe(false);
+    expect(testControls).toStrictEqual({
+      autoRotate: true,
+      autoRotateSpeed: 0.5,
+      enablePan: false,
+      enableZoom: false,
+    });
     expect(pointOfView).toHaveBeenNthCalledWith(1, { altitude: 2.5 });
     expect(pointOfView).toHaveBeenNthCalledWith(2, { altitude: 2.5 }, 800);
   });
