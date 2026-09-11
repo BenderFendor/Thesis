@@ -2150,3 +2150,19 @@ the active cleanup scope. The plan baseline is now 80.69% cleared with 19.31% re
 The repeat `scripts/self-test` reached the repository verifier, produced no output for
 about 4.5 minutes, and was stopped with exit 130 while its type-aware worker remained
 CPU-active. It remains an open gate rather than a pass.
+
+## 2026-09-11 — Globe view and scene checkpoint
+
+Saved the globe refactor in `07cc7fa`. The view, workspace calculations, interactive
+globe lifecycle, and WebGL scene/material responsibilities now have focused modules.
+Narrow Three.js capability views removed the generic recursive readonly failure mode;
+uniform writes stay behind explicit callbacks. The focused globe suites pass 2 suites
+and 5 tests, the full frontend suite passes 56 suites and 199 tests, TypeScript and the
+production build pass, and the build generates 17 routes.
+
+The current direct census is 121 frontend warnings and 0 errors, plus 1,393 scripts
+findings (10 errors and 1,383 warnings) that remain outside the active lint scope. The
+combined count is 1,514 findings, or 80.95% cleared and 19.05% remaining against the
+7,949 baseline. Dependency cycles remain clear at 0 frontend and 0 backend cycles;
+duplication remains 1.04% with 118 clones. The line gate, MI, dead-code, repository
+self-test, and browser gates remain open as recorded in the plan.

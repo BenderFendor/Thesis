@@ -137,6 +137,41 @@ The goal remains active. The next bounded frontend queue is the globe scene/mate
 cluster, followed by the remaining UI warnings and the open MI, CRAP, dead-code,
 duplication, source-line, runtime, browser, and scripts-excluded gates.
 
+## 2026-09-11 — Globe view and scene checkpoint
+
+Commit `07cc7fa` saved the verified globe source and test cluster. The former globe view
+and interactive scene ownership now live in focused view, state, workspace, adapter,
+lifecycle, shader, material, and scene modules. The scene setup file has zero direct
+Oxlint diagnostics after replacing generic recursive readonly attempts with narrow
+capability views and explicit uniform mutation callbacks. Three.js mutation boundaries
+that still require mutable parameters remain visible in the direct cluster count.
+
+The fresh direct Oxlint census reports 121 frontend warnings and 0 errors across 41 files
+with findings. The combined `frontend scripts` census reports 1,514 findings: 10 errors
+and 1,504 warnings. Frontend contributes 121 warnings; scripts contribute 1,393 findings
+(10 errors and 1,383 warnings). Scripts remain outside the active cleanup queue by the
+user's explicit scope, and no scripts lint rule or configuration changed.
+
+Against the 7,949-finding plan baseline, 6,435 findings are cleared and 1,514 remain:
+80.95% cleared and 19.05% remaining. Relative to the post-pull checkpoint of 364
+frontend warnings and 1,757 combined findings, this slice removed 243 frontend warnings
+and 243 combined findings: a 66.76% reduction in the active frontend queue and a 13.83%
+reduction in the combined count. These are direct-lint percentages only.
+
+Verification: the focused globe suites pass 2 suites and 5 tests; full frontend Jest
+passes 56 suites and 199 tests; frontend TypeScript passes; the production build passes
+and generates 17 routes; dependency cycles pass with 0 frontend and 0 backend cycles;
+duplication remains 1.04% with 118 clones; and `git diff --check` passes. The line gate
+still has only `frontend/lib/api/endpoints.ts` over cap at 1,082 lines versus 1,057.
+Strict maintainability reports 6,077 functions, 144 failures below MI 50, and 882
+warnings below MI 60. Dead-code remains at 2 unused files, 1 unused dependency, 1 unused
+dev dependency, 71 unused exports, 30 unused exported types, and 11 configuration hints.
+The repository self-test remains an open gate after the documented type-aware verifier
+run window, and browser verification remains unavailable.
+
+The next bounded frontend queue is `frontend/components/highlight-toolbar.tsx` at 14
+warnings, followed by the UI sheet/select/table surfaces. The goal remains active.
+
 ## 2026-09-08 — Confirmed codemod checkpoint
 
 The [confirmed codemod audit](../agents/traces/confirmed-codemods-2026-09-08.md)

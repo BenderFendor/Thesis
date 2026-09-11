@@ -777,3 +777,13 @@ statement gates without changing the page contract. Keep the entry hook as orche
 type each module boundary, run the real page tests, and remove exports that are only needed
 inside the split. The research controller slice reduced the frontend queue from 156 to 142
 warnings while keeping the full 56-suite/199-test run, TypeScript, and production build green.
+
+## 2026-09-11 — Globe rendering needs capability views
+
+Three.js runtime classes are mutable deep inside, so wrapping them in generic recursive
+readonly types creates incompatible contracts without clearing the lint rule. Keep the
+actual runtime type at configuration and disposal boundaries. For read-only scene helpers,
+pass the smallest `Pick`-based capability view; route uniform writes through explicit
+callbacks. The globe checkpoint reduced the live frontend queue from 142 to 121 warnings
+while keeping 56 suites and 199 tests, TypeScript, build, cycle, and duplication checks
+green.

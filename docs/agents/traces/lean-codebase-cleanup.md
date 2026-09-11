@@ -131,6 +131,36 @@ Rollback: revert `0193f7b` and `71e0a5e` together. Next executable step: inspect
 interactive globe scene/material warnings, then rerun the same direct frontend gates and
 make another focused checkpoint.
 
+## 2026-09-11 — Globe view and scene checkpoint
+
+Goal: save the bounded globe view and WebGL scene refactor while reducing its readonly
+parameter debt without changing the rendering contract.
+
+Status: complete for this bounded slice; repository cleanup remains active. Commit
+`07cc7fa` records the globe view, workspace calculations, interactive globe lifecycle,
+shader/material modules, and the globe workspace regression test. The scene setup now
+uses narrow Three.js capability views for read-only helpers and explicit callbacks for
+uniform mutations. No lint threshold, ignore, or suppression changed.
+
+Evidence: the focused globe suites pass 2 suites and 5 tests; full frontend Jest passes
+56 suites and 199 tests; frontend TypeScript and the production build pass; the build
+generates 17 routes; the scene setup file has zero direct Oxlint diagnostics; the whole
+globe cluster has 12 warnings and 0 errors at remaining mutable runtime boundaries;
+dependency cycles pass with 0 frontend and 0 backend cycles; duplication is 1.04% with
+118 clones; and `git diff --check` passes. The live frontend census is 121 warnings and
+0 errors; the combined census is 1,514 findings, including 1,393 scripts findings
+(10 errors and 1,383 warnings) intentionally outside active cleanup.
+
+Remaining gates: `frontend/lib/api/endpoints.ts` remains over the line cap at 1,082/1,057;
+maintainability reports 6,077 functions with 144 MI failures and 882 MI warnings; dead
+code reports 2 unused files, 1 unused dependency, 1 unused dev dependency, 71 unused
+exports, 30 unused exported types, and 11 configuration hints. The repository self-test
+has the documented type-aware verifier run-window failure, and browser verification is
+unavailable.
+
+Rollback: revert `07cc7fa`. Next executable step: inspect the 14 warnings in
+`frontend/components/highlight-toolbar.tsx`, then the UI sheet/select/table cluster.
+
 ## Baseline and safeguards
 
 - Starting commit: bc93b24f7cd134c49a79927f768b682c28839dac.
