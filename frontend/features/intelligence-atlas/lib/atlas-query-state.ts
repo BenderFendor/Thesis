@@ -114,8 +114,7 @@ const ATLAS_DEFAULT_NEIGHBOR_DEPTH = 0,
   ]),
   START_INDEX = 0,
   VIEW_VALUES: ReadonlySet<string> = new Set<AtlasView>(["directory", "graph"]),
-
-// Build the profile link from the same serializer used for regular Atlas state.
+  // Build the profile link from the same serializer used for regular Atlas state.
   buildAtlasNeighborhoodHref = (entityId: string): string => {
     const query = serializeAtlasQueryState({
       ...QUERY_STATE_DEFAULTS,
@@ -204,11 +203,7 @@ const ATLAS_DEFAULT_NEIGHBOR_DEPTH = 0,
       entities: parseEntityValues(params.get("entities")),
       focus: params.get("focus") === "1",
       funding: csvValues(params.get("funding")),
-      layout: parseEnumValue(
-        params.get("layout"),
-        isAtlasLayoutMode,
-        QUERY_STATE_DEFAULTS.layout,
-      ),
+      layout: parseEnumValue(params.get("layout"), isAtlasLayoutMode, QUERY_STATE_DEFAULTS.layout),
       minConfidence: clampNumber(
         params.get("min_confidence"),
         QUERY_STATE_DEFAULTS.minConfidence,
@@ -248,7 +243,7 @@ const ATLAS_DEFAULT_NEIGHBOR_DEPTH = 0,
   },
   parseNeighborDepth = (value: string | null): AtlasNeighborDepth => {
     const rounded = Math.round(
-        clampNumber(
+      clampNumber(
         value,
         ATLAS_DEFAULT_NEIGHBOR_DEPTH,
         ATLAS_DEFAULT_NEIGHBOR_DEPTH,
@@ -280,8 +275,8 @@ const ATLAS_DEFAULT_NEIGHBOR_DEPTH = 0,
     return QUERY_STATE_DEFAULTS.panel;
   },
   parseRelations = (value: string | null): AtlasRelationType[] => {
-    const parsed = csvValues(value).filter(
-      (item): item is AtlasRelationType => isAtlasRelationType(item),
+    const parsed = csvValues(value).filter((item): item is AtlasRelationType =>
+      isAtlasRelationType(item),
     );
     if (parsed.length > EMPTY_COLLECTION_SIZE) {
       return parsed;
@@ -321,20 +316,7 @@ const ATLAS_DEFAULT_NEIGHBOR_DEPTH = 0,
       return;
     }
     params.set(key, value);
-  },
-  updateAtlasQueryState = (
-    current: ReadonlyAtlasQueryState,
-    patch: Readonly<Partial<ReadonlyAtlasQueryState>>,
-  ): AtlasQueryState => ({
-    ...current,
-    ...patch,
-    bias: [...(patch.bias ?? current.bias)],
-    country: [...(patch.country ?? current.country)],
-    entities: [...(patch.entities ?? current.entities)],
-    funding: [...(patch.funding ?? current.funding)],
-    relations: [...(patch.relations ?? current.relations)],
-  });
-
+  };
 export {
   type AtlasLayoutMode,
   type AtlasPanel,
@@ -345,5 +327,4 @@ export {
   QUERY_STATE_DEFAULTS as DEFAULT_ATLAS_QUERY_STATE,
   parseAtlasQueryState,
   serializeAtlasQueryState,
-  updateAtlasQueryState,
 };
