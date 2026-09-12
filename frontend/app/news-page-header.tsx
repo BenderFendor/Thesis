@@ -122,7 +122,7 @@ const ResearchResourceLink = () => (
 );
 
 const HeaderResourceLinks = ({ isGlobeView }: Readonly<Pick<HeaderBarProps, "isGlobeView">>) => (
-  <div className="contents lg:flex lg:items-center lg:gap-1.5">
+  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
     <div className="hidden lg:block">
       <ThemeToggle />
     </div>
@@ -173,7 +173,7 @@ const HeaderResourceActions = (props: Readonly<HeaderActionProps>) => {
   const { isGlobeView, lens, activeLensLabel } = props;
   const handleOpenSidebar = props.onOpenSidebar;
   return (
-    <div className={cn("grid grid-cols-3 gap-2 sm:flex sm:items-center", isGlobeView && "gap-1.5")}>
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", isGlobeView && "gap-1.5")}>
       <div className="hidden h-4 w-px bg-white/10 lg:block" />
       <HeaderResourceLinks isGlobeView={isGlobeView} />
       <HeaderSourceFilterButton

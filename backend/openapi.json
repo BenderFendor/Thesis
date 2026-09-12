@@ -11565,20 +11565,19 @@
       },
       "BookmarkEntry": {
         "properties": {
-          "article": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Article"
-          },
-          "articleId": {
+          "article_id": {
             "type": "integer",
-            "title": "Articleid"
+            "title": "Article Id"
           },
-          "bookmarkId": {
+          "bookmark_id": {
             "type": "integer",
-            "title": "Bookmarkid"
+            "title": "Bookmark Id"
           },
-          "createdAt": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "created_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -11587,17 +11586,65 @@
                 "type": "null"
               }
             ],
-            "title": "Createdat"
+            "title": "Created At"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
           }
         },
         "type": "object",
         "required": [
-          "article",
-          "articleId",
-          "bookmarkId"
+          "article_id",
+          "bookmark_id",
+          "category",
+          "source",
+          "title",
+          "url"
         ],
         "title": "BookmarkEntry",
-        "description": "BookmarkEntry API response model."
+        "description": "Bookmark article list entry."
       },
       "BookmarkListResponse": {
         "properties": {
@@ -14008,16 +14055,15 @@
       },
       "LikedEntry": {
         "properties": {
-          "article": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Article"
-          },
-          "articleId": {
+          "article_id": {
             "type": "integer",
-            "title": "Articleid"
+            "title": "Article Id"
           },
-          "createdAt": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "created_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -14026,21 +14072,69 @@
                 "type": "null"
               }
             ],
-            "title": "Createdat"
+            "title": "Created At"
           },
-          "likedId": {
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "liked_id": {
             "type": "integer",
-            "title": "Likedid"
+            "title": "Liked Id"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
           }
         },
         "type": "object",
         "required": [
-          "article",
-          "articleId",
-          "likedId"
+          "article_id",
+          "category",
+          "liked_id",
+          "source",
+          "title",
+          "url"
         ],
         "title": "LikedEntry",
-        "description": "LikedEntry API response model."
+        "description": "Liked article list entry."
       },
       "LikedListResponse": {
         "properties": {

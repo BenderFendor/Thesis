@@ -2287,3 +2287,21 @@ backend test failures.
 
 The active quality backlog and the rule that future features repair open debt in the same touched
 system are recorded in `docs/agent/lean-codebase-plan.md` and `AGENTS.md`.
+
+## 2026-09-11 — Research assistant and API contract repair
+
+The research backend now sends OpenCode Zen's session, request, client, and user-agent headers.
+Each research run gets its own session identifier, direct OpenCode requests stop after one
+30-second attempt, and provider failures become an SSE error event so the frontend clears its
+running state. The configured local model is `mimo-v2.5-free`; the account currently reaches the
+provider but is rate limited by OpenCode's free tier.
+
+The liked and bookmark response models now match the flat records returned by their routes, and
+the OpenAPI schemas were updated with the same fields. Remote embedding requests split inputs
+into bounded groups of 32 to avoid the 200-article read timeout. The news header keeps resource
+controls grouped in a wrapping flex row on narrow screens.
+
+Focused backend tests pass, including the `/api/liked` response check, embedding batch regression,
+OpenCode header coverage, and research stream provider-error coverage. The live API returned 200
+for `/api/liked` with seven entries. Chrome DevTools attachment remains unavailable because the
+configured MCP connector cannot find a usable `DevToolsActivePort` file.

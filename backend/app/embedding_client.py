@@ -74,7 +74,16 @@ class RemoteEmbeddingModel:
         if not texts:
             return np.array([], dtype=float)
 
-        embeddings = self._client.embed(texts, batch_size=batch_size)
+        effective_batch_size = max(1, batch_size)
+        request_batch_size = min(32, effective_batch_size)
+        embeddings: list[list[float]] = []
+        for offset in range(0, len(texts), request_batch_size):
+            embeddings.extend(
+                self._client.embed(
+                    texts[offset : offset + request_batch_size],
+                    batch_size=effective_batch_size,
+                )
+            )
         encoded = np.array(embeddings, dtype=float)
         if single_input:
             return cast("NDArray[Any]", encoded[0])

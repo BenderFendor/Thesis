@@ -17,7 +17,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from app.core.config import get_llamacpp_model, settings
+from app.core.config import get_llamacpp_model, get_opencode_headers, settings
 from app.services.prompting import build_text_system_prompt
 
 # Load environment variables from .env file
@@ -163,6 +163,9 @@ def _create_chat_llm():
             temperature=0.7,
             api_key=SecretStr(settings.opencode_api_key),
             base_url=settings.opencode_base_url,
+            default_headers=get_opencode_headers(),
+            max_retries=0,
+            timeout=30.0,
         )
     if settings.open_router_api_key:
         return ChatOpenAI(

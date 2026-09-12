@@ -3,6 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from google import genai
@@ -17,6 +18,17 @@ SCOOP_WIKIMEDIA_UA = (
 SCOOP_BROWSER_UA = (
     "Mozilla/5.0 (compatible; ScoopNewsBot/1.0; +https://github.com/anomalyco/Thesis)"
 )
+_OPENCODE_INSTALL_SESSION_ID = str(uuid4())
+
+
+def get_opencode_headers(session_id: str | None = None) -> dict[str, str]:
+    """Return the attribution headers required by OpenCode Zen."""
+    return {
+        "User-Agent": SCOOP_USER_AGENT,
+        "x-opencode-client": "scoop",
+        "x-opencode-request": str(uuid4()),
+        "x-opencode-session": session_id or _OPENCODE_INSTALL_SESSION_ID,
+    }
 
 
 def _env_enabled(name: str, default: str = "1") -> bool:
@@ -70,12 +82,11 @@ class Settings:
     llamacpp_model: str = os.getenv("LLAMACPP_MODEL", "local")
     llamacpp_api_key: str = os.getenv("LLAMACPP_API_KEY", "no-key")
 
-    # OpenCode Zen gateway (https://opencode.ai/docs/zen). Exposes an
-    # OpenAI-compatible /chat/completions endpoint that serves the free
-    # models used by the Pi/OhMyPi integration (e.g. "x-preview-f-free").
+    # OpenCode Zen gateway (https://opencode.ai/docs/zen). Free model availability
+    # rotates; use the current model catalog rather than a retired model id.
     opencode_api_key: str | None = os.getenv("OPENCODE_API_KEY")
     opencode_base_url: str = os.getenv("OPENCODE_BASE_URL", "https://opencode.ai/zen/v1")
-    opencode_model: str = os.getenv("OPENCODE_MODEL", "x-preview-f-free")
+    opencode_model: str = os.getenv("OPENCODE_MODEL", "mimo-v2.5-free")
 
     # llama.cpp Instruct mode settings for reasoning tasks
     llamacpp_temperature: float = 1.0
@@ -189,6 +200,9 @@ def create_openai_client(logger: logging.Logger) -> OpenAI | None:
             client = OpenAI(
                 base_url=settings.opencode_base_url,
                 api_key=settings.opencode_api_key,
+                default_headers=get_opencode_headers(),
+                max_retries=0,
+                timeout=30.0,
             )
             logger.info(
                 "LLM backend: OpenCode Zen at %s (model %s)",
@@ -279,6 +293,16 @@ def _check_llamacpp_health(base: str, logger: logging.Logger) -> None:
         ) from error
 
 
+def _first_string_from_records(records: object, keys: tuple[str, ...]) -> str | None:
+    if not isinstance(records, list):
+        return None
+    value = next(
+        (record.get(key) for record in records if isinstance(record, dict) for key in keys),
+        None,
+    )
+    return value if isinstance(value, str) else None
+
+
 def _discover_llamacpp_from_models(base: str, logger: logging.Logger) -> str | None:
     import json
     import urllib.request
@@ -289,13 +313,11 @@ def _discover_llamacpp_from_models(base: str, logger: logging.Logger) -> str | N
     except (OSError, UnicodeError, ValueError) as error:
         logger.debug("Models endpoint discovery failed (%s)", error)
         return None
-    data = payload.get("data") or []
-    if data:
-        return data[0].get("id")
-    models = payload.get("models") or []
-    if not models:
+    if not isinstance(payload, dict):
         return None
-    return models[0].get("model") or models[0].get("name")
+    return _first_string_from_records(payload.get("data"), ("id",)) or _first_string_from_records(
+        payload.get("models"), ("model", "name")
+    )
 
 
 def _discover_llamacpp_from_sentinel(base: str, logger: logging.Logger) -> str | None:

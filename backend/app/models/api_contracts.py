@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 class CacheStatus(BaseModel):
     """CacheStatus API response model."""
+
     cache_age_seconds: float
     category_breakdown: dict[str, int]
     last_updated: str
@@ -28,12 +29,14 @@ class CacheStatus(BaseModel):
 
 class SourceStatsList(BaseModel):
     """SourceStatsList API response model."""
+
     sources: list[SourceStats]
     total_sources: int
 
 
 class SourceStats(BaseModel):
     """SourceStats API response model."""
+
     article_count: int
     bias_rating: str | None = None
     category: str
@@ -48,6 +51,7 @@ class SourceStats(BaseModel):
 
 class CacheDebugArticle(BaseModel):
     """CacheDebugArticle API response model."""
+
     category: str
     country: str | None = None
     description: str
@@ -61,6 +65,7 @@ class CacheDebugArticle(BaseModel):
 
 class CacheDebugResponse(BaseModel):
     """CacheDebugResponse API response model."""
+
     articles: list[CacheDebugArticle]
     limit: int
     offset: int
@@ -71,6 +76,7 @@ class CacheDebugResponse(BaseModel):
 
 class ChromaDebugArticle(BaseModel):
     """ChromaDebugArticle API response model."""
+
     id: str
     metadata: dict[str, Any]
     preview: str
@@ -78,6 +84,7 @@ class ChromaDebugArticle(BaseModel):
 
 class ChromaDebugResponse(BaseModel):
     """ChromaDebugResponse API response model."""
+
     articles: list[ChromaDebugArticle]
     limit: int
     offset: int
@@ -87,6 +94,7 @@ class ChromaDebugResponse(BaseModel):
 
 class DatabaseDebugArticle(BaseModel):
     """DatabaseDebugArticle API response model."""
+
     chroma_id: str | None = None
     content: str | None = None
     embedding_generated: bool | None = None
@@ -101,6 +109,7 @@ class DatabaseDebugArticle(BaseModel):
 
 class DatabaseDebugResponse(BaseModel):
     """DatabaseDebugResponse API response model."""
+
     articles: list[DatabaseDebugArticle]
     limit: int
     missing_embeddings_only: bool
@@ -117,6 +126,7 @@ class DatabaseDebugResponse(BaseModel):
 
 class StorageDriftReport(BaseModel):
     """StorageDriftReport API response model."""
+
     dangling_in_chroma: list[str]
     database_missing_embeddings: int
     database_total_articles: int
@@ -128,6 +138,7 @@ class StorageDriftReport(BaseModel):
 
 class LlmLogEntry(BaseModel):
     """LlmLogEntry API response model."""
+
     duration_ms: int | None = None
     error_message: str | None = None
     error_type: str | None = None
@@ -142,6 +153,7 @@ class LlmLogEntry(BaseModel):
 
 class LlmLogResponse(BaseModel):
     """LlmLogResponse API response model."""
+
     available: bool
     entries: list[LlmLogEntry]
     path: str
@@ -153,6 +165,7 @@ class LlmLogResponse(BaseModel):
 
 class DebugErrorEntry(BaseModel):
     """DebugErrorEntry API response model."""
+
     component: str | None = None
     error_message: str | None = None
     error_type: str | None = None
@@ -167,6 +180,7 @@ class DebugErrorEntry(BaseModel):
 
 class DebugErrorsResponse(BaseModel):
     """DebugErrorsResponse API response model."""
+
     include_request_stream_events: bool
     log_file: LlmLogResponse
     recent_request_stream_errors: list[DebugErrorEntry]
@@ -175,6 +189,7 @@ class DebugErrorsResponse(BaseModel):
 
 class StartupEventMetric(BaseModel):
     """StartupEventMetric API response model."""
+
     completed_at: str | None = None
     detail: str | None = None
     duration_seconds: float | None = None
@@ -185,6 +200,7 @@ class StartupEventMetric(BaseModel):
 
 class StartupMetricsResponse(BaseModel):
     """StartupMetricsResponse API response model."""
+
     completed_at: str | None = None
     duration_seconds: float | None = None
     events: list[StartupEventMetric]
@@ -194,6 +210,7 @@ class StartupMetricsResponse(BaseModel):
 
 class CountryListItem(BaseModel):
     """CountryListItem API response model."""
+
     article_count: int
     code: str
     latest_article: str | None
@@ -201,18 +218,21 @@ class CountryListItem(BaseModel):
 
 class CountryListResponse(BaseModel):
     """CountryListResponse API response model."""
+
     countries: list[CountryListItem]
     total_countries: int
 
 
 class CountryGeoData(BaseModel):
     """CountryGeoData API response model."""
+
     countries: dict[str, dict[str, Any]]
     total: int
 
 
 class CountryPickerItem(BaseModel):
     """CountryPickerItem API response model."""
+
     article_count: int
     code: str
     heat_count: int
@@ -223,6 +243,7 @@ class CountryPickerItem(BaseModel):
 
 class LocalLensResponse(BaseModel):
     """LocalLensResponse API response model."""
+
     articles: list[dict[str, Any]]
     country_code: str
     country_name: str | None = None
@@ -240,35 +261,52 @@ class LocalLensResponse(BaseModel):
 
 
 class LikedEntry(BaseModel):
-    """LikedEntry API response model."""
-    article: dict[str, Any]
-    articleId: int
-    createdAt: str | None = None
-    likedId: int
+    """Liked article list entry."""
+
+    article_id: int
+    category: str
+    created_at: str | None = None
+    image: str | None = None
+    liked_id: int
+    published: str | None = None
+    source: str
+    summary: str | None = None
+    title: str
+    url: str
 
 
 class LikedListResponse(BaseModel):
     """LikedListResponse API response model."""
+
     liked: list[LikedEntry]
     total: int
 
 
 class BookmarkEntry(BaseModel):
-    """BookmarkEntry API response model."""
-    article: dict[str, Any]
-    articleId: int
-    bookmarkId: int
-    createdAt: str | None = None
+    """Bookmark article list entry."""
+
+    article_id: int
+    bookmark_id: int
+    category: str
+    created_at: str | None = None
+    image: str | None = None
+    published: str | None = None
+    source: str
+    summary: str | None = None
+    title: str
+    url: str
 
 
 class BookmarkListResponse(BaseModel):
     """BookmarkListResponse API response model."""
+
     bookmarks: list[BookmarkEntry]
     total: int
 
 
 class AddRssResponse(BaseModel):
     """AddRssResponse API response model."""
+
     article_count: int
     duplicate_candidates: list[dict[str, Any]] | None = None
     inferred: dict[str, Any] | None = None
@@ -282,6 +320,7 @@ class AddRssResponse(BaseModel):
 
 class RelatedArticlesResponse(BaseModel):
     """RelatedArticlesResponse API response model."""
+
     article_id: int
     related: list[dict[str, Any]]
     total: int
@@ -289,6 +328,7 @@ class RelatedArticlesResponse(BaseModel):
 
 class NoveltyScoreResponse(BaseModel):
     """NoveltyScoreResponse API response model."""
+
     article_id: int
     avg_similarity_to_history: float
     history_size: int
@@ -299,6 +339,7 @@ class NoveltyScoreResponse(BaseModel):
 
 class ArticleTopic(BaseModel):
     """ArticleTopic API response model."""
+
     cluster_id: int
     keywords: list[str] | None = None
     label: str
@@ -307,23 +348,27 @@ class ArticleTopic(BaseModel):
 
 class ArticleTopicsResponse(BaseModel):
     """ArticleTopicsResponse API response model."""
+
     article_id: int
     topics: list[ArticleTopic]
 
 
 class BulkArticleTopicsResponse(BaseModel):
     """BulkArticleTopicsResponse API response model."""
+
     articles: dict[str, list[ArticleTopic]]
 
 
 class SearchSuggestionsResponse(BaseModel):
     """SearchSuggestionsResponse API response model."""
+
     query: str
     suggestions: list[dict[str, Any]]
 
 
 class SourceCoverageStats(BaseModel):
     """SourceCoverageStats API response model."""
+
     article_count: int
     centroid_distance: float | None = None
     diversity_score: float | None = None
@@ -332,6 +377,7 @@ class SourceCoverageStats(BaseModel):
 
 class SourceCoverageResponse(BaseModel):
     """SourceCoverageResponse API response model."""
+
     error: str | None = None
     global_article_count: int
     sources: dict[str, SourceCoverageStats]
@@ -339,6 +385,7 @@ class SourceCoverageResponse(BaseModel):
 
 class TrendingStats(BaseModel):
     """TrendingStats API response model."""
+
     active_clusters: int
     baseline_days: int
     breaking_window_hours: int
@@ -349,6 +396,7 @@ class TrendingStats(BaseModel):
 
 class BlindspotGeographySignal(BaseModel):
     """BlindspotGeographySignal API response model."""
+
     count: int
     id: str
     label: str
@@ -356,6 +404,7 @@ class BlindspotGeographySignal(BaseModel):
 
 class BlindspotCoverageCounts(BaseModel):
     """BlindspotCoverageCounts API response model."""
+
     pole_a: int
     shared: int
     pole_b: int
@@ -363,6 +412,7 @@ class BlindspotCoverageCounts(BaseModel):
 
 class BlindspotPaywallConcentration(BaseModel):
     """BlindspotPaywallConcentration API response model."""
+
     best_free_sources: list[str]
     free_articles: int
     paywalled_articles: int
@@ -374,6 +424,7 @@ class BlindspotPaywallConcentration(BaseModel):
 
 class BlindspotPreviewArticle(BaseModel):
     """BlindspotPreviewArticle API response model."""
+
     authors: list[str] | None = None
     author: str | None = None
     bias: str | None = None
@@ -394,6 +445,7 @@ class BlindspotPreviewArticle(BaseModel):
 
 class BlindspotCard(BaseModel):
     """BlindspotCard API response model."""
+
     article_count: int
     articles: list[BlindspotPreviewArticle]
     balance_score: float
@@ -414,6 +466,7 @@ class BlindspotCard(BaseModel):
 
 class BlindspotLensResponse(BaseModel):
     """BlindspotLensResponse API response model."""
+
     available: bool
     description: str
     id: str
@@ -423,6 +476,7 @@ class BlindspotLensResponse(BaseModel):
 
 class BlindspotLaneResponse(BaseModel):
     """BlindspotLaneResponse API response model."""
+
     cluster_count: int
     description: str
     id: str
@@ -431,6 +485,7 @@ class BlindspotLaneResponse(BaseModel):
 
 class BlindspotSummary(BaseModel):
     """BlindspotSummary API response model."""
+
     category: str | None = None
     eligible_clusters: int
     generated_at: str
@@ -440,6 +495,7 @@ class BlindspotSummary(BaseModel):
 
 class BlindspotViewerResponse(BaseModel):
     """BlindspotViewerResponse API response model."""
+
     available_lenses: list[BlindspotLensResponse]
     cards: list[BlindspotCard]
     lanes: list[BlindspotLaneResponse]

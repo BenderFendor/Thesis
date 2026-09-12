@@ -5,6 +5,7 @@ from typing import Any, cast
 import pytest
 from fastapi import Request
 from langchain_core.messages import AIMessage, ToolMessage
+from openai import OpenAIError
 
 import news_research_agent as agent
 from app.api.routes import research as research_route
@@ -568,6 +569,41 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
     assert complete_payload["answer"] == "Answer\nNo answer found.\n"
     assert "Follow-up questions" not in complete_payload["answer"]
     assert complete_payload["source_providers"] == []
+
+
+@pytest.mark.asyncio
+async def test_stream_route_converts_provider_failure_to_error_event(monkeypatch) -> None:
+    class FakeRequest:
+        async def is_disconnected(self) -> bool:
+            return False
+
+    async def fake_load_articles(_query: str):
+        return {"articles": [], "summary": {}}
+
+    def fake_stream_agent(*_args, **_kwargs):
+        raise OpenAIError("provider request failed")
+        yield ""
+
+    monkeypatch.setattr(research_route, "load_articles_for_research", fake_load_articles)
+    monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
+
+    response = await research_route.news_research_stream_endpoint(
+        request=cast(Request[Any], FakeRequest()),
+        query="provider failure",
+        include_thinking=True,
+        history=None,
+    )
+
+    events = []
+    async for chunk in response.body_iterator:
+        text = chunk.decode() if isinstance(chunk, (bytes, bytearray)) else str(chunk)
+        for line in text.splitlines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+
+    errors = [event for event in events if event.get("type") == "error"]
+    assert len(errors) == 1
+    assert errors[0]["message"] == "provider request failed"
 
 
 @pytest.mark.asyncio

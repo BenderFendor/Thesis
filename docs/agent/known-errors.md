@@ -1,5 +1,30 @@
 # Known Errors
 
+## 2026-09-11: OpenCode Zen free requests need session attribution
+
+Symptom:
+
+```text
+401 ModelError: Model ... is not supported
+MissingSessionID: OpenCode's free tier can only be used in OpenCode
+```
+
+Cause: OpenCode Zen's OpenAI-compatible endpoint still expects the client to identify the
+session and request. A bare `ChatOpenAI` or `OpenAI` client sends neither `x-opencode-session`
+nor the related client attribution headers. Model ids also rotate; a model can remain in the
+catalog after its upstream provider becomes unavailable.
+
+Fix: use `get_opencode_headers()` from `app.core.config` for every OpenCode client. Research
+runs pass a generated session id, while shared service clients use the process session. Keep
+`OPENCODE_MODEL` on a current id from `https://opencode.ai/zen/v1/models`; the configured free
+model can still return a provider rate limit that code cannot clear.
+
+Check:
+
+```bash
+cd backend && uv run pytest tests/test_llm_backend_opencode.py -q
+```
+
 ## 2026-09-03: object-literal prototype pollution in source maps
 
 - Symptom: `mapBackendArticles` throws `TypeError: value.trim is not a

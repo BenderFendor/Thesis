@@ -16,6 +16,7 @@ from typing import (
 from collections.abc import Callable, Generator, Iterator, Sequence
 
 from typing import cast
+from uuid import uuid4
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -32,7 +33,7 @@ from langgraph.prebuilt import ToolNode
 from pydantic import SecretStr
 from typing_extensions import TypedDict
 
-from app.core.config import get_llamacpp_model, settings
+from app.core.config import get_llamacpp_model, get_opencode_headers, settings
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal, search_articles_by_keyword
 from app.services.article_extraction import extract_article_content
@@ -145,6 +146,19 @@ _stop_events = threading.local()
 def _is_stopped() -> bool:
     event = getattr(_stop_events, "event", None)
     return event is not None and event.is_set()
+
+
+def _current_opencode_session_id() -> str | None:
+    session_id = getattr(_stop_events, "opencode_session_id", None)
+    return session_id if isinstance(session_id, str) else None
+
+
+def _start_research_session() -> None:
+    _stop_events.opencode_session_id = str(uuid4())
+
+
+def _clear_research_session() -> None:
+    _stop_events.opencode_session_id = None
 
 
 class RunnableMessageInvoker(Protocol):
@@ -340,7 +354,7 @@ def _first_nonempty(*values: Any, default: Any = "") -> Any:
 
 def _article_identity(article: dict[str, Any]) -> tuple[str | None, str]:
     article_id = _first_nonempty(article.get("id"), article.get("article_id"), default=None)
-    url = _normalize_url(_first_nonempty(article.get("url"), article.get("link")))
+    url = _normalize_url(_first_nonempty(article.get("url"), article.get("link"))) or ""
     return (str(article_id) if article_id is not None else None, url)
 
 
@@ -414,7 +428,10 @@ def _next_fallback_call(
 
 def _internal_db_matches(query: str, top_k: int) -> list[dict[str, Any]]:
     try:
-        return _run_async_blocking(_search_internal_news_from_db(query, top_k))
+        matches = _run_async_blocking(_search_internal_news_from_db(query, top_k))
+        if not isinstance(matches, list):
+            return []
+        return [match for match in matches if isinstance(match, dict)]
     except Exception as exc:
         logger.warning("Internal DB search failed: %s", exc)
         return []
@@ -472,12 +489,15 @@ def _article_fetch_output(url: str, result: dict[str, Any]) -> str:
 
 def _normalize_rag_documents(documents: Any) -> list[dict[str, Any]] | None:
     if not isinstance(documents, str):
-        return documents
-    try:
-        parsed = json.loads(documents)
-    except json.JSONDecodeError:
+        parsed = documents
+    else:
+        try:
+            parsed = json.loads(documents)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(parsed, list) or not all(isinstance(item, dict) for item in parsed):
         return None
-    return parsed if isinstance(parsed, list) else None
+    return [item for item in parsed if isinstance(item, dict)]
 
 
 def _index_rag_document(store: Any, document: dict[str, Any], index: int) -> int:
@@ -1464,6 +1484,19 @@ def _invoke_with_llamacpp_recovery(
 
 def _get_llm() -> ToolBindableLLM:
     global _llm_instance
+    if settings.llm_backend == "opencode" and settings.opencode_api_key:
+        return cast(
+            ToolBindableLLM,
+            ChatOpenAI(
+                model=settings.opencode_model,
+                temperature=0.2,
+                api_key=SecretStr(settings.opencode_api_key),
+                base_url=settings.opencode_base_url,
+                default_headers=get_opencode_headers(_current_opencode_session_id()),
+                max_retries=0,
+                timeout=30.0,
+            ),
+        )
     if _llm_instance is None:
         if settings.llm_backend == "llamacpp":
             _llm_instance = cast(
@@ -1473,16 +1506,6 @@ def _get_llm() -> ToolBindableLLM:
                     temperature=0.2,
                     api_key=SecretStr(settings.llamacpp_api_key),
                     base_url=settings.llamacpp_base_url,
-                ),
-            )
-        elif settings.llm_backend == "opencode" and settings.opencode_api_key:
-            _llm_instance = cast(
-                ToolBindableLLM,
-                ChatOpenAI(
-                    model=settings.opencode_model,
-                    temperature=0.2,
-                    api_key=SecretStr(settings.opencode_api_key),
-                    base_url=settings.opencode_base_url,
                 ),
             )
         elif settings.open_router_api_key:
@@ -1509,6 +1532,8 @@ def _get_llm() -> ToolBindableLLM:
 
 def _get_model() -> RunnableMessageInvoker:
     global _model_instance
+    if settings.llm_backend == "opencode" and settings.opencode_api_key:
+        return _get_llm().bind_tools(tools)
     if _model_instance is None:
         llm = _get_llm()
         if settings.llm_backend == "llamacpp":
@@ -1526,6 +1551,8 @@ def _get_model() -> RunnableMessageInvoker:
 
 def _get_tool_router() -> RunnableMessageInvoker:
     global _tool_router_instance
+    if settings.llm_backend == "opencode" and settings.opencode_api_key:
+        return _get_llm().bind_tools(tools, tool_choice="required")
     if _tool_router_instance is None:
         llm = _get_llm()
         if settings.llm_backend == "llamacpp":
@@ -1891,28 +1918,32 @@ def research_news(
 ) -> dict[str, Any]:
     """Research news and return the synthesized answer plus evidence metadata."""
     _stop_events.event = None
-    set_news_articles(articles)
-    final_answer, thinking_steps, tool_snippets = _run_research_graph(query, chat_history)
-    referenced_articles = _resolve_referenced_articles(final_answer)
-    final_answer = _ensure_supported_final_answer(
-        query, final_answer, referenced_articles, tool_snippets
-    )
-    final_answer = _sanitize_final_answer(final_answer)
-    source_providers = sorted(_research_source_providers)
-    structured_block = _structured_articles_block(query, referenced_articles, source_providers)
-    result: dict[str, Any] = {
-        "success": bool(final_answer),
-        "query": query,
-        "answer": final_answer,
-        "structured_articles": structured_block,
-        "thinking_steps": thinking_steps if verbose else [],
-        "articles_searched": len(_news_articles_cache),
-        "referenced_articles": referenced_articles,
-        "source_providers": source_providers,
-    }
-    if structured_block and structured_block not in final_answer:
-        result["answer"] += structured_block
-    return result
+    _start_research_session()
+    try:
+        set_news_articles(articles)
+        final_answer, thinking_steps, tool_snippets = _run_research_graph(query, chat_history)
+        referenced_articles = _resolve_referenced_articles(final_answer)
+        final_answer = _ensure_supported_final_answer(
+            query, final_answer, referenced_articles, tool_snippets
+        )
+        final_answer = _sanitize_final_answer(final_answer)
+        source_providers = sorted(_research_source_providers)
+        structured_block = _structured_articles_block(query, referenced_articles, source_providers)
+        result: dict[str, Any] = {
+            "success": bool(final_answer),
+            "query": query,
+            "answer": final_answer,
+            "structured_articles": structured_block,
+            "thinking_steps": thinking_steps if verbose else [],
+            "articles_searched": len(_news_articles_cache),
+            "referenced_articles": referenced_articles,
+            "source_providers": source_providers,
+        }
+        if structured_block and structured_block not in final_answer:
+            result["answer"] += structured_block
+        return result
+    finally:
+        _clear_research_session()
 
 
 def research_stream(
@@ -1923,10 +1954,12 @@ def research_stream(
 ) -> Generator[str, None, None]:
     """Research Stream."""
     _stop_events.event = stop_event
+    _start_research_session()
     try:
         yield from _research_stream_impl(query, articles, chat_history, stop_event)
     finally:
         _stop_events.event = None
+        _clear_research_session()
 
 
 def _stream_event(payload: dict[str, Any]) -> str:

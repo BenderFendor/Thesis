@@ -12,6 +12,7 @@ from importlib import import_module
 from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, Query, Request
+from openai import OpenAIError
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 
@@ -434,7 +435,7 @@ async def news_research_stream_endpoint(
             stop_event.set()
             logger.info("Research stream cancelled for query=%s", query)
             raise
-        except (ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        except (ConnectionError, OSError, OpenAIError, RuntimeError, TypeError, ValueError) as exc:
             yield _sse(
                 {
                     "type": "error",
