@@ -1,4 +1,4 @@
-import type { NewsArticle, SemanticSearchResult, ThinkingStep } from "@/lib/api";
+import type { ApiOpaqueObject, NewsArticle, SemanticSearchResult, ThinkingStep } from "@/lib/api";
 import type { ChatSummary } from "@/components/chat-sidebar";
 
 type ReadonlyChatSummary = Readonly<ChatSummary>;
@@ -7,6 +7,28 @@ type ReadonlySemanticSearchResult = Readonly<Omit<SemanticSearchResult, "article
   readonly article: ReadonlyNewsArticle;
 };
 type ReadonlyThinkingStep = Readonly<ThinkingStep>;
+
+type ResearchModelOption = Readonly<{
+  id: string;
+  label: string;
+  model: string;
+  provider: string;
+}>;
+
+type ResearchModelCatalog = Readonly<{
+  default: string | null;
+  models: readonly ResearchModelOption[];
+  provider: string;
+}>;
+
+type ResearchActivity = Readonly<{
+  args?: Readonly<ApiOpaqueObject>;
+  content: string;
+  id: string;
+  timestamp?: string;
+  tool?: string | null;
+  type: "thought" | "tool_start" | "tool_result";
+}>;
 
 type ReferencedArticlePayload = Readonly<{
   category?: string;
@@ -45,14 +67,20 @@ type ResearchResult = Readonly<{
   error?: string;
   query: string;
   referenced_articles?: readonly ReferencedArticlePayload[];
-  structured_articles?: StructuredArticlesPayload;
+  structured_articles?: StructuredArticlesPayload | string;
   success: boolean;
-  thinking_steps: readonly ReadonlyThinkingStep[];
+  thinking_steps?: readonly ReadonlyThinkingStep[];
 }>;
 
 type Message = Readonly<{
+  streamingText?: string;
+  streamingReasoning?: string;
+  streamingMessageId?: string;
   articles_searched?: number;
+  activities?: readonly ResearchActivity[];
   content: string;
+  errorCode?: string;
+  errorModel?: string;
   error?: boolean;
   id: string;
   isStreaming?: boolean;
@@ -87,10 +115,13 @@ interface StartResearchParameters {
   readonly prompt: string;
   readonly retryGroupId?: string;
   readonly seedMessages: readonly Message[];
+  readonly model?: string;
   readonly versionSelectionOverrides?: Readonly<Record<string, string>>;
 }
 
 type ResearchStreamState = Readonly<{
+  activities: readonly ResearchActivity[];
+  addActivity: (activity: ResearchActivity) => void;
   addThinkingStep: (step: ReadonlyThinkingStep) => void;
   clearStallTimeout: () => void;
   setClearStallTimeout: (clear: () => void) => void;
@@ -109,6 +140,33 @@ type ThinkingStepMessage = Readonly<{
   step: ReadonlyThinkingStep;
 }>;
 
+type ThinkingMessage = Readonly<{
+  content: string;
+  timestamp?: string;
+  type: "thinking";
+}>;
+
+type ModelDeltaMessage = Readonly<{
+  type: "model_delta";
+  message_id: string;
+  content: string;
+  reasoning: string;
+}>;
+
+type ToolStartMessage = Readonly<{
+  args?: Readonly<ApiOpaqueObject>;
+  timestamp?: string;
+  tool?: string | null;
+  type: "tool_start";
+}>;
+
+type ToolResultMessage = Readonly<{
+  content?: string;
+  timestamp?: string;
+  tool?: string | null;
+  type: "tool_result";
+}>;
+
 type ArticlesJsonMessage = Readonly<{
   type: "articles_json";
   data: string;
@@ -125,8 +183,11 @@ type CompleteMessage = Readonly<{
 }>;
 
 type ErrorMessage = Readonly<{
+  code?: string;
   type: "error";
   message?: string;
+  model?: string | null;
+  retryable?: boolean;
 }>;
 
 type UnknownMessage = Readonly<{
@@ -134,8 +195,12 @@ type UnknownMessage = Readonly<{
 }>;
 
 type ResearchStreamMessage =
+  | ModelDeltaMessage
   | StatusMessage
   | ThinkingStepMessage
+  | ThinkingMessage
+  | ToolStartMessage
+  | ToolResultMessage
   | ArticlesJsonMessage
   | ReferencedArticlesMessage
   | CompleteMessage
@@ -168,10 +233,14 @@ type ResearchStreamContext = Readonly<{
   updateChatMessages: UpdateChatMessages;
 }>;
 export type {
+  ModelDeltaMessage,
   ReadonlyChatSummary,
   ReadonlyNewsArticle,
   ReadonlySemanticSearchResult,
   ReadonlyThinkingStep,
+  ResearchActivity,
+  ResearchModelCatalog,
+  ResearchModelOption,
   ReferencedArticlePayload,
   StructuredArticleSummary,
   StructuredArticlesPayload,
@@ -182,6 +251,9 @@ export type {
   ResearchStreamState,
   StatusMessage,
   ThinkingStepMessage,
+  ThinkingMessage,
+  ToolStartMessage,
+  ToolResultMessage,
   ArticlesJsonMessage,
   ReferencedArticlesMessage,
   CompleteMessage,

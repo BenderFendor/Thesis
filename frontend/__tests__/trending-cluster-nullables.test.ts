@@ -1,13 +1,18 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+/* @jest-environment node */
+
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import {
   fetchAllClusters,
   fetchBreaking,
+  fetchClusterArticles,
   fetchClusterDetail,
   fetchTrending,
 } from "@/lib/api";
+import type { ApiOpaqueObject } from "@/lib/api";
 
-describe("cluster payload nullables", () => {
-  const gdeltContext = {
+type TestPayload = ApiOpaqueObject;
+
+const gdeltContext = {
     goldstein_avg: -1.8,
     goldstein_bucket: "conflict",
     goldstein_max: 0.8,
@@ -20,42 +25,13 @@ describe("cluster payload nullables", () => {
       { code: "05", count: 1, label: "Diplomatic engagement" },
     ],
     total_events: 3,
-  },
-   originalFetch = global.fetch;
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-    global.fetch = originalFetch;
-  });
-
-  function mockFetchJson(payload: BodyInit) {
-    const response = new Response(payload, { status: 200 });
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(response);
-  }
-
-  it("parses trending clusters when image_url and summary are undefined", async () => {  expect.hasAssertions();
-  
-    const payload = {
-      clusters: [
-        {
-          article_count: 2,
-          articles: [
-            {
-              gdelt_context: null,
-              id: 11,
-              image_url: null,
-              published_at: "2026-03-06T12:00:00.000Z",
-              source: "Source A",
-              summary: null,
-              title: "Representative",
-              url: "https://example.com/a",
-            },
-          ],
-          cluster_id: 1,
-          gdelt_context: null,
-          keywords: ["topic"],
-          label: "Topic",
-          representative_article: {
+  };
+const trendingPayload = {
+    clusters: [
+      {
+        article_count: 2,
+        articles: [
+          {
             gdelt_context: null,
             id: 11,
             image_url: null,
@@ -65,45 +41,36 @@ describe("cluster payload nullables", () => {
             title: "Representative",
             url: "https://example.com/a",
           },
-          source_diversity: 2,
-          trending_score: 1.2,
-          velocity: 0.8,
-          window_count: 2,
+        ],
+        cluster_id: 1,
+        gdelt_context: null,
+        keywords: ["topic"],
+        label: "Topic",
+        representative_article: {
+          gdelt_context: null,
+          id: 11,
+          image_url: null,
+          published_at: "2026-03-06T12:00:00.000Z",
+          source: "Source A",
+          summary: null,
+          title: "Representative",
+          url: "https://example.com/a",
         },
-      ],
-      total: 1,
-      window: "1d",
-    };
-
-    mockFetchJson(JSON.stringify(payload));
-
-    await expect(fetchTrending("1d", 10)).resolves.toStrictEqual(payload);
-  });
-
-  it("parses breaking clusters when image_url and summary are undefined", async () => {  expect.hasAssertions();
-  
-    const payload = {
-      clusters: [
-        {
-          article_count_3h: 4,
-          articles: [
-            {
-              gdelt_context: gdeltContext,
-              id: 21,
-              image_url: null,
-              published_at: "2026-03-06T12:00:00.000Z",
-              source: "Source B",
-              summary: null,
-              title: "Breaking Representative",
-              url: "https://example.com/b",
-            },
-          ],
-          cluster_id: 2,
-          gdelt_context: gdeltContext,
-          is_new_story: true,
-          keywords: ["breaking"],
-          label: null,
-          representative_article: {
+        source_diversity: 2,
+        trending_score: 1.2,
+        velocity: 0.8,
+        window_count: 2,
+      },
+    ],
+    total: 1,
+    window: "1d",
+  };
+const breakingPayload = {
+    clusters: [
+      {
+        article_count_3h: 4,
+        articles: [
+          {
             gdelt_context: gdeltContext,
             id: 21,
             image_url: null,
@@ -113,42 +80,35 @@ describe("cluster payload nullables", () => {
             title: "Breaking Representative",
             url: "https://example.com/b",
           },
-          source_count_3h: 2,
-          spike_magnitude: 3.4,
-        },
-      ],
-      total: 1,
-      window_hours: 3,
-    };
-
-    mockFetchJson(JSON.stringify(payload));
-
-    await expect(fetchBreaking(5)).resolves.toStrictEqual(payload);
-  });
-
-  it("parses all clusters when image_url and summary are undefined", async () => {  expect.hasAssertions();
-  
-    const payload = {
-      clusters: [
-        {
-          article_count: 3,
-          articles: [
-            {
-              gdelt_context: gdeltContext,
-              id: 31,
-              image_url: null,
-              published_at: "2026-03-06T12:00:00.000Z",
-              source: "Source C",
-              summary: null,
-              title: "Cluster Representative",
-              url: "https://example.com/c",
-            },
-          ],
-          cluster_id: 3,
+        ],
+        cluster_id: 2,
+        gdelt_context: gdeltContext,
+        is_new_story: true,
+        keywords: ["breaking"],
+        label: null,
+        representative_article: {
           gdelt_context: gdeltContext,
-          keywords: ["all"],
-          label: "All clusters topic",
-          representative_article: {
+          id: 21,
+          image_url: null,
+          published_at: "2026-03-06T12:00:00.000Z",
+          source: "Source B",
+          summary: null,
+          title: "Breaking Representative",
+          url: "https://example.com/b",
+        },
+        source_count_3h: 2,
+        spike_magnitude: 3.4,
+      },
+    ],
+    total: 1,
+    window_hours: 3,
+  };
+const allClustersPayload = {
+    clusters: [
+      {
+        article_count: 3,
+        articles: [
+          {
             gdelt_context: gdeltContext,
             id: 31,
             image_url: null,
@@ -158,52 +118,99 @@ describe("cluster payload nullables", () => {
             title: "Cluster Representative",
             url: "https://example.com/c",
           },
-          source_diversity: 2,
-          window_count: 3,
-        },
-      ],
-      computed_at: "2026-03-06T12:00:00.000Z",
-      status: "ok",
-      total: 1,
-      window: "1d",
-    };
-
-    mockFetchJson(JSON.stringify(payload));
-
-    await expect(fetchAllClusters("1d", 2, 100)).resolves.toStrictEqual(payload);
-  });
-
-  it("parses cluster detail responses with nested gdelt_context", async () => {  expect.hasAssertions();
-  
-    const payload = {
-      article_count: 2,
-      articles: [
-        {
-          author: "Reporter",
-          authors: ["Reporter"],
-          gdelt_context: null,
-          id: 41,
+        ],
+        cluster_id: 3,
+        gdelt_context: gdeltContext,
+        keywords: ["all"],
+        label: "All clusters topic",
+        representative_article: {
+          gdelt_context: gdeltContext,
+          id: 31,
           image_url: null,
           published_at: "2026-03-06T12:00:00.000Z",
-          similarity: 1,
-          source: "Source D",
-          source_id: "source-d",
+          source: "Source C",
           summary: null,
-          title: "Detail Article",
-          url: "https://example.com/d",
+          title: "Cluster Representative",
+          url: "https://example.com/c",
         },
-      ],
-      first_seen: "2026-03-06T11:00:00.000Z",
-      gdelt_context: gdeltContext,
-      id: 41,
-      is_active: true,
-      keywords: ["detail"],
-      label: "Cluster Detail",
-      last_seen: "2026-03-06T12:00:00.000Z",
-    };
+        source_diversity: 2,
+        window_count: 3,
+      },
+    ],
+    computed_at: "2026-03-06T12:00:00.000Z",
+    status: "ok",
+    total: 1,
+    window: "1d",
+  };
+const clusterDetailPayload = {
+    article_count: 2,
+    articles: [
+      {
+        author: "Reporter",
+        authors: ["Reporter"],
+        gdelt_context: null,
+        id: 41,
+        image_url: null,
+        published_at: "2026-03-06T12:00:00.000Z",
+        similarity: 1,
+        source: "Source D",
+        source_id: "source-d",
+        summary: null,
+        title: "Detail Article",
+        url: "https://example.com/d",
+      },
+    ],
+    first_seen: "2026-03-06T11:00:00.000Z",
+    gdelt_context: gdeltContext,
+    id: 41,
+    is_active: true,
+    keywords: ["detail"],
+    label: "Cluster Detail",
+    last_seen: "2026-03-06T12:00:00.000Z",
+  };
 
-    mockFetchJson(JSON.stringify(payload));
+const mockFetchJson = (payload: TestPayload): void => {
+  const response = Response.json(payload);
+  jest.spyOn(response, "json").mockResolvedValue(payload);
+  global.fetch = jest.fn<typeof fetch>().mockResolvedValue(response);
+};
 
-    await expect(fetchClusterDetail(41)).resolves.toStrictEqual(payload);
+describe("cluster payload nullables", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    global.fetch = originalFetch;
+  });
+
+  it("parses trending clusters when image_url and summary are undefined", async () => {
+    expect.hasAssertions();
+    mockFetchJson(trendingPayload);
+
+    await expect(fetchTrending("1d", 10)).resolves.toStrictEqual(trendingPayload);
+  });
+
+  it("parses breaking clusters when image_url and summary are undefined", async () => {
+    expect.hasAssertions();
+    mockFetchJson(breakingPayload);
+
+    await expect(fetchBreaking(5)).resolves.toStrictEqual(breakingPayload);
+  });
+
+  it("parses all clusters when image_url and summary are undefined", async () => {
+    expect.hasAssertions();
+    mockFetchJson(allClustersPayload);
+
+    await expect(fetchAllClusters("1d", 2, 100)).resolves.toStrictEqual(allClustersPayload);
+  });
+
+  it("parses cluster detail responses with nested gdelt_context", async () => {
+    expect.hasAssertions();
+    mockFetchJson(clusterDetailPayload);
+
+    await expect(fetchClusterDetail(41)).resolves.toStrictEqual(clusterDetailPayload);
+    const [mappedArticle] = await fetchClusterArticles(41);
+    expect(mappedArticle?.category).toBe("trending");
+    expect(mappedArticle?.tags).toStrictEqual(["trending", "Source D"]);
   });
 });

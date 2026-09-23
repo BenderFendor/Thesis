@@ -1,0 +1,14 @@
+{
+  "command": [
+    "scripts/self-test"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 120.102,
+  "max_rss_kb": 18220,
+  "returncode": null,
+  "stderr_tail": "",
+  "stdout_tail": "== Self-test ==\nRoot: /home/bender/classwork/Thesis\n\nDetected strongest verification path: ./verify.sh\n+ bash ./verify.sh",
+  "timed_out": true,
+  "verdict": "timeout",
+  "warnings": []
+}

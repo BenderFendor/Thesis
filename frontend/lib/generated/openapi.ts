@@ -1509,6 +1509,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/news/research/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Research Models Endpoint
+         * @description List models configured for the research agent.
+         */
+        get: operations["research_models_endpoint_api_news_research_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/news/research/stream": {
         parameters: {
             query?: never;
@@ -4697,19 +4717,29 @@ export interface components {
         };
         /**
          * BookmarkEntry
-         * @description BookmarkEntry API response model.
+         * @description Bookmark article list entry.
          */
         BookmarkEntry: {
-            /** Article */
-            article: {
-                [key: string]: unknown;
-            };
-            /** Articleid */
-            articleId: number;
-            /** Bookmarkid */
-            bookmarkId: number;
-            /** Createdat */
-            createdAt?: string | null;
+            /** Article Id */
+            article_id: number;
+            /** Bookmark Id */
+            bookmark_id: number;
+            /** Category */
+            category: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Image */
+            image?: string | null;
+            /** Published */
+            published?: string | null;
+            /** Source */
+            source: string;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /**
          * BookmarkListResponse
@@ -5633,19 +5663,29 @@ export interface components {
         };
         /**
          * LikedEntry
-         * @description LikedEntry API response model.
+         * @description Liked article list entry.
          */
         LikedEntry: {
-            /** Article */
-            article: {
-                [key: string]: unknown;
-            };
-            /** Articleid */
-            articleId: number;
-            /** Createdat */
-            createdAt?: string | null;
-            /** Likedid */
-            likedId: number;
+            /** Article Id */
+            article_id: number;
+            /** Category */
+            category: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Image */
+            image?: string | null;
+            /** Liked Id */
+            liked_id: number;
+            /** Published */
+            published?: string | null;
+            /** Source */
+            source: string;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /**
          * LikedListResponse
@@ -5860,6 +5900,8 @@ export interface components {
              * @default true
              */
             include_thinking: boolean;
+            /** Model */
+            model?: string | null;
         };
         /**
          * NewsResearchResponse
@@ -6594,6 +6636,32 @@ export interface components {
              * @default false
              */
             cached: boolean;
+        };
+        /**
+         * ResearchModelCatalog
+         * @description Models configured for the research agent runtime.
+         */
+        ResearchModelCatalog: {
+            /** Default */
+            default?: string | null;
+            /** Models */
+            models?: components["schemas"]["ResearchModelOption"][];
+            /** Provider */
+            provider: string;
+        };
+        /**
+         * ResearchModelOption
+         * @description A configured model available to the research agent.
+         */
+        ResearchModelOption: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
         };
         /**
          * SourceBatchRequest
@@ -9775,6 +9843,26 @@ export interface operations {
             };
         };
     };
+    research_models_endpoint_api_news_research_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchModelCatalog"];
+                };
+            };
+        };
+    };
     news_research_stream_endpoint_api_news_research_stream_get: {
         parameters: {
             query: {
@@ -9784,6 +9872,8 @@ export interface operations {
                 include_thinking?: boolean;
                 /** @description JSON-encoded chat history for context */
                 history?: string | null;
+                /** @description Configured research model id */
+                model?: string | null;
             };
             header?: never;
             path?: never;

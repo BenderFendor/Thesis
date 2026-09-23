@@ -1,8 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
-import {
-  getMessageVersionInfo,
-  getVisibleConversationMessages,
-} from "@/lib/chat-branching";
+import { describe, expect, it } from "@jest/globals";
+import { getMessageVersionInfo, getVisibleConversationMessages } from "@/lib/chat-branching";
 import fc from "fast-check";
 
 interface TestMessage {
@@ -20,36 +17,36 @@ interface BranchCase {
 
 const EXPECTED_BRANCH_CASES = 15,
   baseMessages: readonly TestMessage[] = [
-  { id: "user-1", type: "user" },
-  { id: "assistant-1", parentMessageId: "user-1", type: "assistant" },
-  { id: "user-2", parentMessageId: "assistant-1", type: "user" },
-  { id: "assistant-2", parentMessageId: "user-2", type: "assistant" },
-  {
-    id: "user-2b",
-    parentMessageId: "assistant-1",
-    retryOfMessageId: "user-2",
-    type: "user",
-  },
-  {
-    id: "assistant-2b",
-    parentMessageId: "user-2b",
-    retryOfMessageId: "assistant-2",
-    type: "assistant",
-  },
-  {
-    id: "assistant-2c",
-    parentMessageId: "user-2b",
-    retryOfMessageId: "assistant-2",
-    type: "assistant",
-  },
-  {
-    id: "semantic-2c",
-    parentMessageId: "user-2b",
-    retryOfMessageId: "assistant-2",
-    toolType: "semantic_search",
-    type: "assistant",
-  },
-],
+    { id: "user-1", type: "user" },
+    { id: "assistant-1", parentMessageId: "user-1", type: "assistant" },
+    { id: "user-2", parentMessageId: "assistant-1", type: "user" },
+    { id: "assistant-2", parentMessageId: "user-2", type: "assistant" },
+    {
+      id: "user-2b",
+      parentMessageId: "assistant-1",
+      retryOfMessageId: "user-2",
+      type: "user",
+    },
+    {
+      id: "assistant-2b",
+      parentMessageId: "user-2b",
+      retryOfMessageId: "assistant-2",
+      type: "assistant",
+    },
+    {
+      id: "assistant-2c",
+      parentMessageId: "user-2b",
+      retryOfMessageId: "assistant-2",
+      type: "assistant",
+    },
+    {
+      id: "semantic-2c",
+      parentMessageId: "user-2b",
+      retryOfMessageId: "assistant-2",
+      toolType: "semantic_search",
+      type: "assistant",
+    },
+  ],
   branchCases: readonly BranchCase[] = [
     {
       activeVersionByGroup: {},
@@ -114,7 +111,8 @@ const EXPECTED_BRANCH_CASES = 15,
   ];
 
 describe("visible conversation branches", () => {
-  it("follows the active user branch and assistant retry version", () => {  expect.hasAssertions();
+  it("follows the active user branch and assistant retry version", () => {
+    expect.hasAssertions();
 
     fc.assert(
       fc.property(fc.constantFrom(...branchCases), (branchCase: Readonly<BranchCase>) => {
@@ -122,9 +120,7 @@ describe("visible conversation branches", () => {
           baseMessages,
           branchCase.activeVersionByGroup,
         );
-        expect(visible.map((message) => message.id)).toStrictEqual(
-          branchCase.expectedIds,
-        );
+        expect(visible.map((message) => message.id)).toStrictEqual(branchCase.expectedIds);
       }),
     );
     expect(branchCases).toHaveLength(EXPECTED_BRANCH_CASES);
@@ -132,11 +128,12 @@ describe("visible conversation branches", () => {
 });
 
 describe("chat message version metadata", () => {
-  it("reports version metadata for user and assistant siblings", () => {  expect.hasAssertions();
+  it("reports version metadata for user and assistant siblings", () => {
+    expect.hasAssertions();
 
     const assistantVersionInfo = getMessageVersionInfo(baseMessages, "assistant-2b", {
-      "assistant-2": "assistant-2b",
-    }),
+        "assistant-2": "assistant-2b",
+      }),
       userVersionInfo = getMessageVersionInfo(baseMessages, "user-2", {
         "user-2": "user-2b",
       });

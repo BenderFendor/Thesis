@@ -1,12 +1,19 @@
-import type { Message, ReadonlyNewsArticle, ReadonlyThinkingStep } from "../model/types";
+import type {
+  Message,
+  ReadonlyNewsArticle,
+  ReadonlyThinkingStep,
+  ResearchActivity,
+} from "../model/types";
 import type { SourceGroup } from "../state/selectors";
 import { VerificationPanel } from "@/components/verification-panel";
 import { formatShortDate } from "@/lib/date-formatters";
+import { Brain, CheckCircle2, ChevronDown, Wrench } from "lucide-react";
 import { useCallback } from "react";
 
 const RESEARCH_LOG_LIMIT = 6;
 const SOURCE_PREVIEW_LIMIT = 5;
 interface ResearchSidePanelsProps {
+  readonly activities: readonly ResearchActivity[];
   readonly thinkingSteps: readonly ReadonlyThinkingStep[];
   readonly latestAssistantMessage: Message | undefined;
   readonly latestUserMessage: Message | undefined;
@@ -22,13 +29,78 @@ interface ResearchSidePanelsProps {
 }
 
 interface ResearchLogPanelProps {
+  readonly activities: readonly ResearchActivity[];
   readonly thinkingSteps: readonly ReadonlyThinkingStep[];
 }
 
+const ActivityIcon = ({ type }: Readonly<{ type: ResearchActivity["type"] }>) => {
+  if (type === "tool_start") {
+    return <Wrench className="h-3.5 w-3.5" aria-hidden="true" />;
+  }
+  if (type === "tool_result") {
+    return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />;
+  }
+  return <Brain className="h-3.5 w-3.5" aria-hidden="true" />;
+};
+
+const activityLabel = (activity: ResearchActivity): string => {
+  if (activity.type === "tool_start") {
+    return activity.tool ?? "Tool call";
+  }
+  if (activity.type === "tool_result") {
+    return `${activity.tool ?? "Tool"} result`;
+  }
+  return "Working note";
+};
+
+const ResearchActivityEntry = ({ activity }: Readonly<{ activity: ResearchActivity }>) => {
+  const isTool = activity.type !== "thought";
+  if (!isTool) {
+    return (
+      <div className="flex gap-2.5 rounded-xl border border-primary/10 bg-primary/[0.04] px-3 py-2.5">
+        <ActivityIcon type={activity.type} />
+        <p className="min-w-0 text-xs leading-relaxed text-muted-foreground/85">{activity.content}</p>
+      </div>
+    );
+  }
+  return (
+    <details className="group rounded-xl border border-border/20 bg-background/35">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-xs text-foreground/85 [&::-webkit-details-marker]:hidden">
+        <ActivityIcon type={activity.type} />
+        <span className="min-w-0 flex-1 truncate font-mono uppercase tracking-wide">{activityLabel(activity)}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="space-y-2 border-t border-border/15 px-3 py-3">
+        {activity.args !== undefined && (
+          <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/60 p-2 font-mono text-[10px] leading-relaxed text-muted-foreground/75">
+            {JSON.stringify(activity.args, null, 2)}
+          </pre>
+        )}
+        {activity.type === "tool_result" && (
+          <p className="max-h-36 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground/85">
+            {activity.content}
+          </p>
+        )}
+      </div>
+    </details>
+  );
+};
+
+const ResearchActivityEntries = ({ activities }: Readonly<{ activities: readonly ResearchActivity[] }>) => (
+  <div className="space-y-2" aria-live="polite">
+    {activities.slice(-RESEARCH_LOG_LIMIT).map((activity) => (
+      <ResearchActivityEntry key={activity.id} activity={activity} />
+    ))}
+  </div>
+);
+
 const ResearchLogEntries = (props: Readonly<ResearchLogPanelProps>) => {
-  const { thinkingSteps } = props;
+  const { activities, thinkingSteps } = props;
+  if (activities.length > 0) {
+    return <ResearchActivityEntries activities={activities} />;
+  }
   if (thinkingSteps.length === 0) {
-    return <p className="text-xs text-muted-foreground">Reasoning steps will appear as the agent works.</p>;
+    return <p className="text-xs text-muted-foreground">No model or tool activity recorded for this run.</p>;
   }
   return (
     <div className="space-y-3 text-sm">
@@ -50,7 +122,11 @@ const ResearchLogEntries = (props: Readonly<ResearchLogPanelProps>) => {
 };
 
 const ResearchLogPanel = (props: Readonly<ResearchLogPanelProps>) => {
-  const { thinkingSteps } = props;
+  const { activities, thinkingSteps } = props;
+  let activityCount = thinkingSteps.length;
+  if (activities.length > 0) {
+    activityCount = activities.length;
+  }
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -58,10 +134,10 @@ const ResearchLogPanel = (props: Readonly<ResearchLogPanelProps>) => {
           Research Log
         </h3>
         <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground/55">
-          {thinkingSteps.length} steps
+          {activityCount} events
         </span>
       </div>
-      <ResearchLogEntries thinkingSteps={thinkingSteps} />
+      <ResearchLogEntries activities={activities} thinkingSteps={thinkingSteps} />
     </section>
   );
 };
@@ -76,6 +152,7 @@ const VerificationSection = (props: Readonly<VerificationSectionProps>) => {
   if (
     latestAssistantMessage === undefined ||
     latestAssistantMessage.isStreaming === true ||
+    latestAssistantMessage.error === true ||
     latestAssistantMessage.content.length === 0
   ) {
     return null;
@@ -321,6 +398,7 @@ const SourcesUsedPanel = (props: Readonly<SourcesUsedPanelProps>) => {
 
 const ResearchSidePanels = (props: ResearchSidePanelsProps) => {
   const {
+    activities,
     thinkingSteps,
     latestAssistantMessage,
     latestUserMessage,
@@ -332,7 +410,7 @@ const ResearchSidePanels = (props: ResearchSidePanelsProps) => {
   } = props;
   return (
     <div className="space-y-6 px-5 py-6 md:px-6">
-      <ResearchLogPanel thinkingSteps={thinkingSteps} />
+      <ResearchLogPanel activities={activities} thinkingSteps={thinkingSteps} />
 
       <VerificationSection
         latestAssistantMessage={latestAssistantMessage}

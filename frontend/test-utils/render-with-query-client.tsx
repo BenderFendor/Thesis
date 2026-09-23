@@ -6,21 +6,15 @@ export const renderWithQueryClient = (
   ui: Readonly<React.ReactElement>,
 ): ReturnType<typeof render> => {
   const client = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
       },
-    },
-  }),
-    wrapper = class QueryClientWrapper extends React.Component<
-      Readonly<React.PropsWithChildren>
-    > {
+    }),
+    wrapper = class QueryClientWrapper extends React.Component<Readonly<React.PropsWithChildren>> {
       render(): React.ReactNode {
-        return (
-          <QueryClientProvider client={client}>
-            {this.props.children}
-          </QueryClientProvider>
-        );
+        return <QueryClientProvider client={client}>{this.props.children}</QueryClientProvider>;
       }
     };
 

@@ -10,6 +10,7 @@ import type {
 import type { ResearchState } from "../state/research-reducer";
 import type { ResearchStreamActions } from "./use-research-transport";
 import type { ResearchChatState, ResearchStateSetter } from "./research-chat-state";
+import { useResearchModelCatalog } from "./use-research-models";
 
 interface SubmitPromptParameters {
   readonly prompt: string;
@@ -23,6 +24,7 @@ interface SubmitPromptContext {
   readonly clearMessageEditing: () => void;
   readonly conversationMessages: readonly Message[];
   readonly messages: readonly Message[];
+  readonly selectedModelId?: string;
   readonly setActiveAssistantVersion: (chatId: string, groupId: string, messageId: string) => void;
   readonly setActiveAssistantVersionMap: ResearchStateSetter<
     ResearchState["activeAssistantVersionMap"]
@@ -178,19 +180,30 @@ const applyPromptStateChanges = (
   }
 };
 
-const createResearchStartParameters = (
-  target: Readonly<ResolvedChatTarget>,
-  prompt: string,
-  userMessage: Readonly<Message>,
-  seedMessages: readonly Message[],
-  editingTarget: Readonly<Message> | undefined,
-): StartResearchParameters => {
+interface ResearchStartParameterInput {
+  readonly editingTarget: Readonly<Message> | undefined;
+  readonly model: string | undefined;
+  readonly prompt: string;
+  readonly seedMessages: readonly Message[];
+  readonly target: Readonly<ResolvedChatTarget>;
+  readonly userMessage: Readonly<Message>;
+}
+
+const createResearchStartParameters = ({
+  editingTarget,
+  model,
+  prompt,
+  seedMessages,
+  target,
+  userMessage,
+}: Readonly<ResearchStartParameterInput>): StartResearchParameters => {
   let versionSelectionOverrides: Record<string, string> | undefined = undefined;
   if (editingTarget?.type === "user") {
     versionSelectionOverrides = { [getMessageVersionGroupId(editingTarget)]: userMessage.id };
   }
   return {
     chatId: target.chatId,
+    model,
     newChatTitle: target.newChatTitle,
     parentMessageId: userMessage.id,
     prompt,
@@ -251,13 +264,14 @@ const submitResearchPrompt = async (
     submission.userMessage,
   );
   await context.startResearch(
-    createResearchStartParameters(
-      submission.target,
+    createResearchStartParameters({
+      editingTarget: submission.editingTarget,
+      model: context.selectedModelId,
       prompt,
-      submission.userMessage,
-      submission.seedMessages,
-      submission.editingTarget,
-    ),
+      seedMessages: submission.seedMessages,
+      target: submission.target,
+      userMessage: submission.userMessage,
+    }),
   );
 };
 
@@ -266,54 +280,45 @@ interface ResearchPromptSubmissionContext {
   readonly startResearch: ResearchStreamActions["startResearch"];
 }
 
+interface ResearchPromptSubmissionResult {
+  readonly modelCatalogState: ReturnType<typeof useResearchModelCatalog>;
+  readonly submitPrompt: (parameters: SubmitPromptParameters) => Promise<void>;
+}
+
+const createSubmitPromptContext = (
+  state: Readonly<ResearchChatState>,
+  startResearch: ResearchStreamActions["startResearch"],
+  selectedModelId: string | undefined,
+): SubmitPromptContext => ({
+  activeChatId: state.activeChatId,
+  clearMessageEditing: state.clearMessageEditing,
+  conversationMessages: state.conversationMessages,
+  messages: state.messages,
+  selectedModelId,
+  setActiveAssistantVersion: state.setActiveAssistantVersion,
+  setActiveAssistantVersionMap: state.setActiveAssistantVersionMap,
+  setActiveChatId: state.setActiveChatId,
+  setChatMessagesMap: state.setChatMessagesMap,
+  setChats: state.setChats,
+  setQuery: state.setQuery,
+  startResearch,
+  updateChatMessages: state.updateChatMessages,
+});
+
 const useResearchPromptSubmission = (
   context: Readonly<ResearchPromptSubmissionContext>,
-): ((parameters: SubmitPromptParameters) => Promise<void>) => {
+): ResearchPromptSubmissionResult => {
   const { state, startResearch } = context;
-  const {
-    activeChatId,
-    clearMessageEditing,
-    conversationMessages,
-    messages,
-    setActiveAssistantVersion,
-    setActiveAssistantVersionMap,
-    setActiveChatId,
-    setChatMessagesMap,
-    setChats,
-    setQuery,
-    updateChatMessages,
-  } = state;
-  return useCallback(
+  const modelCatalogState = useResearchModelCatalog();
+  const submitPrompt = useCallback(
     (parameters: SubmitPromptParameters) =>
-      submitResearchPrompt(parameters, {
-        activeChatId,
-        clearMessageEditing,
-        conversationMessages,
-        messages,
-        setActiveAssistantVersion,
-        setActiveAssistantVersionMap,
-        setActiveChatId,
-        setChatMessagesMap,
-        setChats,
-        setQuery,
-        startResearch,
-        updateChatMessages,
-      }),
-    [
-      activeChatId,
-      clearMessageEditing,
-      conversationMessages,
-      messages,
-      setActiveAssistantVersion,
-      setActiveAssistantVersionMap,
-      setActiveChatId,
-      setChatMessagesMap,
-      setChats,
-      setQuery,
-      startResearch,
-      updateChatMessages,
-    ],
+      submitResearchPrompt(
+        parameters,
+        createSubmitPromptContext(state, startResearch, modelCatalogState.selectedModelId),
+      ),
+    [modelCatalogState.selectedModelId, startResearch, state],
   );
+  return { modelCatalogState, submitPrompt };
 };
 
 export { useResearchPromptSubmission };

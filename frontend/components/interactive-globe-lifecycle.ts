@@ -93,7 +93,7 @@ const useGlobeCamera = (
     const controls = globeInstance.controls();
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
-    controls.enableZoom = false;
+    controls.enableZoom = true;
     controls.enablePan = false;
     globeInstance.pointOfView({ altitude: getOverviewAltitude() });
   }, [globeInstance]);

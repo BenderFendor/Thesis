@@ -112,7 +112,7 @@ const ChatNewButton = ({ onNewChat }: Readonly<{ onNewChat: () => void }>) => (
     className="h-10 flex-1 justify-start gap-2 rounded-full border border-border/40 bg-card/50 text-sm font-medium transition-all duration-300 ease-out hover:bg-card active:scale-95"
   >
     <Plus className="h-4 w-4" />
-    New Session
+    New research
   </Button>
 );
 

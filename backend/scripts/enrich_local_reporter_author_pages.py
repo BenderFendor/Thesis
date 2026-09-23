@@ -154,18 +154,30 @@ def _author_page_citation_present(reporter: Reporter, author_url: str | None = N
     )
 
 
-def _set_author_page_citation(reporter: Reporter, author_url: str) -> bool:
-    if _author_page_citation_present(reporter, author_url):
-        return False
+def _set_author_page_citation(
+    reporter: Reporter, author_url: str, profile_name: str | None = None
+) -> bool:
     existing = reporter.citations if isinstance(reporter.citations, list) else []
-    reporter.citations = [
-        *existing,
-        {
+    citation = {"label": "Publisher author-page URL", "url": author_url}
+    if profile_name:
+        citation = {
+            **citation,
             "label": "Official author page",
-            "url": author_url,
             "source_type": "official_author_page",
-        },
-    ]
+            "profile_verification": {
+                "method": "publisher_profile_name_match",
+                "profile_name": profile_name,
+            },
+        }
+    for index, current in enumerate(existing):
+        if isinstance(current, dict) and str(current.get("url") or "") == author_url:
+            updated = {**current, **citation}
+            if updated == current:
+                return False
+            existing[index] = updated
+            reporter.citations = existing
+            return True
+    reporter.citations = [*existing, citation]
     return True
 
 
@@ -529,7 +541,7 @@ async def _promote_reporter(
     reporter.research_sources = sorted(
         set((reporter.research_sources or []) + ["official_author_page"])
     )
-    _set_author_page_citation(reporter, author_url)
+    _set_author_page_citation(reporter, author_url, profile_name)
     article_author.author_url_raw = author_url
     article_author.observation_source = evidence_type
     await session.flush()
@@ -736,7 +748,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repair-citations",
         action="store_true",
-        help="Repair missing Official author page citations for verified reporters.",
+        help="Repair missing publisher author-page citations for verified reporters.",
     )
     return parser.parse_args()
 

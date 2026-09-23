@@ -253,12 +253,18 @@ const NewsPageChrome = ({ page }: Readonly<{ page: NewsPageLayoutProps }>) => {
 
 const NewsPageLayout = (props: Readonly<NewsPageLayoutProps>) => {
   const isScrollView = props.currentView === "scroll";
+  const isCompactView = props.currentView === "globe" || isScrollView;
   const handleCloseSidebar = props.sourceSidebar.onClose;
   return (
-    <div className="min-h-screen overflow-x-hidden flex bg-[var(--news-bg-primary)] text-foreground">
+    <div
+      className={cn(
+        "flex min-h-screen overflow-x-hidden bg-[var(--news-bg-primary)] text-foreground",
+        isCompactView && "h-dvh overflow-hidden",
+      )}
+    >
       <NewsPageChrome page={props} />
       <div
-        className={cn("flex-1 flex flex-col min-w-0", isScrollView && "h-screen overflow-hidden")}
+        className={cn("relative flex min-w-0 flex-1 flex-col", isCompactView && "h-full")}
       >
         <HeaderBar header={props.header} />
         <NewsMainContent

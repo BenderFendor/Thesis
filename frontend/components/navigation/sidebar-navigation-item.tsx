@@ -1,59 +1,59 @@
-import Link from "next/link"
-import type { ReactNode } from "react"
+import Link from "next/link";
+import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 interface SidebarIconProps {
-  readonly className?: string
-  readonly strokeWidth?: number
+  readonly className?: string;
+  readonly strokeWidth?: number;
 }
 
-type SidebarIcon = (props: SidebarIconProps) => ReactNode
+type SidebarIcon = (props: SidebarIconProps) => ReactNode;
 
 interface SharedProps {
-  readonly active?: boolean
-  readonly badge?: number
-  readonly description: string
-  readonly expanded: boolean
-  readonly icon: SidebarIcon
-  readonly label: string
+  readonly active?: boolean;
+  readonly badge?: number;
+  readonly description: string;
+  readonly expanded: boolean;
+  readonly icon: SidebarIcon;
+  readonly label: string;
 }
 
 interface SidebarNavigationContentProps {
-  readonly badge?: number
-  readonly description: string
-  readonly expanded: boolean
-  readonly icon: SidebarIcon
-  readonly label: string
+  readonly badge?: number;
+  readonly description: string;
+  readonly expanded: boolean;
+  readonly icon: SidebarIcon;
+  readonly label: string;
 }
 
 interface SidebarNavigationLinkProps extends SidebarNavigationContentProps {
-  readonly active?: boolean
-  readonly href: string
+  readonly active?: boolean;
+  readonly href: string;
 }
 
 interface SidebarNavigationButtonProps extends SidebarNavigationContentProps {
-  readonly active?: boolean
-  readonly handleClick?: () => void
-  readonly handleFocus?: () => void
-  readonly handlePointerEnter?: () => void
+  readonly active?: boolean;
+  readonly handleClick?: () => void;
+  readonly handleFocus?: () => void;
+  readonly handlePointerEnter?: () => void;
 }
 
 type LinkProps = SharedProps & {
-  readonly href: string
-  readonly onClick?: never
-  readonly onFocus?: never
-  readonly onPointerEnter?: never
-}
+  readonly href: string;
+  readonly onClick?: never;
+  readonly onFocus?: never;
+  readonly onPointerEnter?: never;
+};
 
 type ButtonProps = SharedProps & {
-  readonly href?: never
-  readonly onClick: () => void
-  readonly onFocus?: () => void
-  readonly onPointerEnter?: () => void
-}
+  readonly href?: never;
+  readonly onClick: () => void;
+  readonly onFocus?: () => void;
+  readonly onPointerEnter?: () => void;
+};
 
-type SidebarNavigationItemProps = LinkProps | ButtonProps
+type SidebarNavigationItemProps = LinkProps | ButtonProps;
 
 const DEFAULT_BADGE_COUNT = 0,
   MAX_BADGE_COUNT = 99,
@@ -95,7 +95,10 @@ const DEFAULT_BADGE_COUNT = 0,
     label,
   }: SidebarNavigationContentProps) => (
     <>
-      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+      <span
+        className="relative flex h-5 w-5 shrink-0 items-center justify-center"
+        aria-hidden="true"
+      >
         <Icon className="h-5 w-5" strokeWidth={1.6} />
         {badge > DEFAULT_BADGE_COUNT && (
           <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[8px] font-bold text-primary-foreground">
@@ -131,7 +134,7 @@ const DEFAULT_BADGE_COUNT = 0,
           icon={Icon}
           label={label}
         />
-      )
+      );
     }
 
     return (
@@ -146,7 +149,7 @@ const DEFAULT_BADGE_COUNT = 0,
         icon={Icon}
         label={label}
       />
-    )
+    );
   },
   SidebarNavigationLink = ({
     active = false,
@@ -174,35 +177,51 @@ const DEFAULT_BADGE_COUNT = 0,
     </Link>
   ),
   formatBadgeCount = (badge: number): number | string => {
-    if (badge > MAX_BADGE_COUNT) {return `${MAX_BADGE_COUNT}+`}
-    return badge
+    if (badge > MAX_BADGE_COUNT) {
+      return `${MAX_BADGE_COUNT}+`;
+    }
+    return badge;
   },
   getCollapsedLabelValue = (expanded: boolean, label: string): string | undefined => {
-    if (expanded) {return undefined}
-    return label
+    if (expanded) {
+      return void 0;
+    }
+    return label;
   },
   getCurrentPageValue = (active: boolean): "page" | undefined => {
-    if (active) {return "page"}
-    return undefined
+    if (active) {
+      return "page";
+    }
+    return void 0;
   },
   getExpandedItemClassName = (expanded: boolean): string => {
-    if (expanded) {return "justify-start gap-3 px-3"}
-    return "justify-center gap-0 px-0"
+    if (expanded) {
+      return "justify-start gap-3 px-3";
+    }
+    return "justify-center gap-0 px-0";
   },
   getExpandedLabelClassName = (expanded: boolean): string => {
     if (expanded) {
-      return "min-w-0 whitespace-nowrap transition-[width,opacity,transform] duration-200 flex-1 translate-x-0 opacity-100"
+      return "min-w-0 whitespace-nowrap transition-[width,opacity,transform] duration-200 flex-1 translate-x-0 opacity-100";
     }
-    return "min-w-0 whitespace-nowrap transition-[width,opacity,transform] duration-200 pointer-events-none w-0 flex-none -translate-x-1 opacity-0"
+    return "min-w-0 whitespace-nowrap transition-[width,opacity,transform] duration-200 pointer-events-none w-0 flex-none -translate-x-1 opacity-0";
   },
   itemClassName =
     "group/item relative flex min-h-11 w-full items-center overflow-hidden rounded-lg border border-transparent text-left text-xs font-mono uppercase tracking-[0.16em] transition-[background-color,border-color,color,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--news-bg-secondary)]",
   sidebarItemClassName = (active: boolean, expanded: boolean): string => {
-    const expansionClassName = getExpandedItemClassName(expanded)
+    const expansionClassName = getExpandedItemClassName(expanded);
     if (active) {
-      return cn(itemClassName, expansionClassName, "border-primary/35 bg-primary/[0.12] text-primary")
+      return cn(
+        itemClassName,
+        expansionClassName,
+        "border-primary/35 bg-primary/[0.12] text-primary",
+      );
     }
-    return cn(itemClassName, expansionClassName, "text-muted-foreground hover:border-white/10 hover:bg-white/[0.05] hover:text-foreground")
-  }
+    return cn(
+      itemClassName,
+      expansionClassName,
+      "text-muted-foreground hover:border-white/10 hover:bg-white/[0.05] hover:text-foreground",
+    );
+  };
 
-export { SidebarNavigationItem }
+export { SidebarNavigationItem };

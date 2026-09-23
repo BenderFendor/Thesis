@@ -1,11 +1,19 @@
 import { ChevronLeft, ChevronRight, Home, Loader2, Square } from "lucide-react";
-import type { Message, ReadonlyNewsArticle, ReadonlyThinkingStep } from "../model/types";
+import type {
+  Message,
+  ReadonlyNewsArticle,
+  ReadonlyThinkingStep,
+  ResearchModelCatalog,
+} from "../model/types";
 import { Button } from "@/components/ui/button";
 import { ChatComposerForm } from "./chat-composer";
 import { ChatScrollArea } from "./research-messages";
 import Link from "next/link";
 import type React from "react";
+import { ResearchModelSelector } from "./research-model-selector";
 import { ResearchSidePanels } from "./research-side-panels";
+
+const EMPTY_ACTIVITIES = [] as const;
 
 interface ResearchChatViewProps {
   readonly conversationMessages: readonly Readonly<Message>[];
@@ -139,6 +147,7 @@ const ResearchChatSidePanels = ({
       latestUserMessage={latestUserMessage}
       onOpenArticle={handleOpenArticle}
       onToggleSource={handleToggleSource}
+      activities={latestAssistantMessage?.activities ?? EMPTY_ACTIVITIES}
       thinkingSteps={thinkingSteps}
     />
   );
@@ -147,7 +156,7 @@ const ResearchChatSidePanels = ({
 const ResearchChatAside = ({
   view,
 }: Readonly<{ readonly view: ResearchChatViewProps }>) => (
-  <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden border-t border-border/20 bg-background/60 lg:w-96 lg:border-l lg:border-t-0">
+  <aside aria-label="Research activity and sources" className="flex max-h-[30dvh] w-full shrink-0 flex-col overflow-hidden border-t border-border/30 bg-card/30 2xl:max-h-none 2xl:w-80 2xl:border-l 2xl:border-t-0">
     <div className="custom-scrollbar h-full flex-1 overflow-y-auto">
       <ResearchChatSidePanels view={view} />
     </div>
@@ -157,7 +166,7 @@ const ResearchChatAside = ({
 const ResearchChatMain = ({
   view,
 }: Readonly<{ readonly view: ResearchChatViewProps }>) => (
-  <section className="flex min-w-0 flex-1 flex-col lg:basis-8/12">
+  <section className="flex min-h-0 min-w-0 flex-1 flex-col">
     <div className="mx-auto flex h-full w-full max-w-7xl flex-1 min-h-0 flex-col px-4 md:px-6">
       <ResearchChatScrollArea view={view} />
       <ResearchChatComposer view={view} />
@@ -168,7 +177,7 @@ const ResearchChatMain = ({
 const ResearchChatView = ({
   view,
 }: Readonly<{ readonly view: ResearchChatViewProps }>) => (
-  <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row">
+  <div className="flex h-full min-h-0 flex-1 flex-col 2xl:flex-row">
     <ResearchChatMain view={view} />
     <ResearchChatAside view={view} />
   </div>
@@ -182,6 +191,11 @@ interface WorkspaceHeaderProps {
   readonly latestAssistantMessage: Message | undefined;
   readonly isSearching: boolean;
   readonly onStop: () => void;
+  readonly modelCatalog: ResearchModelCatalog;
+  readonly modelCatalogHasError: boolean;
+  readonly modelCatalogLoading: boolean;
+  readonly selectModel: (modelId: string) => void;
+  readonly selectedModelId?: string;
 }
 
 interface WorkspaceHeaderContentProps {
@@ -190,6 +204,11 @@ interface WorkspaceHeaderContentProps {
   readonly latestAssistantMessage: Message | undefined;
   readonly isSearching: boolean;
   readonly onStop: () => void;
+  readonly modelCatalog: ResearchModelCatalog;
+  readonly modelCatalogHasError: boolean;
+  readonly modelCatalogLoading: boolean;
+  readonly selectModel: (modelId: string) => void;
+  readonly selectedModelId?: string;
 }
 
 const WorkspaceHomeLink = () => (
@@ -217,10 +236,19 @@ const WorkspaceIdentityText = () => (
   </div>
 );
 
-const EmptyWorkspaceHeaderContent = () => (
+const EmptyWorkspaceHeaderContent = (props: Readonly<WorkspaceHeaderContentProps>) => {
+  const handleSelectModel = props.selectModel;
+  return (
     <>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
         <WorkspaceIdentityText />
+        <ResearchModelSelector
+          catalog={props.modelCatalog}
+          hasError={props.modelCatalogHasError}
+          isLoading={props.modelCatalogLoading}
+          onChange={handleSelectModel}
+          selectedModelId={props.selectedModelId}
+        />
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-xl text-sm text-muted-foreground">
@@ -230,6 +258,7 @@ const EmptyWorkspaceHeaderContent = () => (
       </div>
     </>
   );
+};
 const WorkspaceActivity = ({
     latestAssistantMessage,
     isSearching,
@@ -260,9 +289,10 @@ const WorkspaceActivity = ({
   };
 const ActiveWorkspaceHeaderContent = (props: Readonly<WorkspaceHeaderContentProps>) => {
     const { activeBriefTitle, messageCount, latestAssistantMessage, isSearching, onStop } = props;
+    const handleSelectModel = props.selectModel;
     return (
-      <div className="flex min-w-0 items-center gap-3">
-        <h2 className="min-w-0 flex-1 truncate font-serif text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <h2 className="min-w-0 basis-full truncate font-serif text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl xl:flex-1 xl:basis-auto">
           {activeBriefTitle}
         </h2>
         <div className="hidden shrink-0 items-center gap-4 font-mono text-xs uppercase tracking-widest text-muted-foreground/65 xl:flex">
@@ -272,7 +302,14 @@ const ActiveWorkspaceHeaderContent = (props: Readonly<WorkspaceHeaderContentProp
               <span>{latestAssistantMessage.articles_searched} sources searched</span>
             )}
         </div>
-        <div className="flex shrink-0 items-center gap-2.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2.5">
+          <ResearchModelSelector
+            catalog={props.modelCatalog}
+            hasError={props.modelCatalogHasError}
+            isLoading={props.modelCatalogLoading}
+            onChange={handleSelectModel}
+            selectedModelId={props.selectedModelId}
+          />
           <WorkspaceActivity
             latestAssistantMessage={latestAssistantMessage}
             isSearching={isSearching}
@@ -303,10 +340,28 @@ const WorkspaceHeaderBody = ({
   isSearching,
   latestAssistantMessage,
   messageCount,
+  modelCatalog,
+  modelCatalogHasError,
+  modelCatalogLoading,
+  selectModel,
   onStop,
+  selectedModelId,
 }: Readonly<WorkspaceHeaderBodyProps>) => {
   if (isEmpty) {
-    return <EmptyWorkspaceHeaderContent />;
+    return (
+      <EmptyWorkspaceHeaderContent
+        activeBriefTitle={activeBriefTitle}
+        isSearching={isSearching}
+        latestAssistantMessage={latestAssistantMessage}
+        messageCount={messageCount}
+        modelCatalog={modelCatalog}
+        modelCatalogHasError={modelCatalogHasError}
+        modelCatalogLoading={modelCatalogLoading}
+        selectModel={selectModel}
+        onStop={onStop}
+        selectedModelId={selectedModelId}
+      />
+    );
   }
   return (
     <ActiveWorkspaceHeaderContent
@@ -314,7 +369,12 @@ const WorkspaceHeaderBody = ({
       isSearching={isSearching}
       latestAssistantMessage={latestAssistantMessage}
       messageCount={messageCount}
+      modelCatalog={modelCatalog}
+      modelCatalogHasError={modelCatalogHasError}
+      modelCatalogLoading={modelCatalogLoading}
+      selectModel={selectModel}
       onStop={onStop}
+      selectedModelId={selectedModelId}
     />
   );
 };
@@ -325,12 +385,14 @@ const WorkspaceSidebarButton = ({
 }: Readonly<Pick<WorkspaceHeaderProps, "onToggleSidebar" | "sidebarCollapsed">>) => (
   <button
     onClick={onToggleSidebar}
-    className="mt-0.5 shrink-0 rounded-full border border-border/30 bg-background/70 p-2 text-muted-foreground transition-all duration-300 ease-out hover:border-border/50 hover:text-foreground active:scale-95"
+    type="button"
+    aria-expanded={!sidebarCollapsed}
+    className="mt-0.5 shrink-0 rounded-lg border border-border/30 bg-card/70 p-2.5 text-muted-foreground transition-colors hover:border-border/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96]"
     aria-label={(() => {
       if (sidebarCollapsed) {
-        return "Open sidebar";
+        return "Open research history";
       }
-      return "Close sidebar";
+      return "Close research history";
     })()}
   >
     <WorkspaceSidebarIcon sidebarCollapsed={sidebarCollapsed} />
@@ -345,7 +407,12 @@ const WorkspaceHeaderBodyContainer = (props: Readonly<WorkspaceHeaderProps>) => 
       isSearching={props.isSearching}
       latestAssistantMessage={props.latestAssistantMessage}
       messageCount={props.messageCount}
+      modelCatalog={props.modelCatalog}
+      modelCatalogHasError={props.modelCatalogHasError}
+      modelCatalogLoading={props.modelCatalogLoading}
+      selectModel={props.selectModel}
       onStop={props.onStop}
+      selectedModelId={props.selectedModelId}
     />
   </div>
 );
@@ -365,7 +432,12 @@ const WorkspaceHeader = (props: WorkspaceHeaderProps) => {
           isSearching={props.isSearching}
           latestAssistantMessage={props.latestAssistantMessage}
           messageCount={props.messageCount}
+          modelCatalog={props.modelCatalog}
+          modelCatalogHasError={props.modelCatalogHasError}
+          modelCatalogLoading={props.modelCatalogLoading}
+          selectModel={props.selectModel}
           onStop={props.onStop}
+          selectedModelId={props.selectedModelId}
           onToggleSidebar={onToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
         />

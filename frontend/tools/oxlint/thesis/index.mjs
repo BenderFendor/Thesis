@@ -95,12 +95,12 @@ function findVariable(scope, name) {
 function isMapCallback(node) {
   return Boolean(
     node &&
-      (node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression") &&
-      node.parent?.type === "CallExpression" &&
-      node.parent.callee?.type === "MemberExpression" &&
-      !node.parent.callee.computed &&
-      node.parent.callee.property?.type === "Identifier" &&
-      node.parent.callee.property.name === "map",
+    (node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression") &&
+    node.parent?.type === "CallExpression" &&
+    node.parent.callee?.type === "MemberExpression" &&
+    !node.parent.callee.computed &&
+    node.parent.callee.property?.type === "Identifier" &&
+    node.parent.callee.property.name === "map",
   );
 }
 
@@ -127,7 +127,9 @@ function isFragileMapKeyExpression(node, callbackParamName) {
   ) {
     return false;
   }
-  return node.property.name === "url" || (node.property.name === "id" && callbackParamName === "article");
+  return (
+    node.property.name === "url" || (node.property.name === "id" && callbackParamName === "article")
+  );
 }
 
 const noArbitraryTailwindValue = {

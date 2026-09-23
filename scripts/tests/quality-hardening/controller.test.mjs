@@ -1,5 +1,6 @@
 import { buildTasks, expandTaskScope, readTasks, rebuildQueue, transitionTask, writeTasks } from "../../quality-hardening/queue.mjs";
 import { claimWriter, expandWriterClaim, readWriterClaim, releaseWriter } from "../../quality-hardening/writer-claim.mjs";
+import { finishTask, releaseTask } from "../../quality-hardening/cli.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { analysisCacheKey } from "../../quality-hardening/cache-key.mjs";
 import { join } from "node:path";
@@ -74,6 +75,27 @@ void test("writer claims are exclusive and released by the owner", async () => {
     await assert.rejects(() => claimWriter(repositoryRoot, { paths: ["src/other.ts"], sessionId: "two", taskId: "other" }), /already exists/u);
     assert.equal(await releaseWriter(repositoryRoot, "one"), true);
     assert.equal(await readWriterClaim(repositoryRoot), null);
+  } finally {
+    await rm(repositoryRoot, { force: true, recursive: true });
+  }
+});
+
+void test("wrong-session release and finish preserve the task and writer claim", async () => {
+  const repositoryRoot = await mkdtemp(join(tmpdir(), "quality-hardening-"));
+  try {
+    const [queued] = buildTasks(policy, { measurement_id: "m1", units: [{ metrics: { cccc: { cognitive: 20 } }, path: "src/app.ts", unit_id: "u1" }] }),
+      task = { ...queued, claimed_by: "alice", state: "claimed" },
+      options = { json: false, reason: "", scope: "task", session: "bob", stale: false, task: task.task_id },
+      localPolicy = { repositoryRoot };
+    await writeTasks(repositoryRoot, [task]);
+    await claimWriter(repositoryRoot, { paths: task.paths, sessionId: "alice", taskId: task.task_id });
+    const tasksBefore = await readTasks(repositoryRoot),
+      claimBefore = await readWriterClaim(repositoryRoot);
+
+    await assert.rejects(() => releaseTask(localPolicy, task, options), /another task or session/u);
+    await assert.rejects(() => finishTask(localPolicy, task, options, "close"), /another task or session/u);
+    assert.deepEqual(await readTasks(repositoryRoot), tasksBefore);
+    assert.deepEqual(await readWriterClaim(repositoryRoot), claimBefore);
   } finally {
     await rm(repositoryRoot, { force: true, recursive: true });
   }

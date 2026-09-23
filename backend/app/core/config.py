@@ -87,6 +87,7 @@ class Settings:
     opencode_api_key: str | None = os.getenv("OPENCODE_API_KEY")
     opencode_base_url: str = os.getenv("OPENCODE_BASE_URL", "https://opencode.ai/zen/v1")
     opencode_model: str = os.getenv("OPENCODE_MODEL", "mimo-v2.5-free")
+    opencode_research_models: tuple[str, ...] = _parse_domain_list("OPENCODE_RESEARCH_MODELS")
 
     # llama.cpp Instruct mode settings for reasoning tasks
     llamacpp_temperature: float = 1.0

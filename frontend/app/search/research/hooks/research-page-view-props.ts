@@ -1,5 +1,5 @@
 import type { ResearchPageViewProps } from "../components/research-page";
-import type { DeepReadonly } from "../model/types";
+import type { DeepReadonly, ResearchModelCatalog } from "../model/types";
 import type { ResearchChatActions } from "./use-research-chat-actions";
 import type { ResearchChatState } from "./research-chat-state";
 import type { ResearchMessageActions } from "./use-research-message-actions";
@@ -10,6 +10,11 @@ interface ResearchPageAssemblyContext {
   readonly chatState: ResearchChatState;
   readonly derivedState: ResearchDerivedState;
   readonly messageActions: ResearchMessageActions;
+  readonly modelCatalog: ResearchModelCatalog;
+  readonly modelCatalogHasError: boolean;
+  readonly modelCatalogLoading: boolean;
+  readonly selectModel: (modelId: string) => void;
+  readonly selectedModelId?: string;
 }
 
 const createSidebarModel = (
@@ -84,6 +89,10 @@ const createWorkspaceModel = (
   chatState: Readonly<ResearchChatState>,
   derivedState: Readonly<ResearchDerivedState>,
   messageActions: Readonly<ResearchMessageActions>,
+  modelContext: Pick<
+    ResearchPageAssemblyContext,
+    "modelCatalog" | "modelCatalogHasError" | "modelCatalogLoading" | "selectModel" | "selectedModelId"
+  >,
 ): ResearchPageViewProps["workspace"] => ({
   activeBriefTitle: derivedState.activeBriefTitle,
   chat: createChatModel(chatState, derivedState, messageActions, actions),
@@ -93,6 +102,7 @@ const createWorkspaceModel = (
   isSearching: chatState.isSearching,
   latestAssistantMessage: derivedState.latestAssistantMessage,
   messageCount: chatState.conversationMessages.length,
+  ...modelContext,
   onStop: actions.handleStop,
   onToggleSidebar: actions.toggleSidebar,
 });
@@ -102,6 +112,11 @@ const createResearchPageViewProps = ({
   chatState,
   derivedState,
   messageActions,
+  modelCatalog,
+  modelCatalogHasError,
+  modelCatalogLoading,
+  selectModel,
+  selectedModelId,
 }: DeepReadonly<ResearchPageAssemblyContext>): ResearchPageViewProps => ({
   articleModal: {
     article: chatState.selectedArticle,
@@ -109,7 +124,13 @@ const createResearchPageViewProps = ({
     onClose: derivedState.handleCloseArticle,
   },
   sidebar: createSidebarModel(actions, chatState),
-  workspace: createWorkspaceModel(actions, chatState, derivedState, messageActions),
+  workspace: createWorkspaceModel(actions, chatState, derivedState, messageActions, {
+    modelCatalog,
+    modelCatalogHasError,
+    modelCatalogLoading,
+    selectModel,
+    selectedModelId,
+  }),
 });
 
 export { createResearchPageViewProps };

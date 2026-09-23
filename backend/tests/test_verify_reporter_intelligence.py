@@ -59,7 +59,15 @@ def test_quality_audit_flags_verified_rows_without_person_evidence() -> None:
             name="Jane Doe",
             confidence_tier="verified",
             author_page_url="https://example.org/author/jane",
-            citations=[{"label": "Official author page", "url": "https://example.org/author/jane"}],
+            citations=[{
+                "label": "Official author page",
+                "url": "https://example.org/author/jane",
+                "source_type": "official_author_page",
+                "profile_verification": {
+                    "method": "publisher_profile_name_match",
+                    "profile_name": "Jane Doe",
+                },
+            }],
         ),
         Reporter(
             id=2,
@@ -91,13 +99,14 @@ def test_quality_audit_flags_verified_rows_without_person_evidence() -> None:
     assert audit["verified_reporters"] == 4
     assert audit["verified_person_names"] == 3
     assert audit["verified_public_author_pages"] == 3
-    assert audit["verified_author_page_citations"] == 2
-    assert audit["quality_failures"] == 4
+    assert audit["verified_author_page_citations"] == 1
+    assert audit["quality_failures"] == 5
     assert audit["sample_verified_non_person_names"] == ["2:Guest Contributor"]
     assert audit["sample_verified_non_public_author_pages"] == [
         "3:John Public:https://test.local/author/john"
     ]
     assert audit["sample_verified_missing_author_page_citations"] == [
+        "2:Guest Contributor:https://example.org/author/guest",
         "3:John Public:https://test.local/author/john",
         "4:Jane Missing:https://example.org/author/missing",
     ]
@@ -241,6 +250,10 @@ def test_profile_audit_accepts_verified_official_author_page_without_role_terms(
                     "label": "Official author page",
                     "url": "https://example.org/author/jane",
                     "source_type": "official_author_page",
+                    "profile_verification": {
+                        "method": "publisher_profile_name_match",
+                        "profile_name": "Jane Doe",
+                    },
                 }
             ],
         )
@@ -430,6 +443,11 @@ async def test_source_metrics_count_verified_author_page_citations(monkeypatch) 
             {
                 "label": "Official author page",
                 "url": "https://example.org/author/jane",
+                "source_type": "official_author_page",
+                "profile_verification": {
+                    "method": "publisher_profile_name_match",
+                    "profile_name": "Jane Doe",
+                },
             }
         ],
     )

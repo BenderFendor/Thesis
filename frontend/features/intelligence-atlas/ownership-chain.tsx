@@ -35,7 +35,9 @@ const INDENT_SIZE = 14,
     readonly chain: readonly OwnershipChainHop[];
     readonly currentEntityId: string;
   }>): ReactElement | undefined => {
-    if (chain.length <= MIN_CHAIN_LENGTH) {return undefined;}
+    if (chain.length <= MIN_CHAIN_LENGTH) {
+      return void 0;
+    }
 
     const topDown: readonly OwnershipChainHop[] = chain.toReversed();
 
@@ -74,17 +76,17 @@ const INDENT_SIZE = 14,
     readonly percentage: string | undefined;
   }>): ReactElement => {
     const body = (
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
-        {renderEntityLabel(hop)}
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {getRoleDescription(hop, isRoot, isSelf)}
-        </span>
-        {renderPercentageBadge(percentage)}
-        <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
-          {hop.evidence_count} evidence
-        </span>
-      </div>
-    ),
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
+          {renderEntityLabel(hop)}
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            {getRoleDescription(hop, isRoot, isSelf)}
+          </span>
+          {renderPercentageBadge(percentage)}
+          <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
+            {hop.evidence_count} evidence
+          </span>
+        </div>
+      ),
       profilePath = hop.profile_path ?? "";
     if (profilePath !== "" && !isSelf) {
       return (
@@ -112,18 +114,15 @@ const INDENT_SIZE = 14,
       className="rounded-xl border border-white/5 bg-black/20 px-3 py-2 transition-all hover:bg-white/[0.03]"
       style={getChainItemStyle(index)}
     >
-      <OwnershipChainBody
-        hop={hop}
-        isRoot={isRoot}
-        isSelf={isSelf}
-        percentage={percentage}
-      />
+      <OwnershipChainBody hop={hop} isRoot={isRoot} isSelf={isSelf} percentage={percentage} />
     </li>
   ),
   PERCENTAGE_DECIMAL_PLACES = 1,
   PERCENTAGE_EPSILON = 0.05,
   ROOT_INDEX = 0,
-  formatPercentage = (hop: Readonly<Pick<OwnershipChainHop, "percentage" | "percentage_range">>): string | undefined => {
+  formatPercentage = (
+    hop: Readonly<Pick<OwnershipChainHop, "percentage" | "percentage_range">>,
+  ): string | undefined => {
     if (hop.percentage_range) {
       const { lower, upper } = hop.percentage_range;
       if (Math.abs(upper - lower) < PERCENTAGE_EPSILON) {
@@ -132,7 +131,9 @@ const INDENT_SIZE = 14,
       return `${lower.toFixed(PERCENTAGE_DECIMAL_PLACES)}–${upper.toFixed(PERCENTAGE_DECIMAL_PLACES)}%`;
     }
     const percentage = hop.percentage ?? undefined;
-    if (percentage === undefined) {return undefined;}
+    if (percentage === undefined) {
+      return void 0;
+    }
     return `${percentage.toFixed(PERCENTAGE_DECIMAL_PLACES)}%`;
   },
   getChainItemStyle = (index: number) => ({
@@ -144,15 +145,21 @@ const INDENT_SIZE = 14,
     isSelf: boolean,
   ): string => {
     const labels: string[] = [hop.entity_type];
-    if (isRoot) {labels.push("ultimate owner");}
-    if (isSelf) {labels.push("this entity");}
+    if (isRoot) {
+      labels.push("ultimate owner");
+    }
+    if (isSelf) {
+      labels.push("this entity");
+    }
     return labels.join(" · ");
   },
-  renderEntityLabel = (
-    hop: Readonly<Pick<OwnershipChainHop, "label">>,
-  ): ReactElement => <span className="truncate font-serif text-sm">{hop.label}</span>,
+  renderEntityLabel = (hop: Readonly<Pick<OwnershipChainHop, "label">>): ReactElement => (
+    <span className="truncate font-serif text-sm">{hop.label}</span>
+  ),
   renderPercentageBadge = (percentage: string | undefined): ReactElement | undefined => {
-    if (percentage === undefined) {return undefined;}
+    if (percentage === undefined) {
+      return void 0;
+    }
     return (
       <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-[10px] tracking-widest">
         {percentage}

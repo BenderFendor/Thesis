@@ -18,7 +18,9 @@ const IntelligenceAtlasError = (props: IntelligenceAtlasErrorProps) => {
     <main className="grid min-h-screen place-items-center bg-[#080907] p-8 text-[#c9c3b6]">
       <div className="max-w-lg rounded-3xl border border-red-400/20 bg-red-950/20 p-8 text-center">
         <h1 className="font-serif text-3xl text-[#f0ede4]">The Atlas could not open</h1>
-        <p className="mt-3 text-sm leading-relaxed">{props.error.message || "The route failed before the bounded graph could be rendered."}</p>
+        <p className="mt-3 text-sm leading-relaxed">
+          {props.error.message || "The route failed before the bounded graph could be rendered."}
+        </p>
         <button
           type="button"
           onClick={handleReset}

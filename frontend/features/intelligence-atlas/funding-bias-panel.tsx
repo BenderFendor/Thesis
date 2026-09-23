@@ -56,7 +56,11 @@ const CorrelationCaption = () => (
     const evidenceLink = getEvidenceLink(props.field),
       evidenceText = `${props.field.evidence_count} evidence`;
     if (evidenceLink === "") {
-      return <span className="font-mono text-[10px] tracking-widest text-muted-foreground">{evidenceText}</span>;
+      return (
+        <span className="font-mono text-[10px] tracking-widest text-muted-foreground">
+          {evidenceText}
+        </span>
+      );
     }
 
     return (
@@ -89,7 +93,9 @@ const CorrelationCaption = () => (
   },
   FundingBiasFieldHeader = (props: Readonly<FundingBiasFieldHeaderProps>) => (
     <div className="flex items-center justify-between gap-2">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{props.label}</span>
+      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {props.label}
+      </span>
       <OriginBadge field={props.field} />
     </div>
   ),
@@ -130,7 +136,9 @@ const CorrelationCaption = () => (
       return false;
     }
 
-    return <p className="mt-1 text-xs text-muted-foreground">Rated by Media Bias/Fact Check (MBFC).</p>;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">Rated by Media Bias/Fact Check (MBFC).</p>
+    );
   },
   OriginBadge = (props: Readonly<{ readonly field: FundingBiasFieldView }>): ReactNode => {
     if (props.field.origin === "claim") {

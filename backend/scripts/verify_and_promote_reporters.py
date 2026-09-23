@@ -268,6 +268,8 @@ def _citation_label(evidence_source: str) -> str:
         "wikidata_employer_match": "Wikidata employer match",
         "curl_cffi_jsonld": "Article JSON-LD author",
     }
+    if evidence_source.startswith("wayback_machine:"):
+        return "Wayback Machine archive"
     return labels.get(evidence_source, "Verified identity source")
 
 
@@ -275,18 +277,23 @@ def _ensure_profile_citation(
     reporter: Reporter, author_url: str, profile_name: str, evidence_source: str
 ) -> None:
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    if any(
-        isinstance(item, dict) and str(item.get("url") or "") == author_url for item in citations
-    ):
-        return
-    citations.insert(
-        0,
-        {
-            "label": _citation_label(evidence_source),
-            "url": author_url,
-            "note": f"Profile name verified as '{profile_name}' via {evidence_source}.",
-        },
+    method = (
+        "archived_profile_name_match"
+        if evidence_source.startswith("wayback_machine:")
+        else "publisher_profile_name_match"
     )
+    citation = {
+        "label": _citation_label(evidence_source),
+        "url": author_url,
+        "note": f"Profile name verified as '{profile_name}' via {evidence_source}.",
+        "profile_verification": {"method": method, "profile_name": profile_name},
+    }
+    for index, current in enumerate(citations):
+        if isinstance(current, dict) and str(current.get("url") or "") == author_url:
+            citations[index] = {**current, **citation}
+            reporter.citations = citations
+            return
+    citations.insert(0, citation)
     reporter.citations = citations
 
 

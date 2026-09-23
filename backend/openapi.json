@@ -3793,6 +3793,28 @@
         }
       }
     },
+    "/api/news/research/models": {
+      "get": {
+        "tags": [
+          "news-research"
+        ],
+        "summary": "Research Models Endpoint",
+        "description": "List models configured for the research agent.",
+        "operationId": "research_models_endpoint_api_news_research_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchModelCatalog"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/news/research/stream": {
       "get": {
         "tags": [
@@ -3842,6 +3864,24 @@
               "title": "History"
             },
             "description": "JSON-encoded chat history for context"
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Configured research model id",
+              "title": "Model"
+            },
+            "description": "Configured research model id"
           }
         ],
         "responses": {
@@ -14758,6 +14798,17 @@
             "type": "boolean",
             "title": "Include Thinking",
             "default": true
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           }
         },
         "type": "object",
@@ -16889,6 +16940,67 @@
         ],
         "title": "ReporterProfileResponse",
         "description": "Reporter Profile Response."
+      },
+      "ResearchModelCatalog": {
+        "properties": {
+          "default": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchModelOption"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "ResearchModelCatalog",
+        "description": "Models configured for the research agent runtime."
+      },
+      "ResearchModelOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "model",
+          "provider"
+        ],
+        "title": "ResearchModelOption",
+        "description": "A configured model available to the research agent."
       },
       "SourceBatchRequest": {
         "properties": {

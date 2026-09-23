@@ -185,7 +185,7 @@ const CollapsedBriefingTab = (props: Readonly<CollapsedBriefingTabProps>) => (
       onViewModeChange={props.onViewModeChange}
       viewMode={props.viewMode}
     />
-    <div className="flex min-h-0 flex-1 space-y-4 overflow-y-auto p-4 pb-20 custom-scrollbar lg:overflow-y-auto">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 pb-20 custom-scrollbar">
       <CollapsedBriefingContent
         lensArticles={props.lensArticles}
         loading={props.loading}

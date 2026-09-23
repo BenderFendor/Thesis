@@ -102,31 +102,11 @@
 
 ## [auto-mined] [omp]
 
-**What happened:** Integration tests repeatedly hit rate limits (11x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [omp]
-
 **What happened:** Maturin rebuild appeared to succeed but old .so persisted.
 
 **Probable cause:** Python loaded cached .abi3.so from virtualenv; rebuild didn't overwrite the import path.
 
 **Fix or workaround:** Use `maturin develop --release --force`. Verify .so timestamp changed. Check import path.
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Integration tests repeatedly hit rate limits (19x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
 
 ---
 
@@ -152,91 +132,11 @@
 
 ## [auto-mined] [claude]
 
-**What happened:** Integration tests repeatedly hit rate limits (24x 429, 7x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [claude]
-
 **What happened:** Build succeeded but typecheck (`tsc --noEmit`) failed.
 
 **Probable cause:** `next.config.ts` has `ignoreBuildErrors: true`, masking real TypeScript errors.
 
 **Fix or workaround:** Run `npx tsc --noEmit` separately as a verification gate. Do not rely on `npm run build` for type safety.
-
----
-
-## [auto-mined] [claude]
-
-**What happened:** Integration tests repeatedly hit rate limits (16x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Integration tests repeatedly hit rate limits (96x 429, 5x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [claude]
-
-**What happened:** Integration tests repeatedly hit rate limits (6x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [claude]
-
-**What happened:** Integration tests repeatedly hit rate limits (52x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [claude]
-
-**What happened:** Integration tests repeatedly hit rate limits (12x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [pi]
-
-**What happened:** Integration tests repeatedly hit rate limits (6x 429, 6x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [pi]
-
-**What happened:** Integration tests repeatedly hit rate limits (7x 429, 6x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
 
 ---
 
@@ -347,26 +247,6 @@
 **Probable cause:** zsh treated route brackets as filename-generation syntax and nomatch is enabled
 
 **Fix or workaround:** Quote every bracketed Next.js path in shell commands
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Integration tests repeatedly hit rate limits (100x 429, 66x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Agents collided on shared files (77x references to another agent's changes).
-
-**Probable cause:** Multiple subagents editing the same file or crate simultaneously.
-
-**Fix or workaround:** Assign disjoint file ownership in task specs. Watchdog should detect cross-agent file contention.
 
 ---
 
@@ -677,26 +557,6 @@
 **Probable cause:** The command omitted the frontend package working directory
 
 **Fix or workaround:** Run the resolved Atlas Jest path with workdir=frontend
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Integration tests repeatedly hit rate limits (50x 429, 73x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
-
-**Probable cause:** External API rate limiting not handled in test mode.
-
-**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
-
----
-
-## [auto-mined] [omp]
-
-**What happened:** Agents collided on shared files (15x references to another agent's changes).
-
-**Probable cause:** Multiple subagents editing the same file or crate simultaneously.
-
-**Fix or workaround:** Assign disjoint file ownership in task specs. Watchdog should detect cross-agent file contention.
 
 ---
 
@@ -1152,7 +1012,617 @@
 
 ## [auto-mined] [omp]
 
-**What happened:** Integration tests repeatedly hit rate limits (143x 429, 11x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
+**What happened:** API returned HTML/empty body instead of JSON (6x).
+
+**Probable cause:** Missing auth headers, wrong endpoint URL, or Cloudflare challenge page.
+
+**Fix or workaround:** Curl the endpoint directly first to verify response shape. Check for auth/UA requirements.
+
+---
+
+## 2026-09-10 16:40
+
+**What happened:** Repository-local oxfmt executable was unavailable when formatting the shared type file
+
+**Probable cause:** frontend/node_modules/.bin has no oxfmt and no oxfmt command is on PATH
+
+**Fix or workaround:** Use the repository's installed formatter path when present; otherwise preserve the minimal manually formatted diff and record the missing tool
+
+---
+
+## 2026-09-10 17:12
+
+**What happened:** Frontend TypeScript command used a tsconfig path relative to the wrong npm exec directory
+
+**Probable cause:** npm --prefix frontend exec ran the compiler from the repository root
+
+**Fix or workaround:** Pass frontend/tsconfig.json explicitly when using npm --prefix
+
+---
+
+## 2026-09-10 19:38
+
+**What happened:** Frontend verification batch failed before checks because commands were run from frontend with repository-root paths
+
+**Probable cause:** The orchestrator combined a frontend working directory with root-relative executable and package paths
+
+**Fix or workaround:** Run root-relative commands from the repository root or strip frontend/ from paths when using the frontend directory
+
+---
+
+## 2026-09-10 20:15
+
+**What happened:** Grid modal controller removal script found no in-file controller because that block had already been removed
+
+**Probable cause:** The extraction range was applied twice after the first successful removal
+
+**Fix or workaround:** Check the target marker with rg before running a range edit
+
+---
+
+## 2026-09-10 22:59
+
+**What happened:** The documented quality-hardening validate command is not available; the CLI only exposes measure, verify, summary, and related subcommands.
+
+**Probable cause:** The current CLI has no validate handler.
+
+**Fix or workaround:** Use node scripts/quality-hardening.mjs verify --scope ... or summary.
+
+---
+
+## 2026-09-10 23:02
+
+**What happened:** The pulled quality-hardening verifier crashed because config.mjs called an undefined asObject helper.
+
+**Probable cause:** A cleanup commit removed the helper but left its validation call sites.
+
+**Fix or workaround:** Keep the JSON object guard next to the config loader and exercise summary/verify after pulls.
+
+---
+
+## 2026-09-10 23:03
+
+**What happened:** The pulled quality profile referenced an imports check that was absent from its verification checks.
+
+**Probable cause:** The profile and check registry drifted during the remote update.
+
+**Fix or workaround:** Keep profile entries and verification.checks synchronized; restore node scripts/check-imports.mjs.
+
+---
+
+## 2026-09-10 23:09
+
+**What happened:** Quality-hardening controller tests failed when fixture taxonomies omitted overrides.
+
+**Probable cause:** config and queue dereferenced taxonomy.overrides without a default.
+
+**Fix or workaround:** Treat optional taxonomy overrides as an empty object in resolution and tradeoff collection.
+
+---
+
+## 2026-09-10 23:45
+
+**What happened:** The Oxlint count probe assumed a list but the JSON output is an object with a diagnostics array.
+
+**Probable cause:** The current Oxlint JSON schema differs from the earlier census helper.
+
+**Fix or workaround:** Guard the top-level object and read its diagnostics field before counting.
+
+---
+
+## 2026-09-10 23:46
+
+**What happened:** The per-file Oxlint diagnostic Python f-string probe failed on nested quote escaping.
+
+**Probable cause:** Shell and Python string delimiters were mixed in a one-line formatter.
+
+**Fix or workaround:** Use a small JSON loop with repr-safe field access or inspect the raw JSON with a separate script.
+
+---
+
+## 2026-09-11 01:18
+
+**What happened:** A direct TypeScript probe failed before running because the exec workdir was misspelled.
+
+**Probable cause:** Command used /home/bender/classlint instead of the repository path.
+
+**Fix or workaround:** Run probes from the repository root and reference frontend/tsconfig.json.
+
+---
+
+## 2026-09-11 02:50
+
+**What happened:** DeepReadonly on Three.js globe runtime parameters introduced incompatible readonly mipmaps and left the lint cluster unchanged
+
+**Probable cause:** The generic mapped type recursively readonly-maps mutable Three.js texture arrays and the type-aware Oxlint rule still reports the wrapper
+
+**Fix or workaround:** Keep the original runtime types until a narrow read-only view interface is defined; do not map Three.js classes wholesale
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Edit tool rejected 11x due to stale file tags (file changed between read and edit).
+
+**Probable cause:** Concurrent agents editing the same file, or sequential edits without re-reading.
+
+**Fix or workaround:** Ensure subagents have disjoint file ownership. Re-read before editing when another agent is active.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Browser navigation timed out (29x).
+
+**Probable cause:** Dev server slow to start or page too large.
+
+**Fix or workaround:** Add longer timeout for first navigation. Check if dev server is running.
+
+---
+
+## 2026-09-11 05:07
+
+**What happened:** Patch submission failed before touching the repository due to unescaped JavaScript string quotes
+
+**Probable cause:** The tool-call wrapper used a double-quoted string for a multiline patch containing double quotes
+
+**Fix or workaround:** Use a template literal or raw multiline string for apply_patch payloads
+
+---
+
+## 2026-09-11 05:46
+
+**What happened:** A zsh verification probe used status as a shell variable and aborted before Oxlint output
+
+**Probable cause:** zsh reserves status as a read-only special parameter
+
+**Fix or workaround:** Use a task-specific variable such as exit_code in zsh probes
+
+---
+
+## 2026-09-11 06:35
+
+**What happened:** The documented oxfmt formatter is not installed in frontend/node_modules/.bin
+
+**Probable cause:** The repository instructions require oxfmt but the current dependency install has no oxfmt executable
+
+**Fix or workaround:** Check the installed formatter path before invoking it; use the available project formatter or keep a verified minimal diff without adding a dependency
+
+---
+
+## 2026-09-11 07:12
+
+**What happened:** Narrowing a ReactNode wrapper to string | number exposed a mixed JSX text and number union in TypeScript
+
+**Probable cause:** The rendered label combined literal JSX text with a nullable numeric expression
+
+**Fix or workaround:** Use one interpolated template string when the narrowed wrapper contract requires a string
+
+---
+
+## 2026-09-11 07:27
+
+**What happened:** The type-aware Oxlint command using a shell-relative OXLINT_TSGOLINT_PATH intermittently returned a wrapper SyntaxError
+
+**Probable cause:** The command wrapper did not expose the underlying diagnostic when the relative environment path was used
+
+**Fix or workaround:** Use the absolute tsgolint and oxlint paths for deterministic focused scans
+
+---
+
+## 2026-09-11 07:50
+
+**What happened:** The saved quality measurement path was copied with one character missing during the follow-up jq probe
+
+**Probable cause:** A long generated measurement filename was transcribed manually
+
+**Fix or workaround:** Read the exact newest filename from ls before querying it
+
+---
+
+## 2026-09-11 08:08
+
+**What happened:** The combined documentation checkpoint patch did not apply because one wrapped context line differed
+
+**Probable cause:** The four docs use different historical wrapping and the patch assumed one exact line break
+
+**Fix or workaround:** Append each documentation surface with its own verified tail context
+
+---
+
+## 2026-09-11 08:26
+
+**What happened:** Parallel typecheck call used a mistyped repository path and failed before execution
+
+**Probable cause:** Manual workdir typo
+
+**Fix or workaround:** Reuse the verified Thesis workdir string in both commands
+
+---
+
+## 2026-09-11 08:32
+
+**What happened:** The first jq summary expression applied level to a path string and failed
+
+**Probable cause:** jq pipe precedence in a measurement query
+
+**Fix or workaround:** Group path predicates before combining them with level
+
+---
+
+## 2026-09-11 08:43
+
+**What happened:** Stream patch included a duplicate reset line inferred from overlapping output and failed context validation
+
+**Probable cause:** Overlapping file excerpts were mistaken for duplicate source
+
+**Fix or workaround:** Inspect the exact source range before composing multi-hunk patches
+
+---
+
+## 2026-09-11 09:12
+
+**What happened:** Stream hook type patch failed because a multi-hunk patch used stale context after the split
+
+**Probable cause:** The source changed between inspected ranges and patch construction
+
+**Fix or workaround:** Apply small hunks against freshly inspected exact lines
+
+---
+
+## 2026-09-11 09:23
+
+**What happened:** Frontend typecheck has no npm script; npm run typecheck failed before running
+
+**Probable cause:** package.json exposes build, test, and lint commands but no typecheck entry
+
+**Fix or workaround:** Use the repository's direct npx tsc --noEmit command
+
+---
+
+## 2026-09-11 09:30
+
+**What happened:** DeepReadonly on globe component props made the function component type unusable in JSX
+
+**Probable cause:** The recursive utility readonly-mapped the third-party component constructor
+
+**Fix or workaround:** Keep the component prop boundary shallow and model nested mutable tokens explicitly
+
+---
+
+## 2026-09-11 09:39
+
+**What happened:** Narrowing the globe component contract to a function type broke the test's displayName assignment
+
+**Probable cause:** The test treats the component value as a React component object with displayName
+
+**Fix or workaround:** Retain ComponentType until a dedicated adapter token preserves both JSX and metadata
+
+---
+
+## 2026-09-11 09:44
+
+**What happened:** Cluster model revert patch missed because the earlier experiment had already removed its import
+
+**Probable cause:** The patch assumed the original import still existed
+
+**Fix or workaround:** Inspect the exact current import block before reverting a type experiment
+
+---
+
+## 2026-09-11 09:59
+
+**What happened:** Queue helper export list referenced an unimported and separately re-exported symbol, causing duplicate TypeScript identifiers
+
+**Probable cause:** The final import consolidation was patched without checking the module's binding shape
+
+**Fix or workaround:** Import the helper value once and expose it through the existing export list
+
+---
+
+## 2026-09-11 10:00
+
+**What happened:** Queue helper cleanup patch left duplicate export declarations, which lint caught before commit
+
+**Probable cause:** The patch matched a shared export line while adding the replacement
+
+**Fix or workaround:** Inspect the exact tail after each export consolidation and run focused lint before typechecking
+
+---
+
+## 2026-09-11 10:06
+
+**What happened:** Article model readonly patch missed because the import block was wrapped differently than the inspected excerpt
+
+**Probable cause:** A long import was assumed to be one line
+
+**Fix or workaround:** Read exact import lines with sed before applying the next hunk
+
+---
+
+## 2026-09-11 10:28
+
+**What happened:** memo check without its required text argument failed before inspection
+
+**Probable cause:** The project wrapper requires a positional context string
+
+**Fix or workaround:** Pass a short context string such as memo check 'globe canvas cleanup' before edits or checks
+
+---
+
+## 2026-09-11 10:32
+
+**What happened:** GlobeRenderProps intersection widened polygonsData to any[] and added an unused import
+
+**Probable cause:** The third-party Pick loses the project polygon element contract
+
+**Fix or workaround:** Keep the explicit GlobePolygon array field and test type intersections with focused lint before retaining them
+
+---
+
+## 2026-09-11 10:37
+
+**What happened:** apply_patch rejected a delete and add operation targeting the same globe canvas file
+
+**Probable cause:** The patch tool requires one operation per target path
+
+**Fix or workaround:** Use one update hunk or replace the file through a single write
+
+---
+
+## 2026-09-11 10:43
+
+**What happened:** frontend-only quality measurement stayed CPU-bound for over a minute after stale worker cleanup
+
+**Probable cause:** The measurement runs CCCC and CRAP over the full frontend before printing JSON
+
+**Fix or workaround:** Use direct frontend Oxlint for fast warning census and reserve the full measurement for verified checkpoint runs
+
+---
+
+## 2026-09-11 10:44
+
+**What happened:** direct Oxlint JSON census wrote an empty stdout file and the parser failed
+
+**Probable cause:** The command's diagnostic stream or fatal output was not captured separately
+
+**Fix or workaround:** Capture stdout and stderr independently and inspect both before parsing
+
+---
+
+## 2026-09-11 11:12
+
+**What happened:** endpoint domain extraction initially imported schemas from the wrong barrel and duplicated a shared helper
+
+**Probable cause:** The original file mixed schemas from schemas.ts and response-schemas.ts and the slice generator retained emitCacheRefreshLine
+
+**Fix or workaround:** Verify each moved symbol's defining module with rg and run focused type-aware Oxlint before wider checks
+
+---
+
+## 2026-09-11 11:20
+
+**What happened:** Reading a Next.js dynamic route with an unquoted path failed under zsh glob expansion.
+
+**Probable cause:** Square brackets in app/wiki/organization/[id] were treated as a filename pattern.
+
+**Fix or workaround:** Quote dynamic route paths in shell commands.
+
+---
+
+## 2026-09-11 11:47
+
+**What happened:** Package-local Knip JSON capture was prefixed by an npm notice, so the saved file was not directly parseable
+
+**Probable cause:** npm emits lifecycle notices before the reporter JSON
+
+**Fix or workaround:** Capture the command output and strip the npm notice before parsing, or invoke the binary directly
+
+---
+
+## 2026-09-11 11:51
+
+**What happened:** The guessed organization and atlas Jest paths did not exist, so the targeted command found no tests
+
+**Probable cause:** The page has no matching test filenames under frontend/__tests__
+
+**Fix or workaround:** List matching test files with rg --files before invoking a focused Jest run
+
+---
+
+## 2026-09-11 12:16
+
+**What happened:** The bounded quality measurement failed when its explicit path list still included utilities deleted in the cleanup commit
+
+**Probable cause:** The measurement command was assembled from the pre-cleanup file list
+
+**Fix or workaround:** Build measurement paths from current rg --files output after deletions
+
+---
+
+## 2026-09-11 12:34
+
+**What happened:** Repository formatter check cannot run because oxfmt is not installed and no formatter config or binary exists
+
+**Probable cause:** AGENTS.md requires oxfmt, but the current frontend install and PATH do not provide it
+
+**Fix or workaround:** Install the repository-pinned formatter or document the supported formatter command before the next formatting gate
+
+---
+
+## 2026-09-11 13:03
+
+**What happened:** The focused Oxlint probe used frontend/.oxlintrc.json, which does not exist
+
+**Probable cause:** The repository config is at the workspace root
+
+**Fix or workaround:** Use --config .oxlintrc.json from the Thesis root
+
+---
+
+## 2026-09-11 13:20
+
+**What happened:** The next-target probe used frontend/components/news-page-header-controls.tsx, but the module is under frontend/app
+
+**Probable cause:** The import path was not checked before constructing the file path
+
+**Fix or workaround:** Use rg --files or the importing module to resolve the target path first
+
+---
+
+## 2026-09-11 19:12
+
+**What happened:** Clearing the ignored Next dev cache hit an active next dev writer
+
+**Probable cause:** Turbopack was still writing frontend/.next/dev while the cache was being removed
+
+**Fix or workaround:** Stop the active dev server before clearing frontend/.next/dev
+
+---
+
+## 2026-09-11 19:30
+
+**What happened:** Focused backend tests failed because the repository root was used as the backend working directory
+
+**Probable cause:** The test paths are relative to backend/
+
+**Fix or workaround:** Run backend pytest commands with workdir backend or prefix paths with backend/
+
+---
+
+## 2026-09-11 19:30
+
+**What happened:** Focused frontend Oxlint cannot start because the installed tsgolint adapter is missing
+
+**Probable cause:** frontend/package.json declares oxlint-tsgolint but frontend/node_modules lacks it
+
+**Fix or workaround:** Restore the locked frontend dependency install before running type-aware Oxlint
+
+---
+
+## 2026-09-11 20:04
+
+**What happened:** Stopping the local uvicorn session left its child process listening on port 8000 after Ctrl-C.
+
+**Probable cause:** The request worker was still blocked in the upstream model call.
+
+**Fix or workaround:** Use the bounded OpenCode timeout and kill the child only when the local verification process must be stopped.
+
+---
+
+## 2026-09-11 20:36
+
+**What happened:** pre_edit_context scanner produced no packet and hung past 30 seconds
+
+**Probable cause:** the wrapper did not return output for this dirty frontend scope
+
+**Fix or workaround:** use the already inspected exact files and bounded rg reads when the scanner stalls
+
+---
+
+## 2026-09-11 22:02
+
+**What happened:** DeepWiki search call failed before dispatch due to malformed tool invocation
+
+**Probable cause:** The web tool wrapper rejected the first query payload
+
+**Fix or workaround:** Retry with a minimal valid search payload before combining queries
+
+---
+
+## 2026-09-11 22:20
+
+**What happened:** Frontend package has no typecheck script; npm run typecheck failed before running tsc
+
+**Probable cause:** The repository exposes TypeScript checking through the compiler directly rather than package scripts
+
+**Fix or workaround:** Run npx tsc --noEmit from frontend after inspecting package scripts
+
+---
+
+## 2026-09-11 22:22
+
+**What happened:** Focused Oxlint invocation could not load TypeScript support because oxlint-tsgolint is not installed
+
+**Probable cause:** The local Oxlint binary is configured to use a missing optional tsgolint executable
+
+**Fix or workaround:** Use the repository's native lint script or install the pinned optional linter before TypeScript diagnostics
+
+---
+
+## 2026-09-11 22:36
+
+**What happened:** Local model catalog curl hung without a response
+
+**Probable cause:** The local backend process did not answer the new endpoint during the check
+
+**Fix or workaround:** Verify the backend service is healthy before claiming live endpoint coverage
+
+---
+
+## 2026-09-11 22:59
+
+**What happened:** Focused backend test command used a repo-root path from inside backend and failed before pytest
+
+**Probable cause:** The working directory and executable path were both prefixed with backend
+
+**Fix or workaround:** Use .venv/bin/pytest when workdir is backend, or keep backend/.venv/bin/pytest from the repository root
+
+---
+
+## 2026-09-11 23:07
+
+**What happened:** The stop-dispatch lint review command is not installed on PATH, so the hook-level replay failed before running
+
+**Probable cause:** The hook invokes an internal dispatcher unavailable in this shell
+
+**Fix or workaround:** Use the same Ruff checks directly or invoke the configured hook dispatcher from its absolute path
+
+---
+
+## 2026-09-12 15:46
+
+**What happened:** Globe frame comparisons changed with article loading and auto-rotation.
+
+**Probable cause:** Fixed delays sampled different article overlays and camera orientations.
+
+**Fix or workaround:** Wait for loaded overlays and lock the same camera before collecting matched frame samples.
+
+---
+
+## 2026-09-12 20:41
+
+**What happened:** Chrome DevTools verification could not connect because DevToolsActivePort was missing; used the open localhost browser for interaction evidence.
+
+**Probable cause:** Chrome MCP session is not running with a DevTools port.
+
+**Fix or workaround:** Start the app browser with remote debugging enabled before frontend visual verification.
+
+---
+
+## 2026-09-12 20:44
+
+**What happened:** After reloading the localhost globe, the live-article loading indicator did not detach within 15 seconds; the page may be waiting on local data.
+
+**Probable cause:** The live app did not complete its initial data request during the runtime verification window.
+
+**Fix or workaround:** Check the local backend and network requests before browser verification.
+
+---
+
+## 2026-09-12 20:54
+
+**What happened:** Full frontend Jest run now reaches one unrelated search-inline-edit failure: useRouter is rendered without an App Router context.
+
+**Probable cause:** Existing search page test setup does not provide the router context required by the current global navigation component.
+
+**Fix or workaround:** Provide the real App Router test context in that test setup or use the repository-approved navigation harness.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Integration tests repeatedly hit rate limits (930x 429, 113x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
 
 **Probable cause:** External API rate limiting not handled in test mode.
 
@@ -1162,7 +1632,17 @@
 
 ## [auto-mined] [omp]
 
-**What happened:** Agents collided on shared files (4x references to another agent's changes).
+**What happened:** Integration tests repeatedly hit rate limits (128x 429, 10x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
+
+**Probable cause:** External API rate limiting not handled in test mode.
+
+**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Agents collided on shared files (2x references to another agent's changes).
 
 **Probable cause:** Multiple subagents editing the same file or crate simultaneously.
 
@@ -1172,11 +1652,21 @@
 
 ## [auto-mined] [omp]
 
-**What happened:** API returned HTML/empty body instead of JSON (6x).
+**What happened:** Integration tests repeatedly hit rate limits (50x 429, 73x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
 
-**Probable cause:** Missing auth headers, wrong endpoint URL, or Cloudflare challenge page.
+**Probable cause:** External API rate limiting not handled in test mode.
 
-**Fix or workaround:** Curl the endpoint directly first to verify response shape. Check for auth/UA requirements.
+**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
+
+---
+
+## [auto-mined] [omp]
+
+**What happened:** Integration tests repeatedly hit rate limits (11x 429, 0x "rate limit") - agent may have iterated on code instead of waiting for cooldown.
+
+**Probable cause:** External API rate limiting not handled in test mode.
+
+**Fix or workaround:** Cache API responses for test runs. Add cooldown detection to test harness.
 
 ---
 

@@ -11,16 +11,19 @@ import {
   saveAppearanceSettings,
   subscribeToAppearanceSettings,
 } from "@/lib/appearance-settings";
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from "@jest/globals";
 import { STORAGE_KEYS } from "@/lib/storage";
 
 const runAppearanceBootstrapScript = (): void => {
-  const { runInThisContext } = process.getBuiltinModule("node:vm");
-  runInThisContext(buildAppearanceBootstrapScript());
+  const script = document.createElement("script");
+  script.textContent = buildAppearanceBootstrapScript();
+  document.head.append(script);
+  script.remove();
 };
 
 describe("normalizeAppearanceSettings", () => {
-  it("returns untouched defaults for null, junk, or wrong versions", () => {  expect.hasAssertions();
+  it("returns untouched defaults for null, junk, or wrong versions", () => {
+    expect.hasAssertions();
 
     expect(normalizeAppearanceSettings(null)).toStrictEqual(APPEARANCE_DEFAULTS);
     expect(normalizeAppearanceSettings("nope")).toStrictEqual(APPEARANCE_DEFAULTS);
@@ -28,7 +31,8 @@ describe("normalizeAppearanceSettings", () => {
     expect(normalizeAppearanceSettings({})).toStrictEqual(APPEARANCE_DEFAULTS);
   });
 
-  it("keeps valid values and drops unknown keys", () => {  expect.hasAssertions();
+  it("keeps valid values and drops unknown keys", () => {
+    expect.hasAssertions();
 
     const normalized = normalizeAppearanceSettings({
       colors: { accent: "#ff0000" },
@@ -43,7 +47,11 @@ describe("normalizeAppearanceSettings", () => {
     expect(normalized).not.toHaveProperty("hackerField");
   });
 
-  it("clamps numbers into the documented ranges", () => {  expect.hasAssertions();
+});
+
+describe("normalizeAppearanceSettings ranges", () => {
+  it("clamps numbers into the documented ranges", () => {
+    expect.hasAssertions();
 
     const normalized = normalizeAppearanceSettings({
       layout: { cornerRadius: 500, spaceScale: -3 },
@@ -53,16 +61,27 @@ describe("normalizeAppearanceSettings", () => {
       version: 1,
     });
 
-    expect(normalized.typography.textScale).toBe(APPEARANCE_RANGES.textScale.max);
-    expect(normalized.typography.bodyWeight).toBe(APPEARANCE_RANGES.bodyWeight.min);
-    expect(normalized.typography.headingWeight).toBe(APPEARANCE_RANGES.headingWeight.max);
-    expect(normalized.layout.spaceScale).toBe(APPEARANCE_RANGES.spaceScale.min);
-    expect(normalized.layout.cornerRadius).toBe(APPEARANCE_RANGES.cornerRadius.max);
-    expect(normalized.shadows.strength).toBe(APPEARANCE_RANGES.shadowStrength.max);
-    expect(normalized.motion.speed).toBe(APPEARANCE_RANGES.motionSpeed.min);
+    expect({
+      bodyWeight: normalized.typography.bodyWeight,
+      cornerRadius: normalized.layout.cornerRadius,
+      headingWeight: normalized.typography.headingWeight,
+      motionSpeed: normalized.motion.speed,
+      shadowStrength: normalized.shadows.strength,
+      spaceScale: normalized.layout.spaceScale,
+      textScale: normalized.typography.textScale,
+    }).toStrictEqual({
+      bodyWeight: APPEARANCE_RANGES.bodyWeight.min,
+      cornerRadius: APPEARANCE_RANGES.cornerRadius.max,
+      headingWeight: APPEARANCE_RANGES.headingWeight.max,
+      motionSpeed: APPEARANCE_RANGES.motionSpeed.min,
+      shadowStrength: APPEARANCE_RANGES.shadowStrength.max,
+      spaceScale: APPEARANCE_RANGES.spaceScale.min,
+      textScale: APPEARANCE_RANGES.textScale.max,
+    });
   });
 
-  it("normalizes hex colors and rejects malformed ones", () => {  expect.hasAssertions();
+  it("normalizes hex colors and rejects malformed ones", () => {
+    expect.hasAssertions();
 
     const normalized = normalizeAppearanceSettings({
       colors: { accent: "#ABC", foreground: "#ECE3D5", surface: "#DEADBEEF" },
@@ -80,7 +99,8 @@ describe("load/save/subscribe", () => {
     globalThis.localStorage.clear();
   });
 
-  it("stores and reloads one validated settings object", () => {  expect.hasAssertions();
+  it("stores and reloads one validated settings object", () => {
+    expect.hasAssertions();
 
     saveAppearanceSettings(
       normalizeAppearanceSettings({ colors: { border: "#334455" }, version: 1 }),
@@ -92,10 +112,11 @@ describe("load/save/subscribe", () => {
     expect(loaded.version).toBe(1);
   });
 
-  it("returns a stable snapshot reference until storage changes", () => {  expect.hasAssertions();
+  it("returns a stable snapshot reference until storage changes", () => {
+    expect.hasAssertions();
 
     const first = loadAppearanceSettings(),
-     second = loadAppearanceSettings();
+      second = loadAppearanceSettings();
     expect(second).toBe(first);
 
     saveAppearanceSettings(
@@ -104,29 +125,44 @@ describe("load/save/subscribe", () => {
     expect(loadAppearanceSettings()).not.toBe(first);
   });
 
-  it("falls back to defaults for corrupt stored JSON", () => {  expect.hasAssertions();
+  it("falls back to defaults for corrupt stored JSON", () => {
+    expect.hasAssertions();
 
     globalThis.localStorage.setItem(APPEARANCE_STORAGE_KEY, "{definitely not json");
     expect(loadAppearanceSettings()).toStrictEqual(APPEARANCE_DEFAULTS);
   });
+});
 
-  it("notifies subscribers on save and stops after unsubscribe", () => {  expect.hasAssertions();
+describe("appearance subscriptions and reset", () => {
+  beforeEach(() => {
+    globalThis.localStorage.clear();
+  });
+
+  it("notifies subscribers on save and stops after unsubscribe", () => {
+    expect.hasAssertions();
 
     const snapshots: string[] = [],
-     unsubscribe = subscribeToAppearanceSettings(() => {
-      snapshots.push(loadAppearanceSettings().colors.accent);
-    });
+      unsubscribe = subscribeToAppearanceSettings(() => {
+        snapshots.push(loadAppearanceSettings().colors.accent);
+      });
 
-    saveAppearanceSettings(normalizeAppearanceSettings({ colors: { accent: "#112233" }, version: 1 }));
+    saveAppearanceSettings(
+      normalizeAppearanceSettings({ colors: { accent: "#112233" }, version: 1 }),
+    );
     unsubscribe();
-    saveAppearanceSettings(normalizeAppearanceSettings({ colors: { accent: "#445566" }, version: 1 }));
+    saveAppearanceSettings(
+      normalizeAppearanceSettings({ colors: { accent: "#445566" }, version: 1 }),
+    );
 
     expect(snapshots).toStrictEqual(["#112233"]);
   });
 
-  it("reset clears the persisted overrides", () => {  expect.hasAssertions();
+  it("reset clears the persisted overrides", () => {
+    expect.hasAssertions();
 
-    saveAppearanceSettings(normalizeAppearanceSettings({ colors: { accent: "#112233" }, version: 1 }));
+    saveAppearanceSettings(
+      normalizeAppearanceSettings({ colors: { accent: "#112233" }, version: 1 }),
+    );
     expect(resetAppearanceSettings()).toBe(true);
     expect(loadAppearanceSettings()).toStrictEqual(APPEARANCE_DEFAULTS);
   });
@@ -139,7 +175,8 @@ describe("applyAppearanceSettings", () => {
     applyAppearanceSettings(APPEARANCE_DEFAULTS);
   });
 
-  it("writes only tokens that differ from their defaults", () => {  expect.hasAssertions();
+  it("writes only tokens that differ from their defaults", () => {
+    expect.hasAssertions();
 
     applyAppearanceSettings(
       normalizeAppearanceSettings({
@@ -149,17 +186,26 @@ describe("applyAppearanceSettings", () => {
       }),
     );
 
-    const {style} = document.documentElement;
-    expect(style.getPropertyValue("--primary")).toBe("#ff8800");
-    expect(style.getPropertyValue("--ring")).toBe("#ff8800");
-    expect(style.getPropertyValue("--radius")).toBe("0.75rem");
-    // Neutral tokens must stay theme-controlled.
-    expect(style.getPropertyValue("--background")).toBe("");
-    expect(style.getPropertyValue("--card")).toBe("");
-    expect(Object.hasOwn(document.documentElement.dataset, "motionOff")).toBe(false);
+    const { style } = document.documentElement;
+    expect({
+      background: style.getPropertyValue("--background"),
+      card: style.getPropertyValue("--card"),
+      motionOff: Object.hasOwn(document.documentElement.dataset, "motionOff"),
+      primary: style.getPropertyValue("--primary"),
+      radius: style.getPropertyValue("--radius"),
+      ring: style.getPropertyValue("--ring"),
+    }).toStrictEqual({
+      background: "",
+      card: "",
+      motionOff: false,
+      primary: "#ff8800",
+      radius: "0.75rem",
+      ring: "#ff8800",
+    });
   });
 
-  it("removes a previously written token once it returns to its default", () => {  expect.hasAssertions();
+  it("removes a previously written token once it returns to its default", () => {
+    expect.hasAssertions();
 
     const customized = normalizeAppearanceSettings({
       colors: { accent: "#ff8800" },
@@ -170,7 +216,7 @@ describe("applyAppearanceSettings", () => {
     expect(document.documentElement.dataset.motionOff).toBe("true");
 
     applyAppearanceSettings(APPEARANCE_DEFAULTS);
-    const {style} = document.documentElement;
+    const { style } = document.documentElement;
     expect(style.getPropertyValue("--primary")).toBe("");
     expect(Object.hasOwn(document.documentElement.dataset, "motionOff")).toBe(false);
   });
@@ -183,7 +229,8 @@ describe("buildAppearanceBootstrapScript", () => {
     applyAppearanceSettings(APPEARANCE_DEFAULTS);
   });
 
-  it("mirrors applied settings before hydration", () => {  expect.hasAssertions();
+  it("mirrors applied settings before hydration", () => {
+    expect.hasAssertions();
 
     globalThis.localStorage.setItem(
       APPEARANCE_STORAGE_KEY,
@@ -198,7 +245,7 @@ describe("buildAppearanceBootstrapScript", () => {
 
     runAppearanceBootstrapScript();
 
-    const {style} = document.documentElement;
+    const { style } = document.documentElement;
     expect(style.getPropertyValue("--primary")).toBe("#123abc");
     expect(style.getPropertyValue("--ring")).toBe("#123abc");
     expect(style.getPropertyValue("--appearance-text-scale")).toBe("1.2");
@@ -206,10 +253,11 @@ describe("buildAppearanceBootstrapScript", () => {
     expect(document.documentElement.dataset.motionOff).toBe("true");
   });
 
-  it("ignores corrupt payloads and leaves theme tokens alone", () => {  expect.hasAssertions();
+  it("ignores corrupt payloads and leaves theme tokens alone", () => {
+    expect.hasAssertions();
 
     globalThis.localStorage.setItem(APPEARANCE_STORAGE_KEY, "{{{");
-    expect(() => runAppearanceBootstrapScript()).not.toThrow();
+    expect(runAppearanceBootstrapScript).not.toThrow();
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("");
 
     globalThis.localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify({ version: 7 }));
@@ -219,7 +267,8 @@ describe("buildAppearanceBootstrapScript", () => {
 });
 
 describe("storage key registration", () => {
-  it("exposes the appearance key through the shared key map", () => {  expect.hasAssertions();
+  it("exposes the appearance key through the shared key map", () => {
+    expect.hasAssertions();
 
     expect(STORAGE_KEYS.APPEARANCE_SETTINGS).toBe("appearanceSettings");
     expect(APPEARANCE_STORAGE_KEY).toBe(STORAGE_KEYS.APPEARANCE_SETTINGS);

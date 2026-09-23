@@ -1,5 +1,5 @@
 import { appendLedger, readCampaign, readLedger } from "./ledger.mjs";
-import { claimWriter, clearActiveTask, expandWriterClaim, releaseWriter, writeActiveTask } from "./writer-claim.mjs";
+import { assertWriterClaim, claimWriter, clearActiveTask, expandWriterClaim, releaseWriter, writeActiveTask } from "./writer-claim.mjs";
 import { expandTaskScope, readTasks, rebuildQueue, transitionTask } from "./queue.mjs";
 import { measureRepository, readMeasurement } from "./measure.mjs";
 import { EXIT_CODES } from "./protocol.mjs";
@@ -166,8 +166,9 @@ const claimTask = async (policy, task, options) => {
 
 /** @param {QueuePolicy} policy @param {Task} task @param {Options} options @returns {Promise<number>} */
 const releaseTask = async (policy, task, options) => {
+ await assertWriterClaim(policy.repositoryRoot, options.session, task.task_id, options.stale);
  await transitionTask(policy.repositoryRoot, task.task_id, "queued", { claimed_by: null });
- await releaseWriter(policy.repositoryRoot, options.session, options.stale);
+ await releaseWriter(policy.repositoryRoot, options.session, options.stale, task.task_id);
  await clearActiveTask(policy.repositoryRoot, options.session, task.task_id);
  console.error(`released ${task.task_id}`);
  return EXIT_CODES.ok;
@@ -176,12 +177,13 @@ const releaseTask = async (policy, task, options) => {
 /** @param {QueuePolicy} policy @param {Task} task @param {Options} options @param {"close"|"block"} subcommand @returns {Promise<number>} */
 const finishTask = async (policy, task, options, subcommand) => {
  const state = subcommand === "close" ? "accepted" : "blocked";
+ await assertWriterClaim(policy.repositoryRoot, options.session, task.task_id);
  if (state === "accepted" && ["claimed", "in_progress"].includes(task.state)) {
   await transitionTask(policy.repositoryRoot, task.task_id, "verifying");
  }
  await transitionTask(policy.repositoryRoot, task.task_id, state, { reason: options.reason || null });
  await appendLedger(policy.repositoryRoot, "effects.jsonl", { cluster_key: task.cluster_key ?? null, recorded_at: new Date().toISOString(), repair_class: task.repair_class ?? null, session_id: options.session, status: state, task_id: task.task_id });
- await releaseWriter(policy.repositoryRoot, options.session);
+ await releaseWriter(policy.repositoryRoot, options.session, false, task.task_id);
  await clearActiveTask(policy.repositoryRoot, options.session, task.task_id);
  console.error(`${state} ${task.task_id}`);
  return EXIT_CODES.ok;
@@ -299,4 +301,4 @@ const main = async (argumentsList = process.argv.slice(2)) => {
  return handler(argumentsList.slice(1));
 }
 
-export { main, parseOptions };
+export { finishTask, main, parseOptions, releaseTask };

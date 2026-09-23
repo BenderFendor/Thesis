@@ -13,7 +13,7 @@ interface ResearchHandoffContext {
   readonly state: ReturnType<typeof useResearchChatState>;
   readonly handoffQuery: string;
   readonly replace: (href: string) => void;
-  readonly submitPrompt: ReturnType<typeof useResearchPromptSubmission>;
+  readonly submitPrompt: ReturnType<typeof useResearchPromptSubmission>["submitPrompt"];
 }
 
 interface SearchPageRouter {
@@ -74,7 +74,7 @@ const useResearchPageController = (services: NewsResearchPageServices) => {
   const actions = useResearchChatActions(chatState, transport);
   useResearchChatPersistence(chatState);
   const derivedState = useResearchDerivedState(chatState);
-  const submitPrompt = useResearchPromptSubmission({
+  const { modelCatalogState, submitPrompt } = useResearchPromptSubmission({
     startResearch: transport.startResearch,
     state: chatState,
   });
@@ -84,7 +84,17 @@ const useResearchPageController = (services: NewsResearchPageServices) => {
     state: chatState,
     submitPrompt,
   });
-  return createResearchPageViewProps({ actions, chatState, derivedState, messageActions });
+  return createResearchPageViewProps({
+    actions,
+    chatState,
+    derivedState,
+    messageActions,
+    modelCatalog: modelCatalogState.catalog,
+    modelCatalogHasError: modelCatalogState.hasError,
+    modelCatalogLoading: modelCatalogState.isLoading,
+    selectModel: modelCatalogState.selectModel,
+    selectedModelId: modelCatalogState.selectedModelId,
+  });
 };
 
 export { DEFAULT_NEWS_RESEARCH_PAGE_SERVICES, useResearchPageController };

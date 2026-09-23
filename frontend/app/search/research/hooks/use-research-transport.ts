@@ -1,6 +1,7 @@
 import { hasText } from "@/lib/utils";
 import type {
   Message,
+  ResearchActivity,
   ReadonlyChatSummary,
   ReadonlyThinkingStep,
   ResearchStreamContext,
@@ -16,7 +17,7 @@ import {
 } from "../stream/research-stream";
 import { getMessageVersionGroupId, getVisibleConversationMessages } from "@/lib/chat-branching";
 import { installResearchStallTimeout, runResearchStream } from "../stream/protocol";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 interface ResearchStreamActions {
   readonly startResearch: (parameters: StartResearchParameters) => Promise<void>;
@@ -38,6 +39,7 @@ interface ResearchStartPlan {
   readonly assistantId: string;
   readonly historyPayload: ReturnType<typeof buildChatHistoryPayload>;
   readonly promptQuery: string;
+  readonly modelId?: string;
   readonly semanticToolId: string;
   readonly visibleHistoryMessages: readonly Message[];
 }
@@ -46,7 +48,7 @@ const prepareResearchStart = (
   parameters: Readonly<StartResearchParameters>,
   activeAssistantVersions: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): ResearchStartPlan => {
-  const { chatId, prompt, retryGroupId, seedMessages, versionSelectionOverrides } = parameters;
+  const { chatId, model, prompt, retryGroupId, seedMessages, versionSelectionOverrides } = parameters;
   const versionSelections = {
     ...activeAssistantVersions[chatId],
     ...versionSelectionOverrides,
@@ -60,16 +62,17 @@ const prepareResearchStart = (
       message.type !== "assistant" ||
       getMessageVersionGroupId(message) !== retryGroupId,
   );
-  const timestamp = Date.now();
-  const assistantId = `assistant-${timestamp}`;
+  const requestId = globalThis.crypto.randomUUID();
+  const assistantId = `assistant-${requestId}`;
   return {
     assistantGroupId: retryGroupId ?? assistantId,
     assistantId,
     historyPayload: buildChatHistoryPayload(visibleHistoryMessages),
+    modelId: model,
     promptQuery: `${prompt}
 
 Provide a concise answer with detailed well-written prose based on the sources you have searched cited them when needed.`,
-    semanticToolId: `semantic-${timestamp}`,
+    semanticToolId: `semantic-${requestId}`,
     visibleHistoryMessages,
   };
 };
@@ -102,7 +105,14 @@ const createResearchStreamState = (): ResearchStreamState => {
   let clearStallTimeout = (): void => {};
   let structuredArticles: StructuredArticlesPayload | undefined = undefined;
   const thinkingSteps: ReadonlyThinkingStep[] = [];
+  const activities: ResearchActivity[] = [];
   return {
+    get activities() {
+      return activities;
+    },
+    addActivity: (activity) => {
+      activities.push(activity);
+    },
     addThinkingStep: (step) => {
       thinkingSteps.push(step);
     },
@@ -213,7 +223,7 @@ const runResearchRequest = async (
   const stallTimeout = installResearchStallTimeout(streamContext);
   try {
     await runResearchStream(
-      buildResearchStreamUrl(plan.promptQuery, plan.historyPayload),
+      buildResearchStreamUrl(plan.promptQuery, plan.historyPayload, plan.modelId),
       abortController,
       stallTimeout,
       streamContext,
@@ -283,12 +293,14 @@ const useResearchTransport = (
   context: Readonly<ResearchTransportContext>,
 ): ResearchStreamActions => {
   const abortControllerRef = useRef<AbortController | undefined>(void 0);
-  const abortControllerState: AbortControllerState = {
-    get: () => abortControllerRef.current,
-    set: (controller) => {
-      abortControllerRef.current = controller;
-    },
-  };
+  const getAbortController = useCallback(() => abortControllerRef.current, []);
+  const setAbortController = useCallback((controller: AbortController | undefined) => {
+    abortControllerRef.current = controller;
+  }, []);
+  const abortControllerState = useMemo(
+    () => ({ get: getAbortController, set: setAbortController }),
+    [getAbortController, setAbortController],
+  );
   const stopResearch = useResearchStop(
     context.activeChatId,
     context.setIsSearching,

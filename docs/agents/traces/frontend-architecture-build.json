@@ -1,0 +1,12 @@
+{
+  "command": ["npm", "--prefix", "frontend", "run", "build"],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 23.924,
+  "max_rss_kb": 1763624,
+  "returncode": 0,
+  "stderr_tail": "npm notice run Global News Reader@0.1.0 build\nnpm notice run next build\n(node:934452) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n(node:934524) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)",
+  "stdout_tail": "\u25b2 Next.js 16.1.2 (Turbopack)\n- Environments: .env.local\n\n  Creating an optimized production build ...\n\u2713 Compiled successfully in 8.8s\n  Running TypeScript ...\n  Collecting page data using 11 workers ...\n  Generating static pages using 11 workers (0/12) ...\n  Generating static pages using 11 workers (3/12) \n  Generating static pages using 11 workers (6/12) \n  Generating static pages using 11 workers (9/12) \n\u2713 Generating static pages using 11 workers (12/12) in 368.1ms\n  Finalizing page optimization ...\n\nRoute (app)\n\u250c \u25cb /\n\u251c \u25cb /_not-found\n\u251c \u25cb /debug\n\u251c \u25cb /saved\n\u251c \u25cb /search\n\u251c \u25cb /settings\n\u251c \u0192 /source/[sourceId]\n\u251c \u25cb /sources\n\u251c \u0192 /sources/[source]/debug\n\u251c \u25cb /sources/debug\n\u251c \u25cb /wiki/analysis/funding-bias\n\u251c \u0192 /wiki/organization/[id]\n\u251c \u25cb /wiki/ownership\n\u251c \u0192 /wiki/person/[id]\n\u251c \u0192 /wiki/reporter/[id]\n\u251c \u25cb /wiki/reporters\n\u2514 \u0192 /wiki/source/[sourceName]\n\n\n\u25cb  (Static)   prerendered as static content\n\u0192  (Dynamic)  server-rendered on demand\n",
+  "timed_out": false,
+  "verdict": "success",
+  "warnings": []
+}

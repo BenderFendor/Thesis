@@ -965,7 +965,7 @@ def _local_profile_citations(
     """Build citation entries from local articles, author pages, and external profiles."""
     return (
         [{"label": "Local article evidence", "url": url} for url in article_urls[:5]]
-        + [{"label": "Official author page", "url": url} for url in author_pages[:5]]
+        + [{"label": "Observed author page URL", "url": url} for url in author_pages[:5]]
         + [{"label": "Structured external profile", "url": url} for url in external_profiles[:5]]
     )
 
