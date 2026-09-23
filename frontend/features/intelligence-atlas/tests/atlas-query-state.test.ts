@@ -1,12 +1,16 @@
-import { DEFAULT_ATLAS_QUERY_STATE, parseAtlasQueryState, serializeAtlasQueryState } from '../lib/atlas-query-state';
-import { describe, expect, it } from '@jest/globals';
-import { AtlasGraphFiltersSchema } from '../lib/atlas-schema';
-import type { AtlasQueryState } from '../lib/atlas-query-state';
-import { atlasGraphQueryString } from '../lib/atlas-api';
+import {
+  DEFAULT_ATLAS_QUERY_STATE,
+  parseAtlasQueryState,
+  serializeAtlasQueryState,
+} from "../lib/atlas-query-state";
+import { describe, expect, it } from "@jest/globals";
+import { AtlasGraphFiltersSchema } from "../lib/atlas-schema";
+import type { AtlasQueryState } from "../lib/atlas-query-state";
+import { atlasGraphQueryString } from "../lib/atlas-api";
 
 const CLOSED_INSPECTOR_NEIGHBORS = 1,
- EXPECTED_MIN_CONFIDENCE = 1,
- EXPECTED_NEIGHBORS = 2;
+  EXPECTED_MIN_CONFIDENCE = 1,
+  EXPECTED_NEIGHBORS = 2;
 
 describe("atlas query state parsing", () => {
   it("round-trips shareable investigation state", () => {
@@ -73,15 +77,16 @@ describe("atlas query state legacy normalization", () => {
 });
 
 describe("atlas query state serialization", () => {
-  it("preserves the backend comma-delimited list query contract", () => {  expect.hasAssertions();
+  it("preserves the backend comma-delimited list query contract", () => {
+    expect.hasAssertions();
     const filters = AtlasGraphFiltersSchema.parse({
-      bias: ["independent"],
-      country: ["GB", "US"],
-      entity_types: ["outlet", "organization"],
-      funding: ["commercial"],
-      relation_types: ["ownership", "employed_by"],
-    }),
-     query = new URLSearchParams(atlasGraphQueryString(filters));
+        bias: ["independent"],
+        country: ["GB", "US"],
+        entity_types: ["outlet", "organization"],
+        funding: ["commercial"],
+        relation_types: ["ownership", "employed_by"],
+      }),
+      query = new URLSearchParams(atlasGraphQueryString(filters));
     expect(query.get("entity_types")).toBe("outlet,organization");
     expect(query.get("relation_types")).toBe("ownership,employed_by");
     expect(query.get("country")).toBe("GB,US");

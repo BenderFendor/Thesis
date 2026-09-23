@@ -94,8 +94,7 @@ const SidebarCollapseButton = ({ onToggle }: Readonly<{ onToggle?: () => void }>
 const ExpandedSidebarHeading = ({ onToggle }: Readonly<{ onToggle?: () => void }>) => (
   <div className="mb-4 flex items-center justify-between">
     <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">Workspace</div>
-      <h2 className="font-serif text-xl text-foreground">Research Threads</h2>
+      <h2 className="text-base font-semibold tracking-tight text-foreground">Research history</h2>
     </div>
     <SidebarCollapseButton onToggle={onToggle} />
   </div>
@@ -160,9 +159,9 @@ const ChatSidebarSearch = ({
     <input
       value={searchTerm}
       onChange={onSearchChange}
-      placeholder="Search conversations"
+      placeholder="Search research"
       aria-label="Search chats"
-      className="h-11 w-full rounded-full border border-border/40 bg-card/30 pl-11 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
+      className="h-10 w-full rounded-lg border border-border/40 bg-card/30 pl-11 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
     />
   </div>
 );
@@ -215,7 +214,7 @@ const AnimatedChatItems = ({ items }: Readonly<{ items: ChatListProps }>) => {
 };
 
 const ChatList = (props: Readonly<ChatListProps>): ReactElement => (
-  <ul className="space-y-2">
+  <ul className="space-y-1">
     <AnimatedChatItems items={props} />
   </ul>
 );
@@ -288,7 +287,7 @@ const ExpandedChatSidebar = ({
   onToggle?: () => void;
   onDeleteAll: () => void;
 }>): ReactElement => (
-  <aside className="flex h-screen w-64 min-w-64 flex-col overflow-hidden border-r border-border/40 bg-background/80 text-foreground backdrop-blur-xl">
+  <aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
     <ExpandedSidebarHeader
       state={state}
       chatCount={chats.length}

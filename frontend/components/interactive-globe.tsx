@@ -37,6 +37,7 @@ interface GlobeRuntimeContext {
 }
 
 interface GlobeRuntime {
+  readonly containerRef: GlobeRuntimeEnvironment["containerRef"];
   readonly dimensions: { readonly height: number; readonly width: number };
   readonly displayCounts: ReturnType<typeof useGlobeCounts>["displayCounts"];
   readonly globeInstance: GlobeInstance | null;
@@ -168,6 +169,7 @@ const useGlobeRuntime = ({
     setDimensions: environment.setDimensions,
   });
   return {
+    containerRef: environment.containerRef,
     dimensions: environment.dimensions,
     displayCounts: data.displayCounts,
     globeInstance: environment.globeInstance,
@@ -181,6 +183,7 @@ const useGlobeRuntime = ({
 };
 
 interface GlobeSurfaceProps {
+  readonly containerRef: GlobeRuntime["containerRef"];
   readonly dimensions: GlobeRuntime["dimensions"];
   readonly globeComponent: NonNullable<ReadonlyInteractiveGlobeProps["globeComponent"]>;
   readonly globeRef: Readonly<{ readonly current: GlobeRef["current"] }>;
@@ -190,6 +193,7 @@ interface GlobeSurfaceProps {
 }
 
 const GlobeSurface = ({
+  containerRef,
   dimensions,
   globeComponent: GlobeComponent,
   globeRef,
@@ -200,7 +204,7 @@ const GlobeSurface = ({
   Readonly<Pick<GlobeSurfaceProps, "globeComponent">>) => {
   const polygonsData = useMemo(() => [...mutablePolygonsData], [mutablePolygonsData]);
   return (
-    <GlobeCanvas>
+    <GlobeCanvas containerRef={containerRef}>
       <GlobeComponent
         ref={globeRef} globeMaterial={globeMaterial()}
         backgroundColor="rgba(0,0,0,0)" showAtmosphere={false}
@@ -242,6 +246,7 @@ const InteractiveGlobe = ({
 
   return (
     <GlobeSurface
+      containerRef={runtime.containerRef}
       dimensions={runtime.dimensions}
       globeComponent={GlobeComponent}
       globeRef={runtime.globeRef}

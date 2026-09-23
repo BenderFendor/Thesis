@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+audit_dir="$repo_root/docs/agents/formal-audit"
+jar_path="${TLA_TOOLS_JAR:-}"
+
+command -v lean >/dev/null || { echo "Lean is required on PATH." >&2; exit 2; }
+command -v java >/dev/null || { echo "Java is required on PATH." >&2; exit 2; }
+if [[ ! -f "$jar_path" ]]; then
+  echo "Set TLA_TOOLS_JAR to the official tla2tools.jar path." >&2
+  exit 2
+fi
+
+temporary_dir="$(mktemp -d)"
+trap 'rm -rf "$temporary_dir"' EXIT
+
+(
+  cd "$audit_dir"
+  lean Audit.lean
+)
+for config in "$audit_dir"/*.cfg; do
+  model="${config%.cfg}"
+  java -jar "$jar_path" -metadir "$temporary_dir/$(basename -- "$model")" -config "$config" "$model.tla"
+done

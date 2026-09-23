@@ -696,22 +696,25 @@ async def _promote_via_wayback(
         reporter.canonical_author_url = original_url
 
     citations = deepcopy(reporter.citations) if isinstance(reporter.citations, list) else []
-    has_citation = any(
-        isinstance(c, dict) and str(c.get("url") or "") == author_page_url for c in citations
-    )
-    if not has_citation:
-        citations.insert(
-            0,
-            {
-                "label": "Wayback Machine archive",
-                "url": author_page_url,
-                "source_type": "archived_author_page",
-                "note": (
-                    f"Live page 403/blocked. Cached snapshot {ts}. "
-                    f"Profile name verified as '{profile_name}'."
-                ),
-            },
-        )
+    citation = {
+        "label": "Wayback Machine archive",
+        "url": author_page_url,
+        "source_type": "archived_author_page",
+        "note": (
+            f"Live page 403/blocked. Cached snapshot {ts}. "
+            f"Profile name verified as '{profile_name}'."
+        ),
+        "profile_verification": {
+            "method": "archived_profile_name_match",
+            "profile_name": profile_name,
+        },
+    }
+    for index, current in enumerate(citations):
+        if isinstance(current, dict) and str(current.get("url") or "") == author_page_url:
+            citations[index] = {**current, **citation}
+            break
+    else:
+        citations.insert(0, citation)
     reporter.citations = citations
     reporter.updated_at = get_utc_now()
 

@@ -27,8 +27,13 @@ describe("atlas accessible list", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /First outlet/u })).toHaveTextContent("2 visible connections");
-    expect(screen.getByRole("button", { name: /First outlet/u })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /First outlet/u })).toHaveTextContent(
+      "2 visible connections",
+    );
+    expect(screen.getByRole("button", { name: /First outlet/u })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     screen.getByRole("button", { name: /Second outlet/u }).click();
     expect(selectNode).toHaveBeenCalledWith(SECOND_NODE_ID);
   });

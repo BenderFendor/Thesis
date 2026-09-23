@@ -23,6 +23,7 @@ class _DummyResponse:
 class _DummyHttpClient:
     def __init__(self, *args: object, **kwargs: object) -> None:
         self.request_json: dict[str, object] | None = None
+        self.requests: list[dict[str, object]] = []
 
     def __enter__(self) -> _DummyHttpClient:
         return self
@@ -33,7 +34,10 @@ class _DummyHttpClient:
     def post(self, path: str, json: dict[str, object]) -> _DummyResponse:
         assert path == "/embed"
         self.request_json = json
-        return _DummyResponse({"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]})
+        self.requests.append(json)
+        texts = json["texts"]
+        assert isinstance(texts, list)
+        return _DummyResponse({"embeddings": [[0.1, 0.2, 0.3] for _ in texts]})
 
 
 def test_remote_embedding_model_encodes_batches_without_local_model(
@@ -78,6 +82,23 @@ def test_remote_embedding_model_wraps_single_string(monkeypatch) -> None:
         "texts": ["alpha"],
         "batch_size": 4,
     }
+
+
+def test_remote_embedding_model_splits_large_requests(monkeypatch) -> None:
+    dummy_client = _DummyHttpClient()
+    monkeypatch.setattr(
+        "app.embedding_client.httpx.Client",
+        lambda *args, **kwargs: dummy_client,
+    )
+
+    model = RemoteEmbeddingModel(
+        EmbeddingServiceClient("http://embedding-service", timeout_seconds=5)
+    )
+
+    encoded = model.encode([f"text-{index}" for index in range(65)], batch_size=32)
+
+    assert encoded.shape == (65, 3)
+    assert [len(request["texts"]) for request in dummy_client.requests] == [32, 32, 1]
 
 
 def test_embedding_service_health_reports_lazy_load_state(monkeypatch) -> None:

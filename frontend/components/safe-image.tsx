@@ -1,28 +1,44 @@
-"use client"
+"use client";
 
-import { useCallback, useState } from "react"
-import Image from "next/image"
+import { DEFAULT_ARTICLE_IMAGE, isUsableImage } from "@/lib/article-image";
+import { useCallback, useState } from "react";
+import Image from "next/image";
 
 interface SafeImageProps {
-  readonly alt: string
-  readonly className?: string
-  readonly fallbackSrc?: string
-  readonly fill?: boolean
-  readonly height?: ImageDimension
-  readonly sizes?: string
-  readonly src?: string | null
-  readonly unoptimized?: boolean
-  readonly width?: ImageDimension
+  readonly alt: string;
+  readonly className?: string;
+  readonly fallbackSrc?: string;
+  readonly fill?: boolean;
+  readonly height?: ImageDimension;
+  readonly sizes?: string;
+  readonly src?: string | null;
+  readonly unoptimized?: boolean;
+  readonly width?: ImageDimension;
 }
 
-type ImageDimension = number | `${number}`
+type ImageDimension = number | `${number}`;
 
-const EMPTY_STRING_LENGTH = 0,
+const resolveSafeImageSource = (src: string | null | undefined, fallbackSrc: string): string => {
+  if (isUsableImage(src)) {
+    return src;
+  }
+  return fallbackSrc;
+};
+const resolveRenderedImageSource = (
+  failedSrc: string | undefined,
+  resolvedSrc: string,
+  fallbackSrc: string,
+): string => {
+  if (failedSrc === resolvedSrc) {
+    return fallbackSrc;
+  }
+  return resolvedSrc;
+};
 
- SafeImage = ({
+const SafeImage = ({
   src,
   alt,
-  fallbackSrc = "/placeholder.svg",
+  fallbackSrc = DEFAULT_ARTICLE_IMAGE,
   unoptimized = true,
   className,
   fill,
@@ -30,12 +46,12 @@ const EMPTY_STRING_LENGTH = 0,
   sizes,
   width,
 }: Readonly<SafeImageProps>) => {
-  const resolvedSrc = resolveImageSource(src, fallbackSrc),
-   [failedSrc, setFailedSrc] = useState<string>(),
-   sourceForRender = resolveFailedImageSource(resolvedSrc, failedSrc, fallbackSrc),
-   sourceRenderErrorHandler = useCallback(() => {
-    setFailedSrc(resolvedSrc)
-  }, [resolvedSrc])
+  const resolvedSrc = resolveSafeImageSource(src, fallbackSrc),
+    [failedSrc, setFailedSrc] = useState<string>(),
+    sourceForRender = resolveRenderedImageSource(failedSrc, resolvedSrc, fallbackSrc),
+    sourceRenderErrorHandler = useCallback(() => {
+      setFailedSrc(resolvedSrc);
+    }, [resolvedSrc]);
 
   return (
     <Image
@@ -49,28 +65,7 @@ const EMPTY_STRING_LENGTH = 0,
       unoptimized={unoptimized}
       width={width}
     />
-  )
-},
+  );
+};
 
- resolveFailedImageSource = (
-  resolvedSrc: string,
-  failedSrc: string | undefined,
-  fallbackSrc: string,
-): string => {
-  if (failedSrc === resolvedSrc) {
-    return fallbackSrc
-  }
-
-  return resolvedSrc
-},
-
-resolveImageSource = (src: string | null | undefined, fallbackSrc: string): string => {
-  const candidate = src ?? fallbackSrc
-  if (candidate.trim().length === EMPTY_STRING_LENGTH) {
-    return fallbackSrc
-  }
-
-  return candidate
-}
-
-export { SafeImage }
+export { SafeImage };

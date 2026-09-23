@@ -69,8 +69,14 @@ const AtlasAccessibleList = (props: Readonly<AtlasAccessibleListProps>) => {
       relationCounts = new Map<string, number>();
 
     edges.forEach((edge) => {
-      relationCounts.set(edge.source_id, (relationCounts.get(edge.source_id) ?? EMPTY_COUNT) + CONNECTION_INCREMENT);
-      relationCounts.set(edge.target_id, (relationCounts.get(edge.target_id) ?? EMPTY_COUNT) + CONNECTION_INCREMENT);
+      relationCounts.set(
+        edge.source_id,
+        (relationCounts.get(edge.source_id) ?? EMPTY_COUNT) + CONNECTION_INCREMENT,
+      );
+      relationCounts.set(
+        edge.target_id,
+        (relationCounts.get(edge.target_id) ?? EMPTY_COUNT) + CONNECTION_INCREMENT,
+      );
     });
 
     return (

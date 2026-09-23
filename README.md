@@ -116,7 +116,7 @@ Common variables:
 | --- | --- |
 | `OPEN_ROUTER_API_KEY` | Enables OpenRouter-backed research and analysis. |
 | `LLM_BACKEND` | Selects the LLM provider: `openrouter` (default), `llamacpp`, or `opencode` (OpenCode Zen free models). |
-| `OPENCODE_API_KEY` | Enables OpenCode Zen research when `LLM_BACKEND=opencode`; model via `OPENCODE_MODEL`. |
+| `OPENCODE_API_KEY` | Enables OpenCode Zen research when `LLM_BACKEND=opencode`; model via `OPENCODE_MODEL`. The local default is `ling-3.0-flash-fin-free`; add verified alternatives to `OPENCODE_RESEARCH_MODELS` as a comma-separated list. |
 | `GEMINI_API_KEY` | Enables Gemini-backed research and analysis. |
 | `DATABASE_URL` | Overrides the default PostgreSQL connection string. |
 | `STARTUP_CACHE_ARTICLE_LIMIT` | Sets how many recent database articles each API worker loads at startup. Default: `10000`. |

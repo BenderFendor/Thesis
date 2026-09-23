@@ -43,6 +43,7 @@ _NON_AUTHOR_IDENTITY_HOSTS = {
 }
 _VERIFIED_AUTHOR_PAGE_LABELS = {"Official author page", "Wayback Machine archive"}
 _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES = {"official_author_page", "archived_author_page"}
+_PROFILE_VERIFICATION_METHODS = {"publisher_profile_name_match", "archived_profile_name_match"}
 _SUPPORTING_BYLINE_LABELS = {
     "Consistent byline attribution",
     "RSS dc:creator attribution",
@@ -233,16 +234,30 @@ def is_author_profile_url(value: str | None) -> bool:
     return any(_profile_path_segment(segment) for segment in path.split("/") if segment)
 
 
-def _citation_verifies_url(citation: object, valid_urls: set[str]) -> bool:
+def _profile_name_verification_matches(citation: dict[str, Any], reporter: Reporter) -> bool:
+    verification = citation.get("profile_verification")
+    if not isinstance(verification, dict):
+        return False
+    if str(verification.get("method") or "") not in _PROFILE_VERIFICATION_METHODS:
+        return False
+    profile_name = clean_author_name(verification.get("profile_name"))
+    reporter_names = {
+        cleaned.casefold()
+        for name in (reporter.name, reporter.canonical_name)
+        if (cleaned := clean_author_name(name))
+    }
+    return bool(profile_name and profile_name.casefold() in reporter_names)
+
+
+def _citation_verifies_url(citation: object, valid_urls: set[str], reporter: Reporter) -> bool:
     if not isinstance(citation, dict):
         return False
     if str(citation.get("url") or "") not in valid_urls:
         return False
     label = str(citation.get("label") or "")
     source_type = str(citation.get("source_type") or "")
-    return (
-        label in _VERIFIED_AUTHOR_PAGE_LABELS or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
-    )
+    has_profile_label = label in _VERIFIED_AUTHOR_PAGE_LABELS or source_type in _VERIFIED_AUTHOR_PAGE_SOURCE_TYPES
+    return has_profile_label and _profile_name_verification_matches(citation, reporter)
 
 
 def has_verified_author_page_citation(reporter: Reporter) -> bool:
@@ -254,7 +269,7 @@ def has_verified_author_page_citation(reporter: Reporter) -> bool:
     }
     citations = reporter.citations if isinstance(reporter.citations, list) else []
     return bool(valid_urls) and any(
-        _citation_verifies_url(citation, valid_urls) for citation in citations
+        _citation_verifies_url(citation, valid_urls, reporter) for citation in citations
     )
 
 

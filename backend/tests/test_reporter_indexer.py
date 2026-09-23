@@ -189,7 +189,7 @@ async def test_unmatched_reporter_persists_local_byline_profile(engine_and_sessi
             "url": "https://example-news.test/local-byline",
         },
         {
-            "label": "Official author page",
+            "label": "Observed author page URL",
             "url": "https://example-news.test/authors/alex-local",
         },
     ]

@@ -42,56 +42,60 @@ interface QueueFixtureResponse {
 }
 
 const HTTP_OK_STATUS = 200,
- createQueueResponse = (body: QueueFixture): QueueFixtureResponse => ({
-  json: () => Promise.resolve(body),
-  ok: true,
-  status: HTTP_OK_STATUS,
-}),
- emptyHighlights: React.ComponentProps<typeof HighlightToolbar>["highlights"] = [],
- highlightContainerRef: React.ComponentProps<typeof HighlightToolbar>["containerRef"] = {
-   current: globalThis.document.createElement("div"),
- },
- noopHighlightHandler = (): void => undefined,
- queueFixtureFetch = (input: string): Promise<QueueFixtureResponse> => {
-  const url = input;
-  if (url.endsWith("/api/queue/overview")) {
-    return Promise.resolve(createQueueResponse({
-      completed_count: 1,
-      daily_items: 3,
-      estimated_total_read_time_minutes: 15,
-      permanent_items: 2,
-      reading_count: 1,
-      total_items: 5,
-      unread_count: 3,
-    }));
-  }
-  if (url.endsWith("/api/queue/digest/daily")) {
-    return Promise.resolve(createQueueResponse({
-      digest_items: [],
-      estimated_read_time_minutes: 15,
-      generated_at: "2026-08-31T00:00:00.000Z",
-      total_items: 5,
-    }));
-  }
-  return Promise.reject(new Error(`Unexpected test request: ${url}`));
- },
- withQueueFixture = async (testBody: () => Promise<void>): Promise<void> => {
-  const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
-  Object.defineProperty(globalThis, "fetch", {
-    configurable: true,
-    value: queueFixtureFetch,
-    writable: true,
-  });
-  try {
-    await testBody();
-  } finally {
-    if (originalFetchDescriptor === undefined) {
-      Reflect.deleteProperty(globalThis, "fetch");
-    } else {
-      Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
+  createQueueResponse = (body: QueueFixture): QueueFixtureResponse => ({
+    json: () => Promise.resolve(body),
+    ok: true,
+    status: HTTP_OK_STATUS,
+  }),
+  emptyHighlights: React.ComponentProps<typeof HighlightToolbar>["highlights"] = [],
+  highlightContainerRef: React.ComponentProps<typeof HighlightToolbar>["containerRef"] = {
+    current: globalThis.document.createElement("div"),
+  },
+  noopHighlightHandler = (): void => undefined,
+  queueFixtureFetch = (input: string): Promise<QueueFixtureResponse> => {
+    const url = input;
+    if (url.endsWith("/api/queue/overview")) {
+      return Promise.resolve(
+        createQueueResponse({
+          completed_count: 1,
+          daily_items: 3,
+          estimated_total_read_time_minutes: 15,
+          permanent_items: 2,
+          reading_count: 1,
+          total_items: 5,
+          unread_count: 3,
+        }),
+      );
     }
-  }
- };
+    if (url.endsWith("/api/queue/digest/daily")) {
+      return Promise.resolve(
+        createQueueResponse({
+          digest_items: [],
+          estimated_read_time_minutes: 15,
+          generated_at: "2026-08-31T00:00:00.000Z",
+          total_items: 5,
+        }),
+      );
+    }
+    return Promise.reject(new Error(`Unexpected test request: ${url}`));
+  },
+  withQueueFixture = async (testBody: () => Promise<void>): Promise<void> => {
+    const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: queueFixtureFetch,
+      writable: true,
+    });
+    try {
+      await testBody();
+    } finally {
+      if (originalFetchDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "fetch");
+      } else {
+        Object.defineProperty(globalThis, "fetch", originalFetchDescriptor);
+      }
+    }
+  };
 
 describe("readTimeBadge", () => {
   it("renders read time correctly", () => {
@@ -108,9 +112,7 @@ describe("readTimeBadge", () => {
 
   it("renders full view with word count", () => {
     expect.hasAssertions();
-    render(
-      <ReadTimeBadge estimatedMinutes={3} wordCount={500} compact={false} />
-    );
+    render(<ReadTimeBadge estimatedMinutes={3} wordCount={500} compact={false} />);
     expect(screen.getByText(/3 minute read/u)).toBeInTheDocument();
     expect(screen.getByText(/500/u)).toBeInTheDocument();
   });
@@ -213,7 +215,7 @@ describe("highlightToolbar", () => {
         onCreate={noopHighlightHandler}
         onUpdate={noopHighlightHandler}
         onDelete={noopHighlightHandler}
-      />
+      />,
     );
 
     expect(screen.getByRole("button", { name: "Highlight" })).toBeInTheDocument();

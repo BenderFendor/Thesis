@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from "@jest/globals";
 import { render, screen } from "@testing-library/react";
 
 import { CareerTimeline } from "./career-timeline";
@@ -9,7 +9,9 @@ interface TimelineOverrides {
   readonly timeline?: readonly ReadonlyTimelineEntry[];
 }
 
-type ReadonlyOwnershipRef = Readonly<ReporterCareerTimeline["shared_owner_findings"][number]["owner"]>;
+type ReadonlyOwnershipRef = Readonly<
+  ReporterCareerTimeline["shared_owner_findings"][number]["owner"]
+>;
 type ReadonlySharedOwnerFinding = Readonly<{
   readonly claim_ids: readonly string[];
   readonly evidence_count: number;
@@ -75,22 +77,25 @@ const FIRST_LINK_INDEX = 0,
     },
   ],
   timeline = (overrides: TimelineOverrides = {}): ReporterCareerTimeline => ({
-    shared_owner_findings: Array.from(overrides.shared_owner_findings ?? [], ({ claim_ids, evidence_count, outlets, owner }) => ({
-      claim_ids: [...claim_ids],
-      evidence_count,
-      outlets: Array.from(outlets, ({ entity_id, entity_type, label, profile_path }) => ({
-        entity_id,
-        entity_type,
-        label,
-        profile_path,
-      })),
-      owner: {
-        entity_id: owner.entity_id,
-        entity_type: owner.entity_type,
-        label: owner.label,
-        profile_path: owner.profile_path,
-      },
-    })),
+    shared_owner_findings: Array.from(
+      overrides.shared_owner_findings ?? [],
+      ({ claim_ids, evidence_count, outlets, owner }) => ({
+        claim_ids: [...claim_ids],
+        evidence_count,
+        outlets: Array.from(outlets, ({ entity_id, entity_type, label, profile_path }) => ({
+          entity_id,
+          entity_type,
+          label,
+          profile_path,
+        })),
+        owner: {
+          entity_id: owner.entity_id,
+          entity_type: owner.entity_type,
+          label: owner.label,
+          profile_path: owner.profile_path,
+        },
+      }),
+    ),
     timeline: [...(overrides.timeline ?? [])],
   });
 

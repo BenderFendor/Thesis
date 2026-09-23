@@ -3,7 +3,10 @@ import { z } from "zod";
 import type { CountryFeatureCollection } from "./interactive-globe-visuals-types";
 
 const CountryFeatureSchema = z.object({
-  geometry: z.object({ coordinates: z.unknown() }).nullable().optional(),
+  geometry: z.object({
+    coordinates: z.unknown(),
+    type: z.enum(["Polygon", "MultiPolygon"]).optional(),
+  }).nullable().optional(),
   properties: z
     .object({
       ADM0_A3: z.string().optional(),
@@ -11,6 +14,7 @@ const CountryFeatureSchema = z.object({
       NAME: z.string().optional(),
     })
     .catchall(z.unknown()),
+  type: z.literal("Feature").optional(),
 });
 
 const CountryCollectionSchema = z.object({ features: z.array(CountryFeatureSchema) });

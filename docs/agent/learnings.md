@@ -1,5 +1,13 @@
 # Learnings
 
+## 2026-09-11 — Preserve OpenCode attribution through compatible clients
+
+OpenCode's Zen endpoint is OpenAI-compatible at the payload level but its free gateway also
+uses client headers for session routing. Put those headers in the shared client construction
+boundary and create a session-scoped LangChain client for research calls. A successful `/models`
+response does not prove that a model can complete; test one real completion and distinguish stale
+model ids, missing session headers, and provider rate limits.
+
 ## 2026-09-02 — Fix the rule cluster at the component boundary
 
 - The hook's `max-lines` and `no-ternary` findings in the reader were symptoms

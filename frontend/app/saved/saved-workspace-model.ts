@@ -4,14 +4,13 @@ import type { NewsArticle } from "@/lib/api";
 import { z } from "zod";
 
 const QueueDigestResponseSchema = z
-  .object({
-    content: z.string().optional(),
-    digest: z.string().optional(),
-  })
-  .passthrough(),
- STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
-
- UNCATEGORIZED_LABEL = "Uncategorized";
+    .object({
+      content: z.string().optional(),
+      digest: z.string().optional(),
+    })
+    .passthrough(),
+  STRUCTURED_ARTICLE_BLOCK = /```json:articles\n[\s\S]*?\n```/gu,
+  UNCATEGORIZED_LABEL = "Uncategorized";
 
 type SavedArticleKind = "bookmark" | "liked" | "both";
 
@@ -33,46 +32,27 @@ const normalizedCategory = (category: string): string => {
     return UNCATEGORIZED_LABEL;
   }
   return trimmedCategory;
-}
+};
 
-const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSummary => (
-  {
-    category: normalizedCategory(article.category),
-    source: article.source,
-    summary: article.summary,
-    title: article.title,
-    url: article.url,
-  }
-)
+const toQueueArticleSummary = (article: Readonly<NewsArticle>): QueueArticleSummary => ({
+  category: normalizedCategory(article.category),
+  source: article.source,
+  summary: article.summary,
+  title: article.title,
+  url: article.url,
+});
 
 const groupArticleSummaries = (
   summaries: readonly QueueArticleSummary[],
-) => {
-  const grouped: Record<string, QueueArticleSummary[]> = {};
+): Record<string, QueueArticleSummary[]> => {
+  const grouped = new Map<string, QueueArticleSummary[]>();
   for (const summary of summaries) {
-    const existing = grouped[summary.category];
-    if (existing === undefined) {
-      grouped[summary.category] = [summary];
-      continue;
-    }
+    const existing = grouped.get(summary.category) ?? [];
     existing.push(summary);
+    grouped.set(summary.category, existing);
   }
-  return grouped;
-}
-
-const hasRealImage = (source?: string | null): boolean => {
-  if (source === undefined || source === null) {
-    return false;
-  }
-  const normalized = source.trim().toLowerCase();
-  if (normalized.length === 0 || normalized === "none") {
-    return false;
-  }
-  return (
-    !normalized.includes("/placeholder.svg") &&
-    !normalized.includes("/placeholder.jpg")
-  );
-}
+  return Object.fromEntries(grouped);
+};
 
 const mergeSavedArticles = (
   bookmarks: readonly NewsArticle[],
@@ -86,40 +66,37 @@ const mergeSavedArticles = (
     const existing = articlesByUrl.get(article.url);
     if (existing === undefined) {
       articlesByUrl.set(article.url, { ...article, type: "liked" });
-      continue;
+    } else {
+      articlesByUrl.set(article.url, { ...existing, type: "both" });
     }
-    articlesByUrl.set(article.url, { ...existing, type: "both" });
   }
   return [...articlesByUrl.values()];
-}
+};
 
-const stripStructuredArticleBlock = (digest: string): string => 
-  digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim()
+const stripStructuredArticleBlock = (digest: string): string =>
+  digest.replace(STRUCTURED_ARTICLE_BLOCK, "").trim();
 
-
-const requestQueueDigest = async (
-  articles: readonly NewsArticle[],
-): Promise<string> => {
-  const summaries = articles.map(toQueueArticleSummary),
-   response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
-    body: JSON.stringify({
-      articles: summaries,
-      grouped: groupArticleSummaries(summaries),
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
+const requestQueueDigest = async (articles: readonly NewsArticle[]): Promise<string> => {
+  const summaries = articles.map((article) => toQueueArticleSummary(article));
+  const response = await fetch(`${API_BASE_URL}/api/queue/digest`, {
+      body: JSON.stringify({
+        articles: summaries,
+        grouped: groupArticleSummaries(summaries),
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
   if (!response.ok) {
     throw new Error(`Queue digest failed with status ${response.status}`);
   }
 
-  const payload: unknown = await response.json(),
-   parsed = QueueDigestResponseSchema.safeParse(payload);
+  const payload: unknown = await response.json();
+  const parsed = QueueDigestResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new Error("Queue digest returned an invalid payload");
   }
   const digest = parsed.data.digest ?? parsed.data.content ?? "";
   return stripStructuredArticleBlock(digest);
-}
-export { hasRealImage, mergeSavedArticles, stripStructuredArticleBlock, requestQueueDigest };
-export type { SavedArticleKind, SavedArticle };
+};
+export { mergeSavedArticles, requestQueueDigest };
+export type { SavedArticle };

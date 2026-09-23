@@ -2,6 +2,7 @@
 
 import { EXIT_CODES } from "./protocol.mjs";
 import { execFile } from "node:child_process";
+import { trackedStatus } from "./worktree-snapshot.mjs";
 
 import { promisify } from "node:util";
 
@@ -32,16 +33,6 @@ const checkConcurrency = () => {
   if (Number.isInteger(requested) && requested > 0) { return requested; }
   return DEFAULT_CHECK_CONCURRENCY;
 };
-
-/** @param {string} repositoryRoot @returns {Promise<string>} */
-const trackedStatus = async (repositoryRoot) => {
-  const result = await execFileAsync("git", ["status", "--porcelain=v1"], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    maxBuffer: 2_000_000,
-  });
-  return result.stdout;
-}
 
 /** @param {Check} check @param {string} repositoryRoot @returns {Promise<CheckResult>} */
 const runCheck = async (check, repositoryRoot) => {

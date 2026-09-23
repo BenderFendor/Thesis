@@ -8,7 +8,7 @@ from openai import OpenAI
 import agentic_search as search
 import news_research_agent
 from app.core import config as config_module
-from app.core.config import create_openai_client, resolve_opencode_model
+from app.core.config import create_openai_client, get_opencode_headers, resolve_opencode_model
 
 
 def _opencode_settings(**overrides):
@@ -16,7 +16,7 @@ def _opencode_settings(**overrides):
         llm_backend="opencode",
         opencode_api_key="zen-key",
         opencode_base_url="https://opencode.ai/zen/v1",
-        opencode_model="x-preview-f-free",
+        opencode_model="mimo-v2.5-free",
         open_router_api_key=None,
         open_router_model="z-ai/glm-4.5-air:free",
     )
@@ -51,6 +51,8 @@ def test_create_openai_client_opencode_uses_zen_endpoint(monkeypatch) -> None:
     assert isinstance(client, OpenAI)
     assert "opencode.ai/zen/v1" in str(client.base_url)
     assert client.api_key == "zen-key"
+    assert client.default_headers["x-opencode-client"] == "scoop"
+    assert client.default_headers["x-opencode-session"]
 
 
 def test_create_openai_client_opencode_without_key_fails_closed(monkeypatch) -> None:
@@ -115,7 +117,7 @@ def test_news_research_agent_binds_opencode_zen(monkeypatch) -> None:
             llm_backend="opencode",
             opencode_api_key="zen-key",
             opencode_base_url="https://opencode.ai/zen/v1",
-            opencode_model="x-preview-f-free",
+            opencode_model="mimo-v2.5-free",
             open_router_api_key="unused-openrouter-key",
         ),
     )
@@ -126,9 +128,18 @@ def test_news_research_agent_binds_opencode_zen(monkeypatch) -> None:
     finally:
         news_research_agent._reset_llm_instances()
 
-    assert captured["model"] == "x-preview-f-free"
+    assert captured["model"] == "mimo-v2.5-free"
     assert captured["api_key"].get_secret_value() == "zen-key"
     assert captured["base_url"] == "https://opencode.ai/zen/v1"
+
+
+def test_opencode_headers_use_supplied_session_and_unique_request() -> None:
+    first = get_opencode_headers("research-session")
+    second = get_opencode_headers("research-session")
+
+    assert first["x-opencode-session"] == "research-session"
+    assert first["x-opencode-client"] == "scoop"
+    assert first["x-opencode-request"] != second["x-opencode-request"]
 
 
 def test_agentic_search_chat_llm_uses_opencode(monkeypatch) -> None:
@@ -143,5 +154,6 @@ def test_agentic_search_chat_llm_uses_opencode(monkeypatch) -> None:
     llm = search._create_chat_llm()
 
     assert isinstance(llm, DummyChatOpenAI)
-    assert captured["model"] == "x-preview-f-free"
+    assert captured["model"] == "mimo-v2.5-free"
     assert captured["api_key"].get_secret_value() == "zen-key"
+    assert captured["default_headers"]["x-opencode-client"] == "scoop"

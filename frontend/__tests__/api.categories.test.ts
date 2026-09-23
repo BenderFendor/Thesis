@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { fetchCategories } from "@/lib/api";
 
+interface CategoryResponse {
+  readonly json: () => Promise<Readonly<{ categories: readonly string[] }>>;
+  readonly ok: boolean;
+  readonly status: number;
+}
+
+type CategoryFetch = () => Promise<CategoryResponse>;
+
 describe("fetchCategories", () => {
   const originalFetch = global.fetch;
 
@@ -12,9 +20,17 @@ describe("fetchCategories", () => {
   it("returns the categories array from the backend's object-wrapped response", async () => {
     expect.hasAssertions();
 
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ categories: ["general", "technology", "politics"] }), { status: 200 }),
-    );
+    const fetchMock = jest.fn<CategoryFetch>();
+    fetchMock.mockResolvedValue({
+      json: () => Promise.resolve({ categories: ["general", "technology", "politics"] }),
+      ok: true,
+      status: 200,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock,
+      writable: true,
+    });
 
     const categories = await fetchCategories();
 

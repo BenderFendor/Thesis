@@ -3,15 +3,17 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 const IntelligenceAtlasPage = () => (
-  <Suspense fallback={atlasLoadingFallback}>
-    <IntelligenceAtlasWorkspace />
-  </Suspense>
-),
- atlasLoadingFallback = <div className="min-h-screen bg-[#080907]" aria-label="Loading Intelligence Atlas" />,
- metadata: Metadata = {
-  description: "Trace source, ownership, reporter, article, claim, and evidence relationships.",
-  title: "SCOOP Intelligence Atlas",
-};
+    <Suspense fallback={atlasLoadingFallback}>
+      <IntelligenceAtlasWorkspace />
+    </Suspense>
+  ),
+  atlasLoadingFallback = (
+    <div className="min-h-screen bg-[#080907]" aria-label="Loading Intelligence Atlas" />
+  ),
+  metadata: Metadata = {
+    description: "Trace source, ownership, reporter, article, claim, and evidence relationships.",
+    title: "SCOOP Intelligence Atlas",
+  };
 
 export { metadata };
 export default IntelligenceAtlasPage;

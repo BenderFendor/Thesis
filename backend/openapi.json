@@ -3793,6 +3793,28 @@
         }
       }
     },
+    "/api/news/research/models": {
+      "get": {
+        "tags": [
+          "news-research"
+        ],
+        "summary": "Research Models Endpoint",
+        "description": "List models configured for the research agent.",
+        "operationId": "research_models_endpoint_api_news_research_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchModelCatalog"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/news/research/stream": {
       "get": {
         "tags": [
@@ -3842,6 +3864,24 @@
               "title": "History"
             },
             "description": "JSON-encoded chat history for context"
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Configured research model id",
+              "title": "Model"
+            },
+            "description": "Configured research model id"
           }
         ],
         "responses": {
@@ -11565,20 +11605,19 @@
       },
       "BookmarkEntry": {
         "properties": {
-          "article": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Article"
-          },
-          "articleId": {
+          "article_id": {
             "type": "integer",
-            "title": "Articleid"
+            "title": "Article Id"
           },
-          "bookmarkId": {
+          "bookmark_id": {
             "type": "integer",
-            "title": "Bookmarkid"
+            "title": "Bookmark Id"
           },
-          "createdAt": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "created_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -11587,17 +11626,65 @@
                 "type": "null"
               }
             ],
-            "title": "Createdat"
+            "title": "Created At"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
           }
         },
         "type": "object",
         "required": [
-          "article",
-          "articleId",
-          "bookmarkId"
+          "article_id",
+          "bookmark_id",
+          "category",
+          "source",
+          "title",
+          "url"
         ],
         "title": "BookmarkEntry",
-        "description": "BookmarkEntry API response model."
+        "description": "Bookmark article list entry."
       },
       "BookmarkListResponse": {
         "properties": {
@@ -14008,16 +14095,15 @@
       },
       "LikedEntry": {
         "properties": {
-          "article": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Article"
-          },
-          "articleId": {
+          "article_id": {
             "type": "integer",
-            "title": "Articleid"
+            "title": "Article Id"
           },
-          "createdAt": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "created_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -14026,21 +14112,69 @@
                 "type": "null"
               }
             ],
-            "title": "Createdat"
+            "title": "Created At"
           },
-          "likedId": {
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "liked_id": {
             "type": "integer",
-            "title": "Likedid"
+            "title": "Liked Id"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
           }
         },
         "type": "object",
         "required": [
-          "article",
-          "articleId",
-          "likedId"
+          "article_id",
+          "category",
+          "liked_id",
+          "source",
+          "title",
+          "url"
         ],
         "title": "LikedEntry",
-        "description": "LikedEntry API response model."
+        "description": "Liked article list entry."
       },
       "LikedListResponse": {
         "properties": {
@@ -14664,6 +14798,17 @@
             "type": "boolean",
             "title": "Include Thinking",
             "default": true
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           }
         },
         "type": "object",
@@ -16795,6 +16940,67 @@
         ],
         "title": "ReporterProfileResponse",
         "description": "Reporter Profile Response."
+      },
+      "ResearchModelCatalog": {
+        "properties": {
+          "default": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchModelOption"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "ResearchModelCatalog",
+        "description": "Models configured for the research agent runtime."
+      },
+      "ResearchModelOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "model",
+          "provider"
+        ],
+        "title": "ResearchModelOption",
+        "description": "A configured model available to the research agent."
       },
       "SourceBatchRequest": {
         "properties": {

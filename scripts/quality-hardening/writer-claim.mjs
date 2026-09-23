@@ -64,6 +64,15 @@ const readWriterClaim = async (repositoryRoot) => {
   }
 }
 
+/** @param {string} repositoryRoot @param {string} sessionId @param {string|undefined} taskId @param {boolean} allowStale @returns {Promise<Record<string, unknown> | null>} */
+const assertWriterClaim = async (repositoryRoot, sessionId, taskId, allowStale = false) => {
+  const claim = await readWriterClaim(repositoryRoot);
+  if (claim && !allowStale && (claim.session_id !== sessionId || (taskId && claim.task_id !== taskId))) {
+    throw new Error("writer claim belongs to another task or session");
+  }
+  return claim;
+}
+
 /** @param {string} repositoryRoot @param {Readonly<Record<string, unknown>>} task */
 const writeActiveTask = async (repositoryRoot, task) => {
   const path = activeTaskPath(repositoryRoot),
@@ -104,15 +113,12 @@ const clearActiveTask = async (repositoryRoot, sessionId, taskId) => {
   }
 }
 
-/** @param {string} repositoryRoot @param {string} sessionId @param {boolean} allowStale */
-const releaseWriter = async (repositoryRoot, sessionId, allowStale = false) => {
-  const claim = await readWriterClaim(repositoryRoot);
+/** @param {string} repositoryRoot @param {string} sessionId @param {boolean} allowStale @param {string} [taskId] */
+const releaseWriter = async (repositoryRoot, sessionId, allowStale = false, taskId) => {
+  const claim = await assertWriterClaim(repositoryRoot, sessionId, taskId, allowStale);
   if (!claim) {return false;}
-  if (!allowStale && claim.session_id !== sessionId) {
-    throw new Error("writer claim belongs to another session");
-  }
   await unlink(claimPath(repositoryRoot));
   return true;
 }
 
-export { activeTaskPath, claimWriter, claimPath, clearActiveTask, expandWriterClaim, normalizePaths, readWriterClaim, releaseWriter, writeActiveTask };
+export { activeTaskPath, assertWriterClaim, claimWriter, claimPath, clearActiveTask, expandWriterClaim, normalizePaths, readWriterClaim, releaseWriter, writeActiveTask };

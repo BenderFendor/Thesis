@@ -1,7 +1,13 @@
-import type { Message, ReadonlyChatSummary, ReadonlyNewsArticle } from "../model/types";
+import type {
+  Message,
+  ReadonlyChatSummary,
+  ReadonlyNewsArticle,
+  ResearchModelCatalog,
+} from "../model/types";
 import { ResearchChatView, WorkspaceHeader } from "./research-workspace";
 import { ArticleDetailModal } from "@/components/article-detail-modal";
 import { ChatSidebar } from "@/components/chat-sidebar";
+import { GlobalNavigation } from "@/components/global-navigation";
 import { EmptyResearchView } from "./empty-research-view";
 import type { EmptyResearchViewProps } from "./empty-research-view";
 import type { ResearchChatViewProps } from "./research-workspace";
@@ -28,6 +34,11 @@ interface ResearchWorkspaceModel {
   readonly isSearching: boolean;
   readonly onToggleSidebar: () => void;
   readonly onStop: () => void;
+  readonly modelCatalog: ResearchModelCatalog;
+  readonly modelCatalogHasError: boolean;
+  readonly modelCatalogLoading: boolean;
+  readonly selectModel: (modelId: string) => void;
+  readonly selectedModelId?: string;
   readonly chat: Readonly<ResearchChatViewProps>;
   readonly empty: Readonly<EmptyResearchViewProps>;
 }
@@ -54,14 +65,13 @@ const ResearchSidebar = ({ model }: { readonly model: ResearchSidebarModel }) =>
     onSelect: handleSelect,
     onToggle: handleToggle,
   } = model;
-  return (
-    <div
-      className={`${(() => {
   if (model.collapsed) {
-    return "w-16";
+    return null;
   }
-  return "w-60";
-})()} hidden shrink-0 border-r bg-background/80 transition-all duration-300 ease-in-out md:block`}
+  return (
+    <aside
+      aria-label="Research conversations"
+      className="absolute inset-y-0 left-0 z-30 w-72 max-w-full shrink-0 border-r border-border bg-card shadow-xl xl:static xl:shadow-none"
     >
       <ChatSidebar
         activeId={model.activeChatId}
@@ -74,7 +84,7 @@ const ResearchSidebar = ({ model }: { readonly model: ResearchSidebarModel }) =>
         onSelect={handleSelect}
         onToggle={handleToggle}
       />
-    </div>
+    </aside>
   );
 };
 
@@ -113,12 +123,17 @@ const ResearchWorkspace = ({ model }: { readonly model: ResearchWorkspaceModel }
         isEmpty={model.isEmpty}
         isSearching={model.isSearching}
         latestAssistantMessage={model.latestAssistantMessage}
+        modelCatalog={model.modelCatalog}
+        modelCatalogHasError={model.modelCatalogHasError}
+        modelCatalogLoading={model.modelCatalogLoading}
         messageCount={model.messageCount}
+        selectModel={model.selectModel}
         onStop={handleStop}
         onToggleSidebar={handleToggleSidebar}
         sidebarCollapsed={model.collapsed}
+        selectedModelId={model.selectedModelId}
       />
-      <main className="flex h-full flex-1 flex-col overflow-hidden bg-transparent">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
         <ResearchWorkspaceContent model={model} />
       </main>
     </div>
@@ -128,8 +143,9 @@ const ResearchWorkspace = ({ model }: { readonly model: ResearchWorkspaceModel }
 const ResearchPageView = ({ articleModal, sidebar, workspace }: ResearchPageViewProps) => {
   const { onClose: handleClose } = articleModal;
   return (
-    <div className="h-screen overflow-hidden bg-background text-foreground">
-      <div className="flex h-screen bg-gradient-to-br from-background via-background to-card/20">
+    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
+      <GlobalNavigation />
+      <div className="relative flex min-w-0 flex-1">
         <ResearchSidebar model={sidebar} />
         <ResearchWorkspace model={workspace} />
       </div>

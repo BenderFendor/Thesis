@@ -1,0 +1,12 @@
+{
+  "command": ["./frontend/node_modules/.bin/tsc", "-p", "frontend/tsconfig.json", "--noEmit"],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 3.147,
+  "max_rss_kb": 572764,
+  "returncode": 2,
+  "stderr_tail": "",
+  "stdout_tail": "frontend/components/feed-view.tsx(183,16): error TS2304: Cannot find name 'cn'.\nfrontend/components/feed-view.tsx(191,22): error TS2304: Cannot find name 'cn'.\nfrontend/components/feed-view.tsx(195,22): error TS2304: Cannot find name 'cn'.\nfrontend/components/feed-view.tsx(514,22): error TS2304: Cannot find name 'cn'.\nfrontend/components/feed-view.tsx(525,21): error TS2304: Cannot find name 'cn'.\nfrontend/components/feed-view.tsx(536,25): error TS2304: Cannot find name 'cn'.",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

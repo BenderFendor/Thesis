@@ -1,6 +1,6 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { fetchSources, mapBackendArticles, removeDuplicateArticles } from '@/lib/api';
-import type { ReadonlyBackendArticle } from '@/lib/api';
+import { describe, expect, it, jest } from "@jest/globals";
+import { fetchSources, mapBackendArticles, removeDuplicateArticles } from "@/lib/api";
+import type { ReadonlyBackendArticle } from "@/lib/api";
 import fc from "fast-check";
 
 interface SourcePayload {
@@ -23,76 +23,74 @@ interface SourceResponse {
 }
 
 const articleStringArb = fc.string({ maxLength: 120 }),
- dateValueArb = fc
-  .integer({
-    max: Date.parse("2100-12-31T23:59:59.999Z"),
-    min: Date.parse("2000-01-01T00:00:00.000Z"),
-  })
-  .map((timestampMs) => new Date(timestampMs).toISOString()),
-
- recordArticleArb: fc.Arbitrary<ReadonlyBackendArticle> = fc.record({
-  article_id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), {
-    nil: undefined,
+  dateValueArb = fc
+    .integer({
+      max: Date.parse("2100-12-31T23:59:59.999Z"),
+      min: Date.parse("2000-01-01T00:00:00.000Z"),
+    })
+    .map((timestampMs) => new Date(timestampMs).toISOString()),
+  recordArticleArb: fc.Arbitrary<ReadonlyBackendArticle> = fc.record({
+    article_id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), {
+      nil: undefined,
+    }),
+    article_url: fc.option(articleStringArb, { nil: undefined }),
+    author: fc.option(articleStringArb, { nil: undefined }),
+    authors: fc.option(fc.array(articleStringArb, { maxLength: 3 }), {
+      nil: undefined,
+    }),
+    bias: fc.option(articleStringArb, { nil: undefined }),
+    category: fc.option(articleStringArb, { nil: undefined }),
+    content: fc.option(articleStringArb, { nil: undefined }),
+    country: fc.option(articleStringArb, { nil: undefined }),
+    credibility: fc.option(articleStringArb, { nil: undefined }),
+    description: fc.option(articleStringArb, { nil: undefined }),
+    id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), { nil: undefined }),
+    image: fc.option(articleStringArb, { nil: undefined }),
+    image_url: fc.option(articleStringArb, { nil: undefined }),
+    is_persisted: fc.option(fc.boolean(), { nil: undefined }),
+    link: fc.option(articleStringArb, { nil: undefined }),
+    original_language: fc.option(fc.string({ maxLength: 5, minLength: 2 }), {
+      nil: undefined,
+    }),
+    original_url: fc.option(articleStringArb, { nil: undefined }),
+    published: fc.option(dateValueArb, { nil: undefined }),
+    publishedAt: fc.option(dateValueArb, { nil: undefined }),
+    published_at: fc.option(dateValueArb, { nil: undefined }),
+    source: fc.option(articleStringArb, { nil: undefined }),
+    source_id: fc.option(articleStringArb, { nil: undefined }),
+    source_name: fc.option(articleStringArb, { nil: undefined }),
+    summary: fc.option(articleStringArb, { nil: undefined }),
+    title: fc.option(articleStringArb, { nil: undefined }),
+    translated: fc.option(fc.boolean(), { nil: undefined }),
+    url: fc.option(articleStringArb, { nil: undefined }),
   }),
-  article_url: fc.option(articleStringArb, { nil: undefined }),
-  author: fc.option(articleStringArb, { nil: undefined }),
-  authors: fc.option(fc.array(articleStringArb, { maxLength: 3 }), {
-    nil: undefined,
-  }),
-  bias: fc.option(articleStringArb, { nil: undefined }),
-  category: fc.option(articleStringArb, { nil: undefined }),
-  content: fc.option(articleStringArb, { nil: undefined }),
-  country: fc.option(articleStringArb, { nil: undefined }),
-  credibility: fc.option(articleStringArb, { nil: undefined }),
-  description: fc.option(articleStringArb, { nil: undefined }),
-  id: fc.option(fc.integer({ max: 1_000_000, min: 1 }), { nil: undefined }),
-  image: fc.option(articleStringArb, { nil: undefined }),
-  image_url: fc.option(articleStringArb, { nil: undefined }),
-  is_persisted: fc.option(fc.boolean(), { nil: undefined }),
-  link: fc.option(articleStringArb, { nil: undefined }),
-  original_language: fc.option(fc.string({ maxLength: 5, minLength: 2 }), {
-    nil: undefined,
-  }),
-  original_url: fc.option(articleStringArb, { nil: undefined }),
-  published: fc.option(dateValueArb, { nil: undefined }),
-  publishedAt: fc.option(dateValueArb, { nil: undefined }),
-  published_at: fc.option(dateValueArb, { nil: undefined }),
-  source: fc.option(articleStringArb, { nil: undefined }),
-  source_id: fc.option(articleStringArb, { nil: undefined }),
-  source_name: fc.option(articleStringArb, { nil: undefined }),
-  summary: fc.option(articleStringArb, { nil: undefined }),
-  title: fc.option(articleStringArb, { nil: undefined }),
-  translated: fc.option(fc.boolean(), { nil: undefined }),
-  url: fc.option(articleStringArb, { nil: undefined }),
-}),
-
- // SAFETY: fetchSources only reads ok, status, and json from this response boundary.
- sourceResponse: SourceResponse = {
-   json: () => Promise.resolve([
-     {
-       bias_rating: "left-leaning",
-       category: "world",
-       country: "GB",
-       factual_rating: "high",
-       funding_type: "public",
-       is_paywalled: true,
-       name: "Example News",
-       ownership_label: "Example Trust",
-       source_type: "newspaper",
-       url: "https://example.com",
-     },
-   ]),
-   ok: true,
-   status: 200,
- };
+  // SAFETY: fetchSources only reads ok, status, and json from this response boundary.
+  sourceResponse: SourceResponse = {
+    json: () =>
+      Promise.resolve([
+        {
+          bias_rating: "left-leaning",
+          category: "world",
+          country: "GB",
+          factual_rating: "high",
+          funding_type: "public",
+          is_paywalled: true,
+          name: "Example News",
+          ownership_label: "Example Trust",
+          source_type: "newspaper",
+          url: "https://example.com",
+        },
+      ]),
+    ok: true,
+    status: 200,
+  };
 
 describe("api image mapping property", () => {
-  it("maps explicit none image marker to placeholder", () => {expect.hasAssertions();
+  it("maps explicit none image marker to placeholder", () => {
+    expect.hasAssertions();
     const checkResult = fc.check(
       fc.property(recordArticleArb, (article: ReadonlyBackendArticle) => {
-        const [mapped] = mapBackendArticles([
-          { ...article, image: "none", image_url: undefined },
-        ]);
+        const [mapped] = mapBackendArticles([{ ...article, image: "none", image_url: undefined }]);
         expect(mapped).toStrictEqual(expect.objectContaining({ image: "/placeholder.svg" }));
       }),
     );
@@ -101,7 +99,8 @@ describe("api image mapping property", () => {
 });
 
 describe("api deduplication property", () => {
-  it("deduplicates by title-source key", () => {expect.hasAssertions();
+  it("deduplicates by title-source key", () => {
+    expect.hasAssertions();
     const checkResult = fc.check(
       fc.property(
         fc.array(recordArticleArb, { maxLength: 40, minLength: 1 }),
@@ -124,7 +123,8 @@ describe("api deduplication property", () => {
 });
 
 describe("api persistence property", () => {
-  it("keeps rows without backend ids non-persisted even when a stable fallback id is synthesized", () => {expect.hasAssertions();
+  it("keeps rows without backend ids non-persisted even when a stable fallback id is synthesized", () => {
+    expect.hasAssertions();
     const checkResult = fc.check(
       fc.property(recordArticleArb, (article: ReadonlyBackendArticle) => {
         const [mapped] = mapBackendArticles([
@@ -136,10 +136,12 @@ describe("api persistence property", () => {
           },
         ]);
 
-          expect(mapped).toStrictEqual(expect.objectContaining({
+        expect(mapped).toStrictEqual(
+          expect.objectContaining({
             id: expect.any(Number),
             isPersisted: false,
-          }));
+          }),
+        );
       }),
     );
     expect(checkResult.failed).toBe(false);
@@ -149,8 +151,11 @@ describe("api persistence property", () => {
 describe("api source contract", () => {
   const originalFetch = globalThis.fetch;
 
-  it("maps source metadata into the UI source contract", async () => { expect.hasAssertions();
-      const fetchMock = jest.fn<(url: string) => Promise<SourceResponse>>().mockResolvedValue(sourceResponse);
+  it("maps source metadata into the UI source contract", async () => {
+    expect.hasAssertions();
+    const fetchMock = jest
+      .fn<(url: string) => Promise<SourceResponse>>()
+      .mockResolvedValue(sourceResponse);
     Object.defineProperty(globalThis, "fetch", {
       configurable: true,
       value: fetchMock,

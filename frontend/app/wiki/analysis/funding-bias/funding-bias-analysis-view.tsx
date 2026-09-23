@@ -1,11 +1,16 @@
 "use client";
 
 import { ChevronLeft, Loader2 } from "lucide-react";
-import type { FundingBiasAnalysisResponse, FundingBiasStatistic } from "@/features/intelligence-atlas/lib/atlas-schema";
-import type { ReactElement, ReactNode } from "react";
+import type {
+  FundingBiasAnalysisResponse,
+  FundingBiasStatistic,
+} from "@/features/intelligence-atlas/lib/atlas-schema";
 import { GlobalNavigation } from "@/components/global-navigation";
 import Link from "next/link";
+import { Panel } from "@/features/wiki/ui/wiki-primitives";
+import type { ReactNode } from "react";
 import { fetchFundingBiasAnalysis } from "@/features/intelligence-atlas/lib/atlas-api";
+import { formatArticleDate } from "@/lib/date-formatters";
 import { useQuery } from "@tanstack/react-query";
 
 interface AnalysisContentProps {
@@ -57,12 +62,6 @@ interface MethodologyPanelProps {
   readonly methodology: FundingBiasMethodologyView | undefined;
 }
 
-interface PanelProps {
-  readonly children: Readonly<ReactElement>;
-  readonly eyebrow: string;
-  readonly title: string;
-}
-
 interface FundingBiasAnalysisViewData {
   readonly algorithm_version?: string | null | undefined;
   readonly available: boolean;
@@ -93,7 +92,9 @@ interface FundingBiasStatisticView extends Readonly<Pick<FundingBiasStatistic, "
   readonly table: readonly (readonly number[])[];
 }
 
-const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | undefined }>): ReactNode => {
+const AlgorithmVersion = (
+    props: Readonly<{ readonly value: string | null | undefined }>,
+  ): ReactNode => {
     const version = props.value ?? "";
     if (version === "") {
       return false;
@@ -154,7 +155,8 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
       </div>
       <h1 className="mt-1 font-serif text-3xl">Funding vs. Bias</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        A pre-registered, catalog-wide association between each outlet&apos;s funding type and its bias rating.
+        A pre-registered, catalog-wide association between each outlet&apos;s funding type and its
+        bias rating.
       </p>
     </div>
   ),
@@ -190,7 +192,7 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     }
 
     return (
-      <Panel title="Association Statistic" eyebrow="Cramer&apos;s V">
+      <Panel title="Association Statistic" eyebrow="Cramer's V">
         <AssociationContent statistic={props.statistic} />
       </Panel>
     );
@@ -199,14 +201,20 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatTile label="n" value={String(props.statistic.n)} />
       <StatTile label="Chi-square" value={formatStatistic(props.statistic.chi_square, "—")} />
-      <StatTile label="Cramer&apos;s V" value={formatStatistic(props.statistic.cramers_v, "—")} />
+      <StatTile label="Cramer's V" value={formatStatistic(props.statistic.cramers_v, "—")} />
       <StatTile label="Interpretation" value={props.statistic.interpretation ?? "not computable"} />
     </div>
   ),
   AvailableAnalysis = (props: Readonly<{ readonly data: FundingBiasAnalysisViewData }>) => (
     <>
-      <MethodologyPanel methodology={props.data.methodology ?? undefined} algorithmVersion={props.data.algorithm_version} />
-      <ContingencyTablePanel populationSize={props.data.population_size} statistic={props.data.statistic ?? undefined} />
+      <MethodologyPanel
+        methodology={props.data.methodology ?? undefined}
+        algorithmVersion={props.data.algorithm_version}
+      />
+      <ContingencyTablePanel
+        populationSize={props.data.population_size}
+        statistic={props.data.statistic ?? undefined}
+      />
       <AssociationPanel statistic={props.data.statistic ?? undefined} />
       <LimitationsPanel methodology={props.data.methodology ?? undefined} />
       <CorrelationCaption />
@@ -216,7 +224,11 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     <div className="overflow-x-auto rounded-2xl border border-white/5 bg-black/20 p-5">
       <table className="w-full border-collapse text-sm">
         <ContingencyTableHead columns={props.statistic.cols} />
-        <ContingencyTableBody columns={props.statistic.cols} rows={props.statistic.rows} table={props.statistic.table} />
+        <ContingencyTableBody
+          columns={props.statistic.cols}
+          rows={props.statistic.rows}
+          table={props.statistic.table}
+        />
       </table>
     </div>
   ),
@@ -258,7 +270,10 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     }
 
     return (
-      <Panel title="Contingency Table" eyebrow={`${props.populationSize} outlets in the population`}>
+      <Panel
+        title="Contingency Table"
+        eyebrow={`${props.populationSize} outlets in the population`}
+      >
         <ContingencyTable statistic={props.statistic} />
       </Panel>
     );
@@ -304,7 +319,9 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
       ))}
     </ul>
   ),
-  LimitationsPanel = (props: Readonly<{ readonly methodology: FundingBiasMethodologyView | undefined }>): ReactNode => {
+  LimitationsPanel = (
+    props: Readonly<{ readonly methodology: FundingBiasMethodologyView | undefined }>,
+  ): ReactNode => {
     const limitations = getLimitations(props.methodology);
     if (limitations === undefined) {
       return false;
@@ -320,21 +337,28 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-5 text-sm leading-relaxed">
       <MethodologyField label="Population" value={props.specification.population} />
       <MethodologyField label="Measure" value={props.specification.measure} />
-      <MethodologyMetadata algorithmVersion={props.algorithmVersion} methodology={props.methodology} />
+      <MethodologyMetadata
+        algorithmVersion={props.algorithmVersion}
+        methodology={props.methodology}
+      />
     </div>
   ),
-  MethodologyField = (props: Readonly<{ readonly label: string; readonly value: string | undefined }>) => {
+  MethodologyField = (
+    props: Readonly<{ readonly label: string; readonly value: string | undefined }>,
+  ) => {
     const value = props.value ?? "Not specified";
     return (
       <div>
-        <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{props.label}</div>
+        <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          {props.label}
+        </div>
         <p className="mt-1 text-foreground/90">{value}</p>
       </div>
     );
   },
   MethodologyMetadata = (props: Readonly<MethodologyMetadataProps>) => (
     <div className="flex flex-wrap items-center gap-3 pt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-      <span>Locked {new Date(props.methodology.locked_at).toLocaleDateString()}</span>
+      <span>Locked {formatArticleDate(props.methodology.locked_at)}</span>
       <span>Preregistration {props.methodology.preregistration_id}</span>
       <AlgorithmVersion value={props.algorithmVersion} />
     </div>
@@ -354,21 +378,11 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
       </Panel>
     );
   },
-  Panel = (props: Readonly<PanelProps>) => (
-    <section>
-      <PanelHeading eyebrow={props.eyebrow} title={props.title} />
-      {props.children}
-    </section>
-  ),
-  PanelHeading = (props: Readonly<Pick<PanelProps, "eyebrow" | "title">>) => (
-    <div className="mb-3">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{props.eyebrow}</div>
-      <h2 className="mt-1 font-serif text-2xl">{props.title}</h2>
-    </div>
-  ),
   StatTile = (props: Readonly<{ readonly label: string; readonly value: string }>) => (
     <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{props.label}</div>
+      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {props.label}
+      </div>
       <div className="mt-2 font-serif text-xl">{props.value}</div>
     </div>
   ),
@@ -383,8 +397,8 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
   UnavailableAnalysis = () => (
     <div className="rounded-2xl border border-white/5 bg-black/20 p-8 text-center">
       <p className="text-sm text-muted-foreground">
-        This analysis hasn&apos;t been run yet. It ships as a CLI job <AnalysisCommand />,
-        not a live computation, because it locks a methodology before touching the data.
+        This analysis hasn&apos;t been run yet. It ships as a CLI job <AnalysisCommand />, not a
+        live computation, because it locks a methodology before touching the data.
       </p>
     </div>
   ),
@@ -400,12 +414,12 @@ const AlgorithmVersion = (props: Readonly<{ readonly value: string | null | unde
     methodology: Readonly<FundingBiasMethodologyView> | undefined,
   ): readonly string[] | undefined => {
     if (methodology === undefined) {
-      return undefined;
+      return void 0;
     }
 
     const limitations = [...new Set(methodology.specification.limitations)];
     if (limitations.length === EMPTY_LIST_SIZE) {
-      return undefined;
+      return void 0;
     }
 
     return limitations;

@@ -1,5 +1,98 @@
 # Log
 
+## 2026-09-22: Fixes from the Lean and TLA+ audit
+
+Reporter verification now requires fetched profile-name evidence. Quality-task
+release checks ownership before changing task state, the worktree verifier
+detects dirty-file content changes, and superseded research requests close
+their own stream placeholders. Added regression checks and updated the Lean and
+TLA+ models and `scripts/formal-audit` for repeatable local verification.
+
+## 2026-09-22: Lean and TLA+ audit baseline
+
+Recorded the initial formal audit and counterexample models in
+`docs/agents/traces/lean-tla-codebase-audit.md` and
+`docs/agents/formal-audit/`. The trace distinguishes confirmed findings,
+conditional risks, and properties that passed bounded checks. It also records
+that Lean and TLA+ can analyze algorithm costs and concurrency models, while
+profilers and repeatable benchmarks are needed to measure application speed.
+
+## 2026-09-12: Sequential research tool steering
+
+The research tool node now selects one call per phase. It prioritizes internal
+search, then required internal article reads, then external search. Additional
+calls emitted in the same model turn are returned as deferred tool messages and
+are not executed. The technology comparison smoke run completed in 11.74
+seconds with a cited answer and six tool results; the serialized-call regression
+test passes.
+
+## 2026-09-12: Research harness evidence probe
+
+Added `backend/scripts/probe_research_harness.py` to run the three built-in
+research questions through the real SSE endpoint and summarize tool usage and
+final answers. The agent prompt now tells the model to search by topic, wait
+for internal results, read at least two relevant articles, compare concrete
+events, and disclose stale or summary-only evidence.
+
+Internal search now falls back to the loader's semantic ranking when exact
+keyword matching is sparse. Article fetching uses archived article text before
+publisher retrieval. In the probe, climate change produced a sourced answer;
+technology produced cited comparisons; political news retrieved dated archive
+articles. One technology run still timed out during multiple publisher fetches.
+
+## 2026-09-12: Compact research history
+
+Research history now uses one drawer width, a shorter heading, compact rows,
+single-line previews, and touch-visible rename/delete controls. Raw provider
+exceptions become a brief interrupted-request preview. Untitled conversations
+take their first question as the title when updated; custom names remain intact.
+The research state regression suite passes four tests.
+
+## 2026-09-12: Research provider errors and narrow-screen activity
+
+Provider 502/503 failures now produce a retryable `provider_unavailable` event
+with recovery guidance instead of raw exception text. Stored 503 messages also
+render the friendly description. Mobile message cards no longer retain desktop
+side margins; actions wrap, and individual tool steps expand into bounded,
+wrapping output. Focused error and streaming tests, frontend lint, TypeScript,
+and touched backend Ruff pass.
+
+## 2026-09-12: Preserve tool evidence during research synthesis
+
+The final-answer handoff now includes tool results instead of filtering them out
+and keeping only the last six conversation messages. The graph also executes
+tools requested on the final research iteration before synthesizing an answer.
+Two regression checks cover evidence preservation and final-turn tool routing.
+The live local technology-coverage comparison completed with citations, 329 model
+deltas and six tool results. Some evidence remains summary-only. The localhost
+frontend now targets the repaired local API; the public API still reproduces the
+old missing-evidence response. The full repository verifier reports failure.
+
+## 2026-09-12: Research lint hardening
+
+- Narrowed research-agent/provider exception handling and replaced the async worker bridge with a future whose exceptions propagate naturally. The change keeps the existing fallback behavior without broad `BLE001` catches.
+- Changed backend Ruff and 35 focused research tests pass. The stop hook still treats the ignored generated OpenAPI TypeScript file as a per-file Oxlint failure (`No files found`); the normal frontend lint passes.
+
+## 2026-09-11: Research model selection and activity timeline
+
+- Added a request-scoped research model catalog and selector. The backend now validates the selected configured provider/model instead of hiding one global model choice.
+- Added structured rate-limit errors with the selected model, retryability, and a clear recovery message. The research workspace now renders live thought, tool-start, and tool-result events in the assistant card and Research Log.
+- Verified the focused backend research/model tests, frontend TypeScript, Oxlint, and stream regression test. The event trace is live at event granularity; provider token deltas still require changing the backend invocation path from blocking `invoke`/update streaming to provider-supported token streaming.
+
+## 2026-09-11: Research stream event visibility repair
+
+- The search stream parser now accepts both wrapped `thinking_step` messages and raw `thinking`,
+  `tool_start`, and `tool_result` messages. Adjacent duplicate tool events are ignored.
+- The transport keeps its abort state stable across React renders. Adding the streaming placeholder
+  no longer triggers cleanup that aborts the request immediately.
+- The active assistant card shows the latest three research steps while the stream is running.
+  Completion parsing accepts the current legacy payload, which omits `thinking_steps` and may
+  return `structured_articles` as a string.
+- Added `frontend/__tests__/search-research-stream.test.ts` coverage for the abort regression. The
+  focused stream test, frontend TypeScript check, focused Oxlint, and `git diff --check` pass.
+  Browser verification remains open: after the abort fix one smoke request reached HTTP 200 and
+  finished, but no stream event appeared in roughly 10.5 seconds; Chrome DevTools could not attach.
+
 ## 2026-09-10: Remote pull and article detail modal cleanup checkpoint
 
 - Fast-forwarded `quality/crap-mi-oxlint-hardening` to remote commit `596ecc9` and preserved
@@ -2287,3 +2380,98 @@ backend test failures.
 
 The active quality backlog and the rule that future features repair open debt in the same touched
 system are recorded in `docs/agent/lean-codebase-plan.md` and `AGENTS.md`.
+
+## 2026-09-11 — Research assistant and API contract repair
+
+The research backend now sends OpenCode Zen's session, request, client, and user-agent headers.
+Each research run gets its own session identifier, direct OpenCode requests stop after one
+30-second attempt, and provider failures become an SSE error event so the frontend clears its
+running state. The configured local model is `mimo-v2.5-free`; the account currently reaches the
+provider but is rate limited by OpenCode's free tier.
+
+The liked and bookmark response models now match the flat records returned by their routes, and
+the OpenAPI schemas were updated with the same fields. Remote embedding requests split inputs
+into bounded groups of 32 to avoid the 200-article read timeout. The news header keeps resource
+controls grouped in a wrapping flex row on narrow screens.
+
+Focused backend tests pass, including the `/api/liked` response check, embedding batch regression,
+OpenCode header coverage, and research stream provider-error coverage. The live API returned 200
+for `/api/liked` with seven entries. Chrome DevTools attachment remains unavailable because the
+configured MCP connector cannot find a usable `DevToolsActivePort` file.
+
+## 2026-09-12 — Research model availability and live activity stream
+
+Probed all seven OpenCode models whose IDs contain `-free` with the configured Zen credential.
+`ling-3.0-flash-fin-free`, `nemotron-3-ultra-free`, and `nemotron-3.5-lightning-free` returned
+200. DeepSeek returned 400, both Muse contributor models returned 500, and `mimo-v2.5-free`
+returned the provider's `FreeUsageLimitError` 429. The local research catalog now defaults to
+Ling and lists the three verified models for the active OpenCode backend.
+
+Research clients no longer reuse OpenCode sessions across requests. The selected model and stop
+event are preserved across the thread-pool iterator, LangGraph emits `updates` and `messages`,
+and provider reasoning metadata is exposed as typed `model_delta` SSE events. A live local
+request completed in 31.7 seconds with status, model-delta, tool, article, and complete events.
+The research loop is bounded to three passes and ten tool calls so one request stays inside the
+API worker timeout. The shared home navigation now wraps the research workspace, with research
+history and activity remaining page-specific panels.
+
+The research activity disclosure now assigns each step a stable identity plus
+occurrence count. Repeated streamed observations no longer produce duplicate
+React keys; a regression test renders two identical steps and verifies both
+remain visible.
+
+## 2026-09-12 — Globe canvas visibility repair
+
+The globe route rendered a blank map because the Three.js resize observer watched
+an unattached ref. The globe therefore received `0×0` dimensions. `GlobeCanvas`
+now owns the existing host ref, and compact globe/scroll layouts have a definite
+viewport height. The live browser now renders the textured globe; the canvas
+measured `727×1758` in the verification viewport. Added a regression test for
+the forwarded host ref.
+
+## 2026-09-12 — Workspace shortcut hierarchy
+
+Saved and Research shortcuts on the globe header now share a compact workspace
+surface with consistent hit areas, focus treatment, and hover/press feedback.
+The globe header is anchored to the content column so the fixed navigation cannot
+cover the Saved shortcut at narrow widths. Both links remain available at
+`/saved` and `/search`.
+
+## 2026-09-12 — Globe country selector and coverage lenses
+
+The compact global view now exposes a Country focus selector alongside the globe
+briefing. It reuses the globe's existing selection handler, so choosing a country
+updates the focus heading, coverage metrics, and country articles without needing
+to click a map region. The Local Lens and World Lens controls and their content are
+now visible in the compact panel instead of waiting for the sheet to expand.
+
+Live browser verification selected US (918 articles), loaded its local lens, and
+switched to the outside-source world lens. Frontend lint, TypeScript, and diff
+checks passed.
+
+## 2026-09-12 — Restore direct globe country selection
+
+Compared the globe with `main` and the split-module refactor `07cc7fa`.
+The newer GeoJSON schema discarded feature and geometry types, so the renderer
+skipped country polygons. The schema now preserves both types for polygon rendering
+and click centroids. Removed the temporary country dropdown. Direct map clicks
+again open country coverage; a live click selected Bolivia and World Lens loaded
+an Argentine outlet's article.
+
+Removed duplicate view tabs, Saved, Research, alerts, and theme controls from the
+news header. The sidebar owns navigation; the header retains category, sort, and
+the distinct source-filter action. Country articles now stack vertically and the
+compact selected-country panel provides room for the news list.
+
+## 2026-09-12 — Earth surface graphics
+
+Added a packed terrain-normal/water-reflectivity map from the Three.js r169 example
+textures, with upstream attribution beside the assets. Earth shading now includes
+terrain relief, ocean highlights, subtle water motion, and a limb-focused atmosphere.
+Clouds reuse the Earth's texture sample and blend below the country polygons;
+the decorative atmosphere does not participate in picking. No new dependencies.
+
+The four active texture assets total 912,921 bytes, down from 1,073,707 bytes for
+the previous five assets. Texture resolution and device-quality limits are unchanged.
+These clouds are illustrative, not current weather. Performance and verification
+details are recorded in `docs/agents/traces/globe-earth-graphics.md`.

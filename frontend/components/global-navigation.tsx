@@ -407,8 +407,9 @@ const GlobalNavigation = ({
     useGlobalNavigationActions({ expanded, isHomeRoute, onViewChange, push, replace });
 
   return (
+    <div className="w-[4.5rem] shrink-0 lg:contents">
     <aside
-      className={`sticky top-0 z-50 hidden h-screen shrink-0 flex-col border-r border-white/10 bg-[var(--news-bg-secondary)]/95 shadow-[18px_0_60px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-[width] duration-300 lg:flex ${navigationWidthClassName(expanded)}`}
+      className={`fixed top-0 z-50 flex h-dvh shrink-0 flex-col border-r border-border bg-[var(--news-bg-secondary)] shadow-[18px_0_60px_rgba(0,0,0,0.08)] transition-[width] duration-200 motion-reduce:transition-none lg:sticky ${navigationWidthClassName(expanded)}`}
       aria-label="Primary workspace navigation"
       data-expanded={expanded}
     >
@@ -425,6 +426,7 @@ const GlobalNavigation = ({
         pathname={pathname}
       />
     </aside>
+    </div>
   );
 };
 export { GlobalNavigation };

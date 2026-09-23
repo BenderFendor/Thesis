@@ -6,6 +6,7 @@ import asyncio
 import json
 import threading
 from collections.abc import AsyncIterator, Callable, Iterator
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import import_module
@@ -13,10 +14,16 @@ from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
+from openai import OpenAIError
 from starlette.concurrency import iterate_in_threadpool
 
 from app.core.logging import get_logger
-from app.models.research import NewsResearchRequest, NewsResearchResponse, ThinkingStep
+from app.models.research import (
+    NewsResearchRequest,
+    NewsResearchResponse,
+    ResearchModelCatalog,
+    ThinkingStep,
+)
 
 logger = get_logger(__name__)
 
@@ -69,6 +76,7 @@ class _RunResearchAgent(Protocol):
         articles: list[ResearchArticle],
         verbose: bool = True,
         chat_history: ChatHistory | None = None,
+        model: str | None = None,
     ) -> ResearchResultPayload: ...
 
 
@@ -79,6 +87,7 @@ class _StreamResearchAgent(Protocol):
         articles: list[ResearchArticle],
         chat_history: ChatHistory | None = None,
         stop_event: threading.Event | None = None,
+        model: str | None = None,
     ) -> Iterator[str]: ...
 
 
@@ -96,13 +105,14 @@ def run_research_agent(
     articles: list[ResearchArticle],
     include_thinking: bool,
     chat_history: ChatHistory | None,
+    model: str | None = None,
 ) -> ResearchResultPayload:
     """Run Research Agent."""
     runner = cast(
         _RunResearchAgent,
         import_module("app.services.news_research").run_research_agent,
     )
-    return runner(query, articles, include_thinking, chat_history)
+    return runner(query, articles, include_thinking, chat_history, model)
 
 
 def stream_research_agent(
@@ -110,13 +120,23 @@ def stream_research_agent(
     articles: list[ResearchArticle],
     chat_history: ChatHistory | None,
     stop_event: threading.Event | None,
+    model: str | None = None,
 ) -> Iterator[str]:
     """Stream Research Agent."""
     streamer = cast(
         _StreamResearchAgent,
         import_module("app.services.news_research").stream_research_agent,
     )
-    return streamer(query, articles, chat_history, stop_event)
+    return streamer(query, articles, chat_history, stop_event, model)
+
+
+def research_model_catalog() -> dict[str, Any]:
+    """Return configured research models without exposing credentials."""
+    catalog = cast(
+        Callable[[], dict[str, Any]],
+        import_module("app.services.news_research").research_model_catalog,
+    )
+    return catalog()
 
 
 def _sse(payload: dict[str, Any]) -> str:
@@ -237,6 +257,11 @@ ResearchEventRenderer = Callable[[dict[str, Any], bool, str], ResearchEventRende
 
 
 _RESEARCH_EVENT_RENDERERS: dict[str, ResearchEventRenderer] = {
+    "model_delta": lambda event, include_thinking, timestamp: (
+        [_sse({**event, "reasoning": event.get("reasoning", "") if include_thinking else "", "timestamp": timestamp})],
+        None,
+        None,
+    ),
     "articles_json": lambda event, _include_thinking, timestamp: (
         [_sse({"type": "articles_json", "data": event["data"], "timestamp": timestamp})],
         None,
@@ -329,6 +354,19 @@ async def _render_research_stream_messages(
         logger.error("Error processing stream event: %s", error)
 
 
+def _contextual_events(events: Iterator[str]) -> Iterator[str]:
+    """Keep generator state across AnyIO's per-next worker contexts."""
+    context = copy_context()
+    end = object()
+    try:
+        while (event := context.run(next, events, end)) is not end:
+            yield cast(str, event)
+    finally:
+        close = getattr(events, "close", None)
+        if close is not None:
+            context.run(close)
+
+
 async def _stream_research_events(
     request: Request,
     query: str,
@@ -337,9 +375,13 @@ async def _stream_research_events(
     include_thinking: bool,
     stop_event: threading.Event,
     state: _ResearchStreamState,
+    model: str | None,
 ) -> AsyncIterator[str]:
-    agent_events = stream_research_agent(query, articles, chat_history, stop_event)
-    async for event_raw in iterate_in_threadpool(agent_events):
+    if model is None:
+        agent_events = stream_research_agent(query, articles, chat_history, stop_event)
+    else:
+        agent_events = stream_research_agent(query, articles, chat_history, stop_event, model)
+    async for event_raw in iterate_in_threadpool(_contextual_events(agent_events)):
         if await request.is_disconnected():
             stop_event.set()
             logger.info("Research stream client disconnected for query=%s", query)
@@ -367,10 +409,31 @@ def _friendly_research_error(message: str) -> str:
     if any(
         keyword in lower_message for keyword in ["rate limit", "quota", "429", "too many requests"]
     ):
-        return "API Rate Limit: The AI service has reached its rate limit. Please wait a moment and try again."
+        return "The selected model is rate-limited. Choose another model or try again later."
     if "timeout" in lower_message:
         return "Request Timeout: The research took too long. Try a simpler query."
     return message
+
+
+def _research_error_payload(message: str, model: str | None) -> dict[str, Any]:
+    friendly_message = _friendly_research_error(message)
+    lower_message = message.lower()
+    is_rate_limit = any(
+        keyword in lower_message for keyword in ["rate limit", "quota", "429", "too many requests"]
+    )
+    unavailable = any(token in lower_message for token in ("503", "502", "endpoint is unavailable"))
+    code = "rate_limit" if is_rate_limit else "research_error"
+    if unavailable:
+        code = "provider_unavailable"
+        friendly_message = "The model provider is temporarily unavailable. Your research activity has been kept. Retry or choose another model."
+    return {
+        "type": "error",
+        "message": friendly_message,
+        "code": code,
+        "model": model,
+        "retryable": is_rate_limit or unavailable or "timeout" in lower_message,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
 
 
 async def _yield_fallback_research_completion(
@@ -390,14 +453,22 @@ async def _yield_fallback_research_completion(
     )
 
 
+@router.get("/research/models", response_model=ResearchModelCatalog)
+async def research_models_endpoint() -> ResearchModelCatalog:
+    """List models configured for the research agent."""
+    return ResearchModelCatalog(**research_model_catalog())
+
+
 @router.get("/research/stream")
 async def news_research_stream_endpoint(
     request: Request,
     query: str = Query(..., description="The research query"),
     include_thinking: bool = Query(True, description="Include thinking steps"),
     history: str | None = Query(None, description="JSON-encoded chat history for context"),
+    model: str | None = Query(None, description="Configured research model id"),
 ) -> StreamingResponse:
     """News Research Stream Endpoint."""
+    selected_model = model if isinstance(model, str) else None
 
     async def generate() -> AsyncIterator[str]:
         """Generate."""
@@ -407,6 +478,7 @@ async def news_research_stream_endpoint(
                 {
                     "type": "status",
                     "message": "Starting research.",
+                    "model": selected_model,
                     "timestamp": datetime.now(UTC).isoformat(),
                 }
             )
@@ -423,6 +495,7 @@ async def news_research_stream_endpoint(
                 include_thinking,
                 stop_event,
                 state,
+                selected_model,
             ):
                 yield message
             async for message in _yield_fallback_research_completion(
@@ -434,14 +507,8 @@ async def news_research_stream_endpoint(
             stop_event.set()
             logger.info("Research stream cancelled for query=%s", query)
             raise
-        except (ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            yield _sse(
-                {
-                    "type": "error",
-                    "message": _friendly_research_error(str(exc)),
-                    "timestamp": datetime.now(UTC).isoformat(),
-                }
-            )
+        except (ConnectionError, OSError, OpenAIError, RuntimeError, TypeError, ValueError) as exc:
+            yield _sse(_research_error_payload(str(exc), selected_model))
         finally:
             stop_event.set()
 
@@ -464,6 +531,7 @@ async def news_research_endpoint(request: NewsResearchRequest) -> NewsResearchRe
         articles_dict,
         request.include_thinking,
         None,
+        request.model,
     )
 
     thinking_steps = [

@@ -94,7 +94,7 @@ def _search_semantic_hits(
         return []
     try:
         return vector_store.search_similar(query, limit=semantic_limit)
-    except Exception as semantic_error:  # pragma: no cover - defensive logging
+    except (OSError, RuntimeError, TypeError, ValueError, KeyError, IndexError) as semantic_error:
         logger.error("Semantic vector search failed: %s", semantic_error)
         return []
 
@@ -232,6 +232,7 @@ def run_research_agent(
     articles: list[dict[str, Any]],
     verbose: bool = True,
     chat_history: list[dict[str, Any]] | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Run Research Agent."""
     backend_path = str(Path(__file__).resolve().parent.parent)
@@ -240,7 +241,13 @@ def run_research_agent(
 
     from news_research_agent import research_news
 
-    return research_news(query=query, articles=articles, verbose=verbose, chat_history=chat_history)
+    return research_news(
+        query=query,
+        articles=articles,
+        verbose=verbose,
+        chat_history=chat_history,
+        model=model,
+    )
 
 
 def stream_research_agent(
@@ -248,6 +255,7 @@ def stream_research_agent(
     articles: list[dict[str, Any]],
     chat_history: list[dict[str, Any]] | None = None,
     stop_event: threading.Event | None = None,
+    model: str | None = None,
 ) -> Any:
     """Stream Research Agent."""
     backend_path = str(Path(__file__).resolve().parent.parent)
@@ -261,4 +269,16 @@ def stream_research_agent(
         articles=articles,
         chat_history=chat_history,
         stop_event=stop_event,
+        model=model,
     )
+
+
+def research_model_catalog() -> dict[str, Any]:
+    """Return configured research models without exposing credentials."""
+    backend_path = str(Path(__file__).resolve().parent.parent)
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+
+    from news_research_agent import get_research_model_catalog
+
+    return get_research_model_catalog()

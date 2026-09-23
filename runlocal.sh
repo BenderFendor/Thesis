@@ -409,11 +409,43 @@ install_chroma() {
 	install_backend_deps
 }
 
+# True when the installed rss_parser_rust extension was written after $1 (epoch seconds).
+rust_extension_is_fresh() {
+	local build_started="$1"
+	find "$BACKEND_DIR/.venv" -path "*rss_parser_rust*" -name "*.so" \
+		-newermt "@$build_started" 2>/dev/null | grep -q .
+}
+
+# Rebuild the wheel and force-reinstall it into the backend venv.
+# `maturin develop` alone is not enough: it needs pip inside the venv, and this
+# venv has none, so the install silently keeps the previous extension.
+install_rust_wheel() {
+	local build_started="$1"
+	local wheel_dir="$RUNLOCAL_STATE_DIR/rust-parser-wheel"
+	mkdir -p "$wheel_dir"
+	if ! (
+		cd "$BACKEND_DIR/rss_parser_rust"
+		"$BACKEND_DIR/.venv/bin/maturin" build --release --out "$wheel_dir"
+	); then
+		return 1
+	fi
+	if command -v uv >/dev/null 2>&1; then
+		uv pip install --python "$BACKEND_DIR/.venv/bin/python" \
+			--force-reinstall --no-deps "$wheel_dir"/*.whl >/dev/null
+		return $?
+	fi
+	if "$BACKEND_DIR/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
+		"$BACKEND_DIR/.venv/bin/python" -m pip install \
+			--force-reinstall --no-deps "$wheel_dir"/*.whl >/dev/null
+		return $?
+	fi
+	return 1
+}
+
 build_rust_parser() {
 	if [[ ! -f "$BACKEND_DIR/rss_parser_rust/pyproject.toml" ]]; then
 		return 0
 	fi
-
 	local maturin_bin="$BACKEND_DIR/.venv/bin/maturin"
 	if [[ ! -x "$maturin_bin" ]]; then
 		log "Skipping Rust RSS parser build: maturin is not installed in $BACKEND_DIR/.venv"
@@ -449,11 +481,30 @@ build_rust_parser() {
 	fi
 
 	log "Building Rust RSS parser extension..."
+	local build_started
+	build_started="$(date +%s)"
 	if ! (
 		cd "$BACKEND_DIR/rss_parser_rust"
 		"$maturin_bin" develop --release
 	); then
 		log "Rust RSS parser build failed; continuing with Python fallback"
+		return 1
+	fi
+
+	# `maturin develop` can report success without refreshing the installed
+	# extension: this backend venv has no pip, so maturin's install step is a
+	# no-op and Python keeps importing the previous .abi3.so. Reinstall the
+	# freshly built wheel explicitly, then require a fresh artifact.
+	if ! rust_extension_is_fresh "$build_started"; then
+		log "Installed extension predates this build; reinstalling from a fresh wheel"
+		if ! install_rust_wheel "$build_started"; then
+			log "Rust RSS parser reinstall failed; continuing with Python fallback"
+			return 1
+		fi
+	fi
+
+	if ! rust_extension_is_fresh "$build_started"; then
+		log "Rust RSS parser rebuild left the previous extension in place; continuing with Python fallback"
 		return 1
 	fi
 

@@ -41,7 +41,7 @@ const collapsedPanelHeight = (
     return "h-[58vh]";
   }
   if (hasCountrySelection(props.selectedCountry)) {
-    return "max-h-[26vh]";
+    return "h-[42vh] lg:h-auto";
   }
   return "max-h-[28vh]";
 };
@@ -143,10 +143,7 @@ const CollapsedPanelTabContent = (props: CollapsedPanelTabAdapterProps) => {
 
 const CollapsedPanelContent = (props: Readonly<{ readonly panel: CollapsedPanelProps }>) => (
   <div
-    className={cn(
-      "relative flex min-h-0 flex-1 flex-col lg:overflow-hidden",
-      !props.panel.isMobileSheetExpanded && "hidden lg:flex",
-    )}
+    className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
   >
     <CollapsedPanelTabContent panel={props.panel} />
   </div>

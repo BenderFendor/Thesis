@@ -68,11 +68,13 @@ const PersonIdentity = (props: DeepReadonly<{ data: ReadonlyPersonEntity }>): Re
 
 const PersonQuickFacts = (props: DeepReadonly<{ data: ReadonlyPersonEntity }>): ReactElement => (
   <SidebarCard title="Quick Facts">
-    <SidebarFact label="Evidence" value={String(props.data.evidence.length)} />
-    <SidebarFact label="Connections" value={String(props.data.connections.length)} />
-    {hasText(props.data.last_verified_at) && (
-      <SidebarFact label="Last verified" value={formatArticleDate(props.data.last_verified_at)} />
-    )}
+    <>
+      <SidebarFact label="Evidence" value={String(props.data.evidence.length)} />
+      <SidebarFact label="Connections" value={String(props.data.connections.length)} />
+      {hasText(props.data.last_verified_at) && (
+        <SidebarFact label="Last verified" value={formatArticleDate(props.data.last_verified_at)} />
+      )}
+    </>
   </SidebarCard>
 );
 

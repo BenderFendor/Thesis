@@ -24,7 +24,7 @@ def test_set_author_page_citation_assigns_new_json_list() -> None:
         citations=[{"label": "Local article evidence", "url": "https://example.org/story"}],
     )
 
-    changed = _set_author_page_citation(reporter, "https://example.org/author/jane")
+    changed = _set_author_page_citation(reporter, "https://example.org/author/jane", "Jane Doe")
 
     assert changed is True
     assert reporter.citations == [
@@ -33,9 +33,13 @@ def test_set_author_page_citation_assigns_new_json_list() -> None:
             "label": "Official author page",
             "url": "https://example.org/author/jane",
             "source_type": "official_author_page",
+            "profile_verification": {
+                "method": "publisher_profile_name_match",
+                "profile_name": "Jane Doe",
+            },
         },
     ]
-    assert _set_author_page_citation(reporter, "https://example.org/author/jane") is False
+    assert _set_author_page_citation(reporter, "https://example.org/author/jane", "Jane Doe") is False
 
 
 def test_profile_name_match_requires_person_like_names() -> None:
@@ -215,10 +219,6 @@ async def test_repair_verified_author_page_citations_writes_missing_citation() -
     assert metrics.public_author_pages == 1
     assert metrics.citations_missing == 1
     assert metrics.citations_repaired == 1
-    assert {
-        "label": "Official author page",
-        "url": "https://example.org/author/jane",
-        "source_type": "official_author_page",
-    } in reporter.citations
+    assert {"label": "Publisher author-page URL", "url": "https://example.org/author/jane"} in reporter.citations
 
     await engine.dispose()

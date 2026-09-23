@@ -105,7 +105,7 @@ describe("interactiveGlobe", () => {
   beforeEach(setupGlobeTest);
   afterEach(restoreGlobeTest);
 
-  it("initializes globe controls after the delayed client surface mounts", async () => {
+  it("initializes globe controls with wheel zoom after the delayed client surface mounts", async () => {
     expect.hasAssertions();
 
     renderWithQueryClient(
@@ -129,7 +129,7 @@ describe("interactiveGlobe", () => {
       autoRotate: true,
       autoRotateSpeed: 0.5,
       enablePan: false,
-      enableZoom: false,
+      enableZoom: true,
     });
     expect(pointOfView).toHaveBeenNthCalledWith(1, { altitude: 2.5 });
     expect(pointOfView).toHaveBeenNthCalledWith(2, { altitude: 2.5 }, 800);

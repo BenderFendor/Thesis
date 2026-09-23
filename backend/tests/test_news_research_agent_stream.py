@@ -5,6 +5,7 @@ from typing import Any, cast
 import pytest
 from fastapi import Request
 from langchain_core.messages import AIMessage, ToolMessage
+from openai import OpenAIError
 
 import news_research_agent as agent
 from app.api.routes import research as research_route
@@ -134,6 +135,57 @@ def test_dedup_tool_node_blocks_external_search_before_internal_search(
     assert out["tool_calls_used"] == 0
 
 
+def test_dedup_tool_node_serializes_parallel_search_requests(monkeypatch) -> None:
+    class FakeToolNode:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def invoke(self, state):
+            calls = state["messages"][-1].tool_calls
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=f"ran {call['name']}",
+                        tool_call_id=call["id"],
+                        name=call["name"],
+                    )
+                    for call in calls
+                ]
+            }
+
+    monkeypatch.setattr(agent, "ToolNode", FakeToolNode)
+    state = cast(
+        Any,
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "internal",
+                            "name": "search_internal_news",
+                            "args": {"query": "climate"},
+                        },
+                        {
+                            "id": "external",
+                            "name": "news_search",
+                            "args": {"keywords": "climate news"},
+                        },
+                    ],
+                )
+            ],
+            "tool_history": set(),
+            "tool_calls_used": 0,
+        },
+    )
+
+    out = agent._dedup_tool_node(state)
+    contents = [str(message.content) for message in out["messages"]]
+    assert "ran search_internal_news" in contents
+    assert any("Run one research tool at a time" in content for content in contents)
+    assert out["tool_calls_used"] == 1
+
+
 @pytest.mark.parametrize("tool_name", ["gdelt_context_search", "gdelt_doc_search"])
 def test_dedup_tool_node_blocks_gdelt_search_before_internal_search(
     monkeypatch, tool_name: str
@@ -252,7 +304,7 @@ def test_research_stream_emits_unique_tool_start_events(monkeypatch) -> None:
 
     class FakeGraph:
         def stream(self, _initial_state, stream_mode="updates"):
-            assert stream_mode == "updates"
+            assert stream_mode == ["updates", "messages"]
             yield {
                 "agent": {
                     "messages": [AIMessage(content="thinking", tool_calls=duplicate_tool_calls)]
@@ -290,7 +342,7 @@ def test_research_stream_honors_stop_event(monkeypatch) -> None:
 
     class FakeGraph:
         def stream(self, _initial_state, stream_mode="updates"):
-            assert stream_mode == "updates"
+            assert stream_mode == ["updates", "messages"]
             yield {"agent": {"messages": [AIMessage(content="first", tool_calls=[])]}}
             yield {"agent": {"messages": [AIMessage(content="second", tool_calls=[])]}}
 
@@ -367,6 +419,40 @@ def test_graph_finishes_after_iteration_cap(monkeypatch) -> None:
     final_message = updates[-1]["agent"]["messages"][-1]
     assert isinstance(final_message, AIMessage)
     assert not getattr(final_message, "tool_calls", None)
+
+
+def test_final_model_receives_tool_evidence() -> None:
+    messages = agent._build_initial_messages("Compare technology coverage")
+    messages.append(
+        ToolMessage(
+            content="Reuters: chip exports fell 12%. https://example.com/chips",
+            tool_call_id="source-1",
+            name="fetch_article_content",
+        )
+    )
+    messages.extend(AIMessage(content="Continue research") for _ in range(7))
+    state = cast(Any, {"messages": messages})
+    prompt = str(agent._final_model_messages(state)[-1].content)
+    assert "chip exports fell 12%" in prompt
+    assert "https://example.com/chips" in prompt
+    assert "Compare technology coverage" in prompt
+
+
+def test_final_pending_executes_requested_tools_before_synthesis() -> None:
+    message = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "last-fetch",
+                "name": "fetch_article_content",
+                "args": {"url": "https://example.com/chips"},
+            }
+        ],
+    )
+    state = cast(Any, {"messages": [message], "mode": "final_pending"})
+    assert agent.should_continue(state) == "tools"
+    state["messages"].append(ToolMessage(content="Article evidence", tool_call_id="last-fetch"))
+    assert agent.should_continue(state) == "agent"
 
 
 def test_graph_finalizes_after_tool_router_returns_no_tools(monkeypatch) -> None:
@@ -568,6 +654,41 @@ async def test_stream_route_fallback_answer_contract(monkeypatch) -> None:
     assert complete_payload["answer"] == "Answer\nNo answer found.\n"
     assert "Follow-up questions" not in complete_payload["answer"]
     assert complete_payload["source_providers"] == []
+
+
+@pytest.mark.asyncio
+async def test_stream_route_converts_provider_failure_to_error_event(monkeypatch) -> None:
+    class FakeRequest:
+        async def is_disconnected(self) -> bool:
+            return False
+
+    async def fake_load_articles(_query: str):
+        return {"articles": [], "summary": {}}
+
+    def fake_stream_agent(*_args, **_kwargs):
+        raise OpenAIError("provider request failed")
+        yield ""
+
+    monkeypatch.setattr(research_route, "load_articles_for_research", fake_load_articles)
+    monkeypatch.setattr(research_route, "stream_research_agent", fake_stream_agent)
+
+    response = await research_route.news_research_stream_endpoint(
+        request=cast(Request[Any], FakeRequest()),
+        query="provider failure",
+        include_thinking=True,
+        history=None,
+    )
+
+    events = []
+    async for chunk in response.body_iterator:
+        text = chunk.decode() if isinstance(chunk, (bytes, bytearray)) else str(chunk)
+        for line in text.splitlines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+
+    errors = [event for event in events if event.get("type") == "error"]
+    assert len(errors) == 1
+    assert errors[0]["message"] == "provider request failed"
 
 
 @pytest.mark.asyncio

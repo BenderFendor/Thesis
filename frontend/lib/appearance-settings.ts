@@ -1,6 +1,3 @@
-import { isJsonObject } from "@/lib/json-value";
-import type { JsonObject, JsonValue } from "@/lib/json-value";
-import { isNumberValue, isStringValue } from "@/lib/type-guards";
 /**
  * Appearance settings model: one validated settings object that drives the
  * runtime CSS-variable token layer (see app/globals.css "runtime appearance"
@@ -14,136 +11,164 @@ import { isNumberValue, isStringValue } from "@/lib/type-guards";
 import {
   STORAGE_KEYS,
   removeFromStorage,
+  parseStoredJson,
   saveToStorage,
   subscribeToStorageKey,
 } from "@/lib/storage";
 
 interface AppearanceColorTokens {
-  background: string;
-  surface: string;
-  foreground: string;
-  secondaryText: string;
-  accent: string;
-  border: string;
+  readonly background: string;
+  readonly surface: string;
+  readonly foreground: string;
+  readonly secondaryText: string;
+  readonly accent: string;
+  readonly border: string;
 }
 
 interface AppearanceTypographyTokens {
   /** Multiplier applied to every named Tailwind text size. */
-  textScale: number;
-  bodyWeight: number;
-  headingWeight: number;
+  readonly textScale: number;
+  readonly bodyWeight: number;
+  readonly headingWeight: number;
 }
 
 interface AppearanceLayoutTokens {
   /** Multiplier applied to the Tailwind spacing unit. */
-  spaceScale: number;
+  readonly spaceScale: number;
   /** Corner radius in pixels; drives --radius. */
-  cornerRadius: number;
+  readonly cornerRadius: number;
 }
 
 interface AppearanceShadowTokens {
   /** Multiplier on the alpha of standard Tailwind box shadows. */
-  strength: number;
+  readonly strength: number;
 }
 
 interface AppearanceMotionTokens {
-  enabled: boolean;
+  readonly enabled: boolean;
   /** Multiplier on the default transition duration. */
-  speed: number;
+  readonly speed: number;
 }
 
 interface AppearanceSettings {
-  version: 1;
-  colors: AppearanceColorTokens;
-  typography: AppearanceTypographyTokens;
-  layout: AppearanceLayoutTokens;
-  shadows: AppearanceShadowTokens;
-  motion: AppearanceMotionTokens;
+  readonly version: 1;
+  readonly colors: AppearanceColorTokens;
+  readonly typography: AppearanceTypographyTokens;
+  readonly layout: AppearanceLayoutTokens;
+  readonly shadows: AppearanceShadowTokens;
+  readonly motion: AppearanceMotionTokens;
 }
+
+interface AppearanceInputRecord extends Readonly<Record<string, AppearanceInput>> {
+  readonly __appearanceInputRecord?: never;
+}
+
+type AppearanceInput =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly AppearanceInput[]
+  | AppearanceInputRecord
+  | undefined;
+type AppearanceSettingsInput = Readonly<AppearanceSettings> | AppearanceInput;
+
+type AppearanceRecord = AppearanceInputRecord;
 
 /**
  * Dark-first palette anchors taken from the .dark block in globals.css.
  * A field equal to its default means "no override": the theme keeps control.
  */
 const APPEARANCE_DEFAULTS: AppearanceSettings = Object.freeze({
-  colors: Object.freeze({
-    accent: "#d0af73",
-    background: "#000000",
-    border: "#222222",
-    foreground: "#ece3d5",
-    secondaryText: "#9d917f",
-    surface: "#0a0a0a",
+    colors: Object.freeze({
+      accent: "#d0af73",
+      background: "#000000",
+      border: "#222222",
+      foreground: "#ece3d5",
+      secondaryText: "#9d917f",
+      surface: "#0a0a0a",
+    }),
+    layout: Object.freeze({
+      cornerRadius: 6,
+      spaceScale: 1,
+    }),
+    motion: Object.freeze({
+      enabled: true,
+      speed: 1,
+    }),
+    shadows: Object.freeze({
+      strength: 1,
+    }),
+    typography: Object.freeze({
+      bodyWeight: 400,
+      headingWeight: 600,
+      textScale: 1,
+    }),
+    version: 1,
   }),
-  layout: Object.freeze({
-    cornerRadius: 6,
-    spaceScale: 1,
-  }),
-  motion: Object.freeze({
-    enabled: true,
-    speed: 1,
-  }),
-  shadows: Object.freeze({
-    strength: 1,
-  }),
-  typography: Object.freeze({
-    bodyWeight: 400,
-    headingWeight: 600,
-    textScale: 1,
-  }),
-  version: 1,
-  }),
-
-/** Numeric slider bounds shared by the model and the settings page controls. */
+  /** Numeric slider bounds shared by the model and the settings page controls. */
   APPEARANCE_RANGES = {
-  bodyWeight: { max: 700, min: 300, step: 50 },
-  cornerRadius: { max: 18, min: 0, step: 1 },
-  headingWeight: { max: 800, min: 400, step: 50 },
-  motionSpeed: { max: 2, min: 0.5, step: 0.05 },
-  shadowStrength: { max: 2, min: 0, step: 0.05 },
-  spaceScale: { max: 1.25, min: 0.85, step: 0.05 },
-  textScale: { max: 1.3, min: 0.85, step: 0.05 },
+    bodyWeight: { max: 700, min: 300, step: 50 },
+    cornerRadius: { max: 18, min: 0, step: 1 },
+    headingWeight: { max: 800, min: 400, step: 50 },
+    motionSpeed: { max: 2, min: 0.5, step: 0.05 },
+    shadowStrength: { max: 2, min: 0, step: 0.05 },
+    spaceScale: { max: 1.25, min: 0.85, step: 0.05 },
+    textScale: { max: 1.3, min: 0.85, step: 0.05 },
   } as const,
-
   APPEARANCE_STORAGE_KEY = STORAGE_KEYS.APPEARANCE_SETTINGS,
-
-/** Root CSS properties overridden per color token; --ring follows --accent. */
+  /** Root CSS properties overridden per color token; --ring follows --accent. */
   COLOR_PROPERTY_BY_TOKEN = {
-  accent: ["--primary", "--ring"],
-  background: "--background",
-  border: "--border",
-  foreground: "--foreground",
-  secondaryText: "--muted-foreground",
-  surface: "--card",
-} satisfies Record<keyof AppearanceColorTokens, string | string[]>,
-
+    accent: ["--primary", "--ring"],
+    background: "--background",
+    border: "--border",
+    foreground: "--foreground",
+    secondaryText: "--muted-foreground",
+    surface: "--card",
+  } as const satisfies Record<keyof AppearanceColorTokens, string | readonly string[]>,
+  COLOR_TOKENS = [
+    "accent",
+    "background",
+    "border",
+    "foreground",
+    "secondaryText",
+    "surface",
+  ] as const satisfies readonly (keyof AppearanceColorTokens)[],
   HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u,
-
-/** Neutral values that mean "no override" for the numeric root properties. */
+  /** Neutral values that mean "no override" for the numeric root properties. */
   NEUTRAL_NUMBER_BY_PROPERTY = {
-  "--appearance-text-scale": 1,
-  "--appearance-font-weight-body": APPEARANCE_DEFAULTS.typography.bodyWeight,
-  "--appearance-font-weight-heading": APPEARANCE_DEFAULTS.typography.headingWeight,
-  "--appearance-space-scale": 1,
-  // Stored in pixels; applied as rem against a 16px root font size.
-  "--radius": APPEARANCE_DEFAULTS.layout.cornerRadius,
-  "--appearance-shadow-strength": 1,
-  "--appearance-motion-speed": 1,
-  } satisfies Record<string, number>;
+    "--appearance-font-weight-body": APPEARANCE_DEFAULTS.typography.bodyWeight,
+    "--appearance-font-weight-heading": APPEARANCE_DEFAULTS.typography.headingWeight,
+    "--appearance-motion-speed": 1,
+    "--appearance-shadow-strength": 1,
+    "--appearance-space-scale": 1,
+    "--appearance-text-scale": 1,
+    // Stored in pixels; applied as rem against a 16px root font size.
+    "--radius": APPEARANCE_DEFAULTS.layout.cornerRadius,
+  } as const satisfies Readonly<Record<string, number>>;
 
-const getServerAppearanceSettings = (): AppearanceSettings => 
+const getServerAppearanceSettings = (): AppearanceSettings =>
   // Stable frozen reference required by useSyncExternalStore server snapshots.
-  APPEARANCE_DEFAULTS
+  APPEARANCE_DEFAULTS;
 
+const isFiniteNumber = (value: AppearanceInput): value is number =>
+  typeof value === "number" && Number.isFinite(value);
 
-const clampNumber = (value: JsonValue | undefined, range: Readonly<{ min: number; max: number }>, fallback: number): number => {
-  if (!isNumberValue(value) || !Number.isFinite(value)) {
+const isString = (value: AppearanceInput): value is string => typeof value === "string";
+
+const clampNumber = (
+  value: AppearanceInput,
+  range: Readonly<{ min: number; max: number }>,
+  fallback: number,
+): number => {
+  if (!isFiniteNumber(value)) {
     return fallback;
   }
   return Math.min(range.max, Math.max(range.min, value));
-}
+};
 
-const normalizeHexColor = (value: JsonValue | undefined, fallback: string): string => {
-  if (!isStringValue(value) || !HEX_COLOR_PATTERN.test(value)) {
+const normalizeHexColor = (value: AppearanceInput, fallback: string): string => {
+  if (!isString(value) || !HEX_COLOR_PATTERN.test(value)) {
     return fallback;
   }
   const hex = value.toLowerCase();
@@ -151,67 +176,94 @@ const normalizeHexColor = (value: JsonValue | undefined, fallback: string): stri
     return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
   }
   return hex;
-}
+};
 
 /**
- * Validate arbitrary input into a total AppearanceSettings object. Unknown
- * keys are dropped, invalid fields fall back to their default, numbers are
- * clamped into range. Never throws.
+ * Validate arbitrary input into the total settings model.
+ * @param {Readonly<AppearanceInput>} input Candidate settings payload.
+ * @returns {AppearanceSettings} Normalized settings with safe defaults.
  */
-const normalizeAppearanceSettings = (input: JsonValue | undefined): AppearanceSettings => {
+const normalizeAppearanceSettings = (
+  input: AppearanceSettingsInput,
+): AppearanceSettings => {
   const settings = appearanceInputGroups(input);
   if (settings.source.version !== 1) {
     return { ...APPEARANCE_DEFAULTS };
   }
 
   return {
-    colors: {
-      accent: normalizeHexColor(settings.colors.accent, APPEARANCE_DEFAULTS.colors.accent),
-      background: normalizeHexColor(settings.colors.background, APPEARANCE_DEFAULTS.colors.background),
-      border: normalizeHexColor(settings.colors.border, APPEARANCE_DEFAULTS.colors.border),
-      foreground: normalizeHexColor(settings.colors.foreground, APPEARANCE_DEFAULTS.colors.foreground),
-      secondaryText: normalizeHexColor(
-        settings.colors.secondaryText,
-        APPEARANCE_DEFAULTS.colors.secondaryText,
-      ),
-      surface: normalizeHexColor(settings.colors.surface, APPEARANCE_DEFAULTS.colors.surface),
-    },
-    layout: {
-      cornerRadius: clampNumber(
-        settings.layout.cornerRadius,
-        APPEARANCE_RANGES.cornerRadius,
-        APPEARANCE_DEFAULTS.layout.cornerRadius,
-      ),
-      spaceScale: snapStep(clampNumber(settings.layout.spaceScale, APPEARANCE_RANGES.spaceScale, 1)),
-    },
-    motion: {
-      enabled: settings.motion.enabled === undefined ? true : settings.motion.enabled === true,
-      speed: snapStep(clampNumber(settings.motion.speed, APPEARANCE_RANGES.motionSpeed, 1)),
-    },
-    shadows: {
-      strength: snapStep(clampNumber(settings.shadows.strength, APPEARANCE_RANGES.shadowStrength, 1)),
-    },
-    typography: {
-      bodyWeight: clampNumber(
-        settings.typography.bodyWeight,
-        APPEARANCE_RANGES.bodyWeight,
-        APPEARANCE_DEFAULTS.typography.bodyWeight,
-      ),
-      headingWeight: clampNumber(
-        settings.typography.headingWeight,
-        APPEARANCE_RANGES.headingWeight,
-        APPEARANCE_DEFAULTS.typography.headingWeight,
-      ),
-      textScale: snapStep(clampNumber(settings.typography.textScale, APPEARANCE_RANGES.textScale, 1)),
-    },
+    colors: normalizeColors(settings.colors),
+    layout: normalizeLayout(settings.layout),
+    motion: normalizeMotion(settings.motion),
+    shadows: normalizeShadows(settings.shadows),
+    typography: normalizeTypography(settings.typography),
     version: 1,
   };
-}
+};
 
-const group = (value: JsonValue | undefined): JsonObject =>
-  isJsonObject(value) ? value : {};
+const isPlainObject = (value: AppearanceSettingsInput): value is AppearanceRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-function appearanceInputGroups(input: JsonValue | undefined) {
+const group = (value: AppearanceSettingsInput): AppearanceRecord => {
+  if (isPlainObject(value)) {
+    return value;
+  }
+  return {};
+};
+
+const normalizeColors = (colors: AppearanceRecord): AppearanceColorTokens => ({
+  accent: normalizeHexColor(colors.accent, APPEARANCE_DEFAULTS.colors.accent),
+  background: normalizeHexColor(colors.background, APPEARANCE_DEFAULTS.colors.background),
+  border: normalizeHexColor(colors.border, APPEARANCE_DEFAULTS.colors.border),
+  foreground: normalizeHexColor(colors.foreground, APPEARANCE_DEFAULTS.colors.foreground),
+  secondaryText: normalizeHexColor(
+    colors.secondaryText,
+    APPEARANCE_DEFAULTS.colors.secondaryText,
+  ),
+  surface: normalizeHexColor(colors.surface, APPEARANCE_DEFAULTS.colors.surface),
+});
+
+const normalizeLayout = (layout: AppearanceRecord): AppearanceLayoutTokens => ({
+  cornerRadius: clampNumber(
+    layout.cornerRadius,
+    APPEARANCE_RANGES.cornerRadius,
+    APPEARANCE_DEFAULTS.layout.cornerRadius,
+  ),
+  spaceScale: snapStep(clampNumber(layout.spaceScale, APPEARANCE_RANGES.spaceScale, 1)),
+});
+
+const normalizeMotion = (motion: AppearanceRecord): AppearanceMotionTokens => {
+  let enabled = true;
+  if (motion.enabled !== undefined) {
+    enabled = motion.enabled === true;
+  }
+  return {
+    enabled,
+    speed: snapStep(clampNumber(motion.speed, APPEARANCE_RANGES.motionSpeed, 1)),
+  };
+};
+
+const normalizeShadows = (shadows: AppearanceRecord): AppearanceShadowTokens => ({
+  strength: snapStep(clampNumber(shadows.strength, APPEARANCE_RANGES.shadowStrength, 1)),
+});
+
+const normalizeTypography = (
+  typography: AppearanceRecord,
+): AppearanceTypographyTokens => ({
+  bodyWeight: clampNumber(
+    typography.bodyWeight,
+    APPEARANCE_RANGES.bodyWeight,
+    APPEARANCE_DEFAULTS.typography.bodyWeight,
+  ),
+  headingWeight: clampNumber(
+    typography.headingWeight,
+    APPEARANCE_RANGES.headingWeight,
+    APPEARANCE_DEFAULTS.typography.headingWeight,
+  ),
+  textScale: snapStep(clampNumber(typography.textScale, APPEARANCE_RANGES.textScale, 1)),
+});
+
+const appearanceInputGroups = (input: AppearanceSettingsInput) => {
   const source = group(input);
   return {
     colors: group(source.colors),
@@ -221,15 +273,15 @@ function appearanceInputGroups(input: JsonValue | undefined) {
     source,
     typography: group(source.typography),
   };
-}
+};
 
 /**
  * Slider steps are multiples of 0.05; snap accumulated float drift back onto
  * the grid so stored values compare equal to their neutral defaults.
+ * @param {number} value Numeric slider value.
+ * @returns {number} Value rounded to the storage step.
  */
-function snapStep(value: number): number {
-  return Math.round(value * 100) / 100;
-}
+const snapStep = (value: number): number => Math.round(value * 100) / 100;
 
 const readRawStorageValue = (): string | null => {
   if (globalThis.window === undefined) {
@@ -240,7 +292,7 @@ const readRawStorageValue = (): string | null => {
   } catch {
     return null;
   }
-}
+};
 
 let snapshotCache: { raw: string | null; value: AppearanceSettings } | null = null;
 
@@ -248,22 +300,23 @@ const cacheAppearanceSettings = (raw: string | null): AppearanceSettings => {
   const value = normalizeAppearanceSettings(parseAppearanceStorageValue(raw));
   snapshotCache = { raw, value };
   return value;
-}
+};
 
-function parseAppearanceStorageValue(raw: string | null): JsonValue | undefined {
+const parseAppearanceStorageValue = (raw: string | null): AppearanceInput => {
   if (raw === null) {
-    return undefined;
+    return void 0;
   }
   try {
-    return JSON.parse(raw);
+    return parseStoredJson(raw);
   } catch {
-    return undefined;
+    return void 0;
   }
-}
+};
 
 /**
  * UseSyncExternalStore-compatible snapshot: parses and validates at most once
  * per stored value, so React sees a stable reference between renders.
+ * @returns {AppearanceSettings} Current validated settings snapshot.
  */
 const loadAppearanceSettings = (): AppearanceSettings => {
   const raw = readRawStorageValue();
@@ -272,22 +325,26 @@ const loadAppearanceSettings = (): AppearanceSettings => {
   }
 
   return cacheAppearanceSettings(raw);
-}
+};
 
-const subscribeToAppearanceSettings = (onChange: () => void): () => void => 
+/**
+ * Subscribe to persisted appearance changes.
+ * @param {() => void} onChange Snapshot listener.
+ * @returns {() => void} Unsubscribe callback.
+ */
+const subscribeToAppearanceSettings = (onChange: () => void): (() => void) =>
   // Reuses the shared storage bus: same-tab custom events plus cross-tab
   // Native storage events.
-  subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange)
+  subscribeToStorageKey(APPEARANCE_STORAGE_KEY, onChange);
 
+const saveAppearanceSettings = (settings: AppearanceSettings): boolean =>
+  saveToStorage(APPEARANCE_STORAGE_KEY, settings);
 
-const saveAppearanceSettings = (settings: AppearanceSettings): boolean => 
-  saveToStorage(APPEARANCE_STORAGE_KEY, settings)
-
-
-/** Remove persisted overrides; the next snapshot falls back to defaults. */
-const resetAppearanceSettings = (): boolean => 
-  removeFromStorage(APPEARANCE_STORAGE_KEY)
-
+/**
+ * Remove persisted overrides; the next snapshot falls back to defaults.
+ * @returns {boolean} Whether storage accepted the removal.
+ */
+const resetAppearanceSettings = (): boolean => removeFromStorage(APPEARANCE_STORAGE_KEY);
 
 interface AppliedProperty {
   property: string;
@@ -295,23 +352,13 @@ interface AppliedProperty {
   neutral: boolean;
 }
 
-const APPEARANCE_COLOR_TOKENS = [
-  "accent",
-  "background",
-  "border",
-  "foreground",
-  "secondaryText",
-  "surface",
-] as const satisfies readonly (keyof AppearanceColorTokens)[];
-
 const colorProperties = (colors: AppearanceColorsInput): AppliedProperty[] => {
   const entries: AppliedProperty[] = [];
-  for (const token of APPEARANCE_COLOR_TOKENS) {
+  for (const token of COLOR_TOKENS) {
     const propertyOrProperties = COLOR_PROPERTY_BY_TOKEN[token],
       value = colors[token];
-    for (const property of Array.isArray(propertyOrProperties)
-      ? propertyOrProperties
-      : [propertyOrProperties]) {
+    const properties = propertiesForToken(propertyOrProperties);
+    for (const property of properties) {
       entries.push({
         neutral: value === APPEARANCE_DEFAULTS.colors[token],
         property,
@@ -320,7 +367,17 @@ const colorProperties = (colors: AppearanceColorsInput): AppliedProperty[] => {
     }
   }
   return entries;
-}
+};
+
+const isStringArray = (value: string | readonly string[]): value is readonly string[] =>
+  Array.isArray(value);
+
+const propertiesForToken = (value: string | readonly string[]): readonly string[] => {
+  if (isStringArray(value)) {
+    return value;
+  }
+  return [value];
+};
 
 type AppearanceColorsInput = AppearanceSettings["colors"];
 
@@ -334,7 +391,8 @@ const numericProperties = (settings: AppearanceSettings): AppliedProperty[] => {
     },
     {
       neutral:
-        settings.typography.bodyWeight === NEUTRAL_NUMBER_BY_PROPERTY["--appearance-font-weight-body"],
+        settings.typography.bodyWeight ===
+        NEUTRAL_NUMBER_BY_PROPERTY["--appearance-font-weight-body"],
       property: "--appearance-font-weight-body",
       rendered: String(settings.typography.bodyWeight),
     },
@@ -366,18 +424,20 @@ const numericProperties = (settings: AppearanceSettings): AppliedProperty[] => {
       rendered: String(settings.motion.speed),
     },
   ];
-}
+};
 
 /**
  * Apply settings as root-level CSS custom properties. Fields equal to their
  * default are removed instead of written, so untouched tokens keep following
  * the light/dark theme classes.
+ * @param {AppearanceSettings} settings Validated settings to apply.
+ * @returns {void}
  */
 const applyAppearanceSettings = (settings: AppearanceSettings): void => {
   if (globalThis.document === undefined) {
     return;
   }
-  const {style} = document.documentElement;
+  const { style } = document.documentElement;
 
   for (const entry of [...colorProperties(settings.colors), ...numericProperties(settings)]) {
     if (entry.neutral) {
@@ -392,24 +452,25 @@ const applyAppearanceSettings = (settings: AppearanceSettings): void => {
   } else {
     document.documentElement.dataset.motionOff = "true";
   }
-}
+};
 
 /**
  * Blocking head snippet that mirrors applyAppearanceSettings before hydration
  * so a reload does not flash unstyled tokens. Keep the validation identical
  * to normalizeAppearanceSettings.
+ * @returns {string} Inline bootstrap script.
  */
 const buildAppearanceBootstrapScript = (): string => {
-  const d = JSON.stringify({
-    colors: APPEARANCE_DEFAULTS.colors,
-    cornerRadius: APPEARANCE_DEFAULTS.layout.cornerRadius,
-    motionSpeedRange: APPEARANCE_RANGES.motionSpeed,
-    typography: APPEARANCE_DEFAULTS.typography,
-  }),
-   ranges = JSON.stringify(APPEARANCE_RANGES);
+  const defaultsJson = JSON.stringify({
+      colors: APPEARANCE_DEFAULTS.colors,
+      cornerRadius: APPEARANCE_DEFAULTS.layout.cornerRadius,
+      motionSpeedRange: APPEARANCE_RANGES.motionSpeed,
+      typography: APPEARANCE_DEFAULTS.typography,
+    }),
+    ranges = JSON.stringify(APPEARANCE_RANGES);
 
   return `(function(){try{
-var d=${d};var R=${ranges};
+var d=${defaultsJson};var R=${ranges};
 var raw=globalThis.localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)});
 if(!raw){return;}
 var s=JSON.parse(raw);
@@ -435,8 +496,8 @@ var cr=num(l.cornerRadius,R.cornerRadius.min,R.cornerRadius.max,d.cornerRadius);
 var st=num(sh.strength,R.shadowStrength.min,R.shadowStrength.max,1);put("--appearance-shadow-strength",String(st),st===1);
 var ms=num(m.speed,d.motionSpeedRange.min,d.motionSpeedRange.max,1);put("--appearance-motion-speed",String(ms),ms===1);
 if(m.enabled===false){document.documentElement.setAttribute("data-motion-off","true");}
-}catch(e){}})();`;
-}
+}catch{}})();`;
+};
 
 export {
   APPEARANCE_DEFAULTS,

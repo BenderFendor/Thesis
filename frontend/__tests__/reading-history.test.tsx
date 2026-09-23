@@ -1,13 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from '@jest/globals';
-import { useReadingHistory } from "@/hooks/useReadingHistory";
+import { beforeEach, describe, expect, it } from "@jest/globals";
+import { useReadingHistory } from "@/hooks/use-reading-history";
 
 describe("useReadingHistory", () => {
   beforeEach(() => {
     globalThis.localStorage.clear();
   });
 
-  it("does not rewrite an existing article when it is marked as read again", () => {expect.hasAssertions();
+  it("does not rewrite an existing article when it is marked as read again", () => {
+    expect.hasAssertions();
     const { result } = renderHook(() => useReadingHistory());
 
     act(() => {
@@ -24,7 +25,8 @@ describe("useReadingHistory", () => {
     expect(result.current.history[0]).toStrictEqual(firstEntry);
   });
 
-  it("fills missing metadata once without duplicating the entry", () => {expect.hasAssertions();
+  it("fills missing metadata once without duplicating the entry", () => {
+    expect.hasAssertions();
     const { result } = renderHook(() => useReadingHistory());
 
     act(() => {

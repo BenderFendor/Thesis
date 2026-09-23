@@ -158,11 +158,19 @@
 
   body {
     @apply min-h-screen bg-background text-base text-foreground antialiased;
-    background-image: radial-gradient(circle at 20% -10%, rgb(184 143 77 / 0.08), transparent 28rem);
+    background-image: radial-gradient(
+      circle at 20% -10%,
+      rgb(184 143 77 / 0.08),
+      transparent 28rem
+    );
   }
 
   .dark body {
-    background-image: radial-gradient(circle at 20% -10%, rgb(208 175 115 / 0.08), transparent 30rem);
+    background-image: radial-gradient(
+      circle at 20% -10%,
+      rgb(208 175 115 / 0.08),
+      transparent 30rem
+    );
   }
 
   :where(a, button, input, select, textarea):focus-visible {
@@ -177,8 +185,12 @@
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-60%); }
-  100% { transform: translateX(60%); }
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
 }
 
 @layer components {
@@ -293,39 +305,50 @@
    hand-written box-shadows are intentionally left alone. */
 @layer utilities {
   .shadow-2xs {
-    --tw-shadow: 0 1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
+    --tw-shadow: 0 1px
+      var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-xs {
-    --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
+    --tw-shadow: 0 1px 2px 0
+      var(--tw-shadow-color, rgb(0 0 0 / calc(0.05 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-sm {
     --tw-shadow:
-      0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
-      0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+      0 1px 3px 0
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 1px 2px -1px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-md {
     --tw-shadow:
-      0 4px 6px -1px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
-      0 2px 4px -2px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+      0 4px 6px -1px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 2px 4px -2px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-lg {
     --tw-shadow:
-      0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
-      0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+      0 10px 15px -3px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 4px 6px -4px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-xl {
     --tw-shadow:
-      0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
-      0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
+      0 20px 25px -5px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1)))),
+      0 8px 10px -6px
+        var(--tw-shadow-color, rgb(0 0 0 / calc(0.1 * var(--appearance-shadow-strength, 1))));
   }
 
   .shadow-2xl {
-    --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, rgb(0 0 0 / calc(0.25 * var(--appearance-shadow-strength, 1))));
+    --tw-shadow: 0 25px 50px -12px
+      var(--tw-shadow-color, rgb(0 0 0 / calc(0.25 * var(--appearance-shadow-strength, 1))));
   }
 }
 

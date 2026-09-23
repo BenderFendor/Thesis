@@ -3,11 +3,9 @@
 import { fetchClusterDetail, mapBackendArticle } from "@/lib/api";
 import type { ClusterArticle } from "@/lib/api";
 import { useCallback, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLikedArticles } from "@/hooks/use-liked-articles";
 import { useReadingQueue } from "@/hooks/use-reading-queue";
-import type { DeepReadonly } from "@/lib/deep-readonly";
 import { useClusterArticleController } from "./cluster-detail-modal-controller";
 import { useClusterComparisonController } from "./cluster-detail-modal-comparison-controller";
 import { clusterContextOf, getCameoSummary, resolveToneView } from "./cluster-detail-modal-helpers";
@@ -16,6 +14,7 @@ import type {
   ClusterDetailResponse,
   ComparisonTabProps,
   ClusterDetailViewProps,
+  GdeltContextLike,
 } from "./cluster-detail-modal-types";
 
 const useClusterDetailQuery = (cluster: ClusterDetailModalContentProps["cluster"]) => {
@@ -29,7 +28,6 @@ const useClusterDetailQuery = (cluster: ClusterDetailModalContentProps["cluster"
 
 type ClusterDetailQuery = ReturnType<typeof useClusterDetailQuery>;
 type ClusterArticleState = ReturnType<typeof useClusterArticleController>;
-type ClusterComparisonState = ReturnType<typeof useClusterComparisonController>;
 
 const useClusterDetailData = (cluster: ClusterDetailModalContentProps["cluster"]) => {
   const query = useClusterDetailQuery(cluster);
@@ -48,8 +46,6 @@ const useClusterDetailData = (cluster: ClusterDetailModalContentProps["cluster"]
     loading: query.isLoading,
   };
 };
-
-type ClusterDetailData = ReturnType<typeof useClusterDetailData>;
 
 const useClusterDetailActions = () => {
   const { likedIds, toggleLike } = useLikedArticles();
@@ -73,8 +69,6 @@ const useClusterDetailActions = () => {
   );
   return { handleLike, handleQueueToggle, isArticleInQueue, likedIds };
 };
-
-type ClusterDetailActions = ReturnType<typeof useClusterDetailActions>;
 
 interface ClusterPresentationOptions {
   readonly cluster: ClusterDetailModalContentProps["cluster"];
@@ -103,9 +97,31 @@ const getClusterPresentation = ({
   return { cameoSummary, clusterContext, label, loadError, toneAvg, toneDelta };
 };
 
+interface ClusterArticleStateView {
+  readonly activeArticle: ClusterDetailResponse["articles"][number] | undefined;
+  readonly activeContent: string | null | undefined;
+  readonly articleContentRef: ClusterDetailViewProps["contentRef"];
+  readonly articleContents: ReadonlyMap<number, string | null>;
+  readonly loadingArticle: number | null;
+  readonly resolvedActiveArticleId: string | null;
+  readonly setActiveArticleId: (value: string) => void;
+}
+
+interface ClusterComparisonStateView {
+  readonly comparisonArticles: ComparisonTabProps["comparisonArticles"];
+  readonly comparisonData: ComparisonTabProps["comparisonData"];
+  readonly comparisonError: ComparisonTabProps["comparisonError"];
+  readonly comparisonLoading: ComparisonTabProps["comparisonLoading"];
+  readonly comparisonMode: ComparisonTabProps["comparisonMode"];
+  readonly comparisonSourceOptions: ComparisonTabProps["comparisonSourceOptions"];
+  readonly handleComparisonSourceChange: ComparisonTabProps["onSourceChange"];
+  readonly handleOpenComparison: () => void;
+  readonly handleTabChange: (value: string) => void;
+}
+
 const buildComparisonProps = (
-  articleState: DeepReadonly<ClusterArticleState>,
-  comparisonState: DeepReadonly<ClusterComparisonState>,
+  articleState: ClusterArticleStateView,
+  comparisonState: ClusterComparisonStateView,
   clusterDetail: ClusterDetailResponse | undefined,
 ): ComparisonTabProps => ({
   articleContents: articleState.articleContents,
@@ -133,15 +149,39 @@ const getClusterContextProps = (
 };
 
 interface ClusterDetailViewBuilderOptions {
-  readonly actions: ClusterDetailActions;
+  readonly actions: ClusterDetailActionsView;
   readonly cluster: ClusterDetailModalContentProps["cluster"];
-  readonly data: ClusterDetailData;
+  readonly data: ClusterDetailDataView;
   readonly isBreaking: boolean;
   readonly isExpanded: boolean;
   readonly onClose: () => void;
   readonly onTabChange: (value: string) => void;
   readonly onToggleExpand: () => void;
-  readonly presentation: ReturnType<typeof getClusterPresentation>;
+  readonly presentation: ClusterPresentationView;
+}
+
+interface ClusterDetailActionsView {
+  readonly handleLike: (articleId: number) => void;
+  readonly handleQueueToggle: (article: ClusterArticle) => void;
+  readonly isArticleInQueue: (url: string) => boolean;
+  readonly likedIds: ReadonlySet<number>;
+}
+
+interface ClusterDetailDataView {
+  readonly articleState: ClusterArticleStateView;
+  readonly clusterDetail: ClusterDetailResponse | undefined;
+  readonly clusterDetailError: Error | null;
+  readonly comparisonState: ClusterComparisonStateView;
+  readonly loading: boolean;
+}
+
+interface ClusterPresentationView {
+  readonly cameoSummary: string | null;
+  readonly clusterContext: GdeltContextLike | null;
+  readonly label: string;
+  readonly loadError: string | null;
+  readonly toneAvg: number | null;
+  readonly toneDelta: number | null;
 }
 
 const buildClusterDetailViewProps = ({
@@ -154,7 +194,7 @@ const buildClusterDetailViewProps = ({
   onTabChange,
   onToggleExpand,
   presentation,
-}: DeepReadonly<ClusterDetailViewBuilderOptions>): ClusterDetailViewProps => ({
+}: ClusterDetailViewBuilderOptions): ClusterDetailViewProps => ({
   activeContent: data.articleState.activeContent,
   cluster,
   clusterDetail: data.clusterDetail,
@@ -184,13 +224,13 @@ const buildClusterDetailViewProps = ({
 });
 
 interface ClusterDetailViewDataOptions {
-  readonly actions: ClusterDetailActions;
+  readonly actions: ClusterDetailActionsView;
   readonly cluster: ClusterDetailModalContentProps["cluster"];
-  readonly data: ClusterDetailData;
+  readonly data: ClusterDetailDataView;
   readonly isBreaking: boolean;
   readonly isExpanded: boolean;
   readonly onClose: () => void;
-  readonly setIsExpanded: Dispatch<SetStateAction<boolean>>;
+  readonly setIsExpanded: (value: boolean | ((previous: boolean) => boolean)) => void;
 }
 
 const useClusterDetailViewData = ({
@@ -201,22 +241,20 @@ const useClusterDetailViewData = ({
   isExpanded,
   onClose,
   setIsExpanded,
-}: DeepReadonly<ClusterDetailViewDataOptions>): ClusterDetailViewProps => {
-  const { articleState, comparisonState } = data,
-    { activeArticle, setActiveArticleId } = articleState,
-    { handleTabChange: handleComparisonTabChange } = comparisonState;
+}: ClusterDetailViewDataOptions): ClusterDetailViewProps => {
+  const { articleState, comparisonState } = data;
   const presentation = getClusterPresentation({
-    activeArticle,
+    activeArticle: articleState.activeArticle,
     cluster,
     clusterDetail: data.clusterDetail,
     clusterDetailError: data.clusterDetailError,
   });
   const handleTabChange = useCallback(
     (value: string) => {
-      setActiveArticleId(value);
-      handleComparisonTabChange(value);
+      articleState.setActiveArticleId(value);
+      comparisonState.handleTabChange(value);
     },
-    [handleComparisonTabChange, setActiveArticleId],
+    [articleState, comparisonState],
   );
   const handleToggleExpand = useCallback(() => {
     setIsExpanded((previous) => !previous);

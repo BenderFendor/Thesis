@@ -27,6 +27,21 @@ const revivePersistedMessages = (serialized: string) => {
   return reviveStoredChatMessages(parsed?.messages ?? {});
 };
 
+describe("research titles", () => {
+  it("names an untitled conversation from its first question", () => {
+    const state = researchReducer(createInitialResearchState(), {
+      type: "set-chats",
+      value: [{ ...chat, title: "Untitled research" }],
+    });
+    const next = researchReducer(state, {
+      chatId: chat.id,
+      type: "update-chat-messages",
+      updater: () => [userMessage],
+    });
+    expect(next.chats[0]?.title).toBe(userMessage.content);
+  });
+});
+
 describe("research state", () => {
   it("updates message summaries without mutating prior state", () => {  expect.hasAssertions();
 

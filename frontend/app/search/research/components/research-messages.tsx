@@ -94,7 +94,7 @@ const ChatScrollArea = (props: Readonly<ChatScrollAreaProps>) => {
   return (
     <div
       ref={chatScrollRef}
-      className="custom-scrollbar flex-1 min-h-0 space-y-6 overflow-y-auto px-2 py-6"
+      className="custom-scrollbar min-w-0 flex-1 min-h-0 space-y-6 overflow-y-auto px-1 py-4 sm:px-2 sm:py-6"
     >
       <ConversationMessageList
         conversationMessages={conversationMessages}

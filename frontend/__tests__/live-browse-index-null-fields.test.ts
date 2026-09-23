@@ -1,7 +1,7 @@
 /* @jest-environment node */
 
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { PaginatedPayloadSchema, fetchLiveBrowseIndex } from "@/lib/api";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
 const EXPECTED_COUNT = 1;
 
@@ -25,12 +25,12 @@ const mockFetchJson = (apiPayload: BrowseIndexFixture) => {
   globalThis.fetch = jest.fn<typeof fetch>().mockResolvedValue(response);
 };
 
-describe('live browse index null article fields', () => {
+describe("live browse index null article fields", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('parses and maps articles with null content, tags, image, and author', async () => {
+  it("parses and maps articles with null content, tags, image, and author", async () => {
     expect.hasAssertions();
 
     mockFetchJson(createPayload());
@@ -40,7 +40,7 @@ describe('live browse index null article fields', () => {
 
     expect(result.total).toBe(EXPECTED_COUNT);
     expect(result.articles).toHaveLength(EXPECTED_COUNT);
-    expect(first?.title).toBe('Null-field article');
-    expect(first?.publishedAt).toBe('2026-09-03T12:00:00');
+    expect(first?.title).toBe("Null-field article");
+    expect(first?.publishedAt).toBe("2026-09-03T12:00:00");
   });
 });

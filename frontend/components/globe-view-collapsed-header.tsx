@@ -143,7 +143,7 @@ const CollapsedPanelActions = (props: Readonly<CollapsedPanelHeaderPartProps>) =
   } = header;
   const sheetToggleLabel = getSheetToggleLabel(header.isMobileSheetExpanded);
   return (
-    <>
+    <div className="flex items-center gap-2">
       <Button
         variant="outline"
         size="sm"
@@ -164,7 +164,7 @@ const CollapsedPanelActions = (props: Readonly<CollapsedPanelHeaderPartProps>) =
           onResetFocus={handleResetFocus}
         />
       )}
-    </>
+    </div>
   );
 };
 

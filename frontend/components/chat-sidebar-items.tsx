@@ -31,9 +31,9 @@ const chatItemClassName = (
     return "border-border/30 bg-card/30 hover:bg-card/50";
   }
   if (isActive) {
-    return "border-primary/40 bg-card shadow-lg shadow-black/20";
+    return "border-primary/30 bg-primary/10";
   }
-  return "border-border/30 bg-card/30 hover:bg-card/50";
+  return "border-transparent bg-transparent hover:bg-card/50";
 };
 
 const selectionClassName = (isSelected: boolean): string => {
@@ -61,19 +61,25 @@ const ChatListItemSelection = ({
 
 const ChatItemMetadata = ({ chat }: Readonly<{ chat: ChatSummary }>) => (
   <div className="mb-2 flex items-center justify-between gap-3">
-    <span className="text-xs uppercase tracking-wider text-muted-foreground">Thread</span>
     {hasText(chat.updatedAt) && (
       <span className="text-xs text-muted-foreground">{formatShortDate(chat.updatedAt)}</span>
     )}
   </div>
 );
 
+const chatPreview = (message: string): string => {
+  if (message.startsWith("Error code:")) {
+    return "Request interrupted · open to retry";
+  }
+  return message;
+};
+
 const ChatMessageContent = ({ chat }: Readonly<{ chat: ChatSummary }>) => (
   <>
-    <div className="font-serif text-base text-foreground line-clamp-2">{chat.title}</div>
+    <div className="line-clamp-2 text-sm font-medium leading-snug text-foreground [overflow-wrap:anywhere]">{chat.title}</div>
     {hasText(chat.lastMessage) && (
-      <div className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-        {chat.lastMessage}
+      <div className="mt-1 line-clamp-1 text-xs leading-relaxed text-muted-foreground">
+        {chatPreview(chat.lastMessage)}
       </div>
     )}
   </>
@@ -302,7 +308,7 @@ const ChatListItemActions = ({
     return null;
   }
   return (
-    <div className="flex flex-col gap-2 opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
+    <div className="flex flex-col gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
       <ChatRenameActionButton isEditing={isEditing} onClick={handleRename} />
       <ChatDeleteActionButton onClick={handleDelete} />
     </div>
@@ -363,7 +369,7 @@ const ChatListItemCard = (props: Readonly<ChatListItemCardProps>): ReactElement 
       toggleSelection(chat.id);
     }
   }, [chat.id, isSelectionMode, toggleSelection]);
-  const cardClassName = `group rounded-3xl border p-4 transition-all duration-300 ease-out ${chatItemClassName(isSelectionMode, isSelected, isActive)}`;
+  const cardClassName = `group w-full rounded-lg border px-3 py-2.5 transition-colors ${chatItemClassName(isSelectionMode, isSelected, isActive)}`;
   if (isSelectionMode) {
     return (
       <button

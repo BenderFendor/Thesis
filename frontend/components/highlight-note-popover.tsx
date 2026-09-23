@@ -77,44 +77,23 @@ interface PositionedPopover {
   readonly style: Pick<CSSStyleDeclaration, "left" | "top" | "transform">;
 }
 
-type TextareaFocusTarget = (
-  element: Readonly<{ readonly focus: () => void }> | null,
-) => void;
+type TextareaFocusTarget = (element: Readonly<{ readonly focus: () => void }> | null) => void;
 type DialogElementRef = Readonly<{
   readonly current: PositionedPopover | null;
 }>;
 
 const HORIZONTAL_CENTER_DIVISOR = 2,
-  HighlightNoteActions = ({
-    onClose,
-    onSave,
-    saving,
-  }: HighlightNoteActionsProps): ReactElement => (
+  HighlightNoteActions = ({ onClose, onSave, saving }: HighlightNoteActionsProps): ReactElement => (
     <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onClose}
-        disabled={saving}
-      >
+      <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
         Cancel
       </Button>
-      <Button
-        type="button"
-        variant="default"
-        size="sm"
-        onClick={onSave}
-        disabled={saving}
-      >
+      <Button type="button" variant="default" size="sm" onClick={onSave} disabled={saving}>
         {getSaveButtonLabel(saving)}
       </Button>
     </div>
   ),
-
-  HighlightNoteBody = (
-    props: Readonly<HighlightNoteBodyProps>,
-  ): ReactElement => {
+  HighlightNoteBody = (props: Readonly<HighlightNoteBodyProps>): ReactElement => {
     const {
       focusTarget,
       highlight,
@@ -131,9 +110,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
     }
     return (
       <div className="rounded-lg border border-border/60 bg-[var(--news-bg-secondary)]/95 p-3 shadow-2xl backdrop-blur">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-          Note
-        </div>
+        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Note</div>
         <div className="mt-2 text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap break-words">
           {highlight.highlighted_text}
         </div>
@@ -146,20 +123,12 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
           placeholder="Add a note"
         />
         <div className="mt-3 flex items-center justify-between gap-2">
-          <HighlightResearchLink
-            onClose={onClose}
-            researchQuery={researchQuery}
-          />
-          <HighlightNoteActions
-            onClose={onClose}
-            onSave={onSave}
-            saving={saving}
-          />
+          <HighlightResearchLink onClose={onClose} researchQuery={researchQuery} />
+          <HighlightNoteActions onClose={onClose} onSave={onSave} saving={saving} />
         </div>
       </div>
     );
   },
-
   HighlightNotePopover = ({
     open,
     highlight,
@@ -171,11 +140,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
   }: HighlightNotePopoverProps): ReactElement => {
     const draft = useHighlightNoteDraft(highlight, onClose, onSave),
       popoverRef = useRef<HTMLDialogElement>(null),
-      researchQuery = buildResearchQuery(
-        highlight,
-        articleTitle,
-        articleSource,
-      ),
+      researchQuery = buildResearchQuery(highlight, articleTitle, articleSource),
       textareaRef = useHighlightPopoverFocus(open);
     useHighlightPopoverPosition(open, anchorEl, popoverRef);
     useHighlightPopoverDismissal(open, anchorEl, onClose, popoverRef);
@@ -200,7 +165,6 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       </dialog>
     );
   },
-
   HighlightResearchLink = ({
     onClose,
     researchQuery,
@@ -221,11 +185,9 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       </Link>
     );
   },
-
   POPOVER_BOTTOM_OFFSET = 10,
   POPOVER_VIEWPORT_MARGIN = 12,
   ZERO = 0,
-
   buildResearchContext = (
     articleTitle: string | undefined,
     articleSource: string | undefined,
@@ -239,7 +201,6 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
     }
     return context;
   },
-
   buildResearchQuery = (
     highlight: Readonly<Highlight> | undefined,
     articleTitle: string | undefined,
@@ -262,35 +223,24 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       ].join("\n"),
     );
   },
-
   getPopoverLeft = (rect: Readonly<DOMRect>): number => {
     const desiredLeft = rect.left + rect.width / HORIZONTAL_CENTER_DIVISOR,
       maxLeft = globalThis.innerWidth - POPOVER_VIEWPORT_MARGIN;
-    return Math.max(
-      POPOVER_VIEWPORT_MARGIN,
-      Math.min(desiredLeft, maxLeft),
-    );
+    return Math.max(POPOVER_VIEWPORT_MARGIN, Math.min(desiredLeft, maxLeft));
   },
-
   getPopoverTop = (rect: Readonly<DOMRect>): number => {
     const desiredTop = rect.bottom + POPOVER_BOTTOM_OFFSET,
       maxTop = globalThis.innerHeight - POPOVER_VIEWPORT_MARGIN;
     return Math.max(POPOVER_VIEWPORT_MARGIN, Math.min(desiredTop, maxTop));
   },
-
   getSaveButtonLabel = (saving: boolean): string => {
     if (saving) {
       return "Saving";
     }
     return "Save";
   },
-
-  isEventInsidePopover = (
-    popoverContainsTarget: boolean,
-    anchorContainsTarget: boolean,
-  ): boolean =>
+  isEventInsidePopover = (popoverContainsTarget: boolean, anchorContainsTarget: boolean): boolean =>
     popoverContainsTarget || anchorContainsTarget,
-
   useHighlightNoteDraft = (
     highlight: Readonly<Highlight> | undefined,
     onClose: () => void,
@@ -312,10 +262,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
         }
         try {
           setStateSaving(true);
-          await onSave(
-            highlightStableId({ ...highlight }),
-            stateNoteDraft,
-          );
+          await onSave(highlightStableId({ ...highlight }), stateNoteDraft);
           onClose();
         } finally {
           setStateSaving(false);
@@ -324,9 +271,7 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       handleSaveClick = (): void => {
         void handleSave();
       },
-      [stateNoteDraft, setStateNoteDraft] = useState(
-        () => highlight?.note ?? "",
-      ),
+      [stateNoteDraft, setStateNoteDraft] = useState(() => highlight?.note ?? ""),
       [stateSaving, setStateSaving] = useState(false);
     return {
       handleChange,
@@ -336,7 +281,6 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       saving: stateSaving,
     };
   },
-
   useHighlightPopoverDismissal = (
     open: boolean,
     anchorEl: Readonly<AnchorElement | undefined>,
@@ -376,15 +320,14 @@ const HORIZONTAL_CENTER_DIVISOR = 2,
       };
     }, [anchorEl, onClose, open, popoverRef]);
   },
-
-  useHighlightPopoverFocus = (open: boolean): TextareaFocusTarget =>
+  useHighlightPopoverFocus =
+    (open: boolean): TextareaFocusTarget =>
     (element: Readonly<{ readonly focus: () => void }> | null): void => {
       if (!open || element === null) {
         return;
       }
       element.focus();
     },
-
   useHighlightPopoverPosition = (
     open: boolean,
     anchorEl: Readonly<AnchorElement | undefined>,

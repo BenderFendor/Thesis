@@ -12,6 +12,24 @@ class NewsResearchRequest(StrictBaseModel):
 
     query: str
     include_thinking: bool = True
+    model: str | None = None
+
+
+class ResearchModelOption(StrictBaseModel):
+    """A configured model available to the research agent."""
+
+    id: str
+    label: str
+    model: str
+    provider: str
+
+
+class ResearchModelCatalog(StrictBaseModel):
+    """Models configured for the research agent runtime."""
+
+    default: str | None = None
+    models: list[ResearchModelOption] = Field(default_factory=list)
+    provider: str
 
 
 class ThinkingStep(StrictBaseModel):

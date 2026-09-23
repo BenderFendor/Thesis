@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
 import {
   applyAppearanceSettings,
   getServerAppearanceSettings,
   loadAppearanceSettings,
   subscribeToAppearanceSettings,
-} from "@/lib/appearance-settings"
-import { useEffect, useSyncExternalStore } from "react"
+} from "@/lib/appearance-settings";
+import { useEffect, useSyncExternalStore } from "react";
 
 /**
  * Bridges the persisted appearance settings to the DOM. Rendering stays pure;
@@ -19,13 +19,13 @@ const AppearanceSettingsSync = () => {
     subscribeToAppearanceSettings,
     loadAppearanceSettings,
     getServerAppearanceSettings,
-  )
+  );
 
   useEffect(() => {
-    applyAppearanceSettings(settings)
-  }, [settings])
+    applyAppearanceSettings(settings);
+  }, [settings]);
 
-  return false
-}
+  return false;
+};
 
-export { AppearanceSettingsSync }
+export { AppearanceSettingsSync };

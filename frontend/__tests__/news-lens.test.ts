@@ -1,45 +1,45 @@
 import type { NewsArticle, NewsSource } from "@/lib/api";
-import { describe, expect, it } from '@jest/globals';
-import { filterArticlesByLens, getLensSourceIds, getLensStats } from '@/lib/news-lens';
-import type { NewsLensId } from '@/lib/news-lens';
+import { describe, expect, it } from "@jest/globals";
+import { filterArticlesByLens, getLensSourceIds, getLensStats } from "@/lib/news-lens";
+import type { NewsLensId } from "@/lib/news-lens";
+import type { DeepReadonly } from "@/lib/deep-readonly";
 
-const source = (overrides: Partial<NewsSource>): NewsSource => (
-  {
-    bias: "center",
-    category: ["general"],
-    country: "US",
-    credibility: "medium",
-    funding: ["Unknown"],
-    id: "source",
-    language: "en",
-    name: "Source",
-    rssUrl: "https://example.com/rss",
-    slug: "source",
-    url: "https://example.com",
-    ...overrides,
-  }
-)
+type SourceOverrides = DeepReadonly<Partial<NewsSource>>;
+type ArticleOverrides = DeepReadonly<Partial<Omit<NewsArticle, "_queueData">>>;
 
-const article = (overrides: Partial<NewsArticle>): NewsArticle => (
-  {
-    bias: "center",
-    category: "general",
-    country: "US",
-    credibility: "medium",
-    id: 1,
-    image: "",
-    originalLanguage: "en",
-    publishedAt: "2026-05-31T00:00:00Z",
-    source: "Source",
-    sourceId: "source",
-    summary: "Summary",
-    tags: [],
-    title: "Article",
-    translated: false,
-    url: "https://example.com/article",
-    ...overrides,
-  }
-)
+const source = (overrides: SourceOverrides): NewsSource => ({
+  bias: "center",
+  category: ["general"],
+  country: "US",
+  credibility: "medium",
+  funding: ["Unknown"],
+  id: "source",
+  language: "en",
+  name: "Source",
+  rssUrl: "https://example.com/rss",
+  slug: "source",
+  url: "https://example.com",
+  ...overrides,
+});
+
+const article = (overrides: ArticleOverrides): NewsArticle => ({
+  bias: "center",
+  category: "general",
+  country: "US",
+  credibility: "medium",
+  id: 1,
+  image: "",
+  originalLanguage: "en",
+  publishedAt: "2026-05-31T00:00:00Z",
+  source: "Source",
+  sourceId: "source",
+  summary: "Summary",
+  tags: [],
+  title: "Article",
+  translated: false,
+  url: "https://example.com/article",
+  ...overrides,
+});
 
 describe("news lens filtering", () => {
   const sources = [
@@ -53,8 +53,9 @@ describe("news lens filtering", () => {
     }),
   ];
 
-  it("selects source ids for a lens", () => {  expect.hasAssertions();
-  
+  it("selects source ids for a lens", () => {
+    expect.hasAssertions();
+
     const ids = getLensSourceIds(sources, "wire");
     expect(ids.has("reuters")).toBe(true);
     expect(ids.has("local")).toBe(false);
@@ -68,14 +69,14 @@ describe("news lens filtering", () => {
     },
   );
 
-  it("filters articles by source metadata", () => {  expect.hasAssertions();
-  
-    const articles = [
-      article({ id: 1, source: "Reuters", sourceId: "reuters" }),
-      article({ id: 2, source: "Paywall Daily", sourceId: "paywall" }),
-    ],
+  it("filters articles by source metadata", () => {
+    expect.hasAssertions();
 
-     filtered = filterArticlesByLens(articles, sources, "low-paywall");
+    const articles = [
+        article({ id: 1, source: "Reuters", sourceId: "reuters" }),
+        article({ id: 2, source: "Paywall Daily", sourceId: "paywall" }),
+      ],
+      filtered = filterArticlesByLens(articles, sources, "low-paywall");
 
     expect(filtered.map((item) => item.id)).toStrictEqual([1]);
   });

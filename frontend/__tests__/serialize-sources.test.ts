@@ -1,21 +1,24 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from "@jest/globals";
 import { serializeSources } from "@/lib/utils";
 
 describe("serializeSources", () => {
-  it("returns undefined for missing or empty source lists", () => {  expect.hasAssertions();
+  it("returns undefined for missing or empty source lists", () => {
+    expect.hasAssertions();
 
     expect(serializeSources()).toBeUndefined();
     expect(serializeSources([])).toBeUndefined();
   });
 
-  it("sorts and joins source names deterministically", () => {  expect.hasAssertions();
+  it("sorts and joins source names deterministically", () => {
+    expect.hasAssertions();
 
     expect(serializeSources(["Reuters", "Associated Press", "BBC"])).toBe(
       "Associated Press,BBC,Reuters",
     );
   });
 
-  it("does not mutate the caller's array", () => {  expect.hasAssertions();
+  it("does not mutate the caller's array", () => {
+    expect.hasAssertions();
 
     const sources = ["beta", "alpha"];
     serializeSources(sources);

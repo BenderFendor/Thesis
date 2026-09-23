@@ -250,13 +250,21 @@ async def test_public_author_url_requires_citation_to_verify_reporter() -> None:
 
 
 @pytest.mark.asyncio
-async def test_public_author_url_with_citation_verifies_reporter() -> None:
+async def test_public_author_url_with_profile_name_attestation_verifies_reporter() -> None:
     reporter = Reporter(
         id=1,
         name="Jane Doe",
         canonical_author_url="https://example.org/author/jane-doe",
         author_page_url="https://example.org/author/jane-doe",
-        citations=[{"label": "Official author page", "url": "https://example.org/author/jane-doe"}],
+        citations=[{
+            "label": "Official author page",
+            "url": "https://example.org/author/jane-doe",
+            "source_type": "official_author_page",
+            "profile_verification": {
+                "method": "publisher_profile_name_match",
+                "profile_name": "Jane Doe",
+            },
+        }],
     )
     session = FakeSession(
         [
@@ -272,6 +280,30 @@ async def test_public_author_url_with_citation_verifies_reporter() -> None:
     assert score == 1.0
     assert evidence["publisher_confirmed"] is True
     assert has_verified_author_page_citation(reporter) is True
+
+
+@pytest.mark.asyncio
+async def test_profile_name_attestation_must_match_reporter() -> None:
+    reporter = Reporter(
+        id=1,
+        name="Jane Doe",
+        canonical_author_url="https://example.org/author/jane-doe",
+        citations=[{
+            "label": "Official author page",
+            "url": "https://example.org/author/jane-doe",
+            "source_type": "official_author_page",
+            "profile_verification": {
+                "method": "publisher_profile_name_match",
+                "profile_name": "Alex Smith",
+            },
+        }],
+    )
+    session = FakeSession([FakeResult(values=[]), FakeResult(values=[]), FakeResult(values=[])])
+
+    tier, _score, evidence = await compute_confidence_tier(session, reporter)
+
+    assert tier == "strong"
+    assert has_verified_author_page_citation(reporter) is False
 
 
 @pytest.mark.asyncio
