@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cross-language complexity gate using cccc 1.6.0 (pinned, checksum-verified).
-# Enforces the policy in cccc.toml: hard violation = cyclomatic > 10 OR cognitive > 15.
+# Enforces scripts/quality-hardening/cccc.toml: CC > 10 OR cognitive > 15.
 # Usage: scripts/check-complexity [--json] [--report <path>]
 # The binary is fetched once into $XDG_CACHE_HOME/cccc or ~/.cache/cccc.
 set -euo pipefail
@@ -62,7 +62,7 @@ if [ ! -x "$BIN" ]; then
 fi
 
 cd "$ROOT"
-"$CACHE_DIR/cccc" "${INPUTS[@]}" --config cccc.toml --pretty > "$CCCC_JSON"
+"$CACHE_DIR/cccc" "${INPUTS[@]}" --config scripts/quality-hardening/cccc.toml --pretty > "$CCCC_JSON"
 
 CCCC_JSON_MODE="$JSON_MODE" node - "$CCCC_JSON" "$REPORT" <<'NODE'
 const fs = require("fs");

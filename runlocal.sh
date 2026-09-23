@@ -107,9 +107,9 @@ Usage: ./runlocal.sh [setup|services|backend|frontend|frontend-release|all|relea
   EMBEDDING_SERVICE_PORT Port for embedding service (default 8002)
   EMBEDDING_SERVICE_URL  Override embedding service URL for the backend
   CHROMA_DATA_DIR Persistent directory for Chroma data (default ./.chroma)
-  CHROMA_LOG_FILE Log file for Chroma server (default ./logs/chroma.log)
-  EMBEDDING_SERVICE_LOG_FILE Log file for embedding service (default ./logs/embedding-service.log)
-  LOG_DIR         Directory for all log files (default ./logs)
+  CHROMA_LOG_FILE Log file for Chroma server (default ./log/chroma.log)
+  EMBEDDING_SERVICE_LOG_FILE Log file for embedding service (default ./log/embedding-service.log)
+  LOG_DIR         Directory for all log files (default ./log)
   AUTO_INSTALL   Set to 1 to auto-install Postgres if missing (default 1)
   GUNICORN_WORKERS Worker count for backend (default 1)
   NEXT_PUBLIC_API_URL        Frontend API base URL override (default unset; frontend fallback logic applies)

@@ -396,3 +396,15 @@ backend/app/data/feed_polling_state.json
 .worktrees/
 .claude/
 .omp/
+
+# Local agent state and one-off artifacts
+/.github/skills/
+/.serena/
+/.papercut*
+/papercuts.md
+/debug-bundles/
+/aaa-temp.txt
+/temp-ignore.txt
+/zzz-temp.txt
+/lint-fix.patch.gz.b64
+/runtime-data/

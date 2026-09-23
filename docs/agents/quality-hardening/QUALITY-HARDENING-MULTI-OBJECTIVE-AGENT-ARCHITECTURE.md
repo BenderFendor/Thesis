@@ -110,7 +110,7 @@ split across scripts and workflows.
 | Concern | Current source | Current behavior |
 |---|---|---|
 | Owned frontend files | `scripts/quality-source-files.mjs` | Defines first-party frontend scope and exclusions |
-| Cyclomatic and cognitive complexity | `scripts/check-complexity`, `cccc.toml` | Fails above cyclomatic 10 or cognitive 15 |
+| Cyclomatic and cognitive complexity | `scripts/check-complexity`, `scripts/quality-hardening/cccc.toml` | Fails above cyclomatic 10 or cognitive 15 |
 | Maintainability Index | `scripts/check-maintainability.mjs` | Hard failure below 50, warning below 60 |
 | CRAP | `scripts/check-crap.mjs` | Uses complexity and coverage when coverage can be mapped |
 | Oxlint | `.oxlintrc.json`, `frontend/package.json` | Type-aware lint with repository plugins and 0-warning intent |
@@ -277,7 +277,7 @@ workflow-local copies.
 
 ### 6.1 Canonical policy
 
-Add `quality-hardening.config.json` at the repository root. It owns:
+Keep `scripts/quality-hardening/quality-hardening.config.json` as the canonical policy. It owns:
 
 - schema and policy version;
 - owned source roots and exclusions;
@@ -292,7 +292,7 @@ Add `quality-hardening.config.json` at the repository root. It owns:
 Existing analyzer configs remain authoritative for analyzer-native settings:
 
 - `.oxlintrc.json` owns Oxlint rules and overrides.
-- `cccc.toml` owns CCCC exclusions and native configuration.
+- `scripts/quality-hardening/cccc.toml` owns CCCC exclusions and native configuration.
 - `.jscpd.json` owns jscpd matching configuration.
 - TypeScript, Jest, Ruff, MyPy, Cargo, and package manifests own their native
   settings.
@@ -302,8 +302,8 @@ provenance. It must not duplicate full rule sets into the controller policy.
 
 ### 6.2 Rule taxonomy
 
-Add `quality-hardening.rules.json` at the repository root. Each known Oxlint
-rule has:
+Keep `scripts/quality-hardening/quality-hardening.rules.json` as the Oxlint
+taxonomy. Each known rule has:
 
 - exact rule ID;
 - quality factor;
@@ -348,10 +348,11 @@ only where the analyzer requires it.
 Create:
 
 ```text
-quality-hardening.config.json
-quality-hardening.rules.json
 scripts/quality-hardening.mjs
 scripts/quality-hardening/
+  cccc.toml
+  quality-hardening.config.json
+  quality-hardening.rules.json
   adapters/
     cccc.mjs
     code-multivitals.mjs
@@ -1495,7 +1496,7 @@ The first implementation session should:
 2. Confirm the branch, head, and worktree.
 3. Create the task trace.
 4. Run the Phase 0 baseline commands without mutating source.
-5. Add `quality-hardening.config.json` and its schema validation test.
+5. Keep the policy and taxonomy under `scripts/quality-hardening/` with their schema validation test.
 6. Add the CLI entry point with `measure --scope repo --json`.
 7. Wrap one analyzer at a time, starting with the existing source-scope helper
    and CCCC.

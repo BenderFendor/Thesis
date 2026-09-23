@@ -265,9 +265,10 @@ Removed from `frontend/app/page.tsx`:
 // const [trendingOpen, setTrendingOpen] = useState(false);
 ```
 
+Removed `.github/skills/` on 2026-09-23 at the user's request. The skill-template placeholders are no longer in the repository.
+
 ### Remaining Work
 - Trim verbose comments in `blindspot-view.tsx`, `interactive-globe.tsx`
-- Remove skill template placeholders from `.github/skills/`
 
 ---
 

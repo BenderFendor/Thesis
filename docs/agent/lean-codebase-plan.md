@@ -375,7 +375,7 @@ are represented, and investigate unmatched method ranges separately.
 ### B05. Analysis success is confused with quality success
 
 Files: scripts/quality-hardening/measure.mjs; scripts/check-maintainability.mjs;
-quality-hardening.config.json; scripts/check-crap.mjs.
+scripts/quality-hardening/quality-hardening.config.json; scripts/check-crap.mjs.
 
 measureMi labels a successful analyzer invocation as passed even when low MI is reported,
 and the measurement verification list does not include MI. The separate strict MI CLI catches
@@ -810,7 +810,8 @@ Backend focused commands run in backend:
     MYPYPATH=. .venv/bin/mypy --explicit-package-bases app --strict
     .venv/bin/pytest tests -m "not slow"
 
-Rust and Ruff commands use the versions already configured in quality-hardening.config.json.
+Rust and Ruff commands use the versions already configured in
+scripts/quality-hardening/quality-hardening.config.json.
 The release extension build is required after Rust changes. Keep it in the project environment.
 
 For every behavior change: record a failing old-behavior reproduction, the smallest regression

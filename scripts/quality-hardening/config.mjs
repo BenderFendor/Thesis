@@ -4,11 +4,11 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const CONFIG_NAME = "quality-hardening.config.json",
+const CONFIG_NAME = "scripts/quality-hardening/quality-hardening.config.json",
   OXLINT_NAME = ".oxlintrc.json",
   SCRIPT_OXLINT_NAME = "scripts/oxlint.config.json",
   REQUIRED_SCHEMA_VERSION = 1,
-  RULES_NAME = "quality-hardening.rules.json";
+  RULES_NAME = "scripts/quality-hardening/quality-hardening.rules.json";
 
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} CcccConfig */
 /** @typedef {Readonly<{native_config: string, version: string, command: readonly string[], output_limit_bytes: number}>} OxlintConfig */

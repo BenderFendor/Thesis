@@ -9,10 +9,10 @@ echo "Root: $ROOT_DIR"
 echo
 
 echo "== Last verification log snapshot =="
-if [[ -f "chroma.log" ]]; then
-	echo "- chroma.log exists"
+if compgen -G "log/chroma*.log" >/dev/null; then
+	echo "- Chroma logs exist under log/"
 else
-	echo "- chroma.log missing"
+	echo "- Chroma logs missing under log/"
 fi
 
 if [[ -f "backend/server.log" ]]; then

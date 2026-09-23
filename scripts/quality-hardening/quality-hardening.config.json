@@ -42,7 +42,7 @@
   "analyzers": {
     "cccc": {
       "version": "1.6.0",
-      "native_config": "cccc.toml",
+      "native_config": "scripts/quality-hardening/cccc.toml",
       "command": [
         "bash",
         "scripts/check-complexity",

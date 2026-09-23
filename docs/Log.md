@@ -1,5 +1,13 @@
 # Log
 
+## 2026-09-23: Repository root cleanup
+
+Removed the tracked `.github/skills/` and `.serena/` directories, the
+`debug-bundles/` marker, empty temp files, and a placeholder patch. Kept the
+Papercut files locally and removed them from Git tracking. Moved quality policy
+files under `scripts/quality-hardening/` and the root Chroma log under `log/`.
+The local `runtime-data/` directory is ignored as well.
+
 ## 2026-09-22: Fixes from the Lean and TLA+ audit
 
 Reporter verification now requires fetched profile-name evidence. Quality-task
