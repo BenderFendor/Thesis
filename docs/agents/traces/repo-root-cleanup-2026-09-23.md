@@ -41,6 +41,8 @@ Reduce tracked repository-root clutter and keep local agent state, debug bundles
 ## Changed files
 
 - `.gitignore`: ignore the local skills directory, Serena state, Papercut files, debug bundles, named placeholders, and `runtime-data/`.
+- `.env.example`: removed; `backend/.env.example` is the documented setup template.
+- `.jscpd.json`: moved to `scripts/quality-hardening/.jscpd.json`; the package command points to the new path.
 - `.github/skills/`, `.serena/`, `debug-bundles/.gitignore`, empty root placeholders, and the `PLACEHOLDER` patch: removed.
 - `papercuts.md` and `.papercut-resolutions.jsonl`: removed from the Git index only; local copies retained and ignored.
 - `cccc.toml`, `quality-hardening.config.json`, and `quality-hardening.rules.json`: moved to `scripts/quality-hardening/`.
@@ -52,4 +54,13 @@ Reduce tracked repository-root clutter and keep local agent state, debug bundles
 
 ## Status
 
-Requested cleanup and path migration are complete. The only incomplete check is the repository-wide quality gate, which still reports the same 2 CCCC and 141 code-multivitals violations as the prior measurement. The cleanup and documentation changes are ready for publication.
+Requested cleanup and path migration are complete. The repository-wide quality gate still reports the same 2 CCCC and 141 code-multivitals violations as the prior measurement.
+
+## Follow-up root audit plan and outcome
+
+- Remove root `.env.example`: setup uses `backend/.env.example`; the root sample has unused Jira placeholders and frontend variables with no application consumers.
+- Move `.jscpd.json` into `scripts/quality-hardening/` and update its package command and active architecture documentation.
+- Keep `.oxlintrc.json`, `.pre-commit-config.yaml`, `.dockerignore`, `.gitignore`, manifests, Docker Compose, license, documentation, workflows, and source directories in their conventional or required locations.
+- Preserve ignored local state and the untracked `har/` directory.
+
+Follow-up audit outcome: removed the root template, relocated jscpd config, corrected the setup command and active quality architecture references. `git diff --check` passed; searches found no active references to the removed root template or old jscpd config path.

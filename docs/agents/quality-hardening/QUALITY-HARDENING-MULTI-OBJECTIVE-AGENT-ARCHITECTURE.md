@@ -114,7 +114,7 @@ split across scripts and workflows.
 | Maintainability Index | `scripts/check-maintainability.mjs` | Hard failure below 50, warning below 60 |
 | CRAP | `scripts/check-crap.mjs` | Uses complexity and coverage when coverage can be mapped |
 | Oxlint | `.oxlintrc.json`, `frontend/package.json` | Type-aware lint with repository plugins and 0-warning intent |
-| Duplication | `.jscpd.json` | Fails above 3 percent |
+| Duplication | `scripts/quality-hardening/.jscpd.json` | Fails above 3 percent |
 | Imports | `scripts/check-imports.mjs` | Checks owned frontend imports |
 | Cycles | `scripts/check-cycles` | Checks dependency cycles |
 | Dead code | frontend dead-code command | Reports unused and duplicate exports and dependencies |
@@ -293,7 +293,7 @@ Existing analyzer configs remain authoritative for analyzer-native settings:
 
 - `.oxlintrc.json` owns Oxlint rules and overrides.
 - `scripts/quality-hardening/cccc.toml` owns CCCC exclusions and native configuration.
-- `.jscpd.json` owns jscpd matching configuration.
+- `scripts/quality-hardening/.jscpd.json` owns jscpd matching configuration.
 - TypeScript, Jest, Ruff, MyPy, Cargo, and package manifests own their native
   settings.
 

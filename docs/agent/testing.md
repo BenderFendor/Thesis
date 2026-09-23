@@ -10,7 +10,7 @@
 
 - setup command
   - `./runlocal.sh setup`
-  - Environment keys: copy `.env.example` to `backend/.env` and set required keys.
+  - Environment keys: copy `backend/.env.example` to `backend/.env` and set required keys.
 
 - test command
   - Full path: `./verify.sh`

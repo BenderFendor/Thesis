@@ -6,7 +6,8 @@ Removed the tracked `.github/skills/` and `.serena/` directories, the
 `debug-bundles/` marker, empty temp files, and a placeholder patch. Kept the
 Papercut files locally and removed them from Git tracking. Moved quality policy
 files under `scripts/quality-hardening/` and the root Chroma log under `log/`.
-The local `runtime-data/` directory is ignored as well.
+The local `runtime-data/` directory is ignored as well. Removed the stale root
+`.env.example` and moved `.jscpd.json` into the quality-hardening config folder.
 
 ## 2026-09-22: Fixes from the Lean and TLA+ audit
 
