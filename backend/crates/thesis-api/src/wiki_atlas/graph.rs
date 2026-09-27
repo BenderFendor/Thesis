@@ -20,10 +20,14 @@ use super::{
     AtlasGraphStatsResponse, AtlasLifecycleState, AtlasNodeResponse, AtlasRelationType,
 };
 
+#[path = "connections.rs"]
+mod connections;
 #[path = "graph/ids.rs"]
 mod ids;
 #[path = "graph_projection.rs"]
 mod projection;
+
+pub(super) use self::connections::get_connections;
 
 pub(super) use self::ids::{
     casefold, confidence_tier, edge_id, normalize_entity_label, stable_source_id,
@@ -633,7 +637,7 @@ fn graph_stats(
     stats
 }
 
-fn build_response(
+pub(super) fn build_response(
     data: GraphData,
     filters: AtlasGraphFiltersInput,
     generated_at: DateTime<Utc>,
