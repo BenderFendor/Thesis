@@ -68,63 +68,62 @@ fn collect_connections(graph: AtlasGraphResponse, entity_id: &str) -> Vec<AtlasC
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect::<HashMap<_, _>>();
-    let mut connected_edge_ids = HashSet::<String>::new();
-    let mut remaining_edges = Vec::new();
-    let mut connections = Vec::new();
-
-    for edge in edges {
-        let related_id = if edge.source_id == entity_id {
-            edge.target_id.as_str()
-        } else if edge.target_id == entity_id {
-            edge.source_id.as_str()
-        } else {
-            remaining_edges.push(edge);
-            continue;
-        };
-        if connected_edge_ids.contains(edge.id.as_str()) {
-            continue;
-        }
-        let Some(entity) = node_by_id.get(related_id).copied() else {
-            continue;
-        };
-        connected_edge_ids.insert(edge.id.clone());
-        connections.push(AtlasConnectionResponse {
-            edge,
-            entity: entity.clone(),
-        });
-    }
-
-    let owner_ids = connections
+    let owner_ids = edges
         .iter()
-        .filter(|connection| {
-            connection.edge.accepted_fact
+        .filter(|edge| {
+            edge.target_id == entity_id
+                && edge.accepted_fact
+                && matches!(edge.lifecycle_state, AtlasLifecycleState::Current)
                 && matches!(
-                    connection.edge.lifecycle_state,
-                    AtlasLifecycleState::Current
-                )
-                && connection.edge.target_id == entity_id
-                && matches!(
-                    connection.edge.predicate.as_str(),
+                    edge.predicate.as_str(),
                     "directly_owns" | "owns_equity_in" | "controls" | "brand_of" | "operated_by"
                 )
+                && node_by_id.contains_key(edge.source_id.as_str())
         })
-        .map(|connection| connection.entity.id.clone())
+        .map(|edge| edge.source_id.clone())
         .collect::<HashSet<_>>();
 
-    for edge in remaining_edges {
-        if connected_edge_ids.contains(edge.id.as_str())
-            || !matches!(
-                edge.lifecycle_state,
-                AtlasLifecycleState::Proposed
-                    | AtlasLifecycleState::Pending
-                    | AtlasLifecycleState::Disputed
-            )
-        {
+    let mut direct_edge_ids = HashSet::<String>::new();
+    let mut pending_edge_ids = HashSet::<String>::new();
+    let mut direct_connections = Vec::new();
+    let mut pending_connections = Vec::new();
+    for edge in edges {
+        let direct_related_id = if edge.source_id == entity_id {
+            Some(edge.target_id.as_str())
+        } else if edge.target_id == entity_id {
+            Some(edge.source_id.as_str())
+        } else {
+            None
+        };
+        if let Some(related_id) = direct_related_id {
+            if direct_edge_ids.contains(edge.id.as_str()) {
+                continue;
+            }
+            let Some(entity) = node_by_id.get(related_id).copied() else {
+                continue;
+            };
+            direct_edge_ids.insert(edge.id.clone());
+            direct_connections.push(AtlasConnectionResponse {
+                edge,
+                entity: entity.clone(),
+            });
+            continue;
+        }
+
+        if !matches!(
+            edge.lifecycle_state,
+            AtlasLifecycleState::Proposed
+                | AtlasLifecycleState::Pending
+                | AtlasLifecycleState::Disputed
+        ) {
             continue;
         }
         let source_is_owner = owner_ids.contains(edge.source_id.as_str());
         let target_is_owner = owner_ids.contains(edge.target_id.as_str());
-        if !source_is_owner && !target_is_owner {
+        if (!source_is_owner && !target_is_owner)
+            || direct_edge_ids.contains(edge.id.as_str())
+            || pending_edge_ids.contains(edge.id.as_str())
+        {
             continue;
         }
         let related_id = if source_is_owner {
@@ -135,21 +134,23 @@ fn collect_connections(graph: AtlasGraphResponse, entity_id: &str) -> Vec<AtlasC
         let Some(entity) = node_by_id.get(related_id).copied() else {
             continue;
         };
-        connected_edge_ids.insert(edge.id.clone());
-        connections.push(AtlasConnectionResponse {
+        pending_edge_ids.insert(edge.id.clone());
+        pending_connections.push(AtlasConnectionResponse {
             edge,
             entity: entity.clone(),
         });
     }
 
-    connections.sort_by_cached_key(|connection| {
+    pending_connections.retain(|connection| !direct_edge_ids.contains(connection.edge.id.as_str()));
+    direct_connections.extend(pending_connections);
+    direct_connections.sort_by_cached_key(|connection| {
         (
             Reverse(ConfidenceOrder(connection.edge.confidence.unwrap_or(0.0))),
             Reverse(connection.edge.evidence_count),
             casefold(&connection.entity.label),
         )
     });
-    connections
+    direct_connections
 }
 
 fn entity_not_found() -> Response {

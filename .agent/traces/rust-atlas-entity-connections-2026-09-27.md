@@ -3,7 +3,7 @@ name: `rust-atlas-entity-connections-2026-09-27`
 goal: port `GET /api/wiki/atlas/entities/{entity_id}/connections` into the Rust Atlas graph slice.
 status: Connection handler and response projection are complete; parent router wiring is intentionally untouched.
 risk tier: Medium — inclusion depends on graph direction, accepted ownership, lifecycle, and ordering semantics.
-verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the connection source and graph export, including the ownership follow-up.
+verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the connection source and graph export, including both ownership follow-ups.
 test gap: Test sources were added but not run; populated DB row fixtures remain blocked by private `thesis_db::atlas` DTOs.
 
 ## Goal
@@ -41,3 +41,10 @@ Scoped Rust implementation and formatting complete. Parent route wiring is not p
 - `collect_connections` now consumes the graph response and moves eligible edge DTOs into connection results; only the related node DTO is cloned.
 - Direct and pending edge ID deduplication, missing-node handling, accepted-current-owner selection, and sort ordering are preserved.
 - Behavior test call sites now pass the graph response by value. Tests remain unrun by instruction.
+
+## Follow-up — Remove non-direct edge buffer
+
+- Owner IDs are derived before consuming graph edges from accepted/current ownership edges whose selected target and source node exist.
+- The consuming pass classifies direct and owner-pending edges, moves eligible edge DTOs into results, and buffers only eligible pending result records—not every non-direct graph edge.
+- Direct and pending ID deduplication and direct-before-pending stable tie order remain intact; related node DTOs are still cloned.
+- Standalone rustfmt passed for `connections.rs`. Tests remain unrun by instruction.
