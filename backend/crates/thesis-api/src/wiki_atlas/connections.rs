@@ -62,24 +62,23 @@ fn connection_filters(entity_id: &str) -> AtlasGraphFiltersInput {
     filters
 }
 
-fn collect_connections(
-    graph: &AtlasGraphResponse,
-    entity_id: &str,
-) -> Vec<AtlasConnectionResponse> {
-    let node_by_id = graph
-        .nodes
+fn collect_connections(graph: AtlasGraphResponse, entity_id: &str) -> Vec<AtlasConnectionResponse> {
+    let AtlasGraphResponse { nodes, edges, .. } = graph;
+    let node_by_id = nodes
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect::<HashMap<_, _>>();
-    let mut connected_edge_ids = HashSet::new();
+    let mut connected_edge_ids = HashSet::<String>::new();
+    let mut remaining_edges = Vec::new();
     let mut connections = Vec::new();
 
-    for edge in &graph.edges {
+    for edge in edges {
         let related_id = if edge.source_id == entity_id {
             edge.target_id.as_str()
         } else if edge.target_id == entity_id {
             edge.source_id.as_str()
         } else {
+            remaining_edges.push(edge);
             continue;
         };
         if connected_edge_ids.contains(edge.id.as_str()) {
@@ -88,9 +87,9 @@ fn collect_connections(
         let Some(entity) = node_by_id.get(related_id).copied() else {
             continue;
         };
-        connected_edge_ids.insert(edge.id.as_str());
+        connected_edge_ids.insert(edge.id.clone());
         connections.push(AtlasConnectionResponse {
-            edge: edge.clone(),
+            edge,
             entity: entity.clone(),
         });
     }
@@ -112,7 +111,7 @@ fn collect_connections(
         .map(|connection| connection.entity.id.clone())
         .collect::<HashSet<_>>();
 
-    for edge in &graph.edges {
+    for edge in remaining_edges {
         if connected_edge_ids.contains(edge.id.as_str())
             || !matches!(
                 edge.lifecycle_state,
@@ -136,9 +135,9 @@ fn collect_connections(
         let Some(entity) = node_by_id.get(related_id).copied() else {
             continue;
         };
-        connected_edge_ids.insert(edge.id.as_str());
+        connected_edge_ids.insert(edge.id.clone());
         connections.push(AtlasConnectionResponse {
-            edge: edge.clone(),
+            edge,
             entity: entity.clone(),
         });
     }
@@ -200,7 +199,7 @@ pub(crate) async fn get_connections(
     if !graph.nodes.iter().any(|node| node.id == entity_id) {
         return entity_not_found();
     }
-    Json(collect_connections(&graph, &entity_id)).into_response()
+    Json(collect_connections(graph, &entity_id)).into_response()
 }
 
 #[cfg(test)]
@@ -494,7 +493,7 @@ mod tests {
             ),
         ];
         let response = selected_response(selected, nodes, edges);
-        let connections = collect_connections(&response, selected);
+        let connections = collect_connections(response, selected);
         let ids = connections
             .iter()
             .map(|connection| connection.edge.id.as_str())
@@ -574,7 +573,7 @@ mod tests {
             ),
         ];
         let response = selected_response(selected, nodes, edges);
-        let labels = collect_connections(&response, selected)
+        let labels = collect_connections(response, selected)
             .into_iter()
             .map(|connection| connection.entity.label)
             .collect::<Vec<_>>();

@@ -3,14 +3,14 @@ name: `rust-atlas-entity-connections-2026-09-27`
 goal: port `GET /api/wiki/atlas/entities/{entity_id}/connections` into the Rust Atlas graph slice.
 status: Connection handler and response projection are complete; parent router wiring is intentionally untouched.
 risk tier: Medium — inclusion depends on graph direction, accepted ownership, lifecycle, and ordering semantics.
-verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the two Rust source files.
+verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the connection source and graph export, including the ownership follow-up.
 test gap: Test sources were added but not run; populated DB row fixtures remain blocked by private `thesis_db::atlas` DTOs.
 
 ## Goal
 Preserve the Python entity-connections contract using the Rust graph projection and API response DTOs, without editing parent routing, DB/Cargo, shared docs, or discovery files.
 
 ## Files changed
-- `backend/crates/thesis-api/src/wiki_atlas/connections.rs` — alias normalization, fixed graph filters, connections projection, handler, and behavior tests.
+- `backend/crates/thesis-api/src/wiki_atlas/connections.rs` — alias normalization, fixed graph filters, handler, behavior tests, and moved-edge connection collection.
 - `backend/crates/thesis-api/src/wiki_atlas/graph.rs` — nested module declaration/re-export and `build_response` visibility for reuse.
 
 ## Commands run
@@ -35,3 +35,9 @@ Revert only `connections.rs`, the two graph-owned visibility/module lines in `gr
 
 ## Status
 Scoped Rust implementation and formatting complete. Parent route wiring is not part of this task. No runtime or test result is claimed.
+
+## Follow-up — Response edge ownership
+
+- `collect_connections` now consumes the graph response and moves eligible edge DTOs into connection results; only the related node DTO is cloned.
+- Direct and pending edge ID deduplication, missing-node handling, accepted-current-owner selection, and sort ordering are preserved.
+- Behavior test call sites now pass the graph response by value. Tests remain unrun by instruction.
