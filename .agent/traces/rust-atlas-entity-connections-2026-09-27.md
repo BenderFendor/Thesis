@@ -3,7 +3,7 @@ name: `rust-atlas-entity-connections-2026-09-27`
 goal: port `GET /api/wiki/atlas/entities/{entity_id}/connections` into the Rust Atlas graph slice.
 status: Connection handler and response projection are complete; parent router wiring is intentionally untouched.
 risk tier: Medium — inclusion depends on graph direction, accepted ownership, lifecycle, and ordering semantics.
-verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the connection source and graph export, including both ownership follow-ups.
+verification: standalone `rustfmt --edition 2021 --config skip_children=true` passed for the connection source and graph export, including ownership and crate-root visibility follow-ups.
 test gap: Test sources were added but not run; populated DB row fixtures remain blocked by private `thesis_db::atlas` DTOs.
 
 ## Goal
@@ -27,11 +27,11 @@ Preserve the Python entity-connections contract using the Rust graph projection 
 ## Contract notes and blocker
 - The handler applies entity types outlet/organization/person/reporter, selected normalized ID, neighbors 2, node limit 350, edge limit 1500, and evidence previews enabled.
 - A missing projected node returns HTTP 404 with `{"detail":"Atlas entity not found"}`. This deliberately preserves configured catalog-only outlet nodes rather than requiring a DB evidence-entity/detail row; an unknown ID absent from the selected graph remains 404.
-- Populated projection fixtures still cannot be built in `thesis-api`: row DTOs live in private `thesis_db::atlas` and are not re-exported. No DB, re-export, or mock changes were made. This does not block the API-DTO response-level connection tests.
-- The parent router/module integration is intentionally pending its owner; `get_connections` is re-exported from the graph module for that integration.
+- Populated projection fixtures still cannot be built in `thesis-api`: row DTOs live in private `thesis_db::atlas` and are not re-exported. No DB DTO re-exports or mocks were changed. This does not block the API-DTO response-level connection tests.
+- The parent router/module integration remains owned separately; the graph module now re-exports `get_connections` as `pub(crate)` so the parent can expose it to central `ApiDoc.paths`.
 
 ## Rollback
-Revert only `connections.rs`, the two graph-owned visibility/module lines in `graph.rs`, and this worksheet. Do not revert other working-tree changes.
+Revert only `connections.rs`, the graph-owned module/visibility changes in `graph.rs`, and this worksheet. Do not revert other working-tree changes.
 
 ## Status
 Scoped Rust implementation and formatting complete. Parent route wiring is not part of this task. No runtime or test result is claimed.
@@ -48,3 +48,9 @@ Scoped Rust implementation and formatting complete. Parent route wiring is not p
 - The consuming pass classifies direct and owner-pending edges, moves eligible edge DTOs into results, and buffers only eligible pending result records—not every non-direct graph edge.
 - Direct and pending ID deduplication and direct-before-pending stable tie order remain intact; related node DTOs are still cloned.
 - Standalone rustfmt passed for `connections.rs`. Tests remain unrun by instruction.
+
+## Follow-up — crate-root OpenAPI visibility
+
+- Widened the graph module's `get_connections` re-export to `pub(crate)` for the parent `wiki_atlas` re-export consumed by central `ApiDoc.paths`.
+- The parent router, parent re-exports, and untracked `lib.rs` remain owned separately and were not edited in this follow-up.
+- Standalone rustfmt passed for `graph.rs`. No Cargo or tests were run.

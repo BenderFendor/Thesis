@@ -27,7 +27,7 @@ mod ids;
 #[path = "graph_projection.rs"]
 mod projection;
 
-pub(super) use self::connections::get_connections;
+pub(crate) use self::connections::get_connections;
 
 pub(super) use self::ids::{
     casefold, confidence_tier, edge_id, normalize_entity_label, stable_source_id,
