@@ -8,6 +8,8 @@ pub mod article_comparison;
 pub mod comparison_keywords;
 /// Country alias matching and article text composition.
 pub mod country_mentions;
+/// Contingency tables and Cramer's V for catalog analysis.
+pub mod funding_bias;
 /// Deterministic sentence-level diagnostics for article language.
 pub mod language_diagnostics;
 /// MinHash duplicate detection and article grouping.

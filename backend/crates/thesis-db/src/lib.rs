@@ -35,9 +35,6 @@ pub use highlights::{
     HighlightCreate, HighlightError, HighlightPatch, HighlightRecord, DEFAULT_HIGHLIGHT_USER_ID,
 };
 pub use image_cache::{ImageCacheRecord, ImageCacheStats};
-pub use verification_cache::{
-    verification_claim_hash, VerificationCacheRecord, VerificationCacheWrite,
-};
 pub use library::{LibraryError, SavedArticleCreateResult, SavedArticleItem, SavedArticleRecord};
 pub use material_interest::{
     WikiMaterialAnalysisScore, WikiMaterialCommodityContext, WikiMaterialCountryResource,
@@ -62,19 +59,21 @@ pub use reading_queue::{
     ReadingShelfUpdate,
 };
 pub use relationships::RelationshipRecord;
+pub use verification_cache::{
+    verification_claim_hash, VerificationCacheRecord, VerificationCacheWrite,
+};
 pub use wiki::{
-    PersistedSourceCatalogRecord, SourceCatalogPromotion, sha256_hex,
-    WikiArticleAuthorLinkInput, WikiArticleBehaviorStats, WikiCredibilityOrganizationRecord,
-    WikiFundingBiasData, WikiFundingBiasTrace, WikiFundingPreregistration,
-    WikiGdeltCredibilityStats, WikiIndexStatusRecord, WikiIngestRunRecord,
-    WikiOrganizationRecord, WikiOrganizationResearchRecord, WikiOrganizationWriteRecord,
-    WikiReporterArticleRecord, WikiReporterBylineSummaryRecord, WikiReporterCardRecord,
-    WikiReporterDossierData,
-    WikiReporterDossierRecord, WikiReporterProfileWriteRecord, WikiReporterResearchRecord,
-    WikiSourceAnalysisScoreInput, WikiSourceAnalysisScoreRecord,
-    WikiSourceClaimEvidenceInput, WikiSourceClaimEvidenceRecord, WikiSourceClaimInput,
-    WikiSourceClaimRecord, WikiSourceClaimWithEvidence, WikiSourceCredibilityData,
-    WikiSourceCredibilityMetadataRecord, WikiSourceCredibilityRecord,
+    sha256_hex, FundingBiasCatalogOutlet, FundingBiasSample, PersistedSourceCatalogRecord,
+    SourceCatalogPromotion, WikiArticleAuthorLinkInput, WikiArticleBehaviorStats,
+    WikiCredibilityOrganizationRecord, WikiFundingBiasData, WikiFundingBiasTrace,
+    WikiFundingPreregistration, WikiGdeltCredibilityStats, WikiIndexStatusRecord,
+    WikiIngestRunRecord, WikiOrganizationRecord, WikiOrganizationResearchRecord,
+    WikiOrganizationWriteRecord, WikiReporterArticleRecord, WikiReporterBylineSummaryRecord,
+    WikiReporterCardRecord, WikiReporterDossierData, WikiReporterDossierRecord,
+    WikiReporterProfileWriteRecord, WikiReporterResearchRecord, WikiSourceAnalysisScoreInput,
+    WikiSourceAnalysisScoreRecord, WikiSourceClaimEvidenceInput, WikiSourceClaimEvidenceRecord,
+    WikiSourceClaimInput, WikiSourceClaimRecord, WikiSourceClaimWithEvidence,
+    WikiSourceCredibilityData, WikiSourceCredibilityMetadataRecord, WikiSourceCredibilityRecord,
     WikiSourceLedgerArticleRecord, WikiSourceLedgerData, WikiSourceLedgerRelationCount,
     WikiSourceMetadataRecord, WikiSourceOrganizationRecord, WikiSourceReporterSummaryRecord,
     WikiUnresolvedAuthorArticle, WikiUnresolvedAuthorCandidate,
@@ -137,7 +136,10 @@ impl std::fmt::Display for MigrationError {
             }
             Self::Runner(error) => write!(formatter, "SQLx migration runner failed: {error}"),
             Self::Readiness(error) => {
-                write!(formatter, "schema readiness failed after migration: {error}")
+                write!(
+                    formatter,
+                    "schema readiness failed after migration: {error}"
+                )
             }
             Self::UnsupportedState(reason) => {
                 write!(formatter, "unsupported database schema state: {reason}")
@@ -220,7 +222,6 @@ impl AdvisoryLease {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct ClaimEvidence {
     pub predicate: String,
@@ -290,10 +291,7 @@ impl Database {
     ///
     /// The lock is held on this database's shared pool connection until the
     /// returned guard is explicitly released or dropped.
-    pub async fn try_advisory_lease(
-        &self,
-        key: i64,
-    ) -> Result<Option<AdvisoryLease>, sqlx::Error> {
+    pub async fn try_advisory_lease(&self, key: i64) -> Result<Option<AdvisoryLease>, sqlx::Error> {
         let mut transaction = self.pool.begin().await?;
         let acquired = sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_xact_lock($1)")
             .bind(key)
@@ -303,9 +301,7 @@ impl Database {
             transaction.rollback().await?;
             return Ok(None);
         }
-        Ok(Some(AdvisoryLease {
-            transaction,
-        }))
+        Ok(Some(AdvisoryLease { transaction }))
     }
 
     pub async fn load_ownership_edges(&self) -> Result<Vec<OwnershipEdge>, OwnershipEdgeLoadError> {
@@ -566,7 +562,6 @@ struct AppliedMigrationRow {
     version: i64,
     success: bool,
     checksum: Vec<u8>,
-
 }
 async fn migrate_database(pool: &PgPool) -> Result<MigrationReport, MigrationError> {
     let mut connection = pool.acquire().await.map_err(MigrationError::Database)?;
@@ -591,9 +586,7 @@ async fn migrate_database(pool: &PgPool) -> Result<MigrationReport, MigrationErr
     }
 }
 
-async fn migrate_locked(
-    connection: &mut PgConnection,
-) -> Result<MigrationReport, MigrationError> {
+async fn migrate_locked(connection: &mut PgConnection) -> Result<MigrationReport, MigrationError> {
     let source = inspect_migration_source(&mut *connection).await?;
     let latest_version = MIGRATOR
         .iter()
@@ -675,9 +668,7 @@ async fn inspect_migration_source(
     Ok(MigrationSource::Empty)
 }
 
-async fn validate_alembic_revision(
-    connection: &mut PgConnection,
-) -> Result<(), &'static str> {
+async fn validate_alembic_revision(connection: &mut PgConnection) -> Result<(), &'static str> {
     let revisions = sqlx::query_scalar::<_, String>(
         "SELECT version_num FROM public.alembic_version ORDER BY version_num",
     )
@@ -690,9 +681,7 @@ async fn validate_alembic_revision(
     Ok(())
 }
 
-async fn validate_alembic_head_schema(
-    connection: &mut PgConnection,
-) -> Result<(), MigrationError> {
+async fn validate_alembic_head_schema(connection: &mut PgConnection) -> Result<(), MigrationError> {
     let present_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM unnest($1::text[]) AS expected(name) \
          WHERE to_regclass('public.' || quote_ident(expected.name)) IS NOT NULL",
@@ -820,7 +809,10 @@ async fn column_exists(
 }
 
 async fn check_schema_readiness(pool: &PgPool) -> Result<(), SchemaReadinessError> {
-    let mut connection = pool.acquire().await.map_err(SchemaReadinessError::Database)?;
+    let mut connection = pool
+        .acquire()
+        .await
+        .map_err(SchemaReadinessError::Database)?;
     check_schema_readiness_on(&mut *connection).await
 }
 
@@ -894,7 +886,6 @@ async fn check_schema_readiness_on(
         return Err(SchemaReadinessError::RequiredTableMissing);
     }
 
-
     if relation_exists(&mut *connection, "public.alembic_version")
         .await
         .map_err(SchemaReadinessError::Database)?
@@ -911,16 +902,22 @@ mod migration_tests {
         Database, MigrationError, MigrationSource, SchemaReadinessError, ALEMBIC_HANDOFF_REVISION,
         MIGRATOR,
     };
-    use sqlx::{Executor, PgPool};
+    use sqlx::PgPool;
 
     async fn apply_legacy_schema(pool: &PgPool) {
-        let migration = MIGRATOR.iter().next().expect("legacy schema migration exists");
+        let migration = MIGRATOR
+            .iter()
+            .next()
+            .expect("legacy schema migration exists");
         let mut transaction = pool.begin().await.expect("test transaction begins");
         sqlx::raw_sql(migration.sql.as_ref())
             .execute(&mut *transaction)
             .await
             .expect("legacy schema migration applies to fixture");
-        transaction.commit().await.expect("test transaction commits");
+        transaction
+            .commit()
+            .await
+            .expect("test transaction commits");
     }
 
     async fn stamp_alembic_head(pool: &PgPool) {
@@ -1130,13 +1127,11 @@ mod migration_tests {
             .await
             .expect("lease query succeeds")
             .expect("first owner acquires lease");
-        assert!(
-            database
-                .try_advisory_lease(key)
-                .await
-                .expect("competing lease query succeeds")
-                .is_none()
-        );
+        assert!(database
+            .try_advisory_lease(key)
+            .await
+            .expect("competing lease query succeeds")
+            .is_none());
         lease.release().await.expect("explicit release succeeds");
 
         let dropped = database
@@ -1156,6 +1151,9 @@ mod migration_tests {
             .execute(&mut *transaction)
             .await
             .expect("dropping the lease releases its transaction lock");
-        transaction.rollback().await.expect("lease probe rolls back");
+        transaction
+            .rollback()
+            .await
+            .expect("lease probe rolls back");
     }
 }

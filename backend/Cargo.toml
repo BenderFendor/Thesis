@@ -9,6 +9,7 @@ members = [
     "crates/thesis-api",
     "crates/thesis-runtime",
     "crates/thesis-server",
+    "crates/thesis-funding-bias",
     "crates/thesis-observe",
 ]
 

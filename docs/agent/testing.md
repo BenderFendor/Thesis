@@ -77,6 +77,8 @@ cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo clippy --manifest-path backend/Cargo.toml --workspace --all-targets -- -D warnings
 cargo test --manifest-path backend/Cargo.toml --workspace
 cargo build --manifest-path backend/Cargo.toml -p thesis-server
+cargo test --manifest-path backend/Cargo.toml -p thesis-funding-bias
+cargo run --manifest-path backend/Cargo.toml -p thesis-funding-bias
 cargo kani --manifest-path backend/Cargo.toml -p thesis-evidence --default-unwind 4
 cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4
 cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4
@@ -86,9 +88,12 @@ cargo kani --manifest-path backend/Cargo.toml -p thesis-search \
   --default-unwind 4 --harness keyword_emphasis_tracks_frequency_order
 cargo kani --manifest-path backend/Cargo.toml -p thesis-search \
   --default-unwind 1 --harness increasing_rate_never_reduces_diagnostic_severity
+cargo kani --manifest-path backend/Cargo.toml -p thesis-search \
+  --default-unwind 4 --harness symbolic_two_by_two_population_total_matches_the_cells_without_overflow
 cargo kani --manifest-path backend/Cargo.toml \
   -p rss_parser_rust --default-unwind 4
 cargo bench --manifest-path backend/Cargo.toml -p thesis-search --bench minhash
+cargo bench --manifest-path backend/Cargo.toml -p thesis-search --bench funding_bias
 cargo mutants --manifest-path backend/Cargo.toml \
   --package thesis-evidence --package thesis-search \
   --re '.*in (collect_evidence_facts|acceptance_reasons|decision_failures|review_failures|policy_failures|distinct_count|normalize_token|cap_score|stop_words_set|tokenize|article_keywords|source_key|has_real_image|priority_bucket|add_profile_weights|build_interest_profile|score_article|rank_articles)$' \
@@ -167,7 +172,7 @@ and passed 34 checks at unwind 1. The two Hypothesis differentials check Unicode
 and generated-pattern text against the retained Python reference. This does not
 verify the regex engine, phrase policy, or full text analyzer with Kani. Verus
 adds no useful unbounded invariant to these bounded severity thresholds.
-The complete `thesis-search` Kani run passed all 12 harnesses at default
+The complete `thesis-search` Kani run passed all 13 harnesses at default
 unwind 4; the diagnostics harness also passed separately at unwind 1.
 
 `thesis-ingest` Kani checks CAMEO normalization over a bounded arbitrary byte
@@ -178,10 +183,11 @@ digits. Verus verifies the corresponding normalization contract over arbitrary
 finite byte sequences, with no assumptions. This model does not prove Rust
 refinement. Kani verifies six evidence harnesses at unwind 4, including the
 production root-deduplication helper and a symbolic duplicate-root property.
-Verus runs seven models: source-host label boundaries, CAMEO root normalization,
+Verus runs eight models: source-host label boundaries, CAMEO root normalization,
 evidence-root set membership, transitive country-alias span containment, the
 unbounded mathematical MinHash count-ratio bound, comparison-keyword priority,
-and article-comparison entity partitioning. The entity model represents
+article-comparison entity partitioning, and the non-degenerate Cramer's V
+denominator guard. The entity model represents
 normalized names as arbitrary finite sets of natural-number IDs and proves
 that the shared and source-only groups are pairwise disjoint and reconstruct
 each input set. It does not prove Rust string normalization, output order, or
@@ -193,6 +199,7 @@ binary is on `PATH`; CI installs the checksummed release and toolchain.
 
 ```sh
 RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/comparison_entity_partition.rs
+RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/funding_bias_guard.rs
 ```
 
 CI pins Verus 0.2026.09.20.aef82ed and runs all selected Kani and Verus checks
@@ -208,6 +215,11 @@ The initial MinHash Criterion baseline uses 10 samples and a 2-second
 measurement window. It records signature generation, pair detection, and
 grouping for 64 articles. The migration report includes the host and measured
 intervals; it is not a comparison with Python.
+
+The funding-bias Criterion suite measures a 20,000-pair table build and a
+16x9 Cramer's V calculation over 100 samples. The latest run measured 3.3310 ms
+for table construction and 758.34 ns for the statistic (median estimates).
+These measurements do not compare Rust with Python.
 
 The same-HTTP-request comparison checks evidence policies, claim reads,
 relationship reads, evidence evaluation, personalized ranking, and

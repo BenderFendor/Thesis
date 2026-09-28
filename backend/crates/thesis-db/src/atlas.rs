@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 12336)
+Total output lines: 1323
+
 #[path = "atlas_materialization.rs"]
 mod materialization;
 #[path = "atlas_timeline.rs"]
@@ -12,7 +15,7 @@ use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::{FromRow, PgPool, Postgres, QueryBuilder, Transaction};
 
-use crate::{Database, RelationshipRecord, WikiIndexStatusRecord, WikiSourceAnalysisScoreRecord};
+use crate::{Database, WikiIndexStatusRecord, WikiSourceAnalysisScoreRecord};
 
 #[derive(Clone, Debug, FromRow)]
 pub struct AtlasSourceMetadataRecord {
@@ -692,37 +695,7 @@ async fn load_projection(
          WHERE predicate IN ('directly_owns', 'owns_equity_in', 'controls', 'brand_of', 'operated_by', \
              'successor_of', 'founded_by', 'employed_by', 'authored_by', 'publishes', 'distributed_by', \
              'syndicated_by', 'authorizes_inventory_seller', 'sponsors_content', 'political_ad_purchase', \
-             'advertising_inventory_sold_by', 'funds') \
-           AND (valid_from IS NULL OR valid_from <= $1) AND (valid_to IS NULL OR valid_to >= $1) \
-           AND recorded_at <= $2 AND (retracted_at IS NULL OR retracted_at > $2)",
-    )
-    .bind(as_of)
-    .bind(known_at)
-    .fetch_all(&mut *transaction)
-    .await?;
-    let accepted_ids = accepted_relationships
-        .iter()
-        .map(|row| row.id.clone())
-        .collect::<Vec<_>>();
-    let relationship_claim_links = if accepted_ids.is_empty() {
-        Vec::new()
-    } else {
-        sqlx::query_as::<_, AtlasRelationshipClaimLinkRecord>(
-            "SELECT relationship_id, claim_id FROM relationship_claim_links \
-             WHERE relationship_id = ANY($1) ORDER BY relationship_id, claim_id",
-        )
-        .bind(&accepted_ids)
-        .fetch_all(&mut *transaction)
-        .await?
-    };
-    let claims = sqlx::query_as::<_, AtlasEvidenceClaimRecord>(
-        "SELECT claim.id, claim.subject_entity_id, claim.predicate, claim.object_entity_id, \
-                claim.object_value, claim.qualifiers, claim.valid_from, claim.valid_to, \
-                claim.recorded_at, claim.retracted_at, claim.asserted_by, claim.evidence_class, \
-                claim.status, claim.method_version \
-         FROM evidence_claims AS claim \
-         WHERE ( \
-             (claim.predicate IN ('directly_owns', 'owns_equity_in', 'controls', 'brand_of', \
+             'advertising_inventory_sold_by', 'fun…336 tokens truncated…uity_in', 'controls', 'brand_of', \
                  'operated_by', 'successor_of', 'founded_by', 'employed_by', 'authored_by', \
                  'publishes', 'distributed_by', 'syndicated_by', 'authorizes_inventory_seller', \
                  'sponsors_content', 'political_ad_purchase', 'advertising_inventory_sold_by', 'funds') \
