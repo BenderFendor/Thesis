@@ -547,6 +547,7 @@ fn resolve_funding_bias_attribute(
             return (Some(value), Some(claim.id.clone()));
         }
     }
+    let legacy_value = legacy_value.filter(|value| !value.is_empty());
     let fallback = legacy_value.or(catalog_value).unwrap_or_default().trim();
     ((!fallback.is_empty()).then(|| fallback.to_owned()), None)
 }
@@ -585,6 +586,17 @@ mod funding_bias_resolution_tests {
         );
         assert_eq!(
             resolve_funding_bias_attribute(None, None, Some(" Catalog ")),
+            (Some("Catalog".to_owned()), None)
+        );
+    }
+
+    #[test]
+    fn empty_legacy_value_falls_back_to_catalog_value() {
+        // Matches Python's `(legacy_value or catalog_value or "")`: an empty
+        // string is falsy there, so it must fall through to catalog_value
+        // rather than being treated as a present-but-blank legacy value.
+        assert_eq!(
+            resolve_funding_bias_attribute(None, Some(""), Some("Catalog")),
             (Some("Catalog".to_owned()), None)
         );
     }
