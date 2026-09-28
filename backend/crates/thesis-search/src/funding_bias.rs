@@ -243,24 +243,71 @@ mod tests {
 
 #[cfg(kani)]
 mod kani_proofs {
-    use super::checked_row_totals;
+    use super::{build_contingency_table, checked_row_totals, ContingencyTableError};
 
+    /// `checked_row_totals` over a 2x2 table of fully symbolic `u64` cells
+    /// returns `Err(CountOverflow)` exactly when the true (unbounded, `u128`)
+    /// sum of all four cells exceeds `u64::MAX`, and otherwise returns row
+    /// totals and a population size equal to the exact `u128` sums.
+    ///
+    /// Every cell ranges over the full `u64` domain (not a narrow `u8`
+    /// slice), so this actually exercises the overflow branch: a row total
+    /// or the population accumulator can genuinely wrap in `u64` here.
     #[kani::proof]
     #[kani::unwind(4)]
-    fn symbolic_two_by_two_population_total_matches_the_cells_without_overflow() {
-        let a = u64::from(kani::any::<u8>());
-        let b = u64::from(kani::any::<u8>());
-        let c = u64::from(kani::any::<u8>());
-        let d = u64::from(kani::any::<u8>());
+    fn checked_row_totals_matches_u128_ground_truth_or_overflows_exactly() {
+        let a: u64 = kani::any();
+        let b: u64 = kani::any();
+        let c: u64 = kani::any();
+        let d: u64 = kani::any();
         let table = vec![vec![a, b], vec![c, d]];
-        let (row_totals, population_size) = match checked_row_totals(&table) {
-            Ok(totals) => totals,
-            Err(_) => panic!("bounded symbolic table cannot overflow u64"),
-        };
-        assert!(row_totals.len() == 2);
-        assert!(row_totals[0] == a + b);
-        assert!(row_totals[1] == c + d);
-        assert!(population_size == a + b + c + d);
-        assert!(population_size <= 1_020);
+
+        let true_row0 = u128::from(a) + u128::from(b);
+        let true_row1 = u128::from(c) + u128::from(d);
+        let true_total = true_row0 + true_row1;
+
+        match checked_row_totals(&table) {
+            Ok((row_totals, population_size)) => {
+                assert!(true_total <= u128::from(u64::MAX));
+                assert_eq!(u128::from(row_totals[0]), true_row0);
+                assert_eq!(u128::from(row_totals[1]), true_row1);
+                assert_eq!(u128::from(population_size), true_total);
+            }
+            Err(ContingencyTableError::CountOverflow) => {
+                assert!(true_total > u128::from(u64::MAX));
+            }
+            Err(ContingencyTableError::RaggedRows) => {
+                panic!("checked_row_totals never returns RaggedRows");
+            }
+        }
+    }
+
+    /// `build_contingency_table` always returns a rectangular table (every
+    /// row has exactly `cols.len()` entries) whose cell counts sum to the
+    /// number of input pairs, for every combination of up to three pairs
+    /// drawn from a two-symbol row alphabet and a two-symbol column
+    /// alphabet.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn contingency_table_cells_sum_to_input_length_and_stay_rectangular() {
+        let count: u8 = kani::any();
+        kani::assume(count <= 3);
+
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for _ in 0..count {
+            let row_symbol: bool = kani::any();
+            let col_symbol: bool = kani::any();
+            let row = if row_symbol { "r1" } else { "r0" }.to_owned();
+            let col = if col_symbol { "c1" } else { "c0" }.to_owned();
+            pairs.push((row, col));
+        }
+
+        let (rows, cols, table) = build_contingency_table(&pairs);
+        assert_eq!(table.len(), rows.len());
+        for row in &table {
+            assert_eq!(row.len(), cols.len());
+        }
+        let total: u64 = table.iter().flat_map(|row| row.iter()).sum();
+        assert_eq!(total, u64::from(count));
     }
 }

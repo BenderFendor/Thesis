@@ -1057,13 +1057,13 @@
     {
       "id": "analysis.funding_bias_catalog_association",
       "implementation": "backend/crates/thesis-funding-bias/src/lib.rs::run; backend/crates/thesis-search/src/funding_bias.rs",
-      "status": "bounded_kernel_and_abstract_guard_verified",
+      "status": "rust_tests_verified_kani_and_verus_pending_rerun",
       "verification": [
         {
           "method": "rust_unit_tests_and_property_tests",
           "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-funding-bias && cargo test --manifest-path backend/Cargo.toml -p thesis-search --lib && cargo test --manifest-path backend/Cargo.toml -p thesis-db --lib funding_bias_resolution_tests",
           "result": "passed",
-          "scope": "Four runner tests, 59 thesis-search tests including a generated 2x2 Cramer V bound property, and two SQLx attribute-resolution tests passed."
+          "scope": "Four runner tests, 63 thesis-search tests (including four entity_id Unicode-parity tests moved/added from thesis-api and a generated 2x2 Cramer V bound property), and three SQLx attribute-resolution tests (including the new empty-legacy-value-falls-back-to-catalog case) passed."
         },
         {
           "method": "database_compile_check",
@@ -1074,18 +1074,18 @@
         {
           "method": "kani",
           "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --output-format terse",
-          "result": "passed",
-          "toolchain": "cargo-kani 0.68.0; CBMC 6.11.0",
-          "scope": "All 13 thesis-search harnesses passed. The new production checked row-total helper matches the sum of four arbitrary u8-derived cells and cannot overflow; 0 of 498 checks failed, with six unreachable checks.",
-          "bound": "Two rows by two columns; each symbolic cell is in 0..=255; unwind 4.",
+          "result": "not_run_this_session",
+          "toolchain": "cargo-kani was not installed in this session's environment (command -v cargo-kani found nothing); no Kani result is claimed here.",
+          "scope": "The weak all-u8-cells harness (symbolic_two_by_two_population_total_matches_the_cells_without_overflow, which could never actually overflow u64) was replaced with checked_row_totals_matches_u128_ground_truth_or_overflows_exactly, which uses fully symbolic u64 cells and proves Err(CountOverflow) is returned exactly when the true u128 sum exceeds u64::MAX (and the returned totals equal the exact u128 sums otherwise). A second harness, contingency_table_cells_sum_to_input_length_and_stay_rectangular, proves build_contingency_table is rectangular and its cell counts sum to the input length for up to three pairs over a two-symbol row/column alphabet. Both harnesses build under `cargo build -p thesis-search` (they are cfg(kani)-gated, so they do not affect the normal build) but have not been executed under Kani/CBMC in this environment -- re-run before merge.",
+          "bound": "Overflow harness: 2x2 table, each symbolic cell is a full u64, unwind 4. Rectangularity harness: up to three pairs, two-symbol row alphabet, two-symbol column alphabet, unwind 4.",
           "assumptions": []
         },
         {
           "method": "verus",
           "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/funding_bias_guard.rs",
-          "result": "passed",
-          "toolchain": "Verus 0.2026.09.20.aef82ed; Rust 1.98.1",
-          "scope": "Nine proof obligations establish that positive population and at least two categories on each axis give Cramer V a positive denominator.",
+          "result": "not_run_this_session",
+          "toolchain": "verus was not installed in this session's environment (command -v verus found nothing); no Verus result is claimed here.",
+          "scope": "Kept the existing non_degenerate_table_has_positive_denominator proof. Added degenerate_guard_is_exactly_not_defined, proving the kernel's degenerate guard (n == 0 || rows < 2 || cols < 2) is exactly the boolean complement of statistic_is_defined, and non_degenerate_table_has_at_least_one_degree_of_freedom, proving (rows - 1) * (cols - 1) >= 1 whenever statistic_is_defined holds. These proof obligations have not been checked by the Verus solver in this environment -- re-run before merge.",
           "assumptions": [
             "The abstract model requires n > 0, rows >= 2, and cols >= 2; it is not a refinement proof of the Rust implementation."
           ]
@@ -1105,10 +1105,11 @@
         }
       ],
       "limitations": [
-        "Kani verifies checked count aggregation, not floating-point chi-square or Cramer V. The 2x2 Cramer V bound is property-tested; Verus proves the non-degenerate denominator guard as an abstract model, not Rust refinement.",
-        "The SQLx path was not exercised against a live database because no PostgreSQL client/server or DATABASE_URL was available in this environment. The Python pytest parity suite could not run because pytest is not installed.",
+        "Kani and Verus were not installed in this review-fix session (command -v cargo-kani / verus both found nothing), so the strengthened harnesses and proofs listed above have not actually been executed here; they build/typecheck but are unverified pending a run in an environment with those tools before merge.",
+        "Kani (once run) verifies checked count aggregation and contingency-table shape, not floating-point chi-square or Cramer V. The 2x2 Cramer V bound is property-tested; Verus proves the non-degenerate denominator guard, the degenerate-guard/statistic_is_defined complement relation, and the minimum-degrees-of-freedom bound as an abstract nat/int model, not Rust refinement.",
+        "The SQLx path was not exercised against a live database because no PostgreSQL client/server or DATABASE_URL was available in this environment.",
         "The Rust runner is a standalone CLI; the existing FastAPI/auto-ingest compatibility path remains active until its scheduled caller and public route pass the Rust cutover gates.",
-        "The current RSS catalog has no names for which Python casefold differs from lowercase; uncommon Unicode case-fold expansions outside the checked-in catalog are not covered."
+        "normalize_entity_label/stable_source_id now live in thesis_search::entity_id (shared with thesis-api instead of duplicated); its tests cover the checked-in catalog's BBC case plus three additional Unicode fixtures (German eszett, Greek final sigma, an ffi ligature) verified against a live run of the Python reference. Uncommon Unicode case-fold expansions outside these fixtures and the checked-in catalog are still not covered."
       ]
     }
   ]
