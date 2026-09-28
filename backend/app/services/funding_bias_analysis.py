@@ -110,9 +110,10 @@ def _resolve_population_attribute(
     catalog_value: Any,
 ) -> tuple[str | None, str, str | None]:
     claim = claims.get(key)
-    value = _claim_object_text(claim) if claim is not None else None
-    if value is not None:
-        return value.strip() or None, "claim", cast(str, claim.id)
+    if claim is not None:
+        value = _claim_object_text(claim)
+        if value is not None:
+            return value.strip() or None, "claim", cast(str, claim.id)
     fallback = (legacy_value or catalog_value or "").strip() or None
     return fallback, "legacy", None
 
@@ -123,7 +124,7 @@ async def _collect_outlet_sample(
     metadata = (
         await db.execute(select(SourceMetadata).where(SourceMetadata.source_name == name))
     ).scalar_one_or_none()
-    evidence_entity_id = await _outlet_evidence_entity_id(db, f"outlet:{stable_source_id(name)}")
+    evidence_entity_id = await _outlet_evidence_entity_id(db, stable_source_id(name))
     claims = (
         await _accepted_attribute_claims(db, evidence_entity_id, ("funding_type", "bias_rating"))
         if evidence_entity_id is not None
@@ -469,13 +470,13 @@ async def load_latest_funding_bias_analysis(db: AsyncSession) -> FundingBiasRun 
     """Read-only: the most recently computed trace plus its preregistration.
 
     Never triggers a computation -- `run_funding_bias_analysis` (via the
-    CLI script `app.scripts.run_funding_bias_analysis`) is the only writer.
-    Returns `None` when the analysis has never been run, which the API
-    route turns into an empty-state response rather than a 404 or 500.
+    CLI script `app.scripts.run_funding_bias_analysis`) and the Rust
+    `thesis-funding-bias` runner are the writers. Like the Rust reader, this
+    loads the newest trace, then the preregistration named by its
+    `subgraph.preregistration_id` (v1 for traces without one).
+    Returns `None` when no trace exists or its preregistration is missing,
+    which the API route turns into an empty-state response.
     """
-    preregistration = await db.get(Preregistration, PREREGISTRATION_ID)
-    if preregistration is None:
-        return None
     trace = (
         (
             await db.execute(
@@ -489,9 +490,13 @@ async def load_latest_funding_bias_analysis(db: AsyncSession) -> FundingBiasRun 
     )
     if trace is None:
         return None
+    subgraph = cast(dict[str, Any], trace.subgraph)
+    preregistration_id = cast(str, subgraph.get("preregistration_id") or PREREGISTRATION_ID)
+    preregistration = await db.get(Preregistration, preregistration_id)
+    if preregistration is None:
+        return None
     result = cast(dict[str, Any], trace.result)
     table = cast(list[list[int]], result.get("table", []))
-    subgraph = cast(dict[str, Any], trace.subgraph)
     return FundingBiasRun(
         preregistration=preregistration,
         trace=trace,

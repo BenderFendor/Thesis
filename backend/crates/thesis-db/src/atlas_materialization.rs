@@ -797,13 +797,11 @@ mod tests {
     fn candidate(qualifiers: serde_json::Value, object: &str) -> RelationshipCandidate {
         RelationshipCandidate {
             id: "relationship".to_owned(),
-            subject_entity_id: "subject".to_owned(),
             predicate: "directly_owns".to_owned(),
             object_entity_id: object.to_owned(),
             qualifiers: Json(qualifiers),
             valid_from: None,
             valid_to: None,
-            retracted_at: None,
         }
     }
 

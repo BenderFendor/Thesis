@@ -23,5 +23,9 @@ serde_json = "1.0"
 name = "minhash"
 harness = false
 
+[[bench]]
+name = "funding_bias"
+harness = false
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

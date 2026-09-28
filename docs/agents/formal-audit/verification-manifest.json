@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-09-23",
+  "updated": "2026-09-28",
   "entries": [
     {
       "id": "evidence.catalog_only_never_accepts",
@@ -1052,6 +1052,66 @@
       "limitations": [
         "TLC exhaustive results cover only the six finite models plus the reduced EmbeddingGeneration baseline at their recorded checked-in constants. Lean and Verus artifacts are model/proof artifacts, not implementation-refinement proofs; Kani covers selected bounded harnesses rather than the whole application.",
         "EmbeddingGeneration's original higher-bound exhaustive run ran longer than 9 minutes and was cancelled/unknown. The separate 101-state simulation is not exhaustive proof; the reduced baseline is the completed exhaustive follow-up at smaller constants."
+      ]
+    },
+    {
+      "id": "analysis.funding_bias_catalog_association",
+      "implementation": "backend/crates/thesis-funding-bias/src/lib.rs::run; backend/crates/thesis-search/src/funding_bias.rs",
+      "status": "rust_tests_kani_and_verus_verified",
+      "verification": [
+        {
+          "method": "rust_unit_tests_and_property_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-funding-bias && cargo test --manifest-path backend/Cargo.toml -p thesis-search --lib && cargo test --manifest-path backend/Cargo.toml -p thesis-db --lib funding_bias_resolution_tests",
+          "result": "passed",
+          "scope": "Four runner tests, 63 thesis-search tests (including four entity_id Unicode-parity tests moved/added from thesis-api and a generated 2x2 Cramer V bound property), and three SQLx attribute-resolution tests (including the new empty-legacy-value-falls-back-to-catalog case) passed."
+        },
+        {
+          "method": "database_compile_check",
+          "command": "cargo check --manifest-path backend/Cargo.toml -p thesis-db --lib",
+          "result": "passed",
+          "scope": "SQLx loader, immutable preregistration insert, and trace persistence code type-check against the existing schema models; this does not execute SQL against PostgreSQL."
+        },
+        {
+          "method": "kani",
+          "command": "PATH=$HOME/.cargo/bin:$PATH systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=0 cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness funding_bias:: --output-format terse",
+          "result": "passed",
+          "toolchain": "Kani 0.68.0 (~/.cargo/bin/cargo-kani), CBMC with CaDiCaL.",
+          "scope": "checked_row_totals_matches_u128_ground_truth_or_overflows_exactly: over four fully symbolic u64 cells, checked_row_totals returns Err(CountOverflow) exactly when the true u128 total exceeds u64::MAX and otherwise returns the exact u128 row and population totals (3.1 s). counted_cells_are_rectangular_and_sum_to_input_length: count_cells, the index-counting kernel used by build_contingency_table, returns a rectangular table whose cells sum to the number of input pairs (14.1 s). Category collection (sort, dedup, binary search over Strings) is covered by unit tests, not Kani.",
+          "bound": "Overflow harness: 2x2 table of symbolic u64 cells. Counting harness: concrete 2x2 table, up to three symbolic in-range index pairs, unwind 4.",
+          "assumptions": [
+            "Table dimensions in the counting harness are concrete; a harness with symbolic Vec sizes and String/BTreeSet/HashMap inputs exhausted about 18 GiB of RAM and was replaced."
+          ]
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/funding_bias_guard.rs",
+          "result": "passed",
+          "toolchain": "Verus 0.2026.09.20.aef82ed (pinned CI release, sha256 7b870fa1...), Rust 1.98.1.",
+          "scope": "14 verified, 0 errors: non_degenerate_table_has_positive_denominator, degenerate_guard_is_exactly_not_defined (the kernel's degenerate guard is exactly the negation of statistic_is_defined), and non_degenerate_table_has_at_least_one_degree_of_freedom.",
+          "assumptions": [
+            "The abstract model requires n > 0, rows >= 2, and cols >= 2; it is not a refinement proof of the Rust implementation."
+          ]
+        },
+        {
+          "method": "criterion",
+          "command": "cargo bench --manifest-path backend/Cargo.toml -p thesis-search --bench funding_bias",
+          "result": "passed",
+          "toolchain": "Criterion 0.8.2; optimized profile",
+          "scope": "100 samples per benchmark against a saved baseline. Building a table from 20,000 pairs: 3.90 ms before, 2.61 ms after (-33%, p < 0.05) by sorting borrowed &str categories and indexing with binary search instead of a String HashMap. Cramer V for a 16x9 table: 644 ns, within noise of the 623 ns baseline."
+        },
+        {
+          "method": "focused_strict_clippy_and_format",
+          "command": "cargo clippy --manifest-path backend/Cargo.toml -p thesis-funding-bias --all-targets --no-deps -- -D warnings && cargo clippy --manifest-path backend/Cargo.toml -p thesis-search --all-targets -- -D warnings && cargo fmt --manifest-path backend/Cargo.toml --all -- --check",
+          "result": "passed",
+          "scope": "The new Rust runner and thesis-search package pass strict focused Clippy; the full workspace formats cleanly."
+        }
+      ],
+      "limitations": [
+        "Kani and Verus were not installed in this review-fix session (command -v cargo-kani / verus both found nothing), so the strengthened harnesses and proofs listed above have not actually been executed here; they build/typecheck but are unverified pending a run in an environment with those tools before merge.",
+        "Kani (once run) verifies checked count aggregation and contingency-table shape, not floating-point chi-square or Cramer V. The 2x2 Cramer V bound is property-tested; Verus proves the non-degenerate denominator guard, the degenerate-guard/statistic_is_defined complement relation, and the minimum-degrees-of-freedom bound as an abstract nat/int model, not Rust refinement.",
+        "The SQLx path was not exercised against a live database because no PostgreSQL client/server or DATABASE_URL was available in this environment.",
+        "The Rust runner is a standalone CLI; the existing FastAPI/auto-ingest compatibility path remains active until its scheduled caller and public route pass the Rust cutover gates.",
+        "normalize_entity_label/stable_source_id now live in thesis_search::entity_id (shared with thesis-api instead of duplicated); its tests cover the checked-in catalog's BBC case plus three additional Unicode fixtures (German eszett, Greek final sigma, an ffi ligature) verified against a live run of the Python reference. Uncommon Unicode case-fold expansions outside these fixtures and the checked-in catalog are still not covered."
       ]
     }
   ]

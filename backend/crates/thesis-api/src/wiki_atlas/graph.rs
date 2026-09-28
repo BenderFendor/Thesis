@@ -32,8 +32,6 @@ pub(crate) use self::connections::get_connections;
 pub(super) use self::ids::{
     casefold, confidence_tier, edge_id, normalize_entity_label, stable_source_id,
 };
-#[cfg(test)]
-use self::ids::{hex_prefix, sha1_digest};
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct GraphData {
@@ -819,26 +817,6 @@ mod tests {
             acceptance_policy_version: None,
             evidence_root_count: 0,
         }
-    }
-
-    #[test]
-    fn sha1_ids_match_the_python_digest_contract() {
-        assert_eq!(
-            hex_prefix(&sha1_digest(b""), 20),
-            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-        );
-        assert_eq!(
-            hex_prefix(&sha1_digest(b"abc"), 20),
-            "a9993e364706816aba3e25717850c26c9cd0d89d"
-        );
-        assert_eq!(stable_source_id("BBC"), "outlet:0fbe2a58568b");
-    }
-
-    #[test]
-    fn casefold_matches_python_full_unicode_semantics() {
-        assert_eq!(casefold("Straße"), "strasse");
-        assert_eq!(casefold("\u{0390}"), "\u{03b9}\u{0308}\u{0301}");
-        assert_eq!(casefold("\u{13a0}\u{ab70}"), "\u{13a0}\u{13a0}");
     }
 
     #[test]

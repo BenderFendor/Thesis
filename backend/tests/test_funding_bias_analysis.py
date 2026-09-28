@@ -7,6 +7,7 @@ category, empty population), and the API route's empty-state response.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -16,11 +17,22 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
+from app.models.evidence import (
+    CalculationTrace,
+    EntityExternalId,
+    EvidenceClaim,
+    EvidenceEntity,
+    Preregistration,
+)
+from app.services.atlas_graph_helpers import stable_source_id
 from app.services.funding_bias_analysis import (
+    METHOD_VERSION,
+    MEASUREMENT_NAME,
     PREREGISTRATION_ID,
     build_contingency_table,
     cramers_v,
     get_funding_bias_analysis_response,
+    load_latest_funding_bias_analysis,
     preregister_funding_bias_methodology,
     run_funding_bias_analysis,
 )
@@ -89,7 +101,7 @@ def test_cramers_v_matches_hand_computed_value_on_2x2_fixture() -> None:
 
 def test_cramers_v_degenerate_single_category_returns_none_not_zero() -> None:
     """A single row (one funding_type) makes min(rows, cols) - 1 == 0 -- undefined, not 0."""
-    rows, cols, table = build_contingency_table([("commercial", "left"), ("commercial", "right")])
+    _rows, _cols, table = build_contingency_table([("commercial", "left"), ("commercial", "right")])
     result = cramers_v(table)
     assert result["cramers_v"] is None
     assert result["chi_square"] is None
@@ -160,6 +172,57 @@ async def test_run_funding_bias_analysis_is_idempotent_for_unchanged_data(db: As
 
 
 @pytest.mark.asyncio
+async def test_accepted_claim_is_used_for_the_population_not_only_legacy(
+    db: AsyncSession,
+) -> None:
+    """Regression: `_outlet_evidence_entity_id` must receive `stable_source_id(name)`
+    directly (it already returns an "outlet:..." id) -- passing an
+    additionally-prefixed "outlet:outlet:..." id silently found nothing and
+    every claim fell back to legacy/catalog values, which this test would
+    catch by asserting the claim's rated value (not the legacy value) wins.
+    """
+    catalog = {"Claimed Outlet": {"funding_type": "commercial", "bias_rating": "left"}}
+    outlet_id = stable_source_id("Claimed Outlet")
+    entity = EvidenceEntity(
+        id="entity-claimed-outlet",
+        record_kind="publication",
+        canonical_name="Claimed Outlet",
+        status="accepted",
+    )
+    db.add(entity)
+    db.add(
+        EntityExternalId(
+            entity_id=entity.id,
+            scheme="rss_catalog_key",
+            value=outlet_id,
+        )
+    )
+    db.add(
+        EvidenceClaim(
+            id="claim-funding-type",
+            subject_entity_id=entity.id,
+            predicate="funding_type",
+            object_value={"value": "state-funded"},
+            asserted_by="test",
+            evidence_class="direct",
+            status="accepted",
+            method_version="test-v1",
+            claim_hash="hash-funding-type",
+        )
+    )
+    await db.commit()
+
+    with patch("app.services.atlas_entity.get_rss_sources", _mock_rss_sources(catalog)):
+        run = await run_funding_bias_analysis(db)
+        await db.commit()
+
+    assert run.population_size == 1
+    assert run.table == [[1]]
+    assert run.rows == ["state-funded"]
+    assert run.cols == ["left"]
+
+
+@pytest.mark.asyncio
 async def test_population_excludes_outlets_missing_either_value(db: AsyncSession) -> None:
     catalog = {
         "Has Both": {"funding_type": "commercial", "bias_rating": "left"},
@@ -213,3 +276,115 @@ async def test_funding_bias_endpoint_returns_results_after_a_run(db: AsyncSessio
     assert result.statistic.cramers_v == pytest.approx(0.6, abs=1e-9)
     assert result.population_size == 20
     assert result.validation_card_skip_reason is not None
+
+
+# ---------------------------------------------------------------------------
+# Reader: newest trace first, then its own named preregistration
+# ---------------------------------------------------------------------------
+
+
+def _preregistration(*, id_: str, now: datetime) -> Preregistration:
+    return Preregistration(
+        id=id_,
+        title=f"Preregistration {id_}",
+        canonical_hash=f"hash-{id_}",
+        external_service="internal",
+        external_identifier=id_,
+        doi=None,
+        deposited_at=now,
+        locked_at=now,
+        specification={"limitations": ["not that funding causes bias"]},
+        deviations=[],
+    )
+
+
+def _trace(
+    *,
+    id_: str,
+    algorithm_version: str,
+    subgraph: dict[str, Any],
+    created_at: datetime,
+) -> CalculationTrace:
+    return CalculationTrace(
+        id=id_,
+        relationship_id=None,
+        measurement_name=MEASUREMENT_NAME,
+        input_claim_ids=[],
+        subgraph=subgraph,
+        algorithm_version=algorithm_version,
+        result={
+            "table": [[1]],
+            "n": 1,
+            "rows": 1,
+            "cols": 1,
+            "chi_square": None,
+            "degrees_of_freedom": None,
+            "cramers_v": None,
+            "note": None,
+        },
+        created_at=created_at,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reader_loads_newest_v2_trace_and_its_own_preregistration(
+    db: AsyncSession,
+) -> None:
+    """A Rust-written v2 trace names its own v2 preregistration in
+    `subgraph.preregistration_id`; the reader must load that one, not the
+    hardcoded v1 id.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    v2_preregistration_id = "prereg_funding_bias_methodology_v2"
+    db.add(_preregistration(id_=PREREGISTRATION_ID, now=now))
+    db.add(_preregistration(id_=v2_preregistration_id, now=now))
+    db.add(
+        _trace(
+            id_="calc_v1_older",
+            algorithm_version=METHOD_VERSION,
+            subgraph={"preregistration_id": PREREGISTRATION_ID, "rows": [], "cols": []},
+            created_at=now - timedelta(minutes=5),
+        )
+    )
+    db.add(
+        _trace(
+            id_="calc_v2_newer",
+            algorithm_version="funding_bias_analysis/2.0",
+            subgraph={"preregistration_id": v2_preregistration_id, "rows": [], "cols": []},
+            created_at=now,
+        )
+    )
+    await db.commit()
+
+    run = await load_latest_funding_bias_analysis(db)
+
+    assert run is not None
+    assert run.trace.id == "calc_v2_newer"
+    assert run.preregistration.id == v2_preregistration_id
+
+
+@pytest.mark.asyncio
+async def test_reader_defaults_to_v1_preregistration_for_legacy_trace(
+    db: AsyncSession,
+) -> None:
+    """A legacy trace written before `subgraph.preregistration_id` existed
+    has no such key; the reader must default to the v1 preregistration id,
+    matching the Rust reader's fallback.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    db.add(_preregistration(id_=PREREGISTRATION_ID, now=now))
+    db.add(
+        _trace(
+            id_="calc_legacy_no_preregistration_id",
+            algorithm_version=METHOD_VERSION,
+            subgraph={"rows": [], "cols": []},
+            created_at=now,
+        )
+    )
+    await db.commit()
+
+    run = await load_latest_funding_bias_analysis(db)
+
+    assert run is not None
+    assert run.trace.id == "calc_legacy_no_preregistration_id"
+    assert run.preregistration.id == PREREGISTRATION_ID

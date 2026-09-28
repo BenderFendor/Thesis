@@ -1,0 +1,13 @@
+[package]
+name = "thesis-funding-bias"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+indexmap = { version = "2.14", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thesis-db = { path = "../thesis-db" }
+thesis-search = { path = "../thesis-search" }
+tokio = { version = "1.39", features = ["macros", "rt-multi-thread"] }

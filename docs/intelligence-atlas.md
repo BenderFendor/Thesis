@@ -71,10 +71,10 @@ order against a configured database (`app.database.AsyncSessionLocal`):
    ownership ancestors (BFS, depth <= 3), not a bulk import. Deterministic
    document/snapshot ids and claim-hash deduplication make repeated runs
    safe.
-3. **`python -m app.scripts.run_funding_bias_analysis`** -- preregisters the
-   funding-type-vs-bias-rating correlation methodology (idempotent, a no-op
-   after the first run), then computes and persists the current contingency
-   table and Cramer's V as a `CalculationTrace`. Powers
+3. **`cargo run --manifest-path backend/Cargo.toml -p thesis-funding-bias`** --
+   the Rust runner locks methodology v2, resolves accepted evidence claims,
+   legacy metadata, and catalog fallbacks, then computes and persists the
+   contingency table and Cramer's V as a `CalculationTrace`. Powers
    `GET /api/wiki/atlas/analysis/funding-bias` and the
    `/wiki/analysis/funding-bias` page.
 
@@ -84,16 +84,19 @@ still runs but is not part of the evidence-spine ownership pipeline above.
 
 ## Automatic startup ingestion
 
-`app.services.auto_ingest.run_auto_ingest` runs the three pipelines above
-automatically as a background task once the API server is up -- no manual
-CLI steps are needed to run `./runlocal.sh` (or any other launcher that
+`app.services.auto_ingest.run_auto_ingest` still runs entity backfill,
+evidence ingestion, and the locked v1 Python funding-bias writer during the
+FastAPI compatibility period. The standalone v2 writer is Rust-owned; its
+scheduled caller still needs to move into the Rust runtime before Python
+background workers can be retired. The existing startup task runs without manual
+CLI steps when launching `./runlocal.sh` (or any other launcher that
 starts `app.main:app`, e.g. `gunicorn -c gunicorn.conf.py app.main:app`).
 It's launched from `app.main.on_startup` the same way the wiki indexer and
 reporter indexer are: only on the elected leader worker, ~10s after the
 server starts serving requests, so it never blocks or delays startup.
 
 - **Order**: entity backfill -> evidence ingestion (all sources) ->
-  funding-bias analysis, matching the CLI order above.
+  compatibility funding-bias analysis.
 - **Graceful degradation**: each pipeline's failure (e.g. Wikidata/EDGAR/
   LittleSis/MBFC unreachable) is logged as a warning and the orchestrator
   moves on; a failure never aborts the app or a later stage. Each evidence

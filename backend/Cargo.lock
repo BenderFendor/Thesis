@@ -2991,6 +2991,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "thesis-funding-bias"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "serde",
+ "serde_json",
+ "thesis-db",
+ "thesis-search",
+ "tokio",
+]
+
+[[package]]
 name = "thesis-ingest"
 version = "0.1.0"
 dependencies = [

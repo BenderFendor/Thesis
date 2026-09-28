@@ -12,7 +12,7 @@ use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::{FromRow, PgPool, Postgres, QueryBuilder, Transaction};
 
-use crate::{Database, RelationshipRecord, WikiIndexStatusRecord, WikiSourceAnalysisScoreRecord};
+use crate::{Database, WikiIndexStatusRecord, WikiSourceAnalysisScoreRecord};
 
 #[derive(Clone, Debug, FromRow)]
 pub struct AtlasSourceMetadataRecord {

@@ -486,6 +486,122 @@ pub struct WikiFundingBiasData {
     pub trace: WikiFundingBiasTrace,
 }
 
+/// One catalog outlet supplied to the funding/bias population loader.
+#[derive(Clone, Debug)]
+pub struct FundingBiasCatalogOutlet {
+    pub name: String,
+    pub outlet_id: String,
+    pub catalog_funding_type: Option<String>,
+    pub catalog_bias_rating: Option<String>,
+}
+
+/// A catalog outlet with both funding and bias values resolved from claims,
+/// legacy metadata, or the RSS catalog, in that precedence order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FundingBiasSample {
+    pub name: String,
+    pub funding_type: String,
+    pub bias_rating: String,
+    pub claim_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct FundingBiasMetadataRow {
+    source_name: String,
+    funding_type: Option<String>,
+    political_bias: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct FundingBiasExternalIdRow {
+    value: String,
+    entity_id: String,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct FundingBiasClaimRow {
+    id: String,
+    subject_entity_id: String,
+    predicate: String,
+    object_value: Option<Json<Value>>,
+    recorded_at: chrono::NaiveDateTime,
+}
+
+fn funding_bias_claim_text(value: Option<&Json<Value>>) -> Option<String> {
+    let object = value?.0.as_object()?;
+    ["rating", "funding_type", "value"]
+        .iter()
+        .filter_map(|key| object.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn resolve_funding_bias_attribute(
+    claim: Option<&FundingBiasClaimRow>,
+    legacy_value: Option<&str>,
+    catalog_value: Option<&str>,
+) -> (Option<String>, Option<String>) {
+    if let Some(claim) = claim {
+        if let Some(value) = funding_bias_claim_text(claim.object_value.as_ref()) {
+            return (Some(value), Some(claim.id.clone()));
+        }
+    }
+    let legacy_value = legacy_value.filter(|value| !value.is_empty());
+    let fallback = legacy_value.or(catalog_value).unwrap_or_default().trim();
+    ((!fallback.is_empty()).then(|| fallback.to_owned()), None)
+}
+
+#[cfg(test)]
+mod funding_bias_resolution_tests {
+    use super::{resolve_funding_bias_attribute, FundingBiasClaimRow};
+    use chrono::NaiveDateTime;
+    use serde_json::json;
+    use sqlx::types::Json;
+
+    #[test]
+    fn accepted_claim_precedes_legacy_and_catalog_values() {
+        let claim = FundingBiasClaimRow {
+            id: "claim-1".to_owned(),
+            subject_entity_id: "outlet-1".to_owned(),
+            predicate: "funding_type".to_owned(),
+            object_value: Some(Json(json!({"rating": " Public ", "value": "Ignored"}))),
+            recorded_at: NaiveDateTime::MIN,
+        };
+        assert_eq!(
+            resolve_funding_bias_attribute(Some(&claim), Some("Legacy"), Some("Catalog")),
+            (Some("Public".to_owned()), Some("claim-1".to_owned()))
+        );
+    }
+
+    #[test]
+    fn legacy_precedes_catalog_and_whitespace_is_not_imputed() {
+        assert_eq!(
+            resolve_funding_bias_attribute(None, Some(" Legacy "), Some("Catalog")),
+            (Some("Legacy".to_owned()), None)
+        );
+        assert_eq!(
+            resolve_funding_bias_attribute(None, Some("  "), Some("Catalog")),
+            (None, None)
+        );
+        assert_eq!(
+            resolve_funding_bias_attribute(None, None, Some(" Catalog ")),
+            (Some("Catalog".to_owned()), None)
+        );
+    }
+
+    #[test]
+    fn empty_legacy_value_falls_back_to_catalog_value() {
+        // Matches Python's `(legacy_value or catalog_value or "")`: an empty
+        // string is falsy there, so it must fall through to catalog_value
+        // rather than being treated as a present-but-blank legacy value.
+        assert_eq!(
+            resolve_funding_bias_attribute(None, Some(""), Some("Catalog")),
+            (Some("Catalog".to_owned()), None)
+        );
+    }
+}
+
 impl Database {
     pub async fn wiki_ingest_runs(
         &self,
@@ -503,16 +619,6 @@ impl Database {
     }
 
     pub async fn wiki_funding_bias_data(&self) -> Result<Option<WikiFundingBiasData>, sqlx::Error> {
-        let Some(preregistration) = sqlx::query_as::<_, WikiFundingPreregistration>(
-            "SELECT id, title, locked_at, specification, deviations \
-             FROM preregistrations WHERE id = $1",
-        )
-        .bind("prereg_funding_bias_methodology_v1")
-        .fetch_optional(&self.pool)
-        .await?
-        else {
-            return Ok(None);
-        };
         let Some(trace) = sqlx::query_as::<_, WikiFundingBiasTrace>(
             "SELECT id, algorithm_version, subgraph, result, created_at \
              FROM calculation_traces WHERE measurement_name = $1 \
@@ -524,10 +630,169 @@ impl Database {
         else {
             return Ok(None);
         };
+        let preregistration_id = trace
+            .subgraph
+            .0
+            .get("preregistration_id")
+            .and_then(Value::as_str)
+            .unwrap_or("prereg_funding_bias_methodology_v1");
+        let Some(preregistration) = sqlx::query_as::<_, WikiFundingPreregistration>(
+            "SELECT id, title, locked_at, specification, deviations \
+             FROM preregistrations WHERE id = $1",
+        )
+        .bind(preregistration_id)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
         Ok(Some(WikiFundingBiasData {
             preregistration,
             trace,
         }))
+    }
+
+    /// Resolve the current catalog population using accepted evidence claims,
+    /// then legacy metadata, then the catalog fallback.
+    pub async fn funding_bias_population(
+        &self,
+        catalog: &[FundingBiasCatalogOutlet],
+    ) -> Result<Vec<FundingBiasSample>, sqlx::Error> {
+        if catalog.is_empty() {
+            return Ok(Vec::new());
+        }
+        let source_names = catalog
+            .iter()
+            .map(|outlet| outlet.name.clone())
+            .collect::<Vec<_>>();
+        let metadata_rows = sqlx::query_as::<_, FundingBiasMetadataRow>(
+            "SELECT source_name, funding_type, political_bias FROM source_metadata \
+             WHERE source_name = ANY($1)",
+        )
+        .bind(&source_names)
+        .fetch_all(&self.pool)
+        .await?;
+        let metadata = metadata_rows
+            .into_iter()
+            .map(|row| (row.source_name.clone(), row))
+            .collect::<HashMap<_, _>>();
+
+        let outlet_ids = catalog
+            .iter()
+            .map(|outlet| outlet.outlet_id.clone())
+            .collect::<Vec<_>>();
+        let external_ids = sqlx::query_as::<_, FundingBiasExternalIdRow>(
+            "SELECT value, entity_id FROM entity_external_ids \
+             WHERE scheme = 'rss_catalog_key' AND value = ANY($1)",
+        )
+        .bind(&outlet_ids)
+        .fetch_all(&self.pool)
+        .await?;
+        let entity_ids_by_outlet = external_ids
+            .into_iter()
+            .map(|row| (row.value, row.entity_id))
+            .collect::<HashMap<_, _>>();
+
+        let subject_ids = entity_ids_by_outlet
+            .values()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let claim_rows = if subject_ids.is_empty() {
+            Vec::new()
+        } else {
+            sqlx::query_as::<_, FundingBiasClaimRow>(
+                "SELECT id, subject_entity_id, predicate, object_value, recorded_at \
+                 FROM evidence_claims WHERE subject_entity_id = ANY($1) \
+                   AND predicate IN ('funding_type', 'bias_rating') \
+                   AND status = 'accepted' AND retracted_at IS NULL \
+                 ORDER BY recorded_at, id",
+            )
+            .bind(&subject_ids)
+            .fetch_all(&self.pool)
+            .await?
+        };
+        let mut latest_claims = HashMap::<(String, String), FundingBiasClaimRow>::new();
+        for claim in claim_rows {
+            let key = (claim.subject_entity_id.clone(), claim.predicate.clone());
+            let replace = latest_claims
+                .get(&key)
+                .is_none_or(|current| claim.recorded_at > current.recorded_at);
+            if replace {
+                latest_claims.insert(key, claim);
+            }
+        }
+
+        let mut samples = Vec::new();
+        for outlet in catalog {
+            let metadata = metadata.get(&outlet.name);
+            let entity_id = entity_ids_by_outlet.get(&outlet.outlet_id);
+            let funding_claim = entity_id
+                .and_then(|id| latest_claims.get(&(id.clone(), "funding_type".to_owned())));
+            let bias_claim =
+                entity_id.and_then(|id| latest_claims.get(&(id.clone(), "bias_rating".to_owned())));
+            let (funding_type, funding_claim_id) = resolve_funding_bias_attribute(
+                funding_claim,
+                metadata.and_then(|row| row.funding_type.as_deref()),
+                outlet.catalog_funding_type.as_deref(),
+            );
+            let (bias_rating, bias_claim_id) = resolve_funding_bias_attribute(
+                bias_claim,
+                metadata.and_then(|row| row.political_bias.as_deref()),
+                outlet.catalog_bias_rating.as_deref(),
+            );
+            let (Some(funding_type), Some(bias_rating)) = (funding_type, bias_rating) else {
+                continue;
+            };
+            let claim_ids = [funding_claim_id, bias_claim_id]
+                .into_iter()
+                .flatten()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            samples.push(FundingBiasSample {
+                name: outlet.name.clone(),
+                funding_type,
+                bias_rating,
+                claim_ids,
+            });
+        }
+        Ok(samples)
+    }
+
+    /// Lock a methodology once. An existing preregistration is returned
+    /// unchanged so repeated runs cannot rewrite it after seeing the data.
+    pub async fn ensure_funding_bias_preregistration(
+        &self,
+        id: &str,
+        title: &str,
+        canonical_hash: &str,
+        specification: Value,
+    ) -> Result<WikiFundingPreregistration, sqlx::Error> {
+        let now = chrono::Utc::now().naive_utc();
+        sqlx::query(
+            "INSERT INTO preregistrations \
+             (id, title, canonical_hash, external_service, external_identifier, doi, \
+              deposited_at, locked_at, specification, deviations, created_at) \
+             VALUES ($1, $2, $3, 'internal', $1, NULL, $4, $4, $5, $6, $4) \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(id)
+        .bind(title)
+        .bind(canonical_hash)
+        .bind(now)
+        .bind(Json(specification))
+        .bind(Json(serde_json::json!([])))
+        .execute(&self.pool)
+        .await?;
+        sqlx::query_as::<_, WikiFundingPreregistration>(
+            "SELECT id, title, locked_at, specification, deviations \
+             FROM preregistrations WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
     }
 }
 
@@ -2093,7 +2358,11 @@ impl Database {
             .build_query_as::<WikiUnresolvedArticleRow>()
             .fetch_all(&self.pool)
             .await
-            .map(|rows| rows.into_iter().map(WikiUnresolvedArticleRow::into_article).collect())
+            .map(|rows| {
+                rows.into_iter()
+                    .map(WikiUnresolvedArticleRow::into_article)
+                    .collect()
+            })
     }
     pub async fn wiki_insert_article_author_links(
         &self,
@@ -2378,7 +2647,9 @@ impl Database {
                     dossier_sections, citations, search_links, match_explanation, research_sources, \
                     research_confidence FROM reporters WHERE resolver_key = ",
         );
-        query.push_bind(resolver_key).push(" ORDER BY id DESC LIMIT 1");
+        query
+            .push_bind(resolver_key)
+            .push(" ORDER BY id DESC LIMIT 1");
         query
             .build_query_as::<WikiReporterResearchRecord>()
             .fetch_optional(&self.pool)
@@ -2540,7 +2811,6 @@ impl Database {
         transaction.commit().await?;
         Ok(id)
     }
-
 }
 
 fn json_value_is_truthy(value: &Value) -> bool {
@@ -2570,7 +2840,11 @@ fn organization_parent_orgs(input: &WikiOrganizationWriteRecord) -> Json<Value> 
     {
         return Json(parent_orgs.clone());
     }
-    match input.parent_org.as_deref().filter(|parent| !parent.is_empty()) {
+    match input
+        .parent_org
+        .as_deref()
+        .filter(|parent| !parent.is_empty())
+    {
         Some(parent) => Json(Value::Array(vec![Value::String(parent.to_owned())])),
         None => empty_json_array(),
     }
@@ -2690,4 +2964,3 @@ async fn wiki_save_organization_research_cache(
     transaction.commit().await?;
     Ok(Some(id))
 }
-

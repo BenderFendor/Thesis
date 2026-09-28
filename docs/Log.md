@@ -80,6 +80,28 @@ B16 proof download remains `rust_registered:false`: `backend/Cargo.lock` has no
 dependency plus runtime verification is unavailable under the no-Cargo gate.
 See `.agent/traces/rust-debug-startup-2026-09-29.md`.
 
+## 2026-09-28 — Rust funding-bias analysis slice
+
+Added `thesis-funding-bias`, a standalone Rust CLI that loads the checked-in
+RSS catalog, resolves accepted evidence claims before legacy metadata and
+catalog values through SQLx, computes the sorted contingency table and
+Cramer's V with `thesis-search`, locks a v2 methodology preregistration, and
+persists an idempotent calculation trace. It does not call Python. The v1
+FastAPI compatibility and startup-scheduler path remains in place until its
+caller and public endpoint pass the Rust cutover gates.
+
+Focused tests passed (4 runner, 59 search, and 2 attribute-resolution tests);
+the full `thesis-search` Kani suite passed 13/13 at unwind 4; Verus passed 9
+obligations; focused strict Clippy and workspace formatting passed. Criterion
+(100 samples) measured 3.3310 ms for 20,000-pair table construction and
+758.34 ns for Cramer's V on a 16x9 table. No Python performance comparison is
+claimed.
+
+No live PostgreSQL or Python differential run was available in this
+environment. `scripts/self-test` stops in `verify.sh` because the Node package
+`code-multivitals` is not installed. FastAPI remains public and the scheduled
+caller for the Rust runner is still outstanding.
+
 ## 2026-09-27: Rust Atlas export shadow route
 
 Registered `POST /api/wiki/atlas/export` in `wiki_atlas::router` and central
@@ -3015,4 +3037,19 @@ database or HTTP behavior; lineage cycle handling is covered by Rust and
 PostgreSQL regression tests. See
 `docs/agents/traces/rust-evidence-relationships.md`.
 
+## 2026-09-28 — Fix funding-bias claim lookup double-prefix (PR #36 review)
+
+`app.services.funding_bias_analysis._collect_outlet_sample` called
+`_outlet_evidence_entity_id(db, f"outlet:{stable_source_id(name)}")`, but
+`stable_source_id` already returns an `"outlet:<digest>"` id -- the extra
+prefix meant the lookup never matched the `rss_catalog_key` external id
+`entity_backfill.py` actually stores, so the Python population resolver
+silently fell back to legacy/catalog values for every outlet and never used
+an accepted evidence-spine claim. Fixed by passing `stable_source_id(name)`
+directly, matching the already-correct Rust `funding_bias_population` in
+`thesis-db::wiki`. Added
+`test_accepted_claim_is_used_for_the_population_not_only_legacy` to
+`backend/tests/test_funding_bias_analysis.py`, seeding an accepted
+`funding_type` claim and asserting it (not the legacy/catalog value) appears
+in the population.
 
