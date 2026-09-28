@@ -7,6 +7,7 @@ category, empty population), and the API route's empty-state response.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -16,13 +17,22 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
-from app.models.evidence import EntityExternalId, EvidenceClaim, EvidenceEntity
+from app.models.evidence import (
+    CalculationTrace,
+    EntityExternalId,
+    EvidenceClaim,
+    EvidenceEntity,
+    Preregistration,
+)
 from app.services.atlas_graph_helpers import stable_source_id
 from app.services.funding_bias_analysis import (
+    METHOD_VERSION,
+    MEASUREMENT_NAME,
     PREREGISTRATION_ID,
     build_contingency_table,
     cramers_v,
     get_funding_bias_analysis_response,
+    load_latest_funding_bias_analysis,
     preregister_funding_bias_methodology,
     run_funding_bias_analysis,
 )
@@ -266,3 +276,115 @@ async def test_funding_bias_endpoint_returns_results_after_a_run(db: AsyncSessio
     assert result.statistic.cramers_v == pytest.approx(0.6, abs=1e-9)
     assert result.population_size == 20
     assert result.validation_card_skip_reason is not None
+
+
+# ---------------------------------------------------------------------------
+# Reader: newest trace first, then its own named preregistration
+# ---------------------------------------------------------------------------
+
+
+def _preregistration(*, id_: str, now: datetime) -> Preregistration:
+    return Preregistration(
+        id=id_,
+        title=f"Preregistration {id_}",
+        canonical_hash=f"hash-{id_}",
+        external_service="internal",
+        external_identifier=id_,
+        doi=None,
+        deposited_at=now,
+        locked_at=now,
+        specification={"limitations": ["not that funding causes bias"]},
+        deviations=[],
+    )
+
+
+def _trace(
+    *,
+    id_: str,
+    algorithm_version: str,
+    subgraph: dict[str, Any],
+    created_at: datetime,
+) -> CalculationTrace:
+    return CalculationTrace(
+        id=id_,
+        relationship_id=None,
+        measurement_name=MEASUREMENT_NAME,
+        input_claim_ids=[],
+        subgraph=subgraph,
+        algorithm_version=algorithm_version,
+        result={
+            "table": [[1]],
+            "n": 1,
+            "rows": 1,
+            "cols": 1,
+            "chi_square": None,
+            "degrees_of_freedom": None,
+            "cramers_v": None,
+            "note": None,
+        },
+        created_at=created_at,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reader_loads_newest_v2_trace_and_its_own_preregistration(
+    db: AsyncSession,
+) -> None:
+    """A Rust-written v2 trace names its own v2 preregistration in
+    `subgraph.preregistration_id`; the reader must load that one, not the
+    hardcoded v1 id.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    v2_preregistration_id = "prereg_funding_bias_methodology_v2"
+    db.add(_preregistration(id_=PREREGISTRATION_ID, now=now))
+    db.add(_preregistration(id_=v2_preregistration_id, now=now))
+    db.add(
+        _trace(
+            id_="calc_v1_older",
+            algorithm_version=METHOD_VERSION,
+            subgraph={"preregistration_id": PREREGISTRATION_ID, "rows": [], "cols": []},
+            created_at=now - timedelta(minutes=5),
+        )
+    )
+    db.add(
+        _trace(
+            id_="calc_v2_newer",
+            algorithm_version="funding_bias_analysis/2.0",
+            subgraph={"preregistration_id": v2_preregistration_id, "rows": [], "cols": []},
+            created_at=now,
+        )
+    )
+    await db.commit()
+
+    run = await load_latest_funding_bias_analysis(db)
+
+    assert run is not None
+    assert run.trace.id == "calc_v2_newer"
+    assert run.preregistration.id == v2_preregistration_id
+
+
+@pytest.mark.asyncio
+async def test_reader_defaults_to_v1_preregistration_for_legacy_trace(
+    db: AsyncSession,
+) -> None:
+    """A legacy trace written before `subgraph.preregistration_id` existed
+    has no such key; the reader must default to the v1 preregistration id,
+    matching the Rust reader's fallback.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    db.add(_preregistration(id_=PREREGISTRATION_ID, now=now))
+    db.add(
+        _trace(
+            id_="calc_legacy_no_preregistration_id",
+            algorithm_version=METHOD_VERSION,
+            subgraph={"rows": [], "cols": []},
+            created_at=now,
+        )
+    )
+    await db.commit()
+
+    run = await load_latest_funding_bias_analysis(db)
+
+    assert run is not None
+    assert run.trace.id == "calc_legacy_no_preregistration_id"
+    assert run.preregistration.id == PREREGISTRATION_ID

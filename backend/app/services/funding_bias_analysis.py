@@ -469,13 +469,18 @@ async def load_latest_funding_bias_analysis(db: AsyncSession) -> FundingBiasRun 
     """Read-only: the most recently computed trace plus its preregistration.
 
     Never triggers a computation -- `run_funding_bias_analysis` (via the
-    CLI script `app.scripts.run_funding_bias_analysis`) is the only writer.
-    Returns `None` when the analysis has never been run, which the API
-    route turns into an empty-state response rather than a 404 or 500.
+    CLI script `app.scripts.run_funding_bias_analysis`) is the only Python
+    writer; the Rust runner (`thesis-funding-bias`) writes `algorithm_version
+    "funding_bias_analysis/2.0"` traces against
+    `prereg_funding_bias_methodology_v2`. Matches the Rust reader
+    (`thesis-db::wiki::wiki_funding_bias_data`): load the newest trace
+    first, then the preregistration its own `subgraph.preregistration_id`
+    names (defaulting to the v1 id for legacy traces written before that
+    field existed), rather than always loading the v1 preregistration.
+    Returns `None` when the analysis has never been run, or when the
+    trace's named preregistration is missing, which the API route turns
+    into an empty-state response rather than a 404 or 500.
     """
-    preregistration = await db.get(Preregistration, PREREGISTRATION_ID)
-    if preregistration is None:
-        return None
     trace = (
         (
             await db.execute(
@@ -489,9 +494,13 @@ async def load_latest_funding_bias_analysis(db: AsyncSession) -> FundingBiasRun 
     )
     if trace is None:
         return None
+    subgraph = cast(dict[str, Any], trace.subgraph)
+    preregistration_id = cast(str, subgraph.get("preregistration_id") or PREREGISTRATION_ID)
+    preregistration = await db.get(Preregistration, preregistration_id)
+    if preregistration is None:
+        return None
     result = cast(dict[str, Any], trace.result)
     table = cast(list[list[int]], result.get("table", []))
-    subgraph = cast(dict[str, Any], trace.subgraph)
     return FundingBiasRun(
         preregistration=preregistration,
         trace=trace,
