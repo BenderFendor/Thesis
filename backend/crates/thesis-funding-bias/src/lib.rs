@@ -1,13 +1,21 @@
 use std::collections::HashSet;
 use std::error::Error;
 
+use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
-use sha1::{Digest, Sha1};
 use thesis_db::{sha256_hex, CalculationTraceWrite, Database, FundingBiasCatalogOutlet};
+use thesis_search::entity_id::stable_source_id;
 use thesis_search::funding_bias::{build_contingency_table, cramers_v};
-use unicode_general_category::{get_general_category, GeneralCategory};
 
+/// The checked-in RSS catalog, baked into the binary at compile time.
+///
+/// `include_str!` means catalog edits (`app/data/rss_sources.json`) only
+/// take effect after rebuilding `thesis-funding-bias`; unlike the Python
+/// runner (`app.services.funding_bias_analysis`, which reads the catalog
+/// module at import time but from the same checked-out working tree),
+/// this Rust runner has no way to pick up an edited file without a
+/// recompile, including in a deployed binary.
 const CATALOG_JSON: &str = include_str!("../../../app/data/rss_sources.json");
 const METHOD_VERSION: &str = "funding_bias_analysis/2.0";
 const MEASUREMENT_NAME: &str = "funding_bias_association";
@@ -36,13 +44,17 @@ pub struct FundingBiasRunSummary {
 }
 
 fn catalog_sources() -> Result<Vec<CatalogOutlet>, Box<dyn Error>> {
-    let parsed: Value = serde_json::from_str(CATALOG_JSON)?;
-    let object = parsed
-        .as_object()
-        .ok_or("RSS catalog must be a JSON object")?;
+    // IndexMap (not serde_json::Map, which is a BTreeMap without the
+    // "preserve_order" feature) keeps the catalog's on-disk order, so the
+    // first source name for a set of "Name - Edition" duplicates is
+    // whichever one appears first in the file, matching Python's dict
+    // insertion-order iteration -- without enabling serde_json's
+    // "preserve_order" feature, which Cargo feature unification would
+    // otherwise spread to every crate in the workspace.
+    let object: IndexMap<String, Value> = serde_json::from_str(CATALOG_JSON)?;
     let mut seen = HashSet::new();
     let mut outlets = Vec::new();
-    for (raw_name, config) in object {
+    for (raw_name, config) in &object {
         if !has_valid_feed(config) {
             continue;
         }
@@ -78,46 +90,6 @@ fn has_valid_feed(config: &Value) -> bool {
             .any(|url| url.as_str().is_some_and(|url| !url.trim().is_empty())),
         _ => false,
     }
-}
-
-fn normalize_entity_label(value: &str) -> String {
-    let mut normalized = String::new();
-    let mut pending_space = false;
-    for character in value.to_lowercase().chars() {
-        let category = get_general_category(character);
-        let word_character = matches!(
-            category,
-            GeneralCategory::UppercaseLetter
-                | GeneralCategory::LowercaseLetter
-                | GeneralCategory::TitlecaseLetter
-                | GeneralCategory::ModifierLetter
-                | GeneralCategory::OtherLetter
-                | GeneralCategory::DecimalNumber
-                | GeneralCategory::LetterNumber
-                | GeneralCategory::OtherNumber
-                | GeneralCategory::ConnectorPunctuation
-        ) && character != '_';
-        if word_character {
-            if pending_space && !normalized.is_empty() {
-                normalized.push(' ');
-            }
-            normalized.push(character);
-            pending_space = false;
-        } else if !normalized.is_empty() {
-            pending_space = true;
-        }
-    }
-    normalized
-}
-
-fn stable_outlet_id(name: &str) -> String {
-    let normalized = normalize_entity_label(name);
-    let digest = Sha1::digest(normalized.as_bytes());
-    let short_digest = digest[..6]
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("outlet:{short_digest}")
 }
 
 fn methodology_specification() -> Value {
@@ -245,7 +217,7 @@ pub async fn run(database: &Database) -> Result<FundingBiasRunSummary, Box<dyn E
     let catalog = catalog_sources()?
         .into_iter()
         .map(|outlet| FundingBiasCatalogOutlet {
-            outlet_id: stable_outlet_id(&outlet.name),
+            outlet_id: stable_source_id(&outlet.name),
             name: outlet.name,
             catalog_funding_type: outlet.funding_type,
             catalog_bias_rating: outlet.bias_rating,
@@ -344,11 +316,9 @@ pub async fn run(database: &Database) -> Result<FundingBiasRunSummary, Box<dyn E
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        canonical_json, catalog_sources, interpretation, normalize_entity_label, round_six,
-        stable_outlet_id,
-    };
+    use super::{canonical_json, catalog_sources, interpretation, round_six};
     use serde_json::json;
+    use thesis_search::entity_id::stable_source_id;
 
     #[test]
     fn catalog_deduplicates_editions_by_the_first_source_name() {
@@ -361,10 +331,12 @@ mod tests {
         assert_eq!(sources[0].name, "BBC");
     }
 
+    // normalize_entity_label/stable_source_id moved to
+    // thesis_search::entity_id (shared with thesis-api); their Unicode
+    // parity tests now live there.
     #[test]
     fn outlet_id_uses_normalized_sha1_prefix() {
-        assert_eq!(normalize_entity_label(" BBC__News! "), "bbc news");
-        assert_eq!(stable_outlet_id("BBC"), "outlet:0fbe2a58568b");
+        assert_eq!(stable_source_id("BBC"), "outlet:0fbe2a58568b");
     }
 
     #[test]
