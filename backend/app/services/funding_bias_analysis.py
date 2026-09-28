@@ -123,7 +123,7 @@ async def _collect_outlet_sample(
     metadata = (
         await db.execute(select(SourceMetadata).where(SourceMetadata.source_name == name))
     ).scalar_one_or_none()
-    evidence_entity_id = await _outlet_evidence_entity_id(db, f"outlet:{stable_source_id(name)}")
+    evidence_entity_id = await _outlet_evidence_entity_id(db, stable_source_id(name))
     claims = (
         await _accepted_attribute_claims(db, evidence_entity_id, ("funding_type", "bias_rating"))
         if evidence_entity_id is not None

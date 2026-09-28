@@ -16,6 +16,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
+from app.models.evidence import EntityExternalId, EvidenceClaim, EvidenceEntity
+from app.services.atlas_graph_helpers import stable_source_id
 from app.services.funding_bias_analysis import (
     PREREGISTRATION_ID,
     build_contingency_table,
@@ -157,6 +159,57 @@ async def test_run_funding_bias_analysis_is_idempotent_for_unchanged_data(db: As
 
     assert first.trace.id == second.trace.id
     assert first.preregistration.id == second.preregistration.id
+
+
+@pytest.mark.asyncio
+async def test_accepted_claim_is_used_for_the_population_not_only_legacy(
+    db: AsyncSession,
+) -> None:
+    """Regression: `_outlet_evidence_entity_id` must receive `stable_source_id(name)`
+    directly (it already returns an "outlet:..." id) -- passing an
+    additionally-prefixed "outlet:outlet:..." id silently found nothing and
+    every claim fell back to legacy/catalog values, which this test would
+    catch by asserting the claim's rated value (not the legacy value) wins.
+    """
+    catalog = {"Claimed Outlet": {"funding_type": "commercial", "bias_rating": "left"}}
+    outlet_id = stable_source_id("Claimed Outlet")
+    entity = EvidenceEntity(
+        id="entity-claimed-outlet",
+        record_kind="publication",
+        canonical_name="Claimed Outlet",
+        status="accepted",
+    )
+    db.add(entity)
+    db.add(
+        EntityExternalId(
+            entity_id=entity.id,
+            scheme="rss_catalog_key",
+            value=outlet_id,
+        )
+    )
+    db.add(
+        EvidenceClaim(
+            id="claim-funding-type",
+            subject_entity_id=entity.id,
+            predicate="funding_type",
+            object_value={"value": "state-funded"},
+            asserted_by="test",
+            evidence_class="direct",
+            status="accepted",
+            method_version="test-v1",
+            claim_hash="hash-funding-type",
+        )
+    )
+    await db.commit()
+
+    with patch("app.services.atlas_entity.get_rss_sources", _mock_rss_sources(catalog)):
+        run = await run_funding_bias_analysis(db)
+        await db.commit()
+
+    assert run.population_size == 1
+    assert run.table == [[1]]
+    assert run.rows == ["state-funded"]
+    assert run.cols == ["left"]
 
 
 @pytest.mark.asyncio

@@ -3037,3 +3037,19 @@ database or HTTP behavior; lineage cycle handling is covered by Rust and
 PostgreSQL regression tests. See
 `docs/agents/traces/rust-evidence-relationships.md`.
 
+## 2026-09-28 — Fix funding-bias claim lookup double-prefix (PR #36 review)
+
+`app.services.funding_bias_analysis._collect_outlet_sample` called
+`_outlet_evidence_entity_id(db, f"outlet:{stable_source_id(name)}")`, but
+`stable_source_id` already returns an `"outlet:<digest>"` id -- the extra
+prefix meant the lookup never matched the `rss_catalog_key` external id
+`entity_backfill.py` actually stores, so the Python population resolver
+silently fell back to legacy/catalog values for every outlet and never used
+an accepted evidence-spine claim. Fixed by passing `stable_source_id(name)`
+directly, matching the already-correct Rust `funding_bias_population` in
+`thesis-db::wiki`. Added
+`test_accepted_claim_is_used_for_the_population_not_only_legacy` to
+`backend/tests/test_funding_bias_analysis.py`, seeding an accepted
+`funding_type` claim and asserting it (not the legacy/catalog value) appears
+in the population.
+
