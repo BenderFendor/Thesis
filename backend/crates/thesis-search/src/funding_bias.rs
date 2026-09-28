@@ -245,14 +245,8 @@ mod tests {
 mod kani_proofs {
     use super::{build_contingency_table, checked_row_totals, ContingencyTableError};
 
-    /// `checked_row_totals` over a 2x2 table of fully symbolic `u64` cells
-    /// returns `Err(CountOverflow)` exactly when the true (unbounded, `u128`)
-    /// sum of all four cells exceeds `u64::MAX`, and otherwise returns row
-    /// totals and a population size equal to the exact `u128` sums.
-    ///
-    /// Every cell ranges over the full `u64` domain (not a narrow `u8`
-    /// slice), so this actually exercises the overflow branch: a row total
-    /// or the population accumulator can genuinely wrap in `u64` here.
+    /// Over unbounded `u64` cells, `checked_row_totals` overflows exactly when
+    /// the true `u128` total exceeds `u64::MAX` and otherwise returns exact sums.
     #[kani::proof]
     #[kani::unwind(4)]
     fn checked_row_totals_matches_u128_ground_truth_or_overflows_exactly() {
@@ -282,11 +276,8 @@ mod kani_proofs {
         }
     }
 
-    /// `build_contingency_table` always returns a rectangular table (every
-    /// row has exactly `cols.len()` entries) whose cell counts sum to the
-    /// number of input pairs, for every combination of up to three pairs
-    /// drawn from a two-symbol row alphabet and a two-symbol column
-    /// alphabet.
+    /// For up to three pairs over two-symbol axes, the table is rectangular
+    /// and its cells sum to the number of pairs.
     #[kani::proof]
     #[kani::unwind(4)]
     fn contingency_table_cells_sum_to_input_length_and_stay_rectangular() {

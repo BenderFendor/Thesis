@@ -58,12 +58,8 @@ proof fn non_degenerate_table_has_positive_denominator(n: nat, rows: nat, cols: 
     assert(cramers_v_denominator(n, rows, cols) > 0) by (compute);
 }
 
-/// The kernel's degenerate guard (`n == 0 || rows < 2 || cols < 2`) is
-/// exactly the complement of `statistic_is_defined`: the production
-/// `cramers_v` takes the degenerate branch (returning `None` with a note)
-/// precisely when the statistic is not defined, and computes a value
-/// precisely when it is defined. Neither branch is ever taken when the
-/// other's condition holds.
+/// The kernel's degenerate guard; it is exactly the negation of
+/// `statistic_is_defined`, so `cramers_v` computes a value only when defined.
 pub open spec fn is_degenerate(n: nat, rows: nat, cols: nat) -> bool {
     n == 0 || rows < 2 || cols < 2
 }
@@ -74,10 +70,7 @@ proof fn degenerate_guard_is_exactly_not_defined(n: nat, rows: nat, cols: nat)
 {
 }
 
-/// Every non-degenerate shape has at least one degree of freedom: with
-/// `rows >= 2` and `cols >= 2`, `(rows - 1) * (cols - 1) >= 1`. The
-/// production kernel only ever reports a `degrees_of_freedom` value under
-/// this same non-degenerate condition.
+/// Every non-degenerate shape has at least one degree of freedom.
 proof fn non_degenerate_table_has_at_least_one_degree_of_freedom(n: nat, rows: nat, cols: nat)
     requires
         statistic_is_defined(n, rows, cols),

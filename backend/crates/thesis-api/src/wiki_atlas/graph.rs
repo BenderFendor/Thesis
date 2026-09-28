@@ -819,11 +819,6 @@ mod tests {
         }
     }
 
-    // sha1_digest/hex_prefix/casefold/normalize_entity_label/stable_source_id
-    // moved to `thesis_search::entity_id`; their Python-parity tests
-    // (sha1_ids_match_the_python_digest_contract,
-    // casefold_matches_python_full_unicode_semantics) now live there.
-
     #[test]
     fn filters_neighborhood_rank_and_stats_use_the_production_path() {
         let mut filters = AtlasGraphFiltersInput::default();

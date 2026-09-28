@@ -1,6 +1,5 @@
-pub(super) use thesis_search::entity_id::{
-    casefold, hex_prefix, normalize_entity_label, sha1_digest, stable_source_id,
-};
+pub(super) use thesis_search::entity_id::{casefold, normalize_entity_label, stable_source_id};
+use thesis_search::entity_id::{hex_prefix, sha1_digest};
 
 use super::super::AtlasConfidenceTier;
 

@@ -101,7 +101,7 @@ def test_cramers_v_matches_hand_computed_value_on_2x2_fixture() -> None:
 
 def test_cramers_v_degenerate_single_category_returns_none_not_zero() -> None:
     """A single row (one funding_type) makes min(rows, cols) - 1 == 0 -- undefined, not 0."""
-    rows, cols, table = build_contingency_table([("commercial", "left"), ("commercial", "right")])
+    _rows, _cols, table = build_contingency_table([("commercial", "left"), ("commercial", "right")])
     result = cramers_v(table)
     assert result["cramers_v"] is None
     assert result["chi_square"] is None

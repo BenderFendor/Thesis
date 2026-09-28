@@ -5,11 +5,7 @@
 //! casefold (`str.casefold()`), `normalize_entity_label` reproduces
 //! `" ".join(re.sub(r"[\W_]+", " ", value.casefold().strip()).split())`,
 //! and `stable_source_id` reproduces the SHA-1-derived `"outlet:<digest>"`
-//! id stored as the `rss_catalog_key` external id. Shared by every crate
-//! that needs to resolve a catalog outlet name to the same id Python
-//! computes -- originally duplicated (with less exact Unicode semantics)
-//! in `thesis-funding-bias`; that duplicate was deleted in favor of this
-//! module.
+//! id stored as the `rss_catalog_key` external id.
 
 use std::sync::LazyLock;
 
@@ -481,21 +477,8 @@ mod tests {
         assert_eq!(normalize_entity_label(" BBC__News! "), "bbc news");
     }
 
-    // Expected outputs obtained by actually running Python's
-    // app.services.atlas_graph_helpers.normalize_entity_label /
-    // stable_source_id (via the repo .venv's python3 -c), not guessed:
-    //   normalize_entity_label("Straße Zeitung") == "strasse zeitung"
-    //   stable_source_id("Straße Zeitung") == "outlet:2b78cd37f107"
-    //   normalize_entity_label("Ὀδυσσεύς Πρέσβης") == "ὀδυσσεύσ πρέσβησ"
-    //     (Python casefold lowercases and maps final sigma (ς) to sigma
-    //     (σ) but does not strip the accents -- normalize_entity_label
-    //     only casefolds and collapses non-word separators, it is not an
-    //     accent-stripping transliteration.)
-    //   stable_source_id("Ὀδυσσεύς Πρέσβης") == "outlet:87494d234026"
-    //   normalize_entity_label("\u{fb00}i Ligature News") == "ffi ligature news"
-    //     ("\u{fb00}" is the U+FB00 "ff" ligature; Python casefold expands
-    //     it to two ASCII "f" characters, matching the "ffi" in the input.)
-    //   stable_source_id("\u{fb00}i Ligature News") == "outlet:6b4839b23ce0"
+    // Expected values come from running the Python helpers in
+    // app.services.atlas_graph_helpers on the same inputs.
     #[test]
     fn normalize_entity_label_matches_python_on_unicode_fixtures() {
         assert_eq!(normalize_entity_label("Straße Zeitung"), "strasse zeitung");

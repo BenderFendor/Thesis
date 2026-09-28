@@ -110,9 +110,10 @@ def _resolve_population_attribute(
     catalog_value: Any,
 ) -> tuple[str | None, str, str | None]:
     claim = claims.get(key)
-    value = _claim_object_text(claim) if claim is not None else None
-    if value is not None:
-        return value.strip() or None, "claim", cast(str, claim.id)
+    if claim is not None:
+        value = _claim_object_text(claim)
+        if value is not None:
+            return value.strip() or None, "claim", cast(str, claim.id)
     fallback = (legacy_value or catalog_value or "").strip() or None
     return fallback, "legacy", None
 
@@ -469,17 +470,12 @@ async def load_latest_funding_bias_analysis(db: AsyncSession) -> FundingBiasRun 
     """Read-only: the most recently computed trace plus its preregistration.
 
     Never triggers a computation -- `run_funding_bias_analysis` (via the
-    CLI script `app.scripts.run_funding_bias_analysis`) is the only Python
-    writer; the Rust runner (`thesis-funding-bias`) writes `algorithm_version
-    "funding_bias_analysis/2.0"` traces against
-    `prereg_funding_bias_methodology_v2`. Matches the Rust reader
-    (`thesis-db::wiki::wiki_funding_bias_data`): load the newest trace
-    first, then the preregistration its own `subgraph.preregistration_id`
-    names (defaulting to the v1 id for legacy traces written before that
-    field existed), rather than always loading the v1 preregistration.
-    Returns `None` when the analysis has never been run, or when the
-    trace's named preregistration is missing, which the API route turns
-    into an empty-state response rather than a 404 or 500.
+    CLI script `app.scripts.run_funding_bias_analysis`) and the Rust
+    `thesis-funding-bias` runner are the writers. Like the Rust reader, this
+    loads the newest trace, then the preregistration named by its
+    `subgraph.preregistration_id` (v1 for traces without one).
+    Returns `None` when no trace exists or its preregistration is missing,
+    which the API route turns into an empty-state response.
     """
     trace = (
         (

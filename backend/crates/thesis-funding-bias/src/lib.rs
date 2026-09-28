@@ -8,14 +8,8 @@ use thesis_db::{sha256_hex, CalculationTraceWrite, Database, FundingBiasCatalogO
 use thesis_search::entity_id::stable_source_id;
 use thesis_search::funding_bias::{build_contingency_table, cramers_v};
 
-/// The checked-in RSS catalog, baked into the binary at compile time.
-///
-/// `include_str!` means catalog edits (`app/data/rss_sources.json`) only
-/// take effect after rebuilding `thesis-funding-bias`; unlike the Python
-/// runner (`app.services.funding_bias_analysis`, which reads the catalog
-/// module at import time but from the same checked-out working tree),
-/// this Rust runner has no way to pick up an edited file without a
-/// recompile, including in a deployed binary.
+/// The RSS catalog, embedded at compile time: edits to
+/// `app/data/rss_sources.json` take effect only after a rebuild.
 const CATALOG_JSON: &str = include_str!("../../../app/data/rss_sources.json");
 const METHOD_VERSION: &str = "funding_bias_analysis/2.0";
 const MEASUREMENT_NAME: &str = "funding_bias_association";
@@ -44,13 +38,9 @@ pub struct FundingBiasRunSummary {
 }
 
 fn catalog_sources() -> Result<Vec<CatalogOutlet>, Box<dyn Error>> {
-    // IndexMap (not serde_json::Map, which is a BTreeMap without the
-    // "preserve_order" feature) keeps the catalog's on-disk order, so the
-    // first source name for a set of "Name - Edition" duplicates is
-    // whichever one appears first in the file, matching Python's dict
-    // insertion-order iteration -- without enabling serde_json's
-    // "preserve_order" feature, which Cargo feature unification would
-    // otherwise spread to every crate in the workspace.
+    // File order decides which "Name - Edition" entry wins, as with Python
+    // dict iteration. IndexMap keeps that order without enabling serde_json's
+    // workspace-wide `preserve_order` feature.
     let object: IndexMap<String, Value> = serde_json::from_str(CATALOG_JSON)?;
     let mut seen = HashSet::new();
     let mut outlets = Vec::new();
@@ -331,9 +321,6 @@ mod tests {
         assert_eq!(sources[0].name, "BBC");
     }
 
-    // normalize_entity_label/stable_source_id moved to
-    // thesis_search::entity_id (shared with thesis-api); their Unicode
-    // parity tests now live there.
     #[test]
     fn outlet_id_uses_normalized_sha1_prefix() {
         assert_eq!(stable_source_id("BBC"), "outlet:0fbe2a58568b");
