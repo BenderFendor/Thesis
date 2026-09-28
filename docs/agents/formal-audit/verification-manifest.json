@@ -1057,7 +1057,7 @@
     {
       "id": "analysis.funding_bias_catalog_association",
       "implementation": "backend/crates/thesis-funding-bias/src/lib.rs::run; backend/crates/thesis-search/src/funding_bias.rs",
-      "status": "rust_tests_verified_kani_and_verus_pending_rerun",
+      "status": "rust_tests_kani_and_verus_verified",
       "verification": [
         {
           "method": "rust_unit_tests_and_property_tests",
@@ -1073,19 +1073,21 @@
         },
         {
           "method": "kani",
-          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --output-format terse",
-          "result": "not_run_this_session",
-          "toolchain": "cargo-kani was not installed in this session's environment (command -v cargo-kani found nothing); no Kani result is claimed here.",
-          "scope": "The weak all-u8-cells harness (symbolic_two_by_two_population_total_matches_the_cells_without_overflow, which could never actually overflow u64) was replaced with checked_row_totals_matches_u128_ground_truth_or_overflows_exactly, which uses fully symbolic u64 cells and proves Err(CountOverflow) is returned exactly when the true u128 sum exceeds u64::MAX (and the returned totals equal the exact u128 sums otherwise). A second harness, contingency_table_cells_sum_to_input_length_and_stay_rectangular, proves build_contingency_table is rectangular and its cell counts sum to the input length for up to three pairs over a two-symbol row/column alphabet. Both harnesses build under `cargo build -p thesis-search` (they are cfg(kani)-gated, so they do not affect the normal build) but have not been executed under Kani/CBMC in this environment -- re-run before merge.",
-          "bound": "Overflow harness: 2x2 table, each symbolic cell is a full u64, unwind 4. Rectangularity harness: up to three pairs, two-symbol row alphabet, two-symbol column alphabet, unwind 4.",
-          "assumptions": []
+          "command": "PATH=$HOME/.cargo/bin:$PATH systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=0 cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness funding_bias:: --output-format terse",
+          "result": "passed",
+          "toolchain": "Kani 0.68.0 (~/.cargo/bin/cargo-kani), CBMC with CaDiCaL.",
+          "scope": "checked_row_totals_matches_u128_ground_truth_or_overflows_exactly: over four fully symbolic u64 cells, checked_row_totals returns Err(CountOverflow) exactly when the true u128 total exceeds u64::MAX and otherwise returns the exact u128 row and population totals (3.1 s). counted_cells_are_rectangular_and_sum_to_input_length: count_cells, the index-counting kernel used by build_contingency_table, returns a rectangular table whose cells sum to the number of input pairs (14.1 s). Category collection (sort, dedup, binary search over Strings) is covered by unit tests, not Kani.",
+          "bound": "Overflow harness: 2x2 table of symbolic u64 cells. Counting harness: concrete 2x2 table, up to three symbolic in-range index pairs, unwind 4.",
+          "assumptions": [
+            "Table dimensions in the counting harness are concrete; a harness with symbolic Vec sizes and String/BTreeSet/HashMap inputs exhausted about 18 GiB of RAM and was replaced."
+          ]
         },
         {
           "method": "verus",
           "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/funding_bias_guard.rs",
-          "result": "not_run_this_session",
-          "toolchain": "verus was not installed in this session's environment (command -v verus found nothing); no Verus result is claimed here.",
-          "scope": "Kept the existing non_degenerate_table_has_positive_denominator proof. Added degenerate_guard_is_exactly_not_defined, proving the kernel's degenerate guard (n == 0 || rows < 2 || cols < 2) is exactly the boolean complement of statistic_is_defined, and non_degenerate_table_has_at_least_one_degree_of_freedom, proving (rows - 1) * (cols - 1) >= 1 whenever statistic_is_defined holds. These proof obligations have not been checked by the Verus solver in this environment -- re-run before merge.",
+          "result": "passed",
+          "toolchain": "Verus 0.2026.09.20.aef82ed (pinned CI release, sha256 7b870fa1...), Rust 1.98.1.",
+          "scope": "14 verified, 0 errors: non_degenerate_table_has_positive_denominator, degenerate_guard_is_exactly_not_defined (the kernel's degenerate guard is exactly the negation of statistic_is_defined), and non_degenerate_table_has_at_least_one_degree_of_freedom.",
           "assumptions": [
             "The abstract model requires n > 0, rows >= 2, and cols >= 2; it is not a refinement proof of the Rust implementation."
           ]
@@ -1095,7 +1097,7 @@
           "command": "cargo bench --manifest-path backend/Cargo.toml -p thesis-search --bench funding_bias",
           "result": "passed",
           "toolchain": "Criterion 0.8.2; optimized profile",
-          "scope": "100 samples per benchmark. Building a table from 20,000 pairs measured 3.3310 ms [3.2573, 3.4106]; calculating Cramer V for a 16x9 table measured 758.34 ns [746.97, 770.23]. No Python performance comparison is claimed."
+          "scope": "100 samples per benchmark against a saved baseline. Building a table from 20,000 pairs: 3.90 ms before, 2.61 ms after (-33%, p < 0.05) by sorting borrowed &str categories and indexing with binary search instead of a String HashMap. Cramer V for a 16x9 table: 644 ns, within noise of the 623 ns baseline."
         },
         {
           "method": "focused_strict_clippy_and_format",

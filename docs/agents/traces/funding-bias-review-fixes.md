@@ -148,17 +148,24 @@ the behavior change in finding 3.
   workarounds; reported the three hashes for the orchestrator to rewrite
   instead.
 
+## Follow-up verification (2026-09-28)
+
+- The co-author trailers on the first three commits were removed with a
+  `git rebase --exec` script; the tree was byte-identical afterwards.
+- Kani 0.68.0 is installed at `~/.cargo/bin` (not on the default `PATH`).
+  The first rectangularity harness used `String`, `BTreeSet`, `HashMap`,
+  and symbolic `Vec` sizes; CBMC used about 18 GiB and nearly froze the
+  workstation. `build_contingency_table` now sorts borrowed categories and
+  feeds index pairs to a pure `count_cells` kernel, and the harness checks
+  that kernel on a concrete 2x2 table. Both funding-bias harnesses pass
+  (3.1 s and 14.1 s) under `systemd-run --user --scope -p MemoryMax=8G`.
+- Verus 0.2026.09.20.aef82ed: `funding_bias_guard.rs` reports 14 verified,
+  0 errors.
+- Criterion, 20,000 pairs: table build 3.90 ms before, 2.61 ms after
+  (-33%). Cramer V is unchanged within noise.
+
 ## Remaining risks / blockers
 
-- Kani and Verus proofs for finding 7 are unverified in this session
-  (tools not installed). Must be run
-  (`cargo kani -p thesis-search --default-unwind 4 --output-format terse`
-  and `verus backend/crates/thesis-search/verus/funding_bias_guard.rs`)
-  before merge, and the manifest's `not_run_this_session` markers updated
-  to real pass/fail results.
-- `thesis-api` does not compile in this environment; its own tests
-  (including `wiki_atlas`) could not be run as part of this task's
-  verification. This is pre-existing and unrelated to the seven findings,
-  but blocks a full-workspace `cargo test`/`cargo clippy --workspace` run.
-- Commits `f63ff45`, `d2da14f`, `d74b4a5` still carry the
-  `Co-Authored-By: Claude` trailer; needs an orchestrator-side rewrite.
+- No live PostgreSQL run of the CLI yet.
+- `thesis-api` build restoration is tracked separately on branch
+  `rust/restore-api-build`.

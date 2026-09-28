@@ -1,4 +1,3 @@
-use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 
 const DEGENERATE_NOTE: &str = "degenerate: empty population or fewer than two categories on one axis -- no association statistic is computable";
@@ -65,35 +64,42 @@ fn checked_row_totals(table: &[Vec<u64>]) -> Result<(Vec<u64>, u64), Contingency
 pub fn build_contingency_table(
     pairs: &[(String, String)],
 ) -> (Vec<String>, Vec<String>, Vec<Vec<u64>>) {
-    let rows = pairs
+    let rows = sorted_categories(pairs.iter().map(|(row, _)| row.as_str()));
+    let cols = sorted_categories(pairs.iter().map(|(_, col)| col.as_str()));
+    let cells = pairs
         .iter()
-        .map(|(row, _)| row.clone())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    let cols = pairs
-        .iter()
-        .map(|(_, col)| col.clone())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    let row_index = rows
-        .iter()
-        .enumerate()
-        .map(|(index, value)| (value.as_str(), index))
-        .collect::<HashMap<_, _>>();
-    let col_index = cols
-        .iter()
-        .enumerate()
-        .map(|(index, value)| (value.as_str(), index))
-        .collect::<HashMap<_, _>>();
-    let mut table = vec![vec![0; cols.len()]; rows.len()];
-
-    for (row, col) in pairs {
-        table[row_index[row.as_str()]][col_index[col.as_str()]] += 1;
-    }
-
+        .map(|(row, col)| (category_index(&rows, row), category_index(&cols, col)));
+    let table = count_cells(cells, rows.len(), cols.len());
     (rows, cols, table)
+}
+
+fn sorted_categories<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut categories = values.collect::<Vec<_>>();
+    categories.sort_unstable();
+    categories.dedup();
+    categories.into_iter().map(str::to_owned).collect()
+}
+
+fn category_index(categories: &[String], value: &str) -> usize {
+    categories
+        .binary_search_by(|category| category.as_str().cmp(value))
+        .expect("every value was collected into its category list")
+}
+
+/// Count `(row, col)` index pairs into a `rows` x `cols` table.
+///
+/// Every index must be in range; the table is always rectangular and its cells
+/// sum to the number of pairs.
+fn count_cells(
+    cells: impl IntoIterator<Item = (usize, usize)>,
+    rows: usize,
+    cols: usize,
+) -> Vec<Vec<u64>> {
+    let mut table = vec![vec![0_u64; cols]; rows];
+    for (row, col) in cells {
+        table[row][col] += 1;
+    }
+    table
 }
 
 /// Compute Pearson chi-square and Cramer's V for a rectangular count table.
@@ -243,7 +249,7 @@ mod tests {
 
 #[cfg(kani)]
 mod kani_proofs {
-    use super::{build_contingency_table, checked_row_totals, ContingencyTableError};
+    use super::{checked_row_totals, count_cells, ContingencyTableError};
 
     /// Over unbounded `u64` cells, `checked_row_totals` overflows exactly when
     /// the true `u128` total exceeds `u64::MAX` and otherwise returns exact sums.
@@ -276,29 +282,35 @@ mod kani_proofs {
         }
     }
 
-    /// For up to three pairs over two-symbol axes, the table is rectangular
-    /// and its cells sum to the number of pairs.
+    /// For up to three in-range index pairs over a 2x2 table, the counted
+    /// table is rectangular and its cells sum to the number of pairs. Table
+    /// dimensions are concrete: symbolic allocation sizes make CBMC's memory
+    /// use grow past practical limits.
     #[kani::proof]
     #[kani::unwind(4)]
-    fn contingency_table_cells_sum_to_input_length_and_stay_rectangular() {
-        let count: u8 = kani::any();
+    fn counted_cells_are_rectangular_and_sum_to_input_length() {
+        const ROWS: usize = 2;
+        const COLS: usize = 2;
+        let (rows, cols) = (ROWS, COLS);
+        let count: usize = kani::any();
         kani::assume(count <= 3);
-
-        let mut pairs: Vec<(String, String)> = Vec::new();
+        let mut cells = Vec::new();
         for _ in 0..count {
-            let row_symbol: bool = kani::any();
-            let col_symbol: bool = kani::any();
-            let row = if row_symbol { "r1" } else { "r0" }.to_owned();
-            let col = if col_symbol { "c1" } else { "c0" }.to_owned();
-            pairs.push((row, col));
+            let row: usize = kani::any();
+            let col: usize = kani::any();
+            kani::assume(row < rows && col < cols);
+            cells.push((row, col));
         }
 
-        let (rows, cols, table) = build_contingency_table(&pairs);
-        assert_eq!(table.len(), rows.len());
+        let table = count_cells(cells, rows, cols);
+        assert!(table.len() == rows);
+        let mut total = 0_u64;
         for row in &table {
-            assert_eq!(row.len(), cols.len());
+            assert!(row.len() == cols);
+            for cell in row {
+                total += *cell;
+            }
         }
-        let total: u64 = table.iter().flat_map(|row| row.iter()).sum();
-        assert_eq!(total, u64::from(count));
+        assert!(total == count as u64);
     }
 }
