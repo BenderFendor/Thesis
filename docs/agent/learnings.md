@@ -1111,3 +1111,11 @@ clients use the OpenAI SDK default of two retries, while OpenCode sets
 completion quality, or retry parity. See
 `docs/agents/traces/rust-queue-digest-cache-debug-2026-09-25.md`.
 
+## 2026-09-28: Check Rust test expectations against the Python oracle
+
+Several restored `thesis-api` tests encoded wrong expectations (column counts,
+a trace hash, an event published before subscription). Before changing code
+or test, run the FastAPI route or Python helper on the same input
+(`app.services.evidence_spine.stable_hash`, `app/api/routes/*.py`) and follow
+its behavior.
+

@@ -8,6 +8,29 @@ lacks a ZIP writer and Cargo resolution/runtime verification are gated.
 FastAPI remains public; Rust parity/runtime proof is open. Rust discovery's
 Unicode-number parity gap remains unresolved.
 
+## 2026-09-28: Restore the Rust workspace build (batch 0)
+
+`thesis-api` had not compiled since `1ca45cc` (236 errors), so `thesis-server`
+could not build. Branch `rust/restore-api-build` restores the build and fixes
+what the restored tests exposed:
+
+- Trending/similarity routes and the `/ws` module were never mounted or
+  compiled; both are now wired. The duplicate `core.rs` language-diagnostics
+  handler is deleted in favor of the one that extracts URL-only articles.
+- The production router now uses the database-backed image cache, and the
+  proxy treats the cache as optional like FastAPI's disk cache.
+- Relationship materialization treated share-class, temporal, and
+  transaction-status differences as conflicts; only apparently conflicting
+  claims now block, as in `app/services/evidence_spine.py`.
+- Seven wrong test expectations were checked against FastAPI behavior or the
+  Python hash function before changing them; one test deadlocked on a mutex.
+
+Workspace: 516 tests pass (thesis-db against a temporary PostgreSQL). Strict
+Clippy is clean except dead-code warnings for OpenAPI-only `IntoParams`
+structs and the unbuilt Atlas entity-detail types. About 22,000 lines in
+`thesis-server/src/providers/` are still not compiled into the server.
+Plan: `docs/architecture/rust-cutover-plan.md`.
+
 ## 2026-09-29: T13 B14 wiki index-status nullable status
 
 The live inventory has no eligible `rust_registered:false` B13/B14 read: B13

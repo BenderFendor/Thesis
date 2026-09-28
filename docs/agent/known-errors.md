@@ -963,3 +963,21 @@ and does not match Arabic-Indic digits. The worker-reported Python probe returne
 This is an unresolved parity risk, not a verified Rust runtime result. The
 percent-boundary regression covers ASCII examples only; Cargo verification
 remains gated and was not run.
+
+## 2026-09-28: Kani harness exhausted workstation memory
+
+A Kani harness over `String`, `BTreeSet`, `HashMap`, and symbolic `Vec` lengths
+drove CBMC to about 18 GiB while a full `cargo test` ran, nearly freezing a
+31 GiB machine. Keep harness allocation sizes concrete, prove pure index
+kernels instead of string-keyed builders, and run heavy jobs one at a time:
+`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=0 nice -n 10 cargo kani ...`.
+Kani is installed at `~/.cargo/bin`, which may not be on `PATH`.
+
+## 2026-09-28: thesis-api tests wait on lazy database timeouts
+
+Tests that route through `Database::connect_lazy("postgres://user:pass@127.0.0.1/thesis")`
+wait for the sqlx acquire timeout, so `cargo test -p thesis-api` takes about
+90 s. `thesis-db` `#[sqlx::test]` tests need `DATABASE_URL`; a user-level
+server works: `initdb -D <dir> -U postgres --auth=trust` then
+`pg_ctl -D <dir> -o "-p 55432 -c unix_socket_directories='' -c listen_addresses=127.0.0.1" start`.
+
