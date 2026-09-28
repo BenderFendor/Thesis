@@ -306,6 +306,28 @@ Move each boundary only after its callers, tests, and data contract are known.
 | 8. Research agent and reporter enrichment | `backend/news_research_agent.py`; `news_research.py`, `research_models.py`, `research_streaming.py`, `prompting.py`, `verification_agent.py`, `verification_output.py`, `verification_sandbox.py`, `entity_resolver.py`, `entity_wiki_service.py`, `funding_researcher.py`, `source_query_generator.py`, `source_research.py`, `source_search_planner.py`, `reporter_agency_flag.py`, `reporter_author_page_scraper.py`, `reporter_awards.py`, `reporter_career_timeline.py`, `reporter_cms_crawl.py`, `reporter_conferences.py`, `reporter_openalex.py`, `reporter_outlet_repair.py`, `reporter_profiler.py`, `reporter_public_records.py`, `reporter_social_search.py`, `reporter_split_backfill.py`, `reporter_wayback.py`, `reporter_web_search.py`, `reporter_wikipedia.py`. | `thesis-agent` with explicit plan, dispatch, completion, integration, verification, response, failure, and cancellation events. Keep stable tool IDs and idempotent result commits. |
 | 9. Lifecycle and final Python removal | `backend/app/main.py`, remaining compatibility imports, and `resource_monitor.py`, `metrics.py`, `debug_logger.py`. | `thesis-server`, `thesis-runtime`, and `thesis-observe`. Remove FastAPI only after full API, worker-cycle, restart, rollback, and soak criteria below pass. |
 
+### Funding-bias runner notes
+
+`thesis-funding-bias` (`backend/crates/thesis-funding-bias/src/lib.rs`)
+bakes `app/data/rss_sources.json` into the compiled binary with
+`include_str!`. Editing the catalog file has no effect on an already-built
+`thesis-funding-bias` binary (including one deployed without a
+recompile); a catalog edit requires rebuilding this crate before the next
+run picks it up. The Python runner (`app.services.funding_bias_analysis`)
+reads the same file at import time from the working tree instead, so it
+always sees an edited catalog on its next process start without a
+compile step.
+
+The Rust trace id (`sha256_hex` of `thesis-funding-bias`'s own canonical
+JSON serialization of a single `[measurement_name, preregistration_id,
+algorithm_version, fingerprint]` array) intentionally differs from
+Python's `stable_hash` (`\x1f`-joined parts hashed with a different
+canonicalization). `funding_bias_analysis/1.0` (Python, v1) and
+`funding_bias_analysis/2.0` (Rust, v2) trace ids are therefore never
+comparable byte-for-byte between the two algorithm versions, even for an
+identical population -- each version's trace id is only stable against
+re-runs of that same version.
+
 ## Temporary Python boundaries and deletion criteria
 
 | Python surface | Why it remains | Removal condition |
