@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 27607)
-Total output lines: 2954
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::Value;
@@ -702,7 +699,1646 @@ impl Database {
             )
             .bind(&subject_ids)
             .fetch_all(&self.pool)
-            .a…15607 tokens truncated…|value| !value.is_empty()) {
+            .await?
+        };
+        let mut latest_claims = HashMap::<(String, String), FundingBiasClaimRow>::new();
+        for claim in claim_rows {
+            let key = (claim.subject_entity_id.clone(), claim.predicate.clone());
+            let replace = latest_claims
+                .get(&key)
+                .is_none_or(|current| claim.recorded_at > current.recorded_at);
+            if replace {
+                latest_claims.insert(key, claim);
+            }
+        }
+
+        let mut samples = Vec::new();
+        for outlet in catalog {
+            let metadata = metadata.get(&outlet.name);
+            let entity_id = entity_ids_by_outlet.get(&outlet.outlet_id);
+            let funding_claim = entity_id
+                .and_then(|id| latest_claims.get(&(id.clone(), "funding_type".to_owned())));
+            let bias_claim =
+                entity_id.and_then(|id| latest_claims.get(&(id.clone(), "bias_rating".to_owned())));
+            let (funding_type, funding_claim_id) = resolve_funding_bias_attribute(
+                funding_claim,
+                metadata.and_then(|row| row.funding_type.as_deref()),
+                outlet.catalog_funding_type.as_deref(),
+            );
+            let (bias_rating, bias_claim_id) = resolve_funding_bias_attribute(
+                bias_claim,
+                metadata.and_then(|row| row.political_bias.as_deref()),
+                outlet.catalog_bias_rating.as_deref(),
+            );
+            let (Some(funding_type), Some(bias_rating)) = (funding_type, bias_rating) else {
+                continue;
+            };
+            let claim_ids = [funding_claim_id, bias_claim_id]
+                .into_iter()
+                .flatten()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            samples.push(FundingBiasSample {
+                name: outlet.name.clone(),
+                funding_type,
+                bias_rating,
+                claim_ids,
+            });
+        }
+        Ok(samples)
+    }
+
+    /// Lock a methodology once. An existing preregistration is returned
+    /// unchanged so repeated runs cannot rewrite it after seeing the data.
+    pub async fn ensure_funding_bias_preregistration(
+        &self,
+        id: &str,
+        title: &str,
+        canonical_hash: &str,
+        specification: Value,
+    ) -> Result<WikiFundingPreregistration, sqlx::Error> {
+        let now = chrono::Utc::now().naive_utc();
+        sqlx::query(
+            "INSERT INTO preregistrations \
+             (id, title, canonical_hash, external_service, external_identifier, doi, \
+              deposited_at, locked_at, specification, deviations, created_at) \
+             VALUES ($1, $2, $3, 'internal', $1, NULL, $4, $4, $5, $6, $4) \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(id)
+        .bind(title)
+        .bind(canonical_hash)
+        .bind(now)
+        .bind(Json(specification))
+        .bind(Json(serde_json::json!([])))
+        .execute(&self.pool)
+        .await?;
+        sqlx::query_as::<_, WikiFundingPreregistration>(
+            "SELECT id, title, locked_at, specification, deviations \
+             FROM preregistrations WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceReporterSummaryRecord {
+    pub id: i64,
+    pub name: String,
+    pub topics: Option<Vec<String>>,
+    pub political_leaning: Option<String>,
+    pub article_count: Option<i32>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceOrganizationRecord {
+    pub id: i64,
+    pub name: String,
+    pub org_type: Option<String>,
+    pub funding_type: Option<String>,
+    pub funding_sources: Option<Json<Value>>,
+    pub major_advertisers: Option<Json<Value>>,
+    pub ein: Option<String>,
+    pub annual_revenue: Option<String>,
+    pub media_bias_rating: Option<String>,
+    pub factual_reporting: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub research_confidence: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceClaimRecord {
+    pub id: i64,
+    pub claim_type: String,
+    pub claim_kind: String,
+    pub claim_value: Json<Value>,
+    pub confidence: Option<f64>,
+    pub parser_version: String,
+    pub valid_from: Option<chrono::NaiveDateTime>,
+    pub valid_to: Option<chrono::NaiveDateTime>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceClaimEvidenceRecord {
+    pub source_type: String,
+    pub source_name: Option<String>,
+    pub source_url: String,
+    pub retrieved_at: chrono::NaiveDateTime,
+    pub raw_excerpt: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceClaimWithEvidence {
+    pub claim: WikiSourceClaimRecord,
+    pub evidence: Vec<WikiSourceClaimEvidenceRecord>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceLedgerArticleRecord {
+    pub author: Option<String>,
+    pub authors: Option<Vec<String>>,
+    pub paywall_status: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceLedgerRelationCount {
+    pub relation: String,
+    pub count: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceLedgerData {
+    pub articles: Vec<WikiSourceLedgerArticleRecord>,
+    pub correction_count: i64,
+    pub original_count: i64,
+    pub relation_counts: Vec<WikiSourceLedgerRelationCount>,
+}
+
+impl Database {
+    pub async fn wiki_source_article_count(
+        &self,
+        source_names: &[String],
+    ) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*)::BIGINT FROM articles WHERE source = ANY($1)")
+            .bind(source_names.to_vec())
+            .fetch_one(&self.pool)
+            .await
+    }
+
+    pub async fn wiki_source_reporter_summaries(
+        &self,
+        source_names: &[String],
+        limit: i64,
+    ) -> Result<Vec<WikiSourceReporterSummaryRecord>, sqlx::Error> {
+        sqlx::query_as::<_, WikiSourceReporterSummaryRecord>(
+            "SELECT DISTINCT r.id, r.name, r.topics, r.political_leaning, r.article_count \
+             FROM reporters r \
+             JOIN article_authors aa ON aa.reporter_id = r.id \
+             JOIN articles a ON a.id = aa.article_id \
+             WHERE a.source = ANY($1) AND r.retirement_reason IS NULL \
+             LIMIT $2",
+        )
+        .bind(source_names.to_vec())
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn wiki_source_organization(
+        &self,
+        normalized_name: &str,
+    ) -> Result<Option<WikiSourceOrganizationRecord>, sqlx::Error> {
+        sqlx::query_as::<_, WikiSourceOrganizationRecord>(
+            "SELECT id, name, org_type, funding_type, funding_sources, major_advertisers, \
+                ein, annual_revenue, media_bias_rating, factual_reporting, wikipedia_url, \
+                research_confidence \
+             FROM organizations WHERE normalized_name = $1",
+        )
+        .bind(normalized_name)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn wiki_source_claims(
+        &self,
+        source_names: &[String],
+    ) -> Result<Vec<WikiSourceClaimWithEvidence>, sqlx::Error> {
+        let claims = sqlx::query_as::<_, WikiSourceClaimRecord>(
+            "SELECT id, claim_type, claim_kind, claim_value, confidence, parser_version, \
+                valid_from, valid_to \
+             FROM source_claims \
+             WHERE source_name = ANY($1) AND is_current = TRUE",
+        )
+        .bind(source_names.to_vec())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut results = Vec::with_capacity(claims.len());
+        for claim in claims {
+            let evidence = sqlx::query_as::<_, WikiSourceClaimEvidenceRecord>(
+                "SELECT source_type, source_name, source_url, retrieved_at, raw_excerpt \
+                 FROM source_claim_evidence WHERE claim_id = $1",
+            )
+            .bind(claim.id)
+            .fetch_all(&self.pool)
+            .await?;
+            results.push(WikiSourceClaimWithEvidence { claim, evidence });
+        }
+        Ok(results)
+    }
+
+    pub async fn wiki_source_ledger_data(
+        &self,
+        source_names: &[String],
+    ) -> Result<WikiSourceLedgerData, sqlx::Error> {
+        let articles = sqlx::query_as::<_, WikiSourceLedgerArticleRecord>(
+            "SELECT author, authors, paywall_status FROM articles WHERE source = ANY($1)",
+        )
+        .bind(source_names.to_vec())
+        .fetch_all(&self.pool)
+        .await?;
+        let correction_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*)::BIGINT FROM corrections WHERE source = ANY($1)",
+        )
+        .bind(source_names.to_vec())
+        .fetch_one(&self.pool)
+        .await?;
+        let original_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*)::BIGINT \
+             FROM story_clusters sc \
+             JOIN articles a ON a.id = sc.earliest_article_id \
+             WHERE a.source = ANY($1)",
+        )
+        .bind(source_names.to_vec())
+        .fetch_one(&self.pool)
+        .await?;
+        let relation_counts = sqlx::query_as::<_, WikiSourceLedgerRelationCount>(
+            "SELECT edge.relation, COUNT(edge.id)::BIGINT AS count \
+             FROM article_edges edge \
+             JOIN articles target_article ON edge.to_article_id = target_article.id \
+             WHERE target_article.source = ANY($1) \
+             GROUP BY edge.relation",
+        )
+        .bind(source_names.to_vec())
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(WikiSourceLedgerData {
+            articles,
+            correction_count,
+            original_count,
+            relation_counts,
+        })
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiReporterBylineSummaryRecord {
+    pub source: String,
+    pub first_published_at: Option<chrono::NaiveDateTime>,
+    pub last_published_at: Option<chrono::NaiveDateTime>,
+    pub article_count: i64,
+}
+
+impl Database {
+    pub async fn wiki_reporter_byline_summary(
+        &self,
+        reporter_id: i64,
+    ) -> Result<Vec<WikiReporterBylineSummaryRecord>, sqlx::Error> {
+        sqlx::query_as::<_, WikiReporterBylineSummaryRecord>(
+            "SELECT a.source, MIN(a.published_at) AS first_published_at, \
+                    MAX(a.published_at) AS last_published_at, COUNT(a.id)::bigint AS article_count \
+             FROM article_authors aa \
+             JOIN articles a ON a.id = aa.article_id \
+             WHERE aa.reporter_id = $1 AND a.source IS NOT NULL \
+             GROUP BY a.source ORDER BY a.source",
+        )
+        .bind(reporter_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct PersistedSourceCatalogRecord {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    pub category: String,
+    pub country: String,
+    pub source_type: String,
+    pub funding_type: String,
+    pub bias_rating: String,
+    pub ownership_label: String,
+    pub factual_reporting: String,
+    pub is_paywalled: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct SourceCatalogPromotion {
+    pub name: String,
+    pub url: String,
+    pub category: String,
+    pub country: String,
+    pub source_type: String,
+    pub funding_type: String,
+    pub bias_rating: String,
+    pub ownership_label: String,
+    pub factual_reporting: String,
+    pub is_paywalled: bool,
+}
+
+async fn list_promoted_sources(
+    pool: &PgPool,
+) -> Result<Vec<PersistedSourceCatalogRecord>, sqlx::Error> {
+    sqlx::query_as::<_, PersistedSourceCatalogRecord>(
+        "SELECT id, name, url, category, country, source_type, funding_type, bias_rating, \
+                ownership_label, factual_reporting, is_paywalled \
+         FROM source_catalog ORDER BY id ASC",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+async fn promote_source(
+    pool: &PgPool,
+    source: &SourceCatalogPromotion,
+) -> Result<bool, sqlx::Error> {
+    let inserted_id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO source_catalog \
+             (name, url, category, country, source_type, funding_type, bias_rating, \
+              ownership_label, factual_reporting, is_paywalled) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+         ON CONFLICT (name) DO NOTHING RETURNING id",
+    )
+    .bind(&source.name)
+    .bind(&source.url)
+    .bind(&source.category)
+    .bind(&source.country)
+    .bind(&source.source_type)
+    .bind(&source.funding_type)
+    .bind(&source.bias_rating)
+    .bind(&source.ownership_label)
+    .bind(&source.factual_reporting)
+    .bind(source.is_paywalled)
+    .fetch_optional(pool)
+    .await?;
+    Ok(inserted_id.is_some())
+}
+
+impl Database {
+    pub async fn list_promoted_sources(
+        &self,
+    ) -> Result<Vec<PersistedSourceCatalogRecord>, sqlx::Error> {
+        list_promoted_sources(&self.pool).await
+    }
+
+    pub async fn promote_source(
+        &self,
+        source: SourceCatalogPromotion,
+    ) -> Result<bool, sqlx::Error> {
+        promote_source(&self.pool, &source).await
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiSourceCredibilityMetadataRecord {
+    pub source_name: String,
+    pub domain: Option<String>,
+    pub political_bias: Option<String>,
+    pub research_sources: Option<Json<Value>>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiCredibilityOrganizationRecord {
+    pub name: String,
+    pub funding_type: Option<String>,
+    pub parent_orgs: Option<Json<Value>>,
+    pub ein: Option<String>,
+    pub funding_sources: Option<Json<Value>>,
+    pub annual_revenue: Option<String>,
+    pub media_bias_rating: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiGdeltCredibilityStats {
+    pub distinct_actor_names: i64,
+    pub distinct_actor_countries: i64,
+    pub event_count: i64,
+    pub source_avg_tone: Option<f64>,
+    pub global_avg_tone: Option<f64>,
+    pub global_stddev_tone: Option<f64>,
+    pub source_avg_goldstein: Option<f64>,
+    pub global_avg_goldstein: Option<f64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceCredibilityData {
+    pub metadata: WikiSourceCredibilityMetadataRecord,
+    pub organization: Option<WikiCredibilityOrganizationRecord>,
+    pub analysis_scores: Vec<WikiSourceAnalysisScoreRecord>,
+    pub gdelt: WikiGdeltCredibilityStats,
+}
+
+impl Database {
+    pub async fn load_source_credibility_data(
+        &self,
+        domain: &str,
+    ) -> Result<Option<WikiSourceCredibilityData>, sqlx::Error> {
+        let Some(metadata) = sqlx::query_as::<_, WikiSourceCredibilityMetadataRecord>(
+            "SELECT source_name, domain, political_bias, research_sources \
+             FROM source_metadata WHERE domain = $1 LIMIT 1",
+        )
+        .bind(domain)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let organization = sqlx::query_as::<_, WikiCredibilityOrganizationRecord>(
+            "SELECT name, funding_type, parent_orgs, ein, funding_sources, \
+                    annual_revenue, media_bias_rating \
+             FROM organizations WHERE lower(name) = lower($1) LIMIT 1",
+        )
+        .bind(&metadata.source_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let analysis_scores = sqlx::query_as::<_, WikiSourceAnalysisScoreRecord>(
+            "SELECT source_name, axis_name, score, confidence, prose_explanation, citations, \
+                    empirical_basis, scored_by, last_scored_at \
+             FROM source_analysis_scores \
+             WHERE lower(source_name) = lower($1) AND axis_name IN ( \
+                 'correction_record', 'corrections', 'corrections_history', \
+                 'methodology_transparency', 'editorial_standards', 'transparency' \
+             )",
+        )
+        .bind(&metadata.source_name)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let gdelt_source = metadata
+            .domain
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .unwrap_or(domain);
+        let gdelt = sqlx::query_as::<_, WikiGdeltCredibilityStats>(
+            "SELECT \
+                 (SELECT COUNT(DISTINCT actor1_name)::bigint FROM gdelt_events WHERE source = $1) \
+                     AS distinct_actor_names, \
+                 (SELECT COUNT(DISTINCT actor1_country)::bigint FROM gdelt_events WHERE source = $1) \
+                     AS distinct_actor_countries, \
+                 (SELECT COUNT(*)::bigint FROM gdelt_events WHERE source = $1) AS event_count, \
+                 (SELECT AVG(tone) FROM gdelt_events WHERE source = $1) AS source_avg_tone, \
+                 (SELECT AVG(tone) FROM gdelt_events) AS global_avg_tone, \
+                 (SELECT STDDEV_POP(tone) FROM gdelt_events) AS global_stddev_tone, \
+                 (SELECT AVG(goldstein_scale) FROM gdelt_events WHERE source = $1) \
+                     AS source_avg_goldstein, \
+                 (SELECT AVG(goldstein_scale) FROM gdelt_events) AS global_avg_goldstein",
+        )
+        .bind(gdelt_source)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(Some(WikiSourceCredibilityData {
+            metadata,
+            organization,
+            analysis_scores,
+            gdelt,
+        }))
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reporter_merge_resolution_stops_at_a_cycle() {
+        let mut seen_ids = std::collections::BTreeSet::from([42]);
+        let next = ReporterMergeRow {
+            id: 43,
+            merged_into: Some(42),
+            retirement_reason: Some("merged".to_owned()),
+        };
+        let resolved =
+            accept_reporter_merge_target(next, &mut seen_ids).expect("first merge target is new");
+        assert_eq!(resolved.id, 43);
+
+        let cycle = ReporterMergeRow {
+            id: 42,
+            merged_into: Some(43),
+            retirement_reason: Some("merged".to_owned()),
+        };
+        assert!(accept_reporter_merge_target(cycle, &mut seen_ids).is_none());
+    }
+    fn promotion(name: &str, url: &str) -> SourceCatalogPromotion {
+        SourceCatalogPromotion {
+            name: name.to_owned(),
+            url: url.to_owned(),
+            category: "news".to_owned(),
+            country: "US".to_owned(),
+            source_type: "publisher".to_owned(),
+            funding_type: "commercial".to_owned(),
+            bias_rating: "center".to_owned(),
+            ownership_label: "independent".to_owned(),
+            factual_reporting: "high".to_owned(),
+            is_paywalled: false,
+        }
+    }
+
+    #[sqlx::test]
+    async fn source_catalog_promotions_are_exact_name_unique_and_ordered(pool: PgPool) {
+        sqlx::query(
+            "CREATE TABLE source_catalog (\
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, \
+                name TEXT COLLATE \"C\" NOT NULL UNIQUE, url TEXT NOT NULL, category TEXT NOT NULL, \
+                country TEXT NOT NULL, source_type TEXT NOT NULL, funding_type TEXT NOT NULL, \
+                bias_rating TEXT NOT NULL, ownership_label TEXT NOT NULL, \
+                factual_reporting TEXT NOT NULL, is_paywalled BOOLEAN NOT NULL DEFAULT FALSE, \
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+        )
+        .execute(&pool)
+        .await
+        .expect("create isolated source catalog");
+        let database = crate::Database { pool };
+
+        let shared_url = "https://same.example/";
+        assert!(database
+            .promote_source(promotion("Example News", shared_url))
+            .await
+            .expect("promote first source"));
+        assert!(database
+            .promote_source(promotion("Example Radio", shared_url))
+            .await
+            .expect("promote second source with same domain"));
+        assert!(!database
+            .promote_source(promotion("Example News", "https://replacement.example/"))
+            .await
+            .expect("duplicate name is ignored"));
+        assert!(database
+            .promote_source(promotion("example news", shared_url))
+            .await
+            .expect("name uniqueness follows C collation"));
+
+        let rows = database
+            .list_promoted_sources()
+            .await
+            .expect("list promoted sources");
+        assert_eq!(
+            rows.iter().map(|row| row.name.as_str()).collect::<Vec<_>>(),
+            ["Example News", "Example Radio", "example news"]
+        );
+        assert!(rows.iter().all(|row| row.url == shared_url));
+    }
+}
+#[derive(Clone, Debug)]
+pub struct WikiOrganizationWriteRecord {
+    pub name: String,
+    pub normalized_name: String,
+    pub org_type: Option<String>,
+    pub ownership_percentage: Option<String>,
+    pub funding_type: Option<String>,
+    pub funding_sources: Option<Value>,
+    pub major_advertisers: Option<Value>,
+    pub ein: Option<String>,
+    pub annual_revenue: Option<String>,
+    pub top_donors: Option<Value>,
+    pub media_bias_rating: Option<String>,
+    pub factual_reporting: Option<String>,
+    pub website: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub research_sources: Option<Value>,
+    pub research_confidence: Option<String>,
+    pub owned_by: Option<Value>,
+    pub parent_orgs: Option<Value>,
+    pub part_of: Option<Value>,
+    pub subsidiaries: Option<Value>,
+    pub headquarters: Option<Value>,
+    pub inception: Option<String>,
+    pub official_website: Option<String>,
+    pub cik: Option<String>,
+    pub opensecrets_data: Option<Value>,
+    pub conflict_flags: Option<Value>,
+    pub parent_org: Option<String>,
+    pub parent_org_id: Option<i64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceAnalysisScoreInput {
+    pub axis_name: String,
+    pub score: i32,
+    pub confidence: Option<String>,
+    pub prose_explanation: Option<String>,
+    pub citations: Option<Value>,
+    pub empirical_basis: Option<String>,
+    pub scored_by: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceClaimEvidenceInput {
+    pub source_type: String,
+    pub source_name: Option<String>,
+    pub source_url: String,
+    pub retrieved_at: Option<chrono::NaiveDateTime>,
+    pub raw_excerpt: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiSourceClaimInput {
+    pub claim_type: String,
+    pub claim_value: Value,
+    pub claim_kind: String,
+    pub confidence: f64,
+    pub parser_version: String,
+    pub evidence: Vec<WikiSourceClaimEvidenceInput>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiReporterProfileWriteRecord {
+    pub name: String,
+    pub normalized_name: Option<String>,
+    pub resolver_key: Option<String>,
+    pub raw_name: Option<String>,
+    pub bio: Option<String>,
+    pub career_history: Option<Value>,
+    pub topics: Vec<String>,
+    pub education: Option<Value>,
+    pub political_leaning: Option<String>,
+    pub leaning_confidence: Option<String>,
+    pub leaning_sources: Option<Value>,
+    pub twitter_handle: Option<String>,
+    pub linkedin_url: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub wikidata_qid: Option<String>,
+    pub wikidata_url: Option<String>,
+    pub canonical_name: Option<String>,
+    pub match_status: Option<String>,
+    pub overview: Option<String>,
+    pub dossier_sections: Option<Value>,
+    pub citations: Option<Value>,
+    pub search_links: Option<Value>,
+    pub match_explanation: Option<String>,
+    pub research_sources: Option<Value>,
+    pub research_confidence: Option<String>,
+    pub littlesis_url: Option<String>,
+    pub article_count: Option<i32>,
+    pub last_article_at: Option<chrono::NaiveDateTime>,
+    pub canonical_author_url: Option<String>,
+    pub author_page_url: Option<String>,
+    pub confidence_tier: Option<String>,
+    pub confidence_score: Option<f64>,
+    pub claims_count: Option<i32>,
+    pub institutional_affiliations: Option<Value>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiReporterResearchRecord {
+    pub id: i64,
+    pub redirected_from_id: Option<i64>,
+    pub name: String,
+    pub normalized_name: Option<String>,
+    pub bio: Option<String>,
+    pub career_history: Option<Json<Value>>,
+    pub topics: Option<Vec<String>>,
+    pub education: Option<Json<Value>>,
+    pub political_leaning: Option<String>,
+    pub leaning_confidence: Option<String>,
+    pub leaning_sources: Option<Json<Value>>,
+    pub twitter_handle: Option<String>,
+    pub linkedin_url: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub wikidata_qid: Option<String>,
+    pub wikidata_url: Option<String>,
+    pub canonical_name: Option<String>,
+    pub resolver_key: Option<String>,
+    pub match_status: Option<String>,
+    pub overview: Option<String>,
+    pub dossier_sections: Option<Json<Value>>,
+    pub citations: Option<Json<Value>>,
+    pub search_links: Option<Json<Value>>,
+    pub match_explanation: Option<String>,
+    pub research_sources: Option<Json<Value>>,
+    pub research_confidence: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct WikiOrganizationResearchRecord {
+    pub id: i64,
+    pub name: String,
+    pub normalized_name: Option<String>,
+    pub org_type: Option<String>,
+    pub parent_org_id: Option<i64>,
+    pub parent_org: Option<String>,
+    pub ownership_percentage: Option<String>,
+    pub funding_type: Option<String>,
+    pub funding_sources: Option<Json<Value>>,
+    pub major_advertisers: Option<Json<Value>>,
+    pub ein: Option<String>,
+    pub annual_revenue: Option<String>,
+    pub top_donors: Option<Json<Value>>,
+    pub media_bias_rating: Option<String>,
+    pub factual_reporting: Option<String>,
+    pub website: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub owned_by: Option<Json<Value>>,
+    pub parent_orgs: Option<Json<Value>>,
+    pub part_of: Option<Json<Value>>,
+    pub subsidiaries: Option<Json<Value>>,
+    pub headquarters: Option<Json<Value>>,
+    pub inception: Option<String>,
+    pub official_website: Option<String>,
+    pub cik: Option<String>,
+    pub opensecrets_data: Option<Json<Value>>,
+    pub conflict_flags: Option<Json<Value>>,
+    pub research_sources: Option<Json<Value>>,
+    pub research_confidence: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WikiArticleAuthorLinkInput {
+    pub article_id: i64,
+    pub author_role: String,
+    pub author_confidence: Option<f64>,
+    pub observation_source: Option<String>,
+    pub author_url_raw: Option<String>,
+}
+
+pub fn sha256_hex(input: &[u8]) -> String {
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
+    ];
+    let mut data = Vec::with_capacity(input.len() + 72);
+    data.extend_from_slice(input);
+    let bit_len = (input.len() as u64).wrapping_mul(8);
+    data.push(0x80);
+    while data.len() % 64 != 56 {
+        data.push(0);
+    }
+    data.extend_from_slice(&bit_len.to_be_bytes());
+
+    let mut state = [
+        0x6a09e667_u32,
+        0xbb67ae85,
+        0x3c6ef372,
+        0xa54ff53a,
+        0x510e527f,
+        0x9b05688c,
+        0x1f83d9ab,
+        0x5be0cd19,
+    ];
+    for chunk in data.chunks_exact(64) {
+        let mut schedule = [0_u32; 64];
+        for (index, word) in chunk.chunks_exact(4).enumerate() {
+            schedule[index] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+        }
+        for index in 16..64 {
+            let x = schedule[index - 15];
+            let y = schedule[index - 2];
+            let sigma0 = x.rotate_right(7) ^ x.rotate_right(18) ^ (x >> 3);
+            let sigma1 = y.rotate_right(17) ^ y.rotate_right(19) ^ (y >> 10);
+            schedule[index] = schedule[index - 16]
+                .wrapping_add(sigma0)
+                .wrapping_add(schedule[index - 7])
+                .wrapping_add(sigma1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
+        for index in 0..64 {
+            let sum1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let choose = (e & f) ^ (!e & g);
+            let temp1 = h
+                .wrapping_add(sum1)
+                .wrapping_add(choose)
+                .wrapping_add(K[index])
+                .wrapping_add(schedule[index]);
+            let sum0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let majority = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = sum0.wrapping_add(majority);
+            h = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(temp1);
+            d = c;
+            c = b;
+            b = a;
+            a = temp1.wrapping_add(temp2);
+        }
+        for (word, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+            *word = word.wrapping_add(value);
+        }
+    }
+    let mut digest = String::with_capacity(64);
+    for word in state {
+        use std::fmt::Write as _;
+        write!(&mut digest, "{word:08x}").expect("writing to String cannot fail");
+    }
+    digest
+}
+
+fn push_ascii_json_string(value: &str, output: &mut String) {
+    use std::fmt::Write as _;
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{0008}' => output.push_str("\\b"),
+            '\u{000c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character <= '\u{001f}' || !character.is_ascii() => {
+                let codepoint = character as u32;
+                if codepoint <= 0xffff {
+                    write!(output, "\\u{codepoint:04x}").expect("String write cannot fail");
+                } else {
+                    let scalar = codepoint - 0x1_0000;
+                    let high = 0xd800 + (scalar >> 10);
+                    let low = 0xdc00 + (scalar & 0x3ff);
+                    write!(output, "\\u{high:04x}\\u{low:04x}").expect("String write cannot fail");
+                }
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+}
+
+fn append_canonical_json(value: &Value, output: &mut String) {
+    match value {
+        Value::Null => output.push_str("null"),
+        Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+        Value::Number(value) => output.push_str(&value.to_string()),
+        Value::String(value) => push_ascii_json_string(value, output),
+        Value::Array(values) => {
+            output.push('[');
+            for (index, item) in values.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                append_canonical_json(item, output);
+            }
+            output.push(']');
+        }
+        Value::Object(values) => {
+            output.push('{');
+            let mut keys = values.keys().collect::<Vec<_>>();
+            keys.sort_unstable();
+            for (index, key) in keys.into_iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                push_ascii_json_string(key, output);
+                output.push(':');
+                append_canonical_json(&values[key], output);
+            }
+            output.push('}');
+        }
+    }
+}
+
+pub(crate) fn canonical_json(value: &Value) -> String {
+    let mut output = String::new();
+    append_canonical_json(value, &mut output);
+    output
+}
+
+fn source_claim_evidence_hash(
+    evidence: &WikiSourceClaimEvidenceInput,
+    claim_value: &Value,
+) -> String {
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "source_type".to_owned(),
+        Value::String(evidence.source_type.clone()),
+    );
+    payload.insert(
+        "source_url".to_owned(),
+        Value::String(evidence.source_url.clone()),
+    );
+    payload.insert(
+        "source_name".to_owned(),
+        evidence
+            .source_name
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
+    payload.insert(
+        "raw_excerpt".to_owned(),
+        evidence
+            .raw_excerpt
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
+    payload.insert("claim_value".to_owned(), claim_value.clone());
+    sha256_hex(canonical_json(&Value::Object(payload)).as_bytes())
+}
+
+pub async fn wiki_upsert_index_status(
+    pool: &PgPool,
+    entity_type: &str,
+    entity_name: &str,
+    status: &str,
+    error_message: Option<&str>,
+    duration_ms: Option<i64>,
+) -> Result<(), sqlx::Error> {
+    let duration_ms = duration_ms
+        .map(i32::try_from)
+        .transpose()
+        .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(format!("wiki-index:{entity_type}:{entity_name}"))
+        .execute(&mut *transaction)
+        .await?;
+    let existing_id = sqlx::query_scalar::<_, i64>(
+        "SELECT id::bigint FROM wiki_index_status \
+         WHERE entity_type = $1 AND entity_name = $2 ORDER BY id LIMIT 1",
+    )
+    .bind(entity_type)
+    .bind(entity_name)
+    .fetch_optional(&mut *transaction)
+    .await?;
+    if let Some(id) = existing_id {
+        sqlx::query(
+            r#"UPDATE wiki_index_status
+               SET status = $2,
+                   error_message = $3,
+                   updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                   last_indexed_at = CASE WHEN $2 = 'complete'
+                       THEN CURRENT_TIMESTAMP AT TIME ZONE 'UTC' ELSE last_indexed_at END,
+                   next_index_at = CASE WHEN $2 = 'complete'
+                       THEN (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + INTERVAL '7 days'
+                       WHEN $2 = 'failed'
+                       THEN (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + INTERVAL '6 hours'
+                       ELSE next_index_at END,
+                   index_duration_ms = CASE WHEN $2 = 'complete'
+                       THEN $4 ELSE index_duration_ms END
+               WHERE id = $1"#,
+        )
+        .bind(id)
+        .bind(status)
+        .bind(error_message)
+        .bind(duration_ms)
+        .execute(&mut *transaction)
+        .await?;
+    } else {
+        sqlx::query(
+            r#"INSERT INTO wiki_index_status
+                (entity_type, entity_name, status, error_message, index_duration_ms,
+                 last_indexed_at, next_index_at, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5,
+                 CASE WHEN $3 = 'complete' THEN CURRENT_TIMESTAMP AT TIME ZONE 'UTC' END,
+                 (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') +
+                   CASE WHEN $3 = 'complete' THEN INTERVAL '7 days' ELSE INTERVAL '6 hours' END,
+                 CURRENT_TIMESTAMP AT TIME ZONE 'UTC', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"#,
+        )
+        .bind(entity_type)
+        .bind(entity_name)
+        .bind(status)
+        .bind(error_message)
+        .bind(duration_ms)
+        .execute(&mut *transaction)
+        .await?;
+    }
+    transaction.commit().await
+}
+
+async fn resolve_organization_parent(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    input: &WikiOrganizationWriteRecord,
+) -> Result<Option<i32>, sqlx::Error> {
+    if let Some(parent_id) = input.parent_org_id {
+        return i32::try_from(parent_id)
+            .map(Some)
+            .map_err(|error| sqlx::Error::Protocol(error.to_string()));
+    }
+    let Some(parent_name) = input.parent_org.as_deref() else {
+        return Ok(None);
+    };
+    let normalized = parent_name.trim().to_lowercase();
+    if normalized.is_empty() || normalized == input.normalized_name {
+        return Ok(None);
+    }
+    sqlx::query_scalar::<_, i32>(
+        "SELECT id FROM organizations WHERE normalized_name = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(normalized)
+    .fetch_optional(&mut **transaction)
+    .await
+}
+
+pub async fn wiki_upsert_organization(
+    pool: &PgPool,
+    input: &WikiOrganizationWriteRecord,
+) -> Result<Option<i64>, sqlx::Error> {
+    if input.normalized_name.is_empty() {
+        return Ok(None);
+    }
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(format!("organization:{}", input.normalized_name))
+        .execute(&mut *transaction)
+        .await?;
+    let parent_id = resolve_organization_parent(&mut transaction, input).await?;
+    let existing_id = sqlx::query_scalar::<_, i32>(
+        "SELECT id FROM organizations WHERE normalized_name = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(&input.normalized_name)
+    .fetch_optional(&mut *transaction)
+    .await?;
+    let id = if let Some(id) = existing_id {
+        sqlx::query(
+            r#"UPDATE organizations SET
+                name = COALESCE($2, name),
+                normalized_name = COALESCE($3, normalized_name),
+                org_type = COALESCE($4, org_type),
+                parent_org_id = COALESCE($5, parent_org_id),
+                ownership_percentage = COALESCE($6, ownership_percentage),
+                funding_type = COALESCE($7, funding_type),
+                funding_sources = COALESCE($8, funding_sources),
+                major_advertisers = COALESCE($9, major_advertisers),
+                ein = COALESCE($10, ein),
+                annual_revenue = COALESCE($11, annual_revenue),
+                top_donors = COALESCE($12, top_donors),
+                media_bias_rating = COALESCE($13, media_bias_rating),
+                factual_reporting = COALESCE($14, factual_reporting),
+                website = COALESCE($15, website),
+                wikipedia_url = COALESCE($16, wikipedia_url),
+                research_sources = COALESCE($17, research_sources),
+                research_confidence = COALESCE($18, research_confidence),
+                owned_by = COALESCE($19, owned_by),
+                parent_orgs = COALESCE($20, parent_orgs),
+                part_of = COALESCE($21, part_of),
+                subsidiaries = COALESCE($22, subsidiaries),
+                headquarters = COALESCE($23, headquarters),
+                inception = COALESCE($24, inception),
+                official_website = COALESCE($25, official_website),
+                cik = COALESCE($26, cik),
+                opensecrets_data = COALESCE($27, opensecrets_data),
+                conflict_flags = COALESCE($28, conflict_flags),
+                updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
+             WHERE id = $1"#,
+        )
+        .bind(id)
+        .bind(&input.name)
+        .bind(&input.normalized_name)
+        .bind(&input.org_type)
+        .bind(parent_id)
+        .bind(&input.ownership_percentage)
+        .bind(&input.funding_type)
+        .bind(input.funding_sources.as_ref().map(Json))
+        .bind(input.major_advertisers.as_ref().map(Json))
+        .bind(&input.ein)
+        .bind(&input.annual_revenue)
+        .bind(input.top_donors.as_ref().map(Json))
+        .bind(&input.media_bias_rating)
+        .bind(&input.factual_reporting)
+        .bind(&input.website)
+        .bind(&input.wikipedia_url)
+        .bind(input.research_sources.as_ref().map(Json))
+        .bind(&input.research_confidence)
+        .bind(input.owned_by.as_ref().map(Json))
+        .bind(input.parent_orgs.as_ref().map(Json))
+        .bind(input.part_of.as_ref().map(Json))
+        .bind(input.subsidiaries.as_ref().map(Json))
+        .bind(input.headquarters.as_ref().map(Json))
+        .bind(&input.inception)
+        .bind(&input.official_website)
+        .bind(&input.cik)
+        .bind(input.opensecrets_data.as_ref().map(Json))
+        .bind(input.conflict_flags.as_ref().map(Json))
+        .execute(&mut *transaction)
+        .await?;
+        i64::from(id)
+    } else {
+        sqlx::query_scalar::<_, i64>(
+            r#"INSERT INTO organizations
+                (name, normalized_name, org_type, parent_org_id, ownership_percentage,
+                 funding_type, funding_sources, major_advertisers, ein, annual_revenue, top_donors,
+                 media_bias_rating, factual_reporting, website, wikipedia_url, research_sources,
+                 research_confidence, owned_by, parent_orgs, part_of, subsidiaries, headquarters,
+                 inception, official_website, cik, opensecrets_data, conflict_flags, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                     $15, $16, $17, COALESCE($18, '[]'::json), COALESCE($19, '[]'::json),
+                     COALESCE($20, '[]'::json), COALESCE($21, '[]'::json),
+                     COALESCE($22, '[]'::json), $23, $24, $25,
+                     COALESCE($26, '{}'::json), COALESCE($27, '[]'::json),
+                     CURRENT_TIMESTAMP AT TIME ZONE 'UTC', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+             RETURNING id::bigint"#,
+        )
+        .bind(&input.name)
+        .bind(&input.normalized_name)
+        .bind(&input.org_type)
+        .bind(parent_id)
+        .bind(&input.ownership_percentage)
+        .bind(&input.funding_type)
+        .bind(input.funding_sources.as_ref().map(Json))
+        .bind(input.major_advertisers.as_ref().map(Json))
+        .bind(&input.ein)
+        .bind(&input.annual_revenue)
+        .bind(input.top_donors.as_ref().map(Json))
+        .bind(&input.media_bias_rating)
+        .bind(&input.factual_reporting)
+        .bind(&input.website)
+        .bind(&input.wikipedia_url)
+        .bind(input.research_sources.as_ref().map(Json))
+        .bind(&input.research_confidence)
+        .bind(input.owned_by.as_ref().map(Json))
+        .bind(input.parent_orgs.as_ref().map(Json))
+        .bind(input.part_of.as_ref().map(Json))
+        .bind(input.subsidiaries.as_ref().map(Json))
+        .bind(input.headquarters.as_ref().map(Json))
+        .bind(&input.inception)
+        .bind(&input.official_website)
+        .bind(&input.cik)
+        .bind(input.opensecrets_data.as_ref().map(Json))
+        .bind(input.conflict_flags.as_ref().map(Json))
+        .fetch_one(&mut *transaction)
+        .await?
+    };
+    transaction.commit().await?;
+    Ok(Some(id))
+}
+
+pub async fn wiki_upsert_source_analysis_scores(
+    pool: &PgPool,
+    source_name: &str,
+    scores: &[WikiSourceAnalysisScoreInput],
+) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    for score in scores {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("source-score:{source_name}:{}", score.axis_name))
+            .execute(&mut *transaction)
+            .await?;
+        let existing_id = sqlx::query_scalar::<_, i32>(
+            "SELECT id FROM source_analysis_scores \
+             WHERE source_name = $1 AND axis_name = $2 ORDER BY id LIMIT 1",
+        )
+        .bind(source_name)
+        .bind(&score.axis_name)
+        .fetch_optional(&mut *transaction)
+        .await?;
+        if let Some(id) = existing_id {
+            sqlx::query(
+                r#"UPDATE source_analysis_scores SET score = $3, confidence = $4,
+                       prose_explanation = $5, citations = $6, empirical_basis = $7,
+                       scored_by = $8, last_scored_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                       updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
+                   WHERE id = $1 AND source_name = $2"#,
+            )
+            .bind(id)
+            .bind(source_name)
+            .bind(score.score)
+            .bind(&score.confidence)
+            .bind(&score.prose_explanation)
+            .bind(score.citations.as_ref().map(Json))
+            .bind(&score.empirical_basis)
+            .bind(score.scored_by.as_deref().unwrap_or("llm"))
+            .execute(&mut *transaction)
+            .await?;
+        } else {
+            sqlx::query(
+                r#"INSERT INTO source_analysis_scores
+                    (source_name, axis_name, score, confidence, prose_explanation, citations,
+                     empirical_basis, scored_by, last_scored_at, created_at, updated_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                           CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                           CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                           CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"#,
+            )
+            .bind(source_name)
+            .bind(&score.axis_name)
+            .bind(score.score)
+            .bind(&score.confidence)
+            .bind(&score.prose_explanation)
+            .bind(score.citations.as_ref().map(Json))
+            .bind(&score.empirical_basis)
+            .bind(score.scored_by.as_deref().unwrap_or("llm"))
+            .execute(&mut *transaction)
+            .await?;
+        }
+    }
+    transaction.commit().await
+}
+
+#[derive(Debug, FromRow)]
+struct CurrentSourceClaimRow {
+    id: i32,
+    claim_value: Json<Value>,
+    claim_kind: String,
+}
+
+pub async fn wiki_sync_source_claims(
+    pool: &PgPool,
+    source_name: &str,
+    claims: &[WikiSourceClaimInput],
+) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    for incoming in claims {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "source-claim:{source_name}:{}",
+                incoming.claim_type
+            ))
+            .execute(&mut *transaction)
+            .await?;
+        let active = sqlx::query_as::<_, CurrentSourceClaimRow>(
+            "SELECT id, claim_value, claim_kind FROM source_claims \
+             WHERE source_name = $1 AND claim_type = $2 AND is_current = TRUE \
+             ORDER BY id",
+        )
+        .bind(source_name)
+        .bind(&incoming.claim_type)
+        .fetch_all(&mut *transaction)
+        .await?;
+        let incoming_json = canonical_json(&incoming.claim_value);
+        let matching = active.iter().find(|row| {
+            row.claim_kind == incoming.claim_kind
+                && canonical_json(&row.claim_value.0) == incoming_json
+        });
+        let claim_id = if let Some(matching) = matching {
+            sqlx::query(
+                "UPDATE source_claims SET confidence = $2, parser_version = $3, \
+                 updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' WHERE id = $1",
+            )
+            .bind(matching.id)
+            .bind(incoming.confidence)
+            .bind(&incoming.parser_version)
+            .execute(&mut *transaction)
+            .await?;
+            matching.id
+        } else {
+            sqlx::query(
+                "UPDATE source_claims SET is_current = FALSE, \
+                    valid_to = CURRENT_TIMESTAMP AT TIME ZONE 'UTC', \
+                    updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' \
+                 WHERE source_name = $1 AND claim_type = $2 AND is_current = TRUE",
+            )
+            .bind(source_name)
+            .bind(&incoming.claim_type)
+            .execute(&mut *transaction)
+            .await?;
+            sqlx::query_scalar::<_, i32>(
+                "INSERT INTO source_claims \
+                    (source_name, claim_type, claim_value, claim_kind, confidence, parser_version, \
+                     is_current, valid_from, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, TRUE, \
+                         CURRENT_TIMESTAMP AT TIME ZONE 'UTC', \
+                         CURRENT_TIMESTAMP AT TIME ZONE 'UTC', \
+                         CURRENT_TIMESTAMP AT TIME ZONE 'UTC') RETURNING id",
+            )
+            .bind(source_name)
+            .bind(&incoming.claim_type)
+            .bind(Json(&incoming.claim_value))
+            .bind(&incoming.claim_kind)
+            .bind(incoming.confidence)
+            .bind(&incoming.parser_version)
+            .fetch_one(&mut *transaction)
+            .await?
+        };
+        let mut existing_hashes = sqlx::query_scalar::<_, String>(
+            "SELECT raw_hash FROM source_claim_evidence WHERE claim_id = $1",
+        )
+        .bind(claim_id)
+        .fetch_all(&mut *transaction)
+        .await?
+        .into_iter()
+        .collect::<HashSet<_>>();
+        for evidence in &incoming.evidence {
+            let raw_hash = source_claim_evidence_hash(evidence, &incoming.claim_value);
+            if !existing_hashes.insert(raw_hash.clone()) {
+                continue;
+            }
+            sqlx::query(
+                "INSERT INTO source_claim_evidence \
+                    (claim_id, source_type, source_name, source_url, retrieved_at, raw_excerpt, raw_hash, created_at) \
+                 VALUES ($1, $2, $3, $4, \
+                    COALESCE($5, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'), $6, $7, \
+                    CURRENT_TIMESTAMP AT TIME ZONE 'UTC')",
+            )
+            .bind(claim_id)
+            .bind(&evidence.source_type)
+            .bind(&evidence.source_name)
+            .bind(&evidence.source_url)
+            .bind(evidence.retrieved_at)
+            .bind(&evidence.raw_excerpt)
+            .bind(raw_hash)
+            .execute(&mut *transaction)
+            .await?;
+        }
+    }
+    transaction.commit().await
+}
+
+fn normalized_profile_topics(topics: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    topics
+        .iter()
+        .filter_map(|topic| {
+            let value = topic.trim();
+            if value.is_empty() || !seen.insert(value.to_lowercase()) {
+                None
+            } else {
+                Some(value.to_owned())
+            }
+        })
+        .collect()
+}
+
+pub async fn wiki_upsert_reporter_profile(
+    pool: &PgPool,
+    input: &WikiReporterProfileWriteRecord,
+) -> Result<i64, sqlx::Error> {
+    let topics = normalized_profile_topics(&input.topics);
+    let identity = input
+        .resolver_key
+        .as_deref()
+        .map(|key| format!("resolver:{key}"))
+        .unwrap_or_else(|| {
+            format!(
+                "normalized:{}",
+                input.normalized_name.as_deref().unwrap_or_default()
+            )
+        });
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(format!("reporter:{identity}"))
+        .execute(&mut *transaction)
+        .await?;
+    let existing_id = if let Some(resolver_key) = input.resolver_key.as_deref() {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT id FROM reporters WHERE resolver_key = $1 ORDER BY id LIMIT 1",
+        )
+        .bind(resolver_key)
+        .fetch_optional(&mut *transaction)
+        .await?
+    } else if let Some(normalized_name) = input.normalized_name.as_deref() {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT id FROM reporters WHERE normalized_name = $1 ORDER BY id LIMIT 1",
+        )
+        .bind(normalized_name)
+        .fetch_optional(&mut *transaction)
+        .await?
+    } else {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT id FROM reporters WHERE normalized_name IS NULL ORDER BY id LIMIT 1",
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+    };
+
+    let id = if let Some(id) = existing_id {
+        let mut query = QueryBuilder::<Postgres>::new("UPDATE reporters SET ");
+        query
+            .push("name = ")
+            .push_bind(&input.name)
+            .push(", normalized_name = ")
+            .push_bind(&input.normalized_name)
+            .push(", resolver_key = ")
+            .push_bind(&input.resolver_key)
+            .push(", raw_name = ")
+            .push_bind(&input.raw_name)
+            .push(", bio = ")
+            .push_bind(&input.bio)
+            .push(", career_history = ")
+            .push_bind(input.career_history.as_ref().map(Json))
+            .push(", topics = ")
+            .push_bind(&topics)
+            .push(", education = ")
+            .push_bind(input.education.as_ref().map(Json))
+            .push(", political_leaning = ")
+            .push_bind(&input.political_leaning)
+            .push(", leaning_confidence = ")
+            .push_bind(&input.leaning_confidence)
+            .push(", leaning_sources = ")
+            .push_bind(input.leaning_sources.as_ref().map(Json))
+            .push(", twitter_handle = ")
+            .push_bind(&input.twitter_handle)
+            .push(", linkedin_url = ")
+            .push_bind(&input.linkedin_url)
+            .push(", wikipedia_url = ")
+            .push_bind(&input.wikipedia_url)
+            .push(", wikidata_qid = ")
+            .push_bind(&input.wikidata_qid)
+            .push(", wikidata_url = ")
+            .push_bind(&input.wikidata_url)
+            .push(", canonical_name = ")
+            .push_bind(&input.canonical_name)
+            .push(", match_status = ")
+            .push_bind(&input.match_status)
+            .push(", overview = ")
+            .push_bind(&input.overview)
+            .push(", dossier_sections = ")
+            .push_bind(input.dossier_sections.as_ref().map(Json))
+            .push(", citations = ")
+            .push_bind(input.citations.as_ref().map(Json))
+            .push(", search_links = ")
+            .push_bind(input.search_links.as_ref().map(Json))
+            .push(", match_explanation = ")
+            .push_bind(&input.match_explanation)
+            .push(", research_sources = ")
+            .push_bind(input.research_sources.as_ref().map(Json))
+            .push(", research_confidence = ")
+            .push_bind(&input.research_confidence)
+            .push(", littlesis_url = ")
+            .push_bind(&input.littlesis_url)
+            .push(", article_count = ")
+            .push_bind(input.article_count)
+            .push(", last_article_at = ")
+            .push_bind(input.last_article_at)
+            .push(", canonical_author_url = ")
+            .push_bind(&input.canonical_author_url)
+            .push(", author_page_url = ")
+            .push_bind(&input.author_page_url)
+            .push(", confidence_tier = ")
+            .push_bind(&input.confidence_tier)
+            .push(", confidence_score = ")
+            .push_bind(input.confidence_score)
+            .push(", claims_count = ")
+            .push_bind(input.claims_count)
+            .push(", institutional_affiliations = COALESCE(")
+            .push_bind(input.institutional_affiliations.as_ref().map(Json))
+            .push(", institutional_affiliations)")
+            .push(", last_researched_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
+            .push(", updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' WHERE id = ")
+            .push_bind(id);
+        query.build().execute(&mut *transaction).await?;
+        id as i64
+    } else {
+        let mut query = QueryBuilder::<Postgres>::new(
+            "INSERT INTO reporters \
+             (name, normalized_name, resolver_key, raw_name, bio, career_history, topics, education, \
+              political_leaning, leaning_confidence, leaning_sources, twitter_handle, linkedin_url, \
+              wikipedia_url, wikidata_qid, wikidata_url, canonical_name, match_status, overview, \
+              dossier_sections, citations, search_links, match_explanation, research_sources, \
+              research_confidence, littlesis_url, article_count, last_article_at, canonical_author_url, \
+              author_page_url, confidence_tier, confidence_score, claims_count, institutional_affiliations, \
+              last_researched_at, is_collective, created_at, updated_at) VALUES (",
+        );
+        {
+            let mut values = query.separated(", ");
+            values
+                .push_bind(&input.name)
+                .push_bind(&input.normalized_name)
+                .push_bind(&input.resolver_key)
+                .push_bind(&input.raw_name)
+                .push_bind(&input.bio)
+                .push_bind(input.career_history.as_ref().map(Json))
+                .push_bind(&topics)
+                .push_bind(input.education.as_ref().map(Json))
+                .push_bind(&input.political_leaning)
+                .push_bind(&input.leaning_confidence)
+                .push_bind(input.leaning_sources.as_ref().map(Json))
+                .push_bind(&input.twitter_handle)
+                .push_bind(&input.linkedin_url)
+                .push_bind(&input.wikipedia_url)
+                .push_bind(&input.wikidata_qid)
+                .push_bind(&input.wikidata_url)
+                .push_bind(&input.canonical_name)
+                .push_bind(&input.match_status)
+                .push_bind(&input.overview)
+                .push_bind(input.dossier_sections.as_ref().map(Json))
+                .push_bind(input.citations.as_ref().map(Json))
+                .push_bind(input.search_links.as_ref().map(Json))
+                .push_bind(&input.match_explanation)
+                .push_bind(input.research_sources.as_ref().map(Json))
+                .push_bind(&input.research_confidence)
+                .push_bind(&input.littlesis_url)
+                .push_bind(input.article_count)
+                .push_bind(input.last_article_at)
+                .push_bind(&input.canonical_author_url)
+                .push_bind(&input.author_page_url)
+                .push_bind(&input.confidence_tier)
+                .push_bind(input.confidence_score)
+                .push_bind(input.claims_count)
+                .push_bind(input.institutional_affiliations.as_ref().map(Json));
+            values.push_unseparated(
+                ", CURRENT_TIMESTAMP AT TIME ZONE 'UTC', FALSE, \
+                 CURRENT_TIMESTAMP AT TIME ZONE 'UTC', CURRENT_TIMESTAMP AT TIME ZONE 'UTC'",
+            );
+        }
+        query.push(") RETURNING id::bigint");
+        query
+            .build_query_scalar::<i64>()
+            .fetch_one(&mut *transaction)
+            .await?
+    };
+    transaction.commit().await?;
+    Ok(id)
+}
+
+pub async fn wiki_insert_article_author_links(
+    pool: &PgPool,
+    reporter_id: i64,
+    links: &[WikiArticleAuthorLinkInput],
+) -> Result<u64, sqlx::Error> {
+    let reporter_id =
+        i32::try_from(reporter_id).map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+    let mut unique_links = BTreeMap::new();
+    for link in links {
+        let article_id = i32::try_from(link.article_id)
+            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+        unique_links.entry(article_id).or_insert(link);
+    }
+    let mut transaction = pool.begin().await?;
+    let mut inserted = 0;
+    for (article_id, link) in unique_links {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("article-author:{article_id}:{reporter_id}"))
+            .execute(&mut *transaction)
+            .await?;
+        inserted += sqlx::query(
+            "INSERT INTO article_authors \
+                (article_id, reporter_id, author_role, author_confidence, observation_source, \
+                 author_url_raw, created_at) \
+             SELECT $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP AT TIME ZONE 'UTC' \
+             WHERE NOT EXISTS (SELECT 1 FROM article_authors \
+                               WHERE article_id = $1 AND reporter_id = $2)",
+        )
+        .bind(article_id)
+        .bind(reporter_id)
+        .bind(&link.author_role)
+        .bind(link.author_confidence)
+        .bind(&link.observation_source)
+        .bind(&link.author_url_raw)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected();
+    }
+    transaction.commit().await?;
+    Ok(inserted)
+}
+
+impl Database {
+    pub async fn wiki_upsert_index_status(
+        &self,
+        entity_type: &str,
+        entity_name: &str,
+        status: &str,
+        error_message: Option<&str>,
+        duration_ms: Option<i64>,
+    ) -> Result<(), sqlx::Error> {
+        wiki_upsert_index_status(
+            &self.pool,
+            entity_type,
+            entity_name,
+            status,
+            error_message,
+            duration_ms,
+        )
+        .await
+    }
+
+    pub async fn wiki_upsert_organization(
+        &self,
+        input: WikiOrganizationWriteRecord,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        wiki_upsert_organization(&self.pool, &input).await
+    }
+
+    pub async fn wiki_upsert_source_analysis_scores(
+        &self,
+        source_name: &str,
+        scores: Vec<WikiSourceAnalysisScoreInput>,
+    ) -> Result<(), sqlx::Error> {
+        wiki_upsert_source_analysis_scores(&self.pool, source_name, &scores).await
+    }
+
+    pub async fn wiki_sync_source_claims(
+        &self,
+        source_name: &str,
+        claims: Vec<WikiSourceClaimInput>,
+    ) -> Result<(), sqlx::Error> {
+        wiki_sync_source_claims(&self.pool, source_name, &claims).await
+    }
+
+    pub async fn wiki_upsert_reporter_profile(
+        &self,
+        input: WikiReporterProfileWriteRecord,
+    ) -> Result<i64, sqlx::Error> {
+        wiki_upsert_reporter_profile(&self.pool, &input).await
+    }
+
+    pub async fn wiki_refresh_reporter_article_count(
+        &self,
+        reporter_id: i64,
+    ) -> Result<Option<i32>, sqlx::Error> {
+        sqlx::query_scalar::<_, i32>(
+            "UPDATE reporters \
+             SET article_count = (SELECT COUNT(*)::int FROM article_authors WHERE reporter_id = $1), \
+                 updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' \
+             WHERE id = $1 \
+             RETURNING article_count",
+        )
+        .bind(reporter_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn wiki_author_byline_articles(
+        &self,
+        author_name: &str,
+        source_name: Option<&str>,
+    ) -> Result<Vec<WikiUnresolvedAuthorArticle>, sqlx::Error> {
+        let mut query = QueryBuilder::<Postgres>::new(
+            "SELECT id::bigint AS article_id, author, source AS source_name, authors, author_urls, \
+                    title, url, published_at, category FROM articles WHERE author = ",
+        );
+        query.push_bind(author_name);
+        if let Some(source_name) = source_name.filter(|value| !value.is_empty()) {
             query.push(" AND source = ").push_bind(source_name);
         }
         query.push(" ORDER BY published_at DESC NULLS LAST, id");

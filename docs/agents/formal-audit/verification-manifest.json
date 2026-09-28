@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 16492)
-Total output lines: 1115
-
 {
   "schema_version": 1,
   "updated": "2026-09-28",
@@ -425,7 +422,314 @@ Total output lines: 1115
           "method": "pyo3_boundary_test",
           "command": "cd backend && .venv/bin/pytest -q tests/test_rust_topic_boundary.py",
           "result": "passed",
-          "scope": "Existing binding functi…4492 tokens truncated…s are converted to finite f64 values.",
+          "scope": "Existing binding functions return the captured normalized keyword order, cross-title deduplication, and label result."
+        }
+      ],
+      "limitations": [
+        "Python topic orchestration calls this Rust implementation through PyO3; there is no independent Python keyword algorithm oracle."
+      ]
+    },
+    {
+      "id": "search.comparison_keywords_match_python_token_contract",
+      "implementation": "backend/crates/thesis-search/src/comparison_keywords.rs::extract_keywords",
+      "status": "bounded_kernel_checked_and_abstractly_specified",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness comparison_keywords --output-format terse",
+          "result": "passed",
+          "scope": "Two harnesses check the production frequency/first-seen comparator and transitivity over symbolic usize values.",
+          "bound": "Default unwind 4; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "Generated text checks output bounds, frequency order, stop-word exclusion, case invariance, and limit-prefix consistency."
+        },
+        {
+          "method": "python_reference_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_comparison_keywords.py",
+          "result": "passed",
+          "scope": "Hypothesis compares the Rust-backed service against Python re/Counter behavior over generated controlled non-stopword tokens and separators; explicit cases cover selected stop words and Unicode boundaries."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/comparison_keyword_priority.rs",
+          "result": "passed_locally",
+          "toolchain": "Verus 0.2026.09.20.aef82ed; Rust 1.98.1",
+          "scope": "Five proof checks establish the natural-number priority direction, first-seen tie order, irreflexivity, and transitivity. This is an abstract model, not a Rust refinement proof."
+        }
+      ],
+      "limitations": [
+        "Kani proves the scalar sort comparator, not Unicode token scanning, stop-word filtering, HashMap aggregation, or the full API.",
+        "The Python reference differential is limited to generated non-stopword vocabulary; selected stop words and Unicode cases use explicit expected results.",
+        "FastAPI still owns /compare/articles. The PyO3 binding can be removed after the route and all other Python callers move to Rust services.",
+        "No performance baseline or speedup claim was measured for this slice."
+      ]
+    },
+    {
+      "id": "topics.rounded_jaccard_is_bounded",
+      "implementation": "backend/crates/thesis-search/src/topics.rs::rounded_jaccard",
+      "status": "verified_for_helper",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "A search harness checks that rounded Jaccard stays in [0, 1] for symbolic u8 overlap/union counts when overlap <= union_size, and includes fixed zero and one witnesses.",
+          "bound": "Default unwind 4; symbolic u8 inputs; no assumptions.",
+          "assumptions": []
+        }
+      ],
+      "limitations": [
+        "The proof covers the scalar helper, not token-set construction, clustering, or collection ordering."
+      ]
+    },
+    {
+      "id": "topics.cluster_order_follows_feed_order",
+      "implementation": "backend/crates/thesis-search/src/topics.rs::cluster_articles_lexical",
+      "status": "regression_tested",
+      "verification": [
+        {
+          "method": "rust_regression_test",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "The same two-cluster fixture returns identical anchor and member order when the input vector is reversed; output follows explicit feed positions."
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_topic_boundary.py",
+          "result": "passed",
+          "scope": "The Python caller sees feed-ordered anchors, members, and captured rounded similarities."
+        }
+      ],
+      "limitations": [
+        "The deterministic-order regression covers a fixed two-cluster fixture, not generated graph shapes or all duplicate-ID inputs."
+      ]
+    },
+    {
+      "id": "api.contract.news_ranked",
+      "implementation": "backend/crates/thesis-api/src/ranking.rs::post_ranked_articles",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id post_ranked_articles_news_ranked_post",
+          "result": "passed",
+          "scope": "The POST /news/ranked operation ID, request requiredness and schema, response status codes, and response schemas match the checked-in FastAPI contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "Ten valid and invalid ranking requests compare full status and JSON output between FastAPI and Axum over the disposable Alembic database, including Pydantic integer coercion."
+        },
+        {
+          "method": "rust_route_test",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-api",
+          "result": "passed",
+          "scope": "The Axum route preserves article dictionaries, returns ranking fields for valid IDs, retains unrankable articles, and sorts by bucket priority."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public. The differential corpus covers selected validation and coercion cases, not every possible Pydantic input; this route is shadow-only."
+      ]
+    },
+    {
+      "id": "api.contract.compare_articles",
+      "implementation": "backend/crates/thesis-api/src/comparison.rs::post_compare_articles; backend/crates/thesis-search/src/article_comparison.rs::compare_articles",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json /tmp/thesis-rust-openapi.json --operation-id compare_two_articles_compare_articles_post",
+          "result": "passed",
+          "scope": "POST /compare/articles operation ID, request fields and requiredness, and 200/422 response schemas match the checked-in contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "Three valid requests and four model-validation requests match FastAPI and Axum after canonicalizing Python set-order output. Two malformed JSON inputs match status and json_invalid category; parser-specific diagnostics are not compared."
+        },
+        {
+          "method": "python_service_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_article_comparison.py",
+          "result": "passed",
+          "scope": "Three fixed comparisons match the Python service after canonicalizing its set-ordered entity and keyword outputs. The Python service shares Rust keyword, similarity, and sentence-diff kernels through PyO3."
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated strings check symmetric bounded text similarity and summary fields against returned list lengths."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness keyword_emphasis_tracks_frequency_order",
+          "result": "passed",
+          "scope": "The production keyword-emphasis decision matches arbitrary pairwise ordering over symbolic u16 frequencies; no assumptions, unwind 4."
+        },
+        {
+          "method": "rust_route_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-api",
+          "result": "passed",
+          "scope": "Eight API tests pass, including comparison response shape, default titles, ignored fields, required strings, and non-string 422 errors."
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/comparison_entity_partition.rs",
+          "result": "passed",
+          "scope": "Three proof obligations establish reconstruction of both arbitrary finite input sets and pairwise disjoint output groups over normalized identity IDs; no assumptions or size bounds. This is an abstract model, not Rust refinement."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-search --file crates/thesis-search/src/article_comparison.rs --re '<selected comparison functions>' --exclude-re '<five equivalent empty guards>' --timeout 30 --in-place",
+          "result": "passed",
+          "scope": "All 25 non-equivalent selected mutants were caught. Five equivalent guard substitutions were excluded after tracing their following control flow and arithmetic."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public and the Rust route is shadow-only. The Python service shares Rust kernels for keywords, text similarity, and sentence diff, so its differential is not an independent oracle for those kernels.",
+        "Kani proves only the scalar keyword-emphasis decision; proptest and fixed tests cover selected behavior, not all entity extraction and sentence-diff cases. The Verus entity model does not prove Rust string normalization, ordering, or refinement. Parser-specific malformed-JSON messages, offsets, and partial input values differ between Serde and Pydantic."
+      ]
+    },
+    {
+      "id": "ingest.source_host_identity",
+      "implementation": "backend/crates/thesis-ingest/src/source_url_guard.rs::{normalize_host,hosts_match}",
+      "status": "mutation_checked",
+      "verification": [
+        {
+          "method": "rust_proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-ingest",
+          "result": "passed",
+          "scope": "Normalization idempotence, match symmetry, and identity preservation when adding a subdomain label."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4",
+          "result": "passed",
+          "scope": "The production byte-suffix helper accepts a matching suffix exactly when the byte before its two-byte suffix is a dot.",
+          "bound": "Default unwind 4; symbolic four-byte host array; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 /home/bender/.local/share/formal-tools/verus/verus-x86-linux/verus backend/crates/thesis-ingest/verus/source_url_guard.rs",
+          "result": "passed",
+          "toolchain": "Verus 0.2026.09.20.aef82ed; RUSTUP_TOOLCHAIN=1.98.1",
+          "scope": "Verus reported 2 verified, 0 errors for the source_url_guard model: for arbitrary byte sequences, a nonempty prefix concatenated with a domain matches only when the prefix ends with a label separator. This is an abstract model, not a Rust refinement proof."
+        },
+        {
+          "method": "python_rust_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_source_url_guard.py",
+          "result": "passed",
+          "scope": "Eight tests compare the Rust PyO3 functions and Python service to the pre-migration Python rules over generated Unicode strings and reviewed suffix/family cases."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-ingest --file crates/thesis-ingest/src/source_url_guard.rs --gitignore true --re '<selected host matching functions>' --jobs 2 --timeout 30",
+          "result": "passed",
+          "scope": "All six selected mutants were caught after adding a regression for empty hosts and fully qualified trailing-dot names."
+        }
+      ],
+      "limitations": [
+        "The Kani harness is bounded to fixed-size byte arrays. The Verus model is not formally connected to the Rust implementation; proptest and differential tests cover that boundary.",
+        "URL parsing, Google News query decoding, and guard response construction remain in Python. No performance claim was measured."
+      ]
+    },
+    {
+      "id": "search.alias_span_containment_transitive",
+      "implementation": "backend/crates/thesis-search/src/country_mentions.rs::is_inside_alias_range",
+      "status": "bounded_kernel_checked_and_abstractly_proved",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "The production helper proves symbolic nested-span containment is transitive; a second harness supplies a concrete reachable witness.",
+          "bound": "Default unwind 4; symbolic usize endpoints.",
+          "assumptions": [
+            "Each symbolic range has ordered endpoints.",
+            "The inner range is contained by the middle range under the production helper.",
+            "The middle range is contained by the outer range under the production helper."
+          ]
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated ordered endpoints create nested spans; the production range helper confirms containment through all three levels."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/alias_ranges.rs",
+          "result": "passed",
+          "scope": "Containment is transitive for arbitrary natural-number span bounds. This is an abstract model, not a Rust refinement proof."
+        }
+      ],
+      "limitations": [
+        "The proofs cover span containment only, not regex or Aho-Corasick alias discovery. No formal refinement relation is established."
+      ]
+    },
+    {
+      "id": "search.minhash_similarity_unit_interval",
+      "implementation": "backend/crates/thesis-search/src/minhash.rs::estimate_jaccard_similarity",
+      "status": "bounded_production_checked_and_abstractly_proved",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "The production estimator stays in [0, 1] for arbitrary four-element signatures, returns zero for unequal fixed lengths, and returns one for an identical-signature witness.",
+          "bound": "Default unwind 4; the four-element estimate and perfect-match harnesses override to 5 to include loop exit. No assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated vectors of lengths 0 through 31 satisfy similarity symmetry and the unit-interval bound."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/minhash_ratio.rs",
+          "result": "passed",
+          "scope": "The exact mathematical match-count ratio remains in [0, 1] for arbitrary natural-number lengths under matches <= total and total > 0; an exact-match witness proves those preconditions are reachable."
+        }
+      ],
+      "limitations": [
+        "Verus proves an independent mathematical count-ratio model, not refinement to Rust floating-point division. Kani covers fixed four-element signatures, not arbitrary lengths, text normalization, hashing, or article grouping."
+      ]
+    },
+    {
+      "id": "search.minhash_connected_groups",
+      "implementation": "backend/crates/thesis-search/src/minhash.rs::deduplicate_article_groups",
+      "status": "regression_tested",
+      "verification": [
+        {
+          "method": "rust_unit_test_and_pyo3_boundary",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search && cd backend && .venv/bin/pytest -q tests/test_rust_algorithm_ports.py",
+          "result": "passed",
+          "scope": "Exact duplicates preserve all IDs and three linked articles yield one group through the production PyO3 function."
+        }
+      ],
+      "limitations": [
+        "The heap-backed disjoint-set grouping logic is tested but not Kani- or Verus-proved."
+      ]
+    },
+    {
+      "id": "rss.blindspot_self_dot_nonnegative",
+      "implementation": "backend/rss_parser_rust/src/blindspot.rs::dot_product",
+      "status": "bounded_production_checked",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p rss_parser_rust --default-unwind 4 --output-format terse",
+          "result": "passed",
+          "scope": "The production dot product is nonnegative for a three-element vector whose symbolic i8 values are converted to finite f64 values.",
           "bound": "Harness unwind 5 for the fixed loop; default unwind 4; no assumptions.",
           "assumptions": []
         }

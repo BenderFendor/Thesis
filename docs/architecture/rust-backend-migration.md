@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15408)
-Total output lines: 621
-
 # Rust backend migration
 
 This document records current Rust ownership, shadow contracts, and cutover gates.
@@ -299,7 +296,100 @@ Move each boundary only after its callers, tests, and data contract are known.
 | Phase | Python modules assigned | Rust destination and cutover condition |
 | --- | --- | --- |
 | 0. Workspace and contracts | `backend/openapi.json`; proof-suite and captured-corpus runners; contract tests; no runtime modules deleted. | Workspace, normalized OpenAPI comparison, differential harness, verification manifest, and CI. Keep the Python service authoritative until each route is switched. |
-| 1. Ingestion seed | `backend/app/services/rss_parser_rust_bindings.py`, `rss_ingestion.py`, `auto_ingest.py`; remaining Rust files `backend/rss_parser_rust/src/{algorithms,blindspot,country_mentions,feed_rank,fetcher,gdelt,gdelt_taxonomy,parser,topics,types}.rs`. | HTML cleanup, metadata extraction, GDELT parsing/filtering/taxonomy, personalized ranking, lexical topics, and country alias matching now live in domain crates. `country_mentions.rs`, `feed_rank.rs`, `gdelt.rs`, `gdelt_taxonomy.rs`, and `topics.rs` retain PyO3 adapters. Continue extracting feed parse…3408 tokens truncated…ary floating-point caps and `priority_bucket`, and the PyO3 boundary test. | Workspace property and wrapper tests pass. Two Kani harnesses prove score capping and bucket encoding with no assumptions; Kani does not prove full collection-based ranking. |
+| 1. Ingestion seed | `backend/app/services/rss_parser_rust_bindings.py`, `rss_ingestion.py`, `auto_ingest.py`; remaining Rust files `backend/rss_parser_rust/src/{algorithms,blindspot,country_mentions,feed_rank,fetcher,gdelt,gdelt_taxonomy,parser,topics,types}.rs`. | HTML cleanup, metadata extraction, GDELT parsing/filtering/taxonomy, personalized ranking, lexical topics, and country alias matching now live in domain crates. `country_mentions.rs`, `feed_rank.rs`, `gdelt.rs`, `gdelt_taxonomy.rs`, and `topics.rs` retain PyO3 adapters. Continue extracting feed parser/fetcher logic with RSS corpus comparisons; remove PyO3 only after Python runtime callers move and the corpus passes. |
+| 2. Deterministic transforms | `article_comparison.py`, `minhash_dedup.py` (removed), `country_mentions.py`, `source_url_guard.py`, `source_field_extractor.py`, `gdelt_taxonomy.py`, `gdelt_query.py`, `language_diagnostics.py`, `reporter_name_cleanup.py`, `reporter_name_splitter.py`, `reporter_confidence_scorer.py`, `source_analysis_scorer.py`, `source_profile_extractor.py`, `source_profile_synthesizer.py`. | GDELT taxonomy, country aliases, source-host identity, MinHash, comparison keywords, article comparison, and language diagnostics now live in domain crates. The FastAPI language-diagnostics service calls Rust through PyO3; the old Python scorer remains only as a differential oracle. Keep the bridge until the FastAPI route and URL extraction path move to Rust, and remove the Python oracle after independent captured cases replace it. `thesis-api` exposes `/compare/articles` on the shadow listener; FastAPI remains the public route. The Python comparison service remains the differential reference, but similarity, sentence diff, and keyword extraction call shared Rust kernels through PyO3. Keep those bindings until the public route and all other Python callers move. `minhash_dedup.py` had no production callers; its Python tests now exercise the existing Rust bindings. The Python country service remains for geo labels and DB backfill. `source_url_guard.py` still parses URLs and builds response dictionaries; remove its host PyO3 calls after its remaining consumers move. Continue remaining transforms with properties and independent reference cases before cutover. |
+| 3. Evidence and ownership | `evidence_policy.py` (decision logic now has a Rust implementation), `evidence_spine.py`, `claim_comparison.py`, `ownership_math.py`, `material_interest.py`, `contradiction_extractor.py`, `evidence_export.py`, `evidence_export_formats.py`, `atlas_entity.py`, `atlas_entity_resolution.py`, `atlas_evidence_projection.py`, `atlas_graph.py`, `atlas_graph_helpers.py`, `atlas_graph_projection.py`, `atlas_export.py`, `source_claims.py`, `source_ledger.py`, `source_credibility.py`, `source_policy_transparency.py`, `ad_supply_transparency.py`, `mbfc_integration.py`, `littlesis_integration.py`, `media_measurements.py`, `funding_bias_analysis.py` (v1 remains the FastAPI compatibility and scheduler path; v2 has a Rust runner). | `thesis-evidence`, `thesis-db`, `thesis-search`, and `thesis-funding-bias`. Replay the proof suite and evidence captures; do not authorize evidence materialization until the independent reviewer signoff is present. The current corpus review statuses are pending. |
+| 4. Persistence and typed queries | `backend/app/database.py`, `persistence.py`, `reading_queue.py`, `reporter_claim_store.py`, `reporter_profile_store.py`, `reporter_directory.py`, and SQLAlchemy models in `backend/app/models/{news,reading_queue,evidence,atlas,research,verification,article_analysis,inline,api_contracts}.py`. | `thesis-db` with SQLx, same PostgreSQL schema, and Alembic migrations. Move one query domain at a time; preserve order, uniqueness, timestamps, JSON behavior, indexes, and transaction boundaries. |
+| 5. Search, cache, and article transforms | `bm25_search.py`, `hybrid_search.py`, `cache.py`, `cluster_cache.py`, `chroma_sync.py`, `chroma_topics.py`, `blind_spots.py`, `blindspot_viewer.py`, `article_analysis.py`, `story_lineage.py`, `queue_digest.py`, `gdelt_aggregates.py`. | `thesis-search` plus vector-store adapters in `thesis-runtime`. Benchmark ranking, deduplication, query mapping, serialization, and hot paths before replacing measured implementations. |
+| 6. Workers and ingestion runtime | `scheduler.py`, `async_utils.py`, `rss_ingestion.py`, `auto_ingest.py`, `evidence_ingest.py`, `primary_source_adapters.py`, `source_document_collector.py`, `gdelt_integration.py`, `entity_backfill.py`, `reporter_indexer.py`, `wiki_indexer.py`, `persistence.py`, `startup_metrics.py`. | `thesis-runtime` and `thesis-ingest`. Model leader election, queue saturation, retries, shutdown, stale results, and restart recovery before implementation cutover. |
+| 7. HTTP, SSE, and WebSocket domains | Route modules: `article_analysis.py`, `blindspots.py`, `bookmarks.py`, `cache.py`, `comparison.py`, `debug.py`, `entity_research.py`, `gdelt.py`, `general.py`, `image_proxy.py`, `inline.py`, `jobs.py`, `liked.py`, `news.py`, `news_by_country.py`, `observability.py`, `profiling.py`, `reading_queue.py`, `research.py`, `search.py`, `similarity.py`, `sources.py`, `stream.py`, `trending.py`, `updates.py`, `verification.py`, `wiki.py`, `wiki_atlas.py`, `wiki_evidence.py`; route helpers `saved_article_helpers.py`; services `highlights.py`, `image_extraction.py`, `inline_definition.py`, `cloudflare_fetcher.py`, `og_image.py`, `websocket_manager.py`, `stream_manager.py`. | `thesis-api` and `thesis-runtime`, one operation group at a time. Compare methods, operation IDs, parameters, required fields, status codes, schemas, WebSocket metadata, SSE event names, and `scoop` behavior. |
+| 8. Research agent and reporter enrichment | `backend/news_research_agent.py`; `news_research.py`, `research_models.py`, `research_streaming.py`, `prompting.py`, `verification_agent.py`, `verification_output.py`, `verification_sandbox.py`, `entity_resolver.py`, `entity_wiki_service.py`, `funding_researcher.py`, `source_query_generator.py`, `source_research.py`, `source_search_planner.py`, `reporter_agency_flag.py`, `reporter_author_page_scraper.py`, `reporter_awards.py`, `reporter_career_timeline.py`, `reporter_cms_crawl.py`, `reporter_conferences.py`, `reporter_openalex.py`, `reporter_outlet_repair.py`, `reporter_profiler.py`, `reporter_public_records.py`, `reporter_social_search.py`, `reporter_split_backfill.py`, `reporter_wayback.py`, `reporter_web_search.py`, `reporter_wikipedia.py`. | `thesis-agent` with explicit plan, dispatch, completion, integration, verification, response, failure, and cancellation events. Keep stable tool IDs and idempotent result commits. |
+| 9. Lifecycle and final Python removal | `backend/app/main.py`, remaining compatibility imports, and `resource_monitor.py`, `metrics.py`, `debug_logger.py`. | `thesis-server`, `thesis-runtime`, and `thesis-observe`. Remove FastAPI only after full API, worker-cycle, restart, rollback, and soak criteria below pass. |
+
+## Temporary Python boundaries and deletion criteria
+
+| Python surface | Why it remains | Removal condition |
+| --- | --- | --- |
+| `app.embedding_service` / Sentence Transformers | Existing local model quality and resource use should remain stable while ingestion and persistence move. | Rust-native embedding output passes the same captured article corpus, retrieval-quality comparison, and throughput/memory benchmarks on supported hardware. |
+| PyO3 in `rss_parser_rust` | Existing Python services import the established Rust RSS and algorithm APIs. | All production consumers call domain crates or the Rust server; no Python import or package installation requires the extension. The Rust implementation and tests remain. |
+| `analyze_language_diagnostics_python` | Kept only as an independent differential oracle; the production FastAPI service calls Rust. | Remove after reviewed/captured cases replace the Python oracle and the Rust route owns both inline text and URL extraction. |
+| FastAPI application | It is the behavioral reference and continues serving unmigrated paths during coexistence. | Rust owns and passes the full OpenAPI/runtime compatibility suite, including SSE and WebSockets, with all callers switched. |
+| Alembic | It is the existing schema-history authority. | Rust owns every production schema change and a reviewed one-way migration/archive plan exists. Never run two schema authorities concurrently. |
+| Python proof replay code | It contains human-reviewed domain cases and capture handling, not application runtime. | A Rust replay tool executes every approved case and mutation class while preserving the independent review metadata and raw corpus. Keep the signed case data. |
+| One-off admin and research scripts | They do not block a Rust-native deployed runtime. | Delete only when their task is obsolete or an owned Rust CLI replaces them; they are excluded from the 99% runtime target. |
+
+The embedding worker is the only planned Python service sidecar. PyO3 and
+Alembic are temporary migration/build tools. No other Python compatibility
+server is planned.
+
+## Contracts, data, and parity
+
+`backend/openapi.json` remains the API source of compatibility truth. The
+normalized checker is `scripts/check_openapi_compat.py`. It preserves paths,
+methods, operation IDs, parameter and body requiredness, media types, status
+codes, and response schemas. It normalizes descriptions/titles, equivalent
+nullable `oneOf`/`anyOf`/type-array spelling, unrestricted nullable JSON, and
+integer/double format hints. With explicit operation IDs
+it checks only Rust-owned operations; full mode also checks
+`x-scoop-websockets` and becomes the gate once the Rust document exposes the
+full API. Additive runtime behavior such as the existing claim-not-found 404 is
+tested separately because FastAPI does not list it in this OpenAPI operation.
+
+The evidence slice compares the Python and Rust policy rows plus eight explicit
+decision cases through `rss_parser_rust`. A same-request HTTP differential test
+compares the policy route, three present claim records, one missing claim, ten
+evidence-evaluation requests, and ten ranking requests between FastAPI and Axum
+over one disposable PostgreSQL database. It covers a two-root claim,
+catalog-only evidence, control-path incomplete/complete cases, missing claims,
+ranking order and result fields, Pydantic integer coercion, and validation
+errors. The local test script creates the disposable database and applies
+Alembic revision `20260720_0003`; the test inserts and removes uniquely named
+evidence rows. Claim and observation reads use one SQLx transaction and
+connection; claim-read comparison sorts linked observation arrays because
+Python specifies no query order. The Rust path never falls back to the
+developer's configured database.
+
+The 2026-09-23 checkpoint shadowed seven operations; that count is historical.
+The current inventory marks 106 of 178 operations migrated, with public
+listener cutover at 0%. The comparison cases add three valid requests and four
+validation failures. The Python comparison service now shares Rust similarity,
+sentence-diff, and keyword kernels through PyO3, so its differential checks
+entity extraction, response assembly, and selected cases rather than
+independently validating those shared kernels.
+
+The ownership-interest slice is covered by Python HTTP differential cases for
+chains, security-class, voting/economic filters, cycles, overlaps, malformed
+qualifiers, and validation. Its exact finite-decimal kernel lives in
+`thesis-evidence`; SQLx selects non-retracted rows, prefers `pct` over
+`pct_band`, skips malformed or unquantified qualifiers, and surfaces domain
+errors. Axum owns query validation and OpenAPI declarations. The rebuilt-server
+HTTP differential passed one pytest with four pre-existing deprecation
+warnings.
+
+The 2026-09-23 OpenAPI check covered seven Rust operation IDs, and its full
+workspace run contained 149 tests. Both are historical counts. The
+inventory-driven comparison on 2026-09-25 matched 106 migrated operations.
+The 2026-09-25 full workspace run passed 247 tests, with the crate split listed
+above. FastAPI remains public and Rust remains shadow-only. The initial
+stale-binary 404 is historical. Preserve the current Chroma schema and pin
+while replacing the vector-store boundary.
+
+The Python proof suite registers six domain mutation classes but does not
+execute them; its registry test supplies a truthy result map. The Rust
+`cargo-mutants` workflow below checks generated Rust mutations, but does not
+execute those Python domain classes. Port the human cases and a real domain
+mutation executor before treating that suite's mutation status as evidence.
+The 20 reviewed cases and 22 capture-backed cases are not accepted as
+authoritative until their independent review status is complete.
+
+## Verification map
+
+| Invariant or behavior | Rust target | Verification that fits | Current status |
+| --- | --- | --- | --- |
+| Ownership evidence acceptance follows the versioned predicate table. | `thesis-evidence::evaluate_with_policy` and `decision_failures` | Python differential cases, proptest, Kani on the production scalar kernel. | Unit/property and Python differential tests pass. Six Kani harnesses pass at default unwind 4 with no assumptions. Kani does not cover String/Vec collection or I/O. |
+| Catalog-only evidence cannot accept an ownership claim. | `thesis-evidence::decision_failures` | Kani witness, policy tests, and HTTP differential. | Kani harness, Rust test, PyO3 differential, and PostgreSQL HTTP differential pass. |
+| Duplicate lineage documents do not increase independent roots. | `thesis-db::lineage_root` and `thesis-evidence::distinct_count` | Rust graph tests, proptest, Kani on the deduplication helper, and DB differential. | Kani proves only `distinct_count`. `lineage_root` multi-parent/cycle tests and PostgreSQL HTTP differential pass; a symbolic map harness did not finish after 90 seconds and was removed. |
+| Ranking scores stay capped and results remain sorted by bucket then score. | `thesis-search::ranking::rank_articles` and `cap_score` | Proptest bounds/order properties, Kani for arbitrary floating-point caps and `priority_bucket`, and the PyO3 boundary test. | Workspace property and wrapper tests pass. Two Kani harnesses prove score capping and bucket encoding with no assumptions; Kani does not prove full collection-based ranking. |
 | Country mentions remain sorted and unique; shared aliases retain all candidate codes; a longer alias suppresses nested matches, including accented names. | `thesis-search::country_mentions::CountryAliases::extract` | Proptest monotonicity, explicit Rust/PyO3 expectations, direct/article path parity, substring-only shared alias cases, reload tests, legacy snapshot review, and cargo-mutants. | At the country matcher checkpoint, the workspace had 84 tests; six Python boundary tests passed; all 17 selected country-alias mutants were caught. The one-off legacy comparison found 190 differences over 48 base aliases, documented as ambiguous-candidate expansions and nested-alias corrections. Kani and Verus cover only pure range containment, not the regex/Aho-Corasick heap-based matcher. |
 | A nested country-alias span remains suppressed through any enclosing span. | `thesis-search::country_mentions::is_inside_alias_range` | Proptest over generated nested endpoints, Kani over symbolic range endpoints with a concrete reachability witness, and Verus over natural-number spans. | The property, two Kani harnesses, and Verus proof pass. Kani assumes ordered ranges and two containment relationships; the concrete witness confirms those assumptions are reachable. Verus proves transitivity for arbitrary span bounds. These checks cover only range containment, not alias discovery or Rust refinement. |
 | Host normalization and source identity preserve Python whitespace, suffix-boundary, and configured-family behavior. | `thesis-ingest::source_url_guard::{normalize_host,hosts_match}` | Hypothesis differential against the pre-migration Python rules, Rust proptest, Kani on the production byte-suffix helper, Verus sequence model, and selected cargo-mutants. | Eight Python source-guard tests pass. Unicode differential cases, including U+001F, and empty-host/trailing-dot regressions pass. Two ingest Kani harnesses pass at unwind 4 with no assumptions; six selected mutants are caught. One Verus theorem proves the arbitrary-sequence label-boundary rule; it is not a Rust refinement proof. |
