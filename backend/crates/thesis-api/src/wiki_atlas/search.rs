@@ -149,16 +149,18 @@ pub(crate) async fn get_atlas_search(State(state): State<AppState>, uri: Uri) ->
     let generated_at = Utc::now();
     let as_of = generated_at.naive_utc();
     let known_at = as_of;
-    let mut filters = AtlasGraphFiltersInput::default();
-    filters.entity_types = vec![
-        AtlasEntityType::Outlet,
-        AtlasEntityType::Organization,
-        AtlasEntityType::Person,
-        AtlasEntityType::Reporter,
-    ];
-    filters.limit_nodes = None;
-    filters.limit_edges = 2500;
-    filters.include_evidence_preview = false;
+    let filters = AtlasGraphFiltersInput {
+        entity_types: vec![
+            AtlasEntityType::Outlet,
+            AtlasEntityType::Organization,
+            AtlasEntityType::Person,
+            AtlasEntityType::Reporter,
+        ],
+        limit_nodes: None,
+        limit_edges: 2500,
+        include_evidence_preview: false,
+        ..AtlasGraphFiltersInput::default()
+    };
 
     let projection = match state
         .database

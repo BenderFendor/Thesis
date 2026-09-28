@@ -315,20 +315,22 @@ pub(crate) async fn get_atlas_index(State(state): State<AppState>, uri: Uri) -> 
         limit,
     } = match super::query_index(&values) {
         Ok(query) => query,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
 
     let generated_at = chrono::Utc::now();
     let as_of = generated_at.naive_utc();
-    let mut filters = AtlasGraphFiltersInput::default();
-    filters.entity_types = entity_types;
-    filters.q = query;
-    filters.country = country;
-    filters.funding = funding;
-    filters.bias = bias;
-    filters.limit_nodes = None;
-    filters.limit_edges = 2500;
-    filters.include_evidence_preview = false;
+    let filters = AtlasGraphFiltersInput {
+        entity_types,
+        q: query,
+        country,
+        funding,
+        bias,
+        limit_nodes: None,
+        limit_edges: 2500,
+        include_evidence_preview: false,
+        ..AtlasGraphFiltersInput::default()
+    };
 
     let projection = match state
         .database
@@ -612,9 +614,11 @@ mod tests {
     }
     #[test]
     fn graph_query_casefolds_substrings_across_index_search_fields() {
-        let mut filters = AtlasGraphFiltersInput::default();
-        filters.q = Some(" ACME ".to_owned());
-        filters.limit_nodes = None;
+        let filters = AtlasGraphFiltersInput {
+            q: Some(" ACME ".to_owned()),
+            limit_nodes: None,
+            ..AtlasGraphFiltersInput::default()
+        };
 
         let mut subtitle = node("subtitle", "Subtitle result", 0, 0, None, None, None);
         subtitle.subtitle = Some("aCmE group".to_owned());

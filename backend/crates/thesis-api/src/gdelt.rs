@@ -1159,65 +1159,68 @@ mod gdelt_export_zip_tests {
         &'a str,
     );
 
-    fn event_row(
-        id: &str,
-        sql_date: &str,
-        source_url: &str,
-        event_code: &str,
-        event_root_code: &str,
-        actor1_name: &str,
-        actor1_country: &str,
-        actor2_name: &str,
-        actor2_country: &str,
-        tone: &str,
-        goldstein_scale: &str,
-    ) -> String {
+    const ID: usize = 0;
+    const SQL_DATE: usize = 1;
+    const SOURCE_URL: usize = 57;
+    const EVENT_CODE: usize = 26;
+    const EVENT_ROOT_CODE: usize = 28;
+    const ACTOR1_NAME: usize = 6;
+    const ACTOR1_COUNTRY: usize = 7;
+    const ACTOR2_NAME: usize = 16;
+    const ACTOR2_COUNTRY: usize = 17;
+    const TONE: usize = 34;
+    const GOLDSTEIN_SCALE: usize = 30;
+
+    /// Headerless GDELT export row with the given `(column, value)` fields set.
+    fn event_row(columns: &[(usize, &str)]) -> String {
         let mut fields = [""; GDELT_EXPORT_FIELD_COUNT];
-        fields[0] = id;
-        fields[1] = sql_date;
-        fields[6] = actor1_name;
-        fields[7] = actor1_country;
-        fields[16] = actor2_name;
-        fields[17] = actor2_country;
-        fields[26] = event_code;
-        fields[28] = event_root_code;
-        fields[30] = goldstein_scale;
-        fields[34] = tone;
-        fields[57] = source_url;
+        for &(column, value) in columns {
+            fields[column] = value;
+        }
         fields.join("\t")
     }
 
     fn fixture_rows() -> [String; 3] {
         [
-            event_row(
-                "", "20240922", "", "010", "01", "Ignored", "USA", "", "", "0", "0",
-            ),
-            event_row(
-                "123",
-                "20240923",
-                "https://www.example.org/story",
-                "010",
-                "01",
-                "Actor One",
-                "USA",
-                "Actor Two",
-                "GBR",
-                "1.5",
-                "2.0",
-            ),
-            event_row(
-                "124",
-                "20240924",
-                "https://example.net/article",
-                "020",
-                "02",
-                "Actor Three",
-                "CAN",
-                "Actor Four",
-                "FRA",
-                "-1.25",
-                "-2.0",
-            ),
+            event_row(&[
+                (ID, ""),
+                (SQL_DATE, "20240922"),
+                (SOURCE_URL, ""),
+                (EVENT_CODE, "010"),
+                (EVENT_ROOT_CODE, "01"),
+                (ACTOR1_NAME, "Ignored"),
+                (ACTOR1_COUNTRY, "USA"),
+                (ACTOR2_NAME, ""),
+                (ACTOR2_COUNTRY, ""),
+                (TONE, "0"),
+                (GOLDSTEIN_SCALE, "0"),
+            ]),
+            event_row(&[
+                (ID, "123"),
+                (SQL_DATE, "20240923"),
+                (SOURCE_URL, "https://www.example.org/story"),
+                (EVENT_CODE, "010"),
+                (EVENT_ROOT_CODE, "01"),
+                (ACTOR1_NAME, "Actor One"),
+                (ACTOR1_COUNTRY, "USA"),
+                (ACTOR2_NAME, "Actor Two"),
+                (ACTOR2_COUNTRY, "GBR"),
+                (TONE, "1.5"),
+                (GOLDSTEIN_SCALE, "2.0"),
+            ]),
+            event_row(&[
+                (ID, "124"),
+                (SQL_DATE, "20240924"),
+                (SOURCE_URL, "https://example.net/article"),
+                (EVENT_CODE, "020"),
+                (EVENT_ROOT_CODE, "02"),
+                (ACTOR1_NAME, "Actor Three"),
+                (ACTOR1_COUNTRY, "CAN"),
+                (ACTOR2_NAME, "Actor Four"),
+                (ACTOR2_COUNTRY, "FRA"),
+                (TONE, "-1.25"),
+                (GOLDSTEIN_SCALE, "-2.0"),
+            ]),
         ]
     }
 

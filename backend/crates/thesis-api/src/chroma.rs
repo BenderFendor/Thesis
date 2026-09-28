@@ -619,10 +619,13 @@ pub struct ChromaQueryResponse {
     #[serde(default)]
     pub embeddings: Option<Vec<Vec<Vec<f64>>>>,
     #[serde(default)]
-    pub metadatas: Option<Vec<Vec<Option<Map<String, Value>>>>>,
+    pub metadatas: Option<QueryMetadatas>,
     #[serde(default)]
     pub documents: Option<Vec<Vec<Option<String>>>>,
 }
+
+/// Per-query metadata rows; Chroma returns `null` for rows without metadata.
+pub type QueryMetadatas = Vec<Vec<Option<Map<String, Value>>>>;
 
 impl ChromaQueryResponse {
     fn validate_alignment(&self, expected_query_count: usize) -> Result<(), ChromaError> {

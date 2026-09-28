@@ -1,3 +1,4 @@
+use crate::models::Rejection;
 use crate::models::{HttpValidationError, ValidationError, ValidationLocation};
 use crate::AppState;
 use axum::extract::{Path, State};
@@ -284,9 +285,9 @@ fn blank_reviewer_response() -> Response {
         .into_response()
 }
 
-fn validate_reviewer(reviewer: &str) -> Result<(), Response> {
+fn validate_reviewer(reviewer: &str) -> Result<(), Rejection> {
     if reviewer.trim().is_empty() {
-        Err(blank_reviewer_response())
+        Err(Rejection::from(blank_reviewer_response()))
     } else {
         Ok(())
     }
@@ -333,7 +334,7 @@ pub(crate) async fn materialize_claim(
         return error.into_response();
     }
     if let Err(response) = validate_reviewer(reviewer) {
-        return response;
+        return response.into_response();
     }
 
     let materialized = match state
@@ -436,7 +437,7 @@ mod tests {
     };
     use axum::body::to_bytes;
     use axum::http::{HeaderMap, StatusCode, Uri};
-    use axum::response::Response;
+    use axum::response::{IntoResponse, Response};
     use serde_json::{json, Value};
 
     async fn response_json(response: Response) -> Value {
@@ -593,7 +594,7 @@ mod tests {
         let response = validate_reviewer(" \t").expect_err("blank reviewer");
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
-            response_json(response).await,
+            response_json(response.into_response()).await,
             json!({"detail": "X-Scoop-Reviewer must not be empty"})
         );
         assert!(validate_reviewer(" reviewer ").is_ok());

@@ -1,3 +1,4 @@
+use crate::models::Rejection;
 use std::collections::{BTreeMap, BTreeSet};
 
 use axum::extract::State;
@@ -82,19 +83,21 @@ impl From<StartupEvent> for StartupEventResponse {
     }
 }
 
-async fn observe_startup(state: &ProfilingState) -> Result<StartupMetricsResponse, Response> {
+async fn observe_startup(state: &ProfilingState) -> Result<StartupMetricsResponse, Rejection> {
     match crate::profiling::observe(state).await {
         Ok(observation) => Ok(observation.startup.into()),
-        Err(ProfilingError::Unavailable) => {
-            Err(provider_unavailable("Profiling observer is not available"))
-        }
+        Err(ProfilingError::Unavailable) => Err(Rejection::from(provider_unavailable(
+            "Profiling observer is not available",
+        ))),
         Err(ProfilingError::Failed(message)) => {
             tracing::error!(%message, "startup metrics observer failed");
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"detail": "Debug provider request failed"})),
-            )
-                .into_response())
+            Err(Rejection::from(
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"detail": "Debug provider request failed"})),
+                )
+                    .into_response(),
+            ))
         }
     }
 }
@@ -147,7 +150,7 @@ pub(crate) async fn get_pipeline_metrics(State(state): State<DebugState>) -> Res
 pub(crate) async fn get_startup_metrics(State(state): State<ProfilingState>) -> Response {
     match observe_startup(&state).await {
         Ok(response) => Json(response).into_response(),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 

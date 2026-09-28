@@ -1,3 +1,4 @@
+use crate::models::Rejection;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) mod media_measurements;
@@ -1029,7 +1030,7 @@ fn split_csv(value: Option<&String>) -> Vec<String> {
         .collect()
 }
 
-fn parse_entity_types(value: Option<&String>) -> Result<Vec<AtlasEntityType>, Response> {
+fn parse_entity_types(value: Option<&String>) -> Result<Vec<AtlasEntityType>, Rejection> {
     let mut result = Vec::new();
     let mut unsupported = BTreeSet::new();
     for value in split_csv(value) {
@@ -1046,17 +1047,17 @@ fn parse_entity_types(value: Option<&String>) -> Result<Vec<AtlasEntityType>, Re
     if unsupported.is_empty() {
         Ok(result)
     } else {
-        Err((
+        Err(Rejection::from((
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({
                 "detail": format!("Unsupported entity types: {}", unsupported.into_iter().collect::<Vec<_>>().join(", "))
             })),
         )
-            .into_response())
+            .into_response()))
     }
 }
 
-fn parse_relation_types(value: Option<&String>) -> Result<Vec<AtlasRelationType>, Response> {
+fn parse_relation_types(value: Option<&String>) -> Result<Vec<AtlasRelationType>, Rejection> {
     let mut result = Vec::new();
     let mut unsupported = BTreeSet::new();
     for value in split_csv(value) {
@@ -1080,13 +1081,13 @@ fn parse_relation_types(value: Option<&String>) -> Result<Vec<AtlasRelationType>
     if unsupported.is_empty() {
         Ok(result)
     } else {
-        Err((
+        Err(Rejection::from((
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({
                 "detail": format!("Unsupported relation types: {}", unsupported.into_iter().collect::<Vec<_>>().join(", "))
             })),
         )
-            .into_response())
+            .into_response()))
     }
 }
 
@@ -1228,7 +1229,7 @@ fn query_layout(
 
 fn query_graph_filters(
     values: &std::collections::HashMap<String, String>,
-) -> Result<AtlasGraphFiltersInput, Response> {
+) -> Result<AtlasGraphFiltersInput, Rejection> {
     let entity_types = parse_entity_types(values.get("entity_types"))?;
     let relation_types = parse_relation_types(values.get("relation_types"))?;
     let q = query_optional_string(values, "q", Some(200)).map_err(IntoResponse::into_response)?;
@@ -1311,7 +1312,7 @@ fn query_index_sort(
 
 fn query_index(
     values: &std::collections::HashMap<String, String>,
-) -> Result<AtlasIndexQuery, Response> {
+) -> Result<AtlasIndexQuery, Rejection> {
     Ok(AtlasIndexQuery {
         entity_types: parse_entity_types(values.get("entity_types"))?,
         query: query_optional_string(values, "q", Some(200))

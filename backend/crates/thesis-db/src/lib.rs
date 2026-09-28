@@ -572,7 +572,7 @@ async fn migrate_database(pool: &PgPool) -> Result<MigrationReport, MigrationErr
         .await
         .map_err(MigrationError::Database)?;
 
-    let result = migrate_locked(&mut *connection).await;
+    let result = migrate_locked(&mut connection).await;
     let unlocked = sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock($1)")
         .bind(SCHEMA_MIGRATION_LOCK_KEY)
         .fetch_one(&mut *connection)
@@ -812,7 +812,7 @@ async fn check_schema_readiness(pool: &PgPool) -> Result<(), SchemaReadinessErro
         .acquire()
         .await
         .map_err(SchemaReadinessError::Database)?;
-    check_schema_readiness_on(&mut *connection).await
+    check_schema_readiness_on(&mut connection).await
 }
 
 async fn check_schema_readiness_on(

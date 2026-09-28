@@ -1,3 +1,4 @@
+use crate::models::Rejection;
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs;
@@ -33,16 +34,16 @@ pub(super) fn router(state: DebugState) -> Router {
 async fn runtime_snapshot(
     state: &DebugState,
     operation: &str,
-) -> Result<DebugRuntimeSnapshot, Response> {
+) -> Result<DebugRuntimeSnapshot, Rejection> {
     let Some(provider) = state.providers.runtime.as_ref() else {
-        return Err(super::provider_unavailable(
+        return Err(Rejection::from(super::provider_unavailable(
             "Runtime debug provider is unavailable",
-        ));
+        )));
     };
     provider
         .snapshot()
         .await
-        .map_err(|error| super::provider_failed(error, operation))
+        .map_err(|error| super::provider_failed(error, operation).into())
 }
 
 #[utoipa::path(
@@ -59,7 +60,7 @@ async fn runtime_snapshot(
 pub(crate) async fn get_debug_report(State(state): State<DebugState>) -> Response {
     let snapshot = match runtime_snapshot(&state, "failed to read runtime debug report").await {
         Ok(snapshot) => snapshot,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
 
     let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Micros, false);
@@ -112,7 +113,7 @@ pub(crate) async fn get_debug_report(State(state): State<DebugState>) -> Respons
 pub(crate) async fn get_streams(State(state): State<DebugState>) -> Response {
     let snapshot = match runtime_snapshot(&state, "failed to read runtime streams").await {
         Ok(snapshot) => snapshot,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     Json(json!({
         "active_streams": snapshot.logger.active_streams,
@@ -135,7 +136,7 @@ pub(crate) async fn get_streams(State(state): State<DebugState>) -> Response {
 pub(crate) async fn get_slow_operations(State(state): State<DebugState>) -> Response {
     let snapshot = match runtime_snapshot(&state, "failed to read slow operations").await {
         Ok(snapshot) => snapshot,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let operations = snapshot.logger.slow_operations;
     Json(json!({
@@ -165,7 +166,7 @@ pub(crate) async fn get_slow_operations(State(state): State<DebugState>) -> Resp
 pub(crate) async fn get_performance_summary(State(state): State<DebugState>) -> Response {
     let snapshot = match runtime_snapshot(&state, "failed to read performance summary").await {
         Ok(snapshot) => snapshot,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     Json(snapshot.logger.performance_summary).into_response()
 }
@@ -194,17 +195,17 @@ pub(crate) async fn get_llm_logs(
 ) -> Response {
     let (limit, offset) = match parse_pagination(&params) {
         Ok(pagination) => pagination,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let success_filter = match parse_optional_bool(&params, "success") {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let service = params.get("service").cloned();
     let service_filter = service.as_deref().filter(|value| !value.is_empty());
     let path = match session_log_file_path(&state.config.session_log_directory, "llm_calls.log") {
         Ok(path) => path,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let payload = match read_jsonl_tail(&path, limit, offset, |entry| {
         let matches_service = match service_filter {
@@ -218,7 +219,7 @@ pub(crate) async fn get_llm_logs(
         matches_service && matches_success
     }) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let mut payload = payload;
     payload["service"] = service.map_or(Value::Null, Value::String);
@@ -250,19 +251,19 @@ pub(crate) async fn get_debug_errors(
 ) -> Response {
     let (limit, offset) = match parse_pagination(&params) {
         Ok(pagination) => pagination,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let include_request_stream_events =
         match parse_optional_bool(&params, "include_request_stream_events") {
             Ok(value) => value.unwrap_or(true),
-            Err(response) => return response,
+            Err(response) => return response.into_response(),
         };
     let recent_request_stream_errors = if include_request_stream_events {
         let snapshot =
             match runtime_snapshot(&state, "failed to read recent request and stream errors").await
             {
                 Ok(snapshot) => snapshot,
-                Err(response) => return response,
+                Err(response) => return response.into_response(),
             };
         let mut errors = snapshot
             .logger
@@ -287,11 +288,11 @@ pub(crate) async fn get_debug_errors(
 
     let path = match session_log_file_path(&state.config.session_log_directory, "api_errors.log") {
         Ok(path) => path,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let log_file = match read_jsonl_tail(&path, limit, offset, |_| true) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     Json(json!({
         "log_file": log_file,
@@ -377,15 +378,15 @@ pub(crate) async fn set_log_level(
     }
 }
 
-fn parse_pagination(params: &HashMap<String, String>) -> Result<(usize, usize), Response> {
+fn parse_pagination(params: &HashMap<String, String>) -> Result<(usize, usize), Rejection> {
     let limit =
         match super::parse_integer_query(params, "limit", DEFAULT_LOG_LIMIT, 1, MAX_LOG_LIMIT) {
             Ok(value) => value,
-            Err(error) => return Err(super::query_validation_response(error)),
+            Err(error) => return Err(Rejection::from(super::query_validation_response(error))),
         };
     let offset = match super::parse_integer_query(params, "offset", 0, 0, i64::MAX) {
         Ok(value) => value,
-        Err(error) => return Err(super::query_validation_response(error)),
+        Err(error) => return Err(Rejection::from(super::query_validation_response(error))),
     };
     Ok((limit as usize, offset as usize))
 }
@@ -393,32 +394,34 @@ fn parse_pagination(params: &HashMap<String, String>) -> Result<(usize, usize), 
 fn parse_optional_bool(
     params: &HashMap<String, String>,
     field: &str,
-) -> Result<Option<bool>, Response> {
+) -> Result<Option<bool>, Rejection> {
     let Some(raw) = params.get(field) else {
         return Ok(None);
     };
     match raw.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" | "t" | "y" => Ok(Some(true)),
         "0" | "false" | "no" | "off" | "f" | "n" => Ok(Some(false)),
-        _ => Err(super::query_validation_response(super::debug_query_error(
-            field,
-            raw,
-            "bool_parsing",
-            "Input should be a valid boolean",
-            None,
-            None,
+        _ => Err(Rejection::from(super::query_validation_response(
+            super::debug_query_error(
+                field,
+                raw,
+                "bool_parsing",
+                "Input should be a valid boolean",
+                None,
+                None,
+            ),
         ))),
     }
 }
 
-fn session_log_file_path(directory: &Path, filename: &'static str) -> Result<PathBuf, Response> {
+fn session_log_file_path(directory: &Path, filename: &'static str) -> Result<PathBuf, Rejection> {
     let canonical_directory = match fs::canonicalize(directory) {
         Ok(path) => Some(path),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(_) => {
-            return Err(super::internal_error(
+            return Err(Rejection::from(super::internal_error(
                 "Failed to resolve session log directory",
-            ))
+            )))
         }
     };
     let path = canonical_directory
@@ -428,24 +431,30 @@ fn session_log_file_path(directory: &Path, filename: &'static str) -> Result<Pat
     match fs::symlink_metadata(&path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(super::bad_request("Invalid session log path"));
+                return Err(Rejection::from(super::bad_request(
+                    "Invalid session log path",
+                )));
             }
             let canonical_path = fs::canonicalize(&path)
                 .map_err(|_| super::internal_error("Failed to resolve session log path"))?;
             let Some(session_directory) = canonical_directory else {
-                return Err(super::internal_error(
+                return Err(Rejection::from(super::internal_error(
                     "Failed to resolve session log directory",
-                ));
+                )));
             };
             if canonical_path.parent() != Some(session_directory.as_path())
                 || canonical_path.file_name() != Some(OsStr::new(filename))
             {
-                return Err(super::bad_request("Invalid session log path"));
+                return Err(Rejection::from(super::bad_request(
+                    "Invalid session log path",
+                )));
             }
             Ok(canonical_path)
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(path),
-        Err(_) => Err(super::internal_error("Failed to inspect session log path")),
+        Err(_) => Err(Rejection::from(super::internal_error(
+            "Failed to inspect session log path",
+        ))),
     }
 }
 
@@ -454,7 +463,7 @@ fn read_jsonl_tail(
     limit: usize,
     offset: usize,
     predicate: impl Fn(&Value) -> bool,
-) -> Result<Value, Response> {
+) -> Result<Value, Rejection> {
     let display_path = path.to_string_lossy().into_owned();
     let contents = match fs::read_to_string(path) {
         Ok(contents) => contents,
@@ -467,7 +476,11 @@ fn read_jsonl_tail(
                 "entries": [],
             }));
         }
-        Err(_) => return Err(super::internal_error("Failed to read session log file")),
+        Err(_) => {
+            return Err(Rejection::from(super::internal_error(
+                "Failed to read session log file",
+            )))
+        }
     };
 
     let entries = contents

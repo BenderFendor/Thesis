@@ -47,19 +47,20 @@ fn normalize_entity_id_alias(entity_id: String) -> String {
 }
 
 fn connection_filters(entity_id: &str) -> AtlasGraphFiltersInput {
-    let mut filters = AtlasGraphFiltersInput::default();
-    filters.entity_types = vec![
-        AtlasEntityType::Outlet,
-        AtlasEntityType::Organization,
-        AtlasEntityType::Person,
-        AtlasEntityType::Reporter,
-    ];
-    filters.selected = Some(entity_id.to_owned());
-    filters.neighbors = 2;
-    filters.limit_nodes = Some(350);
-    filters.limit_edges = 1500;
-    filters.include_evidence_preview = true;
-    filters
+    AtlasGraphFiltersInput {
+        entity_types: vec![
+            AtlasEntityType::Outlet,
+            AtlasEntityType::Organization,
+            AtlasEntityType::Person,
+            AtlasEntityType::Reporter,
+        ],
+        selected: Some(entity_id.to_owned()),
+        neighbors: 2,
+        limit_nodes: Some(350),
+        limit_edges: 1500,
+        include_evidence_preview: true,
+        ..AtlasGraphFiltersInput::default()
+    }
 }
 
 fn collect_connections(graph: AtlasGraphResponse, entity_id: &str) -> Vec<AtlasConnectionResponse> {

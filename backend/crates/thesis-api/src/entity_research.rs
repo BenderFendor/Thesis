@@ -932,12 +932,9 @@ pub(crate) async fn research_source_profile(
     let cache_only = parameters.cache_only();
     if !force_refresh {
         if let Some(cache) = state.cache.as_ref() {
-            match cache.source_by_name(request.name.clone()).await {
-                Ok(Some(mut response)) => {
-                    response.cached = true;
-                    return Json(response).into_response();
-                }
-                Ok(None) | Err(_) => {}
+            if let Ok(Some(mut response)) = cache.source_by_name(request.name.clone()).await {
+                response.cached = true;
+                return Json(response).into_response();
             }
         }
     }
@@ -997,12 +994,9 @@ pub(crate) async fn research_source_batch(
         futures.push(Box::pin(async move {
             if !force_refresh {
                 if let Some(cache) = cache.as_ref() {
-                    match cache.source_by_name(name.clone()).await {
-                        Ok(Some(mut response)) => {
-                            response.cached = true;
-                            return SourceBatchOutcome::Cached { name, response };
-                        }
-                        Ok(None) | Err(_) => {}
+                    if let Ok(Some(mut response)) = cache.source_by_name(name.clone()).await {
+                        response.cached = true;
+                        return SourceBatchOutcome::Cached { name, response };
                     }
                 }
             }
@@ -2167,13 +2161,14 @@ mod tests {
         assert_eq!(provider.reporter_calls.load(Ordering::SeqCst), 1);
         assert_eq!(cache.reporter_writes.load(Ordering::SeqCst), 1);
         assert_eq!(cache.reporters.lock().expect("reporter cache").len(), 1);
-        let requests = provider
-            .reporter_requests
-            .lock()
-            .expect("reporter requests");
-        assert_eq!(requests[0].name, "Jane Doe");
-        assert_eq!(requests[0].organization.as_deref(), Some("Outlet"));
-        drop(requests);
+        {
+            let requests = provider
+                .reporter_requests
+                .lock()
+                .expect("reporter requests");
+            assert_eq!(requests[0].name, "Jane Doe");
+            assert_eq!(requests[0].organization.as_deref(), Some("Outlet"));
+        }
 
         let (status, refreshed) = send_json(
             app.clone(),
@@ -2442,17 +2437,19 @@ mod tests {
         assert_eq!(response["results"].as_object().expect("results").len(), 7);
         assert_eq!(response["results"]["Broken"], Value::Null);
         assert_eq!(response["results"]["Duplicate"]["cached"], false);
-        let calls = provider.source_calls.lock().expect("source calls");
-        assert_eq!(calls.len(), 8);
-        let initial_wave: BTreeSet<_> = calls.iter().take(5).cloned().collect();
-        let expected_wave: BTreeSet<_> = (0..5).map(|index| format!("Source {index}")).collect();
-        assert_eq!(initial_wave, expected_wave);
-        assert_eq!(calls.iter().filter(|name| *name == "Duplicate").count(), 2);
+        {
+            let calls = provider.source_calls.lock().expect("source calls");
+            assert_eq!(calls.len(), 8);
+            let initial_wave: BTreeSet<_> = calls.iter().take(5).cloned().collect();
+            let expected_wave: BTreeSet<_> =
+                (0..5).map(|index| format!("Source {index}")).collect();
+            assert_eq!(initial_wave, expected_wave);
+            assert_eq!(calls.iter().filter(|name| *name == "Duplicate").count(), 2);
+        }
         assert!(provider.max_active_sources.load(Ordering::SeqCst) >= 2);
         assert!(provider.max_active_sources.load(Ordering::SeqCst) <= 5);
         assert_eq!(cache.source_writes.load(Ordering::SeqCst), 7);
 
-        drop(calls);
         let (status, cached_response) = send_json(
             app.clone(),
             Method::POST,
@@ -2465,9 +2462,11 @@ mod tests {
         assert_eq!(cached_response["newly_researched_count"], 0);
         assert_eq!(cached_response["results"]["Duplicate"]["cached"], true);
         assert_eq!(cached_response["results"]["Broken"], Value::Null);
-        let calls = provider.source_calls.lock().expect("source calls");
-        assert_eq!(calls.len(), 9);
-        assert_eq!(calls.last().map(String::as_str), Some("Broken"));
+        {
+            let calls = provider.source_calls.lock().expect("source calls");
+            assert_eq!(calls.len(), 9);
+            assert_eq!(calls.last().map(String::as_str), Some("Broken"));
+        }
         assert_eq!(cache.source_writes.load(Ordering::SeqCst), 7);
 
         let (status, error) = send_json(

@@ -1067,9 +1067,11 @@ mod tests {
 
     #[test]
     fn export_overrides_match_python_truthiness_without_query_length_caps() {
-        let mut filters = AtlasGraphFiltersInput::default();
-        filters.selected = Some("fallback:selected".to_owned());
-        filters.q = Some("q".repeat(201));
+        let mut filters = AtlasGraphFiltersInput {
+            selected: Some("fallback:selected".to_owned()),
+            q: Some("q".repeat(201)),
+            ..AtlasGraphFiltersInput::default()
+        };
         apply_export_overrides(&mut filters, Some(""), false);
         assert_eq!(filters.selected.as_deref(), Some("fallback:selected"));
         assert!(!filters.include_evidence_preview);
@@ -1085,8 +1087,10 @@ mod tests {
 
     #[test]
     fn export_validation_rejects_invalid_dates_without_query_length_constraints() {
-        let mut filters = AtlasGraphFiltersInput::default();
-        filters.as_of = Some("not-a-date".to_owned());
+        let filters = AtlasGraphFiltersInput {
+            as_of: Some("not-a-date".to_owned()),
+            ..AtlasGraphFiltersInput::default()
+        };
         let error = super::super::validate_export_filters(&filters).expect_err("invalid date");
         assert_eq!(error.detail[0].loc.len(), 3);
         assert!(matches!(

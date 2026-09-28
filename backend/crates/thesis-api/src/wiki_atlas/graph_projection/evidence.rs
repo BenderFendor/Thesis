@@ -159,6 +159,14 @@ struct Document<'a> {
     source_class: &'a str,
 }
 
+/// Bitemporal cut and evidence-preview setting for one projection.
+#[derive(Clone, Copy)]
+struct ProjectionView {
+    as_of: NaiveDateTime,
+    known_at: NaiveDateTime,
+    include_preview: bool,
+}
+
 struct EvidenceContext<'a> {
     claims: HashMap<&'a str, Claim<'a>>,
     observation_ids_by_claim: HashMap<&'a str, Vec<&'a str>>,
@@ -476,9 +484,7 @@ fn accepted_edges(
     node_id_by_entity: &HashMap<String, String>,
     survivors: &HashMap<String, String>,
     reporter_map: &HashMap<String, String>,
-    as_of: NaiveDateTime,
-    known_at: NaiveDateTime,
-    include_preview: bool,
+    view: ProjectionView,
 ) -> Vec<AtlasEdgeResponse> {
     let mut edges = Vec::new();
     for relationship in &data.accepted_relationships {
@@ -488,8 +494,8 @@ fn accepted_edges(
                 relationship.valid_to,
                 relationship.recorded_at,
                 relationship.retracted_at,
-                as_of,
-                known_at,
+                view.as_of,
+                view.known_at,
             )
         {
             continue;
@@ -519,9 +525,7 @@ fn accepted_edges(
             })
             .collect::<Vec<_>>();
         let raw_qualifiers = &relationship.qualifiers.0;
-        let ownership_percentage = raw_qualifiers
-            .as_object()
-            .and_then(|qualifiers| ownership_percentage(qualifiers));
+        let ownership_percentage = raw_qualifiers.as_object().and_then(ownership_percentage);
         let qualifiers = qualifiers_with_trace(
             raw_qualifiers,
             context
@@ -552,7 +556,7 @@ fn accepted_edges(
         edge.confidence = Some(1.0);
         edge.confidence_tier = Some(AtlasConfidenceTier::Verified);
         edge.evidence_count = i64::try_from(evidence.len()).unwrap_or(i64::MAX);
-        edge.evidence_preview = evidence_preview(&evidence, include_preview);
+        edge.evidence_preview = evidence_preview(&evidence, view.include_preview);
         edge.valid_from = relationship.valid_from;
         edge.valid_to = relationship.valid_to;
         edge.last_verified_at = last_verified_at;
@@ -581,9 +585,7 @@ fn candidate_edges(
     node_id_by_entity: &HashMap<String, String>,
     survivors: &HashMap<String, String>,
     reporter_map: &HashMap<String, String>,
-    as_of: NaiveDateTime,
-    known_at: NaiveDateTime,
-    include_preview: bool,
+    view: ProjectionView,
 ) -> Vec<AtlasEdgeResponse> {
     let mut edges = Vec::new();
     for claim in &data.claims {
@@ -594,8 +596,8 @@ fn candidate_edges(
                 claim.valid_to,
                 claim.recorded_at,
                 claim.retracted_at,
-                as_of,
-                known_at,
+                view.as_of,
+                view.known_at,
             )
         {
             continue;
@@ -640,7 +642,7 @@ fn candidate_edges(
         edge.beneficial_interest = decimal_interest(&qualifiers, "beneficial_interest");
         edge.confidence_tier = Some(AtlasConfidenceTier::Unresolved);
         edge.evidence_count = i64::try_from(evidence.len()).unwrap_or(i64::MAX);
-        edge.evidence_preview = evidence_preview(&evidence, include_preview);
+        edge.evidence_preview = evidence_preview(&evidence, view.include_preview);
         edge.valid_from = claim.valid_from;
         edge.valid_to = claim.valid_to;
         edge.last_verified_at = evidence
@@ -769,9 +771,7 @@ fn evidence_projection(
     survivors: &HashMap<String, String>,
     reporter_map: &HashMap<String, String>,
     outlet_ids: &HashMap<String, String>,
-    as_of: NaiveDateTime,
-    known_at: NaiveDateTime,
-    include_preview: bool,
+    view: ProjectionView,
 ) -> (Vec<AtlasNodeResponse>, Vec<AtlasEdgeResponse>) {
     let organizations = live_entities(all_entities, survivors, EVIDENCE_ORGANIZATION_KINDS);
     let people = live_entities(all_entities, survivors, &["person"]);
@@ -795,9 +795,7 @@ fn evidence_projection(
         &node_id_by_entity,
         survivors,
         reporter_map,
-        as_of,
-        known_at,
-        include_preview,
+        view,
     );
     let candidates = candidate_edges(
         data,
@@ -805,9 +803,7 @@ fn evidence_projection(
         &node_id_by_entity,
         survivors,
         reporter_map,
-        as_of,
-        known_at,
-        include_preview,
+        view,
     );
     let siblings = sibling_edges(outlet_ids, &accepted);
     let mut edges = accepted;
@@ -833,9 +829,11 @@ pub(super) fn project(
         &survivors,
         &reporter_map,
         &outlet_ids,
-        as_of,
-        known_at,
-        include_preview,
+        ProjectionView {
+            as_of,
+            known_at,
+            include_preview,
+        },
     );
     GraphData { nodes, edges }
 }

@@ -739,21 +739,24 @@ impl ProfilingObserver for RuntimeProfiler {
 }
 
 /// Axum request middleware layer that records process-local HTTP measurements.
-pub fn middleware_layer(
-    state: ProfilingState,
-) -> axum::middleware::FromFnLayer<
-    fn(
-        State<ProfilingState>,
-        axum::extract::Request,
-        axum::middleware::Next,
-    ) -> ProfilingMiddlewareFuture,
-    ProfilingState,
-    (State<ProfilingState>, axum::extract::Request),
-> {
+pub fn middleware_layer(state: ProfilingState) -> ProfilingMiddlewareLayer {
     axum::middleware::from_fn_with_state(state, record_request as _)
 }
 
 pub type ProfilingMiddlewareFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
+
+type ProfilingMiddlewareFn = fn(
+    State<ProfilingState>,
+    axum::extract::Request,
+    axum::middleware::Next,
+) -> ProfilingMiddlewareFuture;
+
+/// The layer returned by [`middleware_layer`].
+pub type ProfilingMiddlewareLayer = axum::middleware::FromFnLayer<
+    ProfilingMiddlewareFn,
+    ProfilingState,
+    (State<ProfilingState>, axum::extract::Request),
+>;
 
 fn record_request(
     State(state): State<ProfilingState>,

@@ -471,7 +471,7 @@ fn calculate_reporter_movement_write(
                     .collect(),
             ),
         );
-        events.sort_by(|left, right| left.cmp(right));
+        events.sort();
         let mut previous_source: Option<&str> = None;
         for (event_date, source) in events {
             if previous_source.is_some_and(|previous| previous != source) {
@@ -541,7 +541,7 @@ fn calculate_ownership_concentration_write(
             )
         })
         .collect::<Vec<_>>();
-    owners.sort_by(|left, right| right.2.cmp(&left.2));
+    owners.sort_by_key(|owner| std::cmp::Reverse(owner.2));
     trace_write(
         MEASUREMENT_NAMES[5],
         &json!({"start": null, "end": null}),

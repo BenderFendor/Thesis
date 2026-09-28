@@ -104,6 +104,29 @@ pub struct HttpValidationError {
     pub detail: Vec<ValidationError>,
 }
 
+/// A finished error response for early returns, boxed so `Result<T, Rejection>`
+/// stays small (a bare `Response` is 128 bytes).
+pub(crate) struct Rejection(Box<axum::response::Response>);
+
+impl From<axum::response::Response> for Rejection {
+    fn from(response: axum::response::Response) -> Self {
+        Self(Box::new(response))
+    }
+}
+
+impl IntoResponse for Rejection {
+    fn into_response(self) -> axum::response::Response {
+        *self.0
+    }
+}
+
+#[cfg(test)]
+impl Rejection {
+    pub(crate) fn status(&self) -> StatusCode {
+        self.0.status()
+    }
+}
+
 impl IntoResponse for HttpValidationError {
     /// FastAPI request-validation failures are 422 with a `detail` array.
     fn into_response(self) -> axum::response::Response {

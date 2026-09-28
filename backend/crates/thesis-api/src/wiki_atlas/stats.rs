@@ -340,9 +340,11 @@ mod tests {
     }
 
     fn graph_response() -> AtlasGraphResponse {
-        let mut stats = AtlasGraphStatsResponse::default();
-        stats.total_outlets = 1;
-        stats.total_people = 1;
+        let stats = AtlasGraphStatsResponse {
+            total_outlets: 1,
+            total_people: 1,
+            ..AtlasGraphStatsResponse::default()
+        };
         AtlasGraphResponse {
             graph_version: "stats-test-version".to_owned(),
             generated_at: DateTime::<Utc>::from_timestamp(1_790_000_000, 0)

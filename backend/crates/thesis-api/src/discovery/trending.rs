@@ -645,7 +645,7 @@ fn build_contradiction_panel(detail: &ClusterDetail) -> ContradictionPanel {
         }
 
         let mut ranked_keywords = token_counts.clone();
-        ranked_keywords.sort_by(|left, right| right.1.cmp(&left.1));
+        ranked_keywords.sort_by_key(|&(_, count)| std::cmp::Reverse(count));
         ranked_keywords.truncate(12);
 
         for sentence in sentences {
@@ -847,10 +847,7 @@ fn contradiction_numbers(text: &str) -> BTreeSet<String> {
             characters.next();
             end += next.len_utf8();
         }
-        loop {
-            let Some((_, separator @ ('.' | ','))) = characters.peek().copied() else {
-                break;
-            };
+        while let Some((_, separator @ ('.' | ','))) = characters.peek().copied() {
             let mut lookahead = characters.clone();
             lookahead.next();
             if !lookahead

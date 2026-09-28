@@ -130,6 +130,26 @@ fn generated_request_id() -> String {
     )
 }
 
+fn cors_layer_from_config(origins: &[String], origin_regex: Option<Regex>) -> CorsLayer {
+    let allowed_origins = origins
+        .iter()
+        .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
+        .collect::<Vec<_>>();
+    let allow_origin = AllowOrigin::predicate(move |origin, _| {
+        allowed_origins.iter().any(|allowed| allowed == origin)
+            || origin.to_str().ok().is_some_and(|origin| {
+                origin_regex
+                    .as_ref()
+                    .is_some_and(|regex| regex.is_match(origin))
+            })
+    });
+    CorsLayer::new()
+        .allow_origin(allow_origin)
+        .allow_credentials(true)
+        .allow_methods(AllowMethods::mirror_request())
+        .allow_headers(AllowHeaders::mirror_request())
+}
+
 #[cfg(test)]
 mod tests {
     use axum::body::{to_bytes, Body};
@@ -287,24 +307,4 @@ mod tests {
             ["http://localhost:3000", "http://localhost:3001"]
         );
     }
-}
-
-fn cors_layer_from_config(origins: &[String], origin_regex: Option<Regex>) -> CorsLayer {
-    let allowed_origins = origins
-        .iter()
-        .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
-        .collect::<Vec<_>>();
-    let allow_origin = AllowOrigin::predicate(move |origin, _| {
-        allowed_origins.iter().any(|allowed| allowed == origin)
-            || origin.to_str().ok().is_some_and(|origin| {
-                origin_regex
-                    .as_ref()
-                    .is_some_and(|regex| regex.is_match(origin))
-            })
-    });
-    CorsLayer::new()
-        .allow_origin(allow_origin)
-        .allow_credentials(true)
-        .allow_methods(AllowMethods::mirror_request())
-        .allow_headers(AllowHeaders::mirror_request())
 }

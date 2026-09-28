@@ -1,3 +1,4 @@
+use crate::models::Rejection;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -52,7 +53,7 @@ pub(crate) async fn test_rss_parser(
 ) -> Response {
     let url = match required_query(&params, "url") {
         Ok(url) => url,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let max_entries = match super::parse_integer_query(&params, "max_entries", 5, 1, 20) {
         Ok(value) => value as usize,
@@ -165,7 +166,7 @@ pub(crate) async fn test_article_parser(
 ) -> Response {
     let url = match required_query(&params, "url") {
         Ok(url) => url,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let Some(provider) = state.providers.parsing.as_ref() else {
         return super::provider_unavailable(PARSING_UNAVAILABLE_DETAIL);
@@ -360,20 +361,22 @@ pub(crate) async fn get_source_debug_data(
         .into_response()
 }
 
-fn required_query(params: &HashMap<String, String>, field: &str) -> Result<String, Response> {
+fn required_query(params: &HashMap<String, String>, field: &str) -> Result<String, Rejection> {
     params.get(field).cloned().ok_or_else(|| {
-        super::query_validation_response(super::HttpValidationError {
-            detail: vec![super::ValidationError {
-                loc: vec![
-                    super::ValidationLocation::Text("query".to_owned()),
-                    super::ValidationLocation::Text(field.to_owned()),
-                ],
-                msg: "Field required".to_owned(),
-                error_type: "missing".to_owned(),
-                input: Value::Null,
-                ctx: None,
-            }],
-        })
+        Rejection::from(super::query_validation_response(
+            super::HttpValidationError {
+                detail: vec![super::ValidationError {
+                    loc: vec![
+                        super::ValidationLocation::Text("query".to_owned()),
+                        super::ValidationLocation::Text(field.to_owned()),
+                    ],
+                    msg: "Field required".to_owned(),
+                    error_type: "missing".to_owned(),
+                    input: Value::Null,
+                    ctx: None,
+                }],
+            },
+        ))
     })
 }
 

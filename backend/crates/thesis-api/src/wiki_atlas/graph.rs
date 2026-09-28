@@ -601,36 +601,38 @@ fn graph_stats(
         }
     }
     let total_outlets = total_types.get("outlet").copied().unwrap_or_default();
-    let mut stats = AtlasGraphStatsResponse::default();
-    stats.total_outlets = total_outlets;
-    stats.total_organizations = total_types.get("organization").copied().unwrap_or_default();
-    stats.total_people = total_types.get("person").copied().unwrap_or_default();
-    stats.total_reporters = total_types.get("reporter").copied().unwrap_or_default();
-    stats.visible_outlets = visible_types.get("outlet").copied().unwrap_or_default();
-    stats.visible_organizations = visible_types
-        .get("organization")
-        .copied()
-        .unwrap_or_default();
-    stats.visible_people = visible_types.get("person").copied().unwrap_or_default();
-    stats.visible_reporters = visible_types.get("reporter").copied().unwrap_or_default();
-    stats.visible_relationships = i64::try_from(visible_edges.len()).unwrap_or(i64::MAX);
-    stats.current_relationships = current_relationships;
-    stats.accepted_relationships = accepted_relationships;
-    stats.candidate_relationships = candidate_relationships;
-    stats.disputed_relationships = disputed_relationships;
-    stats.ownership_coverage = AtlasCoverageMetricResponse {
-        numerator: i64::try_from(outlets_with_owner.len()).unwrap_or(i64::MAX),
-        denominator: total_outlets,
-    };
-    stats.evidence_coverage = AtlasCoverageMetricResponse {
-        numerator: i64::try_from(
-            visible_edges
-                .iter()
-                .filter(|edge| edge.evidence_count > 0)
-                .count(),
-        )
-        .unwrap_or(i64::MAX),
-        denominator: i64::try_from(visible_edges.len()).unwrap_or(i64::MAX),
+    let mut stats = AtlasGraphStatsResponse {
+        total_outlets,
+        total_organizations: total_types.get("organization").copied().unwrap_or_default(),
+        total_people: total_types.get("person").copied().unwrap_or_default(),
+        total_reporters: total_types.get("reporter").copied().unwrap_or_default(),
+        visible_outlets: visible_types.get("outlet").copied().unwrap_or_default(),
+        visible_organizations: visible_types
+            .get("organization")
+            .copied()
+            .unwrap_or_default(),
+        visible_people: visible_types.get("person").copied().unwrap_or_default(),
+        visible_reporters: visible_types.get("reporter").copied().unwrap_or_default(),
+        visible_relationships: i64::try_from(visible_edges.len()).unwrap_or(i64::MAX),
+        current_relationships,
+        accepted_relationships,
+        candidate_relationships,
+        disputed_relationships,
+        ownership_coverage: AtlasCoverageMetricResponse {
+            numerator: i64::try_from(outlets_with_owner.len()).unwrap_or(i64::MAX),
+            denominator: total_outlets,
+        },
+        evidence_coverage: AtlasCoverageMetricResponse {
+            numerator: i64::try_from(
+                visible_edges
+                    .iter()
+                    .filter(|edge| edge.evidence_count > 0)
+                    .count(),
+            )
+            .unwrap_or(i64::MAX),
+            denominator: i64::try_from(visible_edges.len()).unwrap_or(i64::MAX),
+        },
+        ..AtlasGraphStatsResponse::default()
     };
     stats.unresolved_source_links =
         total_outlets.saturating_sub(i64::try_from(outlets_with_owner.len()).unwrap_or(i64::MAX));
@@ -691,7 +693,7 @@ pub(crate) async fn get_graph(State(state): State<AppState>, uri: Uri) -> Respon
     };
     let mut filters = match super::query_graph_filters(&values) {
         Ok(filters) => filters,
-        Err(response) => return response,
+        Err(response) => return response.into_response(),
     };
     let generated_at = Utc::now();
     filters.as_of = filters
@@ -846,13 +848,15 @@ mod tests {
 
     #[test]
     fn filters_neighborhood_rank_and_stats_use_the_production_path() {
-        let mut filters = AtlasGraphFiltersInput::default();
-        filters.q = Some("not present".to_owned());
-        filters.selected = Some("outlet:beta".to_owned());
-        filters.neighbors = 0;
-        filters.limit_nodes = Some(2);
-        filters.limit_edges = 1;
-        filters.accepted_only = true;
+        let filters = AtlasGraphFiltersInput {
+            q: Some("not present".to_owned()),
+            selected: Some("outlet:beta".to_owned()),
+            neighbors: 0,
+            limit_nodes: Some(2),
+            limit_edges: 1,
+            accepted_only: true,
+            ..AtlasGraphFiltersInput::default()
+        };
         let data = GraphData {
             nodes: vec![
                 node("outlet:alpha", AtlasEntityType::Outlet, "Alpha", 50),

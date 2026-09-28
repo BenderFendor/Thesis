@@ -100,10 +100,9 @@ fn claim_band(qualifiers: &Value) -> Option<(f64, f64)> {
     let raw = qualifiers.get("pct_band")?;
     let (lower, upper) = if let Some(object) = raw.as_object() {
         (object.get("lower")?, object.get("upper")?)
-    } else if let Some(values) = raw.as_array().filter(|values| values.len() == 2) {
-        (&values[0], &values[1])
     } else {
-        return None;
+        let values = raw.as_array().filter(|values| values.len() == 2)?;
+        (&values[0], &values[1])
     };
     Some((number(lower)?, number(upper)?))
 }
@@ -116,10 +115,9 @@ fn normalized_band(qualifiers: &Value) -> Option<Value> {
     let raw = qualifiers.get("pct_band")?;
     let (lower, upper) = if let Some(object) = raw.as_object() {
         (object.get("lower")?, object.get("upper")?)
-    } else if let Some(values) = raw.as_array().filter(|values| values.len() == 2) {
-        (&values[0], &values[1])
     } else {
-        return None;
+        let values = raw.as_array().filter(|values| values.len() == 2)?;
+        (&values[0], &values[1])
     };
     Some(Value::Array(vec![render(lower)?, render(upper)?]))
 }
@@ -576,7 +574,7 @@ async fn persist_interest_trace(
     let security_class = qualifiers.get("security_class").and_then(Value::as_str);
     let calculation = compute_indirect_interest(
         &edges,
-        &claim.object_entity_id.as_deref().unwrap_or_default(),
+        claim.object_entity_id.as_deref().unwrap_or_default(),
         &claim.subject_entity_id,
         interest_type,
         security_class,

@@ -88,19 +88,6 @@ pub fn verification_claim_hash(claim_text: &str) -> String {
     crate::wiki::sha256_hex(normalized.as_bytes())[..32].to_owned()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::verification_claim_hash;
-
-    #[test]
-    fn claim_hash_normalizes_case_and_whitespace_before_hashing() {
-        assert_eq!(
-            verification_claim_hash("  A\tB  "),
-            "c8687a08aa5d6ed2044328fa6a697ab8"
-        );
-    }
-}
-
 impl Database {
     pub async fn get_verification_cache_now(
         &self,
@@ -158,5 +145,18 @@ impl Database {
         now: DateTime<Utc>,
     ) -> Result<u64, sqlx::Error> {
         clear_expired_verification_cache(&self.pool, now).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verification_claim_hash;
+
+    #[test]
+    fn claim_hash_normalizes_case_and_whitespace_before_hashing() {
+        assert_eq!(
+            verification_claim_hash("  A\tB  "),
+            "c8687a08aa5d6ed2044328fa6a697ab8"
+        );
     }
 }
