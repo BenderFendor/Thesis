@@ -1,0 +1,22 @@
+{
+  "command": [
+    "env",
+    "RUSTFLAGS=-Dwarnings",
+    "cargo",
+    "check",
+    "--manifest-path",
+    "backend/Cargo.toml",
+    "--locked",
+    "--workspace",
+    "--all-targets"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 7.741,
+  "max_rss_kb": 482744,
+  "returncode": 101,
+  "stderr_tail": "   Compiling sqlx-postgres v0.8.6\n    Checking thesis-runtime v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-runtime)\n    Checking rss_parser_rust v0.1.0 (/home/bender/classwork/Thesis/backend/rss_parser_rust)\n   Compiling sqlx-macros-core v0.8.6\n   Compiling sqlx-macros v0.8.6\n    Checking sqlx v0.8.6\n    Checking thesis-db v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-db)\n    Checking thesis-api v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-api)\nerror: variable does not need to be mutable\n   --> crates/thesis-api/src/core.rs:485:13\n    |\n485 |         let mut sorted = categories\n    |             ----^^^^^^\n    |             |\n    |             help: remove this `mut`\n    |\n    = note: `-D unused-mut` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(unused_mut)]`\n\nerror: associated function `new` is never used\n   --> crates/thesis-api/src/profiling.rs:185:19\n    |\n183 | impl ProfilingState {\n    | ------------------- associated function in this implementation\n184 |     /// Build state from an adapter owned by the integrator.\n185 |     pub(crate) fn new(observer: Option<Arc<dyn ProfilingObserver>>) -> Self {\n    |                   ^^^\n    |\n    = note: `-D dead-code` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`\n\nerror: field `limit` is never read\n   --> crates/thesis-api/src/profiling.rs:471:5\n    |\n469 | struct SlowEndpointsParameters {\n    |        ----------------------- field in this struct\n470 |     #[param(required = false, default = 5)]\n471 |     limit: Option<i64>,\n    |     ^^^^^\n    |\n    = note: `SlowEndpointsParameters` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nerror: variant `Failed` is never constructed\n  --> crates/thesis-api/src/source_catalog.rs:43:5\n   |\n39 | pub(crate) enum SourceCatalogIntegrationError {\n   |                 ----------------------------- variant in this enum\n...\n43 |     Failed(String),\n   |     ^^^^^^\n   |\n   = note: `SourceCatalogIntegrationError` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis\n\nerror: associated function `new` is never used\n   --> crates/thesis-api/src/source_catalog.rs:139:19\n    |\n138 | impl SourceCatalogState {\n    | ----------------------- associated function in this implementation\n139 |     pub(crate) fn new(\n    |                   ^^^\n\nerror: could not compile `thesis-api` (lib) due to 4 previous errors\nwarning: build failed, waiting for other jobs to finish...\nerror: could not compile `thesis-api` (lib test) due to 5 previous errors",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

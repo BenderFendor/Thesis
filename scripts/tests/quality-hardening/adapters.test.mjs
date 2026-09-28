@@ -34,3 +34,8 @@ void test("Oxlint normalization preserves severity and rule counts", () => {
   assert.deepEqual(report.by_rule["eslint/no-null"], { errors: 1, warnings: 0 });
   assert.equal(report.findings[1].level, "w");
 });
+
+void test("Oxlint normalization tolerates malformed optional label fields", () => {
+  const input = { diagnostics: [{ labels: [null] }, { labels: [{ span: "invalid" }] }] };
+  assert.equal(parseReport(JSON.stringify(input), "/repo").findings.length, 2);
+});

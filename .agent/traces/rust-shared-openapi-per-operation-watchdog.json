@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "-c",
+    "import json, pathlib, subprocess; inventory = json.loads(pathlib.Path(\"docs/agents/rust-openapi-operation-inventory.json\").read_text(encoding=\"utf-8\")); results = {}; passed = []; failed = []; for operation_id in inventory[\"shadow_operation_ids\"]: result = subprocess.run([\"python3\", \"scripts/check_openapi_compat.py\", \"backend/openapi.json\", \".agent/traces/rust-openapi-current.json\", \"--operation-id\", operation_id], cwd=\".\", capture_output=True, text=True, check=False); results[operation_id] = {\"returncode\": result.returncode, \"stdout\": result.stdout, \"stderr\": result.stderr}; (passed if result.returncode == 0 else failed).append(operation_id); print(f\"PASS {operation_id}\" if result.returncode == 0 else f\"FAIL {operation_id}\\n{result.stdout}{result.stderr}\"); pathlib.Path(\".agent/traces/rust-openapi-per-operation.json\").write_text(json.dumps({\"passed\": passed, \"failed\": failed, \"results\": results}, indent=2) + \"\\n\", encoding=\"utf-8\"); raise SystemExit(0 if not failed else 1)"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 0.038,
+  "max_rss_kb": 18340,
+  "returncode": 1,
+  "stderr_tail": "  File \"<string>\", line 1\n    import json, pathlib, subprocess; inventory = json.loads(pathlib.Path(\"docs/agents/rust-openapi-operation-inventory.json\").read_text(encoding=\"utf-8\")); results = {}; passed = []; failed = []; for operation_id in inventory[\"shadow_operation_ids\"]: result = subprocess.run([\"python3\", \"scripts/check_openapi_compat.py\", \"backend/openapi.json\", \".agent/traces/rust-openapi-current.json\", \"--operation-id\", operation_id], cwd=\".\", capture_output=True, text=True, check=False); results[operation_id] = {\"returncode\": result.returncode, \"stdout\": result.stdout, \"stderr\": result.stderr}; (passed if result.returncode == 0 else failed).append(operation_id); print(f\"PASS {operation_id}\" if result.returncode == 0 else f\"FAIL {operation_id}\\n{result.stdout}{result.stderr}\"); pathlib.Path(\".agent/traces/rust-openapi-per-operation.json\").write_text(json.dumps({\"passed\": passed, \"failed\": failed, \"results\": results}, indent=2) + \"\\n\", encoding=\"utf-8\"); raise SystemExit(0 if not failed else 1)\n                                                                                                                                                                                                     ^^^\nSyntaxError: invalid syntax",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

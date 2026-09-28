@@ -1,5 +1,227 @@
 # Learnings
 
+Current (2026-09-29): Rust exposes 143/178 HTTP operations (106 parity-proven,
+37 registered but unverified; 35 unregistered). Route presence alone leaves
+parity unverified. B04 `/debug/startup` uses shared `ProfilingState`;
+`/debug/database/articles` is also always mounted with the root `Database`;
+provider-backed Rust debug routes remain optional. B12 mounts 2/6 reads; B13
+preserves top-ten/null ordering; B14 enrichment remains unavailable. B15
+registers Atlas routes; B16 claim materialization is a shadow, while proof ZIP
+remains blocked.
+FastAPI stays public.
+
+## 2026-09-29: Preserve nullable wiki-status response validation
+
+The tracked `WikiIndexStatus` schema uses an `Integer` primary key and a
+nullable `String` status (`Column(String, default="pending")` has no
+`nullable=False`). FastAPI's `dict[str, int]` response rejects a null status
+key with HTTP 500. Rust's prior `unwrap_or_default()` turned that null into an
+empty-string bucket; returning 500 preserves the observable validation error.
+Keep the read route `migrated:false`; a real-database HTTP differential is
+meaningful because it compares successful grouped counts and the nullable-row
+failure through both public surfaces. It requires the wiki status schema and a
+prebuilt Rust server and was not run under the no-Rust-runtime gate.
+
+## 2026-09-29: Preserve per-route debug availability
+
+FastAPI includes `debug.router` unconditionally, and
+`get_startup_metrics` has no debug-mode check. Rust's `debug::router` is optional
+behind `RouterSidecars.debug_config`, so mount only `/debug/startup` on the root
+router with the shared `ProfilingState`; remove that duplicate from the optional
+router to avoid a merged GET path. Keep provider-backed debug handlers
+optional. Reuse the existing startup response projection and document only the
+200 `StartupMetricsResponse` required by FastAPI's static OpenAPI contract.
+Registration does not prove runtime availability or FastAPI parity.
+
+
+## 2026-09-29: Use the root database state for debug article listing
+
+FastAPI includes `GET /debug/database/articles` through its unconditional debug
+router and gates it with `settings.enable_database` plus the session factory.
+Rust's default root owns a real `Database`, so this read-only operation belongs
+on `State<AppState>` rather than the optional `DebugRuntimeProvider`. Use the
+`DebugConfig.enable_database` value when a sidecar is supplied; otherwise mirror
+FastAPI's `ENABLE_DATABASE` false values (`0`, `false`, `False`, and empty) from
+the process environment. Rust's server does not itself load `.env`. Validate
+query inputs before returning the disabled-database response.
+
+Pydantic boolean parsing rejects surrounding whitespace while accepting
+case-insensitive literals. Compare the raw query directly with
+`eq_ignore_ascii_case` instead of trimming or allocating a lowercase copy. Route
+registration and source tests do not establish runtime or FastAPI parity.
+
+## 2026-09-29: Keep claim materialization token-gated and shadow-only
+
+The B16 claim materializer reads `SCOOP_MATERIALIZE_TOKEN` at request time,
+requires the reviewer header, reuses `Database::materialize_claim`, and reloads
+the exact relationship through the existing listing API. Its structured success
+log includes claim ID, reviewer, and relationship ID without the token.
+The complete-control query parser must not trim whitespace. A local
+`TypeAdapter(bool)` probe accepted `"true"` but rejected `" true"`, `"true "`,
+and `" true "` as `bool_parsing`; uppercase spellings remain accepted.
+Query and header tests plus central OpenAPI assertion cover the local contract,
+but do not prove database/runtime behavior or FastAPI parity.
+Transaction boundary also differs: Rust commits before reload/conversion, so a
+later failure can return 500/422 after the write persists. On conflict,
+`backend/crates/thesis-db/src/atlas_materialization.rs:701-715` commits an
+adjudication item before returning `EvidenceSpine`; Rust returns 422 with the
+item persisted while FastAPI's `get_db` rolls back the exception.
+`thesis-db` edits are out of scope. Keep `migrated:false` and FastAPI public
+until this risk and shadow behavior are resolved and verified.
+
+## 2026-09-29: Reuse the Atlas projection for stats
+
+Atlas stats needs full entity and research-coverage totals while relation counts
+follow the visible 2,500-edge graph response. Reuse `graph::project` and
+`graph::build_response` with all four entity types and no node cap instead of
+adding a second graph aggregation. The persisted `auto_ingest/atlas_pipeline`
+success timestamp is an existing cache key: checking it through
+`wiki_index_entries` makes the five-minute Rust cache notice a network-bound
+success on the next request without changing `thesis-db`.
+
+## 2026-09-27: Keep Atlas index query and cursor semantics shared
+
+The Atlas index should use the production graph projection for `q` rather than
+introducing a second local search filter. Move parsed entity, query, country,
+funding, and bias fields into graph filters; pass only kind, sort, cursor, and
+limit to page shaping to avoid cloning query values. Build the kind facet before
+kind filtering and the other facets after kind filtering but before pagination.
+
+FastAPI `_decode_cursor` pads `urlsafe_b64decode`, decodes ASCII, and catches
+`ValueError` plus `UnicodeDecodeError`. The standard-library probe returned 1
+for `M=Q` and `M!Q`, and 0 for `MQ===ignored`, raw `é`, and base64-encoded
+non-ASCII digit/whitespace payloads. `UnicodeEncodeError` is a `ValueError`;
+invalid input is a zero-offset fallback, not an HTTP error. Rust source tests pin
+these cases but remain unrun while the shared Cargo lock gate is closed.
+
+## 2026-09-27: Keep Atlas export encoding and validation explicit
+
+The Rust shadow export uses the existing Atlas projection and keeps each
+FastAPI attachment contract separate: JSON and entity, relationship, and
+evidence CSV have exact filenames, media types, ordered fields, and download
+headers. Python's CSV writer stringifies floats (`1.0` stays `1.0`), quotes
+only fields containing separators, quotes, or newlines, and writes CRLF rows.
+The CSV float renderer writes into the row buffer and allocates only a
+temporary digit representation.
+
+JSON evidence deduplication keeps the first position for an edge key while
+replacing its value with the last occurrence; evidence CSV preserves repeated
+rows. A truthy `selected_entity` overrides `filters.selected`; an empty string
+falls through. `include_evidence` controls the projection preview. Body `q`
+and `selected` have no graph-query length caps. The byte-body parser maps
+malformed JSON, model errors, and invalid export filters to `HttpValidationError`
+responses with status 422.
+
+Ten source tests and the central OpenAPI regression were added but not run.
+The bounded localhost:8000 FastAPI attempt could not connect, so no runtime
+response or parity claim is available. FastAPI remains public.
+
+
+## 2026-09-26: Preserve Python integer-key order in trace hashes
+
+Python canonical JSON sorting orders integer dictionary keys numerically before
+serializing them as JSON strings. `serde_json::Value::Object` stores those keys
+as strings, where lexical ordering puts `"10"` before `"2"`. The Rust trace
+canonicalizer therefore sorts the `article_authors` keys as integers before
+hashing. `byline_trace_hash_matches_python_numeric_key_ordering` pins the
+expected `calc_caec68386d72934d90b0733625034a5d` for keys 2 and 10. The
+regression test is source-added but remains unrun while the Cargo lock gate is
+closed.
+
+## 2026-09-26: Preserve query row order in media traces
+
+`load_media_measurement_data` orders author rows by `(article_id, reporters.name)`
+and leaves ownership relationships unordered. FastAPI keeps raw author rows in
+the byline subgraph, derives coauthor pairs from `sorted(set(names))`, and emits
+reporter movements in first-seen reporter order. Its ownership trace preserves
+fetched `relationship_ids`; `Counter.most_common()` keeps first-seen order for
+equal counts, and HHI sums counts in insertion order. Rust must not add another
+sort: retain input order for the byline subgraph, reporter movement, relationship
+IDs, owner ties, and HHI; sort/deduplicate only a separate byline view for pairs.
+Static Rust fixtures check calculation order but do not verify SQL collation or
+loader behavior; Cargo proof remains gated.
+
+## 2026-09-25: SQLx test macros need migration support
+
+`#[sqlx::test]` in `thesis-db` requires SQLx's `migrate` feature. The crate
+lists SQLx features explicitly, so add `migrate` when using this macro. A
+focused GDELT query regression compiled and passed against a disposable local
+PostgreSQL cluster.
+
+## 2026-09-25: Separate Rust registration from migration parity
+
+An Axum router merge or `utoipa::path` annotation proves only that an operation
+is declared/mounted. Keep the inventory `migrated` flag false until the same
+consumer-visible behavior is demonstrated against FastAPI. Current counts are
+106 parity-proven, 27 additional mounted shadow operations, and 45 pending
+operations without a Rust route; FastAPI remains the public listener.
+
+The inventory's `rust_registered` field records runtime route presence on all
+72 pending rows; 27 registered and 45 unregistered remain distinct from parity.
+
+The debug `/debug/logs/events` ring is process-local and populated by Rust
+frontend-report ingestion; it does not aggregate Python `debug_logger` request,
+stream, cache, database, or RSS events. Verification's module annotations cover
+six operations, but only the environment-backed status and domain reads are
+mounted; provider/cache/workspace operations and buffered non-incremental SSE
+remain absent.
+
+B13 registers three GDELT reads and the persisted blindspot viewer but keeps all
+four unmigrated. Its SQL regression proves a NULL group with count three consumes
+a top-ten slot before filtering, while sync and five Chroma-dependent/write
+blindspot operations remain unregistered. The B14 reporter dossier serves
+persisted profile/recent articles, but activity, career-timeline, and employer
+enrichments remain unavailable; a response projection and merge-cycle test do
+not prove DB-backed merge-chain parity.
+
+## 2026-09-23 — Keep exact ownership-interest evidence split by boundary
+
+The ownership-interest slice has three separate contracts: exact
+finite-decimal arithmetic in `thesis-evidence`, SQLx loading of non-retracted
+`owns_equity_in` and `directly_owns` rows from `accepted_relationships`, and
+Axum query validation plus OpenAPI serialization. The loader prefers point
+`pct` over `pct_band`; malformed or unquantified qualifiers are skipped and
+domain errors surface.
+
+The rebuilt-server Python HTTP differential passes one pytest with four
+pre-existing deprecation warnings. Focused Rust tests pass 45 cases (18
+`thesis-api`, 9 `thesis-db`, and 18 `thesis-evidence`), and the workspace
+passes 149 tests (34 `rss_parser_rust`, 18 `api`, 9 `db`, 18 `evidence`, 16
+`ingest`, and 54 `search`). Strict Clippy and formatting pass, the server
+builds, and the OpenAPI checker passes all seven operation IDs. FastAPI remains
+public, and no new formal model run or Rust refinement proof is claimed.
+
+
+## 2026-09-23 — Move pure RSS logic behind the existing PyO3 surface
+
+The RSS HTML cleaner and metadata extractor were already pure Rust modules with
+unit tests. Moving those modules into `thesis-ingest` let the feed parser and
+existing PyO3 wrappers call one implementation while keeping Python imports
+stable. Use this boundary for later extractions; retain the bridge until runtime
+callers move and corpus parity is measured.
+
+## 2026-09-23 — Prove the decision kernel used by the service
+
+Kani explored the policy decisions quickly after the HTTP and evidence strings
+were reduced to typed counts and flags at the pure boundary. The Rust evaluator
+and the Kani harness call the same failure-mask function; SQL and serialization
+remain integration-tested. Record that scope instead of calling the full
+service verified.
+
+For route parity, send the same requests through FastAPI and the Rust listener
+against one Alembic-migrated PostgreSQL database. PyO3 comparison alone cannot
+check SQL mapping, HTTP errors, or route serialization.
+
+## 2026-09-23 — Verify source-host rules at both string and byte boundaries
+
+Python `str.strip()` removes U+001C through U+001F, unlike Rust `str::trim()`.
+Generated Unicode differential cases found the gap. Mutation testing also
+exposed that an empty host could match a fully qualified trailing-dot host if
+the empty guard changed from `||` to `&&`; keep both as explicit regressions.
+Kani can check the production byte-suffix helper with fixed symbolic arrays.
+The Verus sequence proof covers the general label-boundary rule but is an
+abstract model, not a proof of the Rust function.
+
 ## 2026-09-11 — Preserve OpenCode attribution through compatible clients
 
 OpenCode's Zen endpoint is OpenAI-compatible at the payload level but its free gateway also
@@ -828,3 +1050,64 @@ self-contained renderer or overlay group clears the structural finding while pre
 existing prop flow. Verify the extracted runtime path before staging; generic readonly wrappers
 remain a poor fit for nested service and third-party types when the rule still reports the
 boundary.
+
+## 2026-09-23 — Aggregate duplicate substring aliases before indexing
+
+When a text matcher stores duplicate patterns as separate automaton entries, a
+match can return only one of several associated domain identities. Normalize and
+deduplicate pattern keys first, attach the full candidate set to each key, then
+build the automaton in sorted order. Test both complete-token and substring-only
+paths because exact token lookup can hide the duplicate-pattern defect.
+
+## 2026-09-23 — Verus finite-sequence membership model
+
+When specifying roots drawn from a sequence, express membership with an
+existential index rather than constructing `Set::new`, which returns an
+`Option<Set<_>>` for predicates that may not be finite. Use `implies` inside
+`assert forall` proofs so the antecedent is available in the proof body. The
+evidence-root model proves duplicate-root stability over arbitrary sequence
+lengths without claiming Rust refinement.
+
+## 2026-09-23 — Preserve Python regex word boundaries in Rust
+
+Python `re` word boundaries do not match Rust regex or
+`char::is_alphanumeric` for every Unicode character. When porting an ASCII token
+pattern with `\b`, test combining marks, letter numbers, numeric symbols, and
+Unicode-version changes explicitly. Probe optional trailing punctuation before
+a final boundary too; `%?` can backtrack and change the match. The comparison
+keyword port uses Unicode general categories and a Python-version-aware
+Extension I boundary; its Kani proof covers sort priority only. See
+`docs/agents/traces/rust-comparison-keywords.md`.
+
+The Rust discovery lineage Python probe returned
+`{'中10文': [], '10文': [], '中10': [], '١٢': ['١٢'], 'س١٢': []}`. Source
+inspection of the ASCII-byte Rust helper predicts `10` for the CJK-adjacent
+inputs and no Arabic-Indic matches. The percent-boundary regression covers
+ASCII examples only; it does not resolve this Unicode mismatch.
+
+## 2026-09-25: Preserve Python duplicate-key semantics in Rust catalog loading
+
+Python's `json.load` keeps a duplicate object key at its first insertion position
+and replaces its value with the later value. The checked-in RSS catalog contains
+duplicate `MercoPress` keys. The later value must win without moving the source
+name.
+
+The Rust catalog loader uses a `MapAccess` visitor and ordered key/value entries.
+It replaces a duplicate value at its existing position.
+`catalog_object_uses_last_duplicate_value_and_first_position` checks both
+outcomes, and `configured_catalog_names_are_unique` checks the decoded names.
+
+## 2026-09-25: Keep cache and provider parity claims bounded
+
+B04 `GET /debug/cache/articles` tests seed process-local Rust cache state. The
+production server starts with an empty cache state and does not attach a refresh
+provider or share FastAPI's `NewsCache`; route tests therefore do not establish
+live cache parity, database-backed behavior, or RSS refresh behavior.
+
+B06 provider tests use a local fixture server and the route tests inject a
+provider. Rust sends one request without retry. FastAPI OpenRouter and llama.cpp
+clients use the OpenAI SDK default of two retries, while OpenCode sets
+`max_retries=0`. These tests do not establish live provider availability,
+completion quality, or retry parity. See
+`docs/agents/traces/rust-queue-digest-cache-debug-2026-09-25.md`.
+

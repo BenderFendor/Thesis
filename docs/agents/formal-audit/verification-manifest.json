@@ -1,0 +1,1058 @@
+{
+  "schema_version": 1,
+  "updated": "2026-09-23",
+  "entries": [
+    {
+      "id": "evidence.catalog_only_never_accepts",
+      "implementation": "backend/crates/thesis-evidence/src/lib.rs::decision_failures",
+      "status": "verified_for_kernel",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 cargo kani --manifest-path backend/Cargo.toml -p thesis-evidence --default-unwind 4 --output-format terse",
+          "result": "passed",
+          "toolchain": "cargo-kani 0.68.0; CBMC 6.11.0; RUSTUP_TOOLCHAIN=1.98.1",
+          "scope": "The thesis-evidence package completed all 6/6 harnesses with 0 failures. This includes the production allocation-free acceptance kernel rejecting catalog-only evidence when policy forbids it and a separate fixed registry-fact harness proving an accepted case is reachable.",
+          "bound": "Default unwind 4; facts range over arbitrary u8-derived counts and booleans.",
+          "assumptions": []
+        },
+        {
+          "method": "python_rust_differential",
+          "command": "backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_differential.py",
+          "result": "passed",
+          "scope": "34 policy rows and eight explicit decision cases through PyO3."
+        },
+        {
+          "method": "postgres_http_differential",
+          "command": "THESIS_TEST_DATABASE_URL=<disposable Alembic database> backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_http_differential.py",
+          "result": "passed_locally",
+          "scope": "Catalog-only claim returns the same decision and counts from FastAPI and Axum over the same PostgreSQL rows."
+        }
+      ],
+      "limitations": [
+        "Kani verifies the acceptance kernel and root deduplication helper, not SQLx, HTTP transport, or the full evaluator's String/Vec data collection."
+      ]
+    },
+    {
+      "id": "evidence.failure_reasons_match_failure_bits",
+      "implementation": "backend/crates/thesis-evidence/src/lib.rs::{acceptance_reasons,decision_failures}",
+      "status": "mutation_checked",
+      "verification": [
+        {
+          "method": "rust_unit_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-evidence",
+          "result": "passed",
+          "scope": "Tests each failure bit's exact user-facing reason, review and policy boundaries, and empty-evidence semantics."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-evidence --package thesis-search --re '<selected evidence and ranking functions>' --exclude-re '<three equivalent substitutions>' --jobs 2 --timeout 30",
+          "result": "passed",
+          "scope": "All 55 selected thesis-evidence mutants were caught. One XOR-for-OR mutation was excluded because the review and policy failure masks occupy disjoint bits."
+        }
+      ],
+      "limitations": [
+        "This covers the selected pure functions, not Python proof-suite mutation classes, SQLx, or the complete backend."
+      ]
+    },
+    {
+      "id": "evidence.distinct_roots_count_once",
+      "implementation": "backend/crates/thesis-evidence/src/lib.rs::distinct_count",
+      "status": "verified_for_helper",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-evidence --default-unwind 4",
+          "result": "passed",
+          "scope": "A three-element symbolic array stays within its count bound; a fixed duplicate witness counts once; a symbolic two-root harness proves appending the second root again preserves the production distinct count.",
+          "assumptions": [],
+          "bound": "Default unwind 4; symbolic u8 roots; no assumptions."
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-evidence",
+          "result": "passed",
+          "scope": "Adding observations from one root does not change independent-root count or acceptance."
+        },
+        {
+          "method": "postgres_http_differential",
+          "command": "THESIS_TEST_DATABASE_URL=<disposable Alembic database> backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_http_differential.py",
+          "result": "passed_locally",
+          "scope": "A copied document shares its lineage root; an unrelated registry document adds the second root."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-evidence/verus/independent_roots.rs",
+          "result": "passed",
+          "scope": "For arbitrary sequence lengths, appending a qualifying observation from an already represented root leaves membership unchanged for every root. This is an abstract model, not a Rust refinement proof."
+        }
+      ]
+    },
+    {
+      "id": "api.contract.evidence_claim_evaluate",
+      "implementation": "backend/crates/thesis-api/src/lib.rs::evaluate_claim",
+      "status": "verified_for_operation",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post",
+          "result": "passed",
+          "scope": "Path, method, operation ID, request requiredness and schema, response status codes and schemas."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "THESIS_TEST_DATABASE_URL=<disposable Alembic database> backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_http_differential.py",
+          "result": "passed_locally",
+          "scope": "Ten valid, missing-claim, and invalid-field requests compare status and JSON response over one migrated PostgreSQL database."
+        }
+      ],
+      "limitations": [
+        "The Rust listener also serves personalized ranking, but FastAPI remains the public application server."
+      ]
+    },
+    {
+      "id": "api.contract.evidence_policies",
+      "implementation": "backend/crates/thesis-api/src/lib.rs::get_evidence_policies",
+      "status": "verified_for_operation",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id get_evidence_policies_api_wiki_evidence_policies_get",
+          "result": "passed",
+          "scope": "GET path, operation ID, 200 response schema, and optional policy flags match the checked-in contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "GET policy response status and all rows match FastAPI over the disposable Alembic database; the route performs no database query."
+        }
+      ],
+      "limitations": [
+        "The route is shadow-only; FastAPI remains the public server."
+      ]
+    },
+    {
+      "id": "api.contract.evidence_claim_read",
+      "implementation": "backend/crates/thesis-api/src/claims.rs::get_claim",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id get_evidence_claim_api_wiki_evidence_claims__claim_id__get",
+          "result": "passed",
+          "scope": "Path parameter requiredness, operation ID, 200/422 status codes, nullable fields, enums, and nested response schemas match. The runtime 404 is absent from the FastAPI OpenAPI artifact and is checked by HTTP differential instead."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "Three present claims and one missing claim match status and response JSON over PostgreSQL. Observation arrays are sorted only for comparison because Python does not specify their query order."
+        }
+      ],
+      "limitations": [
+        "This slice covers a read query and its response mapping; it does not verify evidence writes or transaction rollback. FastAPI remains public."
+      ]
+    },
+    {
+      "id": "persistence.claim_record_read",
+      "implementation": "backend/crates/thesis-db/src/claim_record.rs::load_claim_record",
+      "status": "database_differential",
+      "verification": [
+        {
+          "method": "rust_unit_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-db",
+          "result": "passed",
+          "scope": "Typed claim/observation mapping preserves nested JSON shapes and naive timestamps."
+        },
+        {
+          "method": "disposable_postgresql_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "SQLx reads Alembic-managed claim and linked-observation rows and returns the same claim response as SQLAlchemy."
+        }
+      ],
+      "limitations": [
+        "The typed query has no ordering clause, matching the existing Python query. The test canonicalizes only the unordered observation list."
+      ]
+    },
+    {
+      "id": "api.validation_errors_match_fastapi",
+      "implementation": "backend/crates/thesis-api/src/lib.rs::evaluate_claim and request parsing",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "same_request_http_differential",
+          "command": "THESIS_TEST_DATABASE_URL=<disposable Alembic database> backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_http_differential.py",
+          "result": "passed_locally",
+          "scope": "Ten identical requests compare FastAPI and Axum status and JSON, including required fields, wrong types, null boolean, invalid claim ID, Pydantic boolean coercion, and ignored extra fields."
+        }
+      ],
+      "limitations": [
+        "This entry covers evidence-evaluation input validation; other FastAPI request models remain unmigrated."
+      ]
+    },
+    {
+      "id": "ingest.html_cleanup_and_metadata_extraction",
+      "implementation": "backend/crates/thesis-ingest/src/{cleaner.rs,html_extract.rs}",
+      "status": "extraction_checked",
+      "verification": [
+        {
+          "method": "rust_workspace_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "The three cleaner and article-extraction unit tests run from thesis-ingest. The extraction checkpoint passed all 61 workspace tests; the current full workspace run passed all 90 tests."
+        },
+        {
+          "method": "pyo3_integration_smoke",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_extraction_image_flow.py tests/test_image_extraction.py",
+          "result": "passed",
+          "scope": "14 extraction/image integration tests and a direct PyO3 smoke check passed after rebuilding the extension."
+        }
+      ],
+      "limitations": [
+        "This was a Rust module extraction; it did not establish Python-versus-Rust corpus parity or a Kani proof for these functions."
+      ]
+    },
+    {
+      "id": "ingest.gdelt_parser_skips_invalid_rows_and_respects_limit",
+      "implementation": "backend/crates/thesis-ingest/src/gdelt.rs::{parse_gdelt_tsv,filter_events_by_domain}",
+      "status": "property_tested",
+      "verification": [
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "Generated rows with missing IDs/URLs and limits 0 through 24 preserve valid input order, skip invalid identity rows, and never exceed the requested limit."
+        },
+        {
+          "method": "pyo3_wrapper_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_rank_boundary.py tests/test_rust_gdelt_boundary.py tests/test_rust_evidence_differential.py tests/test_extraction_image_flow.py tests/test_image_extraction.py",
+          "result": "passed",
+          "scope": "20 focused tests passed, including GDELT wrapper behavior, ranking wrapper behavior, evidence differential cases, and existing image extraction coverage."
+        }
+      ],
+      "limitations": [
+        "No Kani proof or independent Python GDELT parser differential is claimed; Python-visible PyO3 functions remain the compatibility boundary."
+      ]
+    },
+    {
+      "id": "ingest.gdelt_invalid_date_does_not_panic",
+      "implementation": "backend/rss_parser_rust/src/gdelt.rs::record_to_pydict",
+      "status": "regression_tested",
+      "verification": [
+        {
+          "method": "pyo3_regression_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_gdelt_boundary.py tests/test_rust_evidence_differential.py tests/test_extraction_image_flow.py tests/test_image_extraction.py",
+          "result": "passed",
+          "scope": "The focused 20-test suite includes an eight-byte malformed SQLDATE containing a multibyte UTF-8 character; conversion returns the UTC epoch fallback without panicking."
+        }
+      ],
+      "limitations": [
+        "This is a Python/Rust wrapper regression test, not a Kani proof or independent GDELT parser differential."
+      ]
+    },
+    {
+      "id": "gdelt.cameo_root_normalization_is_idempotent",
+      "implementation": "backend/crates/thesis-ingest/src/gdelt_taxonomy.rs::{first_two_ascii_digits,normalize_cameo_root_code}",
+      "status": "bounded_kernel_and_abstract_model_verified",
+      "verification": [
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-ingest",
+          "result": "passed",
+          "scope": "Generated ASCII input strings normalize idempotently to either None or exactly two ASCII digits."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4 --harness first_two_digit_normalization_matches_the_stream_reference --output-format terse",
+          "result": "passed",
+          "scope": "The production byte helper matches a position-based reference for every symbolic four-byte input, returns only ASCII digits, and includes fixed no-digit, one-digit, and two-digit witnesses.",
+          "bound": "Default unwind 4; harness override 5; symbolic [u8; 4]; 0 of 330 checks failed and one standard-library formatting check was unreachable.",
+          "assumptions": []
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-ingest/verus/cameo_root_normalization.rs",
+          "result": "passed",
+          "scope": "Five proof obligations establish first-two-digit ordering, two-digit ASCII output, no-digit None, one-digit zero-padding, and a reachable one-digit witness over arbitrary finite byte sequences; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_gdelt_taxonomy.py",
+          "result": "passed",
+          "scope": "Python public function names return the captured normalization and label results; the aggregate caller also consumes the Rust-backed functions."
+        }
+      ],
+      "limitations": [
+        "Kani covers four-byte inputs to the production helper, not unbounded strings or String serialization. Verus is an abstract sequence model and does not prove Rust refinement.",
+        "The domain core accepts ASCII digits for canonical CAMEO identifiers. The old Python str.isdigit helper also accepted some Unicode numerals; those malformed non-ASCII identifiers are intentionally rejected."
+      ]
+    },
+    {
+      "id": "gdelt.goldstein_bucket_matches_thresholds",
+      "implementation": "backend/crates/thesis-ingest/src/gdelt_taxonomy.rs::goldstein_bucket",
+      "status": "verified_for_kernel",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4",
+          "result": "passed",
+          "scope": "One harness checks arbitrary f64 values against the production +/-4.0 enum decisions and checks the absent-value case.",
+          "bound": "Default unwind 4; one harness; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "rust_and_pyo3_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-ingest && cd backend && .venv/bin/pytest -q tests/test_rust_gdelt_taxonomy.py",
+          "result": "passed",
+          "scope": "Tests exact threshold neighbors, NaN as mixed, and the article GDELT context caller."
+        }
+      ],
+      "limitations": [
+        "Kani proves the scalar enum decision, not the Python serialization adapter or API transport."
+      ]
+    },
+    {
+      "id": "gdelt.dominant_roots_preserve_counts_and_ties",
+      "implementation": "backend/crates/thesis-ingest/src/gdelt_taxonomy.rs::dominant_cameo_roots",
+      "status": "property_and_boundary_tested",
+      "verification": [
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-ingest",
+          "result": "passed",
+          "scope": "Generated code lists respect the requested limit and descending count order."
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_gdelt_taxonomy.py",
+          "result": "passed",
+          "scope": "A captured tie case preserves first occurrence, root labels, negative-limit behavior, and output dictionaries."
+        }
+      ],
+      "limitations": [
+        "The property does not exhaust all possible event-list permutations; the explicit fixture checks the most-common tie rule."
+      ]
+    },
+    {
+      "id": "ranking.score_caps_and_priority_order",
+      "implementation": "backend/crates/thesis-search/src/ranking.rs::rank_articles",
+      "status": "property_boundary_mutation_tested",
+      "verification": [
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated article lists preserve result count, finite and capped score components, bucket bounds, the six-keyword limit, and bucket/score ordering."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "Two of five thesis-search harnesses prove the priority bucket encodes both booleans and cap_score returns a finite value in range for any symbolic f64 input.",
+          "bound": "Default unwind 4; two harnesses; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_rank_boundary.py",
+          "result": "passed",
+          "scope": "The PyO3 adapter preserves result fields and bucket order and skips an article with no ID."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-evidence --package thesis-search --re '<selected evidence and ranking functions>' --exclude-re '<three equivalent substitutions>' --jobs 2 --timeout 30",
+          "result": "passed",
+          "scope": "All 63 selected thesis-search ranking mutants were caught. Two empty-key condition mutations were excluded because profile construction omits empty category and source keys."
+        }
+      ],
+      "limitations": [
+        "Kani covers the scalar cap and bucket helpers, not collection-based scoring. The PyO3 wrapper test has explicit expected results but is not an independent Python scorer comparison; no Criterion baseline exists yet."
+      ]
+    },
+    {
+      "id": "country.aliases_preserve_all_matching_codes",
+      "implementation": "backend/crates/thesis-search/src/country_mentions.rs::CountryAliases",
+      "status": "property_boundary_mutation_tested_with_documented_legacy_changes",
+      "verification": [
+        {
+          "method": "rust_unit_and_proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "The workspace package passes 25 tests. Country cases cover sorted unique results, all candidates for shared aliases, acronym case, longest-alias precedence, accented uppercase text, full-range suppression, shared substring matches, empty input, article joining, generated monotonicity, and generated nested-span transitivity."
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_country_mentions.py",
+          "result": "passed",
+          "scope": "Six service tests cover reviewed alias expectations, a Hypothesis text corpus, direct-text/article-path parity, uppercase accented aliases, shared substring matches, and replacing the active alias snapshot on reload."
+        },
+        {
+          "method": "legacy_snapshot_comparison",
+          "command": "One-off comparison of the 5,855 generated alias inputs against the legacy snapshot; see docs/agents/traces/rust-country-mentions.md",
+          "result": "completed_with_documented_domain_changes",
+          "scope": "190 outputs differed across 48 base aliases. The observed changes include all-candidate results for shared aliases and suppression of nested alias false positives in longer names."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path /tmp/thesis-mutants-work/Cargo.toml --package thesis-search --file crates/thesis-search/src/country_mentions.rs --re '.*in (new|extract|extract_article|build_article_text|add_alias|insert_alias|is_textual_alias|requires_exact_token_match|tokens|lowered_tokens|original_tokens|add_pattern_mentions|add_token_mentions|match_alias_at|is_inside_alias_range)$' --jobs 2 --timeout 30 --output /tmp/thesis-mutants-country-final",
+          "result": "passed",
+          "scope": "All 17 selected country matcher mutants were caught with no exclusions in an isolated workspace copy."
+        }
+      ],
+      "limitations": [
+        "The legacy result snapshot came from one process; the old matcher returned different shared-alias candidates across processes because pattern selection depended on hash iteration. The 5,855-input result is therefore a reviewed behavior comparison, not a strict parity pass.",
+        "Kani was not applied to the regex/Aho-Corasick heap-based matcher. No Loom or parser fuzz campaign exists for this slice."
+      ]
+    },
+    {
+      "id": "topics.keyword_outputs_are_unique_and_bounded",
+      "implementation": "backend/crates/thesis-search/src/topics.rs::extract_keywords",
+      "status": "property_and_boundary_tested",
+      "verification": [
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated ASCII titles preserve keywords under case and outer-whitespace changes; generated text produces unique output of at most ten keywords."
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_topic_boundary.py",
+          "result": "passed",
+          "scope": "Existing binding functions return the captured normalized keyword order, cross-title deduplication, and label result."
+        }
+      ],
+      "limitations": [
+        "Python topic orchestration calls this Rust implementation through PyO3; there is no independent Python keyword algorithm oracle."
+      ]
+    },
+    {
+      "id": "search.comparison_keywords_match_python_token_contract",
+      "implementation": "backend/crates/thesis-search/src/comparison_keywords.rs::extract_keywords",
+      "status": "bounded_kernel_checked_and_abstractly_specified",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness comparison_keywords --output-format terse",
+          "result": "passed",
+          "scope": "Two harnesses check the production frequency/first-seen comparator and transitivity over symbolic usize values.",
+          "bound": "Default unwind 4; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "Generated text checks output bounds, frequency order, stop-word exclusion, case invariance, and limit-prefix consistency."
+        },
+        {
+          "method": "python_reference_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_comparison_keywords.py",
+          "result": "passed",
+          "scope": "Hypothesis compares the Rust-backed service against Python re/Counter behavior over generated controlled non-stopword tokens and separators; explicit cases cover selected stop words and Unicode boundaries."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/comparison_keyword_priority.rs",
+          "result": "passed_locally",
+          "toolchain": "Verus 0.2026.09.20.aef82ed; Rust 1.98.1",
+          "scope": "Five proof checks establish the natural-number priority direction, first-seen tie order, irreflexivity, and transitivity. This is an abstract model, not a Rust refinement proof."
+        }
+      ],
+      "limitations": [
+        "Kani proves the scalar sort comparator, not Unicode token scanning, stop-word filtering, HashMap aggregation, or the full API.",
+        "The Python reference differential is limited to generated non-stopword vocabulary; selected stop words and Unicode cases use explicit expected results.",
+        "FastAPI still owns /compare/articles. The PyO3 binding can be removed after the route and all other Python callers move to Rust services.",
+        "No performance baseline or speedup claim was measured for this slice."
+      ]
+    },
+    {
+      "id": "topics.rounded_jaccard_is_bounded",
+      "implementation": "backend/crates/thesis-search/src/topics.rs::rounded_jaccard",
+      "status": "verified_for_helper",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "A search harness checks that rounded Jaccard stays in [0, 1] for symbolic u8 overlap/union counts when overlap <= union_size, and includes fixed zero and one witnesses.",
+          "bound": "Default unwind 4; symbolic u8 inputs; no assumptions.",
+          "assumptions": []
+        }
+      ],
+      "limitations": [
+        "The proof covers the scalar helper, not token-set construction, clustering, or collection ordering."
+      ]
+    },
+    {
+      "id": "topics.cluster_order_follows_feed_order",
+      "implementation": "backend/crates/thesis-search/src/topics.rs::cluster_articles_lexical",
+      "status": "regression_tested",
+      "verification": [
+        {
+          "method": "rust_regression_test",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "The same two-cluster fixture returns identical anchor and member order when the input vector is reversed; output follows explicit feed positions."
+        },
+        {
+          "method": "pyo3_boundary_test",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_topic_boundary.py",
+          "result": "passed",
+          "scope": "The Python caller sees feed-ordered anchors, members, and captured rounded similarities."
+        }
+      ],
+      "limitations": [
+        "The deterministic-order regression covers a fixed two-cluster fixture, not generated graph shapes or all duplicate-ID inputs."
+      ]
+    },
+    {
+      "id": "api.contract.news_ranked",
+      "implementation": "backend/crates/thesis-api/src/ranking.rs::post_ranked_articles",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id post_ranked_articles_news_ranked_post",
+          "result": "passed",
+          "scope": "The POST /news/ranked operation ID, request requiredness and schema, response status codes, and response schemas match the checked-in FastAPI contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "Ten valid and invalid ranking requests compare full status and JSON output between FastAPI and Axum over the disposable Alembic database, including Pydantic integer coercion."
+        },
+        {
+          "method": "rust_route_test",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-api",
+          "result": "passed",
+          "scope": "The Axum route preserves article dictionaries, returns ranking fields for valid IDs, retains unrankable articles, and sorts by bucket priority."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public. The differential corpus covers selected validation and coercion cases, not every possible Pydantic input; this route is shadow-only."
+      ]
+    },
+    {
+      "id": "api.contract.compare_articles",
+      "implementation": "backend/crates/thesis-api/src/comparison.rs::post_compare_articles; backend/crates/thesis-search/src/article_comparison.rs::compare_articles",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json /tmp/thesis-rust-openapi.json --operation-id compare_two_articles_compare_articles_post",
+          "result": "passed",
+          "scope": "POST /compare/articles operation ID, request fields and requiredness, and 200/422 response schemas match the checked-in contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "Three valid requests and four model-validation requests match FastAPI and Axum after canonicalizing Python set-order output. Two malformed JSON inputs match status and json_invalid category; parser-specific diagnostics are not compared."
+        },
+        {
+          "method": "python_service_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_article_comparison.py",
+          "result": "passed",
+          "scope": "Three fixed comparisons match the Python service after canonicalizing its set-ordered entity and keyword outputs. The Python service shares Rust keyword, similarity, and sentence-diff kernels through PyO3."
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated strings check symmetric bounded text similarity and summary fields against returned list lengths."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4 --harness keyword_emphasis_tracks_frequency_order",
+          "result": "passed",
+          "scope": "The production keyword-emphasis decision matches arbitrary pairwise ordering over symbolic u16 frequencies; no assumptions, unwind 4."
+        },
+        {
+          "method": "rust_route_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-api",
+          "result": "passed",
+          "scope": "Eight API tests pass, including comparison response shape, default titles, ignored fields, required strings, and non-string 422 errors."
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/comparison_entity_partition.rs",
+          "result": "passed",
+          "scope": "Three proof obligations establish reconstruction of both arbitrary finite input sets and pairwise disjoint output groups over normalized identity IDs; no assumptions or size bounds. This is an abstract model, not Rust refinement."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-search --file crates/thesis-search/src/article_comparison.rs --re '<selected comparison functions>' --exclude-re '<five equivalent empty guards>' --timeout 30 --in-place",
+          "result": "passed",
+          "scope": "All 25 non-equivalent selected mutants were caught. Five equivalent guard substitutions were excluded after tracing their following control flow and arithmetic."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public and the Rust route is shadow-only. The Python service shares Rust kernels for keywords, text similarity, and sentence diff, so its differential is not an independent oracle for those kernels.",
+        "Kani proves only the scalar keyword-emphasis decision; proptest and fixed tests cover selected behavior, not all entity extraction and sentence-diff cases. The Verus entity model does not prove Rust string normalization, ordering, or refinement. Parser-specific malformed-JSON messages, offsets, and partial input values differ between Serde and Pydantic."
+      ]
+    },
+    {
+      "id": "ingest.source_host_identity",
+      "implementation": "backend/crates/thesis-ingest/src/source_url_guard.rs::{normalize_host,hosts_match}",
+      "status": "mutation_checked",
+      "verification": [
+        {
+          "method": "rust_proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-ingest",
+          "result": "passed",
+          "scope": "Normalization idempotence, match symmetry, and identity preservation when adding a subdomain label."
+        },
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4",
+          "result": "passed",
+          "scope": "The production byte-suffix helper accepts a matching suffix exactly when the byte before its two-byte suffix is a dot.",
+          "bound": "Default unwind 4; symbolic four-byte host array; no assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 /home/bender/.local/share/formal-tools/verus/verus-x86-linux/verus backend/crates/thesis-ingest/verus/source_url_guard.rs",
+          "result": "passed",
+          "toolchain": "Verus 0.2026.09.20.aef82ed; RUSTUP_TOOLCHAIN=1.98.1",
+          "scope": "Verus reported 2 verified, 0 errors for the source_url_guard model: for arbitrary byte sequences, a nonempty prefix concatenated with a domain matches only when the prefix ends with a label separator. This is an abstract model, not a Rust refinement proof."
+        },
+        {
+          "method": "python_rust_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_source_url_guard.py",
+          "result": "passed",
+          "scope": "Eight tests compare the Rust PyO3 functions and Python service to the pre-migration Python rules over generated Unicode strings and reviewed suffix/family cases."
+        },
+        {
+          "method": "cargo_mutants",
+          "command": "cargo mutants --manifest-path backend/Cargo.toml --package thesis-ingest --file crates/thesis-ingest/src/source_url_guard.rs --gitignore true --re '<selected host matching functions>' --jobs 2 --timeout 30",
+          "result": "passed",
+          "scope": "All six selected mutants were caught after adding a regression for empty hosts and fully qualified trailing-dot names."
+        }
+      ],
+      "limitations": [
+        "The Kani harness is bounded to fixed-size byte arrays. The Verus model is not formally connected to the Rust implementation; proptest and differential tests cover that boundary.",
+        "URL parsing, Google News query decoding, and guard response construction remain in Python. No performance claim was measured."
+      ]
+    },
+    {
+      "id": "search.alias_span_containment_transitive",
+      "implementation": "backend/crates/thesis-search/src/country_mentions.rs::is_inside_alias_range",
+      "status": "bounded_kernel_checked_and_abstractly_proved",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "The production helper proves symbolic nested-span containment is transitive; a second harness supplies a concrete reachable witness.",
+          "bound": "Default unwind 4; symbolic usize endpoints.",
+          "assumptions": [
+            "Each symbolic range has ordered endpoints.",
+            "The inner range is contained by the middle range under the production helper.",
+            "The middle range is contained by the outer range under the production helper."
+          ]
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated ordered endpoints create nested spans; the production range helper confirms containment through all three levels."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/alias_ranges.rs",
+          "result": "passed",
+          "scope": "Containment is transitive for arbitrary natural-number span bounds. This is an abstract model, not a Rust refinement proof."
+        }
+      ],
+      "limitations": [
+        "The proofs cover span containment only, not regex or Aho-Corasick alias discovery. No formal refinement relation is established."
+      ]
+    },
+    {
+      "id": "search.minhash_similarity_unit_interval",
+      "implementation": "backend/crates/thesis-search/src/minhash.rs::estimate_jaccard_similarity",
+      "status": "bounded_production_checked_and_abstractly_proved",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4",
+          "result": "passed",
+          "scope": "The production estimator stays in [0, 1] for arbitrary four-element signatures, returns zero for unequal fixed lengths, and returns one for an identical-signature witness.",
+          "bound": "Default unwind 4; the four-element estimate and perfect-match harnesses override to 5 to include loop exit. No assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "proptest",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search",
+          "result": "passed",
+          "scope": "Generated vectors of lengths 0 through 31 satisfy similarity symmetry and the unit-interval bound."
+        },
+        {
+          "method": "verus",
+          "command": "verus backend/crates/thesis-search/verus/minhash_ratio.rs",
+          "result": "passed",
+          "scope": "The exact mathematical match-count ratio remains in [0, 1] for arbitrary natural-number lengths under matches <= total and total > 0; an exact-match witness proves those preconditions are reachable."
+        }
+      ],
+      "limitations": [
+        "Verus proves an independent mathematical count-ratio model, not refinement to Rust floating-point division. Kani covers fixed four-element signatures, not arbitrary lengths, text normalization, hashing, or article grouping."
+      ]
+    },
+    {
+      "id": "search.minhash_connected_groups",
+      "implementation": "backend/crates/thesis-search/src/minhash.rs::deduplicate_article_groups",
+      "status": "regression_tested",
+      "verification": [
+        {
+          "method": "rust_unit_test_and_pyo3_boundary",
+          "command": "cargo test --manifest-path backend/Cargo.toml -p thesis-search && cd backend && .venv/bin/pytest -q tests/test_rust_algorithm_ports.py",
+          "result": "passed",
+          "scope": "Exact duplicates preserve all IDs and three linked articles yield one group through the production PyO3 function."
+        }
+      ],
+      "limitations": [
+        "The heap-backed disjoint-set grouping logic is tested but not Kani- or Verus-proved."
+      ]
+    },
+    {
+      "id": "rss.blindspot_self_dot_nonnegative",
+      "implementation": "backend/rss_parser_rust/src/blindspot.rs::dot_product",
+      "status": "bounded_production_checked",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p rss_parser_rust --default-unwind 4 --output-format terse",
+          "result": "passed",
+          "scope": "The production dot product is nonnegative for a three-element vector whose symbolic i8 values are converted to finite f64 values.",
+          "bound": "Harness unwind 5 for the fixed loop; default unwind 4; no assumptions.",
+          "assumptions": []
+        }
+      ],
+      "limitations": [
+        "This does not cover arbitrary vector lengths, NaN or infinite inputs, or the full article scoring pipeline. The crate run reported one passing harness, five unreachable checks, and unsupported caller-location and foreign-function constructs."
+      ]
+    },
+    {
+      "id": "db.lineage_root_deterministic_cycle_safe",
+      "implementation": "backend/crates/thesis-db/src/lib.rs::lineage_root",
+      "status": "unit_and_database_differential",
+      "verification": [
+        {
+          "method": "rust_unit_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace --quiet",
+          "result": "passed",
+          "scope": "A multi-parent graph chooses the lexical first root; a two-node cycle resolves without recursion and deterministically."
+        },
+        {
+          "method": "postgres_http_differential",
+          "command": "THESIS_TEST_DATABASE_URL=<disposable Alembic database> backend/.venv/bin/pytest -q backend/tests/test_rust_evidence_http_differential.py",
+          "result": "passed_locally",
+          "scope": "Copied evidence documents share a lineage root; an unrelated registry document contributes an independent root."
+        }
+      ],
+      "limitations": [
+        "A symbolic two-node Kani harness over the production HashMap/BTreeSet traversal did not finish after 90 seconds and was removed. No Kani or Verus proof is claimed for this heap-backed traversal."
+      ]
+    },
+    {
+      "id": "embedding.stale_generation_never_commits",
+      "implementation": "docs/agents/formal-audit/EmbeddingGeneration.tla (EmbeddingGeneration.cfg)",
+      "status": "bounded_exhaustive_baseline_with_simulation",
+      "verification": [
+        {
+          "method": "tla_plus_simulation",
+          "command": "java -jar /home/bender/.local/share/formal-tools/tla/tla2tools-1.8.0.jar EmbeddingGeneration.tla -simulate",
+          "result": "passed",
+          "toolchain": "TLA+ tools v1.8.0; TLC 2026.09.23.154203 (rev 4260e47); Java 26",
+          "scope": "Typed sentinel repairs preserve a common claim tuple shape. The separate original 2x2/2-worker simulation passed after exploring 101 states with trace depth 100.",
+          "bound": "Simulation only; 2 articles, 2 workers, queue capacity 2, maximum generation 2, and maximum retries 2."
+        },
+        {
+          "method": "tla_plus_exhaustive_model",
+          "command": "java -jar /home/bender/.local/share/formal-tools/tla/tla2tools-1.8.0.jar -config EmbeddingGeneration.cfg EmbeddingGeneration.tla",
+          "result": "passed",
+          "toolchain": "TLA+ tools v1.8.0; TLC 2026.09.23.154203 (rev 4260e47); Java 26",
+          "scope": "The completed reduced exhaustive baseline passed with exit 0: 922746 states generated, 180839 distinct states found, complete depth 41, in 14.57 seconds.",
+          "bound": "Articles=2; Workers=1; QueueCapacity=1; MaxGeneration=1; MaxRetries=1 (Articles={article-1, article-2}; Workers={worker-1}).",
+          "exit_code": 0,
+          "states_generated": 922746,
+          "distinct_states": 180839,
+          "depth": 41,
+          "duration_seconds": 14.57
+        },
+        {
+          "method": "tla_plus_exhaustive_model_original_bounds",
+          "command": "Historical pre-reduction EmbeddingGeneration exhaustive invocation",
+          "result": "cancelled_unknown",
+          "toolchain": "TLA+ tools v1.8.0; TLC 2026.09.23.154203 (rev 4260e47); Java 26",
+          "scope": "The original exhaustive bounds ran for more than 9 minutes and were cancelled before a verdict. This historical run is unknown, not a pass or failure.",
+          "bound": "Original pre-reduction bounds: 2 articles, 2 workers, queue capacity 2, maximum generation 2, and maximum retries 2."
+        }
+      ],
+      "limitations": [
+        "The specification is bounded and model-only; it is not a Python, Rust, database, vector-store, or scheduler refinement.",
+        "Simulation samples executions and cannot establish an exhaustive invariant result. The reduced baseline is exhaustive only for its smaller checked-in constants; the original higher-bound exhaustive run remains cancelled/unknown."
+      ]
+    },
+    {
+      "id": "ownership.proposed_transaction_preserves_current_owner",
+      "implementation": "docs/agents/formal-audit/Ownership.lean",
+      "status": "lean_checked_model_only",
+      "verification": [
+        {
+          "method": "lean_model",
+          "command": "/home/bender/.elan/bin/elan run leanprover/lean4:v4.34.0 lean docs/agents/formal-audit/Ownership.lean",
+          "result": "passed",
+          "toolchain": "Lean 4.34.0; leanprover/lean4:v4.34.0",
+          "scope": "Ownership.lean compiled successfully under the user-local pinned Lean toolchain. This is a finite/list ownership state model for proposed and completed transactions, effective time, relationship direction, interest ranges, evidence acceptance, conflicts, and renames."
+        }
+      ],
+      "limitations": [
+        "The artifact is an independent model of domain rules, not a Rust, SQL, or API implementation proof.",
+        "Lean compilation checks this model's declarations and theorems; it does not establish Rust refinement."
+      ]
+    },
+    {
+      "id": "search.entity_partition_is_disjoint_and_complete",
+      "implementation": "backend/crates/thesis-search/src/article_comparison.rs::compare_entity_group",
+      "status": "verified_in_abstract_model",
+      "verification": [
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 verus backend/crates/thesis-search/verus/comparison_entity_partition.rs",
+          "result": "passed",
+          "scope": "Three proof obligations classify every identity into shared, source-1-only, source-2-only, or absent; prove the three returned groups are pairwise disjoint and reconstruct both input sets for arbitrary finite sets, without assumptions or bounds."
+        }
+      ],
+      "limitations": [
+        "The model uses natural-number IDs for already-normalized names. It does not prove Rust string normalization, display spelling, vector ordering, or implementation refinement."
+      ]
+    },
+    {
+      "id": "language_diagnostics.severity_monotone",
+      "implementation": "backend/crates/thesis-search/src/language_diagnostics.rs::{status_for_rate,status_for_score}",
+      "status": "verified_for_kernel",
+      "verification": [
+        {
+          "method": "kani",
+          "command": "cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 1 --harness increasing_rate_never_reduces_diagnostic_severity",
+          "result": "passed",
+          "scope": "For all ordered f64 input pairs, raising the input rate or score cannot lower the corresponding severity; one harness passed 34 checks. NaN pairs are unordered and do not enter the implication branch.",
+          "bound": "Unwind 1; no explicit assumptions.",
+          "assumptions": []
+        },
+        {
+          "method": "hypothesis_python_rust_differential",
+          "command": "cd backend && .venv/bin/pytest -q tests/test_rust_language_diagnostics.py tests/test_language_diagnostics.py",
+          "result": "passed",
+          "scope": "Reviewed Unicode cases and generated Unicode/pattern text matched the retained independent Python implementation; the FastAPI inline-text endpoint returned the same diagnostic fields."
+        }
+      ],
+      "limitations": [
+        "Kani covers only severity monotonicity, not regex matching, phrase selection, full text analysis, or Rust refinement of the Python implementation.",
+        "Verus is not applied because the remaining text/regex logic has no useful independent unbounded mathematical invariant."
+      ]
+    },
+    {
+      "id": "api.contract.evidence_relationships",
+      "implementation": "backend/crates/thesis-api/src/relationships.rs::get_relationships",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id get_evidence_relationships_api_wiki_evidence_relationships_get",
+          "result": "passed",
+          "scope": "Path, method, operation ID, optional query parameters, validation response, and relationship response schema match the checked-in FastAPI contract."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "FastAPI and Axum status and JSON responses match over disposable PostgreSQL for time boundaries, filters, direction, ordering, root counts, and validation locations and types."
+        }
+      ],
+      "limitations": [
+        "The Rust route is shadow-only; FastAPI remains public.",
+        "No Kani or Verus proof is claimed for HTTP parsing, SQLx, or the route response assembly."
+      ]
+    },
+    {
+      "id": "persistence.relationship_list",
+      "implementation": "backend/crates/thesis-db/src/relationships.rs::list_relationships",
+      "status": "database_differential",
+      "verification": [
+        {
+          "method": "rust_unit_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "Typed relationship mapping and deterministic lineage-cycle behavior pass in the four thesis-db tests."
+        },
+        {
+          "method": "disposable_postgresql_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "SQLx reads the existing Alembic schema; relationship timestamps, linked claims, lineage roots, and response ordering match the Python route for captured cases."
+        }
+      ],
+      "limitations": [
+        "The query keeps Python behavior where known_at filters the relationship row but not linked evidence or lineage creation time.",
+        "Membership filters use PostgreSQL array binds, but no large-result integration case or production volume benchmark was run.",
+        "A symbolic Kani harness for heap-backed lineage traversal did not finish within 90 seconds and was removed. No Kani or Verus proof is claimed for this traversal."
+      ]
+    },
+    {
+      "id": "evidence.ownership_interest_exact_decimal",
+      "implementation": "backend/crates/thesis-evidence/src/ownership.rs",
+      "status": "focused_tested",
+      "verification": [
+        {
+          "method": "focused_rust_tests",
+          "command": "Focused thesis-evidence/thesis-db/thesis-api Cargo tests",
+          "result": "passed",
+          "scope": "The exact finite-decimal ownership-interest arithmetic and domain-error behavior are covered within the 45 passed focused cases (18 api + 9 db + 18 evidence)."
+        }
+      ],
+      "limitations": [
+        "No formal model run or Rust refinement proof is claimed; tlc, lean, lake, verus, and cargo-kani were unavailable."
+      ]
+    },
+    {
+      "id": "persistence.ownership_interest",
+      "implementation": "backend/crates/thesis-db/src/ownership_interest.rs",
+      "status": "database_differential",
+      "verification": [
+        {
+          "method": "focused_rust_tests",
+          "command": "Focused thesis-evidence/thesis-db/thesis-api Cargo tests",
+          "result": "passed",
+          "scope": "The SQLx ownership-interest loader is covered within the 45 passed focused cases (18 api + 9 db + 18 evidence)."
+        },
+        {
+          "method": "disposable_postgresql_http_differential",
+          "command": "backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "The loader reads non-retracted owns_equity_in and directly_owns rows from accepted_relationships, preferring pct over pct_band; malformed or unquantified qualifiers are skipped."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public and the Rust route is shadow-only. No formal model run or Rust refinement proof is claimed for SQLx persistence."
+      ]
+    },
+    {
+      "id": "api.contract.evidence_interest",
+      "implementation": "backend/crates/thesis-api/src/interest.rs::get_ownership_interest",
+      "status": "differentially_checked",
+      "verification": [
+        {
+          "method": "normalized_openapi",
+          "command": "python3 scripts/check_openapi_compat.py backend/openapi.json <rust-openapi.json> --operation-id get_ownership_interest_api_wiki_evidence_interest_get",
+          "result": "passed",
+          "scope": "The ownership-interest operation's path, method, operation ID, query validation, 200/422 responses, and response schema match the checked-in FastAPI contract; all seven Rust operation IDs passed the checker."
+        },
+        {
+          "method": "same_request_http_differential",
+          "command": "bash backend/scripts/test_rust_http_differential.sh",
+          "result": "passed_locally",
+          "scope": "One rebuilt-server pytest compares FastAPI and Axum ownership chains, security-class and economic/voting filters, cycles, overlaps, malformed qualifiers, and query validation over disposable PostgreSQL; four pre-existing deprecation warnings remain."
+        },
+        {
+          "method": "focused_rust_tests",
+          "command": "Focused thesis-evidence/thesis-db/thesis-api Cargo tests",
+          "result": "passed",
+          "scope": "The exact finite-decimal kernel, SQLx ownership-interest loader, and Axum handler tests passed 45 cases (18 api + 9 db + 18 evidence)."
+        },
+        {
+          "method": "rust_workspace_tests",
+          "command": "cargo test --manifest-path backend/Cargo.toml --workspace",
+          "result": "passed",
+          "scope": "The workspace passed 149 tests (34 rss_parser_rust + 18 api + 9 db + 18 evidence + 16 ingest + 54 search)."
+        },
+        {
+          "method": "rust_quality_and_build",
+          "command": "cargo fmt --manifest-path backend/Cargo.toml --all -- --check; cargo clippy --manifest-path backend/Cargo.toml --workspace --all-targets -- -D warnings; cargo build -p thesis-server",
+          "result": "passed",
+          "scope": "Formatting, strict Clippy, and the thesis-server build passed."
+        },
+        {
+          "method": "formal_model_lookup",
+          "command": "tlc, lean, lake, verus, and cargo-kani availability lookup",
+          "result": "not_run",
+          "scope": "The tools were unavailable; Java existed, but TLA_TOOLS_JAR was unset and no repository TLA+ jar was present."
+        }
+      ],
+      "limitations": [
+        "FastAPI remains public and the Rust operation is shadow-only.",
+        "Malformed or unquantified qualifiers are skipped and domain errors surface according to the route contract.",
+        "No formal model run or Rust refinement proof is claimed for this slice; Kani and Verus do not apply to SQLx or HTTP transport."
+      ]
+    },
+    {
+      "id": "formal.toolchain_installation_and_bounded_models",
+      "implementation": "docs/agents/formal-audit/{Audit.lean,Ownership.lean,*.tla,*.cfg}",
+      "status": "user_authorized_local_toolchain_verified",
+      "verification": [
+        {
+          "method": "lean",
+          "command": "/home/bender/.elan/bin/elan run leanprover/lean4:v4.34.0 lean docs/agents/formal-audit/Ownership.lean && /home/bender/.elan/bin/elan run leanprover/lean4:v4.34.0 lean docs/agents/formal-audit/Audit.lean",
+          "result": "passed",
+          "toolchain": "Lean 4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b); user-local elan toolchain /home/bender/.elan/toolchains/leanprover--lean4---v4.34.0",
+          "scope": "Both Ownership.lean and Audit.lean compiled successfully."
+        },
+        {
+          "method": "tla_plus_exhaustive_models",
+          "command": "java -jar /home/bender/.local/share/formal-tools/tla/tla2tools-1.8.0.jar -config MODEL.cfg MODEL.tla for each checked-in model/config pair",
+          "result": "passed",
+          "toolchain": "TLA+ tools v1.8.0 (SHA-1 0f01eb64022f25a373d64e56e203e3e1712997aa); TLC 2026.09.23.154203 (rev 4260e47); OpenJDK 26.0.2.1",
+          "scope": "QualityRelease, ReporterPromotion, ResearchOverlap, RSSCache, VerifierSnapshot, and AutoIngest exhaustive checks passed.",
+          "bound": "Each model used its existing checked-in bounded constants; no unbounded or enlarged state space is claimed."
+        },
+        {
+          "method": "tla_plus_simulation",
+          "command": "java -jar /home/bender/.local/share/formal-tools/tla/tla2tools-1.8.0.jar EmbeddingGeneration.tla -simulate",
+          "result": "passed",
+          "toolchain": "TLC 2026.09.23.154203 (rev 4260e47); Java 26",
+          "scope": "EmbeddingGeneration's typed sentinel repairs were exercised by a separate original 2x2/2-worker simulation that passed 101 states with trace depth 100.",
+          "bound": "Simulation evidence only; 2 articles, 2 workers, queue capacity 2, maximum generation 2, and maximum retries 2."
+        },
+        {
+          "method": "tla_plus_exhaustive_model",
+          "command": "java -jar /home/bender/.local/share/formal-tools/tla/tla2tools-1.8.0.jar -config EmbeddingGeneration.cfg EmbeddingGeneration.tla",
+          "result": "passed",
+          "toolchain": "TLA+ tools v1.8.0; TLC 2026.09.23.154203 (rev 4260e47); Java 26",
+          "scope": "The completed reduced exhaustive baseline passed with exit 0: 922746 states generated, 180839 distinct states found, complete depth 41, in 14.57 seconds.",
+          "bound": "Articles=2; Workers=1; QueueCapacity=1; MaxGeneration=1; MaxRetries=1 (Articles={article-1, article-2}; Workers={worker-1}).",
+          "exit_code": 0,
+          "states_generated": 922746,
+          "distinct_states": 180839,
+          "depth": 41,
+          "duration_seconds": 14.57
+        },
+        {
+          "method": "verus",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 /home/bender/.local/share/formal-tools/verus/verus-x86-linux/verus backend/crates/thesis-ingest/verus/source_url_guard.rs",
+          "result": "passed",
+          "toolchain": "Verus 0.2026.09.20.aef82ed; RUSTUP_TOOLCHAIN=1.98.1",
+          "scope": "source_url_guard reported 2 verified, 0 errors."
+        },
+        {
+          "method": "cargo_kani",
+          "command": "RUSTUP_TOOLCHAIN=1.98.1 cargo kani --manifest-path backend/Cargo.toml -p thesis-evidence --default-unwind 4 --output-format terse",
+          "result": "passed",
+          "toolchain": "cargo-kani 0.68.0; CBMC 6.11.0",
+          "scope": "The thesis-evidence run completed 6/6 harnesses with 0 failures.",
+          "bound": "Default unwind 4. The installed CLI does not support `cargo kani setup`; no setup result is claimed."
+        }
+      ],
+      "limitations": [
+        "TLC exhaustive results cover only the six finite models plus the reduced EmbeddingGeneration baseline at their recorded checked-in constants. Lean and Verus artifacts are model/proof artifacts, not implementation-refinement proofs; Kani covers selected bounded harnesses rather than the whole application.",
+        "EmbeddingGeneration's original higher-bound exhaustive run ran longer than 9 minutes and was cancelled/unknown. The separate 101-state simulation is not exhaustive proof; the reduced baseline is the completed exhaustive follow-up at smaller constants."
+      ]
+    }
+  ]
+}

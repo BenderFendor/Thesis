@@ -6,6 +6,8 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from app.services.rss_parser_rust_bindings import RUST
+
 AGGREGATOR_HOSTS = {
     "news.google.com",
     "feedproxy.google.com",
@@ -13,15 +15,11 @@ AGGREGATOR_HOSTS = {
 }
 
 _SITE_QUERY_RE = re.compile(r"site:([a-z0-9.-]+)", re.IGNORECASE)
-_HOST_FAMILIES = {
-    "asia_plus": ("asiaplustj.info", "asiaplus.news", "old.asiaplustj.info"),
-    "bbc": ("bbc.com", "bbc.co.uk", "bbci.co.uk"),
-}
 
 
 def normalize_host(host: str) -> str:
     """Normalize Host."""
-    return host.strip().lower().replace("www.", "")
+    return str(RUST.rust_normalize_host(host))
 
 
 def extract_host(url: str) -> str:
@@ -110,26 +108,9 @@ def normalize_site_url(url_value: Any) -> str | None:
     return None
 
 
-def _host_family(host: str) -> str | None:
-    normalized = normalize_host(host)
-    for family, members in _HOST_FAMILIES.items():
-        if any(normalized == member or normalized.endswith(f".{member}") for member in members):
-            return family
-    return None
-
-
 def hosts_match(expected: str, actual: str) -> bool:
     """Hosts Match."""
-    expected_norm = normalize_host(expected)
-    actual_norm = normalize_host(actual)
-    if not expected_norm or not actual_norm:
-        return False
-    if expected_norm == actual_norm:
-        return True
-    if expected_norm.endswith(f".{actual_norm}") or actual_norm.endswith(f".{expected_norm}"):
-        return True
-    expected_family = _host_family(expected_norm)
-    return expected_family is not None and expected_family == _host_family(actual_norm)
+    return bool(RUST.rust_hosts_match(expected, actual))
 
 
 def build_source_url_guard(

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "env",
+    "RUSTFLAGS=-Dwarnings",
+    "cargo",
+    "check",
+    "--manifest-path",
+    "backend/Cargo.toml",
+    "--locked",
+    "-p",
+    "thesis-db",
+    "-p",
+    "thesis-api",
+    "-p",
+    "thesis-server"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 2.468,
+  "max_rss_kb": 318416,
+  "returncode": 101,
+  "stderr_tail": "    Checking thesis-db v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-db)\n    Checking thesis-api v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-api)\nerror: field `source_name` is never read\n   --> crates/thesis-api/src/core.rs:172:16\n    |\n165 | pub(crate) struct LanguageDiagnosticsRequest {\n    |                   -------------------------- field in this struct\n...\n172 |     pub(crate) source_name: Option<String>,\n    |                ^^^^^^^^^^^\n    |\n    = note: `LanguageDiagnosticsRequest` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis\n    = note: `-D dead-code` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`\n\nerror: multiple fields are never read\n   --> crates/thesis-api/src/news.rs:172:5\n    |\n170 | struct NewsPageParameters {\n    |        ------------------ fields in this struct\n171 |     #[param(required = false, default = 50, minimum = 1, maximum = 500)]\n172 |     limit: Option<i64>,\n    |     ^^^^^\n173 |     #[param(required = false, nullable = true)]\n174 |     cursor: Option<String>,\n    |     ^^^^^^\n175 |     #[param(required = false, nullable = true)]\n176 |     category: Option<String>,\n    |     ^^^^^^^^\n177 |     #[param(required = false, nullable = true)]\n178 |     source: Option<String>,\n    |     ^^^^^^\n179 |     #[param(required = false, nullable = true)]\n180 |     sources: Option<String>,\n    |     ^^^^^^^\n181 |     #[param(required = false, nullable = true)]\n182 |     search: Option<String>,\n    |     ^^^^^^\n183 |     #[param(required = false, default = \"desc\")]\n184 |     sort_order: Option<String>,\n    |     ^^^^^^^^^^\n    |\n    = note: `NewsPageParameters` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nerror: fields `category`, `source`, `sources`, and `search` are never read\n   --> crates/thesis-api/src/news.rs:191:5\n    |\n189 | struct NewsIndexParameters {\n    |        ------------------- fields in this struct\n190 |     #[param(required = false, nullable = true)]\n191 |     category: Option<String>,\n    |     ^^^^^^^^\n192 |     #[param(required = false, nullable = true)]\n193 |     source: Option<String>,\n    |     ^^^^^^\n194 |     #[param(required = false, nullable = true)]\n195 |     sources: Option<String>,\n    |     ^^^^^^^\n196 |     #[param(required = false, nullable = true)]\n197 |     search: Option<String>,\n    |     ^^^^^^\n    |\n    = note: `NewsIndexParameters` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nerror: fields `limit`, `cursor`, `category`, and `source` are never read\n   --> crates/thesis-api/src/news.rs:204:5\n    |\n202 | struct RecentNewsParameters {\n    |        -------------------- fields in this struct\n203 |     #[param(required = false, default = 50, minimum = 1, maximum = 500)]\n204 |     limit: Option<i64>,\n    |     ^^^^^\n205 |     #[param(required = false, nullable = true)]\n206 |     cursor: Option<String>,\n    |     ^^^^^^\n207 |     #[param(required = false, nullable = true)]\n208 |     category: Option<String>,\n    |     ^^^^^^^^\n209 |     #[param(required = false, nullable = true)]\n210 |     source: Option<String>,\n    |     ^^^^^^\n    |\n    = note: `RecentNewsParameters` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nerror: could not compile `thesis-api` (lib) due to 4 previous errors",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
 from typing import Any, TypedDict
 
 from app.services.rss_parser_rust_bindings import (
+    comparison_keywords as rust_comparison_keywords,
+)
+from app.services.rss_parser_rust_bindings import (
     sentence_diff as rust_sentence_diff,
+)
+from app.services.rss_parser_rust_bindings import (
     text_similarity as rust_text_similarity,
 )
 
@@ -179,10 +183,10 @@ def _extract_date_matches(text: str) -> list[str]:
 
 
 def _dedupe_entities(entities: dict[str, list[str]]) -> dict[str, list[str]]:
-    for key in entities:
+    for key, items in entities.items():
         seen = set()
         unique: list[str] = []
-        for item in entities[key]:
+        for item in items:
             item_lower = item.lower()
             if item_lower not in seen:
                 seen.add(item_lower)
@@ -220,133 +224,7 @@ def extract_entities(text: str) -> dict[str, list[str]]:
 
 def extract_keywords(text: str, top_n: int = 20) -> list[tuple[str, int]]:
     """Extract top keywords by frequency, excluding common stop words."""
-    stop_words = {
-        "the",
-        "a",
-        "an",
-        "and",
-        "or",
-        "but",
-        "in",
-        "on",
-        "at",
-        "to",
-        "for",
-        "of",
-        "with",
-        "by",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "being",
-        "have",
-        "has",
-        "had",
-        "do",
-        "does",
-        "did",
-        "will",
-        "would",
-        "could",
-        "should",
-        "may",
-        "might",
-        "must",
-        "shall",
-        "can",
-        "need",
-        "this",
-        "that",
-        "these",
-        "those",
-        "i",
-        "you",
-        "he",
-        "she",
-        "it",
-        "we",
-        "they",
-        "me",
-        "him",
-        "her",
-        "us",
-        "them",
-        "my",
-        "your",
-        "his",
-        "its",
-        "our",
-        "their",
-        "what",
-        "which",
-        "who",
-        "when",
-        "where",
-        "why",
-        "how",
-        "all",
-        "any",
-        "both",
-        "each",
-        "few",
-        "more",
-        "most",
-        "other",
-        "some",
-        "such",
-        "no",
-        "nor",
-        "not",
-        "only",
-        "own",
-        "same",
-        "so",
-        "than",
-        "too",
-        "very",
-        "just",
-        "now",
-        "then",
-        "here",
-        "there",
-        "up",
-        "down",
-        "out",
-        "off",
-        "over",
-        "under",
-        "again",
-        "further",
-        "once",
-        "said",
-        "says",
-        "say",
-        "told",
-        "tell",
-        "tells",
-        "according",
-        "also",
-        "after",
-        "before",
-        "during",
-        "while",
-        "about",
-        "into",
-        "through",
-        "above",
-        "below",
-        "between",
-        "among",
-        "within",
-        "without",
-    }
-
-    words = re.findall(r"\b[a-z]{3,}\b", text.lower())
-    filtered_words = [word for word in words if word not in stop_words]
-    return Counter(filtered_words).most_common(top_n)
+    return rust_comparison_keywords(text, top_n)
 
 
 def calculate_text_similarity(text1: str, text2: str) -> float:

@@ -6,12 +6,12 @@ use feed_rs::parser;
 use rayon::prelude::*;
 use regex::Regex;
 
-use crate::cleaner::clean_html;
 use crate::fetcher::fetch_all;
 use crate::types::{
     FetchError, FetchResult, ParseResult, ParsedArticle, RawFeed, SourceRequest, SourceStats,
     SubFeedStat,
 };
+use thesis_ingest::cleaner::clean_html;
 
 #[derive(Debug, Default)]
 struct RssItemMetadata {

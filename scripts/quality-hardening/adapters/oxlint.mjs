@@ -23,8 +23,8 @@ const severityFor = (value) => stringValue(value, "error").toLowerCase().startsW
 const parseFinding = (value, repositoryRoot) => {
   if (!isRecord(value)) { return undefined; }
   const labels = Array.isArray(value.labels) ? value.labels : [],
-    firstLabel = isRecord(labels[0]) ? labels[0] : undefined,
-    span = isRecord(firstLabel?.span) ? firstLabel.span : undefined,
+    firstLabel = labels[0],
+    span = firstLabel?.span,
     path = stringValue(firstLabel?.file, stringValue(value.filename, stringValue(value.path, "<unknown>"))),
     normalizedPath = path.startsWith(`${repositoryRoot}/`) ? path.slice(repositoryRoot.length + 1) : path,
     rule = stringValue(value.code, stringValue(value.rule, stringValue(value.ruleId, "unknown")))

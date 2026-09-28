@@ -51,7 +51,7 @@ pub(super) fn project(
     projection::project(data, filters, as_of, known_at)
 }
 
-fn entity_type_name(value: AtlasEntityType) -> &'static str {
+pub(super) fn entity_type_name(value: AtlasEntityType) -> &'static str {
     match value {
         AtlasEntityType::Outlet => "outlet",
         AtlasEntityType::Organization => "organization",
@@ -60,7 +60,7 @@ fn entity_type_name(value: AtlasEntityType) -> &'static str {
     }
 }
 
-fn relation_type_name(value: AtlasRelationType) -> &'static str {
+pub(super) fn relation_type_name(value: AtlasRelationType) -> &'static str {
     match value {
         AtlasRelationType::Ownership => "ownership",
         AtlasRelationType::OwnedBy => "owned_by",

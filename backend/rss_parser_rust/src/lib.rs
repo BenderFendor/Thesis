@@ -30,24 +30,25 @@ use tokio::runtime::Runtime;
 
 mod algorithms;
 mod blindspot;
-mod cleaner;
 mod country_mentions;
 mod feed_rank;
 mod fetcher;
 mod gdelt;
-mod html_extract;
+mod gdelt_taxonomy;
 mod parser;
+mod source_url_guard;
 mod topics;
 mod types;
 
 use crate::algorithms::{
-    deduplicate_article_groups, minhash_duplicate_pairs, sentence_diff, text_similarity,
+    compare_articles_json, comparison_keywords, deduplicate_article_groups,
+    minhash_duplicate_pairs, sentence_diff, text_similarity,
 };
 use crate::feed_rank::rank_articles;
 use crate::gdelt::{filter_gdelt_by_domain, parse_gdelt_csv};
-use crate::html_extract::{extract_article_from_html, extract_og_image_from_html};
 use crate::parser::parse_sources;
 use crate::types::{ensure_source_requests, parse_result_to_pydict};
+use thesis_ingest::html_extract::{extract_article_from_html, extract_og_image_from_html};
 
 /// Fetches and parses multiple RSS/Atom feeds concurrently and returns all
 /// extracted articles, per-source statistics, and timing metrics.
@@ -117,6 +118,56 @@ fn extract_og_image_html<'py>(py: Python<'py>, html: String) -> PyResult<Bound<'
     Ok(dict)
 }
 
+#[derive(serde::Deserialize)]
+struct EvidenceEvaluationInput {
+    predicate: String,
+    evidence: Vec<thesis_evidence::ObservationEvidence>,
+    #[serde(default)]
+    complete_control_path: bool,
+}
+
+/// Evaluate a JSON evidence payload with the Rust acceptance policy.
+#[pyfunction]
+fn evaluate_evidence_claim_json(payload: &str) -> PyResult<String> {
+    let input: EvidenceEvaluationInput = serde_json::from_str(payload).map_err(|error| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "invalid evidence evaluation payload: {error}"
+        ))
+    })?;
+    let decision = thesis_evidence::evaluate_acceptance(
+        &input.predicate,
+        &input.evidence,
+        input.complete_control_path,
+    );
+    serde_json::to_string(&decision).map_err(|error| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "could not serialize evidence decision: {error}"
+        ))
+    })
+}
+
+/// Return the stable Rust copy of the active evidence policy rows as JSON.
+#[pyfunction]
+fn evidence_policies_json() -> PyResult<String> {
+    serde_json::to_string(thesis_evidence::policies()).map_err(|error| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "could not serialize evidence policies: {error}"
+        ))
+    })
+}
+
+/// Analyze article language and return the typed search-core payload as JSON.
+#[pyfunction(signature = (text, title=None))]
+fn analyze_language_diagnostics_json(text: String, title: Option<String>) -> PyResult<String> {
+    let payload =
+        thesis_search::language_diagnostics::analyze_language_diagnostics(&text, title.as_deref());
+    serde_json::to_string(&payload).map_err(|error| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "could not serialize language diagnostics: {error}"
+        ))
+    })
+}
+
 /// Registers all functions, constants, and metadata on the `rss_parser_rust`
 /// Python module during import.
 #[pymodule]
@@ -124,12 +175,41 @@ fn rss_parser_rust(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()>
     module.add_function(wrap_pyfunction!(parse_feeds_parallel, module)?)?;
     module.add_function(wrap_pyfunction!(extract_article_html, module)?)?;
     module.add_function(wrap_pyfunction!(extract_og_image_html, module)?)?;
+    module.add_function(wrap_pyfunction!(evaluate_evidence_claim_json, module)?)?;
+    module.add_function(wrap_pyfunction!(evidence_policies_json, module)?)?;
+    module.add_function(wrap_pyfunction!(analyze_language_diagnostics_json, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        source_url_guard::rust_normalize_host,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        source_url_guard::rust_hosts_match,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(minhash_duplicate_pairs, module)?)?;
     module.add_function(wrap_pyfunction!(deduplicate_article_groups, module)?)?;
     module.add_function(wrap_pyfunction!(text_similarity, module)?)?;
+    module.add_function(wrap_pyfunction!(comparison_keywords, module)?)?;
+    module.add_function(wrap_pyfunction!(compare_articles_json, module)?)?;
     module.add_function(wrap_pyfunction!(sentence_diff, module)?)?;
     module.add_function(wrap_pyfunction!(parse_gdelt_csv, module)?)?;
     module.add_function(wrap_pyfunction!(filter_gdelt_by_domain, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        gdelt_taxonomy::rust_normalize_cameo_root_code,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        gdelt_taxonomy::rust_cameo_root_label,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        gdelt_taxonomy::rust_goldstein_bucket,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        gdelt_taxonomy::rust_dominant_cameo_roots,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(rank_articles, module)?)?;
 
     // Topic clustering

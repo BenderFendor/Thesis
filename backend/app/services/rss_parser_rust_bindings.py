@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, cast
-from collections.abc import Mapping, Sequence
 
 os.environ.setdefault(
     "RSS_PARSER_DATA_DIR",
@@ -31,7 +32,22 @@ class RssParserRustProtocol(Protocol):
 
     def text_similarity(self, text1: str, text2: str) -> float: ...
 
+    def comparison_keywords(self, text: str, top_n: int) -> list[tuple[str, int]]: ...
+
     def sentence_diff(self, text1: str, text2: str) -> Mapping[str, Any]: ...
+
+    def analyze_language_diagnostics_json(
+        self,
+        text: str,
+        title: str | None = None,
+    ) -> str: ...
+
+    def minhash_duplicate_pairs(
+        self,
+        documents: list[tuple[str, str]],
+        threshold: float | None = None,
+        num_hashes: int | None = None,
+    ) -> list[dict[str, str | float]]: ...
 
     def deduplicate_article_groups(
         self,
@@ -45,6 +61,18 @@ class RssParserRustProtocol(Protocol):
     def filter_gdelt_by_domain(
         self, events: list[dict[str, str]], domain: str
     ) -> list[dict[str, Any]]: ...
+
+    def rust_normalize_cameo_root_code(self, code: str | None) -> str | None: ...
+
+    def rust_cameo_root_label(self, code: str | None) -> str | None: ...
+
+    def rust_goldstein_bucket(self, value: float | None) -> str | None: ...
+
+    def rust_dominant_cameo_roots(
+        self,
+        codes: list[str | None],
+        limit: int,
+    ) -> list[tuple[str, str | None, int]]: ...
 
     def rank_articles(
         self,
@@ -111,8 +139,21 @@ class RssParserRustProtocol(Protocol):
         self,
     ) -> dict[str, Any]: ...
 
+    def rust_normalize_host(self, host: str) -> str: ...
+
+    def rust_hosts_match(self, expected: str, actual: str) -> bool: ...
+
 
 RUST = cast(RssParserRustProtocol, rss_parser_rust)
+
+
+def analyze_language_diagnostics_rust(
+    text: str,
+    title: str | None = None,
+) -> dict[str, Any]:
+    """Analyze article-language diagnostics through the Rust search core."""
+    payload = RUST.analyze_language_diagnostics_json(text, title)
+    return cast(dict[str, Any], json.loads(payload))
 
 
 def parse_feeds_parallel(
@@ -137,6 +178,13 @@ def extract_og_image_html(html: str) -> dict[str, Any]:
 def text_similarity(text1: str, text2: str) -> float:
     """Text Similarity."""
     return float(RUST.text_similarity(text1, text2))
+
+
+def comparison_keywords(text: str, top_n: int) -> list[tuple[str, int]]:
+    """Extract comparison keywords through the Rust search core."""
+    if top_n <= 0:
+        return []
+    return list(RUST.comparison_keywords(text, min(top_n, len(text))))
 
 
 def sentence_diff(text1: str, text2: str) -> dict[str, Any]:
@@ -165,6 +213,28 @@ def parse_gdelt_csv(content: str, limit: int) -> list[dict[str, Any]]:
 def filter_gdelt_by_domain(events: list[dict[str, str]], domain: str) -> list[dict[str, Any]]:
     """Filter Gdelt By Domain."""
     return list(RUST.filter_gdelt_by_domain(events, domain))
+
+
+def normalize_cameo_root_code_rust(code: str | None) -> str | None:
+    """Normalize Cameo Root Code Rust."""
+    return RUST.rust_normalize_cameo_root_code(code)
+
+
+def cameo_root_label_rust(code: str | None) -> str | None:
+    """Cameo Root Label Rust."""
+    return RUST.rust_cameo_root_label(code)
+
+
+def goldstein_bucket_rust(value: float | None) -> str | None:
+    """Goldstein Bucket Rust."""
+    return RUST.rust_goldstein_bucket(value)
+
+
+def dominant_cameo_roots_rust(
+    codes: list[str | None], limit: int
+) -> list[tuple[str, str | None, int]]:
+    """Dominant Cameo Roots Rust."""
+    return list(RUST.rust_dominant_cameo_roots(codes, limit))
 
 
 def rank_articles(

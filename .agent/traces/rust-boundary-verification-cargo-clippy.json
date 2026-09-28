@@ -1,0 +1,28 @@
+{
+  "command": [
+    "env",
+    "RUSTFLAGS=-Dwarnings",
+    "cargo",
+    "clippy",
+    "--locked",
+    "-p",
+    "thesis-db",
+    "-p",
+    "thesis-api",
+    "-p",
+    "thesis-server",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/home/bender/classwork/Thesis/backend",
+  "duration_seconds": 1.48,
+  "max_rss_kb": 256972,
+  "returncode": 101,
+  "stderr_tail": "    Checking thesis-evidence v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-evidence)\n    Checking thesis-search v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-search)\n    Checking thesis-db v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-db)\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news.rs:205:20\n    |\n205 |         .push_bind(cursor.published_at.clone())\n    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `cursor.published_at`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n    = note: `-D clippy::clone-on-copy` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(clippy::clone_on_copy)]`\n\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news.rs:207:20\n    |\n207 |         .push_bind(cursor.published_at.clone())\n    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `cursor.published_at`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news.rs:318:27\n    |\n318 |             published_at: article.published_at.clone(),\n    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `article.published_at`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:113:11\n    |\n113 |     .bind(since.clone())\n    |           ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:131:11\n    |\n131 |     .bind(since.clone())\n    |           ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `DateTime<Utc>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:150:11\n    |\n150 |     .bind(since.clone())\n    |           ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `Option<DateTime<Utc>>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:185:45\n    |\n185 |         load_country_page(pool, code, view, since.clone(), true, limit, offset).await?;\n    |                                             ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `Option<DateTime<Utc>>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:217:57\n    |\n217 |     append_country_filter(&mut count_query, code, view, since.clone(), match_mentions);\n    |                                                         ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: using `clone` on type `Option<DateTime<Utc>>` which implements the `Copy` trait\n   --> crates/thesis-db/src/news_by_country.rs:231:9\n    |\n231 |         since.clone(),\n    |         ^^^^^^^^^^^^^ help: try removing the `clone` call: `since`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_copy\n\nerror: could not compile `thesis-db` (lib) due to 9 previous errors\nwarning: build failed, waiting for other jobs to finish...\nerror: could not compile `thesis-db` (lib test) due to 9 previous errors",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

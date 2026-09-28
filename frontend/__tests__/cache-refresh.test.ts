@@ -37,4 +37,24 @@ describe("refreshCache", () => {
     expect(progress[0]?.source).toBe("news");
     expect(progress[0]?.totalArticles).toBe(2);
   });
+
+  it("returns false when the SSE body reports a provider error", async () => {
+    expect.hasAssertions();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"status":"error","message":"provider failed"}\n\n'));
+        controller.close();
+      },
+    });
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(new Response(body, { status: 200 }));
+    const progress: { message?: string }[] = [];
+
+    await expect(
+      refreshCache((event) => {
+        progress.push(event);
+      }),
+    ).resolves.toBe(false);
+    expect(progress).toHaveLength(1);
+    expect(progress[0]?.message).toBe("provider failed");
+  });
 });

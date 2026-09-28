@@ -363,3 +363,16 @@ mod tests {
         );
     }
 }
+
+#[cfg(kani)]
+mod verification {
+    use super::dot_product;
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn dot_product_of_bounded_vector_with_itself_is_nonnegative() {
+        let components: [i8; 3] = kani::any();
+        let vector = components.map(f64::from);
+        assert!(dot_product(&vector, &vector) >= 0.0);
+    }
+}

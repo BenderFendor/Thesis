@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--manifest-path",
+    "backend/Cargo.toml",
+    "-p",
+    "thesis-api"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 3.033,
+  "max_rss_kb": 347744,
+  "returncode": 0,
+  "stderr_tail": "    Checking thesis-db v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-db)\n    Checking thesis-api v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-api)\nwarning: variants `Unavailable` and `Failed` are never constructed\n  --> crates/thesis-api/src/profiling.rs:46:5\n   |\n44 | pub(crate) enum ProfilingError {\n   |                 -------------- variants in this enum\n45 |     /// The process that owns profiling state is not connected to this router.\n46 |     Unavailable,\n   |     ^^^^^^^^^^^\n47 |     /// A connected observer failed; the public response remains generic.\n48 |     Failed(String),\n   |     ^^^^^^\n   |\n   = note: `ProfilingError` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: associated function `new` is never used\n   --> crates/thesis-api/src/profiling.rs:185:19\n    |\n183 | impl ProfilingState {\n    | ------------------- associated function in this implementation\n184 |     /// Build state from an adapter owned by the integrator.\n185 |     pub(crate) fn new(observer: Option<Arc<dyn ProfilingObserver>>) -> Self {\n    |                   ^^^\n\nwarning: field `limit` is never read\n   --> crates/thesis-api/src/profiling.rs:471:5\n    |\n469 | struct SlowEndpointsParameters {\n    |        ----------------------- field in this struct\n470 |     #[param(required = false, default = 5)]\n471 |     limit: Option<i64>,\n    |     ^^^^^\n    |\n    = note: `SlowEndpointsParameters` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: variant `Failed` is never constructed\n  --> crates/thesis-api/src/source_catalog.rs:43:5\n   |\n39 | pub(crate) enum SourceCatalogIntegrationError {\n   |                 ----------------------------- variant in this enum\n...\n43 |     Failed(String),\n   |     ^^^^^^\n   |\n   = note: `SourceCatalogIntegrationError` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis\n\nwarning: associated function `new` is never used\n   --> crates/thesis-api/src/source_catalog.rs:139:19\n    |\n138 | impl SourceCatalogState {\n    | ----------------------- associated function in this implementation\n139 |     pub(crate) fn new(\n    |                   ^^^\n\nwarning: `thesis-api` (lib) generated 5 warnings\n    Finished `dev` profile [unoptimized] target(s) in 3.00s",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "success",
+  "warnings": []
+}

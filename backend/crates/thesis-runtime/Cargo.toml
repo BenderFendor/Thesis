@@ -1,0 +1,13 @@
+[package]
+name = "thesis-runtime"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Deterministic runtime protocol state machines for Thesis workers and streams"
+license = "MIT"
+
+[dev-dependencies]
+proptest = "1.6"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

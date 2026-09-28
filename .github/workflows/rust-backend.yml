@@ -1,0 +1,271 @@
+name: Rust backend migration
+
+on:
+  pull_request:
+    paths:
+      - "backend/Cargo.toml"
+      - "backend/Cargo.lock"
+      - "backend/crates/**"
+      - "backend/rss_parser_rust/**"
+      - "backend/alembic/**"
+      - "backend/app/services/evidence_policy.py"
+      - "backend/app/services/evidence_spine.py"
+      - "backend/app/services/country_mentions.py"
+      - "backend/app/services/gdelt_taxonomy.py"
+      - "backend/app/services/source_url_guard.py"
+      - "backend/app/services/rss_parser_rust_bindings.py"
+      - "backend/app/services/article_comparison.py"
+      - "backend/app/services/language_diagnostics.py"
+      - "backend/tests/test_rust_evidence_*.py"
+      - "backend/tests/test_country_mentions.py"
+      - "backend/tests/test_source_url_guard.py"
+      - "backend/tests/test_rust_gdelt_boundary.py"
+      - "backend/tests/test_rust_gdelt_taxonomy.py"
+      - "backend/tests/test_rust_rank_boundary.py"
+      - "backend/tests/test_rust_topic_boundary.py"
+      - "backend/tests/test_rust_comparison_keywords.py"
+      - "backend/tests/test_rust_article_comparison.py"
+      - "backend/tests/test_rust_language_diagnostics.py"
+      - "backend/tests/test_language_diagnostics.py"
+      - "backend/crates/thesis-search/verus/comparison_keyword_priority.rs"
+      - "backend/tests/test_chroma_topics_fallback.py"
+      - "backend/openapi.json"
+      - "scripts/check_openapi_compat.py"
+      - "verify.sh"
+      - ".github/workflows/rust-backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/Cargo.toml"
+      - "backend/Cargo.lock"
+      - "backend/crates/**"
+      - "backend/rss_parser_rust/**"
+      - "backend/alembic/**"
+      - "backend/app/services/evidence_policy.py"
+      - "backend/app/services/evidence_spine.py"
+      - "backend/app/services/country_mentions.py"
+      - "backend/app/services/gdelt_taxonomy.py"
+      - "backend/app/services/source_url_guard.py"
+      - "backend/app/services/rss_parser_rust_bindings.py"
+      - "backend/app/services/article_comparison.py"
+      - "backend/app/services/language_diagnostics.py"
+      - "backend/tests/test_rust_evidence_*.py"
+      - "backend/tests/test_country_mentions.py"
+      - "backend/tests/test_source_url_guard.py"
+      - "backend/tests/test_rust_gdelt_boundary.py"
+      - "backend/tests/test_rust_gdelt_taxonomy.py"
+      - "backend/tests/test_rust_rank_boundary.py"
+      - "backend/tests/test_rust_topic_boundary.py"
+      - "backend/tests/test_rust_comparison_keywords.py"
+      - "backend/tests/test_rust_article_comparison.py"
+      - "backend/tests/test_rust_language_diagnostics.py"
+      - "backend/tests/test_language_diagnostics.py"
+      - "backend/crates/thesis-search/verus/comparison_keyword_priority.rs"
+      - "backend/tests/test_chroma_topics_fallback.py"
+      - "backend/openapi.json"
+      - "scripts/check_openapi_compat.py"
+      - "verify.sh"
+      - ".github/workflows/rust-backend.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "19 6 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: thesis
+          POSTGRES_PASSWORD: thesis
+          POSTGRES_DB: thesis_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thesis -d thesis_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ENABLE_DATABASE: "0"
+      ENABLE_VECTOR_STORE: "0"
+      PYTHONPATH: backend
+      THESIS_TEST_DATABASE_URL: postgresql://thesis:thesis@127.0.0.1:5432/thesis_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.17"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Check Rust workspace
+        run: |
+          cargo fmt --manifest-path backend/Cargo.toml --all -- --check
+          cargo clippy --manifest-path backend/Cargo.toml --workspace --all-targets -- -D warnings
+          cargo test --manifest-path backend/Cargo.toml --workspace
+          cargo build --manifest-path backend/Cargo.toml --locked -p thesis-server
+      - name: Install focused Python dependencies
+        run: |
+          uv venv --python 3.12 backend/.venv
+          uv pip install --python backend/.venv/bin/python \
+            "sqlalchemy>=2.0.35" \
+            "pydantic>=2.8.0" \
+            "fastapi>=0.110.0" \
+            "httpx>=0.25.2" \
+            "alembic>=1.13.0" \
+            "pytest>=8.0.0" \
+            "pytest-asyncio>=0.23.0" \
+            "aiosqlite>=0.20.0" \
+            "hypothesis>=6.0.0" \
+            "python-dotenv>=1.0.0" \
+            "google-genai>=0.1.0" \
+            "openai>=1.0.0" \
+            "asyncpg>=0.29.0" \
+            "psycopg2-binary>=2.9.9" \
+            "maturin>=1.10.0"
+      - name: Build the PyO3 differential bridge
+        working-directory: backend
+        run: .venv/bin/maturin develop --manifest-path rss_parser_rust/Cargo.toml --release --locked
+      - name: Apply the SQLx schema on the isolated CI database (twice for idempotence)
+        env:
+          THESIS_RUST_DATABASE_URL: postgresql://thesis:thesis@127.0.0.1:5432/thesis_test
+        run: |
+          cargo run --manifest-path backend/Cargo.toml --locked -p thesis-server -- --migrate
+          cargo run --manifest-path backend/Cargo.toml --locked -p thesis-server -- --migrate
+      - name: Run Python and Rust boundary tests
+        working-directory: backend
+        run: |
+          .venv/bin/pytest -q \
+            tests/test_rust_gdelt_boundary.py \
+            tests/test_rust_rank_boundary.py \
+            tests/test_rust_evidence_differential.py \
+            tests/test_rust_evidence_http_differential.py \
+            tests/test_rust_gdelt_taxonomy.py \
+            tests/test_evidence_policy.py \
+            tests/test_openapi_cli_contract.py \
+            tests/test_evidence_spine_integration.py \
+            tests/test_proof_suite_registry.py \
+            tests/test_proof_suite_runner_execution.py \
+            tests/test_evidence_corpus_replay.py \
+            tests/test_clean_room_scanner.py \
+            tests/test_rust_topic_boundary.py \
+            tests/test_rust_comparison_keywords.py \
+            tests/test_rust_article_comparison.py \
+            tests/test_rust_language_diagnostics.py \
+            tests/test_language_diagnostics.py \
+            tests/test_country_mentions.py \
+            tests/test_source_url_guard.py \
+            tests/test_chroma_topics_fallback.py \
+            tests/test_rust_db_schema_integration.py
+      - name: Compare migrated Rust OpenAPI operations
+        run: |
+          cargo run --manifest-path backend/Cargo.toml --locked -p thesis-server -- --openapi > /tmp/thesis-rust-openapi.json
+          python3 scripts/check_openapi_compat.py \
+            backend/openapi.json /tmp/thesis-rust-openapi.json \
+            --operation-id evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post \
+            --operation-id get_evidence_policies_api_wiki_evidence_policies_get \
+            --operation-id get_evidence_claim_api_wiki_evidence_claims__claim_id__get \
+            --operation-id post_ranked_articles_news_ranked_post \
+            --operation-id compare_two_articles_compare_articles_post \
+            --operation-id get_evidence_relationships_api_wiki_evidence_relationships_get \
+            --operation-id get_ownership_interest_api_wiki_evidence_interest_get
+
+  kani:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Kani
+        run: |
+          cargo install --locked --version 0.68.0 kani-verifier
+          cargo kani setup
+      - name: Verify selected Kani harnesses
+        run: |
+          cargo kani --manifest-path backend/Cargo.toml -p thesis-evidence --default-unwind 4
+          cargo kani --manifest-path backend/Cargo.toml -p thesis-ingest --default-unwind 4
+          cargo kani --manifest-path backend/Cargo.toml -p thesis-search --default-unwind 4
+          cargo kani --manifest-path backend/Cargo.toml -p thesis-search \
+            --default-unwind 1 --harness increasing_rate_never_reduces_diagnostic_severity
+          cargo kani --manifest-path backend/Cargo.toml \
+            -p rss_parser_rust --default-unwind 4
+
+  verus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Verus 0.2026.09.20.aef82ed
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/verus.zip" \
+            "https://github.com/verus-lang/verus/releases/download/release/0.2026.09.20.aef82ed/verus-0.2026.09.20.aef82ed-x86-linux.zip"
+          echo "7b870fa12bc589015c2fab60a8b3d9f07c7b1adb3444eb0fadffcbf7f0447b33  $RUNNER_TEMP/verus.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/verus.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/verus-x86-linux" >> "$GITHUB_PATH"
+          rustup toolchain install 1.98.1 --profile minimal --component rustc-dev --component llvm-tools --no-self-update
+      - name: Verify source host identity model
+        run: verus backend/crates/thesis-ingest/verus/source_url_guard.rs
+      - name: Verify CAMEO root normalization model
+        run: verus backend/crates/thesis-ingest/verus/cameo_root_normalization.rs
+      - name: Verify evidence root semantics
+        run: verus backend/crates/thesis-evidence/verus/independent_roots.rs
+      - name: Verify country alias span semantics
+        run: verus backend/crates/thesis-search/verus/alias_ranges.rs
+      - name: Verify MinHash similarity bounds
+        run: verus backend/crates/thesis-search/verus/minhash_ratio.rs
+      - name: Verify comparison keyword priority
+        run: verus backend/crates/thesis-search/verus/comparison_keyword_priority.rs
+      - name: Verify comparison entity partition
+        run: verus backend/crates/thesis-search/verus/comparison_entity_partition.rs
+
+  mutants:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-mutants
+        run: cargo install --locked --version 27.1.0 cargo-mutants
+      - name: Mutate evidence and ranking kernels
+        run: >-
+          cargo mutants --manifest-path backend/Cargo.toml
+          --package thesis-evidence --package thesis-search
+          --re '.*in (collect_evidence_facts|acceptance_reasons|decision_failures|review_failures|policy_failures|distinct_count|normalize_token|cap_score|stop_words_set|tokenize|article_keywords|source_key|has_real_image|priority_bucket|add_profile_weights|build_interest_profile|score_article|rank_articles)$'
+          --exclude-re 'replace \| with \^ in decision_failures|replace && with \|\| in score_article'
+          --jobs 2 --timeout 30 --output /tmp/thesis-mutants
+      - name: Mutate country alias matching
+        run: >-
+          cargo mutants --manifest-path backend/Cargo.toml
+          --package thesis-search --file crates/thesis-search/src/country_mentions.rs
+          --re '.*in (new|extract|extract_article|build_article_text|add_alias|insert_alias|is_textual_alias|requires_exact_token_match|tokens|lowered_tokens|original_tokens|add_pattern_mentions|add_token_mentions|match_alias_at|is_inside_alias_range)$'
+          --jobs 2 --timeout 30 --output /tmp/thesis-mutants-country
+      - name: Mutate article comparison
+        run: >-
+          cargo mutants --manifest-path backend/Cargo.toml
+          --package thesis-search
+          --file crates/thesis-search/src/article_comparison.rs
+          --re '.*in (compare_articles|calculate_text_similarity|generate_sentence_diff|best_sentence_match|sentence_word_overlap|extract_entities|entity_group|dedupe_entity_groups|compare_entity_group|compare_keywords|keyword_emphasis|round_decimal)$'
+          --exclude-re 'replace .. with && in compare_articles|replace .. with && in calculate_text_similarity|replace .. with && in sentence_word_overlap'
+          --timeout 30 --output /tmp/thesis-mutants-article-comparison --in-place
+      - name: Mutate source host identity matching
+        run: >-
+          cargo mutants --manifest-path backend/Cargo.toml
+          --package thesis-ingest
+          --file crates/thesis-ingest/src/source_url_guard.rs
+          --gitignore true
+          --re '.*in (normalize_host|is_host_or_subdomain|has_label_boundary_suffix|belongs_to_family|hosts_match)$'
+          --jobs 2 --timeout 30 --output /tmp/thesis-mutants-source-host

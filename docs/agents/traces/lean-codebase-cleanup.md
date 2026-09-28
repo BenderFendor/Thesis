@@ -819,6 +819,54 @@ The configured scripts lint and typecheck gates are closed.
 Rollback or next executable step: keep the two focused commits; rerun `scripts/self-test` and then
 continue the remaining repository quality gates with only focused staging.
 
+## 2026-09-23: Main checkout baseline and CCCC closure
+
+Goal: continue the complete feature-preserving plan in
+[`docs/agent/lean-codebase-plan.md`](../../agent/lean-codebase-plan.md), reconcile its old
+branch checkpoint against `main`, and preserve all user-owned state.
+
+Starting state: `main` at `c728ec1`, clean except for untracked `har/`. The `har/` directory
+was left untouched. The prior root cleanup is documented in
+[`repo-root-cleanup-2026-09-23.md`](repo-root-cleanup-2026-09-23.md).
+
+The watchdog-wrapped `scripts/self-test` exited 1 after 117.9 seconds. Fresh full measurement
+`qh-measure:8759ff2f0be326f3c919938b` recorded 2 CCCC violations and 0 Oxlint findings.
+It found 141 frontend functions below MI 50 and 1,065 below MI 60, plus 11 JavaScript
+tooling functions below MI 50 and 76 below MI 60. This was the pre-fix baseline.
+
+Changes:
+
+- Replaced the exit-code ternary in `scripts/check-file-lines.mjs::main` with numeric
+  conversion of the failure predicate. CCCC moved from CC 11/cognitive 15 to CC 10/cognitive
+  14; MI moved from 47.3 to 47.5. The file remains 69 lines.
+- Removed redundant record checks for parsed JSON label and span values in
+  `scripts/quality-hardening/adapters/oxlint.mjs::parseFinding`. Optional access still handles
+  null and primitive JSON values. CCCC moved from CC 12/cognitive 8 to CC 10/cognitive 6;
+  MI moved from 49.9 to 50.5. The file remains 88 lines.
+- Added one adapter regression for null labels and primitive spans. The test file grew from
+  36 to 41 lines.
+
+Verification:
+
+- `bash scripts/check-complexity`: passed with 0 hard violations across 12,927 functions.
+- `node --test scripts/tests/quality-hardening/adapters.test.mjs`: 3 tests passed.
+- `npm run cli:typecheck`: passed.
+- Changed-file Oxlint: 0 diagnostics.
+- Changed-scope measurement `qh-measure:e5272b163a30889ef510aa22`: CCCC 0, Oxlint 0,
+  code-multivitals 0; CRAP was not selected.
+- `git diff --check`: passed.
+- `node scripts/check-file-lines.mjs`: still fails on
+  `backend/news_research_agent.py`, 2,198 lines versus its 2,081-line debt cap.
+- Full `scripts/self-test` has not been rerun after these edits. The earlier full measurement
+  is not current closure evidence.
+
+Remaining: rerun full verification after the next coherent repairs; reduce frontend MI debt
+while tracking JavaScript tooling separately; reduce the backend source-line debt; establish
+fresh CRAP coverage; finish open plan phases and desktop/mobile browser checks.
+
+Next: inspect the current MI findings and trace the responsibilities and callers of
+`backend/news_research_agent.py` before choosing a line-limit refactor.
+
 ## 2026-09-11 — Verifier speed checkpoint
 
 Goal and done criteria: remove repeated expensive analyzer work from `verify.sh`, preserve every

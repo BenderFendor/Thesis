@@ -5,7 +5,10 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.language_diagnostics import analyze_language_diagnostics
+from app.services.language_diagnostics import (
+    analyze_language_diagnostics,
+    analyze_language_diagnostics_python,
+)
 
 
 def test_language_diagnostics_flags_passive_actor_omission_and_euphemisms() -> None:
@@ -18,6 +21,7 @@ def test_language_diagnostics_flags_passive_actor_omission_and_euphemisms() -> N
 
     diagnostics = analyze_language_diagnostics(text)
 
+    assert diagnostics == analyze_language_diagnostics_python(text)
     assert diagnostics["sentence_count"] == 4
     assert diagnostics["passive_voice"]["count"] >= 2
     assert diagnostics["actor_omission"]["count"] >= 1
@@ -35,6 +39,7 @@ def test_language_diagnostics_stays_low_for_direct_attributed_language() -> None
 
     diagnostics = analyze_language_diagnostics(text)
 
+    assert diagnostics == analyze_language_diagnostics_python(text)
     assert diagnostics["passive_voice"]["count"] == 0
     assert diagnostics["actor_omission"]["count"] == 0
     assert diagnostics["euphemisms"]["count"] == 0
@@ -43,13 +48,15 @@ def test_language_diagnostics_stays_low_for_direct_attributed_language() -> None
 
 def test_language_diagnostics_endpoint_accepts_inline_text() -> None:
     client = TestClient(app)
+    text = "People were detained overnight. Officials described unrest near the square."
+    reference = analyze_language_diagnostics_python(text)
 
     response = client.post(
         "/api/article/language-diagnostics",
         json={
             "url": "https://example.com/story",
             "title": "Example story",
-            "text": "People were detained overnight. Officials described unrest near the square.",
+            "text": text,
         },
     )
 
@@ -60,3 +67,5 @@ def test_language_diagnostics_endpoint_accepts_inline_text() -> None:
     assert payload["title"] == "Example story"
     assert payload["actor_omission"]["count"] == 1
     assert payload["sanitized_language"]["count"] == 1
+    for key, value in reference.items():
+        assert payload[key] == value

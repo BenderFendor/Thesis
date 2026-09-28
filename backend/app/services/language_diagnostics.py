@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, cast
 
+from app.services.rss_parser_rust_bindings import analyze_language_diagnostics_rust
 
 DiagnosticStatus = Literal["low", "medium", "high"]
 
@@ -87,8 +88,11 @@ SANITIZED_TERMS: dict[str, str] = {
 }
 
 
-def analyze_language_diagnostics(text: str, title: str | None = None) -> LanguageDiagnosticsPayload:
-    """Analyze article language for passive constructions and sanitized framing."""
+def analyze_language_diagnostics_python(
+    text: str,
+    title: str | None = None,
+) -> LanguageDiagnosticsPayload:
+    """Return the independent Python reference result for differential tests."""
     del title
 
     clean_text = " ".join(text.split())
@@ -137,6 +141,14 @@ def analyze_language_diagnostics(text: str, title: str | None = None) -> Languag
             ),
         },
     }
+
+
+def analyze_language_diagnostics(
+    text: str,
+    title: str | None = None,
+) -> LanguageDiagnosticsPayload:
+    """Analyze article language through the authoritative Rust implementation."""
+    return cast(LanguageDiagnosticsPayload, analyze_language_diagnostics_rust(text, title))
 
 
 def _split_sentences(text: str) -> list[str]:

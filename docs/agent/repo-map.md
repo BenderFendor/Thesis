@@ -6,7 +6,7 @@ This map helps Codex agents orient quickly before editing.
 
 ## Top-Level Layout
 
-- `backend/`: FastAPI app, services, scripts, and tests.
+- `backend/`: FastAPI app, services, scripts, tests, and the Rust workspace at `backend/Cargo.toml`.
 - `frontend/`: Next.js app, UI components, hooks, and tests.
 - `docs/`: project docs, including `docs/agent/` operational guidance.
 - `docs/documentation-maintenance.md`: README, docs, and GitHub Wiki sync workflow.
@@ -46,9 +46,41 @@ This map helps Codex agents orient quickly before editing.
 - `backend/scripts/plan_reporter_source_enrichment.py`: source/reporter backlog planner. Dedupe identity keys only use real author/profile URLs, not source homepages or feeds.
 - `docs/agent/reporter-verification-90-percent-roadmap.md`: target-state plan for reaching 90% verified eligible reporter coverage without weakening the evidence model.
 
+## Rust Backend Workspace
+
+- `backend/Cargo.toml`: workspace root and shared lockfile owner.
+- `backend/crates/thesis-evidence/`: pure versioned evidence acceptance rules, Kani harnesses, and an independent-root Verus model.
+- `backend/crates/thesis-ingest/`: pure HTML cleanup, article metadata/image extraction, GDELT parsing/taxonomy, and source-host normalization/matching used by RSS and the PyO3 API.
+- `backend/crates/thesis-search/`: personalized ranking, lexical topics, article comparison, comparison keywords, country aliases, and MinHash duplicate detection; property tests cover comparison scores and counts, score bounds, keyword rules, alias matching, and MinHash symmetry/range.
+- `backend/crates/thesis-search/src/language_diagnostics.rs`: deterministic article-language scoring; Kani checks severity monotonicity, while Hypothesis differentials cover Unicode and pattern handling. Regex and phrase matching are not formally proved.
+- `backend/crates/thesis-db/`: SQLx connection and typed evidence evaluation, claim-read, and relationship-list queries against the Alembic schema.
+- `backend/crates/thesis-api/`: Axum routes for migrated API operations.
+- `backend/crates/thesis-server/`: shadow Rust listener for evidence policy and claim reads, evidence evaluation, relationship reads, personalized ranking, and `POST /compare/articles`; FastAPI remains the public application server.
+- `backend/rss_parser_rust/`: remaining RSS parser/fetcher modules and temporary PyO3 bridge; depends on `thesis-ingest`, `thesis-evidence`, and `thesis-search`.
+- `docs/architecture/rust-backend-migration.md`: current dependency map, module phases, and deletion conditions.
+- `docs/agents/formal-audit/verification-manifest.json`: implemented invariants and actual verification status.
+
 ## Rust RSS Parser
 
 - `backend/rss_parser_rust/src/parser.rs`: feed parsing with universal author extraction (dc:creator, dc:author, itunes:author, media:credit, atom:author/name, atom:uri, link rel=author, multi-author splitting).
+- `backend/crates/thesis-ingest/src/cleaner.rs`: HTML-to-text cleanup shared with the feed parser.
+- `backend/crates/thesis-ingest/src/html_extract.rs`: article body, metadata, and image extraction behind the unchanged PyO3 functions.
+- `backend/crates/thesis-ingest/src/gdelt.rs`: typed GDELT TSV parsing, identity filtering, and domain filtering with a bounded-row property test.
+- `backend/crates/thesis-ingest/src/gdelt_taxonomy.rs`: CAMEO root normalization, stable root counts, Goldstein bucket rules, proptest properties, and a Kani threshold harness.
+- `backend/crates/thesis-ingest/src/source_url_guard.rs`: Python-compatible host normalization, label-boundary matching, and configured BBC/Asia Plus families. Kani checks the bounded byte suffix kernel; Verus checks the abstract byte-sequence boundary rule.
+- `backend/crates/thesis-ingest/verus/source_url_guard.rs`: Verus model for the source-host label-boundary rule; it is not a refinement proof of the Rust module.
+- `backend/crates/thesis-evidence/verus/independent_roots.rs`: Verus model proving that a qualifying duplicate from an existing root preserves root membership for arbitrary sequence lengths; it is not a Rust refinement proof.
+- `backend/crates/thesis-search/src/country_mentions.rs`: country alias indexing, longest-token matching, sorted deduplicated substring patterns, and article text composition.
+- `backend/crates/thesis-search/src/minhash.rs`: MinHash signatures, collision-free exact grouping, connected duplicate groups, proptest properties, and Kani harnesses.
+- `backend/crates/thesis-search/src/comparison_keywords.rs`: Python-compatible ASCII keyword extraction, Unicode word boundaries, stable frequency ordering, proptest properties, and Kani comparator harnesses.
+- `backend/crates/thesis-search/verus/alias_ranges.rs`: Verus proof that nested alias-span containment is transitive for arbitrary bounds; Kani also exercises the production range helper with a concrete assumption witness.
+- `backend/crates/thesis-search/verus/minhash_ratio.rs`: Verus proof of the mathematical match-count ratio bound for arbitrary lengths; not a Rust refinement proof.
+- `backend/crates/thesis-search/verus/comparison_keyword_priority.rs`: Verus proof of the natural-number frequency/first-seen priority relation; not a Rust refinement proof.
+- `backend/rss_parser_rust/src/country_mentions.rs`: PyO3 adapter with atomically replaceable alias snapshots.
+- `backend/rss_parser_rust/src/blindspot.rs`: Python-facing vector math; Kani checks the bounded production self-dot-product property.
+- `backend/crates/thesis-search/src/topics.rs`: typed keyword extraction, lexical clustering, deterministic feed ordering, property tests, and a Kani Jaccard bound.
+- `backend/rss_parser_rust/src/topics.rs`: Python serialization adapters for the existing topic-binding function names.
+- `backend/rss_parser_rust/src/gdelt.rs`: Python datetime/dict serialization wrappers over the `thesis-ingest` core.
 - `backend/rss_parser_rust/src/types.rs`: `ParsedArticle` with `authors` and `author_urls` fields, Python dict serialization.
 
 ## Frontend Hotspots

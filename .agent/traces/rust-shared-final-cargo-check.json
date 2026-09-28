@@ -1,0 +1,22 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--manifest-path",
+    "backend/Cargo.toml",
+    "--workspace",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 0.016,
+  "max_rss_kb": 18264,
+  "returncode": 1,
+  "stderr_tail": "error: unexpected argument '-D' found\n\nUsage: cargo check [OPTIONS]\n\nFor more information, try '--help'.",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

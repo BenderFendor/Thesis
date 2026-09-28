@@ -26,14 +26,19 @@ const CacheRefreshProgressWireSchema = z
     failed_sources: z.number().optional(),
     message: z.string().optional(),
     source: z.string().nullish(),
+    status: z.string().optional(),
     successful_sources: z.number().optional(),
     total_articles: z.number().optional(),
     total_sources_processed: z.number().optional(),
   })
   .passthrough();
 
+type ParsedCacheRefreshEvent = Readonly<{
+  failed: boolean;
+  progress: CacheRefreshProgress;
+}>;
 
-const parseCacheRefreshEvent = (line: string): CacheRefreshProgress | undefined => {
+const parseCacheRefreshEvent = (line: string): ParsedCacheRefreshEvent | undefined => {
   if (!line.startsWith("data:")) {
     return void 0;
   }
@@ -44,13 +49,16 @@ const parseCacheRefreshEvent = (line: string): CacheRefreshProgress | undefined 
       return void 0;
     }
     return {
-      articlesFromSource: parsed.data.articles_from_source,
-      failedSources: parsed.data.failed_sources,
-      message: parsed.data.message,
-      source: parsed.data.source ?? undefined,
-      successfulSources: parsed.data.successful_sources,
-      totalArticles: parsed.data.total_articles,
-      totalSourcesProcessed: parsed.data.total_sources_processed,
+      failed: parsed.data.status === "error",
+      progress: {
+        articlesFromSource: parsed.data.articles_from_source,
+        failedSources: parsed.data.failed_sources,
+        message: parsed.data.message,
+        source: parsed.data.source ?? undefined,
+        successfulSources: parsed.data.successful_sources,
+        totalArticles: parsed.data.total_articles,
+        totalSourcesProcessed: parsed.data.total_sources_processed,
+      },
     };
   } catch {
     return void 0;
@@ -60,11 +68,13 @@ const parseCacheRefreshEvent = (line: string): CacheRefreshProgress | undefined 
 const emitCacheRefreshLine = (
   line: string,
   onProgress: ((progress: CacheRefreshProgress) => void) | undefined,
-): void => {
+): boolean => {
   const event = parseCacheRefreshEvent(line);
-  if (event !== undefined) {
-    onProgress?.(event);
+  if (event === undefined) {
+    return false;
   }
+  onProgress?.(event.progress);
+  return event.failed;
 };
 
 type PaginatedQueryValue = string | number | boolean | null | undefined;
@@ -299,23 +309,22 @@ const fetchCacheStatus = async (): Promise<CacheStatus | null> => {
 const consumeCacheRefreshStream = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onProgress: ((progress: CacheRefreshProgress) => void) | undefined,
-): Promise<void> => {
+): Promise<boolean> => {
   const decoder = new TextDecoder();
-  const readNextChunk = async (pending: string): Promise<void> => {
+  let pending = "";
+  let failed = false;
+  while (true) {
     const { done, value } = await reader.read();
     if (done) {
-      emitCacheRefreshLine(`${pending}${decoder.decode()}`, onProgress);
-      return void 0;
+      failed = emitCacheRefreshLine(`${pending}${decoder.decode()}`, onProgress) || failed;
+      return !failed;
     }
     const lines = `${pending}${decoder.decode(value, { stream: true })}`.split("\n");
-    const nextPending = lines.pop() ?? "";
+    pending = lines.pop() ?? "";
     for (const line of lines) {
-      emitCacheRefreshLine(line, onProgress);
+      failed = emitCacheRefreshLine(line, onProgress) || failed;
     }
-    return readNextChunk(nextPending);
-  };
-
-  await readNextChunk("");
+  }
 };
 
 const refreshCache = async (
@@ -325,8 +334,7 @@ const refreshCache = async (
   if (!response.ok || response.body === null) {
     return false;
   }
-  await consumeCacheRefreshStream(response.body.getReader(), onProgress);
-  return true;
+  return consumeCacheRefreshStream(response.body.getReader(), onProgress);
 };
 
 

@@ -24,7 +24,7 @@ echo "Root: $ROOT_DIR"
 echo
 
 echo "== Important files =="
-for path in AGENTS.md README.md verify.sh runlocal.sh package.json frontend/package.json backend/requirements.txt backend/mypy.ini backend/pytest.ini backend/rss_parser_rust/Cargo.toml; do
+for path in AGENTS.md README.md verify.sh runlocal.sh package.json frontend/package.json backend/requirements.txt backend/mypy.ini backend/pytest.ini backend/Cargo.toml backend/rss_parser_rust/Cargo.toml; do
 	if [[ -f "$path" ]]; then
 		echo "- $path"
 	fi

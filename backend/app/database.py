@@ -24,7 +24,6 @@ from sqlalchemy import (
     Text,
     and_,
     func,
-    inspect,
     or_,
     select,
 )
@@ -35,10 +34,9 @@ from sqlalchemy import (
     text as sqlalchemy_text,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine import Connection, Dialect
-from sqlalchemy.exc import CompileError, OperationalError, SQLAlchemyError
+from sqlalchemy.engine import Dialect
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -47,8 +45,6 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import JSON as JsonType
 from sqlalchemy.types import TypeDecorator, TypeEngine
-
-from app.models.evidence_tables import EVIDENCE_SPINE_TABLES
 
 
 class _DatabaseSettings(Protocol):
@@ -1181,160 +1177,29 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-# Initialize database tables
-def _alembic_managed_table_names() -> frozenset[str]:
-    """Tables owned by an Alembic revision, not by ad hoc create_all.
-
-    The table-name metadata is kept in a dependency-free module so this
-    function does not need to import SQLAlchemy models during startup.
-    """
-    return frozenset(EVIDENCE_SPINE_TABLES)
-
-
+# Verify the schema owner selected by the explicit Rust SQLx migration command.
 async def init_db() -> None:
-    """Create all tables if they don't exist.
-
-    Tables owned by an Alembic revision (see `_alembic_managed_table_names`)
-    are deliberately skipped here. Alembic must be the sole authority that
-    creates or alters those tables; see `app.models.evidence_tables` for why.
-    """
+    """Verify schema readiness without creating, altering, or dropping objects."""
     db_engine = get_engine()
     if db_engine is None:
         logger.info("Skipping database initialization; ENABLE_DATABASE=0")
         return
 
-    alembic_managed = _alembic_managed_table_names()
-
-    async def _create_missing_tables() -> None:
-        async with db_engine.begin() as conn:
-
-            def _get_tables(sync_conn: Connection) -> set[str]:
-                inspector = inspect(sync_conn)
-                return set(inspector.get_table_names(schema="public"))
-
-            existing = await conn.run_sync(_get_tables)
-            missing = [
-                table
-                for table in Base.metadata.sorted_tables
-                if table.name not in existing and table.name not in alembic_managed
-            ]
-            for table in missing:
-                await conn.run_sync(table.create, checkfirst=True)
-
-            if missing:
-                logger.info("Created %d missing tables", len(missing))
-
-    async def _add_missing_columns(
-        conn: AsyncConnection | None = None,
-    ) -> None:
-        """Add columns that exist in SQLAlchemy models but not in the DB.
-
-        Uses ADD COLUMN IF NOT EXISTS so it is safe to call repeatedly.
-        If *conn* is provided, reuses it to avoid opening a second connection.
-        """
-
-        async def _do(c: AsyncConnection) -> None:
-            def _get_existing_columns(
-                sync_conn: Connection,
-            ) -> dict[str, set[str]]:
-                insp = inspect(sync_conn)
-                result: dict[str, set[str]] = {}
-                for table in Base.metadata.sorted_tables:
-                    try:
-                        cols = insp.get_columns(table.name, schema="public")
-                        result[table.name] = {c["name"] for c in cols}
-                    except SQLAlchemyError:
-                        result[table.name] = set()
-                return result
-
-            existing_columns = await c.run_sync(_get_existing_columns)
-            added = 0
-
-            for table in Base.metadata.sorted_tables:
-                if table.name in alembic_managed:
-                    continue
-                db_cols = existing_columns.get(table.name)
-                if not db_cols:
-                    continue
-                for col in table.columns:
-                    if col.name in db_cols:
-                        continue
-                    try:
-                        pg_type = col.type.compile(dialect=c.dialect)
-                    except CompileError:
-                        col_type_str = str(col.type).upper().split("(")[0]
-                        sa_type_to_pg = {
-                            "INTEGER": "INTEGER",
-                            "VARCHAR": "VARCHAR",
-                            "TEXT": "TEXT",
-                            "BOOLEAN": "BOOLEAN",
-                            "FLOAT": "FLOAT",
-                            "DATETIME": "TIMESTAMP WITHOUT TIME ZONE",
-                            "JSON": "JSON",
-                            "JSONB": "JSONB",
-                        }
-                        pg_type = sa_type_to_pg.get(col_type_str, "TEXT")
-                    stmt = f'ALTER TABLE "{table.name}" ADD COLUMN IF NOT EXISTS "{col.name}" {pg_type}'
-                    await c.execute(sqlalchemy_text(stmt))
-                    added += 1
-
-            if added:
-                logger.info("Added %d missing columns to existing tables", added)
-
-        if conn is not None:
-            await _do(conn)
-        else:
-            async with db_engine.begin() as new_conn:
-                await _do(new_conn)
-
-    async def _ensure_search_indexes(
-        conn: AsyncConnection | None = None,
-    ) -> None:
-        create_index_sql = sqlalchemy_text(
-            """
-            CREATE INDEX IF NOT EXISTS idx_articles_search
-            ON articles
-            USING GIN ((
-                setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
-                setweight(to_tsvector('english', COALESCE(summary, '')), 'B') ||
-                setweight(to_tsvector('english', COALESCE(source, '')), 'B') ||
-                setweight(to_tsvector('english', COALESCE(category, '')), 'C') ||
-                setweight(to_tsvector('english', COALESCE(content, '')), 'D')
-            ))
-            """
-        )
-
-        async def _do(c: AsyncConnection) -> None:
-            if c.dialect.name != "postgresql":
-                return
-            await c.execute(create_index_sql)
-            await c.execute(
-                sqlalchemy_text(
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_articles_mentioned_countries_gin
-                    ON articles
-                    USING GIN (mentioned_countries)
-                    """
+    async def _check_schema_authority() -> None:
+        async with db_engine.connect() as conn:
+            row = (
+                await conn.execute(
+                    sqlalchemy_text(
+                        "SELECT schema_authority, alembic_handoff_revision "
+                        "FROM public.thesis_schema_authority WHERE singleton IS TRUE"
+                    )
                 )
-            )
-
-        if conn is not None:
-            await _do(conn)
-        else:
-            async with db_engine.begin() as new_conn:
-                await _do(new_conn)
-
-    async def _drop_legacy_analysis_tables(
-        conn: AsyncConnection | None = None,
-    ) -> None:
-        async def _do(c: AsyncConnection) -> None:
-            await c.execute(sqlalchemy_text("DROP TABLE IF EXISTS propaganda_filter_scores"))
-
-        if conn is not None:
-            await _do(conn)
-        else:
-            async with db_engine.begin() as new_conn:
-                await _do(new_conn)
+            ).one_or_none()
+            if row is None or row[0] != "sqlx" or row[1] != "20260722_0006":
+                raise RuntimeError(
+                    "Database schema is not owned by the current SQLx migrations; "
+                    "run the explicit Rust migration command before starting FastAPI."
+                )
 
     def _iter_exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current: BaseException | None = exc
@@ -1349,13 +1214,11 @@ async def init_db() -> None:
             "CannotConnectNowError",
             "ConnectionDoesNotExistError",
             "TooManyConnectionsError",
-            "DuplicateTableError",
         }
         message_markers = (
             "the database system is starting up",
             "connection refused",
             "could not connect",
-            "already exists",
         )
         for err in _iter_exception_chain(exc):
             if isinstance(err, OperationalError):
@@ -1372,63 +1235,20 @@ async def init_db() -> None:
                 return True
         return False
 
-    def _is_already_exists_error(exc: BaseException) -> bool:
-        """Check if error is about objects already existing (which is fine)."""
-        message = str(exc).lower()
-        if "already exists" in message:
-            return True
-        for err in _iter_exception_chain(exc):
-            if (
-                err.__class__.__module__.startswith("asyncpg")
-                and err.__class__.__name__ == "DuplicateTableError"
-            ):
-                return True
-            if "already exists" in str(err).lower():
-                return True
-        return False
-
     timeout_seconds = float(os.getenv("DB_STARTUP_TIMEOUT_SECONDS", "60"))
     deadline = time.monotonic() + timeout_seconds
     delay_seconds = 0.25
     attempt = 0
 
-    non_alembic_tables = [
-        table for table in Base.metadata.sorted_tables if table.name not in alembic_managed
-    ]
-
-    def _create_all_except_alembic_managed(sync_conn: Connection) -> None:
-        Base.metadata.create_all(sync_conn, tables=non_alembic_tables)
-
-    async def _initialize_once() -> None:
-        async with db_engine.begin() as conn:
-            await conn.run_sync(_create_all_except_alembic_managed)
-            await _drop_legacy_analysis_tables(conn)
-            logger.info("Database tables initialized successfully")
-            await _add_missing_columns(conn)
-            await _ensure_search_indexes(conn)
-
-    async def _recover_existing_objects() -> None:
-        logger.info("Database objects already exist, continuing startup")
-        await _create_missing_tables()
-        await _drop_legacy_analysis_tables()
-        await _add_missing_columns()
-        await _ensure_search_indexes()
-
-    def _startup_retry_exhausted(exc: BaseException) -> bool:
-        return not _is_transient_startup_error(exc) or time.monotonic() >= deadline
-
     while True:
         try:
-            await _initialize_once()
+            await _check_schema_authority()
             return
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            if _is_already_exists_error(exc):
-                await _recover_existing_objects()
-                return
-            if _startup_retry_exhausted(exc):
-                logger.exception("Failed to initialize database")
+            if not _is_transient_startup_error(exc) or time.monotonic() >= deadline:
+                logger.exception("Database schema readiness check failed")
                 raise
             attempt += 1
             remaining = max(0.0, deadline - time.monotonic())

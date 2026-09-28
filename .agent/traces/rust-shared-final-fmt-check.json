@@ -1,0 +1,20 @@
+{
+  "command": [
+    "cargo",
+    "fmt",
+    "--manifest-path",
+    "backend/Cargo.toml",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "cwd": "/home/bender/classwork/Thesis",
+  "duration_seconds": 0.215,
+  "max_rss_kb": 50408,
+  "returncode": 1,
+  "stderr_tail": "",
+  "stdout_tail": "+            \"external.call_count\",\n+            \"external.timeouts\",\n+            \"external.errors\",\n+        ] {\n             let count = match name {\n                 \"external.call_count\" => call.call_count,\n                 \"external.timeouts\" => call.timeouts,\nDiff in /home/bender/classwork/Thesis/backend/crates/thesis-api/src/profiling.rs:752:\n             finite_nonnegative(name, value)?;\n         }\n     }\n-    nonnegative_count(\"query_stats.total_queries\", observation.query_stats.total_queries)?;\n     nonnegative_count(\n+        \"query_stats.total_queries\",\n+        observation.query_stats.total_queries,\n+    )?;\n+    nonnegative_count(\n         \"query_stats.slow_query_count\",\n         observation.query_stats.slow_query_count,\n     )?;\nDiff in /home/bender/classwork/Thesis/backend/crates/thesis-api/src/profiling.rs:760:\n     for (name, value) in [\n-        (\"query_stats.total_time_ms\", observation.query_stats.total_time_ms),\n-        (\"query_stats.avg_time_ms\", observation.query_stats.avg_time_ms),\n+        (\n+            \"query_stats.total_time_ms\",\n+            observation.query_stats.total_time_ms,\n+        ),\n+        (\n+            \"query_stats.avg_time_ms\",\n+            observation.query_stats.avg_time_ms,\n+        ),\n     ] {\n         finite_nonnegative(name, value)?;\n     }\nDiff in /home/bender/classwork/Thesis/backend/crates/thesis-api/src/profiling.rs:976:\n         .filter(|pair| !pair.is_empty())\n     {\n         let (raw_key, raw_value) = pair.split_once('=').unwrap_or((pair, \"\"));\n-        let key = decode_query_component(raw_key).map_err(|_| query_error(raw_key, \"query_string_parsing\"))?;\n+        let key = decode_query_component(raw_key)\n+            .map_err(|_| query_error(raw_key, \"query_string_parsing\"))?;\n         if key != \"limit\" {\n             continue;\n         }\nDiff in /home/bender/classwork/Thesis/backend/crates/thesis-api/src/profiling.rs:983:\n         let value = decode_query_component(raw_value)\n             .map_err(|_| query_error(raw_value, \"query_string_parsing\"))?;\n-        limit = value.trim().parse::<i64>().map_err(|_| HttpValidationError {\n-            detail: vec![ValidationError {\n-                loc: vec![\n-                    ValidationLocation::Text(\"query\".to_owned()),\n-                    ValidationLocation::Text(\"limit\".to_owned()),\n-                ],\n-                msg: \"Input should be a valid integer, unable to parse string as an integer\"\n-                    .to_owned(),\n-                error_type: \"int_parsing\".to_owned(),\n-                input: Value::String(value),\n-                ctx: None,\n-            }],\n-        })?;\n+        limit = value\n+            .trim()\n+            .parse::<i64>()\n+            .map_err(|_| HttpValidationError {\n+                detail: vec![ValidationError {\n+                    loc: vec![\n+                        ValidationLocation::Text(\"query\".to_owned()),\n+                        ValidationLocation::Text(\"limit\".to_owned()),\n+                    ],\n+                    msg: \"Input should be a valid integer, unable to parse string as an integer\"\n+                        .to_owned(),\n+                    error_type: \"int_parsing\".to_owned(),\n+                    input: Value::String(value),\n+                    ctx: None,\n+                }],\n+            })?;\n     }\n     Ok(limit)\n }",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

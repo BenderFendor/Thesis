@@ -1,0 +1,24 @@
+{
+  "command": [
+    "env",
+    "RUSTFLAGS=-Dwarnings",
+    "cargo",
+    "check",
+    "--locked",
+    "-p",
+    "thesis-db",
+    "-p",
+    "thesis-api",
+    "-p",
+    "thesis-server"
+  ],
+  "cwd": "/home/bender/classwork/Thesis/backend",
+  "duration_seconds": 1.791,
+  "max_rss_kb": 309568,
+  "returncode": 101,
+  "stderr_tail": "    Checking thesis-api v0.1.0 (/home/bender/classwork/Thesis/backend/crates/thesis-api)\nerror: unexpected attribute: default, expected any of: style, explode, allow_reserved, example, deprecated, description, format, write_only, read_only, nullable, xml, multiple_of, maximum, minimum, exclusive_maximum, exclusive_minimum, max_length, min_length, pattern, max_items, min_items, extensions\n   --> crates/thesis-api/src/news.rs:547:40\n    |\n547 |         (\"limit\" = Option<i64>, Query, default = 50, minimum = 1, maximum = 500),\n    |                                        ^^^^^^^\n\nerror: unexpected attribute: default, expected any of: style, explode, allow_reserved, example, deprecated, description, format, write_only, read_only, nullable, xml, multiple_of, maximum, minimum, exclusive_maximum, exclusive_minimum, max_length, min_length, pattern, max_items, min_items, extensions\n   --> crates/thesis-api/src/news.rs:647:40\n    |\n647 |         (\"limit\" = Option<i64>, Query, default = 50, minimum = 1, maximum = 500),\n    |                                        ^^^^^^^\n\nerror: unused imports: `NewsPageRequest` and `RecentNewsRequest`\n  --> crates/thesis-api/src/news.rs:12:66\n   |\n12 |     NewsArticleRecord, NewsCursor, NewsFilter, NewsIndexRequest, NewsPageRequest, NewsSortOrder,\n   |                                                                  ^^^^^^^^^^^^^^^\n13 |     RecentNewsRequest,\n   |     ^^^^^^^^^^^^^^^^^\n   |\n   = note: `-D unused-imports` implied by `-D warnings`\n   = help: to override `-D warnings` add `#[allow(unused_imports)]`\n\nerror: could not compile `thesis-api` (lib) due to 3 previous errors",
+  "stdout_tail": "",
+  "timed_out": false,
+  "verdict": "failure",
+  "warnings": []
+}

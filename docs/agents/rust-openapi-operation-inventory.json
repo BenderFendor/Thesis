@@ -1,0 +1,2532 @@
+{
+  "format": "rust-openapi-operation-inventory/v1",
+  "source": {
+    "openapi": "backend/openapi.json",
+    "route_root": "backend/app/api/routes/"
+  },
+  "counts": {
+    "openapi_paths": 166,
+    "openapi_http_operations": 178,
+    "migrated_operations": 106,
+    "rust_registered_unverified_operations": 37,
+    "unregistered_operations": 35,
+    "public_cutover_operations": 0,
+    "remaining_operations": 72,
+    "websocket_extensions": 1,
+    "upload_operations": 0,
+    "rows_high_risk": 59,
+    "rows_normal": 119,
+    "by_method_all": {
+      "GET": 122,
+      "POST": 44,
+      "DELETE": 8,
+      "PUT": 1,
+      "PATCH": 3
+    },
+    "by_batch_all": {
+      "B01": 7,
+      "B02": 15,
+      "B03": 6,
+      "B04": 30,
+      "B05": 9,
+      "B06": 19,
+      "B07": 5,
+      "B08": 11,
+      "B09": 13,
+      "B10": 7,
+      "B11": 13,
+      "B12": 6,
+      "B13": 10,
+      "B14": 10,
+      "B15": 10,
+      "B16": 7
+    },
+    "by_risk_flag_remaining": {
+      "external_provider": 13,
+      "background_worker": 1,
+      "database_write": 11,
+      "sse": 2
+    }
+  },
+  "shadow_operation_ids": [
+    "analyze_article_language_api_article_language_diagnostics_post",
+    "analyze_article_api_article_analyze_post",
+    "compare_two_articles_compare_articles_post",
+    "create_bookmark_api_bookmarks_post",
+    "create_liked_article_api_liked_post",
+    "delete_bookmark_api_bookmarks__article_id__delete",
+    "delete_liked_article_api_liked__article_id__delete",
+    "evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post",
+    "generate_ai_digest_api_queue_digest_post",
+    "get_article_counts_by_country_news_by_country_get",
+    "get_browse_index_news_index_get",
+    "get_categories_categories_get",
+    "get_categories_news_categories_get",
+    "get_countries_geo_data_route_news_countries_geo_get",
+    "get_evidence_claim_api_wiki_evidence_claims__claim_id__get",
+    "get_evidence_policies_api_wiki_evidence_policies_get",
+    "get_evidence_relationships_api_wiki_evidence_relationships_get",
+    "get_liked_article_api_liked__article_id__get",
+    "get_news_for_country_news_country__code__get",
+    "get_news_paginated_news_page_get",
+    "get_recent_news_news_recent_get",
+    "get_sources_news_sources_get",
+    "metrics_profiling_metrics_get",
+    "profiling_summary_profiling_summary_get",
+    "bottlenecks_profiling_bottlenecks_get",
+    "query_stats_profiling_queries_get",
+    "startup_stats_profiling_startup_get",
+    "slow_endpoints_profiling_slow_endpoints_get",
+    "reset_profiling_profiling_reset_post",
+    "profiling_health_profiling_health_get",
+    "get_sources_sources_get",
+    "add_rss_source_sources_add_rss_post",
+    "validate_rss_source_sources_rss_validate_post",
+    "promote_rss_source_sources_rss_promote_post",
+    "get_source_credibility_sources__domain__credibility_get",
+    "get_bookmark_api_bookmarks__article_id__get",
+    "get_ownership_interest_api_wiki_evidence_interest_get",
+    "health_check_health_get",
+    "list_available_countries_news_countries_list_get",
+    "list_bookmarks_api_bookmarks_get",
+    "list_liked_articles_api_liked_get",
+    "post_ranked_articles_news_ranked_post",
+    "read_root__get",
+    "update_bookmark_api_bookmarks__article_id__put",
+    "add_to_queue_api_queue_add_post",
+    "archive_completed_items_api_queue_maintenance_archive_post",
+    "create_highlight_api_queue_highlights_post",
+    "create_shelf_api_queue_shelves_post",
+    "delete_highlight_api_queue_highlights__highlight_id__delete",
+    "get_all_highlights_api_queue_highlights_get",
+    "get_article_highlights_api_queue_highlights_article__article_url__get",
+    "get_daily_digest_api_queue_digest_daily_get",
+    "get_queue_api_queue_get",
+    "get_queue_item_content_api_queue__queue_id__content_get",
+    "get_queue_overview_api_queue_overview_get",
+    "get_shelves_api_queue_shelves_get",
+    "move_expired_items_api_queue_maintenance_move_expired_post",
+    "remove_from_queue_api_queue__queue_id__delete",
+    "remove_from_queue_by_url_api_queue_url__article_url__delete",
+    "update_highlight_api_queue_highlights__highlight_id__patch",
+    "update_queue_item_api_queue__queue_id__patch",
+    "update_shelf_api_queue_shelves__shelf_id__patch",
+    "profile_reporter_research_entity_reporter_profile_post",
+    "get_reporter_research_entity_reporter__reporter_id__get",
+    "research_organization_research_entity_organization_research_post",
+    "research_source_profile_research_entity_source_profile_post",
+    "research_source_batch_research_entity_source_batch_post",
+    "get_organization_research_entity_organization__org_id__get",
+    "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
+    "list_reporters_research_entity_reporters_get",
+    "list_organizations_research_entity_organizations_get",
+    "analyze_material_context_research_entity_material_context_post",
+    "get_country_economic_profile_research_entity_country__country_code__economic_profile_get",
+    "manual_cache_refresh_cache_refresh_post",
+    "stream_cache_refresh_cache_refresh_stream_post",
+    "get_cache_status_cache_status_get",
+    "stream_news_news_stream_get",
+    "updates_stream_updates_stream_get",
+    "get_updates_status_updates_status_get",
+    "start_refresh_job_jobs_refresh_post",
+    "stream_job_progress_jobs__job_id__stream_get",
+    "get_job_status_jobs__job_id__status_get",
+    "proxy_image_image_proxy_get",
+    "get_cache_stats_image_cache_stats_get",
+    "clear_cache_image_cache_clear_delete",
+    "get_og_image_image_og_get",
+    "get_trending_trending_get",
+    "get_breaking_trending_breaking_get",
+    "get_all_clusters_trending_clusters_get",
+    "get_cluster_detail_trending_clusters__cluster_id__get",
+    "get_cluster_contradictions_trending_clusters__cluster_id__contradictions_get",
+    "get_cluster_lineage_trending_clusters__cluster_id__lineage_get",
+    "get_trending_stats_trending_stats_get",
+    "get_related_articles_api_similarity_related__article_id__get",
+    "get_search_suggestions_api_similarity_search_suggestions_get",
+    "get_source_coverage_api_similarity_source_coverage_get",
+    "compute_novelty_score_api_similarity_novelty_score_post",
+    "get_article_topics_api_similarity_article_topics__article_id__get",
+    "get_bulk_article_topics_api_similarity_bulk_article_topics_post",
+    "extract_article_text_article_extract_get",
+    "get_cached_browse_index_news_index_cached_get",
+    "get_cached_news_paginated_news_page_cached_get",
+    "get_news_by_category_news_category__category_name__get",
+    "get_news_by_source_news_source__source_name__get",
+    "get_source_stats_news_sources_stats_get",
+    "list_cached_articles_debug_cache_articles_get"
+  ],
+  "batches": [
+    {
+      "batch_id": "B01",
+      "label": "Core article and catalog",
+      "domain": "core",
+      "files": [
+        "backend/app/api/routes/article_analysis.py",
+        "backend/app/api/routes/general.py",
+        "backend/app/api/routes/comparison.py"
+      ],
+      "operation_count": 7
+    },
+    {
+      "batch_id": "B02",
+      "label": "News and country browse",
+      "domain": "news",
+      "files": [
+        "backend/app/api/routes/news.py",
+        "backend/app/api/routes/news_by_country.py"
+      ],
+      "operation_count": 15
+    },
+    {
+      "batch_id": "B03",
+      "label": "Cache, live news, and invalidation streams",
+      "domain": "ingestion",
+      "files": [
+        "backend/app/api/routes/cache.py",
+        "backend/app/api/routes/stream.py",
+        "backend/app/api/routes/updates.py"
+      ],
+      "operation_count": 6
+    },
+    {
+      "batch_id": "B04",
+      "label": "Debug and backfill operations",
+      "domain": "debug",
+      "files": [
+        "backend/app/api/routes/debug.py"
+      ],
+      "operation_count": 30
+    },
+    {
+      "batch_id": "B05",
+      "label": "Bookmarks and likes",
+      "domain": "library",
+      "files": [
+        "backend/app/api/routes/bookmarks.py",
+        "backend/app/api/routes/liked.py"
+      ],
+      "operation_count": 9
+    },
+    {
+      "batch_id": "B06",
+      "label": "Reading queue, shelves, and highlights",
+      "domain": "library",
+      "files": [
+        "backend/app/api/routes/reading_queue.py"
+      ],
+      "operation_count": 19
+    },
+    {
+      "batch_id": "B07",
+      "label": "Research, search, and inline definitions",
+      "domain": "research",
+      "files": [
+        "backend/app/api/routes/research.py",
+        "backend/app/api/routes/search.py",
+        "backend/app/api/routes/inline.py"
+      ],
+      "operation_count": 5
+    },
+    {
+      "batch_id": "B08",
+      "label": "Entity and source research",
+      "domain": "research",
+      "files": [
+        "backend/app/api/routes/entity_research.py"
+      ],
+      "operation_count": 11
+    },
+    {
+      "batch_id": "B09",
+      "label": "Profiling and RSS source catalog",
+      "domain": "ops",
+      "files": [
+        "backend/app/api/routes/profiling.py",
+        "backend/app/api/routes/sources.py"
+      ],
+      "operation_count": 13
+    },
+    {
+      "batch_id": "B10",
+      "label": "Refresh jobs and image transport",
+      "domain": "ops",
+      "files": [
+        "backend/app/api/routes/jobs.py",
+        "backend/app/api/routes/image_proxy.py"
+      ],
+      "operation_count": 7
+    },
+    {
+      "batch_id": "B11",
+      "label": "Trending and similarity discovery",
+      "domain": "discovery",
+      "files": [
+        "backend/app/api/routes/trending.py",
+        "backend/app/api/routes/similarity.py"
+      ],
+      "operation_count": 13
+    },
+    {
+      "batch_id": "B12",
+      "label": "Claim verification",
+      "domain": "verification",
+      "files": [
+        "backend/app/api/routes/verification.py"
+      ],
+      "operation_count": 6
+    },
+    {
+      "batch_id": "B13",
+      "label": "GDELT and blind-spot analytics",
+      "domain": "analytics",
+      "files": [
+        "backend/app/api/routes/gdelt.py",
+        "backend/app/api/routes/blindspots.py"
+      ],
+      "operation_count": 10
+    },
+    {
+      "batch_id": "B14",
+      "label": "Wiki directory and indexing",
+      "domain": "wiki",
+      "files": [
+        "backend/app/api/routes/wiki.py"
+      ],
+      "operation_count": 10
+    },
+    {
+      "batch_id": "B15",
+      "label": "Wiki Atlas graph and export",
+      "domain": "wiki",
+      "files": [
+        "backend/app/api/routes/wiki_atlas.py"
+      ],
+      "operation_count": 10
+    },
+    {
+      "batch_id": "B16",
+      "label": "Evidence materialization and proof",
+      "domain": "evidence",
+      "files": [
+        "backend/app/api/routes/wiki_evidence.py"
+      ],
+      "operation_count": 7
+    }
+  ],
+  "non_openapi_protocols": [
+    {
+      "operation_id": "websocket_endpoint_ws_ws",
+      "protocol": "websocket",
+      "method": null,
+      "path": "/ws",
+      "owner": "backend/app/main.py",
+      "domain": "realtime",
+      "batch": "OUT_OF_BAND",
+      "migrated": false,
+      "risk": "high",
+      "risk_flags": [
+        "websocket"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "operation_id": "read_root__get",
+      "method": "GET",
+      "path": "/",
+      "route_module": "backend/app/api/routes/general.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "health_check_health_get",
+      "method": "GET",
+      "path": "/health",
+      "route_module": "backend/app/api/routes/general.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_categories_categories_get",
+      "method": "GET",
+      "path": "/categories",
+      "route_module": "backend/app/api/routes/general.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "extract_article_text_article_extract_get",
+      "method": "GET",
+      "path": "/article/extract",
+      "route_module": "backend/app/api/routes/article_analysis.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "analyze_article_api_article_analyze_post",
+      "method": "POST",
+      "path": "/api/article/analyze",
+      "route_module": "backend/app/api/routes/article_analysis.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "analyze_article_language_api_article_language_diagnostics_post",
+      "method": "POST",
+      "path": "/api/article/language-diagnostics",
+      "route_module": "backend/app/api/routes/article_analysis.py",
+      "domain": "core",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_news_paginated_news_page_get",
+      "method": "GET",
+      "path": "/news/page",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_cached_news_paginated_news_page_cached_get",
+      "method": "GET",
+      "path": "/news/page/cached",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_cached_browse_index_news_index_cached_get",
+      "method": "GET",
+      "path": "/news/index/cached",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_browse_index_news_index_get",
+      "method": "GET",
+      "path": "/news/index",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_recent_news_news_recent_get",
+      "method": "GET",
+      "path": "/news/recent",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "post_ranked_articles_news_ranked_post",
+      "method": "POST",
+      "path": "/news/ranked",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_news_by_source_news_source__source_name__get",
+      "method": "GET",
+      "path": "/news/source/{source_name}",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_news_by_category_news_category__category_name__get",
+      "method": "GET",
+      "path": "/news/category/{category_name}",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_sources_news_sources_get",
+      "method": "GET",
+      "path": "/news/sources",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_categories_news_categories_get",
+      "method": "GET",
+      "path": "/news/categories",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_source_stats_news_sources_stats_get",
+      "method": "GET",
+      "path": "/news/sources/stats",
+      "route_module": "backend/app/api/routes/news.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_countries_geo_data_route_news_countries_geo_get",
+      "method": "GET",
+      "path": "/news/countries/geo",
+      "route_module": "backend/app/api/routes/news_by_country.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_article_counts_by_country_news_by_country_get",
+      "method": "GET",
+      "path": "/news/by-country",
+      "route_module": "backend/app/api/routes/news_by_country.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_news_for_country_news_country__code__get",
+      "method": "GET",
+      "path": "/news/country/{code}",
+      "route_module": "backend/app/api/routes/news_by_country.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_available_countries_news_countries_list_get",
+      "method": "GET",
+      "path": "/news/countries/list",
+      "route_module": "backend/app/api/routes/news_by_country.py",
+      "domain": "news",
+      "batch": "B02",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "manual_cache_refresh_cache_refresh_post",
+      "method": "POST",
+      "path": "/cache/refresh",
+      "route_module": "backend/app/api/routes/cache.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker",
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "stream_cache_refresh_cache_refresh_stream_post",
+      "method": "POST",
+      "path": "/cache/refresh/stream",
+      "route_module": "backend/app/api/routes/cache.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker",
+        "database_write",
+        "external_provider",
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "get_cache_status_cache_status_get",
+      "method": "GET",
+      "path": "/cache/status",
+      "route_module": "backend/app/api/routes/cache.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "stream_news_news_stream_get",
+      "method": "GET",
+      "path": "/news/stream",
+      "route_module": "backend/app/api/routes/stream.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "get_source_debug_data_debug_sources__source_name__get",
+      "method": "GET",
+      "path": "/debug/sources/{source_name}",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_stream_status_debug_streams_get",
+      "method": "GET",
+      "path": "/debug/streams",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_pipeline_metrics_debug_metrics_pipeline_get",
+      "method": "GET",
+      "path": "/debug/metrics/pipeline",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_startup_metrics_debug_startup_get",
+      "method": "GET",
+      "path": "/debug/startup",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "The always-mounted route uses the shared ProfilingState; FastAPI includes debug.router unconditionally.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_chromadb_articles_debug_chromadb_articles_get",
+      "method": "GET",
+      "path": "/debug/chromadb/articles",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_database_articles_debug_database_articles_get",
+      "method": "GET",
+      "path": "/debug/database/articles",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "The always-mounted root router uses AppState's production Database and honors DebugConfig.enable_database or the FastAPI-compatible ENABLE_DATABASE process setting; focused route/OpenAPI tests are added but unrun, so parity remains unverified and FastAPI stays public.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_cached_articles_debug_cache_articles_get",
+      "method": "GET",
+      "path": "/debug/cache/articles",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_cache_db_delta_debug_cache_delta_get",
+      "method": "GET",
+      "path": "/debug/cache/delta",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_storage_drift_debug_storage_drift_get",
+      "method": "GET",
+      "path": "/debug/storage/drift",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_system_status_debug_system_status_get",
+      "method": "GET",
+      "path": "/debug/system/status",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_log_level_debug_loglevel_get",
+      "method": "GET",
+      "path": "/debug/loglevel",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "set_log_level_debug_loglevel_post",
+      "method": "POST",
+      "path": "/debug/loglevel",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "test_rss_parser_debug_parser_test_rss_post",
+      "method": "POST",
+      "path": "/debug/parser/test/rss",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "test_article_parser_debug_parser_test_article_post",
+      "method": "POST",
+      "path": "/debug/parser/test/article",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "list_active_jobs_debug_jobs_get",
+      "method": "GET",
+      "path": "/debug/jobs",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_updates_subscribers_debug_updates_subscribers_get",
+      "method": "GET",
+      "path": "/debug/updates/subscribers",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_frontend_debug_reports_debug_logs_frontend_get",
+      "method": "GET",
+      "path": "/debug/logs/frontend",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "ingest_frontend_debug_report_debug_logs_frontend_post",
+      "method": "POST",
+      "path": "/debug/logs/frontend",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_debug_report_debug_logs_report_get",
+      "method": "GET",
+      "path": "/debug/logs/report",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_debug_events_debug_logs_events_get",
+      "method": "GET",
+      "path": "/debug/logs/events",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "parity_boundary": "Rust reads its process-local ring populated by frontend report ingestion; it does not include Python debug_logger events.",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_active_debug_streams_debug_logs_streams_get",
+      "method": "GET",
+      "path": "/debug/logs/streams",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_slow_operations_debug_logs_slow_get",
+      "method": "GET",
+      "path": "/debug/logs/slow",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_performance_summary_debug_logs_performance_get",
+      "method": "GET",
+      "path": "/debug/logs/performance",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_debug_log_files_debug_logs_files_get",
+      "method": "GET",
+      "path": "/debug/logs/files",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "clear_old_log_files_debug_logs_files_delete",
+      "method": "DELETE",
+      "path": "/debug/logs/files",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "read_debug_log_file_debug_logs_file__filename__get",
+      "method": "GET",
+      "path": "/debug/logs/file/{filename}",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "read_llm_calls_debug_logs_llm_get",
+      "method": "GET",
+      "path": "/debug/logs/llm",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "read_error_logs_debug_logs_errors_get",
+      "method": "GET",
+      "path": "/debug/logs/errors",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "backfill_article_images_debug_backfill_images_post",
+      "method": "POST",
+      "path": "/debug/backfill/images",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "backfill_article_mentions_debug_backfill_mentioned_countries_post",
+      "method": "POST",
+      "path": "/debug/backfill/mentioned-countries",
+      "route_module": "backend/app/api/routes/debug.py",
+      "domain": "debug",
+      "batch": "B04",
+      "migrated": false,
+      "rust_registered": false,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "list_bookmarks_api_bookmarks_get",
+      "method": "GET",
+      "path": "/api/bookmarks",
+      "route_module": "backend/app/api/routes/bookmarks.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "create_bookmark_api_bookmarks_post",
+      "method": "POST",
+      "path": "/api/bookmarks",
+      "route_module": "backend/app/api/routes/bookmarks.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_bookmark_api_bookmarks__article_id__get",
+      "method": "GET",
+      "path": "/api/bookmarks/{article_id}",
+      "route_module": "backend/app/api/routes/bookmarks.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "update_bookmark_api_bookmarks__article_id__put",
+      "method": "PUT",
+      "path": "/api/bookmarks/{article_id}",
+      "route_module": "backend/app/api/routes/bookmarks.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "delete_bookmark_api_bookmarks__article_id__delete",
+      "method": "DELETE",
+      "path": "/api/bookmarks/{article_id}",
+      "route_module": "backend/app/api/routes/bookmarks.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "list_liked_articles_api_liked_get",
+      "method": "GET",
+      "path": "/api/liked",
+      "route_module": "backend/app/api/routes/liked.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "create_liked_article_api_liked_post",
+      "method": "POST",
+      "path": "/api/liked",
+      "route_module": "backend/app/api/routes/liked.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_liked_article_api_liked__article_id__get",
+      "method": "GET",
+      "path": "/api/liked/{article_id}",
+      "route_module": "backend/app/api/routes/liked.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "delete_liked_article_api_liked__article_id__delete",
+      "method": "DELETE",
+      "path": "/api/liked/{article_id}",
+      "route_module": "backend/app/api/routes/liked.py",
+      "domain": "library",
+      "batch": "B05",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "add_to_queue_api_queue_add_post",
+      "method": "POST",
+      "path": "/api/queue/add",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "remove_from_queue_api_queue__queue_id__delete",
+      "method": "DELETE",
+      "path": "/api/queue/{queue_id}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "update_queue_item_api_queue__queue_id__patch",
+      "method": "PATCH",
+      "path": "/api/queue/{queue_id}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "remove_from_queue_by_url_api_queue_url__article_url__delete",
+      "method": "DELETE",
+      "path": "/api/queue/url/{article_url}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_queue_api_queue_get",
+      "method": "GET",
+      "path": "/api/queue",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "move_expired_items_api_queue_maintenance_move_expired_post",
+      "method": "POST",
+      "path": "/api/queue/maintenance/move-expired",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_queue_overview_api_queue_overview_get",
+      "method": "GET",
+      "path": "/api/queue/overview",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_shelves_api_queue_shelves_get",
+      "method": "GET",
+      "path": "/api/queue/shelves",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "create_shelf_api_queue_shelves_post",
+      "method": "POST",
+      "path": "/api/queue/shelves",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "update_shelf_api_queue_shelves__shelf_id__patch",
+      "method": "PATCH",
+      "path": "/api/queue/shelves/{shelf_id}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_all_highlights_api_queue_highlights_get",
+      "method": "GET",
+      "path": "/api/queue/highlights",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "create_highlight_api_queue_highlights_post",
+      "method": "POST",
+      "path": "/api/queue/highlights",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_article_highlights_api_queue_highlights_article__article_url__get",
+      "method": "GET",
+      "path": "/api/queue/highlights/article/{article_url}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "update_highlight_api_queue_highlights__highlight_id__patch",
+      "method": "PATCH",
+      "path": "/api/queue/highlights/{highlight_id}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "delete_highlight_api_queue_highlights__highlight_id__delete",
+      "method": "DELETE",
+      "path": "/api/queue/highlights/{highlight_id}",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "archive_completed_items_api_queue_maintenance_archive_post",
+      "method": "POST",
+      "path": "/api/queue/maintenance/archive",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_queue_item_content_api_queue__queue_id__content_get",
+      "method": "GET",
+      "path": "/api/queue/{queue_id}/content",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_daily_digest_api_queue_digest_daily_get",
+      "method": "GET",
+      "path": "/api/queue/digest/daily",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "generate_ai_digest_api_queue_digest_post",
+      "method": "POST",
+      "path": "/api/queue/digest",
+      "route_module": "backend/app/api/routes/reading_queue.py",
+      "domain": "library",
+      "batch": "B06",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "research_models_endpoint_api_news_research_models_get",
+      "method": "GET",
+      "path": "/api/news/research/models",
+      "route_module": "backend/app/api/routes/research.py",
+      "domain": "research",
+      "batch": "B07",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "news_research_stream_endpoint_api_news_research_stream_get",
+      "method": "GET",
+      "path": "/api/news/research/stream",
+      "route_module": "backend/app/api/routes/research.py",
+      "domain": "research",
+      "batch": "B07",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider",
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "news_research_endpoint_api_news_research_post",
+      "method": "POST",
+      "path": "/api/news/research",
+      "route_module": "backend/app/api/routes/research.py",
+      "domain": "research",
+      "batch": "B07",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "profile_reporter_research_entity_reporter_profile_post",
+      "method": "POST",
+      "path": "/research/entity/reporter/profile",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_reporter_research_entity_reporter__reporter_id__get",
+      "method": "GET",
+      "path": "/research/entity/reporter/{reporter_id}",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "research_organization_research_entity_organization_research_post",
+      "method": "POST",
+      "path": "/research/entity/organization/research",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "research_source_profile_research_entity_source_profile_post",
+      "method": "POST",
+      "path": "/research/entity/source/profile",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "research_source_batch_research_entity_source_batch_post",
+      "method": "POST",
+      "path": "/research/entity/source/batch",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_organization_research_entity_organization__org_id__get",
+      "method": "GET",
+      "path": "/research/entity/organization/{org_id}",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_ownership_chain_research_entity_organization__org_name__ownership_chain_get",
+      "method": "GET",
+      "path": "/research/entity/organization/{org_name}/ownership-chain",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "list_reporters_research_entity_reporters_get",
+      "method": "GET",
+      "path": "/research/entity/reporters",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "list_organizations_research_entity_organizations_get",
+      "method": "GET",
+      "path": "/research/entity/organizations",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "analyze_material_context_research_entity_material_context_post",
+      "method": "POST",
+      "path": "/research/entity/material-context",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_country_economic_profile_research_entity_country__country_code__economic_profile_get",
+      "method": "GET",
+      "path": "/research/entity/country/{country_code}/economic-profile",
+      "route_module": "backend/app/api/routes/entity_research.py",
+      "domain": "research",
+      "batch": "B08",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "semantic_search_api_search_semantic_get",
+      "method": "GET",
+      "path": "/api/search/semantic",
+      "route_module": "backend/app/api/routes/search.py",
+      "domain": "research",
+      "batch": "B07",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "metrics_profiling_metrics_get",
+      "method": "GET",
+      "path": "/profiling/metrics",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "profiling_summary_profiling_summary_get",
+      "method": "GET",
+      "path": "/profiling/summary",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "bottlenecks_profiling_bottlenecks_get",
+      "method": "GET",
+      "path": "/profiling/bottlenecks",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "query_stats_profiling_queries_get",
+      "method": "GET",
+      "path": "/profiling/queries",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "startup_stats_profiling_startup_get",
+      "method": "GET",
+      "path": "/profiling/startup",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "slow_endpoints_profiling_slow_endpoints_get",
+      "method": "GET",
+      "path": "/profiling/slow-endpoints",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "reset_profiling_profiling_reset_post",
+      "method": "POST",
+      "path": "/profiling/reset",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "profiling_health_profiling_health_get",
+      "method": "GET",
+      "path": "/profiling/health",
+      "route_module": "backend/app/api/routes/profiling.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_sources_sources_get",
+      "method": "GET",
+      "path": "/sources",
+      "route_module": "backend/app/api/routes/sources.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "add_rss_source_sources_add_rss_post",
+      "method": "POST",
+      "path": "/sources/add-rss",
+      "route_module": "backend/app/api/routes/sources.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "validate_rss_source_sources_rss_validate_post",
+      "method": "POST",
+      "path": "/sources/rss/validate",
+      "route_module": "backend/app/api/routes/sources.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "promote_rss_source_sources_rss_promote_post",
+      "method": "POST",
+      "path": "/sources/rss/promote",
+      "route_module": "backend/app/api/routes/sources.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_source_credibility_sources__domain__credibility_get",
+      "method": "GET",
+      "path": "/sources/{domain}/credibility",
+      "route_module": "backend/app/api/routes/sources.py",
+      "domain": "ops",
+      "batch": "B09",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "define_inline_api_inline_define_post",
+      "method": "POST",
+      "path": "/api/inline/define",
+      "route_module": "backend/app/api/routes/inline.py",
+      "domain": "research",
+      "batch": "B07",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "start_refresh_job_jobs_refresh_post",
+      "method": "POST",
+      "path": "/jobs/refresh",
+      "route_module": "backend/app/api/routes/jobs.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker",
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "stream_job_progress_jobs__job_id__stream_get",
+      "method": "GET",
+      "path": "/jobs/{job_id}/stream",
+      "route_module": "backend/app/api/routes/jobs.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker",
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "get_job_status_jobs__job_id__status_get",
+      "method": "GET",
+      "path": "/jobs/{job_id}/status",
+      "route_module": "backend/app/api/routes/jobs.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker"
+      ]
+    },
+    {
+      "operation_id": "updates_stream_updates_stream_get",
+      "method": "GET",
+      "path": "/updates/stream",
+      "route_module": "backend/app/api/routes/updates.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "get_updates_status_updates_status_get",
+      "method": "GET",
+      "path": "/updates/status",
+      "route_module": "backend/app/api/routes/updates.py",
+      "domain": "ingestion",
+      "batch": "B03",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "proxy_image_image_proxy_get",
+      "method": "GET",
+      "path": "/image/proxy",
+      "route_module": "backend/app/api/routes/image_proxy.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_cache_stats_image_cache_stats_get",
+      "method": "GET",
+      "path": "/image/cache/stats",
+      "route_module": "backend/app/api/routes/image_proxy.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "clear_cache_image_cache_clear_delete",
+      "method": "DELETE",
+      "path": "/image/cache/clear",
+      "route_module": "backend/app/api/routes/image_proxy.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_og_image_image_og_get",
+      "method": "GET",
+      "path": "/image/og",
+      "route_module": "backend/app/api/routes/image_proxy.py",
+      "domain": "ops",
+      "batch": "B10",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_trending_trending_get",
+      "method": "GET",
+      "path": "/trending",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_breaking_trending_breaking_get",
+      "method": "GET",
+      "path": "/trending/breaking",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_all_clusters_trending_clusters_get",
+      "method": "GET",
+      "path": "/trending/clusters",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "high",
+      "risk_flags": [
+        "background_worker"
+      ]
+    },
+    {
+      "operation_id": "get_cluster_detail_trending_clusters__cluster_id__get",
+      "method": "GET",
+      "path": "/trending/clusters/{cluster_id}",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_cluster_contradictions_trending_clusters__cluster_id__contradictions_get",
+      "method": "GET",
+      "path": "/trending/clusters/{cluster_id}/contradictions",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_cluster_lineage_trending_clusters__cluster_id__lineage_get",
+      "method": "GET",
+      "path": "/trending/clusters/{cluster_id}/lineage",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_trending_stats_trending_stats_get",
+      "method": "GET",
+      "path": "/trending/stats",
+      "route_module": "backend/app/api/routes/trending.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_related_articles_api_similarity_related__article_id__get",
+      "method": "GET",
+      "path": "/api/similarity/related/{article_id}",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_search_suggestions_api_similarity_search_suggestions_get",
+      "method": "GET",
+      "path": "/api/similarity/search-suggestions",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_source_coverage_api_similarity_source_coverage_get",
+      "method": "GET",
+      "path": "/api/similarity/source-coverage",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "compute_novelty_score_api_similarity_novelty_score_post",
+      "method": "POST",
+      "path": "/api/similarity/novelty-score",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_article_topics_api_similarity_article_topics__article_id__get",
+      "method": "GET",
+      "path": "/api/similarity/article-topics/{article_id}",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_bulk_article_topics_api_similarity_bulk_article_topics_post",
+      "method": "POST",
+      "path": "/api/similarity/bulk-article-topics",
+      "route_module": "backend/app/api/routes/similarity.py",
+      "domain": "discovery",
+      "batch": "B11",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_verification_status_api_verification_status_get",
+      "method": "GET",
+      "path": "/api/verification/status",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "verify_claims_api_verification_verify_post",
+      "method": "POST",
+      "path": "/api/verification/verify",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Real verification provider, cache, and workspace-cleanup adapters are absent.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "verify_claims_stream_api_verification_verify_stream_post",
+      "method": "POST",
+      "path": "/api/verification/verify/stream",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Real provider/cancellation adapters are absent; the Rust response buffers SSE rather than emitting incremental events.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider",
+        "sse"
+      ]
+    },
+    {
+      "operation_id": "verify_claims_json_api_verification_verify_json_post",
+      "method": "POST",
+      "path": "/api/verification/verify/json",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Real verification provider, cache, and workspace-cleanup adapters are absent.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "clear_cache_api_verification_cache_delete",
+      "method": "DELETE",
+      "path": "/api/verification/cache",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Cache and workspace-cleanup adapters are absent.",
+      "risk": "high",
+      "risk_flags": [
+        "background_worker",
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "list_allowed_domains_api_verification_domains_get",
+      "method": "GET",
+      "path": "/api/verification/domains",
+      "route_module": "backend/app/api/routes/verification.py",
+      "domain": "verification",
+      "batch": "B12",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "trigger_gdelt_sync_gdelt_sync_post",
+      "method": "POST",
+      "path": "/gdelt/sync",
+      "route_module": "backend/app/api/routes/gdelt.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires GDELT export HTTP fetch, Chroma matching, and database writes; Rust currently provides only the pure parser.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_article_gdelt_events_gdelt_article__article_id__get",
+      "method": "GET",
+      "path": "/gdelt/article/{article_id}",
+      "route_module": "backend/app/api/routes/gdelt.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_gdelt_stats_gdelt_stats_get",
+      "method": "GET",
+      "path": "/gdelt/stats",
+      "route_module": "backend/app/api/routes/gdelt.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_recent_gdelt_events_gdelt_recent_get",
+      "method": "GET",
+      "path": "/gdelt/recent",
+      "route_module": "backend/app/api/routes/gdelt.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "compare_two_articles_compare_articles_post",
+      "method": "POST",
+      "path": "/compare/articles",
+      "route_module": "backend/app/api/routes/comparison.py",
+      "domain": "comparison",
+      "batch": "B01",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_source_blind_spots_blindspots_source__source_name__get",
+      "method": "GET",
+      "path": "/blindspots/source/{source_name}",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires live Chroma-backed article and embedding data.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_topic_blind_spots_blindspots_topics_get",
+      "method": "GET",
+      "path": "/blindspots/topics",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires live Chroma-backed topic data.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_coverage_report_blindspots_report_get",
+      "method": "GET",
+      "path": "/blindspots/report",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Without live Chroma-backed coverage, this report would expose misleading metrics.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "update_coverage_stats_blindspots_update_stats_post",
+      "method": "POST",
+      "path": "/blindspots/update-stats",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "The coverage aggregation and persistence path is unavailable.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_blind_spots_dashboard_blindspots_dashboard_get",
+      "method": "GET",
+      "path": "/blindspots/dashboard",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires live Chroma-backed results; fallback metrics would be misleading.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_blindspot_viewer_blindspots_viewer_get",
+      "method": "GET",
+      "path": "/blindspots/viewer",
+      "route_module": "backend/app/api/routes/blindspots.py",
+      "domain": "analytics",
+      "batch": "B13",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_wiki_sources_api_wiki_sources_get",
+      "method": "GET",
+      "path": "/api/wiki/sources",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_source_wiki_api_wiki_sources__source_name__get",
+      "method": "GET",
+      "path": "/api/wiki/sources/{source_name}",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_source_reporters_api_wiki_sources__source_name__reporters_get",
+      "method": "GET",
+      "path": "/api/wiki/sources/{source_name}/reporters",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_wiki_reporters_api_wiki_reporters_get",
+      "method": "GET",
+      "path": "/api/wiki/reporters",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_reporter_dossier_api_wiki_reporters__reporter_id__get",
+      "method": "GET",
+      "path": "/api/wiki/reporters/{reporter_id}",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_parity_boundary": "Database-backed profile and latest 20 articles are served; activity, career-timeline, and employer enrichments remain unavailable.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_reporter_articles_api_wiki_reporters__reporter_id__articles_get",
+      "method": "GET",
+      "path": "/api/wiki/reporters/{reporter_id}/articles",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "list_wiki_organizations_api_wiki_organizations_get",
+      "method": "GET",
+      "path": "/api/wiki/organizations",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_wiki_index_status_api_wiki_index_status_get",
+      "method": "GET",
+      "path": "/api/wiki/index/status",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Already root-registered; t13 fixes its NULL-status response to match FastAPI validation using the existing Database::wiki_index_entries path. Differential coverage is added but unrun, so parity remains unverified.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "trigger_source_index_api_wiki_index__source_name__post",
+      "method": "POST",
+      "path": "/api/wiki/index/{source_name}",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires external provider/LLM workflow and database writes; no Rust source indexer exists.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "trigger_reporter_index_api_wiki_index_reporters_post",
+      "method": "POST",
+      "path": "/api/wiki/index/reporters",
+      "route_module": "backend/app/api/routes/wiki.py",
+      "domain": "wiki",
+      "batch": "B14",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Requires external provider/LLM workflow and database writes; no Rust reporter indexer exists.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write",
+        "external_provider"
+      ]
+    },
+    {
+      "operation_id": "get_atlas_graph_api_wiki_atlas_graph_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/graph",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust router and central OpenAPI registration added; parity is unverified.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_atlas_stats_api_wiki_atlas_stats_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/stats",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust stats shadow reuses the Atlas graph projection and a network-ingest-aware five-minute cache; parity is unverified.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_atlas_ingestion_status_api_wiki_atlas_ingestion_status_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/ingestion-status",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "search_atlas_entities_api_wiki_atlas_search_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/search",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust router and central OpenAPI registration added; parity is unverified.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_atlas_entity_record_api_wiki_atlas_entities__entity_id__get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/entities/{entity_id}",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "Rust Atlas entity-record projection is not implemented.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_atlas_entity_connections_api_wiki_atlas_entities__entity_id__connections_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/entities/{entity_id}/connections",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust router and central OpenAPI registration added; parity is unverified.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_atlas_index_api_wiki_atlas_index_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/index",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust handler, router, and central OpenAPI registration are present; source and OpenAPI tests are unrun, parity remains unverified, and FastAPI remains public.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_funding_bias_analysis_api_wiki_atlas_analysis_funding_bias_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/analysis/funding-bias",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_media_measurements_api_wiki_atlas_analysis_media_measurements_get",
+      "method": "GET",
+      "path": "/api/wiki/atlas/analysis/media-measurements",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust shadow handler computes and idempotently persists all six media measurements from the shared Atlas DTO; route and ApiDoc are registered. FastAPI remains the public owner, and parity is unverified.",
+      "risk": "normal",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "export_atlas_api_wiki_atlas_export_post",
+      "method": "POST",
+      "path": "/api/wiki/atlas/export",
+      "route_module": "backend/app/api/routes/wiki_atlas.py",
+      "domain": "wiki",
+      "batch": "B15",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust router and central OpenAPI registration added; source tests and OpenAPI assertions are unrun, parity is unverified, and FastAPI remains public.",
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_evidence_policies_api_wiki_evidence_policies_get",
+      "method": "GET",
+      "path": "/api/wiki/evidence/policies",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_evidence_claim_api_wiki_evidence_claims__claim_id__get",
+      "method": "GET",
+      "path": "/api/wiki/evidence/claims/{claim_id}",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "evaluate_evidence_claim_api_wiki_evidence_claims_evaluate_post",
+      "method": "POST",
+      "path": "/api/wiki/evidence/claims/evaluate",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "materialize_evidence_claim_api_wiki_evidence_claims__claim_id__materialize_post",
+      "method": "POST",
+      "path": "/api/wiki/evidence/claims/{claim_id}/materialize",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": false,
+      "rust_registered": true,
+      "rust_registration_note": "Rust shadow uses the existing transactional materializer, token/reviewer auth, and accepted-relationship reload; runtime and parity remain unverified.",
+      "risk": "high",
+      "risk_flags": [
+        "database_write"
+      ]
+    },
+    {
+      "operation_id": "get_ownership_interest_api_wiki_evidence_interest_get",
+      "method": "GET",
+      "path": "/api/wiki/evidence/interest",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "get_evidence_relationships_api_wiki_evidence_relationships_get",
+      "method": "GET",
+      "path": "/api/wiki/evidence/relationships",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": true,
+      "risk": "normal",
+      "risk_flags": []
+    },
+    {
+      "operation_id": "download_relationship_proof_api_wiki_evidence_relationships__relationship_id__proof_get",
+      "method": "GET",
+      "path": "/api/wiki/evidence/relationships/{relationship_id}/proof",
+      "route_module": "backend/app/api/routes/wiki_evidence.py",
+      "domain": "evidence",
+      "batch": "B16",
+      "migrated": false,
+      "rust_registered": false,
+      "rust_registration_note": "No ZIP writer crate is present in backend/Cargo.lock; adding/resolving one and runtime-verifying the real proof archive are unavailable under the no-Cargo gate, so the operation remains unregistered.",
+      "risk": "normal",
+      "risk_flags": []
+    }
+  ]
+}

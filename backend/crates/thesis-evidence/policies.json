@@ -1,0 +1,415 @@
+[
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "gleif_level_2"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "accounting_consolidated_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "fcc_political_file",
+      "sponsorship_disclosure",
+      "transaction_record"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "advertises_with",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "contract_record",
+      "own_site"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "advertising_inventory_sold_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "article_byline",
+      "article_structured_data"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "authored_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "ads_txt",
+      "sellers_json"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "authorizes_inventory_seller",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "third_party_assessment"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": true,
+    "predicate": "bias_rating",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "own_site",
+      "registry_filing",
+      "trademark_assignment",
+      "transaction_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "brand_of",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "beneficial_ownership_filing",
+      "charter_or_statute",
+      "court_record",
+      "fcc_filing",
+      "government_record",
+      "proxy_filing",
+      "registry_filing",
+      "transaction_filing",
+      "wikidata_referenced_statement"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "controls",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "reproducible_measurement_run"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "coverage_measurement",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "own_site",
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "declared_mission",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "beneficial_ownership_filing",
+      "charter_or_statute",
+      "court_record",
+      "fcc_filing",
+      "government_record",
+      "proxy_filing",
+      "registry_filing",
+      "transaction_filing",
+      "wikidata_referenced_statement"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "directly_owns",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "employer_profile",
+      "person_profile",
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "employed_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "third_party_assessment"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": true,
+    "predicate": "factual_reporting",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "registry_filing",
+      "transaction_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "formerly_known_as",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "article_structured_data",
+      "own_site",
+      "registry_filing",
+      "wikidata_referenced_statement"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "founded_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "appropriation_record",
+      "audited_statement",
+      "government_record",
+      "grantor_record",
+      "own_site"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "funds",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "jurisdiction",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "legal_form",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "membership_record",
+      "own_site",
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "member_of",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "own_site",
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "named_editor",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "own_site",
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "official_website",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "contract_record",
+      "fcc_filing",
+      "own_site",
+      "registry_filing",
+      "transaction_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "operated_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "beneficial_ownership_filing",
+      "charter_or_statute",
+      "court_record",
+      "fcc_filing",
+      "government_record",
+      "proxy_filing",
+      "registry_filing",
+      "transaction_filing",
+      "wikidata_referenced_statement"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "owns_equity_in",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "fcc_political_file"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "political_ad_purchase",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "irs_990"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "reports_compensation",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "irs_990"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "reports_contribution",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "irs_990"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "reports_grant",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "irs_990"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "reports_revenue",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "registry_filing"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "same_legal_record",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "sponsorship_disclosure",
+      "transaction_record"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "sponsors_content",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "charter_or_statute"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "state_chartered_independent",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "court_record",
+      "registry_filing",
+      "transaction_filing",
+      "transaction_record"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "successor_of",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "article_structured_data",
+      "own_site"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "syndicated_by",
+    "requires_complete_path": false,
+    "version": "evidence-policy/2.0"
+  },
+  {
+    "allowed_evidence_classes": [
+      "audited_statement",
+      "beneficial_ownership_filing",
+      "charter_or_statute",
+      "court_record",
+      "fcc_filing",
+      "government_record",
+      "proxy_filing",
+      "registry_filing",
+      "transaction_filing",
+      "wikidata_referenced_statement"
+    ],
+    "minimum_independent_roots": 1,
+    "permits_catalog_only": false,
+    "predicate": "ultimate_control",
+    "requires_complete_path": true,
+    "version": "evidence-policy/2.0"
+  }
+]

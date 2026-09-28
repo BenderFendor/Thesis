@@ -47,6 +47,13 @@ If the script fails, inspect `README.md`, `verify.sh`, and stack manifests manua
 - Pre-existing lint/type errors discovered during verification must be fixed in the same session. Do not push blame or leave them for later.
 - Rust modules exposed via PyO3 bindings are the authoritative implementation path. Python code must call the Rust bindings directly without try/except fallbacks. If the Rust module is broken, fix the Rust module -- do not add a Python fallback.
 
+## Rust Backend Migration
+
+- The workspace root is `backend/Cargo.toml`; see `docs/architecture/rust-backend-migration.md` for the observed module map and cutover criteria.
+- `thesis-server` currently serves evidence policy and claim reads, evidence evaluation, relationship reads, personalized ranking, and article comparison on port `8120`. FastAPI remains the public application server until full HTTP, SSE, WebSocket, database, and client parity is demonstrated.
+- Use the workspace commands in `docs/agent/testing.md`. Keep `backend/openapi.json` as the compatibility contract, and do not remove Python modules or PyO3 until their documented caller and parity conditions pass.
+- Apply Kani to bounded production kernels throughout pure Rust domain crates; use Verus where an unbounded mathematical proof adds coverage. Keep database, network, and external-library behavior under integration and differential tests, and record proof assumptions and refinement limits in the verification manifest. Run selected Kani and Verus checks on pull requests.
+
 ## Feature Work And Quality Backlog
 
 The active quality backlog is recorded in `docs/agent/lean-codebase-plan.md`. When a new

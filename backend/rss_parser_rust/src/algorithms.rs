@@ -1,302 +1,11 @@
-use std::collections::{HashMap, HashSet};
-
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use rayon::prelude::*;
-use serde::Serialize;
-use strsim::normalized_levenshtein;
+use thesis_search::article_comparison::{calculate_text_similarity, generate_sentence_diff};
 
 const DEFAULT_NUM_HASHES: usize = 128;
-const DEFAULT_CHAR_NGRAM: usize = 5;
-const DEFAULT_SEED: u64 = 42;
-const EMPTY_SIGNATURE_VALUE: u128 = u128::MAX;
-const SENTENCE_MATCH_THRESHOLD: f64 = 0.6;
-const SENTENCE_WORD_OVERLAP_THRESHOLD: f64 = 0.5;
-const MAX_SIMILAR_SENTENCES: usize = 10;
-
-/// Represents a pair of documents flagged as near-duplicates by MinHash
-/// comparison, together with their estimated Jaccard similarity.
-#[derive(Debug, Clone, Serialize)]
-pub struct DuplicatePair {
-    /// Identifier of the first document in the pair.
-    pub doc_id_1: String,
-    /// Identifier of the second document in the pair.
-    pub doc_id_2: String,
-    /// Estimated Jaccard similarity in the range [0.0, 1.0].
-    pub similarity: f64,
-}
-
-#[derive(Debug, Clone)]
-struct DocumentInput {
-    doc_id: String,
-    text: String,
-}
-
-#[derive(Debug, Clone)]
-struct DocSignature {
-    doc_id: String,
-    signature: Vec<u128>,
-}
-
-#[derive(Debug, Clone)]
-struct SentenceMatch {
-    source_1_index: usize,
-    source_2_index: usize,
-    source_1_text: String,
-    source_2_text: String,
-    similarity: f64,
-}
-
-#[derive(Debug, Clone)]
-struct SentenceOnly {
-    index: usize,
-    text: String,
-    kind: &'static str,
-}
-
-/// Converts a text string into a set of character n-grams (shingles).
-///
-/// If the text is shorter than `n` characters, the entire normalized text
-/// is returned as a single shingle. Returns an empty set for empty input.
-pub fn shingle_text(text: &str, n: usize) -> HashSet<String> {
-    let normalized = text.trim().to_lowercase();
-    if normalized.is_empty() {
-        return HashSet::new();
-    }
-    if normalized.chars().count() < n {
-        return HashSet::from([normalized]);
-    }
-
-    let chars: Vec<char> = normalized.chars().collect();
-    chars
-        .windows(n)
-        .map(|window| window.iter().collect::<String>())
-        .collect()
-}
-
-fn hash_params(num_hashes: usize, seed: u64) -> Vec<(u64, u64)> {
-    (0..num_hashes)
-        .map(|idx| {
-            let hash_seed = seed + idx as u64;
-            let a = hash_seed
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            let b = hash_seed
-                .wrapping_mul(3_410_719_502)
-                .wrapping_add(3_141_592_653);
-            (a, b)
-        })
-        .collect()
-}
-
-/// Computes a MinHash signature for a text string using character n-gram
-/// shingling and configurable hash parameters.
-///
-/// Returns a vector of `num_hashes` 128-bit minimum hash values.
-pub fn compute_minhash_signature(text: &str, num_hashes: usize, seed: u64) -> Vec<u128> {
-    let shingles = shingle_text(text, DEFAULT_CHAR_NGRAM);
-    if shingles.is_empty() {
-        return vec![EMPTY_SIGNATURE_VALUE; num_hashes];
-    }
-
-    let params = hash_params(num_hashes, seed);
-    params
-        .into_par_iter()
-        .map(|(a, b)| {
-            shingles
-                .iter()
-                .map(|shingle| {
-                    let digest = md5::compute(format!("{shingle}:{a}:{b}"));
-                    let bytes = digest.0;
-                    u128::from_be_bytes(bytes)
-                })
-                .min()
-                .unwrap_or(EMPTY_SIGNATURE_VALUE)
-        })
-        .collect()
-}
-
-/// Estimates the Jaccard similarity between two documents from their
-/// MinHash signatures.
-///
-/// Returns 0.0 if the signatures differ in length or either is empty.
-pub fn estimate_jaccard_similarity(sig1: &[u128], sig2: &[u128]) -> f64 {
-    if sig1.is_empty() || sig2.is_empty() || sig1.len() != sig2.len() {
-        return 0.0;
-    }
-
-    let matches = sig1
-        .iter()
-        .zip(sig2.iter())
-        .filter(|(left, right)| left == right)
-        .count();
-    matches as f64 / sig1.len() as f64
-}
-
-fn build_signatures(documents: Vec<DocumentInput>, num_hashes: usize) -> Vec<DocSignature> {
-    documents
-        .into_par_iter()
-        .map(|doc| DocSignature {
-            doc_id: doc.doc_id,
-            signature: compute_minhash_signature(&doc.text, num_hashes, DEFAULT_SEED),
-        })
-        .collect()
-}
-
-fn find_duplicate_pairs(docs: &[DocSignature], threshold: f64) -> Vec<DuplicatePair> {
-    let mut pairs = Vec::new();
-    for i in 0..docs.len() {
-        for j in (i + 1)..docs.len() {
-            let similarity = estimate_jaccard_similarity(&docs[i].signature, &docs[j].signature);
-            if similarity >= threshold {
-                pairs.push(DuplicatePair {
-                    doc_id_1: docs[i].doc_id.clone(),
-                    doc_id_2: docs[j].doc_id.clone(),
-                    similarity,
-                });
-            }
-        }
-    }
-    pairs.sort_by(|left, right| right.similarity.total_cmp(&left.similarity));
-    pairs
-}
-
-fn sentence_split(text: &str) -> Vec<String> {
-    text.split_inclusive(['.', '!', '?'])
-        .map(str::trim)
-        .filter(|chunk| !chunk.is_empty())
-        .map(ToOwned::to_owned)
-        .collect()
-}
-
-fn normalize_similarity_input(text: &str) -> String {
-    text.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
-}
-
-fn word_set(text: &str) -> HashSet<String> {
-    text.split_whitespace()
-        .map(|token| {
-            token
-                .trim_matches(|ch: char| !ch.is_alphanumeric())
-                .to_lowercase()
-        })
-        .filter(|token| !token.is_empty())
-        .collect()
-}
-
-fn sentence_word_overlap(text1: &str, text2: &str) -> f64 {
-    let left = word_set(text1);
-    let right = word_set(text2);
-
-    if left.is_empty() || right.is_empty() {
-        return 0.0;
-    }
-
-    let intersection = left.intersection(&right).count() as f64;
-    intersection / left.len().max(right.len()) as f64
-}
-
-/// Calculates the normalized text similarity between two strings using
-/// normalized Levenshtein distance.
-///
-/// Returns 1.0 for identical strings, 0.0 if either string is empty, and
-/// a value in between for partial matches.
-pub fn calculate_text_similarity(text1: &str, text2: &str) -> f64 {
-    if text1 == text2 {
-        return 1.0;
-    }
-
-    if text1.trim().is_empty() || text2.trim().is_empty() {
-        return 0.0;
-    }
-
-    let left = normalize_similarity_input(text1);
-    let right = normalize_similarity_input(text2);
-
-    if left == right {
-        return 1.0;
-    }
-
-    if left.is_empty() || right.is_empty() {
-        return 0.0;
-    }
-
-    normalized_levenshtein(&left, &right)
-}
-
-fn best_sentence_match<'a>(
-    sentence1: &str,
-    sentences2: &'a [String],
-) -> Option<(usize, &'a String, f64)> {
-    let mut best_match: Option<(usize, &String, f64)> = None;
-    for (j, sentence2) in sentences2.iter().enumerate() {
-        if sentence_word_overlap(sentence1, sentence2) < SENTENCE_WORD_OVERLAP_THRESHOLD {
-            continue;
-        }
-        let ratio = calculate_text_similarity(sentence1, sentence2);
-        if ratio > SENTENCE_MATCH_THRESHOLD
-            && best_match
-                .as_ref()
-                .is_none_or(|(_, _, best_ratio)| ratio > *best_ratio)
-        {
-            best_match = Some((j, sentence2, ratio));
-        }
-    }
-    best_match
-}
-
-fn generate_sentence_diff(
-    text1: &str,
-    text2: &str,
-) -> (Vec<SentenceOnly>, Vec<SentenceOnly>, Vec<SentenceMatch>) {
-    let sentences1 = sentence_split(text1);
-    let sentences2 = sentence_split(text2);
-
-    let mut removed = Vec::new();
-    let mut similar = Vec::new();
-
-    for (i, sentence1) in sentences1.iter().enumerate() {
-        if let Some((matched_index, matched_sentence, ratio)) =
-            best_sentence_match(sentence1, &sentences2)
-        {
-            similar.push(SentenceMatch {
-                source_1_index: i,
-                source_2_index: matched_index,
-                source_1_text: sentence1.clone(),
-                source_2_text: matched_sentence.clone(),
-                similarity: ratio,
-            });
-        } else {
-            removed.push(SentenceOnly {
-                index: i,
-                text: sentence1.clone(),
-                kind: "unique_to_source_1",
-            });
-        }
-    }
-
-    let matched_indices: HashSet<usize> = similar.iter().map(|item| item.source_2_index).collect();
-    let added = sentences2
-        .into_iter()
-        .enumerate()
-        .filter(|(index, _)| !matched_indices.contains(index))
-        .map(|(index, text)| SentenceOnly {
-            index,
-            text,
-            kind: "unique_to_source_2",
-        })
-        .collect::<Vec<_>>();
-
-    similar.sort_by(|left, right| right.similarity.total_cmp(&left.similarity));
-    if similar.len() > MAX_SIMILAR_SENTENCES {
-        similar.truncate(MAX_SIMILAR_SENTENCES);
-    }
-
-    (added, removed, similar)
-}
+// also after we are done mirigating from python to rust fully we should push the whole of this
+// rss_parser_rust into a crates in the /crates folders as something like thesis-rss as the
+// subfolder in the crates folder
 
 /// Detects near-duplicate document pairs using MinHash signatures.
 ///
@@ -312,13 +21,8 @@ pub fn minhash_duplicate_pairs<'py>(
 ) -> PyResult<Bound<'py, PyList>> {
     let threshold = threshold.unwrap_or(0.85);
     let num_hashes = num_hashes.unwrap_or(DEFAULT_NUM_HASHES).max(1);
-    let doc_inputs = documents
-        .into_iter()
-        .filter(|(doc_id, text)| !doc_id.trim().is_empty() && !text.trim().is_empty())
-        .map(|(doc_id, text)| DocumentInput { doc_id, text })
-        .collect::<Vec<_>>();
-    let signatures = build_signatures(doc_inputs, num_hashes);
-    let duplicates = find_duplicate_pairs(&signatures, threshold);
+    let duplicates =
+        thesis_search::minhash::find_duplicate_pairs(&documents, threshold, num_hashes);
 
     let result = PyList::empty_bound(py);
     for item in duplicates {
@@ -340,6 +44,51 @@ pub fn text_similarity(text1: &str, text2: &str) -> f64 {
     calculate_text_similarity(text1, text2)
 }
 
+/// Extracts frequency-ranked keywords for the article comparison service.
+#[pyfunction]
+pub fn comparison_keywords(
+    py: Python<'_>,
+    text: &str,
+    top_n: usize,
+) -> PyResult<Vec<(String, usize)>> {
+    let unicode_version: String = PyModule::import_bound(py, "unicodedata")?
+        .getattr("unidata_version")?
+        .extract()?;
+    let mut version_parts = unicode_version.split('.');
+    let major = version_parts
+        .next()
+        .and_then(|part| part.parse::<u16>().ok())
+        .unwrap_or_default();
+    let minor = version_parts
+        .next()
+        .and_then(|part| part.parse::<u16>().ok())
+        .unwrap_or_default();
+    let unicode_15_1 = major > 15 || (major == 15 && minor >= 1);
+    Ok(thesis_search::comparison_keywords::extract_keywords(
+        text,
+        top_n,
+        unicode_15_1,
+    ))
+}
+
+/// Serialize the Rust article comparison response for service-level differential tests.
+#[pyfunction]
+pub fn compare_articles_json(
+    content_1: &str,
+    content_2: &str,
+    title_1: &str,
+    title_2: &str,
+) -> PyResult<String> {
+    serde_json::to_string(&thesis_search::article_comparison::compare_articles(
+        content_1, content_2, title_1, title_2,
+    ))
+    .map_err(|error| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "could not serialize article comparison: {error}"
+        ))
+    })
+}
+
 /// Compares two texts sentence-by-sentence and returns a sentence-level
 /// diff.
 ///
@@ -351,11 +100,11 @@ pub fn sentence_diff<'py>(
     text1: &str,
     text2: &str,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let (added, removed, similar) = generate_sentence_diff(text1, text2);
+    let diff = generate_sentence_diff(text1, text2);
     let result = PyDict::new_bound(py);
 
     let added_list = PyList::empty_bound(py);
-    for item in added {
+    for item in diff.added {
         let entry = PyDict::new_bound(py);
         entry.set_item("index", item.index)?;
         entry.set_item("text", item.text)?;
@@ -364,7 +113,7 @@ pub fn sentence_diff<'py>(
     }
 
     let removed_list = PyList::empty_bound(py);
-    for item in removed {
+    for item in diff.removed {
         let entry = PyDict::new_bound(py);
         entry.set_item("index", item.index)?;
         entry.set_item("text", item.text)?;
@@ -373,7 +122,7 @@ pub fn sentence_diff<'py>(
     }
 
     let similar_list = PyList::empty_bound(py);
-    for item in similar {
+    for item in diff.similar {
         let entry = PyDict::new_bound(py);
         entry.set_item("source_1_index", item.source_1_index)?;
         entry.set_item("source_2_index", item.source_2_index)?;
@@ -389,8 +138,7 @@ pub fn sentence_diff<'py>(
     Ok(result)
 }
 
-/// Groups articles into duplicate sets by first grouping identical-text
-/// articles by MD5 hash, then merging near-duplicate groups via MinHash.
+/// Groups exact and near-duplicate articles through the Rust search domain.
 ///
 /// Accepts a list of `(doc_id, text)` tuples and returns a Python dict
 /// mapping each group representative ID to a list of all member IDs.
@@ -403,66 +151,8 @@ pub fn deduplicate_article_groups<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let threshold = threshold.unwrap_or(0.85);
     let num_hashes = num_hashes.unwrap_or(DEFAULT_NUM_HASHES).max(1);
-    let (mut groups, representatives) = collect_identical_groups(articles);
-    let signatures = build_signatures(representatives, num_hashes);
-    merge_duplicate_groups(&mut groups, find_duplicate_pairs(&signatures, threshold));
-    groups_to_pydict(py, groups)
-}
-
-fn collect_identical_groups(
-    articles: Vec<(String, String)>,
-) -> (HashMap<String, HashSet<String>>, Vec<DocumentInput>) {
-    let mut text_to_ids: HashMap<String, Vec<String>> = HashMap::new();
-    let mut text_by_hash: HashMap<String, String> = HashMap::new();
-    for (doc_id, text) in articles {
-        if doc_id.trim().is_empty() || text.trim().is_empty() {
-            continue;
-        }
-        let text_hash = format!("{:x}", md5::compute(text.as_bytes()));
-        text_by_hash.entry(text_hash.clone()).or_insert(text);
-        text_to_ids.entry(text_hash).or_default().push(doc_id);
-    }
-
-    let mut representatives = Vec::new();
-    let mut groups = HashMap::new();
-    for (text_hash, ids) in text_to_ids {
-        if let Some(representative) = ids.first() {
-            groups.insert(representative.clone(), ids.iter().cloned().collect());
-            representatives.push(DocumentInput {
-                doc_id: representative.clone(),
-                text: text_by_hash.get(&text_hash).cloned().unwrap_or_default(),
-            });
-        }
-    }
-    (groups, representatives)
-}
-
-fn merge_duplicate_groups(
-    groups: &mut HashMap<String, HashSet<String>>,
-    duplicates: Vec<DuplicatePair>,
-) {
-    for pair in duplicates {
-        let target_rep = groups
-            .iter()
-            .find(|(_, members)| members.contains(&pair.doc_id_1))
-            .map(|(rep, _)| rep.clone());
-        if let Some(rep) = target_rep {
-            if let Some(group) = groups.get_mut(&rep) {
-                group.insert(pair.doc_id_2);
-            }
-            continue;
-        }
-        groups.insert(
-            pair.doc_id_1.clone(),
-            HashSet::from([pair.doc_id_1, pair.doc_id_2]),
-        );
-    }
-}
-
-fn groups_to_pydict<'py>(
-    py: Python<'py>,
-    groups: HashMap<String, HashSet<String>>,
-) -> PyResult<Bound<'py, PyDict>> {
+    let groups =
+        thesis_search::minhash::deduplicate_article_groups(&articles, threshold, num_hashes);
     let result = PyDict::new_bound(py);
     for (representative, group) in groups {
         let members = PyList::empty_bound(py);
@@ -478,9 +168,9 @@ fn groups_to_pydict<'py>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        calculate_text_similarity, compute_minhash_signature, estimate_jaccard_similarity,
-        generate_sentence_diff, sentence_word_overlap, shingle_text,
+    use super::{calculate_text_similarity, generate_sentence_diff};
+    use thesis_search::minhash::{
+        compute_minhash_signature, estimate_jaccard_similarity, shingle_text,
     };
 
     #[test]
@@ -509,16 +199,9 @@ mod tests {
 
     #[test]
     fn sentence_diff_reports_unique_sentences() {
-        let (added, removed, similar) =
-            generate_sentence_diff("Alpha wins. Beta holds.", "Alpha wins. Gamma reacts.");
-        assert_eq!(similar.len(), 1);
-        assert_eq!(removed.len(), 1);
-        assert_eq!(added.len(), 1);
-    }
-
-    #[test]
-    fn sentence_overlap_requires_shared_terms() {
-        let overlap = sentence_word_overlap("Beta calls for a recount.", "Gamma calls for reform.");
-        assert!(overlap < 0.5);
+        let diff = generate_sentence_diff("Alpha wins. Beta holds.", "Alpha wins. Gamma reacts.");
+        assert_eq!(diff.similar.len(), 1);
+        assert_eq!(diff.removed.len(), 1);
+        assert_eq!(diff.added.len(), 1);
     }
 }

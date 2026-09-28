@@ -63,7 +63,7 @@ const main = async () => {
     for (const failure of failed) { console.error(`  ${failure}`); }
   }
   console.log(`check-file-lines: checked ${files.length}, ${warned.length} near limit, ${failed.length} over.`);
-  return failed.length === 0 ? 0 : 1;
+  return Number(failed.length > 0);
 };
 
 process.exitCode = await main();

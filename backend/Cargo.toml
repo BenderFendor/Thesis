@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = [
+    "rss_parser_rust",
+    "crates/thesis-ingest",
+    "crates/thesis-search",
+    "crates/thesis-evidence",
+    "crates/thesis-db",
+    "crates/thesis-api",
+    "crates/thesis-runtime",
+    "crates/thesis-server",
+    "crates/thesis-observe",
+]
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

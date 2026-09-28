@@ -1,7 +1,9 @@
 import string
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
+from app.services.rss_parser_rust_bindings import RUST
 from app.services.source_url_guard import (
     build_source_url_guard,
     extract_domain,
@@ -10,6 +12,34 @@ from app.services.source_url_guard import (
 )
 
 _HOST_CHARS = string.ascii_lowercase + string.digits
+
+
+def _python_reference_normalize_host(host: str) -> str:
+    return host.strip().lower().replace("www.", "")
+
+
+def _python_reference_hosts_match(expected: str, actual: str) -> bool:
+    families = (
+        ("asiaplustj.info", "asiaplus.news", "old.asiaplustj.info"),
+        ("bbc.com", "bbc.co.uk", "bbci.co.uk"),
+    )
+
+    def family(host: str) -> int | None:
+        for index, members in enumerate(families):
+            if any(host == root or host.endswith(f".{root}") for root in members):
+                return index
+        return None
+
+    expected_norm = _python_reference_normalize_host(expected)
+    actual_norm = _python_reference_normalize_host(actual)
+    if not expected_norm or not actual_norm:
+        return False
+    if expected_norm == actual_norm:
+        return True
+    if expected_norm.endswith(f".{actual_norm}") or actual_norm.endswith(f".{expected_norm}"):
+        return True
+    expected_family = family(expected_norm)
+    return expected_family is not None and expected_family == family(actual_norm)
 
 
 @st.composite
@@ -81,3 +111,26 @@ def test_build_source_url_guard_accepts_bbc_feed_family_match() -> None:
 def test_hosts_match_accepts_asia_plus_current_and_legacy_domains() -> None:
     assert hosts_match("asiaplustj.info", "asiaplus.news")
     assert hosts_match("old.asiaplustj.info", "asiaplus.news")
+
+
+@given(st.text(max_size=100))
+def test_rust_host_normalization_matches_python_reference(host: str) -> None:
+    assert RUST.rust_normalize_host(host) == _python_reference_normalize_host(host)
+
+
+@given(
+    st.text(max_size=100),
+    st.text(max_size=100),
+)
+def test_rust_host_matching_matches_python_reference(expected: str, actual: str) -> None:
+    assert RUST.rust_hosts_match(expected, actual) == _python_reference_hosts_match(
+        expected, actual
+    )
+    assert hosts_match(expected, actual) == _python_reference_hosts_match(expected, actual)
+
+
+def test_hosts_match_rejects_suffix_lookalikes() -> None:
+    assert not hosts_match("notbbc.com", "bbc.com")
+    assert not hosts_match("bbc.com.example", "bbc.com")
+    assert not hosts_match("", "example.com.")
+    assert not hosts_match("example.com.", "")

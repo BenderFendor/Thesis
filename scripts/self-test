@@ -142,10 +142,10 @@ elif [[ -f "./backend/pytest.ini" ]]; then
 	echo "- skip: backend/.venv/bin/pytest not found"
 fi
 
-if [[ -f "./backend/rss_parser_rust/Cargo.toml" ]]; then
-	run_cmd cargo clippy --manifest-path ./backend/rss_parser_rust/Cargo.toml --all-targets --all-features -- -D warnings
-	run_cmd cargo fmt --manifest-path ./backend/rss_parser_rust/Cargo.toml --all -- --check
-	run_cmd cargo test --manifest-path ./backend/rss_parser_rust/Cargo.toml
+if [[ -f "./backend/Cargo.toml" ]]; then
+	run_cmd cargo fmt --manifest-path ./backend/Cargo.toml --all -- --check
+	run_cmd cargo clippy --manifest-path ./backend/Cargo.toml --workspace --all-targets -- -D warnings
+	run_cmd cargo test --manifest-path ./backend/Cargo.toml --workspace
 fi
 
 if [[ "$checks_ran" -eq 0 ]]; then

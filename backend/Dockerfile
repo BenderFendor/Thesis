@@ -13,12 +13,15 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-	&& pip install --no-cache-dir maturin==1.8.2
+	&& pip install --no-cache-dir "maturin>=1.10.0"
 
 WORKDIR /build
+COPY backend/Cargo.toml ./Cargo.toml
+COPY backend/Cargo.lock ./Cargo.lock
 COPY backend/rss_parser_rust ./rss_parser_rust
+COPY backend/crates ./crates
 WORKDIR /build/rss_parser_rust
-RUN maturin build --release --locked
+RUN maturin build --manifest-path Cargo.toml --release --locked --out /build/wheels
 
 FROM python:3.11-slim
 
@@ -40,7 +43,7 @@ COPY backend/requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
 # Install Rust-powered RSS parser wheel
-COPY --from=rust-builder /build/rss_parser_rust/target/wheels/*.whl /tmp/rust_wheels/
+COPY --from=rust-builder /build/wheels/*.whl /tmp/rust_wheels/
 RUN uv pip install --system --no-cache /tmp/rust_wheels/*.whl && rm -rf /tmp/rust_wheels
 
 # Copy only the app directory which is required

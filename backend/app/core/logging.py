@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import gzip
 import logging
 import os
-from datetime import datetime
+import shutil
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -23,6 +25,18 @@ MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 3
 
 _session_dir: Path | None = None
+
+
+def _compressed_backup_name(default_name: str) -> str:
+    """Add the gzip suffix used by rotating backups."""
+    return f"{default_name}.gz"
+
+
+def _compress_rotated_log(source: str, destination: str) -> None:
+    """Compress a closed log file, preserving the original if compression fails."""
+    with Path(source).open("rb") as source_file, gzip.open(destination, "wb") as compressed_file:
+        shutil.copyfileobj(source_file, compressed_file)
+    Path(source).unlink()
 
 
 class ConsoleSummaryFilter(logging.Filter):
@@ -68,7 +82,7 @@ def get_session_dir() -> Path:
     """Return the current plain-text application-log session directory."""
     global _session_dir
     if _session_dir is None:
-        session_name = f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{os.getpid()}"
+        session_name = f"{datetime.now(UTC).astimezone():%Y-%m-%d_%H-%M-%S}_{os.getpid()}"
         _session_dir = LOG_DIR / session_name
         _session_dir.mkdir(parents=True, exist_ok=True)
     return _session_dir
@@ -99,6 +113,8 @@ def configure_logging(level: int = logging.INFO) -> logging.Logger:
             maxBytes=MAX_LOG_SIZE,
             backupCount=BACKUP_COUNT,
         )
+        file_handler.namer = _compressed_backup_name
+        file_handler.rotator = _compress_rotated_log
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
     except (OSError, PermissionError) as exc:

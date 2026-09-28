@@ -1,21 +1,30 @@
 # Lean codebase audit and implementation plan
 
-Audit date: 2026-09-04, America/New_York. Measurements were collected after midnight UTC on September 5.
-Starting commit: bc93b24f7cd134c49a79927f768b682c28839dac.
+Current status (2026-09-29): Rust exposes 143/178 HTTP operations:
+106 parity-proven, 37 registered but unverified, and 35 unregistered.
+B04 `/debug/database/articles`, Phase 10 Atlas shadows, and the B16 evidence
+materialization route are registered but unverified; FastAPI remains public,
+and build, tests, runtime, and parity proof remain open. Atlas entity detail and
+evidence proof remain unregistered; browser checks remain open. See
+`.agent/traces/rust-atlas-export-2026-09-27.md`,
+`.agent/traces/rust-atlas-index-2026-09-27.md`, and
+`.agent/traces/rust-atlas-stats-2026-09-29.md`.
+Search registration history: `.agent/traces/rust-atlas-search-route-integration.md`.
+Baseline audit: 2026-09-04, America/New_York; measurements followed UTC
+midnight on September 5. Starting commit: bc93b24f7cd134c49a79927f768b682c28839dac.
 Branch: quality/crap-mi-oxlint-hardening, 56 commits ahead of its configured upstream.
-
-Status: audit and plan recorded; implementation is active across bounded frontend and
-backend slices. At the user's request, two Luna subagents work in separate ownership lanes;
-the root agent steers, reviews, verifies, and maintains this record. The latest lanes cover
-cluster-detail, grid, article-analysis, source-intelligence, and globe surfaces; root also
-repaired API endpoint validation/SSE buffering and the app/page shell. Workers preserve
-unrelated user changes and report evidence before handoff. The goal remains active, not
-complete; global lint, maintainability, CRAP, duplication, source limits, runtime, and
-browser closure still require substantial work.
+The starting checkout had only the user-owned untracked `har/` directory; it remains preserved.
+The two QH-001 functions now meet the CCCC limits. The changed-scope measurement reports
+zero CCCC, Oxlint, and code-multivitals violations; its CRAP check was not selected. Full
+repository verification remains open. Its pre-fix measurement reported two CCCC violations
+and 141 frontend functions below MI 50. The source-line gate reports
+`backend/news_research_agent.py` at 2,198 lines against a 2,081-line debt cap. Browser
+proof and the remaining plan phases are open. See the
+[cleanup trace](../agents/traces/lean-codebase-cleanup.md).
 Historical recovery checkpoint: TypeScript and 20 focused regressions passed while the
 sidebar still had three scoped lint errors and six warnings. That checkpoint led to the
 controller-wiring repair below; it is retained as history, not as current status.
-Current checkpoint: the queue/sidebar lane has zero scoped Oxlint errors or warnings and
+Audit checkpoint (2026-09-04): the queue/sidebar lane had zero scoped Oxlint errors or warnings and
 485 counted lines after deleting redundant type adapters and a single-use wrapper. Its
 maintainability failures are cleared (worst MI 50.4), but final MI 60 remains open for
 the touched helpers. The debug-dashboard lane removed obsolete selector/query-loader and
@@ -669,6 +678,56 @@ Scope: features/intelligence-atlas; wiki_atlas; atlas_entity and graph/evidence 
 Checks: existing Atlas schema/query-state/layout/tests; backend atlas contract/dossier/projection/
 stats/cache/research-coverage tests. Browser: search, select, filters, graph/list, deep link, back.
 
+2026-09-26 Atlas media-measurements checkpoint: Before this slice,
+`wiki_atlas::router` and central `ApiDoc.paths` omitted the route. After it,
+both register `GET /api/wiki/atlas/analysis/media-measurements`, the handler
+produces six versioned traces, and seven focused test sources are present.
+Their static inputs do not verify SQL loading/filtering, persistence, or runtime.
+Cargo tests, build, typecheck, and HTTP behavior remain unverified because the
+shared Cargo lock gate is closed; Atlas search/graph/browser checks remain open.
+See `.agent/traces/rust-atlas-media-measurements.md` for before/after LOC and
+quality-analyzer evidence.
+
+2026-09-27 Atlas graph and entity-connections checkpoint: `wiki_atlas::router`
+and central `ApiDoc.paths` register both routes, and the inventory rows remain
+`migrated:false`. The OpenAPI test asserts their operation IDs and 200-response
+presence; annotations also declare graph 422 and connection 404/500 responses,
+which that test does not assert. Module unit tests cover projection, selection,
+and ordering but were not run for this integration. Handler HTTP/database
+behavior and FastAPI parity remain unverified.
+
+2026-09-27 Atlas search checkpoint: `wiki_atlas::router` and central
+`ApiDoc.paths` now register `GET /api/wiki/atlas/search`; its inventory row
+remains `migrated:false`. The OpenAPI test asserts the operation ID and presence
+of a 200 response; the handler annotation also declares 422, which that test
+does not assert. Six source tests cover match ranking, metadata, per-type limits,
+response defaults, and query/limit bounds, but were not run. They do not exercise
+HTTP handler execution, database loading, populated projection, or FastAPI
+parity. FastAPI remains public.
+
+2026-09-27 Atlas index checkpoint: `wiki_atlas::router` and central
+`ApiDoc.paths` register `GET /api/wiki/atlas/index`; the inventory row remains
+`migrated:false`. The OpenAPI test source asserts the exact operation ID, 200
+and 422 responses, and continued absence of Atlas export. The inventory now
+counts 138/178 operations: 106 parity-proven, 32 registered but unverified, and
+40 unregistered. Ten focused in-memory source tests plus the OpenAPI assertions
+are present but unrun while the shared Cargo lock gate is closed. The stdlib
+cursor probe confirms `M=Q` returns 1 and `MQ===ignored` returns 0; raw and
+decoded non-ASCII inputs return 0. These checks do not establish compiled,
+HTTP, database, or FastAPI parity behavior. FastAPI remains public; see
+`.agent/traces/rust-atlas-index-2026-09-27.md`.
+
+2026-09-27 Atlas export checkpoint: `wiki_atlas::router` and central `ApiDoc.paths`
+register `POST /api/wiki/atlas/export`; its inventory row is `migrated:false`.
+The handler supports JSON and three CSV attachments and returns 422 for malformed
+JSON, request-shape/type, and filter validation errors. Ten source tests and the
+central OpenAPI assertions are present but unrun; rustfmt passed. Closed gates:
+no Cargo build/tests, Clippy, self-test, or Rust runtime, and the bounded
+FastAPI baseline failed to connect to localhost:8000 (curl exit 7). Handler,
+database, and FastAPI parity remain unverified; FastAPI remains public. CCCC
+scores are unavailable because the pinned analyzer is not installed or cached.
+See `.agent/traces/rust-atlas-export-2026-09-27.md`.
+
 ### Phase 11: Wiki, ownership, people, reporters, and funding
 
 Scope: app/wiki/*; features/wiki/ui; entity_wiki_service; funding_researcher;
@@ -861,7 +920,7 @@ cannot replace the browser pass.
 | 11: Wiki/evidence           | Pending  | Dossier/service/test inventory                                                 |
 | 12: Debug/settings          | Partial  | Notification and ownership slices verified; debug dashboard still has broad debt        |
 | 13: Backend/native          | Pending  | Service/model/router inventory                                                 |
-| 14: CLI/tooling             | Deferred | User requested scripts linting be skipped; rules/config remain unchanged                |
+| 14: CLI/tooling             | Partial  | Configured scripts lint/typecheck are closed; QH-001 CCCC closed 2026-09-23; remaining phase checks stay open |
 | 15: Remaining metric debt   | Pending  | Complete measured file/rule/function inventories                               |
 | 16: Closure                 | Pending  | Requires all prior phases and full feature verification                        |
 
@@ -1704,12 +1763,15 @@ self-test now completes in 118.8 seconds without timing out, but the full gate i
 
 Active backlog:
 
-- `QH-001 CCCC`: reduce `main` in `scripts/check-file-lines.mjs` (cyclomatic 11) and
-  `parseFinding` in `scripts/quality-hardening/adapters/oxlint.mjs` (cyclomatic 12) to the
-  thresholds of cyclomatic 10 and cognitive 15.
-- `QH-002 MI`: repair the 136 owned frontend functions below MI 50 and the remaining warning
+- `QH-001 CCCC` (closed 2026-09-23): `main` in `scripts/check-file-lines.mjs` is CC 10,
+  cognitive 14; `parseFinding` in `scripts/quality-hardening/adapters/oxlint.mjs` is CC 10,
+  cognitive 6. The full CCCC scan reports zero violations across 12,927 functions.
+- `QH-002 MI`: repair the 141 owned frontend functions below MI 50 and the remaining warning
   cohort below MI 60. Acceptance is no owned frontend function below MI 60, with the controller
   measurement retained for JavaScript tooling.
+  Full measurement `qh-measure:8759ff2f0be326f3c919938b` reports 141 frontend functions below
+  MI 50 and 1,065 below MI 60; JavaScript tooling has 11 functions below MI 50 and 76 below
+  MI 60. Keep the frontend acceptance count separate from tooling metrics.
 - `QH-003 dead code`: resolve the current Knip unused-file, dependency, export/type, and
   configuration-hint findings after tracing live callers and preserved WIP.
 - `QH-004 backend typing`: fix the 25 mypy errors across 19 files without broadening types or
@@ -1725,3 +1787,52 @@ Feature rule: before editing a feature, identify its frontend, backend, CLI, Rus
 quality-tooling boundaries. If any boundary maps to an open backlog item, the feature change
 must repair that applicable item in the same change and add the behavior and quality evidence.
 Update this backlog when a finding is closed or a new touched-system finding is discovered.
+
+## 2026-09-23: Main checkout baseline and CCCC closure
+
+The goal resumed on `main` at `c728ec1`. The starting worktree was clean except for the
+untracked user-owned `har/` directory, which remains untouched. The prior root cleanup is
+recorded in `docs/agents/traces/repo-root-cleanup-2026-09-23.md`.
+
+The watchdog-wrapped `scripts/self-test` exited 1 after 117.9 seconds. Its fresh full
+measurement, `qh-measure:8759ff2f0be326f3c919938b`, reported 2 CCCC violations and 0 Oxlint
+findings. It found 141 frontend functions below MI 50 and 1,065 below MI 60, plus 11
+JavaScript tooling functions below MI 50 and 76 below MI 60. This was captured before the
+QH-001 fixes below.
+
+Reduced `main` in `scripts/check-file-lines.mjs` from CC 11 and cognitive 15 to CC 10 and
+cognitive 14. Reduced `parseFinding` in `scripts/quality-hardening/adapters/oxlint.mjs`
+from CC 12 and cognitive 8 to CC 10 and cognitive 6. Their MI scores moved from 47.3 to
+47.5 and from 49.9 to 50.5. File lengths stayed at 69 and 88 lines. The adapter test file
+grew from 36 to 41 lines for one malformed-label regression. The changed-scope measurement
+`qh-measure:e5272b163a30889ef510aa22` reports 0 CCCC, Oxlint, and code-multivitals
+violations; CRAP was not selected for this scope.
+
+Verification: the full CCCC command reports 0 hard violations across 12,927 functions;
+the adapter suite passes 3/3 tests; `npm run cli:typecheck` passes; changed-file Oxlint
+reports no diagnostics; and `git diff --check` passes. `node scripts/check-file-lines.mjs`
+still fails because `backend/news_research_agent.py` is 2,198 lines against its 2,081-line
+debt cap. The full repository self-test must be rerun after the current fixes. CRAP coverage
+attribution, browser journeys, the frontend MI target, and remaining phase gates are open.
+
+Next: reduce frontend MI debt while tracking tooling separately, then inspect the
+`backend/news_research_agent.py` responsibilities before choosing a line-limit refactor. Do
+not treat the changed-scope measurement as repository-wide closure.
+
+2026-09-29 Atlas stats checkpoint: `wiki_atlas::router` and central
+`ApiDoc.paths` register `GET /api/wiki/atlas/stats`; its inventory row is
+`rust_registered:true` and remains `migrated:false`. The handler reuses the
+all-entity Atlas graph projection and response builder, applies the 2,500-edge
+limit, and checks the persisted network-ingest success marker for five-minute
+cache invalidation. Three in-memory source tests and an OpenAPI response-schema
+assertion are present but unrun. Standalone rustfmt passed. Cargo, HTTP/runtime,
+database, and FastAPI parity behavior remain unverified; FastAPI remains public.
+See `.agent/traces/rust-atlas-stats-2026-09-29.md`.
+
+2026-09-29 evidence materialization checkpoint: Rust registers the token-gated
+`POST /api/wiki/evidence/claims/{claim_id}/materialize` shadow route and central
+OpenAPI contract. Three focused source tests cover query booleans, token auth,
+and reviewer validation; the OpenAPI assertion covers operation ID, schema,
+parameters, and defaults. Standalone rustfmt passed. Cargo, database, HTTP
+runtime, and FastAPI parity remain unverified; `migrated:false` remains. See
+`.agent/traces/rust-evidence-claim-materialize-2026-09-29.md`.
