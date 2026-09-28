@@ -169,6 +169,7 @@ impl fmt::Display for GdeltExportParseError {
             Self::EntrySizeMismatch => {
                 formatter.write_str("GDELT ZIP entry size does not match its declared size")
             }
+            Self::InvalidUtf8 => formatter.write_str("GDELT export entry is not valid UTF-8"),
             Self::UnexpectedHeader => {
                 formatter.write_str("GDELT export unexpectedly contains a header row")
             }
@@ -244,7 +245,7 @@ fn parse_gdelt_export_zip_with_limits(
         }
     }
     let export_index = export_index.ok_or(GdeltExportParseError::MissingExportEntry)?;
-    let mut entry = archive
+    let entry = archive
         .by_index(export_index)
         .map_err(|error| GdeltExportParseError::InvalidArchive(error.to_string()))?;
     let declared_size = entry.size();
@@ -1029,7 +1030,7 @@ mod b13_sync_tests {
     }
 
     fn app(state: GdeltSyncState) -> Router {
-        sync_router(state).with_state(())
+        sync_router(state).with_state(crate::AppState::for_test())
     }
 
     async fn post(app: &Router, uri: &str) -> (StatusCode, Value) {
@@ -1054,8 +1055,8 @@ mod b13_sync_tests {
 
     #[tokio::test]
     async fn sync_validates_bounds_before_reporting_provider_unavailable() {
-        let app = app(GdeltSyncState::unavailable());
-        let (status, body) = post(&app, "/gdelt/sync?minutes=61").await;
+        let router = app(GdeltSyncState::unavailable());
+        let (status, body) = post(&router, "/gdelt/sync?minutes=61").await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body["detail"][0]["loc"],
@@ -1063,7 +1064,7 @@ mod b13_sync_tests {
         );
         assert_eq!(body["detail"][0]["type"], "less_than_equal");
 
-        let (status, body) = post(&app, "/gdelt/sync").await;
+        let (status, body) = post(&router, "/gdelt/sync").await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
             body,
@@ -1074,10 +1075,10 @@ mod b13_sync_tests {
     #[tokio::test]
     async fn sync_persists_idempotently_and_projects_fastapi_response_fields() {
         let fixture = fixture_provider(None);
-        let app = app(GdeltSyncState::with_provider(fixture.clone()));
+        let router = app(GdeltSyncState::with_provider(fixture.clone()));
 
         for _ in 0..2 {
-            let (status, body) = post(&app, "/gdelt/sync?minutes=4&limit=2").await;
+            let (status, body) = post(&router, "/gdelt/sync?minutes=4&limit=2").await;
             assert_eq!(status, StatusCode::OK);
             assert_eq!(body["success"], true);
             assert_eq!(body["matched"], 1);
@@ -1108,8 +1109,8 @@ mod b13_sync_tests {
     #[tokio::test]
     async fn sync_uses_python_defaults_and_preserves_provider_failures() {
         let fixture = fixture_provider(None);
-        let app = app(GdeltSyncState::with_provider(fixture.clone()));
-        let (status, body) = post(&app, "/gdelt/sync").await;
+        let router = app(GdeltSyncState::with_provider(fixture.clone()));
+        let (status, body) = post(&router, "/gdelt/sync").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["window_minutes"], 15);
         assert_eq!(
@@ -1121,10 +1122,10 @@ mod b13_sync_tests {
             &[(15, 250)]
         );
 
-        let app = app(GdeltSyncState::with_provider(fixture_provider(Some(
+        let router = app(GdeltSyncState::with_provider(fixture_provider(Some(
             GdeltSyncError::Failed("export fetch failed".to_owned()),
         ))));
-        let (status, body) = post(&app, "/gdelt/sync").await;
+        let (status, body) = post(&router, "/gdelt/sync").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(body["detail"], "GDELT sync failed: export fetch failed");
     }

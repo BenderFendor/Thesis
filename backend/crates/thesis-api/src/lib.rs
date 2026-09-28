@@ -44,6 +44,8 @@ pub mod search;
 pub mod source_catalog;
 /// Environment-backed verification policy and provider contracts.
 pub mod verification;
+/// Shared `/ws` hub and its FastAPI-compatible WebSocket protocol.
+pub mod websocket;
 pub mod wiki;
 mod wiki_atlas;
 
@@ -73,6 +75,26 @@ pub(crate) struct AppState {
     pub(crate) cache_stream: cache_stream::CacheStreamState,
     pub(crate) article_analysis: article_analysis::ArticleAnalysisState,
     pub(crate) queue_digest: queue_digest::QueueDigestState,
+}
+
+#[cfg(test)]
+impl AppState {
+    /// Router state with a lazy (never connected) database and unavailable sidecars.
+    pub(crate) fn for_test() -> Self {
+        let sidecars = RouterSidecars::default();
+        Self {
+            database: Database::connect_lazy("postgres://user:pass@127.0.0.1/thesis")
+                .expect("valid lazy PostgreSQL URL"),
+            database_enabled: true,
+            profiling: sidecars.profiling,
+            source_catalog: sidecars.source_catalog,
+            entity_research: sidecars.entity_research,
+            jobs_image: sidecars.jobs_image,
+            cache_stream: sidecars.cache_stream,
+            article_analysis: sidecars.article_analysis,
+            queue_digest: sidecars.queue_digest,
+        }
+    }
 }
 
 fn database_enabled_value(value: Option<&str>) -> bool {
@@ -165,6 +187,7 @@ impl Default for RouterSidecars {
             profiling: ProfilingState::new(),
             source_catalog: source_catalog::SourceCatalogState::default(),
             entity_research: entity_research::EntityResearchState::default(),
+            wiki: wiki::WikiState::default(),
             debug_config: None,
             debug_providers: debug::DebugProviders::default(),
             verification: verification::VerificationState::from_environment(),
@@ -279,7 +302,8 @@ pub fn router(database: Database) -> Router {
 }
 
 /// Build the Rust shadow router with the selected provider sidecars.
-pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Router {
+pub fn router_with_sidecars(database: Database, mut sidecars: RouterSidecars) -> Router {
+    sidecars.jobs_image = sidecars.jobs_image.with_database_cache_default(&database);
     let database_enabled = sidecars
         .debug_config
         .as_ref()
@@ -294,8 +318,6 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         debug::router(debug::DebugState::build(
             database.clone(),
             sidecars.cache_stream.clone(),
-            sidecars.jobs_image.clone(),
-            sidecars.source_catalog.clone(),
             sidecars.profiling.clone(),
             config,
             sidecars.debug_providers,
@@ -313,7 +335,7 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         .route("/cache/status", get(cache_stream::get_cache_status))
         .route(
             "/api/article/language-diagnostics",
-            post(core::analyze_article_language),
+            post(article_analysis::post_article_language_diagnostics),
         )
         .route(
             "/article/extract",
@@ -553,6 +575,7 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
             article_analysis: sidecars.article_analysis,
             queue_digest: sidecars.queue_digest,
         })
+        .merge(discovery::router(sidecars.discovery))
         .merge(verification::router(sidecars.verification))
         .merge(search::router(sidecars.semantic_search))
         .merge(inline::router(sidecars.inline_definition))
@@ -576,7 +599,7 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         core::read_root,
         core::health_check,
         core::get_categories,
-        core::analyze_article_language,
+        article_analysis::post_article_language_diagnostics,
         article_analysis::get_article_extract,
         article_analysis::post_article_analysis,
         get_evidence_policies,
@@ -625,29 +648,29 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         debug::list_debug_log_files,
         debug::clear_old_log_files,
         debug::read_debug_log_file,
-        debug::get_source_debug_data,
-        debug::get_stream_status,
-        debug::get_pipeline_metrics,
-        debug::get_startup_metrics,
-        debug::list_chromadb_articles,
-        debug::list_database_articles,
-        debug::get_cache_db_delta,
-        debug::get_storage_drift,
-        debug::get_system_status,
-        debug::get_log_level,
-        debug::set_log_level,
-        debug::test_rss_parser,
-        debug::test_article_parser,
-        debug::list_active_jobs,
-        debug::get_updates_subscribers,
-        debug::get_debug_report,
-        debug::get_streams,
-        debug::get_slow_operations,
-        debug::get_performance_summary,
-        debug::get_llm_logs,
-        debug::get_debug_errors,
-        debug::backfill_article_images,
-        debug::backfill_article_mentions,
+        debug::parser::get_source_debug_data,
+        debug::overview::get_stream_status,
+        debug::overview::get_pipeline_metrics,
+        debug::overview::get_startup_metrics,
+        debug::articles::list_chromadb_articles,
+        debug::articles::list_database_articles,
+        debug::articles::get_cache_db_delta,
+        debug::articles::get_storage_drift,
+        debug::overview::get_system_status,
+        debug::log_views::get_log_level,
+        debug::log_views::set_log_level,
+        debug::parser::test_rss_parser,
+        debug::parser::test_article_parser,
+        debug::overview::list_active_jobs,
+        debug::overview::get_updates_subscribers,
+        debug::log_views::get_debug_report,
+        debug::log_views::get_streams,
+        debug::log_views::get_slow_operations,
+        debug::log_views::get_performance_summary,
+        debug::log_views::get_llm_logs,
+        debug::log_views::get_debug_errors,
+        debug::backfill::backfill_article_images,
+        debug::backfill::backfill_article_mentions,
         wiki::list_wiki_sources,
         wiki::get_source_wiki,
         wiki::get_source_reporters,
@@ -658,13 +681,13 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         wiki::get_wiki_index_status,
         wiki_atlas::get_atlas_ingestion_status,
         wiki_atlas::get_funding_bias_analysis,
-        wiki_atlas::get_media_measurements,
-        wiki_atlas::get_graph,
-        wiki_atlas::get_connections,
-        wiki_atlas::get_atlas_search,
-        wiki_atlas::get_atlas_index,
-        wiki_atlas::export_atlas,
-        wiki_atlas::get_atlas_stats,
+        wiki_atlas::media_measurements::get_media_measurements,
+        wiki_atlas::graph::get_graph,
+        wiki_atlas::graph::connections::get_connections,
+        wiki_atlas::search::get_atlas_search,
+        wiki_atlas::index::get_atlas_index,
+        wiki_atlas::export::export_atlas,
+        wiki_atlas::stats::get_atlas_stats,
         news::get_news_paginated,
         news::get_browse_index,
         news::get_recent_news,
@@ -807,12 +830,7 @@ pub fn router_with_sidecars(database: Database, sidecars: RouterSidecars) -> Rou
         cache_stream::UpdatesStatusFreeFormSchema,
         comparison::ComparisonRequest,
         comparison::ComparisonResponse,
-        core::LanguageDiagnosticsRequest,
-        core::LanguageDiagnosticsResponse,
-        core::LanguageDiagnosticExample,
-        core::LanguageDiagnosticMetric,
-        core::LanguageDiagnosticOverall,
-        core::LanguageDiagnosticStatus,
+        article_analysis::LanguageDiagnosticsRequest,
         article_analysis::ArticleAnalysisRequest,
         article_analysis::ArticleAnalysisResponse,
         article_analysis::DiagnosticStatus,
@@ -2142,7 +2160,8 @@ mod tests {
             )
             .await
             .expect("response");
-        assert_eq!(clear.status(), StatusCode::OK);
+        // The default cache is database-backed; like FastAPI, a failed clear is a 500.
+        assert_eq!(clear.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
         let og = app
             .oneshot(
@@ -2305,15 +2324,13 @@ mod tests {
             0.0,
             "2026-09-24T00:00:00+00:00",
         ));
-        assert_eq!(
-            state.publish_update("invalidate", Some(serde_json::json!({"reason": "sidecar"}))),
-            Ok(1)
-        );
 
         let database = Database::connect_lazy("postgres://user:pass@127.0.0.1/thesis")
             .expect("valid lazy PostgreSQL URL");
-        let app =
-            router_with_sidecars(database, RouterSidecars::default().with_cache_stream(state));
+        let app = router_with_sidecars(
+            database,
+            RouterSidecars::default().with_cache_stream(state.clone()),
+        );
 
         let cache_status = app
             .clone()
@@ -2365,6 +2382,12 @@ mod tests {
         let connection_chunk =
             String::from_utf8(connection_chunk.to_vec()).expect("updates connection UTF-8");
         assert!(connection_chunk.contains("\"type\":\"connected\""));
+        // Like FastAPI's per-subscriber queue, only events published after
+        // the client connects are delivered.
+        assert_eq!(
+            state.publish_update("invalidate", Some(serde_json::json!({"reason": "sidecar"}))),
+            Ok(1)
+        );
         let update_chunk =
             tokio::time::timeout(std::time::Duration::from_secs(1), updates_chunks.next())
                 .await

@@ -12,7 +12,7 @@ use super::super::{
     AtlasConnectionResponse, AtlasEntityType, AtlasGraphFiltersInput, AtlasGraphResponse,
     AtlasLifecycleState,
 };
-use super::{build_response, casefold, project, GraphData};
+use super::{build_response, casefold, project};
 use crate::AppState;
 
 #[derive(Clone, Copy, Debug)]
@@ -209,6 +209,7 @@ mod tests {
 
     use serde_json::json;
 
+    use super::super::GraphData;
     use super::*;
     use crate::wiki_atlas::{
         AtlasDirection, AtlasEdgeResponse, AtlasFactStatus, AtlasNodeResponse, AtlasRelationType,

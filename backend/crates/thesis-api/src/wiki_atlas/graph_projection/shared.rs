@@ -7,6 +7,7 @@ use thesis_db::AtlasProjectionData;
 use super::super::super::{
     AtlasDirection, AtlasEdgeResponse, AtlasFactStatus, AtlasLifecycleState, AtlasRelationType,
 };
+use super::super::stable_source_id;
 
 pub(super) const LEGACY_PUBLICATION_KINDS: &[&str] = &["publication", "digital_property", "feed"];
 pub(super) const EVIDENCE_PUBLICATION_KINDS: &[&str] = &[

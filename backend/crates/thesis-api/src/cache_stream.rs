@@ -27,7 +27,6 @@ use std::time::{Duration, Instant};
 
 use axum::extract::{RawQuery, State};
 use axum::http::header::{HeaderValue, CONNECTION};
-use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::Json;
@@ -1397,7 +1396,7 @@ fn news_event_stream(
     started_at: Instant,
 ) -> impl Stream<Item = Result<Event, Infallible>> + Send {
     let mut prefix = VecDeque::from(prefix);
-    let mut receiver = receiver;
+    let receiver = receiver;
     let mut aggregate = NewsAggregate::new();
     let mut ended = false;
     poll_fn(move |context| {

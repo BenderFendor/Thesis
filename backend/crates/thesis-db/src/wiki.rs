@@ -974,7 +974,7 @@ mod tests {
         }
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn source_catalog_promotions_are_exact_name_unique_and_ordered(pool: PgPool) {
         sqlx::query(
             "CREATE TABLE source_catalog (\
@@ -2093,7 +2093,11 @@ impl Database {
             .build_query_as::<WikiUnresolvedArticleRow>()
             .fetch_all(&self.pool)
             .await
-            .map(|rows| rows.into_iter().map(WikiUnresolvedArticleRow::into_article).collect())
+            .map(|rows| {
+                rows.into_iter()
+                    .map(WikiUnresolvedArticleRow::into_article)
+                    .collect()
+            })
     }
     pub async fn wiki_insert_article_author_links(
         &self,
@@ -2378,7 +2382,9 @@ impl Database {
                     dossier_sections, citations, search_links, match_explanation, research_sources, \
                     research_confidence FROM reporters WHERE resolver_key = ",
         );
-        query.push_bind(resolver_key).push(" ORDER BY id DESC LIMIT 1");
+        query
+            .push_bind(resolver_key)
+            .push(" ORDER BY id DESC LIMIT 1");
         query
             .build_query_as::<WikiReporterResearchRecord>()
             .fetch_optional(&self.pool)
@@ -2540,7 +2546,6 @@ impl Database {
         transaction.commit().await?;
         Ok(id)
     }
-
 }
 
 fn json_value_is_truthy(value: &Value) -> bool {
@@ -2570,7 +2575,11 @@ fn organization_parent_orgs(input: &WikiOrganizationWriteRecord) -> Json<Value> 
     {
         return Json(parent_orgs.clone());
     }
-    match input.parent_org.as_deref().filter(|parent| !parent.is_empty()) {
+    match input
+        .parent_org
+        .as_deref()
+        .filter(|parent| !parent.is_empty())
+    {
         Some(parent) => Json(Value::Array(vec![Value::String(parent.to_owned())])),
         None => empty_json_array(),
     }
@@ -2690,4 +2699,3 @@ async fn wiki_save_organization_research_cache(
     transaction.commit().await?;
     Ok(Some(id))
 }
-

@@ -1004,8 +1004,7 @@ mod tests {
     use tower::ServiceExt;
 
     use super::{
-        get_article_extract, parse_analysis_request, parse_extract_query,
-        parse_language_diagnostics_request, post_article_analysis,
+        get_article_extract, parse_analysis_request, parse_extract_query, post_article_analysis,
         post_article_language_diagnostics, ArticleAnalysisInput, ArticleAnalysisSidecar,
         ArticleAnalysisState, ArticleExtractionPayload, ArticleExtractionSidecar, SidecarError,
         SidecarFuture,
@@ -1494,5 +1493,126 @@ mod tests {
                 "error": "Article extraction sidecar is unavailable"
             })
         );
+    }
+
+    fn language_router() -> Router {
+        Router::new()
+            .route(
+                "/api/article/language-diagnostics",
+                post(post_article_language_diagnostics),
+            )
+            .with_state(ArticleAnalysisState::unavailable())
+    }
+
+    async fn language_json(response: axum::response::Response) -> Value {
+        serde_json::from_slice(
+            &to_bytes(response.into_body(), 131_072)
+                .await
+                .expect("response body"),
+        )
+        .expect("JSON response")
+    }
+
+    #[tokio::test]
+    async fn language_route_matches_search_payload_for_inline_text() {
+        let response = language_router()
+            .oneshot(
+                Request::post("/api/article/language-diagnostics")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"url":"https://example.com/story","title":"Example","text":"People were detained overnight. Officials described unrest near the square."}"#,
+                    ))
+                    .expect("request"),
+            )
+            .await
+            .expect("diagnostic response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = language_json(response).await;
+        assert_eq!(payload["success"], true);
+        assert_eq!(payload["article_url"], "https://example.com/story");
+        assert_eq!(payload["title"], "Example");
+        assert_eq!(payload["actor_omission"]["count"], 1);
+        assert_eq!(payload["sanitized_language"]["count"], 1);
+        for key in [
+            "sentence_count",
+            "word_count",
+            "passive_voice",
+            "actor_omission",
+            "euphemisms",
+            "sanitized_language",
+            "overall",
+        ] {
+            assert!(!payload[key].is_null(), "missing response field {key}");
+        }
+        assert!(payload["error"].is_null());
+    }
+
+    #[tokio::test]
+    async fn language_route_returns_fastapi_shape_for_empty_and_malformed_inputs() {
+        let empty = language_router()
+            .clone()
+            .oneshot(
+                Request::post("/api/article/language-diagnostics")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"url":"https://example.com/story","text":""}"#,
+                    ))
+                    .expect("request"),
+            )
+            .await
+            .expect("empty response");
+        assert_eq!(empty.status(), StatusCode::OK);
+        let empty_payload = language_json(empty).await;
+        assert_eq!(empty_payload["success"], false);
+        // Empty text falls through to URL extraction, which is unavailable here.
+        assert_eq!(
+            empty_payload["error"],
+            "Article extraction sidecar is unavailable"
+        );
+        assert_eq!(empty_payload["sentence_count"], 0);
+        assert!(empty_payload["passive_voice"].is_null());
+
+        for body in [
+            r#"{}"#,
+            r#"{"url":12}"#,
+            r#"{"url":"https://example.com","text":false}"#,
+            r#"not-json"#,
+        ] {
+            let response = language_router()
+                .clone()
+                .oneshot(
+                    Request::post("/api/article/language-diagnostics")
+                        .header("content-type", "application/json")
+                        .body(Body::from(body))
+                        .expect("request"),
+                )
+                .await
+                .expect("malformed response");
+            assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+            let payload = language_json(response).await;
+            assert!(payload["detail"].is_array());
+            assert!(!payload["detail"][0]["loc"].is_null());
+            assert!(!payload["detail"][0]["type"].is_null());
+        }
+    }
+
+    #[tokio::test]
+    async fn language_route_keeps_unicode_boundary_and_title_ignored_by_domain() {
+        let body = r#"{"url":"u","title":"was killed","text":"İ ı ſ K café café 123 _word word-word word's"}"#;
+        let response = language_router()
+            .oneshot(
+                Request::post("/api/article/language-diagnostics")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("unicode response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = language_json(response).await;
+        assert_eq!(payload["success"], true);
+        assert_eq!(payload["word_count"], 10);
+        assert_eq!(payload["passive_voice"]["count"], 0);
+        assert_eq!(payload["overall"]["status"], "low");
     }
 }

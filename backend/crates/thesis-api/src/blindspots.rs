@@ -19,7 +19,7 @@ use thesis_db::{
 use thesis_search::topics::{extract_keywords_from_titles, generate_cluster_label};
 use utoipa::openapi::schema::{AdditionalProperties, ArrayBuilder, ObjectBuilder, Type};
 use utoipa::openapi::{RefOr, Schema};
-use utoipa::{IntoParams, PartialSchema, ToSchema};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::chroma::{ChromaClient, ChromaGetRequest, ChromaInclude, ChromaQueryRequest};
 use crate::embedding::EmbeddingClient;
@@ -710,12 +710,12 @@ impl LiveBlindspotAnalysisProvider {
         let average_coverage_ratio = if source_count == 0 {
             0.0
         } else {
-            round_decimal(coverage_total / source_count as f64, 2)
+            round_decimal(coverage_total / source_count as f64, 100.0)
         };
         let average_articles_per_source = if source_count == 0 {
             0.0
         } else {
-            round_decimal(article_total / source_count as f64, 1)
+            round_decimal(article_total / source_count as f64, 10.0)
         };
         let systemic_blind_spots = self
             .identify_topic_blind_spots_live(4)
@@ -1766,6 +1766,7 @@ pub(crate) async fn get_coverage_report(
     {
         return blindspot_invalid_result("Failed to generate coverage report");
     }
+    Json(result).into_response()
 }
 
 #[utoipa::path(
@@ -1966,7 +1967,7 @@ fn blindspot_provider_error(error: BlindspotAnalysisError, context: &str) -> Res
 fn blindspot_invalid_result(context: &str) -> Response {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(json!({"detail": format!("{context}: invalid provider result")})),
+        Json(json!({"detail": format!("{context}: provider returned invalid result")})),
     )
         .into_response()
 }
@@ -2858,7 +2859,7 @@ mod b13_analysis_tests {
         analysis_router, live_clusters_from_candidates, topic_members_from_query,
         BlindspotAnalysisError, BlindspotAnalysisFuture, BlindspotAnalysisProvider,
         BlindspotAnalysisState, CoverageReportResponse, SourceBlindSpotsResponse,
-        TopicBlindSpotResponse,
+        TopicBlindSpotResponse, TOPIC_RESULT_LIMIT,
     };
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3007,7 +3008,7 @@ mod b13_analysis_tests {
     }
 
     fn app(state: BlindspotAnalysisState) -> Router {
-        analysis_router(state).with_state(())
+        analysis_router(state).with_state(crate::AppState::for_test())
     }
 
     async fn call(app: &Router, method: Method, uri: &str) -> (StatusCode, Value) {
@@ -3035,10 +3036,10 @@ mod b13_analysis_tests {
     #[tokio::test]
     async fn source_topics_and_report_keep_python_filters_fields_and_order() {
         let fixture = fixture_provider(None);
-        let app = app(BlindspotAnalysisState::with_provider(fixture.clone()));
+        let router = app(BlindspotAnalysisState::with_provider(fixture.clone()));
 
         let (status, source) = call(
-            &app,
+            &router,
             Method::GET,
             "/blindspots/source/Example%20News?days=7",
         )
@@ -3060,7 +3061,7 @@ mod b13_analysis_tests {
         );
         assert_eq!(source["coverage_gaps"][0]["duration_hours"], 36.0);
 
-        let (status, topics) = call(&app, Method::GET, "/blindspots/topics?min_sources=6").await;
+        let (status, topics) = call(&router, Method::GET, "/blindspots/topics?min_sources=6").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
             topics
@@ -3077,7 +3078,7 @@ mod b13_analysis_tests {
         assert_eq!(topics[0]["blind_spot_count"], 1);
         assert_eq!(topics[0]["date_identified"], "2026-09-25T12:00:00+00:00");
 
-        let (status, report) = call(&app, Method::GET, "/blindspots/report?days=14").await;
+        let (status, report) = call(&router, Method::GET, "/blindspots/report?days=14").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(report["report_period_days"], 14);
         assert_eq!(report["total_sources"], 3);
@@ -3100,9 +3101,9 @@ mod b13_analysis_tests {
     #[tokio::test]
     async fn dashboard_and_update_stats_project_aggregates_and_fields() {
         let fixture = fixture_provider(None);
-        let app = app(BlindspotAnalysisState::with_provider(fixture.clone()));
+        let router = app(BlindspotAnalysisState::with_provider(fixture.clone()));
 
-        let (status, dashboard) = call(&app, Method::GET, "/blindspots/dashboard").await;
+        let (status, dashboard) = call(&router, Method::GET, "/blindspots/dashboard").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(dashboard["summary"]["total_sources"], 3);
         assert_eq!(dashboard["summary"]["average_coverage"], 53.6);
@@ -3119,7 +3120,7 @@ mod b13_analysis_tests {
             .as_str()
             .is_some_and(|value| chrono::DateTime::parse_from_rfc3339(value).is_ok()));
 
-        let (status, updated) = call(&app, Method::POST, "/blindspots/update-stats").await;
+        let (status, updated) = call(&router, Method::POST, "/blindspots/update-stats").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(updated["success"], true);
         assert_eq!(updated["sources_updated"], 2);
@@ -3140,7 +3141,7 @@ mod b13_analysis_tests {
     async fn provider_unavailable_and_failures_never_become_empty_success() {
         let unavailable_state = BlindspotAnalysisState::unavailable();
         assert!(!unavailable_state.is_configured());
-        let app = app(unavailable_state);
+        let router = app(unavailable_state);
         for (method, uri) in [
             (Method::GET, "/blindspots/source/Reuters"),
             (Method::GET, "/blindspots/topics"),
@@ -3148,7 +3149,7 @@ mod b13_analysis_tests {
             (Method::GET, "/blindspots/dashboard"),
             (Method::POST, "/blindspots/update-stats"),
         ] {
-            let (status, body) = call(&app, method, uri).await;
+            let (status, body) = call(&router, method, uri).await;
             assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
             assert_eq!(
                 body,
@@ -3160,20 +3161,20 @@ mod b13_analysis_tests {
             BlindspotAnalysisError::Unavailable,
         )));
         assert!(unavailable_state.is_configured());
-        let app = app(unavailable_state);
-        let (status, body) = call(&app, Method::GET, "/blindspots/report").await;
+        let router = app(unavailable_state);
+        let (status, body) = call(&router, Method::GET, "/blindspots/report").await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
             body,
             json!({"detail": "Blindspot analysis provider is not available"})
         );
 
-        let app = app(BlindspotAnalysisState::with_provider(fixture_provider(
+        let router = app(BlindspotAnalysisState::with_provider(fixture_provider(
             Some(BlindspotAnalysisError::Failed(
                 "SQL query failed".to_owned(),
             )),
         )));
-        let (status, body) = call(&app, Method::GET, "/blindspots/report").await;
+        let (status, body) = call(&router, Method::GET, "/blindspots/report").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
             body["detail"],
@@ -3182,8 +3183,8 @@ mod b13_analysis_tests {
 
         let mut empty_fixture = fixture_provider(None);
         empty_fixture.source.article_count = 0;
-        let app = app(BlindspotAnalysisState::with_provider(empty_fixture));
-        let (status, body) = call(&app, Method::GET, "/blindspots/source/Reuters").await;
+        let router = app(BlindspotAnalysisState::with_provider(empty_fixture));
+        let (status, body) = call(&router, Method::GET, "/blindspots/source/Reuters").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
             body["detail"],
@@ -3194,13 +3195,13 @@ mod b13_analysis_tests {
     #[tokio::test]
     async fn query_bounds_are_checked_before_live_provider_access() {
         let fixture = fixture_provider(None);
-        let app = app(BlindspotAnalysisState::with_provider(fixture.clone()));
+        let router = app(BlindspotAnalysisState::with_provider(fixture.clone()));
         for (uri, field) in [
             ("/blindspots/source/Reuters?days=0", "days"),
             ("/blindspots/topics?min_sources=21", "min_sources"),
             ("/blindspots/report?days=6", "days"),
         ] {
-            let (status, body) = call(&app, Method::GET, uri).await;
+            let (status, body) = call(&router, Method::GET, uri).await;
             assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
             assert_eq!(body["detail"][0]["loc"], json!(["query", field]));
         }

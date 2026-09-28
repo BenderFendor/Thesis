@@ -915,7 +915,7 @@ mod tests {
             "id,entity_type,label,subtitle,country_code,funding_type,bias_rating,article_count,connection_count,status,confidence_tier,updated_at\r\n",
             "outlet:é,outlet,\"Café, \"\"Source\"\"\r\nGroup\",,FR,,center,7,4,,verified,2024-01-02T03:04:05.006000\r\n"
         );
-        assert_eq!(actual, expected.as_bytes());
+        assert_eq!(String::from_utf8_lossy(&actual), expected);
     }
 
     #[tokio::test]
@@ -945,9 +945,9 @@ mod tests {
         let expected = concat!(
             "id,source_id,target_id,relation_type,raw_relation_type,confidence,confidence_tier,evidence_count,ownership_percentage,valid_from,valid_to,last_verified_at,is_inferred\r\n",
             "relation-1,source,target,ownership,directly_owns,1.0,verified,4,1.0,2024-01-02T03:04:05.006000,,2024-01-02T03:04:05.006000,True\r\n",
-            "relation-2,source,target,ownership,,,0,,,,,False\r\n"
+            "relation-2,source,target,ownership,,,,0,,,,,False\r\n"
         );
-        assert_eq!(actual, expected.as_bytes());
+        assert_eq!(String::from_utf8_lossy(&actual), expected);
     }
 
     #[tokio::test]
@@ -978,9 +978,9 @@ mod tests {
         let expected = concat!(
             "id,relationship_id,source_type,source_name,source_url,retrieved_at,excerpt\r\n",
             "evidence-1,edge-first,registry,Éditeur,https://example.test/evidence,2024-01-02T03:04:05,\"Line 1,\r\n\"\"quoted\"\" — café\"\r\n",
-            "evidence-1,edge-second,registry,,,last duplicate\r\n"
+            "evidence-1,edge-second,registry,,,,last duplicate\r\n"
         );
-        assert_eq!(actual, expected.as_bytes());
+        assert_eq!(String::from_utf8_lossy(&actual), expected);
     }
 
     #[tokio::test]

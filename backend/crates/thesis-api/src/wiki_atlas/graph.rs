@@ -1,5 +1,5 @@
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Write as _;
 
 use axum::extract::State;
@@ -15,13 +15,13 @@ use crate::models::HttpValidationError;
 use crate::{wiki, AppState};
 
 use super::{
-    AtlasCoverageMetricResponse, AtlasDirection, AtlasEdgeResponse, AtlasEntityType,
-    AtlasFactStatus, AtlasGraphFiltersInput, AtlasGraphQueryParameters, AtlasGraphResponse,
-    AtlasGraphStatsResponse, AtlasLifecycleState, AtlasNodeResponse, AtlasRelationType,
+    AtlasCoverageMetricResponse, AtlasEdgeResponse, AtlasEntityType, AtlasFactStatus,
+    AtlasGraphFiltersInput, AtlasGraphQueryParameters, AtlasGraphResponse, AtlasGraphStatsResponse,
+    AtlasLifecycleState, AtlasNodeResponse, AtlasRelationType,
 };
 
 #[path = "connections.rs"]
-mod connections;
+pub(crate) mod connections;
 #[path = "graph/ids.rs"]
 mod ids;
 #[path = "graph_projection.rs"]
@@ -738,6 +738,9 @@ pub(crate) async fn get_graph(State(state): State<AppState>, uri: Uri) -> Respon
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use super::super::AtlasDirection;
     use super::*;
 
     fn node(

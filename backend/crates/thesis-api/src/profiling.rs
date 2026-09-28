@@ -648,8 +648,8 @@ impl RuntimeProfiler {
         let (
             duration_seconds,
             endpoint_accumulators,
-            mut queries,
-            mut external_calls,
+            queries,
+            external_calls,
             query_stats,
             startup,
         ) = {

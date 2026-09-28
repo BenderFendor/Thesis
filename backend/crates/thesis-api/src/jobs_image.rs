@@ -173,6 +173,15 @@ impl ImageCache for DatabaseImageCache {
 /// Implementations own task creation and provider/database work. The router
 /// passes a clone of the shared state so workers can publish progress and
 /// terminal updates using the supplied generation.
+/// Why a refresh worker could not start a job.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RefreshWorkerError {
+    /// No worker is configured or it cannot accept jobs.
+    Unavailable,
+    /// The worker rejected the job with a detail message.
+    Failed(String),
+}
+
 pub trait RefreshJobWorker: Send + Sync {
     fn launch(
         &self,
@@ -624,7 +633,7 @@ struct JobEntry {
     next_event_sequence: u64,
     history_truncated: bool,
     next_subscriber_id: u64,
-    subscribers: BTreeMap<u64, Waker>,
+    subscribers: BTreeMap<u64, Option<Waker>>,
 }
 
 impl JobEntry {
@@ -654,7 +663,7 @@ impl JobEntry {
             self.events.pop_front();
             self.history_truncated = true;
         }
-        for waker in self.subscribers.values() {
+        for waker in self.subscribers.values().flatten() {
             waker.wake_by_ref();
         }
         Ok(())
@@ -713,6 +722,14 @@ impl JobsImageState {
     pub fn with_cache(mut self, image_cache: Arc<dyn ImageCache>) -> Self {
         self.image_cache = Some(image_cache);
         self
+    }
+
+    /// Use the database-backed cache unless a cache was already supplied.
+    pub(crate) fn with_database_cache_default(self, database: &thesis_db::Database) -> Self {
+        if self.image_cache.is_some() {
+            return self;
+        }
+        self.with_cache(Arc::new(DatabaseImageCache::new(database.clone())))
     }
     #[cfg(test)]
     fn with_test_keepalive(mut self, interval: Duration) -> Self {
@@ -1316,22 +1333,24 @@ pub(crate) async fn proxy_image(State(state): State<JobsImageState>, uri: Uri) -
         Ok(url) => url,
         Err(detail) => return bad_request(detail),
     };
-    let Some(cache) = state.image_cache() else {
-        return service_unavailable(IMAGE_CACHE_UNAVAILABLE_DETAIL);
-    };
-    match cache.get(validated.value.clone()).await {
-        Ok(Some(cached)) => {
-            let age = Utc::now()
-                .signed_duration_since(cached.stored_at)
-                .num_seconds()
-                .max(0) as u64;
-            if age < CACHE_MAX_AGE_SECONDS {
-                return image_response(cached.bytes, cached.content_type, "HIT", Some(age));
+    // Like FastAPI's disk cache, the cache only short-circuits fetches; a
+    // missing or failing cache falls through to the transport.
+    let cache = state.image_cache();
+    if let Some(cache) = &cache {
+        match cache.get(validated.value.clone()).await {
+            Ok(Some(cached)) => {
+                let age = Utc::now()
+                    .signed_duration_since(cached.stored_at)
+                    .num_seconds()
+                    .max(0) as u64;
+                if age < CACHE_MAX_AGE_SECONDS {
+                    return image_response(cached.bytes, cached.content_type, "HIT", Some(age));
+                }
             }
-        }
-        Ok(None) => {}
-        Err(error) => {
-            tracing::warn!(url = %validated.value, error = %error.0, "image cache read failed");
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(url = %validated.value, error = %error.0, "image cache read failed");
+            }
         }
     }
 
@@ -1356,18 +1375,15 @@ pub(crate) async fn proxy_image(State(state): State<JobsImageState>, uri: Uri) -
         Err(detail) => return bad_request(detail),
     };
     let bytes = payload.bytes;
-    if let Err(error) = cache
-        .put(
-            validated.value,
-            ImageCacheEntry {
-                bytes: bytes.clone(),
-                content_type: content_type.clone(),
-                stored_at: Utc::now(),
-            },
-        )
-        .await
-    {
-        tracing::warn!(error = %error.0, "image cache write failed");
+    if let Some(cache) = cache {
+        let entry = ImageCacheEntry {
+            bytes: bytes.clone(),
+            content_type: content_type.clone(),
+            stored_at: Utc::now(),
+        };
+        if let Err(error) = cache.put(validated.value, entry).await {
+            tracing::warn!(error = %error.0, "image cache write failed");
+        }
     }
     image_response(bytes, content_type, "MISS", None)
 }
@@ -1534,16 +1550,24 @@ fn live_job_stream(
         (Some(initial), subscription, false),
         move |(initial, mut subscription, finished)| async move {
             if let Some(initial) = initial {
-                return Some((Ok(initial), (None, subscription, false)));
+                return Some((Ok::<_, Infallible>(initial), (None, subscription, false)));
             }
             if finished {
                 return None;
             }
 
-            let next_event = Box::pin(subscription.next_event());
-            let keepalive = Box::pin(sleep(keepalive_interval));
-            match select(next_event, keepalive).await {
-                Either::Left((Ok(Some(event)), _)) => {
+            // Finish the race before matching so the pending `next_event`
+            // future, which borrows `subscription`, is dropped first.
+            let next = {
+                let next_event = Box::pin(subscription.next_event());
+                let keepalive = Box::pin(sleep(keepalive_interval));
+                match select(next_event, keepalive).await {
+                    Either::Left((result, _)) => Some(result),
+                    Either::Right(_) => None,
+                }
+            };
+            match next {
+                Some(Ok(Some(event))) => {
                     let is_terminal = event
                         .payload()
                         .get("type")
@@ -1556,8 +1580,8 @@ fn live_job_stream(
                         (None, subscription, is_terminal),
                     ))
                 }
-                Either::Left((Ok(None), _)) => None,
-                Either::Left((Err(JobStreamReadError::HistoryTruncated), _)) => {
+                Some(Ok(None)) => None,
+                Some(Err(JobStreamReadError::HistoryTruncated)) => {
                     let error = json!({
                         "type": "error",
                         "message": "Job progress event history exceeded its retention limit",
@@ -1568,8 +1592,7 @@ fn live_job_stream(
                         (None, subscription, true),
                     ))
                 }
-                Either::Right((_, pending_event)) => {
-                    drop(pending_event);
+                None => {
                     if subscription.is_terminal() {
                         None
                     } else {
@@ -2372,14 +2395,17 @@ mod tests {
             to_bytes(hit.into_body(), 1024).await.expect("cached body"),
             expected_bytes
         );
-        let requests = transport.requests.lock().expect("requests");
-        assert_eq!(requests.len(), 1);
-        let request = &requests[0];
-        assert_eq!(request.url, IMAGE_URL);
-        assert_eq!(request.timeout, Duration::from_secs(10));
-        assert_eq!(request.max_redirects, 3);
-        assert_eq!(request.max_bytes, MAX_IMAGE_SIZE);
-        assert!(request.user_agent.contains("ScoopNewsBot"));
+        {
+            // Release the guard before the next request reaches the transport.
+            let requests = transport.requests.lock().expect("requests");
+            assert_eq!(requests.len(), 1);
+            let request = &requests[0];
+            assert_eq!(request.url, IMAGE_URL);
+            assert_eq!(request.timeout, Duration::from_secs(10));
+            assert_eq!(request.max_redirects, 3);
+            assert_eq!(request.max_bytes, MAX_IMAGE_SIZE);
+            assert!(request.user_agent.contains("ScoopNewsBot"));
+        }
 
         let stats = json_body(call(&app, Method::GET, "/image/cache/stats").await).await;
         assert_eq!(stats["total_files"], 1);

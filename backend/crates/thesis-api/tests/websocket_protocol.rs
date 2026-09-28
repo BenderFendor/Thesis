@@ -139,8 +139,14 @@ async fn websocket_disconnects_binary_and_oversized_messages() {
         boundary_event
     );
 
-    let oversized = vec![b'x'; UVICORN_MAX_MESSAGE_SIZE + 1];
-    send_client_frame(&mut oversized_client, 0x1, &oversized).await;
+    // The server rejects an over-limit frame from its declared length and
+    // closes, so writing the full payload would race the close with a reset.
+    send_client_frame_header(
+        &mut oversized_client,
+        0x1,
+        (UVICORN_MAX_MESSAGE_SIZE + 1) as u64,
+    )
+    .await;
     let (opcode, payload) = timeout(
         Duration::from_secs(10),
         read_server_frame(&mut oversized_client),
@@ -322,12 +328,15 @@ Sec-WebSocket-Version: 13\r\n\
             break;
         }
     }
-    let lowercase_headers = headers.to_ascii_lowercase();
     assert!(headers.starts_with("HTTP/1.1 101"), "{headers}");
-    assert!(
-        lowercase_headers.contains(&format!("sec-websocket-accept: {RFC6455_ACCEPT}")),
-        "{headers}"
-    );
+    // Header names are case-insensitive; the base64 accept value is not.
+    let accept = headers.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.trim()
+            .eq_ignore_ascii_case("sec-websocket-accept")
+            .then(|| value.trim())
+    });
+    assert_eq!(accept, Some(RFC6455_ACCEPT), "{headers}");
     Ok(client)
 }
 
@@ -376,6 +385,30 @@ async fn send_client_frame(client: &mut BufReader<TcpStream>, opcode: u8, payloa
     send_client_frame_with_fin(client, true, opcode, payload).await;
 }
 
+/// Client frame header, including the mask key, for a payload of `length` bytes.
+fn masked_frame_header(fin: bool, opcode: u8, length: u64) -> Vec<u8> {
+    let mut header = vec![(if fin { 0x80 } else { 0 }) | (opcode & 0x0f)];
+    match length {
+        0..=125 => header.push(0x80 | length as u8),
+        126..=65_535 => {
+            header.push(0x80 | 126);
+            header.extend_from_slice(&(length as u16).to_be_bytes());
+        }
+        _ => {
+            header.push(0x80 | 127);
+            header.extend_from_slice(&length.to_be_bytes());
+        }
+    }
+    header.extend_from_slice(&MASK);
+    header
+}
+
+/// Send only a frame header that declares `length` payload bytes.
+async fn send_client_frame_header(client: &mut BufReader<TcpStream>, opcode: u8, length: u64) {
+    let header = masked_frame_header(true, opcode, length);
+    client.get_mut().write_all(&header).await.unwrap();
+}
+
 async fn send_client_frame_with_fin(
     client: &mut BufReader<TcpStream>,
     fin: bool,
@@ -384,19 +417,7 @@ async fn send_client_frame_with_fin(
 ) {
     const CHUNK_SIZE: usize = 8 * 1024;
 
-    let mut header = vec![(if fin { 0x80 } else { 0 }) | (opcode & 0x0f)];
-    match payload.len() {
-        0..=125 => header.push(0x80 | payload.len() as u8),
-        126..=65_535 => {
-            header.push(0x80 | 126);
-            header.extend_from_slice(&(payload.len() as u16).to_be_bytes());
-        }
-        _ => {
-            header.push(0x80 | 127);
-            header.extend_from_slice(&(payload.len() as u64).to_be_bytes());
-        }
-    }
-    header.extend_from_slice(&MASK);
+    let header = masked_frame_header(fin, opcode, payload.len() as u64);
     client.get_mut().write_all(&header).await.unwrap();
 
     let mut masked = [0; CHUNK_SIZE];

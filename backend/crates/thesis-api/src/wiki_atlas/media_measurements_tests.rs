@@ -246,7 +246,8 @@ fn byline_hash_preserves_input_author_order_duplicates_and_numeric_keys() {
             {"reporter_a": "Alice", "reporter_b": "Zoe", "article_count": 1},
         ])
     );
-    assert_eq!(byline.id, "calc_09e77ad519ec79a1bcf135ce0aa6c872");
+    // Computed with app.services.evidence_spine.stable_hash on the same payload.
+    assert_eq!(byline.id, "calc_49d68713d940be8c94e44b1c793e3148");
 }
 #[test]
 fn reporter_movement_preserves_input_author_row_order() {

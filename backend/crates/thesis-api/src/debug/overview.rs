@@ -7,7 +7,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use chrono::{SecondsFormat, Utc};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use utoipa::ToSchema;
 
 use crate::profiling::{ProfilingError, ProfilingState, StartupEvent, StartupStats};

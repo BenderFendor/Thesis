@@ -1622,6 +1622,7 @@ mod tests {
             "Parse Fixture",
             "error",
             1,
+            None,
         ))));
         let partial_app = source_router(source_state(Some(partial_provider), Some(store), None));
         let partial = request(

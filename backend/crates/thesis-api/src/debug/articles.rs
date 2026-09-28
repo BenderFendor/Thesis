@@ -401,7 +401,7 @@ pub(crate) async fn list_database_articles(
             chroma_id: article.chroma_id,
             content: article.content,
             image_url: article.image_url,
-            published_at: article.published_at.map(format_naive_datetime),
+            published_at: Some(format_naive_datetime(article.published_at)),
             summary: article.summary,
             embedding_generated: article.embedding_generated,
         })

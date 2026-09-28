@@ -3,6 +3,7 @@ use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Utc;
+use utoipa::IntoParams;
 
 use crate::models::HttpValidationError;
 use crate::{wiki, AppState};
@@ -110,27 +111,23 @@ fn search_nodes(nodes: Vec<AtlasNodeResponse>, query: &str, limit: i64) -> Atlas
     response
 }
 
+/// OpenAPI query parameters for Atlas entity search.
+#[derive(IntoParams)]
+#[into_params(parameter_in = Query)]
+struct AtlasSearchParameters {
+    /// Entity search query
+    #[param(min_length = 1, max_length = 200)]
+    q: String,
+    /// Maximum number of results per entity type
+    #[param(required = false, default = 8, minimum = 1, maximum = 20)]
+    limit: Option<i64>,
+}
+
 #[utoipa::path(
     get,
     path = "/api/wiki/atlas/search",
     operation_id = "search_atlas_entities_api_wiki_atlas_search_get",
-    params(
-        (
-            "q" = String,
-            Query,
-            description = "Entity search query",
-            min_length = 1,
-            max_length = 200
-        ),
-        (
-            "limit" = Option<i64>,
-            Query,
-            description = "Maximum number of results per entity type",
-            minimum = 1,
-            maximum = 20,
-            default = 8
-        )
-    ),
+    params(AtlasSearchParameters),
     responses(
         (status = 200, description = "Successful Response", body = AtlasSearchResponse),
         (status = 422, description = "Validation Error", body = HttpValidationError)

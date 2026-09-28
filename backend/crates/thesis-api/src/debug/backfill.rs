@@ -103,7 +103,7 @@ pub(crate) async fn backfill_article_images(
                         .iter()
                         .map(|article| MissingImageArticle {
                             id: article.id,
-                            url: article.url.clone(),
+                            url: Some(article.url.clone()),
                         })
                         .collect(),
                 )

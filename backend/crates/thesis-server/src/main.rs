@@ -26,8 +26,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .replace("postgresql+asyncpg://", "postgresql://");
     let bind_address = env::var("THESIS_RUST_BIND").unwrap_or_else(|_| "127.0.0.1:8120".to_owned());
     let database = Database::connect(&database_url).await?;
+    // One connection pool shared by every outbound provider.
+    let http_client = reqwest::Client::new();
     let mut sidecars = RouterSidecars::default();
-    if let Some(provider) = queue_digest_provider::QueueDigestHttpProvider::from_env() {
+    if let Some(provider) = queue_digest_provider::QueueDigestHttpProvider::from_env(http_client) {
         sidecars = sidecars.with_queue_digest(QueueDigestState::with_provider(provider));
     }
     let listener = TcpListener::bind(&bind_address).await?;

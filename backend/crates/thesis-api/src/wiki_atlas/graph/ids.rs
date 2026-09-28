@@ -308,7 +308,7 @@ const CASEFOLD_EXCEPTIONS: &[(char, &str)] = &[
     ('\u{fb17}', "\u{0574}\u{056d}"),
 ];
 
-pub(super) fn casefold(value: &str) -> String {
+pub(in crate::wiki_atlas) fn casefold(value: &str) -> String {
     let mut folded = String::with_capacity(value.len());
     for character in value.chars() {
         let mapping = CASEFOLD_EXCEPTIONS
@@ -324,7 +324,7 @@ pub(super) fn casefold(value: &str) -> String {
     folded
 }
 
-pub(super) fn normalize_entity_label(value: &str) -> String {
+pub(in crate::wiki_atlas) fn normalize_entity_label(value: &str) -> String {
     let folded = casefold(value.trim());
     LABEL_SEPARATORS
         .replace_all(&folded, " ")
@@ -417,7 +417,7 @@ pub(super) fn hex_prefix(bytes: &[u8], byte_count: usize) -> String {
     value
 }
 
-pub(super) fn stable_source_id(source_name: &str) -> String {
+pub(in crate::wiki_atlas) fn stable_source_id(source_name: &str) -> String {
     let normalized = normalize_entity_label(source_name);
     format!(
         "outlet:{}",
@@ -425,7 +425,7 @@ pub(super) fn stable_source_id(source_name: &str) -> String {
     )
 }
 
-pub(super) fn edge_id(
+pub(in crate::wiki_atlas) fn edge_id(
     source_id: &str,
     target_id: &str,
     relation: &str,
@@ -435,7 +435,7 @@ pub(super) fn edge_id(
     format!("edge:{}", hex_prefix(&sha1_digest(raw.as_bytes()), 8))
 }
 
-pub(super) fn confidence_tier(value: Option<f64>) -> AtlasConfidenceTier {
+pub(in crate::wiki_atlas) fn confidence_tier(value: Option<f64>) -> AtlasConfidenceTier {
     match value {
         Some(score) if score >= 0.9 => AtlasConfidenceTier::Verified,
         Some(score) if score >= 0.75 => AtlasConfidenceTier::Strong,

@@ -1,16 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-mod media_measurements;
+pub(crate) mod media_measurements;
 pub(crate) use media_measurements::get_media_measurements;
-mod graph;
+pub(crate) mod graph;
 pub(crate) use graph::{get_connections, get_graph};
-mod search;
+pub(crate) mod search;
 pub(crate) use search::get_atlas_search;
-mod index;
+pub(crate) mod index;
 pub(crate) use index::get_atlas_index;
-mod export;
+pub(crate) mod export;
 pub(crate) use export::export_atlas;
-mod stats;
+pub(crate) mod stats;
 pub(crate) use stats::get_atlas_stats;
 
 use axum::extract::State;

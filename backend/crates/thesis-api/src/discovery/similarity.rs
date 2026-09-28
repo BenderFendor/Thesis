@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use axum::body::Bytes;
+use axum::extract::{Path, RawQuery, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -13,7 +15,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::models::{HttpValidationError, ValidationError, ValidationLocation};
 
 use super::{
-    ensure_positive_id, missing_query, not_found_response, parse_integer_path_id,
+    ensure_positive_id, invalid_query, missing_query, not_found_response, parse_integer_path_id,
     parse_integer_query, provider_error_response, scalar_query, unavailable_response,
     validate_finite, DiscoveryError, DiscoveryState, FreeFormObjectResponseSchema,
     VECTOR_STORE_UNAVAILABLE_DETAIL,
@@ -366,6 +368,7 @@ async fn compute_novelty_score(
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok());
     let history = match parse_article_id_array(&body, content_type) {
+        Ok(history) => history,
         Err(error) => return error.into_response(),
     };
     let Some(provider) = state.provider else {

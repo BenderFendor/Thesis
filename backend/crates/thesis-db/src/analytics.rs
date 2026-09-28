@@ -586,7 +586,7 @@ impl crate::Database {
 mod tests {
     use super::*;
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn gdelt_queries_limit_top_groups_before_dropping_unmatched(pool: PgPool) {
         sqlx::query(
             "CREATE TABLE gdelt_events (\
@@ -660,7 +660,7 @@ mod tests {
         assert_eq!(all.len(), 14);
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn snapshot_article_loader_uses_persisted_snapshot_and_source_metadata(pool: PgPool) {
         sqlx::query(
             "CREATE TABLE topic_cluster_snapshots (\
@@ -730,7 +730,7 @@ mod tests {
         );
         assert_eq!(articles[0].authors, ["A Reporter"]);
     }
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn bounded_blindspot_article_ids_filter_content_and_apply_database_limit(pool: PgPool) {
         sqlx::query(
             "CREATE TABLE articles (\

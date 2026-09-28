@@ -27,32 +27,19 @@ use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
 use crate::models::{HttpValidationError, ValidationError, ValidationLocation};
-mod articles;
-mod backfill;
-mod log_views;
-mod overview;
-mod parser;
+pub(crate) mod articles;
+pub(crate) mod backfill;
+pub(crate) mod log_views;
+pub(crate) mod overview;
+pub(crate) mod parser;
 mod providers;
 
 use crate::cache_stream::CacheStreamState;
-use crate::jobs_image::JobsImageState;
 use crate::profiling::ProfilingState;
-use crate::source_catalog::SourceCatalogState;
 use thesis_db::Database;
 
-pub(crate) use articles::{
-    get_cache_db_delta, get_storage_drift, list_chromadb_articles, list_database_articles,
-};
-pub(crate) use backfill::{backfill_article_images, backfill_article_mentions};
-pub(crate) use log_views::{
-    get_debug_errors, get_debug_report, get_llm_logs, get_log_level, get_performance_summary,
-    get_slow_operations, get_streams, set_log_level,
-};
-pub(crate) use overview::{
-    get_pipeline_metrics, get_startup_metrics, get_stream_status, get_system_status,
-    get_updates_subscribers, list_active_jobs, StartupEventResponse, StartupMetricsResponse,
-};
-pub(crate) use parser::{get_source_debug_data, test_article_parser, test_rss_parser};
+pub(crate) use articles::list_database_articles;
+pub(crate) use overview::{get_startup_metrics, StartupEventResponse, StartupMetricsResponse};
 pub use providers::{
     ArticleImageParseResult, CountryAliases, DebugConfig, DebugFuture, DebugImageBackfillProvider,
     DebugLogLevelProvider, DebugLoggerSnapshot, DebugParsingProvider, DebugProviderError,
@@ -65,8 +52,6 @@ pub use providers::{
 pub struct DebugState {
     pub(crate) database: Database,
     pub(crate) cache_stream: CacheStreamState,
-    pub(crate) jobs_image: JobsImageState,
-    pub(crate) source_catalog: SourceCatalogState,
     pub(crate) profiling: ProfilingState,
     pub(crate) config: DebugConfig,
     pub(crate) providers: DebugProviders,
@@ -86,8 +71,6 @@ impl DebugState {
     pub fn build(
         database: Database,
         cache_stream: CacheStreamState,
-        jobs_image: JobsImageState,
-        source_catalog: SourceCatalogState,
         profiling: ProfilingState,
         config: DebugConfig,
         providers: DebugProviders,
@@ -114,8 +97,6 @@ impl DebugState {
         Self {
             database,
             cache_stream,
-            jobs_image,
-            source_catalog,
             profiling,
             config,
             providers,
@@ -138,8 +119,6 @@ impl DebugState {
         Self::build(
             database,
             CacheStreamState::new(),
-            JobsImageState::default(),
-            SourceCatalogState::default(),
             ProfilingState::default(),
             DebugConfig::for_test(log_directory),
             providers,
@@ -1438,7 +1417,7 @@ mod tests {
         let app = router(DebugState::with_log_directory_and_providers(
             directory.path(),
             DebugProviders {
-                runtime: Some(Arc::new(TestRuntimeProvider)),
+                runtime: Some(Arc::new(TestRuntimeProvider { events: Vec::new() })),
                 ..DebugProviders::default()
             },
         ));
@@ -1629,7 +1608,7 @@ mod tests {
             ("GET", "/debug/jobs"),
             ("GET", "/debug/updates/subscribers"),
             (
-                "GET",
+                "POST",
                 "/debug/parser/test/rss?url=https%3A%2F%2Fexample.com%2Frss",
             ),
             (

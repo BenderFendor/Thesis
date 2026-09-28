@@ -8,6 +8,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{SecondsFormat, Utc};
 use serde_json::{json, Value};
+use utoipa::IntoParams;
 
 use super::{DebugProviderError, DebugState, ParsedFeed};
 
@@ -23,15 +24,22 @@ pub(super) fn router(state: DebugState) -> Router {
         .with_state(state)
 }
 
+/// OpenAPI query parameters for the RSS parser test route.
+#[derive(IntoParams)]
+#[into_params(parameter_in = Query)]
+struct RssParserTestParameters {
+    /// RSS feed URL to test
+    url: String,
+    #[param(required = false, default = 5, minimum = 1, maximum = 20)]
+    max_entries: i64,
+}
+
 #[utoipa::path(
     post,
     path = "/debug/parser/test/rss",
     operation_id = "test_rss_parser_debug_parser_test_rss_post",
     tag = "debug",
-    params(
-        ("url" = String, Query, description = "RSS feed URL to test"),
-        ("max_entries" = i64, Query, minimum = 1, maximum = 20, default = 5)
-    ),
+    params(RssParserTestParameters),
     responses(
         (status = 200, description = "RSS parser result", body = inline(super::FreeFormObjectSchema)),
         (status = 422, description = "Validation Error", body = super::HttpValidationError),

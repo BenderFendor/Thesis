@@ -9,10 +9,11 @@ use super::super::super::{
     AtlasConfidenceTier, AtlasEdgeResponse, AtlasEntityType, AtlasEvidenceRefResponse,
     AtlasGraphFiltersInput, AtlasNodeResponse, AtlasRelationType,
 };
+use super::super::GraphData;
 use super::super::{casefold, confidence_tier, edge_id, normalize_entity_label, stable_source_id};
 use super::shared::{
-    canonical_entity_id, edge_base, entities, live_entities, outlet_node_ids, survivor_map, Entity,
-    LEGACY_ORGANIZATION_KINDS, LEGACY_PUBLICATION_KINDS,
+    canonical_entity_id, edge_base, entities, json_truthy, live_entities, outlet_node_ids,
+    survivor_map, Entity, LEGACY_ORGANIZATION_KINDS, LEGACY_PUBLICATION_KINDS,
 };
 
 static RSS_CATALOG: LazyLock<Value> = LazyLock::new(|| {

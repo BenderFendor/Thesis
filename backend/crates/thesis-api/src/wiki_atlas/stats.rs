@@ -111,7 +111,7 @@ fn status_summary(
     rows: &[WikiIndexStatusRecord],
 ) -> (BTreeMap<String, i64>, Option<NaiveDateTime>, bool) {
     let mut counts = HashMap::<&str, i64>::new();
-    let mut last_indexed_at = None;
+    let mut last_indexed_at: Option<NaiveDateTime> = None;
     let mut indexing_active = false;
 
     for row in rows {
@@ -179,17 +179,19 @@ fn stats_response(
     }
 }
 
-async fn build_stats_response(state: &AppState) -> Result<AtlasStatsResponse, sqlx::Error> {
+async fn build_stats_response(state: &AppState) -> Option<AtlasStatsResponse> {
     let generated_at = Utc::now();
     let as_of = generated_at.naive_utc();
     let projection = state
         .database
         .load_atlas_projection_data(as_of, as_of, None)
-        .await?;
+        .await
+        .inspect_err(|error| tracing::warn!(%error, "atlas stats projection failed"))
+        .ok()?;
     let filters = stats_filters();
     let graph_data = super::graph::project(&projection, &filters, as_of, as_of);
     let graph = super::graph::build_response(graph_data, filters, generated_at);
-    Ok(stats_response(graph, &projection.wiki_index_statuses))
+    Some(stats_response(graph, &projection.wiki_index_statuses))
 }
 
 #[utoipa::path(
@@ -221,9 +223,8 @@ pub(crate) async fn get_atlas_stats(State(state): State<AppState>) -> Response {
         return Json(cached.response.clone()).into_response();
     }
 
-    let response = match build_stats_response(&state).await {
-        Ok(response) => response,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    let Some(response) = build_stats_response(&state).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     *cache = Some(CachedStats {
         response: response.clone(),

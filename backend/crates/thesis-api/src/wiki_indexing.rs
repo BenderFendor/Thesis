@@ -270,17 +270,9 @@ impl ReporterEnrichmentState {
 struct ReporterIndexParameters {
     #[param(required = false, default = 500, minimum = 1, maximum = 2000)]
     limit: i64,
-    #[param(
-        required = false,
-        default = "all",
-        description = "all, unresolved, or sparql"
-    )]
+    /// all, unresolved, or sparql
+    #[param(required = false, default = "all")]
     mode: WikiReporterIndexMode,
-}
-
-/// Build the production POST routes with the supplied synchronous index provider.
-pub fn router_with_indexing(provider: Option<Arc<dyn WikiIndexer>>) -> Router<()> {
-    WikiIndexingState::new(provider).routes()
 }
 
 #[utoipa::path(
@@ -601,8 +593,8 @@ fn python_truthy_string(value: &Value) -> Option<String> {
             Some(value.to_string())
         }
         Value::Bool(true) => Some("True".to_owned()),
-        Value::Array(value) if !value.is_empty() => Some(value.to_string()),
-        Value::Object(value) if !value.is_empty() => Some(value.to_string()),
+        Value::Array(items) if !items.is_empty() => Some(value.to_string()),
+        Value::Object(fields) if !fields.is_empty() => Some(value.to_string()),
         _ => None,
     }
 }
@@ -851,7 +843,7 @@ mod tests {
     #[tokio::test]
     async fn source_index_route_uses_catalog_config_and_requires_provider_success() {
         let indexer = Arc::new(DeterministicIndexer::default());
-        let app = super::router_with_indexing(Some(indexer.clone()));
+        let app = super::WikiIndexingState::new(Some(indexer.clone())).routes();
         let response = app
             .oneshot(
                 Request::post("/api/wiki/index/BBC%20News")
@@ -876,10 +868,11 @@ mod tests {
         assert_eq!(config.site_url.as_deref(), Some("https://www.bbc.com"));
         assert_eq!(config.factual_reporting, "high");
 
-        let failed = super::router_with_indexing(Some(Arc::new(DeterministicIndexer {
+        let failed = super::WikiIndexingState::new(Some(Arc::new(DeterministicIndexer {
             fail_source: true,
             ..DeterministicIndexer::default()
         })))
+        .routes()
         .oneshot(
             Request::post("/api/wiki/index/Unknown%20Outlet")
                 .body(Body::empty())
@@ -897,7 +890,7 @@ mod tests {
     #[tokio::test]
     async fn reporter_index_route_preserves_mode_limit_results_and_errors() {
         let indexer = Arc::new(DeterministicIndexer::default());
-        let app = super::router_with_indexing(Some(indexer.clone()));
+        let app = super::WikiIndexingState::new(Some(indexer.clone())).routes();
         let response = app
             .clone()
             .oneshot(
@@ -952,7 +945,8 @@ mod tests {
             fail_reporters: true,
             ..DeterministicIndexer::default()
         });
-        let failed = super::router_with_indexing(Some(failed_provider))
+        let failed = super::WikiIndexingState::new(Some(failed_provider))
+            .routes()
             .oneshot(
                 Request::post("/api/wiki/index/reporters?mode=all")
                     .body(Body::empty())
@@ -962,7 +956,8 @@ mod tests {
             .unwrap();
         assert_eq!(failed.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-        let unavailable = super::router_with_indexing(None)
+        let unavailable = super::WikiIndexingState::new(None)
+            .routes()
             .oneshot(
                 Request::post("/api/wiki/index/reporters")
                     .body(Body::empty())

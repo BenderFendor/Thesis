@@ -176,6 +176,46 @@ fn compare_relationship(
 ) -> Option<(Value, String)> {
     let left = &claim.qualifiers.0;
     let right = &candidate.qualifiers.0;
+    // Only "apparently conflicting" comparisons block materialization; share-class,
+    // dimension, temporal, and transaction-status differences are separate claims
+    // (`_NON_CONFLICTING_CLASSIFICATIONS` in app/services/evidence_spine.py).
+    let left_class = left.get("security_class");
+    let right_class = right.get("security_class");
+    if json_truthy(left_class) && json_truthy(right_class) && left_class != right_class {
+        return None;
+    }
+    for key in ["interest", "direct", "jurisdiction", "legal_entity_scope"] {
+        let left_value = left.get(key);
+        let right_value = right.get(key);
+        if left_value.is_some_and(|value| !value.is_null())
+            && right_value.is_some_and(|value| !value.is_null())
+            && left_value != right_value
+        {
+            return None;
+        }
+    }
+    if !temporal_overlap(
+        claim.valid_from,
+        claim.valid_to,
+        candidate.valid_from,
+        candidate.valid_to,
+    ) {
+        return None;
+    }
+    let left_status = left.get("txn_status");
+    let right_status = right.get("txn_status");
+    let allowed_status = |value: Option<&Value>| {
+        value.is_none_or(|value| {
+            value.is_null()
+                || matches!(
+                    value.as_str(),
+                    Some("announced" | "completed" | "abandoned" | "blocked")
+                )
+        })
+    };
+    if left_status != right_status && allowed_status(left_status) && allowed_status(right_status) {
+        return None;
+    }
     let normalized = json!({
         "left": dimension_view(
             &claim.predicate,
@@ -190,55 +230,6 @@ fn compare_relationship(
             right,
         ),
     });
-    let mismatch = |classification: &str, reason: &str| {
-        (classification != "compatible").then(|| (normalized.clone(), reason.to_owned()))
-    };
-    let left_class = left.get("security_class");
-    let right_class = right.get("security_class");
-    if json_truthy(left_class) && json_truthy(right_class) && left_class != right_class {
-        return mismatch(
-            "different_share_class",
-            "claims concern different security classes",
-        );
-    }
-    for key in ["interest", "direct", "jurisdiction", "legal_entity_scope"] {
-        let left_value = left.get(key);
-        let right_value = right.get(key);
-        if left_value.is_some_and(|value| !value.is_null())
-            && right_value.is_some_and(|value| !value.is_null())
-            && left_value != right_value
-        {
-            return mismatch(
-                "different_relation",
-                &format!("claims differ on normalized dimension {key}"),
-            );
-        }
-    }
-    if !temporal_overlap(
-        claim.valid_from,
-        claim.valid_to,
-        candidate.valid_from,
-        candidate.valid_to,
-    ) {
-        return mismatch("temporal_successor", "valid-time intervals do not overlap");
-    }
-    let left_status = left.get("txn_status");
-    let right_status = right.get("txn_status");
-    let allowed_status = |value: Option<&Value>| {
-        value.is_none_or(|value| {
-            value.is_null()
-                || matches!(
-                    value.as_str(),
-                    Some("announced" | "completed" | "abandoned" | "blocked")
-                )
-        })
-    };
-    if left_status != right_status && allowed_status(left_status) && allowed_status(right_status) {
-        return mismatch(
-            "different_relation",
-            "transaction-status statements are preserved as separate dated claims",
-        );
-    }
     if claim.object_entity_id.as_deref() != Some(candidate.object_entity_id.as_str()) {
         return Some((
             normalized,
@@ -797,13 +788,11 @@ mod tests {
     fn candidate(qualifiers: serde_json::Value, object: &str) -> RelationshipCandidate {
         RelationshipCandidate {
             id: "relationship".to_owned(),
-            subject_entity_id: "subject".to_owned(),
             predicate: "directly_owns".to_owned(),
             object_entity_id: object.to_owned(),
             qualifiers: Json(qualifiers),
             valid_from: None,
             valid_to: None,
-            retracted_at: None,
         }
     }
 

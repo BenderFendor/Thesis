@@ -290,9 +290,9 @@ async fn handle_connection(socket: WebSocket, hub: WebSocketHub) {
     #[cfg(not(test))]
     let sink = Arc::new(Mutex::new(sink));
     let (_connection, mut cancellation) = hub.register(Arc::clone(&sink));
-    let mut ping_interval = tokio::time::sleep(KEEPALIVE_INTERVAL);
+    let ping_interval = tokio::time::sleep(KEEPALIVE_INTERVAL);
     tokio::pin!(ping_interval);
-    let mut pong_timeout = tokio::time::sleep(KEEPALIVE_TIMEOUT);
+    let pong_timeout = tokio::time::sleep(KEEPALIVE_TIMEOUT);
     tokio::pin!(pong_timeout);
     let mut ping_payload = None;
     let mut ping_sequence = 0_u64;

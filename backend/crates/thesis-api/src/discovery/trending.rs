@@ -329,6 +329,7 @@ struct TrendingQuery {
     limit: i64,
 }
 
+#[derive(Debug, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct BreakingQuery {
     #[param(required = false, default = 5, minimum = 1, maximum = 20)]

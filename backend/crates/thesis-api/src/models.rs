@@ -104,6 +104,13 @@ pub struct HttpValidationError {
     pub detail: Vec<ValidationError>,
 }
 
+impl IntoResponse for HttpValidationError {
+    /// FastAPI request-validation failures are 422 with a `detail` array.
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(self)).into_response()
+    }
+}
+
 impl HttpValidationError {
     pub(crate) fn field(input: Value, field: &str, error_type: &str, message: &str) -> Self {
         Self {

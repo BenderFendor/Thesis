@@ -1,10 +1,9 @@
 use std::env;
-use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use axum::body::Body;
-use axum::http::header::{self, HeaderValue};
+use axum::http::header::HeaderValue;
 use axum::http::Request;
 use axum::middleware::{self, Next};
 use axum::response::Response;
@@ -119,7 +118,7 @@ async fn request_context(mut request: Request<Body>, next: Next) -> Response {
     }
     let server_timing = format!("app;dur={duration_ms:.1}");
     if let Ok(value) = HeaderValue::from_str(&server_timing) {
-        response.headers_mut().insert(header::SERVER_TIMING, value);
+        response.headers_mut().insert("server-timing", value);
     }
     response
 }
@@ -241,7 +240,7 @@ mod tests {
             .to_str()
             .unwrap()
             .ends_with("ms"));
-        assert!(response.headers()[header::SERVER_TIMING]
+        assert!(response.headers()["server-timing"]
             .to_str()
             .unwrap()
             .starts_with("app;dur="));
@@ -255,6 +254,7 @@ mod tests {
                 .route("/small", get(|| async { "x".repeat(999) })),
         );
         let response = app
+            .clone()
             .oneshot(
                 Request::get("/large")
                     .header(header::ACCEPT_ENCODING, "gzip")

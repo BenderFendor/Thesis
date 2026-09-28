@@ -18,7 +18,6 @@ use crate::AppState;
 
 #[path = "wiki_indexing.rs"]
 mod indexing;
-pub(crate) use indexing::{trigger_reporter_index, trigger_source_index};
 pub use indexing::{
     ReporterEnrichment, ReporterEnrichmentError, ReporterEnrichmentProvider,
     ReporterEnrichmentRequest, WikiIndexError, WikiIndexFuture, WikiIndexer, WikiIndexingState,
@@ -649,7 +648,7 @@ fn reporter_enrichment_request(
                     "id": article.id,
                     "title": article.title,
                     "source": article.source,
-                    "published_at": article.published_at.map(format_naive_datetime),
+                    "published_at": Some(format_naive_datetime(article.published_at)),
                     "url": article.url,
                     "category": article.category,
                 })
@@ -678,7 +677,7 @@ fn reporter_dossier_response(
                 "id": article.id,
                 "title": article.title,
                 "source": article.source,
-                "published_at": article.published_at.map(format_naive_datetime),
+                "published_at": Some(format_naive_datetime(article.published_at)),
                 "url": article.url,
                 "category": article.category,
             })
@@ -1506,10 +1505,6 @@ pub(crate) async fn get_source_wiki(
     })
     .into_response()
 }
-pub(crate) fn router() -> Router<AppState> {
-    router_with_indexing(WikiState::default())
-}
-
 pub(crate) fn router_with_indexing(wiki_state: WikiState) -> Router<AppState> {
     let index_routes = wiki_state.indexing.routes().with_state::<AppState>(());
     Router::new()
@@ -1816,7 +1811,7 @@ pub(crate) async fn get_reporter_articles(
                         "id": article.id,
                         "title": article.title,
                         "source": article.source,
-                        "published_at": article.published_at.map(format_naive_datetime),
+                        "published_at": Some(format_naive_datetime(article.published_at)),
                         "url": article.url,
                         "category": article.category,
                         "image_url": article.image_url,
@@ -2084,13 +2079,11 @@ mod tests {
                 id: 7,
                 title: "A report".to_owned(),
                 source: "BBC News".to_owned(),
-                published_at: Some(
-                    chrono::NaiveDateTime::parse_from_str(
-                        "2024-01-02 03:04:05",
-                        "%Y-%m-%d %H:%M:%S",
-                    )
-                    .unwrap(),
-                ),
+                published_at: chrono::NaiveDateTime::parse_from_str(
+                    "2024-01-02 03:04:05",
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap(),
                 url: "https://example.com/report".to_owned(),
                 category: Some("politics".to_owned()),
                 image_url: Some("https://example.com/image.jpg".to_owned()),

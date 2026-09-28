@@ -8,7 +8,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use reqwest::{Method, StatusCode, Url};
+use reqwest::{StatusCode, Url};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -1438,10 +1438,10 @@ mod tests {
             "OK",
             &collection_response(),
         )]);
-        let config = config(&base_url)
+        let bounded_config = config(&base_url)
             .with_max_response_bytes(8)
             .expect("positive response bound");
-        let client = ChromaClient::new(reqwest::Client::new(), config);
+        let client = ChromaClient::new(reqwest::Client::new(), bounded_config);
         assert!(matches!(
             client.get_collection().await,
             Err(ChromaError::BodyTooLarge { limit: 8, .. })
